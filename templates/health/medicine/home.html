@@ -123,7 +123,13 @@
                 <form method="post" action="{% url 'health:medicine_take' pk=item.medicine.pk schedule_pk=item.schedule.pk %}" class="inline-form">
                     {% csrf_token %}
                     <input type="hidden" name="next" value="{% url 'health:medicine_home' %}">
-                    <button type="submit" class="btn btn-primary btn-sm">Take</button>
+                    <button type="submit" class="btn btn-primary btn-sm">Take Now</button>
+                </form>
+                <form method="post" action="{% url 'health:medicine_take' pk=item.medicine.pk schedule_pk=item.schedule.pk %}" class="inline-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{% url 'health:medicine_home' %}">
+                    <input type="hidden" name="taken_at_scheduled" value="1">
+                    <button type="submit" class="btn btn-outline btn-sm">Taken at {{ item.schedule.scheduled_time|time:"g:i A" }}</button>
                 </form>
                 <form method="post" action="{% url 'health:medicine_skip' pk=item.medicine.pk schedule_pk=item.schedule.pk %}" class="inline-form">
                     {% csrf_token %}
@@ -416,6 +422,14 @@
 
     .dose-actions {
         margin-top: var(--space-2);
+        flex-wrap: wrap;
+        gap: var(--space-2);
+    }
+
+    .dose-actions .btn {
+        flex: 1 1 auto;
+        min-width: 80px;
+        text-align: center;
     }
 
     .stats-bar {

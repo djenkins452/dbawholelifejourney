@@ -738,6 +738,29 @@ class MedicineDailyTrackerTest(MedicineTestMixin, TestCase):
         self.assertIsNotNone(log)
         self.assertIn(log.log_status, [MedicineLog.STATUS_TAKEN, MedicineLog.STATUS_LATE])
 
+    def test_take_dose_at_scheduled_time(self):
+        """Dose can be marked as taken at the scheduled time."""
+        response = self.client.post(
+            reverse('health:medicine_take', kwargs={
+                'pk': self.medicine.pk,
+                'schedule_pk': self.schedule.pk
+            }),
+            {'taken_at_scheduled': '1'}
+        )
+
+        self.assertEqual(response.status_code, 302)
+        log = MedicineLog.objects.filter(
+            medicine=self.medicine,
+            schedule=self.schedule,
+            scheduled_date=timezone.now().date(),
+        ).first()
+        self.assertIsNotNone(log)
+        # When taken at scheduled time, it should always be "taken" not "late"
+        self.assertEqual(log.log_status, MedicineLog.STATUS_TAKEN)
+        # Verify the taken_at time matches the scheduled time
+        self.assertEqual(log.taken_at.time().hour, self.schedule.scheduled_time.hour)
+        self.assertEqual(log.taken_at.time().minute, self.schedule.scheduled_time.minute)
+
     def test_skip_dose(self):
         """Dose can be marked as skipped."""
         response = self.client.post(

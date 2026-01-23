@@ -2826,8 +2826,19 @@ class MedicineTakeView(LoginRequiredMixin, View):
             }
         )
 
-        # Mark as taken
-        log.mark_taken()
+        # Determine taken_at time
+        taken_at = None
+        if request.POST.get("taken_at_scheduled"):
+            # User clicked "Taken at [scheduled time]" - use the scheduled time
+            from datetime import datetime
+            import pytz
+
+            user_tz = pytz.timezone(request.user.preferences.timezone_iana)
+            scheduled_dt = datetime.combine(today, schedule.scheduled_time)
+            taken_at = user_tz.localize(scheduled_dt)
+
+        # Mark as taken (with scheduled time or current time)
+        log.mark_taken(taken_at=taken_at)
 
         # Decrease supply if tracked
         if medicine.current_supply is not None and medicine.current_supply > 0:

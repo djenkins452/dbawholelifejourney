@@ -16,6 +16,25 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-23 Changes
 
+### Fix .env Protection False Positive in Production
+
+Fixed security scanner `.env` file protection test (SEC-T003) failing in production deployments.
+
+**Problem:**
+- Scanner test SEC-T003 checks if `.env` is in `.gitignore`
+- In production (Railway), `.gitignore` doesn't exist because it's a deployment artifact, not a git repo
+- This caused a false positive HIGH severity finding on every production scan
+
+**Fix:**
+- Added check for `.git` directory to detect if running in a git repository
+- Test now passes automatically if not in a git repo (production deployment)
+- Still validates `.gitignore` protection when running in actual git repos (development)
+
+**Files Changed:**
+- `apps/security/scanner.py` - Added `is_git_repo` check to SEC-T003
+
+---
+
 ### Security Scanner DEBUG Mode Handling & Prompt Builder Fix
 
 Fixed security scanner to properly handle DEBUG mode for production-only settings, and updated the remediation prompt builder to only include actionable findings.

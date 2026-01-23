@@ -507,7 +507,17 @@ class SecurityScanner:
         start = time.time()
         test_id = "SEC-T003"
 
-        evidence = {'gitignore_exists': False, 'env_in_gitignore': False, 'env_example_exists': False}
+        evidence = {
+            'gitignore_exists': False,
+            'env_in_gitignore': False,
+            'env_example_exists': False,
+            'is_git_repo': False,
+        }
+
+        # Check if this is a git repository (has .git directory)
+        # In production deployments (Railway), .gitignore may not exist
+        git_dir = self.base_path / '.git'
+        evidence['is_git_repo'] = git_dir.exists()
 
         gitignore = self.base_path / '.gitignore'
         if gitignore.exists():
@@ -517,7 +527,10 @@ class SecurityScanner:
 
         evidence['env_example_exists'] = (self.base_path / '.env.example').exists()
 
-        result = 'pass' if evidence['env_in_gitignore'] else 'fail'
+        # Pass if:
+        # 1. .env is in .gitignore, OR
+        # 2. This is not a git repo (production deployment - .gitignore doesn't apply)
+        result = 'pass' if evidence['env_in_gitignore'] or not evidence['is_git_repo'] else 'fail'
         findings = []
 
         if result == 'fail':

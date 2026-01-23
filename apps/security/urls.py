@@ -33,4 +33,8 @@ urlpatterns = [
     # Export endpoints
     path('export/csv/<uuid:pk>/', views.ExportCSVView.as_view(), name='export_csv'),
     path('export/pdf/<uuid:pk>/', views.ExportPDFView.as_view(), name='export_pdf'),
+
+    # Run management
+    path('run/<uuid:pk>/delete/', views.DeleteRunView.as_view(), name='delete_run'),
+    path('run/<uuid:pk>/notes/', views.UpdateNotesView.as_view(), name='update_notes'),
 ]

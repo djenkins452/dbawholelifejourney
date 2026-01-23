@@ -872,3 +872,72 @@ class ExportPDFView(SecurityAccessMixin, View):
         response['Content-Disposition'] = f'inline; filename="security_report_{run.run_timestamp.strftime("%Y%m%d_%H%M")}.html"'
 
         return response
+
+
+class DeleteRunView(SecurityAccessMixin, View):
+    """
+    Delete a security assessment run.
+
+    Deletes the run and all associated tests, findings, and scores.
+    Logs the deletion to audit log.
+    """
+
+    def post(self, request, pk):
+        run = get_object_or_404(SecurityRun, pk=pk)
+
+        # Log the deletion
+        self.log_access(
+            request,
+            SecurityAuditLog.ACTION_MODIFY,
+            resource_type='run',
+            resource_id=run.id,
+            details=f'Deleted run from {run.run_timestamp.strftime("%Y-%m-%d %H:%M")}',
+        )
+
+        # Store info for redirect message
+        run_date = run.run_timestamp.strftime("%Y-%m-%d %H:%M")
+
+        # Delete the run (cascades to tests, findings, scores)
+        run.delete()
+
+        # Redirect to dashboard
+        return redirect('security:dashboard')
+
+
+class UpdateNotesView(SecurityAccessMixin, View):
+    """
+    Update notes on a security assessment run.
+
+    Accepts POST with 'notes' field.
+    """
+
+    def post(self, request, pk):
+        run = get_object_or_404(SecurityRun, pk=pk)
+
+        notes = request.POST.get('notes', '').strip()
+
+        # Update the run
+        run.notes = notes
+        run.notes_updated_at = timezone.now()
+        run.notes_updated_by = request.user.email if request.user.is_authenticated else 'anonymous'
+        run.save(update_fields=['notes', 'notes_updated_at', 'notes_updated_by'])
+
+        # Log the update
+        self.log_access(
+            request,
+            SecurityAuditLog.ACTION_MODIFY,
+            resource_type='run',
+            resource_id=run.id,
+            details=f'Updated notes (length: {len(notes)} chars)',
+        )
+
+        # Return JSON for AJAX or redirect for form submission
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({
+                'success': True,
+                'notes': notes,
+                'updated_at': run.notes_updated_at.isoformat(),
+                'updated_by': run.notes_updated_by,
+            })
+        else:
+            return redirect('security:run_detail', pk=pk)

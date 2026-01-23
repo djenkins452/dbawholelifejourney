@@ -16,6 +16,34 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-23 Changes
 
+### Security Assessment: Delete and Notes Features
+
+Added ability to delete assessment runs and add notes/annotations.
+
+**New Features:**
+1. **Delete Assessment Run** - Remove duplicate or erroneous runs
+   - Confirmation modal to prevent accidental deletion
+   - Cascades to delete all associated tests, findings, and scores
+   - Deletion logged to security audit log
+
+2. **Notes/Annotations** - Add notes to assessment runs
+   - Free-text notes field for context about the run
+   - Tracks who updated notes and when
+   - Useful for documenting what was tested, why run was created, etc.
+
+**New Endpoints:**
+- `POST /security/run/<uuid>/delete/` - Delete a run
+- `POST /security/run/<uuid>/notes/` - Update notes
+
+**Files Changed:**
+- `apps/security/models.py` - Added notes, notes_updated_at, notes_updated_by fields
+- `apps/security/views.py` - Added DeleteRunView, UpdateNotesView
+- `apps/security/urls.py` - Added new routes
+- `apps/security/templates/security/run_detail.html` - Added delete button, notes section
+- `apps/security/migrations/0005_add_notes_to_security_run.py` - Migration for notes fields
+
+---
+
 ### Comprehensive CISO Security Report
 
 Enhanced the security assessment PDF export to provide full transparency for CISO review.

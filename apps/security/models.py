@@ -252,6 +252,11 @@ class SecurityRun(models.Model):
     # Integrity verification
     run_hash = models.CharField(max_length=64, blank=True)  # SHA-256 of run data
 
+    # User notes/annotations (not encrypted - for quick display)
+    notes = models.TextField(blank=True, default='', help_text='User notes about this assessment run')
+    notes_updated_at = models.DateTimeField(null=True, blank=True)
+    notes_updated_by = models.CharField(max_length=100, blank=True, default='')
+
     class Meta:
         ordering = ['-run_timestamp']
         indexes = [

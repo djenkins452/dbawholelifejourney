@@ -16,6 +16,23 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-23 Changes
 
+### Security PDF Report Improvements
+
+Improved readability and transparency of the security assessment PDF export.
+
+**Changes:**
+1. **Fixed BLUF text contrast** - "Security Grade: GOOD" text is now white for visibility on blue background
+2. **Added detailed test methodology section** - New section at report end documents HOW each test works:
+   - What each test checks (description)
+   - Pass criteria (what constitutes a passing result)
+   - Result details when available
+   - Organized by category with visual hierarchy
+
+**Files Changed:**
+- `apps/security/templates/security/export_pdf.html` - Added white text styles for BLUF, added detailed methodology section
+
+---
+
 ### Security Assessment Deletion Accountability
 
 Added required reason field for assessment deletions to ensure audit accountability.

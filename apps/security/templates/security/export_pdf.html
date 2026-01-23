@@ -96,6 +96,11 @@
         .bluf-grade .grade-text h3 {
             font-size: 1.25rem;
             margin-bottom: 0.25rem;
+            color: white;
+        }
+
+        .bluf-grade .grade-text p {
+            color: rgba(255,255,255,0.9);
         }
 
         .bluf-trend {
@@ -733,12 +738,11 @@
     {% endfor %}
     {% endif %}
 
-    <!-- Test Methodology -->
+    <!-- Test Methodology Summary -->
     <div class="page-break"></div>
-    <h2>Test Methodology</h2>
+    <h2>Test Results Summary</h2>
     <p style="color: #6b7280; margin-bottom: 1rem; font-size: 0.85rem;">
         This assessment ran {{ tests|length }} automated security tests across {{ tests_by_category|length }} categories.
-        Each test evaluates a specific security control or vulnerability pattern.
     </p>
 
     {% for category, category_tests in tests_by_category.items %}
@@ -764,6 +768,45 @@
                 {% endfor %}
             </tbody>
         </table>
+    </div>
+    {% endfor %}
+
+    <!-- Detailed Test Methodology -->
+    <div class="page-break"></div>
+    <h2>Detailed Test Methodology</h2>
+    <p style="color: #6b7280; margin-bottom: 1.5rem; font-size: 0.85rem;">
+        This section documents <strong>how</strong> each security test operates, what patterns it looks for,
+        and what criteria determine a passing result. This transparency ensures accountability and allows
+        independent verification of the assessment methodology.
+    </p>
+
+    {% for category, category_tests in tests_by_category.items %}
+    <div class="methodology-category" style="margin-bottom: 2rem;">
+        <h3 style="background: #f3f4f6; padding: 0.75rem 1rem; border-left: 4px solid #1e40af; margin-bottom: 1rem;">
+            {{ category|title }}
+        </h3>
+        {% for test in category_tests %}
+        <div class="methodology-test" style="margin-bottom: 1.5rem; padding-left: 1rem; border-left: 2px solid #e5e7eb;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+                <div>
+                    <span style="font-family: monospace; font-size: 0.75rem; color: #6b7280;">{{ test.test_id }}</span>
+                    <strong style="margin-left: 0.5rem;">{{ test.title }}</strong>
+                </div>
+                <span class="badge result-{{ test.result }}" style="flex-shrink: 0;">{{ test.result|upper }}</span>
+            </div>
+            <div style="font-size: 0.85rem; color: #374151; margin-bottom: 0.5rem;">
+                <strong>What We Check:</strong> {{ test.description }}
+            </div>
+            <div style="font-size: 0.85rem; color: #374151; margin-bottom: 0.5rem;">
+                <strong>Pass Criteria:</strong> {{ test.criteria }}
+            </div>
+            {% if test.result_details %}
+            <div style="font-size: 0.8rem; color: #6b7280; background: #f9fafb; padding: 0.5rem; border-radius: 0.25rem;">
+                <strong>Result Details:</strong> {{ test.result_details }}
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
     </div>
     {% endfor %}
 

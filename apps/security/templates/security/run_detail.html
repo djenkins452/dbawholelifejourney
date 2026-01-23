@@ -3,6 +3,10 @@
 
 {% block title %}Security Run {{ run.run_timestamp|date:"Y-m-d H:i" }} | Whole Life Journey{% endblock %}
 
+{% block extra_head %}
+<script src="https://cdn.tailwindcss.com"></script>
+{% endblock %}
+
 {% block content %}
 <div class="max-w-7xl mx-auto px-4 py-6">
     <!-- Header -->

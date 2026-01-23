@@ -14,6 +14,21 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+## 2026-01-22 Changes
+
+### Fix Security Dashboard CSS Layout
+
+**Problem:** Security dashboard displayed as a flat list with no styling - grid layout, cards, and colors were not rendered.
+
+**Root Cause:** Template used `{% block extra_head %}` but base.html defines `{% block extra_css %}`. The CSS block was never rendered.
+
+**Fix:**
+- Changed `{% block extra_head %}` to `{% block extra_css %}` in both templates:
+  - `apps/security/templates/security/dashboard.html`
+  - `apps/security/templates/security/run_detail.html`
+
+---
+
 ## 2026-01-23 Changes
 
 ### Security Assessment Dashboard and Automated Scanner

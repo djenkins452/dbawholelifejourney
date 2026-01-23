@@ -3,7 +3,7 @@
 
 {% block title %}Security Run {{ run.run_timestamp|date:"Y-m-d H:i" }} | Whole Life Journey{% endblock %}
 
-{% block extra_head %}
+{% block extra_css %}
 <style>
     /* Security Run Detail Styles - scoped to avoid conflicts */
     #security-run-detail {
@@ -188,7 +188,7 @@
         gap: 0.5rem;
     }
 </style>
-{% endblock %}
+{% endblock extra_css %}
 
 {% block content %}
 <div id="security-run-detail">

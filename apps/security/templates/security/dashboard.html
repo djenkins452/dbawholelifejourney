@@ -3,7 +3,7 @@
 
 {% block title %}Security Dashboard | Whole Life Journey{% endblock %}
 
-{% block extra_head %}
+{% block extra_css %}
 <style>
     /* Security Dashboard Styles - scoped to avoid conflicts */
     #security-dashboard {
@@ -134,7 +134,7 @@
     #security-dashboard .severity-medium { background: #fef9c3 !important; color: #854d0e !important; }
     #security-dashboard .severity-low { background: #dbeafe !important; color: #1e40af !important; }
 </style>
-{% endblock %}
+{% endblock extra_css %}
 
 {% block content %}
 <div id="security-dashboard">

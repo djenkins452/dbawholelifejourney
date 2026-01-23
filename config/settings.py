@@ -614,8 +614,14 @@ CSRF_TRUSTED_ORIGINS = [
 # Security Settings - ONLY apply in production (when DEBUG is False)
 # These settings require HTTPS and will break local development if enabled
 if not DEBUG:
-    # Only enable SSL redirect if explicitly set (for production)
-    SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=True)
+    # Railway handles SSL termination at the proxy level
+    # Trust the X-Forwarded-Proto header from Railway's load balancer
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+    # SSL redirect is handled by Railway's proxy, so we disable it in Django
+    # to avoid redirect loops. The proxy ensures all traffic is HTTPS.
+    SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=False)
+
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_BROWSER_XSS_FILTER = True

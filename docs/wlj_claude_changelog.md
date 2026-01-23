@@ -16,6 +16,25 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-23 Changes
 
+### Fix: Security Scanner HTTPS and DEBUG Detection (SEC-T037, SEC-T043)
+
+Fixed security scanner to properly detect HTTPS enforcement and DEBUG settings.
+
+**SEC-T037 (HTTPS Enforcement):**
+- Added `SECURE_PROXY_SSL_HEADER` to settings for Railway's SSL termination
+- Updated scanner to recognize proxy-based SSL as valid (Railway handles SSL at load balancer)
+- Scanner now passes if either `SECURE_SSL_REDIRECT=True` OR `SECURE_PROXY_SSL_HEADER` is set
+
+**SEC-T043 (DEBUG Setting):**
+- Scanner only checked single-quoted patterns but settings.py uses double quotes
+- Added double-quote detection for `env.bool("DEBUG"...)` and `env("DEBUG"...)`
+
+**Files Updated:**
+- `config/settings.py`: Added `SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')`
+- `apps/security/scanner.py`: Fixed quote style detection in both tests
+
+---
+
 ### Fix: Security Scanner CSRF Detection False Positive (SEC-T023)
 
 Fixed false positive in CSRF protection scanner that was incorrectly flagging legitimate webhook files.

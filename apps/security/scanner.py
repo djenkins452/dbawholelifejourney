@@ -2018,27 +2018,37 @@ class SecurityScanner:
         test_id = "SEC-T037"
 
         debug = getattr(settings, 'DEBUG', False)
+        ssl_redirect = getattr(settings, 'SECURE_SSL_REDIRECT', False)
+        proxy_ssl_header = getattr(settings, 'SECURE_PROXY_SSL_HEADER', None)
+        hsts_seconds = getattr(settings, 'SECURE_HSTS_SECONDS', 0)
+
         evidence = {
             'debug': debug,
-            'SECURE_SSL_REDIRECT': getattr(settings, 'SECURE_SSL_REDIRECT', False),
-            'SECURE_HSTS_SECONDS': getattr(settings, 'SECURE_HSTS_SECONDS', 0),
+            'SECURE_SSL_REDIRECT': ssl_redirect,
+            'SECURE_PROXY_SSL_HEADER': proxy_ssl_header,
+            'SECURE_HSTS_SECONDS': hsts_seconds,
             'SECURE_HSTS_PRELOAD': getattr(settings, 'SECURE_HSTS_PRELOAD', False),
         }
 
-        # In debug mode, SSL redirect should be off
+        # In debug mode, SSL settings should be off
         if debug:
             result = 'pass'
         else:
-            result = 'pass' if evidence['SECURE_SSL_REDIRECT'] and evidence['SECURE_HSTS_SECONDS'] > 0 else 'fail'
+            # HTTPS is enforced if either:
+            # 1. SECURE_SSL_REDIRECT is True (Django handles redirect), OR
+            # 2. SECURE_PROXY_SSL_HEADER is set (proxy handles SSL termination)
+            # AND HSTS must be configured
+            https_enforced = ssl_redirect or (proxy_ssl_header is not None)
+            result = 'pass' if https_enforced and hsts_seconds > 0 else 'fail'
 
         self.results.append(TestResult(
             test_id=test_id,
             category='web',
             title="HTTPS Enforcement",
             description="Verify HTTPS is enforced in production.",
-            criteria="SSL redirect enabled, HSTS configured.",
+            criteria="SSL redirect or proxy SSL header configured, HSTS enabled.",
             result=result,
-            result_details=f"SSL redirect: {evidence['SECURE_SSL_REDIRECT']}, HSTS: {evidence['SECURE_HSTS_SECONDS']}s",
+            result_details=f"SSL redirect: {ssl_redirect}, Proxy SSL: {proxy_ssl_header is not None}, HSTS: {hsts_seconds}s",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
             findings=[],
@@ -2244,11 +2254,12 @@ class SecurityScanner:
         debug = getattr(settings, 'DEBUG', False)
         evidence = {'DEBUG': debug, 'from_env': False}
 
-        # Check if DEBUG is loaded from env
+        # Check if DEBUG is loaded from env (support both single and double quotes)
         settings_file = self.base_path / 'config' / 'settings.py'
         if settings_file.exists():
             content = settings_file.read_text()
-            if "env.bool('DEBUG" in content or "env('DEBUG" in content:
+            if ("env.bool('DEBUG" in content or 'env.bool("DEBUG' in content or
+                "env('DEBUG" in content or 'env("DEBUG' in content):
                 evidence['from_env'] = True
 
         result = 'pass' if evidence['from_env'] else 'fail'

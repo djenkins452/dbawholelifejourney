@@ -1,7 +1,9 @@
 """
 Tests for Help System Views
 """
+import base64
 import json
+import secrets
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.conf import settings
@@ -33,6 +35,20 @@ class BaseHelpViewTest(TestCase):
         """Mark user onboarding as complete."""
         user.preferences.has_completed_onboarding = True
         user.preferences.save()
+
+    def _create_mfa_credential(self, user):
+        """Create a WebAuthn credential for MFA enforcement bypass in tests."""
+        from apps.users.models import WebAuthnCredential
+        credential_id = secrets.token_bytes(32)
+        credential_id_b64 = base64.urlsafe_b64encode(credential_id).rstrip(b'=').decode()
+        public_key = secrets.token_bytes(64)
+        WebAuthnCredential.objects.create(
+            user=user,
+            credential_id=credential_id,
+            credential_id_b64=credential_id_b64,
+            public_key=public_key,
+            device_name='Test Device',
+        )
 
 
 class HelpTopicAPIViewTests(BaseHelpViewTest):
@@ -197,6 +213,7 @@ class AdminHelpTopicAPIViewTests(BaseHelpViewTest):
         )
         self._accept_terms(self.admin_user)
         self._complete_onboarding(self.admin_user)
+        self._create_mfa_credential(self.admin_user)
         self.topic = AdminHelpTopic.objects.create(
             context_id="ADMIN_TEST",
             help_id="admin-test",
@@ -271,6 +288,7 @@ class HelpSearchAPIViewTests(BaseHelpViewTest):
         )
         self._accept_terms(self.admin_user)
         self._complete_onboarding(self.admin_user)
+        self._create_mfa_credential(self.admin_user)
         HelpTopic.objects.create(
             context_id="SEARCH_TEST_1",
             help_id="search-test-1",

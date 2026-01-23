@@ -2,6 +2,8 @@
 Tests for the admin approval views and dashboard.
 """
 
+import base64
+import secrets
 from datetime import timedelta
 from unittest.mock import patch
 
@@ -20,11 +22,11 @@ def make_user_ready_for_dashboard(user):
     """
     Helper to ensure a user can access dashboard views.
 
-    Users need to have accepted current terms and completed onboarding
-    to avoid middleware redirects.
+    Users need to have accepted current terms, completed onboarding,
+    and have MFA credentials (for staff users) to avoid middleware redirects.
     """
     # Import here to avoid circular imports
-    from apps.users.models import TermsAcceptance
+    from apps.users.models import TermsAcceptance, WebAuthnCredential
 
     # Accept current terms
     current_version = settings.WLJ_SETTINGS.get("TERMS_VERSION", "1.0")
@@ -37,6 +39,19 @@ def make_user_ready_for_dashboard(user):
     # Complete onboarding
     user.preferences.has_completed_onboarding = True
     user.preferences.save()
+
+    # Create MFA credential for staff/superuser (required by MFAEnforcementMiddleware)
+    if user.is_staff or user.is_superuser:
+        credential_id = secrets.token_bytes(32)
+        credential_id_b64 = base64.urlsafe_b64encode(credential_id).rstrip(b'=').decode()
+        public_key = secrets.token_bytes(64)
+        WebAuthnCredential.objects.create(
+            user=user,
+            credential_id=credential_id,
+            credential_id_b64=credential_id_b64,
+            public_key=public_key,
+            device_name='Test Device',
+        )
 
 
 class TestApproveTaskView(TestCase):

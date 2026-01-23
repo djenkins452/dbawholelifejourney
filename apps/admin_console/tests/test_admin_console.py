@@ -13,13 +13,16 @@ This test file covers:
 Location: apps/admin_console/tests.py
 """
 
+import base64
 import json
+import secrets
 
 from django.test import TestCase, Client, override_settings
 from django.urls import reverse
 from django.contrib.auth import get_user_model
 
 from apps.core.models import SiteConfiguration
+from apps.users.models import WebAuthnCredential
 
 User = get_user_model()
 
@@ -46,20 +49,37 @@ class AdminTestMixin:
         return user
 
     def create_admin(self, email='admin@example.com', password='adminpass123'):
-        """Create a staff user."""
-        return self.create_user(
+        """Create a staff user with MFA credential."""
+        user = self.create_user(
             email=email,
             password=password,
             is_staff=True
         )
+        self._create_mfa_credential(user)
+        return user
 
     def create_superuser(self, email='super@example.com', password='superpass123'):
-        """Create a superuser."""
-        return self.create_user(
+        """Create a superuser with MFA credential."""
+        user = self.create_user(
             email=email,
             password=password,
             is_staff=True,
             is_superuser=True
+        )
+        self._create_mfa_credential(user)
+        return user
+
+    def _create_mfa_credential(self, user):
+        """Create a WebAuthn credential for MFA enforcement bypass in tests."""
+        credential_id = secrets.token_bytes(32)
+        credential_id_b64 = base64.urlsafe_b64encode(credential_id).rstrip(b'=').decode()
+        public_key = secrets.token_bytes(64)
+        WebAuthnCredential.objects.create(
+            user=user,
+            credential_id=credential_id,
+            credential_id_b64=credential_id_b64,
+            public_key=public_key,
+            device_name='Test Device',
         )
 
     def _accept_terms(self, user):

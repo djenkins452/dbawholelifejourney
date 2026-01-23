@@ -16,6 +16,44 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-23 Changes
 
+### Test Fix: Add MFA Credentials for Staff Users in Tests
+
+Fixed 105 test failures (89 failures + 16 errors) caused by the MFAEnforcementMiddleware
+redirecting staff/admin users to `/user/mfa-required/` when they don't have WebAuthn
+credentials registered.
+
+**Root Cause:**
+The MFAEnforcementMiddleware was added to require MFA for all staff/superuser accounts,
+but the test fixtures weren't creating WebAuthn credentials for test staff users.
+
+**Files Updated:**
+- `apps/admin_console/tests/test_admin_console.py`:
+  - Added imports for `base64`, `secrets`, and `WebAuthnCredential`
+  - Added `_create_mfa_credential()` helper method to `AdminTestMixin`
+  - Updated `create_admin()` and `create_superuser()` to call `_create_mfa_credential()`
+
+- `assistant/tests/test_admin_views.py`:
+  - Added imports for `base64` and `secrets`
+  - Updated `make_user_ready_for_dashboard()` helper to create MFA credentials for staff users
+
+- `apps/help/tests/test_views.py`:
+  - Added imports for `base64` and `secrets`
+  - Added `_create_mfa_credential()` helper method to `BaseHelpViewTest`
+  - Updated test setUp methods to call `_create_mfa_credential()` for admin users
+
+**Affected Test Classes (all now passing):**
+- AdminAccessControlTest, AdminDashboardTest, SiteConfigurationTest
+- ThemeManagementTest, CategoryManagementTest, UserManagementTest
+- SuperuserVsStaffTest, AdminEdgeCaseTest, TestRunListViewTest
+- TestRunDetailViewTest, TestRunDeleteViewTest, RunTestsViewTest
+- CodebaseMetricsViewTest, DataLoadConfigViewTests, AdminProjectCreateViewTest
+- InlineStatusUpdateAPITest, InlinePriorityUpdateAPITest, TaskStatusUpdateAPITest
+- TestImprovementDashboard, TestDashboardApproveTask, TestDashboardRejectTask
+- TestDashboardRollbackTask, TestImprovementAnalytics
+- AdminHelpTopicAPIViewTests, HelpSearchAPIViewTests
+
+---
+
 ### Security Dashboard Enhancements (Major)
 
 Added comprehensive enhancements to the Security/CISO App including admin interface, cross-run tracking, exports, and quick win detection.

@@ -542,6 +542,11 @@ class SecurityFinding(models.Model):
     is_quick_win = models.BooleanField(default=False)
     remediation_effort = models.CharField(max_length=20, default='medium')  # low, medium, high
 
+    # Acknowledgment tracking (links to AcknowledgedFinding via finding_key)
+    finding_key = models.CharField(max_length=100, blank=True, db_index=True)  # Stable key for acknowledgment matching
+    is_acknowledged = models.BooleanField(default=False)
+    acknowledgment_justification = models.TextField(blank=True)
+
     class Meta:
         ordering = ['-cvss_score', 'finding_id']
         indexes = [
@@ -602,6 +607,107 @@ class SecurityFinding(models.Model):
     @validation_steps.setter
     def validation_steps(self, value):
         self._validation_steps = value
+
+
+# ==============================================================================
+# Acknowledged Finding (Risk Acceptance Tracking)
+# ==============================================================================
+
+class AcknowledgedFinding(models.Model):
+    """
+    Track acknowledged/accepted security findings.
+
+    When a finding is detected but you intentionally accept the risk,
+    document it here with justification. The finding will still be
+    reported in assessments but marked as "acknowledged" in the dashboard.
+
+    This ensures:
+    - Full visibility into ALL security issues
+    - Clear documentation of why risks were accepted
+    - Audit trail for compliance
+    - Easy identification of what needs fixing vs what's accepted
+
+    NOTE: Acknowledged != Fixed. These are risks you've decided to accept,
+    not issues that have been resolved.
+    """
+
+    STATUS_ACTIVE = 'active'
+    STATUS_EXPIRED = 'expired'
+    STATUS_SUPERSEDED = 'superseded'
+
+    STATUS_CHOICES = [
+        (STATUS_ACTIVE, 'Active'),
+        (STATUS_EXPIRED, 'Expired'),
+        (STATUS_SUPERSEDED, 'Superseded'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    # Finding identification (matches finding_id from scanner like SEC-001, SEC-002, etc.)
+    finding_id = models.CharField(max_length=20, unique=True, db_index=True)
+    title = models.CharField(max_length=200)
+
+    # Risk acceptance details
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_ACTIVE)
+    justification = models.TextField(help_text="Why is this risk being accepted?")
+    mitigating_controls = models.TextField(
+        blank=True,
+        help_text="What compensating controls reduce this risk?"
+    )
+    accepted_risk_level = models.CharField(
+        max_length=20,
+        choices=[
+            ('low', 'Low - Minimal business impact'),
+            ('medium', 'Medium - Moderate impact, compensating controls in place'),
+            ('high', 'High - Significant impact but accepted for business reasons'),
+        ],
+        default='medium'
+    )
+
+    # Approval tracking
+    acknowledged_by = models.CharField(max_length=100)  # Name of person accepting risk
+    acknowledged_at = models.DateTimeField(default=timezone.now)
+    expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When should this acknowledgment be reviewed? Leave blank for indefinite."
+    )
+
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    notes = models.TextField(blank=True, help_text="Additional context or future remediation plans")
+
+    class Meta:
+        ordering = ['finding_id']
+        verbose_name = 'Acknowledged Finding'
+        verbose_name_plural = 'Acknowledged Findings'
+
+    def __str__(self):
+        return f"{self.finding_id}: {self.title} ({self.status})"
+
+    @property
+    def is_expired(self):
+        """Check if acknowledgment has expired and needs review."""
+        if not self.expires_at:
+            return False
+        return timezone.now() > self.expires_at
+
+    @classmethod
+    def is_acknowledged(cls, finding_id: str) -> bool:
+        """Check if a finding_id is currently acknowledged."""
+        return cls.objects.filter(
+            finding_id=finding_id,
+            status=cls.STATUS_ACTIVE
+        ).exists()
+
+    @classmethod
+    def get_acknowledgment(cls, finding_id: str):
+        """Get active acknowledgment for a finding_id, if any."""
+        return cls.objects.filter(
+            finding_id=finding_id,
+            status=cls.STATUS_ACTIVE
+        ).first()
 
 
 # ==============================================================================

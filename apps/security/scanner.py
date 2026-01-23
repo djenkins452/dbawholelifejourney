@@ -80,6 +80,9 @@ class Finding:
     validation_steps: str
     is_quick_win: bool = False
     remediation_effort: str = 'medium'
+    # Acknowledgment status - checked against AcknowledgedFinding table
+    is_acknowledged: bool = False
+    acknowledgment_justification: str = ''
 
 
 # ==============================================================================
@@ -235,10 +238,19 @@ class SecurityScanner:
         validation_steps: str,
         is_quick_win: bool = False,
         remediation_effort: str = 'medium',
+        finding_key: str = '',  # Stable key for acknowledgment matching
     ) -> Finding:
         """Add a security finding."""
         self.finding_counter += 1
         finding_id = f"SEC-{self.finding_counter:03d}"
+
+        # Check if this finding is acknowledged
+        # Use finding_key if provided, otherwise use title for matching
+        from apps.security.models import AcknowledgedFinding
+        lookup_key = finding_key or title
+        acknowledgment = AcknowledgedFinding.get_acknowledgment(lookup_key)
+        is_acknowledged = acknowledgment is not None
+        acknowledgment_justification = acknowledgment.justification if acknowledgment else ''
 
         finding = Finding(
             finding_id=finding_id,
@@ -256,6 +268,8 @@ class SecurityScanner:
             validation_steps=validation_steps,
             is_quick_win=is_quick_win,
             remediation_effort=remediation_effort,
+            is_acknowledged=is_acknowledged,
+            acknowledgment_justification=acknowledgment_justification,
         )
         self.findings.append(finding)
         return finding
@@ -358,6 +372,7 @@ class SecurityScanner:
 
         if issues_found:
             finding = self._add_finding(
+                finding_key="hardcoded_secrets",  # Stable key for acknowledgment
                 title="Hardcoded Secrets in Source Code",
                 severity='high',
                 likelihood='medium',
@@ -442,6 +457,7 @@ class SecurityScanner:
 
         if evidence.get('issues'):
             finding = self._add_finding(
+                finding_key="sensitive_files_in_git",
                 title="Sensitive Files Tracked in Git",
                 severity='high',
                 likelihood='high',
@@ -520,44 +536,29 @@ class SecurityScanner:
 
         evidence = {'files_checked': 0, 'potential_keys': []}
 
-        # Files that intentionally contain Claude Code automation keys
-        # These are internal automation keys, not user-facing secrets
-        claude_automation_files = [
-            'CLAUDE.md',
-            '.claude/',
-            'Cheat_Sheet.md',
-            'wlj_claude_original_backup.md',
-        ]
-
         for md_file in self.base_path.rglob('*.md'):
             rel_path = str(md_file.relative_to(self.base_path))
-
-            # Skip Claude Code automation documentation (intentional keys)
-            if any(skip in rel_path for skip in claude_automation_files):
-                continue
-
             evidence['files_checked'] += 1
             try:
                 content = md_file.read_text(encoding='utf-8', errors='ignore')
                 # Look for lines that look like they have API keys
                 for line_num, line in enumerate(content.split('\n'), 1):
-                    # Skip code block examples
-                    if 'example' in line.lower() or 'your-' in line.lower():
+                    # Skip code block examples with obvious placeholder text
+                    if 'your-' in line.lower() and '-here' in line.lower():
                         continue
-                    # Skip X-Claude-API-Key (internal automation, not user secrets)
-                    if 'X-Claude-API-Key' in line:
-                        continue
-                    # Check for X-*-API-Key headers with values (excluding Claude)
-                    if re.search(r'X-(?!Claude)\w+-API-Key.*[a-f0-9]{32}', line, re.IGNORECASE):
+                    # Check for X-*-API-Key headers with hex values
+                    if re.search(r'X-\w+-API-Key.*[a-f0-9]{32}', line, re.IGNORECASE):
                         evidence['potential_keys'].append({
                             'file': rel_path,
                             'line': line_num,
+                            'type': 'api_header',
                         })
-                    # Check for curl commands with API keys (but not Claude automation)
-                    if 'curl' in line and 'X-Claude-API-Key' not in line and re.search(r'[a-f0-9]{32,}', line):
+                    # Check for curl commands with long hex strings (potential keys)
+                    elif 'curl' in line and re.search(r'[a-f0-9]{32,}', line):
                         evidence['potential_keys'].append({
                             'file': rel_path,
                             'line': line_num,
+                            'type': 'curl_command',
                         })
             except Exception as e:
                 logger.debug(f"Error reading {md_file}: {e}")
@@ -567,6 +568,7 @@ class SecurityScanner:
 
         if evidence['potential_keys']:
             finding = self._add_finding(
+                finding_key="api_keys_in_docs",  # Stable key for acknowledgment
                 title="API Keys Exposed in Documentation",
                 severity='critical',
                 likelihood='high',
@@ -640,6 +642,7 @@ class SecurityScanner:
 
         if evidence['private_keys_found']:
             finding = self._add_finding(
+                finding_key="private_keys_in_repo",
                 title="Private Keys Found in Repository",
                 severity='critical',
                 likelihood='high',
@@ -891,6 +894,7 @@ class SecurityScanner:
 
         if not evidence['axes_configured']:
             finding = self._add_finding(
+                finding_key="no_auth_rate_limiting",
                 title="No Authentication Rate Limiting",
                 severity='high',
                 likelihood='high',
@@ -951,6 +955,7 @@ class SecurityScanner:
 
         if not evidence['mfa_enforced']:
             finding = self._add_finding(
+                finding_key="mfa_not_enforced",
                 title="MFA Not Enforced for Privileged Access",
                 severity='medium',
                 likelihood='medium',
@@ -1590,6 +1595,7 @@ class SecurityScanner:
 
         if evidence['pii_in_logs']:
             finding = self._add_finding(
+                finding_key="pii_logged_without_redaction",
                 title="PII Logged Without Redaction",
                 severity='medium',
                 likelihood='medium',
@@ -1858,6 +1864,7 @@ class SecurityScanner:
 
         if evidence['unsafe_eval']:
             finding = self._add_finding(
+                finding_key="csp_unsafe_eval",
                 title="CSP Contains unsafe-eval",
                 severity='low',
                 likelihood='low',

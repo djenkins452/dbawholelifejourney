@@ -23,6 +23,12 @@
         gap: 1rem !important;
         margin-bottom: 1.5rem !important;
     }
+    #security-dashboard .sec-grid-4 {
+        display: grid !important;
+        grid-template-columns: repeat(4, 1fr) !important;
+        gap: 1rem !important;
+        margin-bottom: 1.5rem !important;
+    }
     #security-dashboard .sec-grid-2 {
         display: grid !important;
         grid-template-columns: repeat(2, 1fr) !important;
@@ -31,6 +37,9 @@
     }
     @media (max-width: 768px) {
         #security-dashboard .sec-grid-5 {
+            grid-template-columns: repeat(2, 1fr) !important;
+        }
+        #security-dashboard .sec-grid-4 {
             grid-template-columns: repeat(2, 1fr) !important;
         }
         #security-dashboard .sec-grid-2 {
@@ -43,6 +52,83 @@
         box-shadow: 0 1px 3px rgba(0,0,0,0.12) !important;
         padding: 1rem !important;
         text-align: center !important;
+    }
+    #security-dashboard .sec-card.sec-clickable {
+        cursor: pointer !important;
+        transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+    }
+    #security-dashboard .sec-card.sec-clickable:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+    }
+    /* Metric Info Modal */
+    #security-dashboard .metric-modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.5);
+        z-index: 1000;
+        justify-content: center;
+        align-items: center;
+    }
+    #security-dashboard .metric-modal.active {
+        display: flex !important;
+    }
+    #security-dashboard .metric-modal-content {
+        background: white;
+        border-radius: 0.75rem;
+        max-width: 500px;
+        width: 90%;
+        max-height: 80vh;
+        overflow-y: auto;
+        box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+    }
+    #security-dashboard .metric-modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid #e5e7eb;
+    }
+    #security-dashboard .metric-modal-header h3 {
+        margin: 0;
+        font-size: 1.25rem;
+        font-weight: 600;
+    }
+    #security-dashboard .metric-modal-close {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: #6b7280;
+        line-height: 1;
+    }
+    #security-dashboard .metric-modal-body {
+        padding: 1.5rem;
+    }
+    #security-dashboard .metric-modal-body h4 {
+        margin: 0 0 0.5rem 0;
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: #374151;
+    }
+    #security-dashboard .metric-modal-body p {
+        margin: 0 0 1rem 0;
+        font-size: 0.875rem;
+        color: #4b5563;
+        line-height: 1.5;
+    }
+    #security-dashboard .metric-modal-body ul {
+        margin: 0 0 1rem 0;
+        padding-left: 1.25rem;
+        font-size: 0.875rem;
+        color: #4b5563;
+    }
+    #security-dashboard .metric-modal-body li {
+        margin-bottom: 0.25rem;
     }
     #security-dashboard .sec-value {
         font-size: 2rem !important;
@@ -144,57 +230,79 @@
     </div>
 
     {% if latest_run %}
-    <!-- Snapshot Cards -->
-    <div class="sec-grid-5">
-        <div class="sec-card">
+    <!-- Test Results Row -->
+    <div class="sec-grid-4">
+        <div class="sec-card sec-clickable" onclick="showMetricInfo('tests_run')">
             <div class="sec-value sec-gray">{{ latest_run.total_tests }}</div>
             <div class="sec-label">Tests Run</div>
-            <div class="sec-sublabel">100%</div>
+            <div class="sec-sublabel">Click for details</div>
         </div>
-        <div class="sec-card">
+        <div class="sec-card sec-clickable" onclick="showMetricInfo('passed')">
             <div class="sec-value sec-green">{{ latest_run.passed_tests }}</div>
             <div class="sec-label">Passed</div>
             <div class="sec-sublabel">{% widthratio latest_run.passed_tests latest_run.total_tests 100 %}%</div>
         </div>
-        <div class="sec-card">
+        <div class="sec-card sec-clickable" onclick="showMetricInfo('failed')">
+            <div class="sec-value sec-red">{{ latest_run.failed_tests }}</div>
+            <div class="sec-label">Failed</div>
+            <div class="sec-sublabel">{% widthratio latest_run.failed_tests latest_run.total_tests 100 %}%</div>
+        </div>
+        <div class="sec-card sec-clickable" onclick="showMetricInfo('findings')">
+            <div class="sec-value sec-gray">{{ latest_run.total_findings }}</div>
+            <div class="sec-label">Findings</div>
+            <div class="sec-sublabel">Issues to address</div>
+        </div>
+    </div>
+
+    <!-- Findings by Severity Row -->
+    <div class="sec-grid-4">
+        <div class="sec-card sec-clickable" onclick="showMetricInfo('critical')">
             <div class="sec-value sec-red">{{ latest_run.critical_findings }}</div>
             <div class="sec-label">Critical</div>
+            <div class="sec-sublabel">CVSS 9.0-10.0</div>
         </div>
-        <div class="sec-card">
+        <div class="sec-card sec-clickable" onclick="showMetricInfo('high')">
             <div class="sec-value sec-orange">{{ latest_run.high_findings }}</div>
             <div class="sec-label">High</div>
+            <div class="sec-sublabel">CVSS 7.0-8.9</div>
         </div>
-        <div class="sec-card">
+        <div class="sec-card sec-clickable" onclick="showMetricInfo('medium')">
             <div class="sec-value sec-yellow">{{ latest_run.medium_findings }}</div>
             <div class="sec-label">Medium</div>
+            <div class="sec-sublabel">CVSS 4.0-6.9</div>
+        </div>
+        <div class="sec-card sec-clickable" onclick="showMetricInfo('low')">
+            <div class="sec-value sec-blue">{{ latest_run.low_findings }}</div>
+            <div class="sec-label">Low</div>
+            <div class="sec-sublabel">CVSS 0.1-3.9</div>
         </div>
     </div>
 
     <!-- Score Cards -->
     {% if latest_score %}
     <div class="sec-grid-5">
-        <div class="sec-card">
+        <div class="sec-card sec-clickable" onclick="showMetricInfo('grade')">
             <div class="sec-value-lg {% if latest_score.securityscorecard_grade == 'A' %}sec-green{% elif latest_score.securityscorecard_grade == 'B' %}sec-blue{% elif latest_score.securityscorecard_grade == 'C' %}sec-yellow{% else %}sec-red{% endif %}">
                 {{ latest_score.securityscorecard_grade }}
             </div>
             <div class="sec-label">Grade</div>
         </div>
-        <div class="sec-card">
+        <div class="sec-card sec-clickable" onclick="showMetricInfo('bitsight')">
             <div class="sec-value sec-gray">{{ latest_score.bitsight_score }}</div>
             <div class="sec-label">BitSight Score</div>
             <div class="sec-sublabel">/ 900</div>
         </div>
-        <div class="sec-card">
+        <div class="sec-card sec-clickable" onclick="showMetricInfo('cvss')">
             <div class="sec-value sec-gray">{{ latest_score.cvss_avg }}</div>
             <div class="sec-label">CVSS Avg</div>
             <div class="sec-sublabel">/ 10.0</div>
         </div>
-        <div class="sec-card">
+        <div class="sec-card sec-clickable" onclick="showMetricInfo('risk')">
             <div class="sec-value sec-gray">{{ latest_score.risk_score_0_100 }}</div>
             <div class="sec-label">Risk Score</div>
             <div class="sec-sublabel">/ 100</div>
         </div>
-        <div class="sec-card">
+        <div class="sec-card sec-clickable" onclick="showMetricInfo('maturity')">
             <div class="sec-value sec-gray">{{ latest_score.maturity_level }}</div>
             <div class="sec-label">Maturity</div>
             <div class="sec-sublabel">/ 3</div>
@@ -350,6 +458,19 @@
     </div>
 </div>
 
+<!-- Metric Info Modal -->
+<div id="metricModal" class="metric-modal">
+    <div class="metric-modal-content">
+        <div class="metric-modal-header">
+            <h3 id="metricModalTitle"></h3>
+            <button class="metric-modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        <div id="metricModalBody" class="metric-modal-body">
+            <!-- Content loaded via JavaScript -->
+        </div>
+    </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script nonce="{{ request.csp_nonce }}">
     // Chart data from Django
@@ -465,6 +586,169 @@
 
     function closeModal() {
         document.getElementById('findingModal').style.display = 'none';
+        document.getElementById('metricModal').classList.remove('active');
+    }
+
+    // Metric info definitions
+    const metricInfo = {
+        tests_run: {
+            title: 'Tests Run',
+            description: 'Total number of automated security tests executed during the assessment.',
+            details: [
+                'The scanner runs 50 tests across 10 categories',
+                'Categories: Secrets, Auth, Authorization, Input Validation, Data Protection, Logging, Web Security, Dependencies, Deployment, Abuse Resistance',
+                'Each test checks for specific security vulnerabilities or misconfigurations'
+            ],
+            interpretation: 'This number should always be 50 for a full assessment. If lower, some tests may have been skipped due to configuration.'
+        },
+        passed: {
+            title: 'Tests Passed',
+            description: 'Number of security tests that met their criteria with no issues found.',
+            details: [
+                'A passed test means the security control is properly implemented',
+                'Higher pass rate = better security posture',
+                'Target: 90%+ passed tests for Grade A'
+            ],
+            interpretation: 'Failed = Total - Passed. Each failed test generates one or more findings that need remediation.'
+        },
+        failed: {
+            title: 'Tests Failed',
+            description: 'Number of security tests that found issues requiring attention.',
+            details: [
+                'Failed tests indicate security gaps or vulnerabilities',
+                'Each failure generates detailed findings with remediation steps',
+                'Some tests may be "unknown" if they couldn\'t complete properly'
+            ],
+            interpretation: 'Review each failed test in the detailed run view. Prioritize by CVSS severity.'
+        },
+        findings: {
+            title: 'Total Findings',
+            description: 'Total number of security issues discovered across all failed tests.',
+            details: [
+                'One failed test may generate multiple findings',
+                'Findings include CVSS score, description, and fix recommendations',
+                'Tracked over time to measure remediation progress'
+            ],
+            interpretation: 'Lower is better. Work to reduce findings by addressing the most severe issues first.'
+        },
+        critical: {
+            title: 'Critical Findings',
+            description: 'Severe vulnerabilities that could lead to complete system compromise.',
+            details: [
+                'CVSS Score: 9.0 - 10.0',
+                'Examples: Remote code execution, authentication bypass, exposed credentials',
+                'These should be fixed IMMEDIATELY - drop everything else'
+            ],
+            interpretation: 'Zero is the only acceptable number. Critical findings mean your system is actively at risk.'
+        },
+        high: {
+            title: 'High Findings',
+            description: 'Significant vulnerabilities that could lead to substantial data breach.',
+            details: [
+                'CVSS Score: 7.0 - 8.9',
+                'Examples: SQL injection, hardcoded secrets, missing encryption',
+                'Should be remediated within 7 days'
+            ],
+            interpretation: 'Prioritize these after critical. Each high finding represents meaningful risk.'
+        },
+        medium: {
+            title: 'Medium Findings',
+            description: 'Moderate vulnerabilities with limited impact or requiring specific conditions.',
+            details: [
+                'CVSS Score: 4.0 - 6.9',
+                'Examples: Missing MFA, excessive permissions, information disclosure',
+                'Should be remediated within 30 days'
+            ],
+            interpretation: 'Address these in normal sprint cycles. Don\'t ignore them long-term.'
+        },
+        low: {
+            title: 'Low Findings',
+            description: 'Minor issues with minimal security impact.',
+            details: [
+                'CVSS Score: 0.1 - 3.9',
+                'Examples: Missing security headers, verbose errors, minor misconfigurations',
+                'Address during maintenance windows'
+            ],
+            interpretation: 'Low priority but still worth tracking. Fix when convenient.'
+        },
+        grade: {
+            title: 'Security Grade (A-F)',
+            description: 'Overall security posture rating similar to SecurityScorecard methodology.',
+            details: [
+                'A (90-100): Excellent - minimal risk, strong controls',
+                'B (80-89): Good - minor issues, well-managed risk',
+                'C (70-79): Fair - needs improvement, moderate risk',
+                'D (60-69): Poor - significant gaps, high risk',
+                'F (0-59): Critical - immediate action required'
+            ],
+            interpretation: 'Target Grade A. Below C indicates unacceptable risk that should be escalated.'
+        },
+        bitsight: {
+            title: 'BitSight Score',
+            description: 'Composite risk score modeled after BitSight Security Ratings (250-900 scale).',
+            details: [
+                '900: Perfect security posture',
+                '800+: Excellent',
+                '700-799: Good',
+                '600-699: Needs improvement',
+                'Below 600: Significant risk',
+                '250: Minimum score'
+            ],
+            interpretation: 'Industry benchmark for vendor risk assessment. 700+ is typically considered acceptable.'
+        },
+        cvss: {
+            title: 'CVSS Average',
+            description: 'Average Common Vulnerability Scoring System score across all findings.',
+            details: [
+                'CVSS v3.1 standard used by security industry',
+                'Scale: 0.0 (none) to 10.0 (critical)',
+                'Considers attack vector, complexity, impact, and required privileges'
+            ],
+            interpretation: 'Lower is better. If you have no findings, this may show 0.0 or N/A.'
+        },
+        risk: {
+            title: 'Risk Score',
+            description: 'Computed risk score (0-100) based on findings severity and quantity.',
+            details: [
+                '0: No risk (all tests pass, no findings)',
+                '1-25: Low risk',
+                '26-50: Moderate risk',
+                '51-75: High risk',
+                '76-100: Critical risk'
+            ],
+            interpretation: 'Higher score = more risk. Target below 25. Above 50 requires immediate attention.'
+        },
+        maturity: {
+            title: 'Security Maturity Level',
+            description: 'Assessment of overall security program maturity (0-3 scale).',
+            details: [
+                '0 (Ad Hoc): No formal security processes',
+                '1 (Basic): Some security controls in place',
+                '2 (Managed): Documented policies, regular assessments',
+                '3 (Mature): Comprehensive program, continuous monitoring'
+            ],
+            interpretation: 'Level 2+ expected for production applications. Level 3 for handling sensitive data.'
+        }
+    };
+
+    function showMetricInfo(metricKey) {
+        const info = metricInfo[metricKey];
+        if (!info) return;
+
+        document.getElementById('metricModalTitle').textContent = info.title;
+        document.getElementById('metricModalBody').innerHTML = `
+            <h4>What This Measures</h4>
+            <p>${info.description}</p>
+
+            <h4>Details</h4>
+            <ul>
+                ${info.details.map(d => `<li>${d}</li>`).join('')}
+            </ul>
+
+            <h4>How to Interpret</h4>
+            <p>${info.interpretation}</p>
+        `;
+        document.getElementById('metricModal').classList.add('active');
     }
 
     function copyRemediationPrompt(runPk) {
@@ -526,6 +810,10 @@
 
     // Close modal on click outside
     document.getElementById('findingModal').addEventListener('click', function(e) {
+        if (e.target === this) closeModal();
+    });
+
+    document.getElementById('metricModal').addEventListener('click', function(e) {
         if (e.target === this) closeModal();
     });
 

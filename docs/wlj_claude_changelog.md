@@ -16,6 +16,55 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-22 Changes
 
+### Security Dashboard Improvements
+
+**Issue 1: Numbers Don't Add Up**
+Dashboard showed 50 tests but only displayed "Passed" (41) - no visibility into failed tests or how to reconcile the numbers.
+
+**Fix:**
+- Reorganized dashboard into two rows:
+  - Row 1: Tests Run | Passed | Failed | Total Findings
+  - Row 2: Critical | High | Medium | Low
+- Now all test outcomes are visible and numbers add up correctly
+
+**Issue 2: Missing Metric Explanations**
+Users couldn't understand what each metric meant or how to interpret it.
+
+**Fix:**
+- Made all metric tiles clickable
+- Added popup modal with detailed explanation for each metric:
+  - What it measures
+  - How it's calculated
+  - Details and criteria
+  - How to interpret the value
+- Covers all 13 metrics: Tests Run, Passed, Failed, Findings, Critical/High/Medium/Low, Grade, BitSight, CVSS, Risk Score, Maturity
+
+**Issue 3: Acknowledged Findings Tracking**
+Need ability to document intentionally accepted risks while still tracking them.
+
+**Fix:**
+- Created `AcknowledgedFinding` model to track accepted risks with:
+  - Justification for accepting the risk
+  - Mitigating controls in place
+  - Accepted risk level
+  - Who acknowledged it and when
+  - Optional expiration date for review
+- Added `finding_key` to findings for stable acknowledgment matching
+- Scanner now checks acknowledgment status for each finding
+
+**Files Modified:**
+- `apps/security/templates/security/dashboard.html` - Reorganized layout, clickable tiles, metric info modal
+- `apps/security/models.py` - Added `AcknowledgedFinding` model, added acknowledgment fields to `SecurityFinding`
+- `apps/security/scanner.py` - Added `finding_key` to all `_add_finding` calls, acknowledgment checking
+- `apps/security/views.py` - Save acknowledgment fields when creating findings
+- `apps/security/management/commands/run_security_assessment.py` - Save acknowledgment fields
+
+**Migrations:**
+- `0002_add_acknowledged_finding.py` - Create AcknowledgedFinding model
+- `0003_add_acknowledgment_fields_to_finding.py` - Add finding_key, is_acknowledged, acknowledgment_justification to SecurityFinding
+
+---
+
 ### Fix Security Dashboard CSS Layout
 
 **Problem:** Security dashboard displayed as a flat list with no styling - grid layout, cards, and colors were not rendered.

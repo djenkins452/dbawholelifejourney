@@ -394,6 +394,10 @@ class RunAssessmentView(SecurityAccessMixin, View):
                     validation_steps=finding.validation_steps,
                     is_quick_win=finding.is_quick_win,
                     remediation_effort=finding.remediation_effort,
+                    # Acknowledgment tracking
+                    finding_key=getattr(finding, 'finding_key', '') or '',
+                    is_acknowledged=getattr(finding, 'is_acknowledged', False),
+                    acknowledgment_justification=getattr(finding, 'acknowledgment_justification', ''),
                 )
 
             # Save scores

@@ -515,6 +515,30 @@ class SecurityScanner:
         evidence['env_example_exists'] = (self.base_path / '.env.example').exists()
 
         result = 'pass' if evidence['env_in_gitignore'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="env_file_not_protected",
+                title=".env File Not Protected from Git",
+                severity='high',
+                likelihood='medium',
+                impact='high',
+                cvss_vector="AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+                description=".env file is not in .gitignore, risking secrets being committed to version control.",
+                risk_reasoning="If .env is committed to git, all secrets (API keys, passwords, tokens) become exposed in the repository history forever.",
+                evidence=evidence,
+                affected_components=['.gitignore', '.env'],
+                recommendations=[
+                    "Add .env to .gitignore immediately",
+                    "Check git history for any committed .env files",
+                    "Rotate any secrets that may have been exposed",
+                ],
+                validation_steps="grep '.env' .gitignore",
+                is_quick_win=True,
+                remediation_effort='low',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -526,7 +550,7 @@ class SecurityScanner:
             result_details=f".env in .gitignore: {evidence['env_in_gitignore']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_api_keys_in_docs(self):
@@ -710,6 +734,31 @@ class SecurityScanner:
                 pass
 
         result = 'pass' if not evidence['issues'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="aws_credentials_exposed",
+                title="AWS Credentials Exposed in Code",
+                severity='critical',
+                likelihood='high',
+                impact='high',
+                cvss_vector="AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H",
+                description=f"AWS credentials found in source code: {len(evidence['issues'])} issues detected.",
+                risk_reasoning="Exposed AWS credentials can lead to complete cloud infrastructure compromise, data breaches, and significant financial impact from unauthorized resource usage.",
+                evidence=evidence,
+                affected_components=[i['file'] for i in evidence['issues']] if evidence['issues'] else ['unknown'],
+                recommendations=[
+                    "Remove AWS credentials from source code immediately",
+                    "Use AWS IAM roles or environment variables",
+                    "Rotate compromised credentials",
+                    "Enable AWS CloudTrail to monitor for unauthorized access",
+                ],
+                validation_steps="Search codebase for AKIA patterns and AWS secret key patterns",
+                is_quick_win=False,
+                remediation_effort='medium',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -721,7 +770,7 @@ class SecurityScanner:
             result_details=f"Found {len(evidence['issues'])} AWS credential issues",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_database_credentials(self):
@@ -744,6 +793,30 @@ class SecurityScanner:
                 evidence['hardcoded_found'].append('settings.py')
 
         result = 'pass' if evidence['uses_env'] and not evidence['hardcoded_found'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="database_credentials_insecure",
+                title="Database Credentials Not Properly Secured",
+                severity='high',
+                likelihood='medium',
+                impact='high',
+                cvss_vector="AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H",
+                description="Database credentials are either hardcoded or not loaded from environment variables.",
+                risk_reasoning="Hardcoded or improperly managed database credentials can lead to unauthorized database access if source code is exposed.",
+                evidence=evidence,
+                affected_components=['config/settings.py'],
+                recommendations=[
+                    "Load DATABASE_URL from environment variable",
+                    "Remove any hardcoded database passwords",
+                    "Use django-environ or similar for config management",
+                ],
+                validation_steps="Check settings.py for DATABASE_URL configuration",
+                is_quick_win=True,
+                remediation_effort='low',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -755,7 +828,7 @@ class SecurityScanner:
             result_details=f"Uses env: {evidence['uses_env']}, Hardcoded: {len(evidence['hardcoded_found'])}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_third_party_api_keys(self):
@@ -788,6 +861,30 @@ class SecurityScanner:
                         evidence['issues'].append(f"{service} ({var}) appears hardcoded")
 
         result = 'pass' if not evidence['issues'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="third_party_keys_hardcoded",
+                title="Third-Party API Keys Hardcoded",
+                severity='high',
+                likelihood='medium',
+                impact='high',
+                cvss_vector="AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:L/A:N",
+                description=f"Third-party API keys appear to be hardcoded: {evidence['issues']}",
+                risk_reasoning="Hardcoded API keys can be exposed through source code leaks, leading to unauthorized access to external services and potential financial impact.",
+                evidence=evidence,
+                affected_components=['config/settings.py'],
+                recommendations=[
+                    "Move all API keys to environment variables",
+                    "Use django-environ for configuration management",
+                    "Rotate any exposed API keys immediately",
+                ],
+                validation_steps="Check settings.py for hardcoded API key patterns",
+                is_quick_win=True,
+                remediation_effort='low',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -799,7 +896,7 @@ class SecurityScanner:
             result_details=f"Checked {len(evidence['services_checked'])} services",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     # ==========================================================================
@@ -840,6 +937,30 @@ class SecurityScanner:
             issues.append('SESSION_COOKIE_SAMESITE should be Lax or Strict')
 
         result = 'pass' if not issues else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="session_security_misconfigured",
+                title="Session Security Misconfiguration",
+                severity='medium',
+                likelihood='medium',
+                impact='medium',
+                cvss_vector="AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N",
+                description=f"Session cookie security issues: {', '.join(issues)}",
+                risk_reasoning="Insecure session cookies can lead to session hijacking via XSS or network interception.",
+                evidence=evidence,
+                affected_components=['config/settings.py'],
+                recommendations=[
+                    "Set SESSION_COOKIE_SECURE=True in production",
+                    "Set SESSION_COOKIE_SAMESITE='Lax' or 'Strict'",
+                    "Ensure SESSION_COOKIE_HTTPONLY=True",
+                ],
+                validation_steps="Review session settings in Django configuration",
+                is_quick_win=True,
+                remediation_effort='low',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -851,7 +972,7 @@ class SecurityScanner:
             result_details=f"Issues: {len(issues)}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_password_policy(self):
@@ -871,6 +992,31 @@ class SecurityScanner:
         has_all = all(any(e in v for v in evidence['validators']) for e in expected)
 
         result = 'pass' if has_all else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="weak_password_policy",
+                title="Weak Password Policy Configuration",
+                severity='medium',
+                likelihood='medium',
+                impact='medium',
+                cvss_vector="AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+                description="Password validators are missing required checks for length, common passwords, or numeric-only passwords.",
+                risk_reasoning="Weak password policies allow users to set easily guessable passwords, increasing credential compromise risk.",
+                evidence=evidence,
+                affected_components=['config/settings.py'],
+                recommendations=[
+                    "Add MinimumLengthValidator (min 8 chars)",
+                    "Add CommonPasswordValidator",
+                    "Add NumericPasswordValidator",
+                    "Consider UserAttributeSimilarityValidator",
+                ],
+                validation_steps="Review AUTH_PASSWORD_VALIDATORS in settings",
+                is_quick_win=True,
+                remediation_effort='low',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -882,7 +1028,7 @@ class SecurityScanner:
             result_details=f"Validators: {', '.join(evidence['validators'])}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_rate_limiting(self):
@@ -1034,6 +1180,29 @@ class SecurityScanner:
         is_reasonable = session_age <= 86400 * 7  # 7 days max
 
         result = 'pass' if is_reasonable else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="session_timeout_too_long",
+                title="Session Timeout Too Long",
+                severity='low',
+                likelihood='low',
+                impact='medium',
+                cvss_vector="AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:L/A:N",
+                description=f"Session timeout is {evidence['session_age_hours']:.0f} hours, exceeding recommended 7 days.",
+                risk_reasoning="Long session timeouts increase the window for session hijacking on shared/public computers.",
+                evidence=evidence,
+                affected_components=['config/settings.py'],
+                recommendations=[
+                    "Set SESSION_COOKIE_AGE to 7 days (604800) or less",
+                    "Consider shorter timeout for sensitive data access",
+                ],
+                validation_steps="Check SESSION_COOKIE_AGE in Django settings",
+                is_quick_win=True,
+                remediation_effort='low',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -1045,7 +1214,7 @@ class SecurityScanner:
             result_details=f"Session age: {evidence['session_age_hours']:.1f} hours",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_secure_cookies(self):
@@ -1068,6 +1237,29 @@ class SecurityScanner:
                 issues.append('CSRF_COOKIE_SECURE should be True')
 
         result = 'pass' if not issues else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="insecure_cookie_settings",
+                title="Insecure Cookie Settings in Production",
+                severity='medium',
+                likelihood='medium',
+                impact='medium',
+                cvss_vector="AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N",
+                description=f"Cookie security issues: {', '.join(issues)}",
+                risk_reasoning="Cookies without Secure flag can be intercepted over HTTP, enabling session hijacking.",
+                evidence=evidence,
+                affected_components=['config/settings.py'],
+                recommendations=[
+                    "Set CSRF_COOKIE_SECURE=True in production",
+                    "Ensure all sensitive cookies use Secure flag",
+                ],
+                validation_steps="Review cookie settings in Django configuration",
+                is_quick_win=True,
+                remediation_effort='low',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -1079,7 +1271,7 @@ class SecurityScanner:
             result_details=f"Issues: {len(issues)}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     # ==========================================================================
@@ -1121,6 +1313,30 @@ class SecurityScanner:
                 pass
 
         result = 'pass' if evidence['user_scoped'] > 0 else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="missing_user_scoping",
+                title="Missing User Data Scoping",
+                severity='high',
+                likelihood='medium',
+                impact='high',
+                cvss_vector="AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:L/A:N",
+                description="No evidence of user-scoped queries found. Users may be able to access other users' data.",
+                risk_reasoning="Without user scoping, IDOR vulnerabilities allow any authenticated user to access all data.",
+                evidence=evidence,
+                affected_components=evidence.get('potentially_unsafe', ['apps/*/views.py']),
+                recommendations=[
+                    "Add user=request.user filter to all user-specific queries",
+                    "Use get_queryset() to scope data by user",
+                    "Audit all .objects.all() calls",
+                ],
+                validation_steps="Search for 'user=request.user' in view files",
+                is_quick_win=False,
+                remediation_effort='medium',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -1132,7 +1348,7 @@ class SecurityScanner:
             result_details=f"User-scoped views: {evidence['user_scoped']}/{evidence['views_checked']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_admin_protection(self):
@@ -1158,6 +1374,30 @@ class SecurityScanner:
                     pass
 
         result = 'pass' if evidence['admin_url_customized'] and evidence['staff_checks'] > 0 else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="admin_endpoint_exposed",
+                title="Admin Endpoint Not Properly Protected",
+                severity='medium',
+                likelihood='low',
+                impact='high',
+                cvss_vector="AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:L",
+                description="Admin URL is at default path and/or missing staff protection checks.",
+                risk_reasoning="Default admin URLs are targeted by automated attacks. Combined with weak credentials, leads to full compromise.",
+                evidence=evidence,
+                affected_components=['config/urls.py', 'apps/*/views.py'],
+                recommendations=[
+                    "Change admin URL from default /admin/ to a custom path",
+                    "Add rate limiting to admin login",
+                    "Use staff_member_required decorator consistently",
+                ],
+                validation_steps="Check ADMIN_URL_PATH setting and admin URL configuration",
+                is_quick_win=True,
+                remediation_effort='low',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -1169,7 +1409,7 @@ class SecurityScanner:
             result_details=f"Custom URL: {evidence['admin_url']}, Staff checks: {evidence['staff_checks']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_object_level_access(self):
@@ -1188,6 +1428,30 @@ class SecurityScanner:
                 pass
 
         result = 'pass' if evidence['get_object_checks'] > 0 or evidence['filter_user_checks'] > 0 else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="missing_object_level_access",
+                title="Missing Object-Level Access Controls",
+                severity='high',
+                likelihood='medium',
+                impact='high',
+                cvss_vector="AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N",
+                description="No evidence of object-level access controls (get_object_or_404, filter by user).",
+                risk_reasoning="Without object-level checks, IDOR allows any user to access/modify any object by ID.",
+                evidence=evidence,
+                affected_components=['apps/*/views.py'],
+                recommendations=[
+                    "Use get_object_or_404 with user filter for detail views",
+                    "Filter querysets by user in get_queryset()",
+                    "Implement permission checks in dispatch()",
+                ],
+                validation_steps="Audit all detail/update views for ownership checks",
+                is_quick_win=False,
+                remediation_effort='medium',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -1199,7 +1463,7 @@ class SecurityScanner:
             result_details=f"get_object checks: {evidence['get_object_checks']}, filter(user=): {evidence['filter_user_checks']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_api_authentication(self):
@@ -1228,6 +1492,29 @@ class SecurityScanner:
                     pass
 
         result = 'pass' if evidence.get('secure_comparison') else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="api_timing_attack_vulnerable",
+                title="API Key Comparison May Be Vulnerable to Timing Attack",
+                severity='medium',
+                likelihood='low',
+                impact='medium',
+                cvss_vector="AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:N/A:N",
+                description="API key comparison does not use constant-time comparison (hmac.compare_digest or secrets.compare_digest).",
+                risk_reasoning="Non-constant-time string comparison leaks timing information, potentially allowing API key extraction.",
+                evidence=evidence,
+                affected_components=['apps/admin_console/views.py'],
+                recommendations=[
+                    "Use hmac.compare_digest() or secrets.compare_digest() for API key validation",
+                    "Never use == for comparing secrets",
+                ],
+                validation_steps="Search for API key validation code and verify constant-time comparison",
+                is_quick_win=True,
+                remediation_effort='low',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -1239,7 +1526,7 @@ class SecurityScanner:
             result_details=f"Auth methods: {', '.join(set(evidence['api_auth_methods']))}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_permission_decorators(self):
@@ -1262,6 +1549,30 @@ class SecurityScanner:
                 pass
 
         result = 'pass' if evidence['login_required'] > 10 else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="insufficient_permission_decorators",
+                title="Insufficient Permission Decorator Usage",
+                severity='medium',
+                likelihood='medium',
+                impact='high',
+                cvss_vector="AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:L/A:N",
+                description=f"Only {evidence['login_required']} login_required decorators found across views.",
+                risk_reasoning="Views without authentication allow anonymous access to potentially sensitive data.",
+                evidence=evidence,
+                affected_components=['apps/*/views.py'],
+                recommendations=[
+                    "Add LoginRequiredMixin to all class-based views",
+                    "Add @login_required to all function-based views",
+                    "Audit views for proper authentication requirements",
+                ],
+                validation_steps="Count LoginRequiredMixin and login_required usage vs total views",
+                is_quick_win=False,
+                remediation_effort='medium',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -1273,7 +1584,7 @@ class SecurityScanner:
             result_details=f"login_required: {evidence['login_required']}, permission_required: {evidence['permission_required']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     # ==========================================================================
@@ -1317,6 +1628,30 @@ class SecurityScanner:
         evidence['raw_sql_usage'] = list(set(evidence['raw_sql_usage']))
 
         result = 'pass' if not evidence['raw_sql_usage'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="potential_sql_injection",
+                title="Potential SQL Injection Vulnerability",
+                severity='critical',
+                likelihood='medium',
+                impact='high',
+                cvss_vector="AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H",
+                description=f"Found {len(evidence['raw_sql_usage'])} files with potentially unsafe raw SQL patterns.",
+                risk_reasoning="SQL injection can lead to complete database compromise, data theft, and unauthorized modifications.",
+                evidence=evidence,
+                affected_components=evidence['raw_sql_usage'][:5],
+                recommendations=[
+                    "Use Django ORM instead of raw SQL",
+                    "If raw SQL is necessary, use parameterized queries",
+                    "Never concatenate user input into SQL strings",
+                ],
+                validation_steps="Search for .raw(), .extra(), and cursor.execute() with string formatting",
+                is_quick_win=False,
+                remediation_effort='medium',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -1328,7 +1663,7 @@ class SecurityScanner:
             result_details=f"Raw SQL files: {len(evidence['raw_sql_usage'])}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_xss_protection(self):
@@ -1361,6 +1696,30 @@ class SecurityScanner:
 
         # Some mark_safe usage is expected for HTML rendering
         result = 'pass' if len(evidence['mark_safe_usage']) < 20 else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="excessive_mark_safe_usage",
+                title="Excessive mark_safe() Usage - Potential XSS",
+                severity='high',
+                likelihood='medium',
+                impact='high',
+                cvss_vector="AV:N/AC:L/PR:L/UI:R/S:C/C:L/I:L/A:N",
+                description=f"Found {len(evidence['mark_safe_usage'])} files using mark_safe(), which bypasses XSS protection.",
+                risk_reasoning="Excessive mark_safe usage increases XSS attack surface. Each use must be carefully audited.",
+                evidence=evidence,
+                affected_components=evidence['mark_safe_usage'][:5],
+                recommendations=[
+                    "Audit each mark_safe() usage for user input",
+                    "Use Django's autoescape where possible",
+                    "Sanitize HTML before marking safe",
+                ],
+                validation_steps="grep -r 'mark_safe' --include='*.py'",
+                is_quick_win=False,
+                remediation_effort='medium',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -1372,7 +1731,7 @@ class SecurityScanner:
             result_details=f"mark_safe: {len(evidence['mark_safe_usage'])}, |safe: {len(evidence['safe_filter_usage'])}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_file_upload_validation(self):
@@ -1395,6 +1754,31 @@ class SecurityScanner:
                 pass
 
         result = 'pass' if evidence['validation_found'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="missing_file_upload_validation",
+                title="Missing File Upload Validation",
+                severity='medium',
+                likelihood='medium',
+                impact='medium',
+                cvss_vector="AV:N/AC:L/PR:L/UI:N/S:U/C:L/I:L/A:L",
+                description="File upload validation (magic bytes, size limits) not detected in codebase.",
+                risk_reasoning="Without proper validation, malicious files can be uploaded leading to RCE or storage abuse.",
+                evidence=evidence,
+                affected_components=['apps/*/views.py'],
+                recommendations=[
+                    "Validate file magic bytes (not just extension)",
+                    "Implement file size limits",
+                    "Scan uploaded files for malware",
+                    "Store uploads outside webroot",
+                ],
+                validation_steps="Search for file upload handling code and validation",
+                is_quick_win=False,
+                remediation_effort='medium',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -1406,7 +1790,7 @@ class SecurityScanner:
             result_details=f"Magic bytes: {evidence['magic_bytes_check']}, Size: {evidence['size_check']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_csrf_protection(self):
@@ -1449,6 +1833,35 @@ class SecurityScanner:
         suspicious_exempts = [f for f in evidence['csrf_exempt_usage'] if not is_webhook_file(f)]
 
         result = 'pass' if evidence['csrf_middleware'] and len(suspicious_exempts) == 0 else 'fail'
+        findings = []
+
+        if result == 'fail':
+            issues = []
+            if not evidence['csrf_middleware']:
+                issues.append("CSRF middleware not enabled")
+            if suspicious_exempts:
+                issues.append(f"Suspicious @csrf_exempt usage in: {', '.join(suspicious_exempts[:3])}")
+            finding = self._add_finding(
+                finding_key="csrf_protection_issue",
+                title="CSRF Protection Issue",
+                severity='high',
+                likelihood='medium',
+                impact='high',
+                cvss_vector="AV:N/AC:L/PR:N/UI:R/S:U/C:N/I:H/A:N",
+                description=f"CSRF issues: {'; '.join(issues)}",
+                risk_reasoning="Missing CSRF protection allows attackers to trick users into performing actions without consent.",
+                evidence=evidence,
+                affected_components=suspicious_exempts[:5] if suspicious_exempts else ['config/settings.py'],
+                recommendations=[
+                    "Enable CsrfViewMiddleware in MIDDLEWARE",
+                    "Remove @csrf_exempt except for legitimate webhooks",
+                    "Use {% csrf_token %} in all forms",
+                ],
+                validation_steps="Check MIDDLEWARE setting and search for @csrf_exempt",
+                is_quick_win=True,
+                remediation_effort='low',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -1460,7 +1873,7 @@ class SecurityScanner:
             result_details=f"Middleware: {evidence['csrf_middleware']}, Exempt: {len(evidence['csrf_exempt_usage'])}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_command_injection(self):
@@ -1487,6 +1900,30 @@ class SecurityScanner:
                 pass
 
         result = 'pass' if not evidence['shell_true'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="command_injection_risk",
+                title="Potential Command Injection Vulnerability",
+                severity='critical',
+                likelihood='medium',
+                impact='high',
+                cvss_vector="AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H",
+                description=f"Found {len(evidence['shell_true'])} instances of dangerous shell execution patterns.",
+                risk_reasoning="shell=True or os.system with user input enables arbitrary command execution.",
+                evidence=evidence,
+                affected_components=[s['file'] for s in evidence['shell_true'][:5]],
+                recommendations=[
+                    "Use subprocess with shell=False and list arguments",
+                    "Never pass user input to shell commands",
+                    "Use shlex.split() for parsing if needed",
+                ],
+                validation_steps="Search for shell=True, os.system, os.popen",
+                is_quick_win=False,
+                remediation_effort='medium',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -1498,7 +1935,7 @@ class SecurityScanner:
             result_details=f"Dangerous patterns: {len(evidence['shell_true'])}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     # ==========================================================================
@@ -1532,6 +1969,30 @@ class SecurityScanner:
                 pass
 
         result = 'pass' if evidence['encryption_found'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="missing_encryption_at_rest",
+                title="Missing Encryption at Rest for Sensitive Data",
+                severity='high',
+                likelihood='medium',
+                impact='high',
+                cvss_vector="AV:N/AC:L/PR:H/UI:N/S:U/C:H/I:N/A:N",
+                description="No evidence of field-level encryption (Fernet, EncryptedTextField) found.",
+                risk_reasoning="Database breach exposes all sensitive data in plaintext.",
+                evidence=evidence,
+                affected_components=['apps/*/models.py'],
+                recommendations=[
+                    "Use EncryptedTextField for sensitive fields",
+                    "Implement Fernet encryption for tokens and credentials",
+                    "Enable database-level encryption (TDE) as additional layer",
+                ],
+                validation_steps="Search for Fernet, EncryptedTextField usage",
+                is_quick_win=False,
+                remediation_effort='high',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -1543,7 +2004,7 @@ class SecurityScanner:
             result_details=f"Encryption found: {evidence['encryption_found']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_pii_handling(self):
@@ -1563,6 +2024,30 @@ class SecurityScanner:
                 pass
 
         result = 'pass' if evidence['soft_delete'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="missing_soft_delete",
+                title="Missing Soft Delete for PII Data",
+                severity='low',
+                likelihood='low',
+                impact='medium',
+                cvss_vector="AV:N/AC:H/PR:H/UI:N/S:U/C:L/I:N/A:N",
+                description="Soft delete pattern not found. Hard deletes may violate data retention requirements.",
+                risk_reasoning="Without soft delete, deleted PII cannot be recovered for compliance/audit requests.",
+                evidence=evidence,
+                affected_components=['apps/*/models.py'],
+                recommendations=[
+                    "Implement soft_delete() method on models with PII",
+                    "Add deleted_at timestamp field",
+                    "Filter deleted records in default QuerySet",
+                ],
+                validation_steps="Search for soft_delete or deleted_at in models",
+                is_quick_win=False,
+                remediation_effort='medium',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -1574,7 +2059,7 @@ class SecurityScanner:
             result_details=f"Soft delete: {evidence['soft_delete']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_password_hashing(self):
@@ -1589,6 +2074,30 @@ class SecurityScanner:
         has_strong_hasher = any('PBKDF2' in h or 'Argon2' in h for h in hashers) if hashers else True  # Django default is PBKDF2
 
         result = 'pass' if has_strong_hasher else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="weak_password_hashing",
+                title="Weak Password Hashing Algorithm",
+                severity='high',
+                likelihood='low',
+                impact='high',
+                cvss_vector="AV:N/AC:H/PR:H/UI:N/S:U/C:H/I:H/A:N",
+                description="Password hasher is not PBKDF2 or Argon2. Passwords may be vulnerable to cracking.",
+                risk_reasoning="Weak hashing allows offline password cracking after database breach.",
+                evidence=evidence,
+                affected_components=['config/settings.py'],
+                recommendations=[
+                    "Use Django's default PBKDF2 hasher",
+                    "Consider upgrading to Argon2 (django-argon2)",
+                    "Increase PBKDF2 iterations if using custom config",
+                ],
+                validation_steps="Check PASSWORD_HASHERS setting",
+                is_quick_win=True,
+                remediation_effort='low',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -1600,7 +2109,7 @@ class SecurityScanner:
             result_details=f"Hashers: {len(hashers) if hashers else 'default'}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_sensitive_data_logging(self):
@@ -1734,6 +2243,30 @@ class SecurityScanner:
                 pass
 
         result = 'pass' if evidence['soft_delete'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="missing_data_retention_policy",
+                title="Missing Data Retention Policy",
+                severity='low',
+                likelihood='low',
+                impact='low',
+                cvss_vector="AV:L/AC:H/PR:H/UI:N/S:U/C:L/I:N/A:N",
+                description="No data retention policy (SOFT_DELETE_RETENTION_DAYS) found in codebase.",
+                risk_reasoning="Without defined retention, data may be kept indefinitely violating privacy regulations.",
+                evidence=evidence,
+                affected_components=['config/settings.py'],
+                recommendations=[
+                    "Define SOFT_DELETE_RETENTION_DAYS setting",
+                    "Implement scheduled cleanup of old soft-deleted records",
+                    "Document retention periods for different data types",
+                ],
+                validation_steps="Search for SOFT_DELETE_RETENTION_DAYS in settings",
+                is_quick_win=True,
+                remediation_effort='low',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -1745,7 +2278,7 @@ class SecurityScanner:
             result_details=f"Soft delete: {evidence['soft_delete']}, Retention: {evidence['retention_days']} days",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     # ==========================================================================
@@ -1777,6 +2310,30 @@ class SecurityScanner:
                 pass
 
         result = 'pass' if evidence['security_logger'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="missing_security_logging",
+                title="Missing Security Event Logging",
+                severity='medium',
+                likelihood='medium',
+                impact='medium',
+                cvss_vector="AV:N/AC:L/PR:H/UI:N/S:U/C:N/I:N/A:L",
+                description="No dedicated security logger found. Security events may not be captured.",
+                risk_reasoning="Without security logging, attacks and suspicious activity go undetected.",
+                evidence=evidence,
+                affected_components=['config/settings.py', 'apps/*/views.py'],
+                recommendations=[
+                    "Create a dedicated security logger (wlj.security)",
+                    "Log authentication events, permission denials, admin actions",
+                    "Send security logs to separate destination for analysis",
+                ],
+                validation_steps="Search for security logger configuration",
+                is_quick_win=False,
+                remediation_effort='medium',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -1788,7 +2345,7 @@ class SecurityScanner:
             result_details=f"Security logger: {evidence['security_logger']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_audit_trail(self):
@@ -1809,6 +2366,30 @@ class SecurityScanner:
                 pass
 
         result = 'pass' if evidence['audit_models'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="missing_audit_trail",
+                title="Missing Audit Trail",
+                severity='medium',
+                likelihood='low',
+                impact='medium',
+                cvss_vector="AV:N/AC:L/PR:H/UI:N/S:U/C:N/I:L/A:N",
+                description="No audit log models found. Sensitive operations may not be tracked.",
+                risk_reasoning="Without audit trails, unauthorized changes cannot be detected or investigated.",
+                evidence=evidence,
+                affected_components=['apps/*/models.py'],
+                recommendations=[
+                    "Create AuditLog model for tracking sensitive operations",
+                    "Log user, timestamp, action, and before/after values",
+                    "Implement immutable audit records",
+                ],
+                validation_steps="Search for AuditLog model definitions",
+                is_quick_win=False,
+                remediation_effort='medium',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -1820,7 +2401,7 @@ class SecurityScanner:
             result_details=f"Audit models: {len(evidence['audit_models'])}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_error_handling(self):
@@ -1839,6 +2420,30 @@ class SecurityScanner:
                     evidence['custom_error_pages'] = True
 
         result = 'pass' if not debug or evidence['custom_error_pages'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="error_information_leakage",
+                title="Error Pages May Leak Information",
+                severity='medium',
+                likelihood='medium',
+                impact='low',
+                cvss_vector="AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+                description="DEBUG is enabled or custom error pages are missing, potentially leaking stack traces.",
+                risk_reasoning="Debug error pages expose code structure, file paths, and potentially secrets.",
+                evidence=evidence,
+                affected_components=['config/settings.py', 'templates/'],
+                recommendations=[
+                    "Set DEBUG=False in production",
+                    "Create custom 404.html and 500.html templates",
+                    "Ensure error pages don't show technical details",
+                ],
+                validation_steps="Check DEBUG setting and error template existence",
+                is_quick_win=True,
+                remediation_effort='low',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -1850,7 +2455,7 @@ class SecurityScanner:
             result_details=f"Debug: {debug}, Custom pages: {evidence['custom_error_pages']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_log_rotation(self):
@@ -1909,6 +2514,30 @@ class SecurityScanner:
 
         debug = getattr(settings, 'DEBUG', False)
         result = 'pass' if debug or (evidence['SECURE_BROWSER_XSS_FILTER'] and evidence['SECURE_CONTENT_TYPE_NOSNIFF']) else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="missing_security_headers",
+                title="Missing Security Headers",
+                severity='medium',
+                likelihood='medium',
+                impact='medium',
+                cvss_vector="AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N",
+                description="Security headers (XSS filter, content-type nosniff) not configured.",
+                risk_reasoning="Missing headers allow XSS attacks and content-type sniffing exploits.",
+                evidence=evidence,
+                affected_components=['config/settings.py'],
+                recommendations=[
+                    "Set SECURE_BROWSER_XSS_FILTER=True",
+                    "Set SECURE_CONTENT_TYPE_NOSNIFF=True",
+                    "Configure X_FRAME_OPTIONS='DENY'",
+                ],
+                validation_steps="Check SECURE_* settings in Django config",
+                is_quick_win=True,
+                remediation_effort='low',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -1920,7 +2549,7 @@ class SecurityScanner:
             result_details=f"Headers configured: {sum(bool(v) for v in evidence.values())}/3",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_csp_configuration(self):
@@ -2006,6 +2635,30 @@ class SecurityScanner:
 
         # No CORS is actually OK for a single-origin app
         result = 'pass' if not evidence['cors_installed'] or not evidence['cors_allow_all'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="cors_allow_all_origins",
+                title="CORS Allows All Origins",
+                severity='high',
+                likelihood='medium',
+                impact='high',
+                cvss_vector="AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:L/A:N",
+                description="CORS is configured with CORS_ALLOW_ALL_ORIGINS=True, allowing any website to make requests.",
+                risk_reasoning="Allows any website to read user data via JavaScript, bypassing same-origin policy.",
+                evidence=evidence,
+                affected_components=['config/settings.py'],
+                recommendations=[
+                    "Set CORS_ALLOW_ALL_ORIGINS=False",
+                    "Use CORS_ALLOWED_ORIGINS with specific domains",
+                    "Consider if CORS is needed at all",
+                ],
+                validation_steps="Check CORS_ALLOW_ALL_ORIGINS setting",
+                is_quick_win=True,
+                remediation_effort='low',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -2017,7 +2670,7 @@ class SecurityScanner:
             result_details=f"CORS installed: {evidence['cors_installed']}, Allow all: {evidence['cors_allow_all']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_https_enforcement(self):
@@ -2049,6 +2702,30 @@ class SecurityScanner:
             https_enforced = ssl_redirect or (proxy_ssl_header is not None)
             result = 'pass' if https_enforced and hsts_seconds > 0 else 'fail'
 
+        findings = []
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="https_not_enforced",
+                title="HTTPS Not Properly Enforced",
+                severity='high',
+                likelihood='medium',
+                impact='high',
+                cvss_vector="AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:L/A:N",
+                description="HTTPS redirect or HSTS not configured in production settings.",
+                risk_reasoning="Without HTTPS enforcement, traffic can be intercepted (MitM) exposing credentials and data.",
+                evidence=evidence,
+                affected_components=['config/settings.py'],
+                recommendations=[
+                    "Set SECURE_SSL_REDIRECT=True or configure SECURE_PROXY_SSL_HEADER",
+                    "Set SECURE_HSTS_SECONDS to at least 31536000 (1 year)",
+                    "Consider SECURE_HSTS_PRELOAD=True",
+                ],
+                validation_steps="Check SECURE_SSL_REDIRECT and SECURE_HSTS_* settings",
+                is_quick_win=True,
+                remediation_effort='low',
+            )
+            findings.append(finding)
+
         self.results.append(TestResult(
             test_id=test_id,
             category='web',
@@ -2059,7 +2736,7 @@ class SecurityScanner:
             result_details=f"SSL redirect: {ssl_redirect}, Proxy SSL: {proxy_ssl_header is not None}, HSTS: {hsts_seconds}s",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_clickjacking_protection(self):
@@ -2082,6 +2759,29 @@ class SecurityScanner:
                 pass
 
         result = 'pass' if evidence['x_frame_options'] or evidence['csp_frame_ancestors'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="missing_clickjacking_protection",
+                title="Missing Clickjacking Protection",
+                severity='medium',
+                likelihood='low',
+                impact='medium',
+                cvss_vector="AV:N/AC:L/PR:N/UI:R/S:U/C:N/I:L/A:N",
+                description="Neither X-Frame-Options nor CSP frame-ancestors is configured.",
+                risk_reasoning="Without frame protection, site can be embedded in malicious pages for clickjacking attacks.",
+                evidence=evidence,
+                affected_components=['config/settings.py'],
+                recommendations=[
+                    "Set X_FRAME_OPTIONS='DENY' in Django settings",
+                    "Or add frame-ancestors directive to CSP",
+                ],
+                validation_steps="Check X_FRAME_OPTIONS setting",
+                is_quick_win=True,
+                remediation_effort='low',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -2093,7 +2793,7 @@ class SecurityScanner:
             result_details=f"X-Frame-Options: {evidence['x_frame_options']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_content_type_sniffing(self):
@@ -2107,6 +2807,28 @@ class SecurityScanner:
         }
 
         result = 'pass' if debug or evidence['SECURE_CONTENT_TYPE_NOSNIFF'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="content_type_sniffing_enabled",
+                title="Content Type Sniffing Not Prevented",
+                severity='low',
+                likelihood='low',
+                impact='medium',
+                cvss_vector="AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:L/A:N",
+                description="SECURE_CONTENT_TYPE_NOSNIFF is not enabled, allowing browser content sniffing.",
+                risk_reasoning="Content sniffing can turn benign files into executable scripts in some browsers.",
+                evidence=evidence,
+                affected_components=['config/settings.py'],
+                recommendations=[
+                    "Set SECURE_CONTENT_TYPE_NOSNIFF=True",
+                ],
+                validation_steps="Check SECURE_CONTENT_TYPE_NOSNIFF setting",
+                is_quick_win=True,
+                remediation_effort='low',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -2118,7 +2840,7 @@ class SecurityScanner:
             result_details=f"Nosniff: {evidence['SECURE_CONTENT_TYPE_NOSNIFF']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     # ==========================================================================
@@ -2151,6 +2873,30 @@ class SecurityScanner:
                         evidence['unpinned_packages'].append(line)
 
         result = 'pass' if evidence['unpinned'] == 0 else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="unpinned_dependencies",
+                title="Dependencies Without Version Pins",
+                severity='medium',
+                likelihood='medium',
+                impact='medium',
+                cvss_vector="AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:H/A:L",
+                description=f"Found {evidence['unpinned']} unpinned packages: {evidence['unpinned_packages'][:5]}",
+                risk_reasoning="Unpinned dependencies can lead to supply chain attacks or breaking changes when new versions are installed.",
+                evidence=evidence,
+                affected_components=['requirements.txt'],
+                recommendations=[
+                    "Pin all dependencies with specific versions (e.g., package==1.2.3)",
+                    "Use pip-tools or poetry for dependency management",
+                    "Regularly audit and update pinned versions",
+                ],
+                validation_steps="Check requirements.txt for packages without version specifiers",
+                is_quick_win=True,
+                remediation_effort='low',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -2162,7 +2908,7 @@ class SecurityScanner:
             result_details=f"Pinned: {evidence['pinned']}, Unpinned: {evidence['unpinned']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_known_vulnerabilities(self):
@@ -2205,6 +2951,30 @@ class SecurityScanner:
                         pass
 
         test_result = 'unknown' if not evidence['checked'] else ('pass' if not evidence['vulnerabilities'] else 'fail')
+        findings = []
+
+        if test_result == 'fail':
+            finding = self._add_finding(
+                finding_key="known_vulnerabilities_detected",
+                title="Known Vulnerabilities in Dependencies",
+                severity='high',
+                likelihood='high',
+                impact='high',
+                cvss_vector="AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+                description=f"Found {len(evidence['vulnerabilities'])} known vulnerabilities in dependencies.",
+                risk_reasoning="Dependencies with known CVEs can be exploited by attackers to compromise the application.",
+                evidence=evidence,
+                affected_components=['requirements.txt'],
+                recommendations=[
+                    "Update vulnerable packages to patched versions",
+                    "Run pip-audit regularly as part of CI/CD",
+                    "Subscribe to security advisories for critical packages",
+                ],
+                validation_steps="Run pip-audit to check for vulnerabilities",
+                is_quick_win=False,
+                remediation_effort='medium',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -2216,7 +2986,7 @@ class SecurityScanner:
             result_details=f"Checked: {evidence['checked']}, Vulns: {len(evidence.get('vulnerabilities', []))}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_outdated_packages(self):
@@ -2271,6 +3041,29 @@ class SecurityScanner:
                 evidence['from_env'] = True
 
         result = 'pass' if evidence['from_env'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="debug_not_from_env",
+                title="DEBUG Setting Not Environment-Controlled",
+                severity='medium',
+                likelihood='medium',
+                impact='medium',
+                cvss_vector="AV:N/AC:L/PR:H/UI:N/S:U/C:L/I:L/A:N",
+                description="DEBUG setting is not loaded from environment variable, risking production debug exposure.",
+                risk_reasoning="Hardcoded DEBUG can accidentally be deployed as True, exposing internal application details.",
+                evidence=evidence,
+                affected_components=['config/settings.py'],
+                recommendations=[
+                    "Load DEBUG from environment: DEBUG = env.bool('DEBUG', default=False)",
+                    "Ensure production environment sets DEBUG=False",
+                ],
+                validation_steps="Check settings.py for DEBUG configuration",
+                is_quick_win=True,
+                remediation_effort='low',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -2282,7 +3075,7 @@ class SecurityScanner:
             result_details=f"DEBUG: {debug}, From env: {evidence['from_env']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_allowed_hosts(self):
@@ -2294,6 +3087,30 @@ class SecurityScanner:
         evidence = {'hosts': allowed_hosts, 'has_wildcard': '*' in allowed_hosts}
 
         result = 'fail' if evidence['has_wildcard'] else 'pass'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="allowed_hosts_wildcard",
+                title="ALLOWED_HOSTS Contains Wildcard",
+                severity='high',
+                likelihood='medium',
+                impact='high',
+                cvss_vector="AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:N",
+                description="ALLOWED_HOSTS contains '*', accepting requests from any host.",
+                risk_reasoning="Wildcard ALLOWED_HOSTS enables Host header injection attacks for password reset poisoning.",
+                evidence=evidence,
+                affected_components=['config/settings.py'],
+                recommendations=[
+                    "Remove '*' from ALLOWED_HOSTS",
+                    "Explicitly list allowed domain names",
+                    "Load from environment for different deployments",
+                ],
+                validation_steps="Check ALLOWED_HOSTS setting for wildcards",
+                is_quick_win=True,
+                remediation_effort='low',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -2305,7 +3122,7 @@ class SecurityScanner:
             result_details=f"Hosts: {len(allowed_hosts)}, Wildcard: {evidence['has_wildcard']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_secret_key_security(self):
@@ -2328,6 +3145,30 @@ class SecurityScanner:
                     evidence['hardcoded'] = True
 
         result = 'pass' if evidence['from_env'] and not evidence['hardcoded'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="secret_key_insecure",
+                title="SECRET_KEY Not Properly Secured",
+                severity='critical',
+                likelihood='medium',
+                impact='high',
+                cvss_vector="AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N",
+                description="SECRET_KEY is either hardcoded or not loaded from environment variables.",
+                risk_reasoning="A compromised SECRET_KEY allows attackers to forge sessions, CSRF tokens, and signed data, leading to complete authentication bypass.",
+                evidence=evidence,
+                affected_components=['config/settings.py'],
+                recommendations=[
+                    "Load SECRET_KEY from environment variable",
+                    "Generate a new random SECRET_KEY using Django's get_random_secret_key()",
+                    "Never commit SECRET_KEY to version control",
+                ],
+                validation_steps="Check settings.py for SECRET_KEY configuration",
+                is_quick_win=True,
+                remediation_effort='low',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -2339,7 +3180,7 @@ class SecurityScanner:
             result_details=f"From env: {evidence['from_env']}, Hardcoded: {evidence['hardcoded']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_procfile_security(self):
@@ -2357,6 +3198,30 @@ class SecurityScanner:
             evidence['uses_gunicorn'] = 'gunicorn' in content
 
         result = 'pass' if evidence['uses_gunicorn'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="no_production_wsgi",
+                title="Production WSGI Server Not Configured",
+                severity='medium',
+                likelihood='low',
+                impact='high',
+                cvss_vector="AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:H",
+                description="Procfile doesn't use a production-ready WSGI server like gunicorn.",
+                risk_reasoning="Development servers are not designed for production traffic and lack security hardening, connection handling, and performance optimization.",
+                evidence=evidence,
+                affected_components=['Procfile'],
+                recommendations=[
+                    "Use gunicorn or uvicorn as the WSGI/ASGI server",
+                    "Configure appropriate worker count and timeout",
+                    "Never use Django's development server in production",
+                ],
+                validation_steps="Check Procfile for gunicorn or production WSGI server",
+                is_quick_win=True,
+                remediation_effort='low',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -2368,7 +3233,7 @@ class SecurityScanner:
             result_details=f"Gunicorn: {evidence['uses_gunicorn']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     # ==========================================================================
@@ -2394,6 +3259,30 @@ class SecurityScanner:
             evidence['recaptcha_configured'] = True
 
         result = 'pass' if evidence['recaptcha_configured'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="no_captcha_protection",
+                title="CAPTCHA Protection Not Configured",
+                severity='medium',
+                likelihood='high',
+                impact='medium',
+                cvss_vector="AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:L/A:L",
+                description="No CAPTCHA protection configured for forms, allowing automated bot submissions.",
+                risk_reasoning="Without CAPTCHA, bots can create fake accounts, spam forms, and perform credential stuffing attacks.",
+                evidence=evidence,
+                affected_components=['config/settings.py', 'signup/login forms'],
+                recommendations=[
+                    "Configure reCAPTCHA v3 for signup and login forms",
+                    "Consider invisible CAPTCHA for better UX",
+                    "Implement progressive CAPTCHA based on risk score",
+                ],
+                validation_steps="Check RECAPTCHA_V3_SITE_KEY in settings",
+                is_quick_win=False,
+                remediation_effort='medium',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -2405,7 +3294,7 @@ class SecurityScanner:
             result_details=f"reCAPTCHA: {evidence['recaptcha_configured']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_honeypot_fields(self):
@@ -2425,6 +3314,30 @@ class SecurityScanner:
                 pass
 
         result = 'pass' if evidence['honeypot_found'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="no_honeypot_protection",
+                title="Honeypot Anti-Bot Protection Missing",
+                severity='low',
+                likelihood='medium',
+                impact='low',
+                cvss_vector="AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:L/A:N",
+                description="No honeypot fields found on forms to detect automated bot submissions.",
+                risk_reasoning="Honeypot fields are a simple, low-friction way to catch automated spam submissions without affecting legitimate users.",
+                evidence=evidence,
+                affected_components=['forms'],
+                recommendations=[
+                    "Add hidden honeypot field to signup and contact forms",
+                    "Reject submissions where honeypot field is filled",
+                    "Use django-honeypot package for easy implementation",
+                ],
+                validation_steps="Search for honeypot or hidden website field in forms",
+                is_quick_win=True,
+                remediation_effort='low',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -2436,7 +3349,7 @@ class SecurityScanner:
             result_details=f"Honeypot: {evidence['honeypot_found']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_email_verification(self):
@@ -2449,6 +3362,30 @@ class SecurityScanner:
         }
 
         result = 'pass' if evidence['ACCOUNT_EMAIL_VERIFICATION'] in ['mandatory', 'optional'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="email_verification_disabled",
+                title="Email Verification Disabled",
+                severity='medium',
+                likelihood='medium',
+                impact='medium',
+                cvss_vector="AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:L/A:L",
+                description="Email verification is disabled, allowing accounts with invalid emails.",
+                risk_reasoning="Without email verification, attackers can create accounts with fake emails, reducing accountability and enabling abuse.",
+                evidence=evidence,
+                affected_components=['config/settings.py'],
+                recommendations=[
+                    "Set ACCOUNT_EMAIL_VERIFICATION='mandatory' or 'optional'",
+                    "Require verified email for sensitive operations",
+                    "Send verification email immediately on signup",
+                ],
+                validation_steps="Check ACCOUNT_EMAIL_VERIFICATION setting",
+                is_quick_win=True,
+                remediation_effort='low',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -2460,7 +3397,7 @@ class SecurityScanner:
             result_details=f"Verification: {evidence['ACCOUNT_EMAIL_VERIFICATION']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_signup_rate_limiting(self):
@@ -2480,6 +3417,30 @@ class SecurityScanner:
                 pass
 
         result = 'pass' if evidence['rate_limiting_found'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="signup_no_rate_limiting",
+                title="Signup Endpoint Missing Rate Limiting",
+                severity='medium',
+                likelihood='high',
+                impact='medium',
+                cvss_vector="AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:L/A:L",
+                description="Signup endpoint lacks rate limiting, enabling account enumeration and mass account creation.",
+                risk_reasoning="Without rate limiting, attackers can create thousands of fake accounts or perform credential stuffing attacks.",
+                evidence=evidence,
+                affected_components=['signup views'],
+                recommendations=[
+                    "Implement IP-based rate limiting for signup",
+                    "Add progressive delays for repeated attempts",
+                    "Consider device fingerprinting for additional protection",
+                ],
+                validation_steps="Check signup views for rate_limit decorator or cache-based limiting",
+                is_quick_win=False,
+                remediation_effort='medium',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -2491,7 +3452,7 @@ class SecurityScanner:
             result_details=f"Rate limiting: {evidence['rate_limiting_found']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     # ==========================================================================
@@ -3270,6 +4231,30 @@ class SecurityScanner:
                 evidence['role_based_access'] = True
 
         result = 'pass' if evidence['login_required'] and evidence['user_scoping'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="hipaa_access_controls_missing",
+                title="HIPAA Access Controls Insufficient",
+                severity='high',
+                likelihood='medium',
+                impact='high',
+                cvss_vector="AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:L/A:N",
+                description="Health data views lack proper authentication or user-scoping controls.",
+                risk_reasoning="HIPAA requires technical safeguards to limit PHI access. Missing controls = unauthorized disclosure risk and regulatory fines.",
+                evidence=evidence,
+                affected_components=['apps/health/views.py'],
+                recommendations=[
+                    "Add LoginRequiredMixin to all health data views",
+                    "Filter querysets by request.user",
+                    "Consider role-based access for provider scenarios",
+                ],
+                validation_steps="Check health views for authentication and user filtering",
+                is_quick_win=False,
+                remediation_effort='medium',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -3281,7 +4266,7 @@ class SecurityScanner:
             result_details=f"Auth: {evidence['login_required']}, Scoped: {evidence['user_scoping']}, RBAC: {evidence['role_based_access']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_hipaa_audit_logging(self):
@@ -3317,6 +4302,30 @@ class SecurityScanner:
                 pass
 
         result = 'pass' if evidence['audit_logging_present'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="hipaa_audit_logging_missing",
+                title="HIPAA Audit Logging Insufficient",
+                severity='medium',
+                likelihood='medium',
+                impact='medium',
+                cvss_vector="AV:N/AC:L/PR:L/UI:N/S:U/C:L/I:N/A:N",
+                description="Health data access is not comprehensively logged with audit trail.",
+                risk_reasoning="HIPAA requires audit logging of all PHI access. Missing logs make breach detection and investigation impossible.",
+                evidence=evidence,
+                affected_components=['apps/health/'],
+                recommendations=[
+                    "Add audit logging for all PHI access events",
+                    "Log WHO (user), WHAT (action), WHEN (timestamp), WHERE (IP)",
+                    "Retain audit logs for minimum 6 years per HIPAA",
+                ],
+                validation_steps="Check health views for audit logging implementation",
+                is_quick_win=False,
+                remediation_effort='medium',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -3328,7 +4337,7 @@ class SecurityScanner:
             result_details=f"Audit: {evidence['audit_logging_present']}, Full context: {evidence['who_what_when_where']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_health_data_minimization(self):
@@ -3399,6 +4408,30 @@ class SecurityScanner:
             pass
 
         result = 'pass' if evidence['https_enforced'] or evidence['hsts_enabled'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="phi_transmission_insecure",
+                title="PHI Transmission May Not Be Secure",
+                severity='high',
+                likelihood='medium',
+                impact='high',
+                cvss_vector="AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+                description="HTTPS enforcement or HSTS not configured for secure PHI transmission.",
+                risk_reasoning="HIPAA requires transmission security for PHI. Unencrypted transmission exposes health data to interception.",
+                evidence=evidence,
+                affected_components=['config/settings.py'],
+                recommendations=[
+                    "Enable SECURE_SSL_REDIRECT or configure SECURE_PROXY_SSL_HEADER",
+                    "Set SECURE_HSTS_SECONDS to enforce HTTPS",
+                    "Enable SESSION_COOKIE_SECURE and CSRF_COOKIE_SECURE",
+                ],
+                validation_steps="Check Django security settings for TLS/HSTS configuration",
+                is_quick_win=True,
+                remediation_effort='low',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -3410,7 +4443,7 @@ class SecurityScanner:
             result_details=f"HTTPS: {evidence['https_enforced']}, HSTS: {evidence['hsts_enabled']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_health_data_retention(self):
@@ -3444,6 +4477,30 @@ class SecurityScanner:
                 pass
 
         result = 'pass' if evidence['soft_delete_used'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="health_data_retention_missing",
+                title="Health Data Retention Policy Not Implemented",
+                severity='medium',
+                likelihood='low',
+                impact='medium',
+                cvss_vector="AV:N/AC:H/PR:L/UI:N/S:U/C:L/I:L/A:N",
+                description="Health data retention/soft delete not properly implemented.",
+                risk_reasoning="HIPAA requires retaining health records for minimum 6 years. Hard deletes violate retention requirements.",
+                evidence=evidence,
+                affected_components=['apps/health/models.py'],
+                recommendations=[
+                    "Implement soft delete for all health-related models",
+                    "Add deleted_at timestamp field",
+                    "Create archival process for aged data",
+                ],
+                validation_steps="Check health models for soft_delete or deleted_at field",
+                is_quick_win=False,
+                remediation_effort='medium',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -3455,7 +4512,7 @@ class SecurityScanner:
             result_details=f"Policy: {evidence['retention_policy_found']}, Soft delete: {evidence['soft_delete_used']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_patient_consent_tracking(self):
@@ -3496,6 +4553,30 @@ class SecurityScanner:
                     pass
 
         result = 'pass' if evidence['consent_model'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="patient_consent_not_tracked",
+                title="Patient Consent Not Tracked",
+                severity='medium',
+                likelihood='medium',
+                impact='medium',
+                cvss_vector="AV:N/AC:L/PR:L/UI:N/S:U/C:N/I:L/A:N",
+                description="No mechanism found for tracking patient consent for health data collection.",
+                risk_reasoning="Collecting health data without documented consent may violate HIPAA authorization requirements.",
+                evidence=evidence,
+                affected_components=['models.py'],
+                recommendations=[
+                    "Create a Consent or TermsAcceptance model",
+                    "Track consent timestamp and version",
+                    "Implement consent revocation capability",
+                ],
+                validation_steps="Check for consent model or terms_accepted field",
+                is_quick_win=False,
+                remediation_effort='medium',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -3507,7 +4588,7 @@ class SecurityScanner:
             result_details=f"Consent: {evidence['consent_model']}, Timestamped: {evidence['consent_timestamp']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_health_data_portability(self):
@@ -3542,6 +4623,30 @@ class SecurityScanner:
                 pass
 
         result = 'pass' if evidence['export_capability'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="health_data_not_exportable",
+                title="Health Data Export Not Available",
+                severity='medium',
+                likelihood='low',
+                impact='medium',
+                cvss_vector="AV:N/AC:H/PR:L/UI:N/S:U/C:N/I:L/A:N",
+                description="No health data export capability found for user access.",
+                risk_reasoning="HIPAA Right of Access requires patients to be able to obtain copies of their health records.",
+                evidence=evidence,
+                affected_components=['apps/health/'],
+                recommendations=[
+                    "Implement data export in CSV, JSON, or PDF format",
+                    "Ensure users can export their own health data",
+                    "Provide complete data within 30 days as required",
+                ],
+                validation_steps="Check for export views or data download functionality",
+                is_quick_win=False,
+                remediation_effort='medium',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -3553,7 +4658,7 @@ class SecurityScanner:
             result_details=f"Export: {evidence['export_capability']}, Formats: {evidence['supported_formats']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_breach_notification_capability(self):
@@ -3586,6 +4691,30 @@ class SecurityScanner:
                 pass
 
         result = 'pass' if evidence['notification_system'] and evidence['email_capability'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="breach_notification_missing",
+                title="Breach Notification Capability Missing",
+                severity='medium',
+                likelihood='low',
+                impact='high',
+                cvss_vector="AV:N/AC:H/PR:H/UI:N/S:U/C:N/I:L/A:N",
+                description="No capability found to notify users in case of a data breach.",
+                risk_reasoning="HIPAA requires breach notification within 60 days. Lack of notification infrastructure delays response.",
+                evidence=evidence,
+                affected_components=['notification system'],
+                recommendations=[
+                    "Implement email notification system",
+                    "Create user query capability for affected users",
+                    "Document breach notification procedures",
+                ],
+                validation_steps="Check for email sending and user notification code",
+                is_quick_win=False,
+                remediation_effort='medium',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -3597,7 +4726,7 @@ class SecurityScanner:
             result_details=f"Notifications: {evidence['notification_system']}, Email: {evidence['email_capability']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_health_provider_separation(self):
@@ -3778,6 +4907,30 @@ class SecurityScanner:
                 pass
 
         result = 'pass' if evidence['pagination_configured'] and evidence['max_page_size'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="api_pagination_unlimited",
+                title="API Pagination Missing Size Limits",
+                severity='medium',
+                likelihood='medium',
+                impact='medium',
+                cvss_vector="AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+                description="API pagination doesn't enforce maximum page size, allowing data exfiltration.",
+                risk_reasoning="Without max_page_size, attackers can request huge pages, causing DoS or data scraping.",
+                evidence=evidence,
+                affected_components=['API views', 'config/settings.py'],
+                recommendations=[
+                    "Configure PAGE_SIZE and MAX_PAGE_SIZE in DRF settings",
+                    "Set reasonable limits (e.g., max 100 items per page)",
+                    "Add pagination to all list endpoints",
+                ],
+                validation_steps="Check DRF pagination settings and view configurations",
+                is_quick_win=True,
+                remediation_effort='low',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -3789,7 +4942,7 @@ class SecurityScanner:
             result_details=f"Pagination: {evidence['pagination_configured']}, Max size: {evidence['max_page_size']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_api_request_validation(self):
@@ -3822,6 +4975,30 @@ class SecurityScanner:
                 pass
 
         result = 'pass' if evidence['serializers_used'] and evidence['validation_present'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="api_validation_missing",
+                title="API Request Validation Insufficient",
+                severity='medium',
+                likelihood='medium',
+                impact='high',
+                cvss_vector="AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:H/A:N",
+                description="API endpoints lack proper serializer validation for incoming requests.",
+                risk_reasoning="Without validation, malicious input can bypass expected constraints, leading to injection or data corruption.",
+                evidence=evidence,
+                affected_components=['API views'],
+                recommendations=[
+                    "Use DRF serializers for all API endpoints",
+                    "Implement validate_<field> methods for custom validation",
+                    "Consider adding OpenAPI schema validation",
+                ],
+                validation_steps="Check API views for serializer usage and validation",
+                is_quick_win=False,
+                remediation_effort='medium',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -3833,7 +5010,7 @@ class SecurityScanner:
             result_details=f"Serializers: {evidence['serializers_used']}, Validation: {evidence['validation_present']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_api_response_filtering(self):
@@ -3869,6 +5046,30 @@ class SecurityScanner:
                 pass
 
         result = 'pass' if evidence['exclude_fields'] or evidence['read_only_fields'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="api_response_not_filtered",
+                title="API Responses May Expose Sensitive Data",
+                severity='medium',
+                likelihood='medium',
+                impact='high',
+                cvss_vector="AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:N/A:N",
+                description="API serializers don't explicitly exclude or protect sensitive fields.",
+                risk_reasoning="Without field filtering, sensitive data like passwords or tokens may be accidentally exposed in API responses.",
+                evidence=evidence,
+                affected_components=['serializers.py'],
+                recommendations=[
+                    "Use explicit 'fields' list instead of '__all__'",
+                    "Add 'exclude' for sensitive fields",
+                    "Use write_only=True for password fields",
+                ],
+                validation_steps="Check serializers for field filtering configuration",
+                is_quick_win=True,
+                remediation_effort='low',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -3880,7 +5081,7 @@ class SecurityScanner:
             result_details=f"Exclude: {evidence['exclude_fields']}, Read-only: {evidence['read_only_fields']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_api_versioning(self):
@@ -3912,6 +5113,30 @@ class SecurityScanner:
                 pass
 
         result = 'pass' if evidence['versioning_configured'] or evidence['version_in_url'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="api_versioning_missing",
+                title="API Versioning Not Implemented",
+                severity='low',
+                likelihood='medium',
+                impact='low',
+                cvss_vector="AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:L/A:N",
+                description="API endpoints don't have versioning, making backward-compatible changes difficult.",
+                risk_reasoning="Without versioning, API changes may break client applications unexpectedly.",
+                evidence=evidence,
+                affected_components=['urls.py', 'config/settings.py'],
+                recommendations=[
+                    "Add version prefix to API URLs (e.g., /api/v1/)",
+                    "Configure DRF versioning class",
+                    "Document API version deprecation policy",
+                ],
+                validation_steps="Check URLs and settings for versioning configuration",
+                is_quick_win=False,
+                remediation_effort='medium',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -3923,7 +5148,7 @@ class SecurityScanner:
             result_details=f"Configured: {evidence['versioning_configured']}, URL version: {evidence['version_in_url']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_api_error_responses(self):
@@ -3959,6 +5184,30 @@ class SecurityScanner:
                 pass
 
         result = 'pass' if evidence['debug_disabled_in_prod'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="api_error_info_leak",
+                title="API Error Responses May Leak Information",
+                severity='medium',
+                likelihood='medium',
+                impact='medium',
+                cvss_vector="AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+                description="DEBUG not environment-controlled; API errors may expose stack traces in production.",
+                risk_reasoning="Detailed error messages reveal internal structure, file paths, and potentially sensitive data to attackers.",
+                evidence=evidence,
+                affected_components=['config/settings.py'],
+                recommendations=[
+                    "Load DEBUG from environment variable",
+                    "Implement custom exception handler for APIs",
+                    "Return generic error messages in production",
+                ],
+                validation_steps="Check DEBUG setting and exception handler configuration",
+                is_quick_win=True,
+                remediation_effort='low',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -3970,7 +5219,7 @@ class SecurityScanner:
             result_details=f"Custom handler: {evidence['custom_exception_handler']}, Debug controlled: {evidence['debug_disabled_in_prod']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_graphql_security(self):
@@ -4011,6 +5260,30 @@ class SecurityScanner:
             result = 'pass'
         else:
             result = 'pass' if evidence['depth_limiting'] else 'fail'
+        findings = []
+
+        if result == 'fail' and evidence['graphql_used']:
+            finding = self._add_finding(
+                finding_key="graphql_security_missing",
+                title="GraphQL Security Controls Missing",
+                severity='high',
+                likelihood='medium',
+                impact='high',
+                cvss_vector="AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:H",
+                description="GraphQL endpoint lacks depth limiting, enabling DoS via nested queries.",
+                risk_reasoning="Without depth limiting, attackers can craft deeply nested queries causing server resource exhaustion.",
+                evidence=evidence,
+                affected_components=['GraphQL schema'],
+                recommendations=[
+                    "Implement query depth limiting",
+                    "Add query cost analysis",
+                    "Disable introspection in production",
+                ],
+                validation_steps="Check GraphQL configuration for depth_limit and introspection settings",
+                is_quick_win=False,
+                remediation_effort='medium',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -4022,7 +5295,7 @@ class SecurityScanner:
             result_details=f"GraphQL: {evidence['graphql_used']}, Depth limit: {evidence['depth_limiting']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_api_key_management(self):
@@ -4055,6 +5328,30 @@ class SecurityScanner:
                 pass
 
         result = 'pass' if not evidence['api_key_auth'] or evidence['key_from_env'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="api_key_not_from_env",
+                title="API Keys Not Loaded From Environment",
+                severity='medium',
+                likelihood='medium',
+                impact='medium',
+                cvss_vector="AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:N/A:N",
+                description="API key authentication found but keys are not loaded from environment variables.",
+                risk_reasoning="Hardcoded API keys in source code can be exposed through repository leaks.",
+                evidence=evidence,
+                affected_components=['*.py files with API_KEY'],
+                recommendations=[
+                    "Move all API keys to environment variables",
+                    "Implement key rotation support",
+                    "Use secret management service if possible",
+                ],
+                validation_steps="Check for API_KEY usage and verify loading from env()",
+                is_quick_win=True,
+                remediation_effort='low',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -4066,7 +5363,7 @@ class SecurityScanner:
             result_details=f"API key auth: {evidence['api_key_auth']}, From env: {evidence['key_from_env']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     # ==========================================================================
@@ -4113,6 +5410,30 @@ class SecurityScanner:
             evidence['connection_encrypted'] = True
 
         result = 'pass' if evidence['connection_encrypted'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="database_connection_unencrypted",
+                title="Database Connection May Not Be Encrypted",
+                severity='high',
+                likelihood='medium',
+                impact='high',
+                cvss_vector="AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:N/A:N",
+                description="Database connections may not be using TLS encryption.",
+                risk_reasoning="Unencrypted database connections expose queries and data to network eavesdropping.",
+                evidence=evidence,
+                affected_components=['config/settings.py'],
+                recommendations=[
+                    "Configure sslmode=require for PostgreSQL",
+                    "Use DATABASE_URL with cloud-provided encrypted connections",
+                    "Verify TLS certificates in production",
+                ],
+                validation_steps="Check database configuration for SSL/TLS settings",
+                is_quick_win=True,
+                remediation_effort='low',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -4124,7 +5445,7 @@ class SecurityScanner:
             result_details=f"SSL: {evidence['ssl_mode']}, Encrypted: {evidence['connection_encrypted']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_raw_sql_usage(self):
@@ -4255,6 +5576,30 @@ class SecurityScanner:
                 evidence['no_superuser'] = False
 
         result = 'pass' if evidence['separate_db_user'] and evidence['no_superuser'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="database_user_overprivileged",
+                title="Database User May Be Overprivileged",
+                severity='medium',
+                likelihood='low',
+                impact='high',
+                cvss_vector="AV:L/AC:H/PR:H/UI:N/S:U/C:H/I:H/A:H",
+                description="Database configuration may use superuser or lack dedicated application user.",
+                risk_reasoning="Overprivileged database users increase blast radius if application is compromised.",
+                evidence=evidence,
+                affected_components=['config/settings.py', 'database configuration'],
+                recommendations=[
+                    "Create dedicated database user for the application",
+                    "Grant only necessary permissions (SELECT, INSERT, UPDATE, DELETE)",
+                    "Never use postgres:postgres or root:root in production",
+                ],
+                validation_steps="Check DATABASE_URL or USER configuration for superuser indicators",
+                is_quick_win=False,
+                remediation_effort='medium',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -4266,7 +5611,7 @@ class SecurityScanner:
             result_details=f"Separate user: {evidence['separate_db_user']}, No superuser: {evidence['no_superuser']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_migration_security(self):
@@ -4302,6 +5647,30 @@ class SecurityScanner:
                 pass
 
         result = 'pass' if not evidence['hardcoded_passwords'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="migration_contains_secrets",
+                title="Migrations Contain Sensitive Data",
+                severity='high',
+                likelihood='medium',
+                impact='high',
+                cvss_vector="AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:N/A:N",
+                description=f"Found sensitive data in migrations: {evidence['sensitive_data_found']}",
+                risk_reasoning="Hardcoded passwords/secrets in migrations are stored in version control and can be extracted.",
+                evidence=evidence,
+                affected_components=evidence['sensitive_data_found'],
+                recommendations=[
+                    "Remove hardcoded secrets from migration files",
+                    "Use data migrations with environment variables",
+                    "Consider rewriting migration history if secrets were committed",
+                ],
+                validation_steps="Search migrations for password, secret, api_key patterns",
+                is_quick_win=False,
+                remediation_effort='medium',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -4313,7 +5682,7 @@ class SecurityScanner:
             result_details=f"Migrations: {evidence['migrations_checked']}, Issues: {len(evidence['sensitive_data_found'])}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_database_backup_encryption(self):
@@ -4450,6 +5819,30 @@ class SecurityScanner:
                 pass
 
         result = 'pass' if not evidence['missing_validation'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="webhook_signature_missing",
+                title="Third-Party Webhooks Missing Signature Validation",
+                severity='high',
+                likelihood='medium',
+                impact='high',
+                cvss_vector="AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:L",
+                description=f"Webhooks without signature validation: {evidence['missing_validation']}",
+                risk_reasoning="Unvalidated webhooks can be spoofed by attackers to inject malicious data or trigger unauthorized actions.",
+                evidence=evidence,
+                affected_components=evidence['webhooks_found'],
+                recommendations=[
+                    "Implement signature validation for all webhooks",
+                    "Use provider SDK methods like construct_event() for Stripe",
+                    "Verify webhook source IP addresses where available",
+                ],
+                validation_steps="Check webhook handlers for signature verification",
+                is_quick_win=False,
+                remediation_effort='medium',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -4461,7 +5854,7 @@ class SecurityScanner:
             result_details=f"Webhooks: {len(evidence['webhooks_found'])}, Missing validation: {len(evidence['missing_validation'])}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_oauth_configuration(self):
@@ -4498,6 +5891,30 @@ class SecurityScanner:
                 evidence['secret_from_env'] = True
 
         result = 'pass' if not evidence['oauth_used'] or evidence['secret_from_env'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="oauth_secrets_not_from_env",
+                title="OAuth Secrets Not Loaded From Environment",
+                severity='medium',
+                likelihood='medium',
+                impact='high',
+                cvss_vector="AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:N/A:N",
+                description="OAuth/social authentication secrets may not be loaded from environment variables.",
+                risk_reasoning="Hardcoded OAuth secrets in source code can be exposed through repository leaks, enabling account takeover.",
+                evidence=evidence,
+                affected_components=['config/settings.py'],
+                recommendations=[
+                    "Move all SOCIAL_AUTH secrets to environment variables",
+                    "Use django-environ for secure configuration",
+                    "Rotate any potentially exposed secrets",
+                ],
+                validation_steps="Check settings for SOCIAL_AUTH secrets loading from env()",
+                is_quick_win=True,
+                remediation_effort='low',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -4509,7 +5926,7 @@ class SecurityScanner:
             result_details=f"OAuth: {evidence['oauth_used']}, Secrets from env: {evidence['secret_from_env']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_external_api_timeout(self):
@@ -4652,6 +6069,30 @@ class SecurityScanner:
                 pass
 
         result = 'pass' if evidence['exception_handling'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="third_party_no_error_handling",
+                title="Third-Party API Error Handling Missing",
+                severity='medium',
+                likelihood='medium',
+                impact='medium',
+                cvss_vector="AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+                description="Third-party API calls lack proper exception handling.",
+                risk_reasoning="Unhandled external API errors can crash the application or leave it in an inconsistent state.",
+                evidence=evidence,
+                affected_components=['Files using requests/stripe/plaid'],
+                recommendations=[
+                    "Wrap all external API calls in try/except blocks",
+                    "Log errors for debugging and monitoring",
+                    "Implement fallback behavior for critical operations",
+                ],
+                validation_steps="Check third-party API calls for exception handling",
+                is_quick_win=True,
+                remediation_effort='low',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -4663,7 +6104,7 @@ class SecurityScanner:
             result_details=f"Exception handling: {evidence['exception_handling']}, Logging: {evidence['error_logging']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_external_service_fallback(self):
@@ -4758,6 +6199,30 @@ class SecurityScanner:
                 evidence['minimal_base_image'] = True
 
         result = 'pass' if not evidence['dockerfile_found'] or evidence['no_secrets_in_image'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="dockerfile_contains_secrets",
+                title="Dockerfile Contains Secrets",
+                severity='critical',
+                likelihood='medium',
+                impact='high',
+                cvss_vector="AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:N/A:N",
+                description="Dockerfile appears to contain hardcoded secrets (SECRET, PASSWORD, API_KEY).",
+                risk_reasoning="Secrets in Dockerfiles are baked into the image and can be extracted by anyone with image access.",
+                evidence=evidence,
+                affected_components=['Dockerfile'],
+                recommendations=[
+                    "Remove all secrets from Dockerfile",
+                    "Use environment variables or secret management",
+                    "Use Docker BuildKit secrets for build-time secrets",
+                ],
+                validation_steps="Check Dockerfile for SECRET, PASSWORD, API_KEY strings",
+                is_quick_win=True,
+                remediation_effort='low',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -4769,7 +6234,7 @@ class SecurityScanner:
             result_details=f"Dockerfile: {evidence['dockerfile_found']}, Safe: {evidence['no_secrets_in_image']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_environment_isolation(self):
@@ -4797,6 +6262,30 @@ class SecurityScanner:
                 evidence['separate_settings'] = True
 
         result = 'pass' if evidence['env_based_config'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="no_environment_isolation",
+                title="Environment Isolation Not Configured",
+                severity='medium',
+                likelihood='medium',
+                impact='high',
+                cvss_vector="AV:L/AC:L/PR:L/UI:N/S:U/C:L/I:H/A:N",
+                description="Settings are not loaded from environment variables, hindering dev/staging/prod isolation.",
+                risk_reasoning="Without environment-based config, same settings may be used across environments, risking production data exposure.",
+                evidence=evidence,
+                affected_components=['config/settings.py'],
+                recommendations=[
+                    "Use django-environ or os.environ for all settings",
+                    "Create separate .env files per environment",
+                    "Never commit production secrets to version control",
+                ],
+                validation_steps="Check settings.py for env() or os.environ usage",
+                is_quick_win=True,
+                remediation_effort='low',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -4808,7 +6297,7 @@ class SecurityScanner:
             result_details=f"Env config: {evidence['env_based_config']}, Separate: {evidence['separate_settings']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_secret_management(self):
@@ -4836,6 +6325,30 @@ class SecurityScanner:
                 evidence['no_hardcoded_secrets'] = False
 
         result = 'pass' if evidence['secrets_from_env'] and evidence['no_hardcoded_secrets'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="secret_management_insecure",
+                title="Secrets Not Managed Securely",
+                severity='high',
+                likelihood='medium',
+                impact='high',
+                cvss_vector="AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:N/A:N",
+                description="Secrets are either hardcoded or not loaded from environment variables.",
+                risk_reasoning="Insecure secret management leads to credential exposure through source code leaks.",
+                evidence=evidence,
+                affected_components=['config/settings.py'],
+                recommendations=[
+                    "Load all secrets from environment variables",
+                    "Use django-environ for configuration management",
+                    "Remove any hardcoded 30+ character strings in settings",
+                ],
+                validation_steps="Check settings.py for hardcoded secrets and env() usage",
+                is_quick_win=True,
+                remediation_effort='low',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -4847,7 +6360,7 @@ class SecurityScanner:
             result_details=f"From env: {evidence['secrets_from_env']}, No hardcoded: {evidence['no_hardcoded_secrets']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_deployment_security(self):
@@ -4887,6 +6400,30 @@ class SecurityScanner:
                         evidence['tests_in_pipeline'] = True
 
         result = 'pass' if evidence['ci_cd_found'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="no_ci_cd_pipeline",
+                title="CI/CD Pipeline Not Configured",
+                severity='low',
+                likelihood='low',
+                impact='medium',
+                cvss_vector="AV:N/AC:H/PR:H/UI:N/S:U/C:N/I:L/A:N",
+                description="No CI/CD configuration found (GitHub Actions, GitLab CI, Procfile, etc.).",
+                risk_reasoning="Without automated deployment pipeline, security checks and tests may be skipped during deploys.",
+                evidence=evidence,
+                affected_components=['deployment configuration'],
+                recommendations=[
+                    "Set up GitHub Actions or similar CI/CD pipeline",
+                    "Include automated tests in the pipeline",
+                    "Add security scanning (pip-audit, bandit) to pipeline",
+                ],
+                validation_steps="Check for .github/workflows, Procfile, or other CI/CD config",
+                is_quick_win=False,
+                remediation_effort='medium',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -4898,7 +6435,7 @@ class SecurityScanner:
             result_details=f"CI/CD: {evidence['ci_cd_found']}, Tests: {evidence['tests_in_pipeline']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_monitoring_alerting(self):
@@ -4936,6 +6473,30 @@ class SecurityScanner:
                 pass
 
         result = 'pass' if evidence['logging_configured'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="monitoring_not_configured",
+                title="Monitoring and Logging Not Configured",
+                severity='medium',
+                likelihood='medium',
+                impact='medium',
+                cvss_vector="AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:L",
+                description="LOGGING configuration not found in settings.",
+                risk_reasoning="Without proper logging, security incidents and errors go undetected, delaying incident response.",
+                evidence=evidence,
+                affected_components=['config/settings.py'],
+                recommendations=[
+                    "Configure Django LOGGING dict in settings",
+                    "Add Sentry or similar error tracking service",
+                    "Set up alerts for critical errors",
+                ],
+                validation_steps="Check settings.py for LOGGING configuration",
+                is_quick_win=True,
+                remediation_effort='low',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -4947,7 +6508,7 @@ class SecurityScanner:
             result_details=f"Logging: {evidence['logging_configured']}, Error tracking: {evidence['error_tracking']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_backup_recovery(self):
@@ -5016,6 +6577,30 @@ class SecurityScanner:
                 evidence['csrf_configured'] = True
 
         result = 'pass' if evidence['allowed_hosts_configured'] and evidence['csrf_configured'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="network_security_incomplete",
+                title="Network Security Configuration Incomplete",
+                severity='medium',
+                likelihood='medium',
+                impact='high',
+                cvss_vector="AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:N",
+                description="ALLOWED_HOSTS or CSRF protection not properly configured.",
+                risk_reasoning="Missing ALLOWED_HOSTS enables host header attacks; missing CSRF enables cross-site request forgery.",
+                evidence=evidence,
+                affected_components=['config/settings.py'],
+                recommendations=[
+                    "Configure ALLOWED_HOSTS with specific domains",
+                    "Ensure CsrfViewMiddleware is enabled",
+                    "Configure CORS if APIs are used cross-origin",
+                ],
+                validation_steps="Check settings for ALLOWED_HOSTS and CSRF configuration",
+                is_quick_win=True,
+                remediation_effort='low',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -5027,7 +6612,7 @@ class SecurityScanner:
             result_details=f"Hosts: {evidence['allowed_hosts_configured']}, CORS: {evidence['cors_configured']}, CSRF: {evidence['csrf_configured']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_logging_centralization(self):
@@ -5102,6 +6687,30 @@ class SecurityScanner:
                 pass
 
         result = 'pass' if evidence['notification_capability'] and evidence['audit_capability'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="incident_response_missing",
+                title="Incident Response Capability Missing",
+                severity='medium',
+                likelihood='low',
+                impact='high',
+                cvss_vector="AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:L",
+                description="Missing notification capability or audit trail for incident response.",
+                risk_reasoning="Without incident response capability, security events cannot be properly detected, communicated, or investigated.",
+                evidence=evidence,
+                affected_components=['notification system', 'audit logging'],
+                recommendations=[
+                    "Implement email notification capability",
+                    "Add audit logging for security-relevant events",
+                    "Document incident response procedures",
+                ],
+                validation_steps="Check for send_mail usage and AuditLog model",
+                is_quick_win=False,
+                remediation_effort='medium',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -5113,7 +6722,7 @@ class SecurityScanner:
             result_details=f"Docs: {evidence['incident_documentation']}, Notify: {evidence['notification_capability']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))
 
     def _test_security_of_security_system(self):
@@ -5154,6 +6763,30 @@ class SecurityScanner:
                 evidence['tier0_protected'] = True
 
         result = 'pass' if evidence['encrypted_storage'] and evidence['tier0_protected'] else 'fail'
+        findings = []
+
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="security_system_not_protected",
+                title="Security Assessment System Not Fully Protected",
+                severity='high',
+                likelihood='low',
+                impact='high',
+                cvss_vector="AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:L/A:N",
+                description="Security system lacks encryption or access controls (Tier-0 protection).",
+                risk_reasoning="The security assessment system contains sensitive vulnerability data; if compromised, attackers gain a roadmap.",
+                evidence=evidence,
+                affected_components=['apps/security/models.py', 'apps/security/views.py'],
+                recommendations=[
+                    "Use EncryptedTextField/EncryptedJSONField for sensitive findings",
+                    "Add staff_member_required or LoginRequiredMixin to all views",
+                    "Implement SecurityAuditLog for all operations",
+                ],
+                validation_steps="Check security app for encryption and access controls",
+                is_quick_win=False,
+                remediation_effort='medium',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,
@@ -5165,5 +6798,5 @@ class SecurityScanner:
             result_details=f"Encrypted: {evidence['encrypted_storage']}, Protected: {evidence['tier0_protected']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
-            findings=[],
+            findings=findings,
         ))

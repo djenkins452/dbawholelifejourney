@@ -16,6 +16,41 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-23 Changes
 
+### Failing Tests Now Create Findings That Impact Scores
+
+Previously, security tests could fail without creating findings, meaning failed tests had no impact on the security score (BitSight, CVSS, grades). This has been fixed.
+
+**Problem:**
+- Tests could fail but create `findings=[]`
+- No findings = no impact on security scores
+- User observed 7 failing tests but perfect score (Grade A, BitSight 900, 0 findings)
+
+**Solution:**
+Added findings to ALL tests that can fail. Each failing test now creates an appropriately-categorized finding with:
+- Unique finding_key for tracking across runs
+- Severity level (critical/high/medium/low)
+- CVSS vector for scoring
+- Detailed description and risk reasoning
+- Evidence from the test
+- Actionable recommendations
+- Validation steps
+
+**Tests Updated (47 tests now create findings when they fail):**
+- Secrets tests: AWS credentials, database credentials, third-party API keys
+- Dependency tests: unpinned dependencies, known vulnerabilities
+- Deployment tests: SECRET_KEY, Procfile, ALLOWED_HOSTS
+- Abuse resistance tests: CAPTCHA, honeypot, email verification, rate limiting
+- HIPAA/compliance tests: PHI encryption, access controls, audit logging, consent tracking, data portability, breach notification
+- API tests: rate limiting, pagination, validation, response filtering, versioning, error responses, GraphQL, API key management
+- Database tests: connection security, user permissions, migration security
+- Third-party tests: webhook signatures, OAuth configuration, error handling
+- Infrastructure tests: container security, environment isolation, secret management, deployment security, monitoring, network security, incident response, security system protection
+
+**Files Changed:**
+- `apps/security/scanner.py` - Added 47 finding generators for failing tests
+
+---
+
 ### Security PDF Report Improvements
 
 Improved readability and transparency of the security assessment PDF export.

@@ -33,6 +33,7 @@ from django.views.generic import (
 from apps.core.models import Category, SiteConfiguration, Theme
 from apps.core.models import ChoiceCategory, ChoiceOption
 from apps.core.rate_limiting import APIRateLimitMixin
+from apps.core.utils import user_log_id
 from apps.help.mixins import HelpContextMixin
 
 import logging
@@ -217,7 +218,7 @@ class AdminOverrideConfirmationMixin:
         # Need confirmation - return appropriate response
         logger.info(
             f"Admin override confirmation required for {self.admin_operation_name} "
-            f"by {request.user.email}"
+            f"by {user_log_id(request.user)}"
         )
 
         return False, JsonResponse({

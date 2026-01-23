@@ -303,7 +303,15 @@
       "Bash(git -C /Users/dannyjenkins/.claude-worktrees/dbawholelifejourney/flamboyant-mirzakhani log:*)",
       "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd comprehensive CISO-grade security assessment dashboard\n\n- Create security app with 50 automated tests across 10 categories\n- Implement scoring engine \\(CVSS, Grade A-F, BitSight, Risk, Maturity\\)\n- Build encrypted models for findings and test results \\(Fernet AES-256\\)\n- Add dashboard with Chart.js trend graphs and clickable findings\n- Generate remediation prompt for copy-paste to Claude\n- Include audit logging for all security data access\n\nNew files:\n- apps/security/ \\(models, scanner, scoring, views, templates, migrations\\)\n\nModified:\n- config/settings.py - Added apps.security to INSTALLED_APPS\n- config/urls.py - Added /security/ URL pattern\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(python manage.py run_security_assessment:*)",
-      "Bash(python3 manage.py run_security_assessment:*)"
+      "Bash(python3 manage.py run_security_assessment:*)",
+      "Bash(/usr/bin/python3 manage.py run_security_assessment:*)",
+      "Bash(/usr/bin/python3:*)",
+      "Bash(SECRET_KEY=dev-test-key DATABASE_URL=sqlite:///./db.sqlite3 python manage.py shell:*)",
+      "Bash(SECRET_KEY=dev-test-key DATABASE_URL=sqlite:///./db.sqlite3 python3 manage.py shell:*)",
+      "Bash(SECRET_KEY=dev-test-key DATABASE_URL=sqlite:///./db.sqlite3 python3:*)",
+      "Bash(for file in  apps/capture/services/expiration_reminder.py  apps/capture/services/email.py  apps/core/encryption.py  apps/health/services/fatsecret.py  apps/users/services/recaptcha.py  apps/finance/views.py  apps/finance/management/commands/process_recurring_transactions.py  apps/finance/services/encryption.py  apps/finance/services/sync_service.py  apps/admin_console/views.py  apps/billing/signals.py  apps/billing/management/commands/process_birthdays.py)",
+      "Bash(do echo \"=== $file ===\" grep -n \"logger\\\\.\" \"$file\")",
+      "Bash(do echo \"=== $file ===\" grep -nE \"logger\\\\.\\\\w+\\\\\\([^\\)]*\\\\.email\" \"$file\")"
     ]
   }
 }

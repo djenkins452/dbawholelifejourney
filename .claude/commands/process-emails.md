@@ -8,7 +8,7 @@ Manually trigger the Email Intake Service to check for new emails in the "Automa
 
 2. Call the API endpoint:
 ```bash
-curl -s -X POST -H "X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1" "https://wholelifejourney.com/admin-console/api/claude/process-emails/"
+curl -s -X POST -H "X-Claude-API-Key: $WLJ_CLAUDE_API_KEY" "https://wholelifejourney.com/admin-console/api/claude/process-emails/"
 ```
 
 3. Report results:
@@ -41,7 +41,7 @@ curl -s -X POST -H "X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0
 ## Dry run (preview without creating tasks)
 
 ```bash
-curl -s -X POST -H "X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1" "https://wholelifejourney.com/admin-console/api/claude/process-emails/?dry_run=true"
+curl -s -X POST -H "X-Claude-API-Key: $WLJ_CLAUDE_API_KEY" "https://wholelifejourney.com/admin-console/api/claude/process-emails/?dry_run=true"
 ```
 
 ## Authority

@@ -107,7 +107,7 @@ class Command(BaseCommand):
                     ])
                     # TODO: Send birthday_celebration email
                     logger.info(
-                        f"Set graduation date for {profile.user.email}: {graduation_date}"
+                        f"Set graduation date for {user_log_id(profile.user)}: {graduation_date}"
                     )
 
         self.stdout.write(f"23rd birthdays: {count} users")

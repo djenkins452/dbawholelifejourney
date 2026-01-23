@@ -643,7 +643,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             # Check for decryption errors (key rotation, etc.)
             if credential.has_decryption_error():
                 logger.warning(
-                    f"Google Calendar credentials for {user.email} have decryption errors. "
+                    f"Google Calendar credentials for {user_log_id(user)} have decryption errors. "
                     "User needs to re-authorize."
                 )
                 return

@@ -13,6 +13,8 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils import timezone
 
+from apps.core.utils import user_log_id
+
 logger = logging.getLogger(__name__)
 
 
@@ -66,7 +68,7 @@ def create_billing_profile(sender, instance, created, **kwargs):
         if was_created:
             trial_info = f", trial ends {trial_ends_at}" if trial_ends_at else ""
             logger.info(
-                f"Created BillingProfile for {instance.email}, "
+                f"Created BillingProfile for {user_log_id(instance)}, "
                 f"eligible for {eligible_tier} tier based on age{trial_info}"
             )
 
@@ -90,7 +92,7 @@ def update_billing_profile_on_dob_change(sender, instance, created, **kwargs):
                 # since they haven't subscribed yet
                 eligible = determine_tier_by_age(instance.date_of_birth)
                 logger.debug(
-                    f"User {instance.email} eligible for {eligible} tier"
+                    f"User {user_log_id(instance)} eligible for {eligible} tier"
                 )
         except Exception:
             pass  # Profile might not exist during tests

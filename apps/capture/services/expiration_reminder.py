@@ -8,6 +8,8 @@ from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils.html import strip_tags
 
+from apps.core.utils import user_log_id
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_FROM_EMAIL = getattr(settings, 'DEFAULT_FROM_EMAIL', 'admin@wholelifejourney.com')
@@ -78,7 +80,7 @@ def send_expiration_reminder_email(capture_entry):
 
         logger.info(
             f"Expiration reminder email sent for entry {capture_entry.id} "
-            f"to {user.email}"
+            f"to {user_log_id(user)}"
         )
 
         return {'success': True}

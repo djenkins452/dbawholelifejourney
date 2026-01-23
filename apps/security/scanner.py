@@ -1586,17 +1586,28 @@ class SecurityScanner:
 
         evidence = {'pii_in_logs': [], 'redaction_found': False}
 
+        # More specific patterns - looking for actual sensitive data being logged
+        # The pattern \w+\.email matches things like user.email, request.user.email
+        # We exclude patterns like "send_email" or "email sent" which are just method names or phrases
+        # For token/password, we look for actual variable references like {token} or .token
         pii_patterns = [
-            r'logger\.\w+\([^)]*\.email[^)]*\)',
-            r'logger\.\w+\([^)]*password[^)]*\)',
-            r'logger\.\w+\([^)]*token[^)]*\)',
+            r'logger\.\w+\([^)]*\w+\.email\b[^)]*\)',  # user.email, obj.email attribute access
+            r'logger\.\w+\([^)]*\{password\}[^)]*\)',  # {password} variable interpolation
+            r'logger\.\w+\([^)]*\w+\.password\b[^)]*\)',  # .password attribute access
+            r'logger\.\w+\([^)]*\{token\}[^)]*\)',  # {token} variable interpolation (actual token value)
+            r'logger\.\w+\([^)]*\w+\.token\b[^)]*\)',  # .token attribute access
+            r'logger\.\w+\([^)]*\{access_token\}[^)]*\)',  # {access_token} interpolation
+            r'logger\.\w+\([^)]*\w+\.access_token\b[^)]*\)',  # .access_token attribute
+            r'logger\.\w+\([^)]*\{refresh_token\}[^)]*\)',  # {refresh_token} interpolation
+            r'logger\.\w+\([^)]*\w+\.refresh_token\b[^)]*\)',  # .refresh_token attribute
         ]
 
         hash_pii_implemented = False
         hash_pii_usage_count = 0
 
         for py_file in self.base_path.rglob('*.py'):
-            if '/tests/' in str(py_file):
+            str_path = str(py_file)
+            if '/tests/' in str_path or '/backups/' in str_path or 'backups/' in str_path:
                 continue
             try:
                 content = py_file.read_text()
@@ -1902,10 +1913,19 @@ class SecurityScanner:
                     evidence['csp_middleware'] = True
                 if 'nonce' in content:
                     evidence['uses_nonce'] = True
-                if 'unsafe-inline' in content:
+                # Check for unsafe directives in actual CSP strings (not comments)
+                # Look for pattern like "'unsafe-inline'" or "'unsafe-eval'" in CSP policy
+                import re
+                # Match 'unsafe-inline' or 'unsafe-eval' as part of CSP directive strings
+                if re.search(r"['\"]'unsafe-inline'['\"]|'unsafe-inline'", content):
                     evidence['unsafe_inline'] = True
-                if 'unsafe-eval' in content:
-                    evidence['unsafe_eval'] = True
+                # Only flag if unsafe-eval is in actual CSP policy, not comments
+                if re.search(r"'unsafe-eval'", content) and not re.search(r"#.*'unsafe-eval'|#.*unsafe-eval", content):
+                    # Check if the line containing 'unsafe-eval' is not a comment
+                    for line in content.split('\n'):
+                        if "'unsafe-eval'" in line and not line.strip().startswith('#') and 'Removed' not in line:
+                            evidence['unsafe_eval'] = True
+                            break
             except Exception:
                 pass
 

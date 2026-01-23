@@ -9,7 +9,7 @@ Read CLAUDE.md to load project context (it's now slim - ~120 lines).
 ## Fetch In-Progress Tasks
 
 ```bash
-curl -s -H "X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1" "https://wholelifejourney.com/admin-console/api/claude/ready-tasks/?limit=10&include_in_progress=true"
+curl -s -H "X-Claude-API-Key: $WLJ_CLAUDE_API_KEY" "https://wholelifejourney.com/admin-console/api/claude/ready-tasks/?limit=10&include_in_progress=true"
 ```
 
 If no tasks found (neither ready nor in_progress), report "No tasks available."
@@ -42,7 +42,7 @@ If multiple tasks are in_progress at the same phase+priority:
 
 1. **Mark task done:**
 ```bash
-curl -s -X POST -H "X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1" -H "Content-Type: application/json" -d '{"status": "done"}' "https://wholelifejourney.com/admin-console/api/claude/tasks/<ID>/status/"
+curl -s -X POST -H "X-Claude-API-Key: $WLJ_CLAUDE_API_KEY" -H "Content-Type: application/json" -d '{"status": "done"}' "https://wholelifejourney.com/admin-console/api/claude/tasks/<ID>/status/"
 ```
 
 ## After All Parallel Tasks Complete

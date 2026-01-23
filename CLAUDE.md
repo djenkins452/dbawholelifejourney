@@ -48,7 +48,7 @@ When fetching a new task from the improvement backlog:
 
 | Item | Value |
 |------|-------|
-| **API Key** | `a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1` |
+| **API Key** | Set `WLJ_CLAUDE_API_KEY` in your `.env` file (see `.env.example`) |
 | **Ready Tasks** | `GET /admin-console/api/claude/ready-tasks/?auto_start=true` |
 | **Update Status** | `POST /admin-console/api/claude/tasks/<id>/status/` |
 | **Test Count** | 1395 tests |
@@ -57,10 +57,10 @@ When fetching a new task from the improvement backlog:
 **Commands:**
 ```bash
 # Fetch next task (marks as in_progress automatically)
-curl -s -H "X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1" "https://wholelifejourney.com/admin-console/api/claude/ready-tasks/?limit=1&auto_start=true"
+curl -s -H "X-Claude-API-Key: $WLJ_CLAUDE_API_KEY" "https://wholelifejourney.com/admin-console/api/claude/ready-tasks/?limit=1&auto_start=true"
 
 # Mark task done
-curl -s -X POST -H "X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1" -H "Content-Type: application/json" -d '{"status": "done"}' "https://wholelifejourney.com/admin-console/api/claude/tasks/<ID>/status/"
+curl -s -X POST -H "X-Claude-API-Key: $WLJ_CLAUDE_API_KEY" -H "Content-Type: application/json" -d '{"status": "done"}' "https://wholelifejourney.com/admin-console/api/claude/tasks/<ID>/status/"
 ```
 
 ## Testing & Migrations

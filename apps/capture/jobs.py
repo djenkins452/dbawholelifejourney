@@ -21,6 +21,8 @@ from datetime import timedelta
 
 from django.utils import timezone
 
+from apps.core.utils import user_log_id
+
 logger = logging.getLogger(__name__)
 
 
@@ -71,7 +73,7 @@ def send_expiration_reminders():
                 sent_count += 1
                 logger.info(
                     f"Sent expiration reminder for entry {entry.id} "
-                    f"to {entry.user.email}"
+                    f"to {user_log_id(entry.user)}"
                 )
             else:
                 failed_count += 1

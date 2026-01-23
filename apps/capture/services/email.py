@@ -94,7 +94,7 @@ def send_capture_email(capture_entry, recipient_email, sender_user, message=None
 
         logger.info(
             f"Capture email sent for entry {capture_entry.id} "
-            f"from {sender_user.email} to {recipient_email}"
+            f"from {user_log_id(sender_user)} to recipient"
         )
 
         return {'success': True}

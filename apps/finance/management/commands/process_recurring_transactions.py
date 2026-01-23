@@ -19,6 +19,8 @@ import logging
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
+from apps.core.utils import user_log_id
+
 logger = logging.getLogger(__name__)
 
 
@@ -162,7 +164,7 @@ class Command(BaseCommand):
                     for recurring in reminders:
                         logger.info(
                             f'Reminder: {recurring.name} due on '
-                            f'{recurring.next_due_date} for {user_obj.email}'
+                            f'{recurring.next_due_date} for {user_log_id(user_obj)}'
                         )
                         # TODO: Integrate with SMS/email reminder system
                         total_reminders += 1

@@ -14,6 +14,9 @@ urlpatterns = [
     # Dashboard
     path('dashboard/', views.SecurityDashboardView.as_view(), name='dashboard'),
 
+    # Run assessment
+    path('run-assessment/', views.RunAssessmentView.as_view(), name='run_assessment'),
+
     # Run detail
     path('run/<uuid:pk>/', views.SecurityRunDetailView.as_view(), name='run_detail'),
 

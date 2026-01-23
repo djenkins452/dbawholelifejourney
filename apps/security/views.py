@@ -21,10 +21,13 @@ Access Control (Tier-0):
 """
 
 import json
+import threading
+import time
 
 from django.contrib.admin.views.decorators import staff_member_required
 from django.http import JsonResponse
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.generic import DetailView, ListView, TemplateView
@@ -36,6 +39,9 @@ from .models import (
     SecurityScore,
     SecurityTest,
 )
+from .scanner import SecurityScanner
+from .scoring import ScoringEngine
+from .report_generator import ReportGenerator
 
 
 class SecurityAccessMixin:
@@ -303,3 +309,164 @@ class TrendDataAPIView(SecurityAccessMixin, View):
             data['grade'].append(score.securityscorecard_grade)
 
         return JsonResponse(data)
+
+
+class RunAssessmentView(SecurityAccessMixin, View):
+    """
+    Trigger a new security assessment.
+
+    POST: Starts the assessment and redirects to dashboard.
+    GET: Returns status of running assessment (for polling).
+    """
+
+    def post(self, request):
+        """Start a new security assessment."""
+        # Check if there's already a running assessment
+        running = SecurityRun.objects.filter(status=SecurityRun.STATUS_RUNNING).first()
+        if running:
+            return JsonResponse({
+                'status': 'already_running',
+                'run_id': str(running.id),
+                'message': 'An assessment is already running',
+            })
+
+        # Log the action
+        self.log_access(
+            request,
+            SecurityAuditLog.ACTION_RUN_ASSESSMENT,
+            resource_type='assessment',
+            resource_id='new',
+        )
+
+        # Create the run record
+        run = SecurityRun.objects.create(
+            run_type='full',
+            triggered_by=f'web:{request.user.email}',
+            status=SecurityRun.STATUS_RUNNING,
+        )
+
+        # Run the assessment in the current thread (synchronous)
+        # This ensures the user sees results immediately
+        try:
+            start_time = time.time()
+
+            # Run the scanner
+            scanner = SecurityScanner()
+            test_results, findings = scanner.run_all_tests()
+
+            # Calculate scores
+            engine = ScoringEngine()
+            scores = engine.calculate_scores(findings, test_results)
+
+            # Save test results
+            for test_result in test_results:
+                SecurityTest.objects.create(
+                    run=run,
+                    test_id=test_result.test_id,
+                    category=test_result.category,
+                    title=test_result.title,
+                    description=test_result.description,
+                    criteria=test_result.criteria,
+                    result=test_result.result,
+                    result_details=test_result.result_details,
+                    evidence=test_result.evidence,
+                    duration_ms=test_result.duration_ms,
+                )
+
+            # Save findings
+            for finding in findings:
+                test = SecurityTest.objects.filter(run=run).first()
+                SecurityFinding.objects.create(
+                    run=run,
+                    test=test,
+                    finding_id=finding.finding_id,
+                    title=finding.title,
+                    severity=finding.severity,
+                    likelihood=finding.likelihood,
+                    impact=finding.impact,
+                    cvss_vector=finding.cvss_vector,
+                    cvss_score=finding.cvss_score,
+                    description=finding.description,
+                    risk_reasoning=finding.risk_reasoning,
+                    evidence=finding.evidence,
+                    affected_components=finding.affected_components,
+                    recommendations=finding.recommendations,
+                    validation_steps=finding.validation_steps,
+                    is_quick_win=finding.is_quick_win,
+                    remediation_effort=finding.remediation_effort,
+                )
+
+            # Save scores
+            SecurityScore.objects.create(
+                run=run,
+                run_timestamp=run.run_timestamp,
+                cvss_avg=scores.cvss_avg,
+                cvss_critical_count=scores.cvss_critical_count,
+                cvss_high_count=scores.cvss_high_count,
+                cvss_medium_count=scores.cvss_medium_count,
+                cvss_low_count=scores.cvss_low_count,
+                cvss_none_count=scores.cvss_none_count,
+                securityscorecard_grade=scores.securityscorecard_grade,
+                bitsight_score=scores.bitsight_score,
+                risk_score_0_100=scores.risk_score_0_100,
+                maturity_level=scores.maturity_level,
+                scoring_methodology=scores.methodology,
+            )
+
+            # Update run summary
+            duration = time.time() - start_time
+            passed_tests = sum(1 for t in test_results if t.result == 'pass')
+            failed_tests = sum(1 for t in test_results if t.result == 'fail')
+
+            run.status = SecurityRun.STATUS_COMPLETED
+            run.completed_at = timezone.now()
+            run.duration_seconds = int(duration)
+            run.total_tests = len(test_results)
+            run.passed_tests = passed_tests
+            run.failed_tests = failed_tests
+            run.total_findings = len(findings)
+            run.critical_findings = scores.cvss_critical_count
+            run.high_findings = scores.cvss_high_count
+            run.medium_findings = scores.cvss_medium_count
+            run.low_findings = scores.cvss_low_count
+
+            # Generate reports
+            report_gen = ReportGenerator(run, test_results, findings, scores)
+            run.executive_summary = report_gen.generate_executive_summary()
+            run.attack_paths = report_gen.generate_attack_paths()
+            run.failure_modes = report_gen.generate_failure_modes()
+            run.ciso_sleep_test = report_gen.generate_ciso_sleep_test()
+            run.remediation_prompt = report_gen.generate_remediation_prompt()
+
+            run.save()
+
+            # Redirect to dashboard to see results
+            return redirect('security:dashboard')
+
+        except Exception as e:
+            run.status = SecurityRun.STATUS_FAILED
+            run.save()
+            return JsonResponse({
+                'status': 'error',
+                'message': str(e),
+            }, status=500)
+
+    def get(self, request):
+        """Check status of running assessment."""
+        running = SecurityRun.objects.filter(status=SecurityRun.STATUS_RUNNING).first()
+        if running:
+            return JsonResponse({
+                'status': 'running',
+                'run_id': str(running.id),
+                'started_at': running.run_timestamp.isoformat(),
+            })
+
+        latest = SecurityRun.objects.filter(status=SecurityRun.STATUS_COMPLETED).first()
+        if latest:
+            return JsonResponse({
+                'status': 'idle',
+                'last_run_id': str(latest.id),
+                'last_run_at': latest.run_timestamp.isoformat(),
+            })
+
+        return JsonResponse({'status': 'no_runs'})

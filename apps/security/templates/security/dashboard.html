@@ -351,7 +351,50 @@
     }
 
     function runAssessment() {
-        alert('Run the assessment from command line:\n\npython manage.py run_security_assessment --report');
+        if (!confirm('Run a new security assessment? This may take 30-60 seconds.')) {
+            return;
+        }
+
+        // Show loading state
+        const buttons = document.querySelectorAll('button');
+        buttons.forEach(btn => {
+            if (btn.textContent.includes('Assessment')) {
+                btn.disabled = true;
+                btn.textContent = 'Running...';
+                btn.classList.add('opacity-50', 'cursor-not-allowed');
+            }
+        });
+
+        // Submit POST request
+        fetch('{% url "security:run_assessment" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json',
+            },
+        })
+        .then(response => {
+            if (response.redirected) {
+                // Assessment completed, redirect to see results
+                window.location.href = response.url;
+            } else {
+                return response.json();
+            }
+        })
+        .then(data => {
+            if (data && data.status === 'already_running') {
+                alert('An assessment is already running. Please wait.');
+                location.reload();
+            } else if (data && data.status === 'error') {
+                alert('Assessment failed: ' + data.message);
+                location.reload();
+            }
+        })
+        .catch(err => {
+            console.error('Assessment error:', err);
+            alert('An error occurred. Please try again.');
+            location.reload();
+        });
     }
 
     // Close modal on click outside

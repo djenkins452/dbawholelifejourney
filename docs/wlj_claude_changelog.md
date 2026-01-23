@@ -16,6 +16,23 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-23 Changes
 
+### Fix: Security Scanner CSRF Detection False Positive (SEC-T023)
+
+Fixed false positive in CSRF protection scanner that was incorrectly flagging legitimate webhook files.
+
+**Issues Fixed:**
+1. Scanner was flagging itself because it contains the string `@csrf_exempt` in its detection logic
+2. Webhook detection only checked filename, missing `apps/finance/views.py` which contains `plaid_webhook`
+
+**Changes:**
+- Skip `scanner.py` when checking for csrf_exempt usage
+- Added content-based webhook detection (checks for `_webhook` or `webhook` in file content)
+- Now correctly identifies both Stripe and Plaid webhooks as legitimate
+
+**Result:** SEC-T023 now passes with 2 legitimate webhook exemptions detected.
+
+---
+
 ### Fix: Security Scanner Quote Style Detection (SEC-T007, SEC-T008)
 
 Fixed false positive in security scanner for database credentials and API key detection.

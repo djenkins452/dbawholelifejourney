@@ -16,6 +16,31 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-23 Changes
 
+### Medicine Tracker: "Taken at Scheduled Time" Button
+
+Added a new button to the medicine daily tracker that allows users to record a dose as taken at the scheduled time, rather than the current time. This is useful when users take their medicine on time but record it later.
+
+**Changes:**
+- **Template (`templates/health/medicine/home.html`):**
+  - Renamed "Take" button to "Take Now" for clarity
+  - Added new "Taken at X:XX AM" button that records the scheduled time
+  - Updated mobile CSS for better three-button layout
+
+- **View (`apps/health/views.py`):**
+  - Modified `MedicineTakeView` to accept `taken_at_scheduled` POST parameter
+  - When present, uses the scheduled time instead of current time
+
+- **Tests (`apps/health/tests/test_medicine.py`):**
+  - Added `test_take_dose_at_scheduled_time` test to verify the new functionality
+
+**User Experience:**
+- Three buttons now shown: `Take Now` | `Taken at 9:00 AM` | `Skip`
+- "Take Now" records current timestamp
+- "Taken at X:XX AM" records the scheduled time (always marks as "taken", never "late")
+- Mobile-responsive layout handles all three buttons gracefully
+
+---
+
 ### Enhancement: Comprehensive Industry-Specific Compliance Tests (SEC-T051-T100)
 
 Expanded security scanner from 50 to 100 tests by adding industry-specific compliance checks

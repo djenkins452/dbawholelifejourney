@@ -57,6 +57,15 @@ Made scanner patterns more precise to reduce false positives.
 - Risk Score: 0/100
 - Findings: 0 Critical, 0 High, 0 Medium, 0 Low
 
+### Security Dashboard UI Fix: Metric Modal
+
+Fixed the metric info modal that was displaying its content on the page instead of being hidden.
+
+**Changes:**
+- Added inline `style="display: none"` to the modal div
+- Changed CSS selectors from `#security-dashboard .metric-modal` to `.metric-modal` so the `!important` display:none rule applies correctly
+- Added hover style for close button
+
 ---
 
 ### Security Remediation: SEC-001, SEC-002, SEC-003

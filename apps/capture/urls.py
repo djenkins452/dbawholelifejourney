@@ -20,4 +20,14 @@ urlpatterns = [
     path('<uuid:pk>/email/', views.CaptureEmailView.as_view(), name='send_email'),
     path('<uuid:pk>/delete/', views.CaptureDeleteView.as_view(), name='delete'),
     path('<uuid:pk>/retry/', views.CaptureRetryView.as_view(), name='retry'),
+
+    # Pending capture API endpoints (for upload resilience)
+    path('pending/register/', views.PendingCaptureRegisterView.as_view(), name='pending_register'),
+    path('pending/heartbeat/', views.PendingCaptureHeartbeatView.as_view(), name='pending_heartbeat'),
+    path('pending/list/', views.PendingCaptureListView.as_view(), name='pending_list'),
+    path('pending/<uuid:pk>/abandon/', views.PendingCaptureAbandonView.as_view(), name='pending_abandon'),
+    path('pending/<uuid:pk>/status/', views.PendingCaptureUpdateStatusView.as_view(), name='pending_status'),
+
+    # File upload (for recovery scenarios)
+    path('file-upload/', views.CaptureFileUploadView.as_view(), name='file_upload'),
 ]

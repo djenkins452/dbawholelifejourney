@@ -296,7 +296,8 @@
       "Bash(sort:*)",
       "Bash(git rev-parse:*)",
       "Bash(git merge-base:*)",
-      "Bash(git commit -m \"$\\(cat <<''EOF''\nFix AI Personal Context release note migration\n\nShortened version string from ''2026.01.20-ai-context'' \\(21 chars\\) to\n''2026.01.20-memory'' \\(18 chars\\) to fit varchar\\(20\\) constraint.\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nFix AI Personal Context release note migration\n\nShortened version string from ''2026.01.20-ai-context'' \\(21 chars\\) to\n''2026.01.20-memory'' \\(18 chars\\) to fit varchar\\(20\\) constraint.\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nImplement bulletproof audio capture system\n\nPhase 1 & 2 of the capture resilience overhaul:\n\nBackend:\n- Add PendingCapture model for cross-device tracking\n- Add pending_client_id field to CaptureEntry\n- Add capture notification preferences to UserPreferences\n- Add 6 new API endpoints: register, heartbeat, list, abandon, status, file-upload\n- Add pending captures context processor for global banner\n- Add hourly pending capture reminder job\n- Add completion notifications via NotificationService\n\nFrontend:\n- Rewrite capture_record.html with IndexedDB queue system\n- Add 30-second periodic backup during recording\n- Add beforeunload warning during active recording\n- Add upload retry with exponential backoff \\(3 attempts\\)\n- Add recovery prompt for partial/saved recordings\n- Add file upload option for previously saved recordings\n- Create Service Worker for background sync uploads\n- Create global pending capture banner component\n\nMigrations:\n- 0004_pending_capture.py\n- 0046_capture_notification_prefs.py\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
     ]
   }
 }

@@ -188,6 +188,46 @@ Four parallel bug fixes completed:
 
 ---
 
+### Feature: Bulletproof Audio Capture System
+
+**Objective:** Ensure no recording is ever lost due to user error, bad signal, navigation, or any failure.
+
+**Changes:**
+
+1. **Service Worker for Background Sync:**
+   - Created `static/js/service-worker.js` for background upload processing
+   - Handles `sync` event for `capture-upload` tag
+   - Processes IndexedDB queue even when tab is closed
+   - Push notification handler for future native app integration
+
+2. **Pending Capture Reminder Job:**
+   - Added `send_pending_capture_reminders()` job in `apps/capture/jobs.py`
+   - Runs hourly to remind users of uploads older than 1 hour
+   - Respects user notification preferences
+
+3. **Completion Notifications:**
+   - Enhanced `_send_completion_notification()` in `apps/capture/tasks.py`
+   - Sends both in-app and email notifications via NotificationService
+   - Added `_complete_pending_capture()` to mark PendingCapture records complete
+
+4. **Banner Fix:**
+   - Updated `templates/components/pending_capture_banner.html` to respect `capture_enabled` setting
+   - Fixes test failures for capture navigation when module is disabled
+
+5. **Service Worker Registration:**
+   - Added SW registration in `templates/base.html` for authenticated users
+   - Includes periodic background sync registration (15 min interval)
+
+**Files Modified:**
+- `static/js/service-worker.js` (NEW)
+- `apps/capture/jobs.py`
+- `apps/capture/tasks.py`
+- `config/wsgi.py`
+- `templates/base.html`
+- `templates/components/pending_capture_banner.html`
+
+---
+
 ## 2026-01-21 Changes
 
 ### Task 9.3: WLJ Values Guardrails

@@ -1,0 +1,266 @@
+{% comment %}
+Pending Capture Banner Component - Shows when user has recordings waiting to upload
+
+This banner appears globally (in base.html) when the user has pending captures
+in their IndexedDB queue that haven't been uploaded yet.
+
+The banner is shown based on:
+1. Server-side: pending_captures_count from context processor
+2. Client-side: IndexedDB queue checked via JavaScript
+
+The JavaScript will:
+- Check IndexedDB for actual pending recordings
+- Update the banner content based on what's found
+- Show/hide based on real client-side state
+{% endcomment %}
+
+{% if capture_enabled %}
+{% if pending_captures_count > 0 or pending_captures_this_device %}
+<div id="pending-capture-banner" class="pending-capture-banner" style="display: none;">
+    <div class="pending-capture-banner-content">
+        <span class="pending-capture-icon">&#127908;</span>
+        <div class="pending-capture-text">
+            <strong id="pending-capture-title">You have a pending recording</strong>
+            <p id="pending-capture-message">
+                <a href="{% url 'capture:record' %}">Upload now</a> or it will upload automatically when you have a better connection.
+            </p>
+        </div>
+    </div>
+    <button type="button" class="pending-capture-dismiss" onclick="dismissPendingCaptureBanner()" aria-label="Dismiss for now">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+    </button>
+</div>
+{% endif %}
+
+<!-- Include for JavaScript-based detection only when capture is enabled -->
+<div id="pending-capture-banner-placeholder" style="display: none;"
+     data-record-url="{% url 'capture:record' %}"></div>
+
+<style nonce="{{ csp_nonce }}">
+.pending-capture-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4, 1rem);
+    padding: var(--space-3, 0.75rem) var(--space-4, 1rem);
+    background: linear-gradient(135deg, #fef3c7, #fde68a);
+    border-bottom: 1px solid #fbbf24;
+    animation: pending-banner-slide-in 0.3s ease-out;
+}
+
+@keyframes pending-banner-slide-in {
+    from {
+        opacity: 0;
+        transform: translateY(-100%);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.pending-capture-banner-content {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3, 0.75rem);
+}
+
+.pending-capture-icon {
+    font-size: 1.5rem;
+}
+
+.pending-capture-text strong {
+    display: block;
+    color: #92400e;
+    font-size: var(--font-size-sm, 0.875rem);
+}
+
+.pending-capture-text p {
+    margin: 0;
+    color: #78350f;
+    font-size: var(--font-size-xs, 0.75rem);
+}
+
+.pending-capture-text a {
+    color: #92400e;
+    font-weight: 600;
+    text-decoration: underline;
+}
+
+.pending-capture-text a:hover {
+    color: #78350f;
+}
+
+.pending-capture-dismiss {
+    flex-shrink: 0;
+    padding: var(--space-2, 0.5rem);
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-md, 0.375rem);
+    color: #92400e;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.pending-capture-dismiss:hover {
+    background: rgba(146, 64, 14, 0.1);
+}
+
+/* Mobile responsive */
+@media (max-width: 480px) {
+    .pending-capture-banner {
+        padding: var(--space-2, 0.5rem) var(--space-3, 0.75rem);
+    }
+
+    .pending-capture-icon {
+        font-size: 1.25rem;
+    }
+
+    .pending-capture-text strong {
+        font-size: var(--font-size-xs, 0.75rem);
+    }
+
+    .pending-capture-text p {
+        font-size: 0.6875rem;
+    }
+}
+</style>
+
+<script nonce="{{ csp_nonce }}">
+(function() {
+    'use strict';
+
+    const DB_NAME = 'WLJCaptureQueue';
+    const DB_VERSION = 1;
+    const RECORDINGS_STORE = 'recordings';
+
+    // Session storage key for dismissed state (clears on tab close)
+    const DISMISSED_KEY = 'wlj_pending_capture_banner_dismissed';
+
+    /**
+     * Open the capture queue database
+     */
+    function openDatabase() {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+            request.onerror = () => reject(request.error);
+            request.onsuccess = () => resolve(request.result);
+
+            request.onupgradeneeded = (event) => {
+                const db = event.target.result;
+                if (!db.objectStoreNames.contains(RECORDINGS_STORE)) {
+                    const store = db.createObjectStore(RECORDINGS_STORE, { keyPath: 'clientId' });
+                    store.createIndex('status', 'uploadStatus', { unique: false });
+                    store.createIndex('createdAt', 'createdAt', { unique: false });
+                }
+            };
+        });
+    }
+
+    /**
+     * Get count of pending recordings in IndexedDB
+     */
+    async function getPendingCount() {
+        try {
+            const db = await openDatabase();
+            const tx = db.transaction(RECORDINGS_STORE, 'readonly');
+            const store = tx.objectStore(RECORDINGS_STORE);
+
+            return new Promise((resolve) => {
+                const countRequest = store.count();
+                countRequest.onsuccess = () => {
+                    db.close();
+                    resolve(countRequest.result);
+                };
+                countRequest.onerror = () => {
+                    db.close();
+                    resolve(0);
+                };
+            });
+        } catch (error) {
+            console.warn('Could not check IndexedDB for pending captures:', error);
+            return 0;
+        }
+    }
+
+    /**
+     * Check if banner was dismissed this session
+     */
+    function wasDismissedThisSession() {
+        try {
+            return sessionStorage.getItem(DISMISSED_KEY) === 'true';
+        } catch {
+            return false;
+        }
+    }
+
+    /**
+     * Update banner visibility and content
+     */
+    async function updateBanner() {
+        const banner = document.getElementById('pending-capture-banner');
+        if (!banner) return;
+
+        // Don't show if dismissed this session
+        if (wasDismissedThisSession()) {
+            banner.style.display = 'none';
+            return;
+        }
+
+        const pendingCount = await getPendingCount();
+
+        if (pendingCount > 0) {
+            // Update title based on count
+            const title = document.getElementById('pending-capture-title');
+            if (title) {
+                title.textContent = pendingCount === 1
+                    ? 'You have a pending recording'
+                    : `You have ${pendingCount} pending recordings`;
+            }
+
+            banner.style.display = 'flex';
+        } else {
+            banner.style.display = 'none';
+        }
+    }
+
+    /**
+     * Dismiss the banner for this session
+     */
+    window.dismissPendingCaptureBanner = function() {
+        const banner = document.getElementById('pending-capture-banner');
+        if (!banner) return;
+
+        // Animate out
+        banner.style.opacity = '0';
+        banner.style.transform = 'translateY(-100%)';
+        banner.style.transition = 'all 0.2s ease-out';
+
+        // Mark as dismissed for this session
+        try {
+            sessionStorage.setItem(DISMISSED_KEY, 'true');
+        } catch (e) {
+            // Ignore storage errors
+        }
+
+        setTimeout(() => {
+            banner.style.display = 'none';
+        }, 200);
+    };
+
+    // Check on page load
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', updateBanner);
+    } else {
+        updateBanner();
+    }
+
+    // Also expose for manual refresh
+    window.updatePendingCaptureBanner = updateBanner;
+})();
+</script>
+{% endif %}

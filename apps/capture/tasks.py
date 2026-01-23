@@ -162,9 +162,11 @@ def process_capture_entry(
         # Success! Entry status already set to 'ready' by summarization service
         logger.info(f"Entry {entry_id}: Processing complete")
 
-        # Send completion email if this was a delayed processing (retry)
-        if retry_count > 0:
-            _send_completion_notification(entry)
+        # Send completion notification (in-app and email if user has them enabled)
+        _send_completion_notification(entry, was_retry=retry_count > 0)
+
+        # Update any associated PendingCapture record
+        _complete_pending_capture(entry)
 
         return {
             'success': True,
@@ -288,22 +290,82 @@ def _is_retryable_error(error_msg: str) -> bool:
     return False
 
 
-def _send_completion_notification(entry) -> None:
+def _send_completion_notification(entry, was_retry: bool = False) -> None:
     """
-    Send email notification when delayed processing completes.
+    Send completion notification when processing finishes.
+
+    Sends both in-app notification (always) and email (if user has email
+    capture notifications enabled).
+
+    Args:
+        entry: CaptureEntry instance that completed processing
+        was_retry: Whether this was a delayed/retry processing
+    """
+    from apps.core.services.notification_service import NotificationService
+
+    try:
+        # Build notification context
+        duration_text = ""
+        if entry.duration_seconds:
+            mins, secs = divmod(entry.duration_seconds, 60)
+            if mins > 0:
+                duration_text = f" ({mins}:{secs:02d})"
+            else:
+                duration_text = f" ({secs}s)"
+
+        title = "Recording Ready"
+        message = f"Your recording{duration_text} has been processed and is ready to view."
+
+        # Send notification via unified notification service
+        # This handles both in-app and email based on user preferences
+        result = NotificationService.send(
+            user=entry.user,
+            category='capture',
+            title=title,
+            message=message,
+            context={
+                'entry_id': str(entry.id),
+                'action_url': f'/capture/{entry.id}/',
+                'action_label': 'View Recording',
+                'was_retry': was_retry,
+            },
+        )
+
+        if result.get('inapp') or result.get('email'):
+            logger.info(f"Sent completion notification for entry {entry.id}")
+        else:
+            logger.debug(f"No notifications sent for entry {entry.id} (user disabled)")
+
+    except Exception as e:
+        logger.exception(f"Error sending completion notification for entry {entry.id}: {e}")
+
+
+def _complete_pending_capture(entry) -> None:
+    """
+    Mark any associated PendingCapture record as completed.
 
     Args:
         entry: CaptureEntry instance that completed processing
     """
+    if not entry.pending_client_id:
+        return
+
     try:
-        from apps.capture.services.email import send_processing_complete_email
-        result = send_processing_complete_email(entry)
-        if result['success']:
-            logger.info(f"Sent completion notification for entry {entry.id}")
-        else:
-            logger.warning(f"Failed to send completion notification for entry {entry.id}: {result.get('error')}")
+        from apps.capture.models import PendingCapture
+
+        pending = PendingCapture.objects.filter(
+            user=entry.user,
+            client_id=entry.pending_client_id,
+        ).first()
+
+        if pending:
+            pending.status = PendingCapture.STATUS_COMPLETED
+            pending.capture_entry = entry
+            pending.save(update_fields=['status', 'capture_entry', 'updated_at'])
+            logger.info(f"Marked PendingCapture {pending.id} as completed")
+
     except Exception as e:
-        logger.exception(f"Error sending completion notification for entry {entry.id}: {e}")
+        logger.warning(f"Failed to complete PendingCapture for entry {entry.id}: {e}")
 
 
 def _retry_with_backoff(entry_id: str, retry_count: int) -> dict:

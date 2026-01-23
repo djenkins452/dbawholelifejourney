@@ -19,6 +19,7 @@ Jobs:
 import logging
 from datetime import timedelta
 
+from django.db import models
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
@@ -97,4 +98,108 @@ def send_expiration_reminders():
         'sent': sent_count,
         'failed': failed_count,
         'checked': entries_needing_reminder.count() if hasattr(entries_needing_reminder, 'count') else sent_count + failed_count,
+    }
+
+
+def send_pending_capture_reminders():
+    """
+    Send reminder notifications for pending captures that haven't been uploaded.
+
+    This job runs hourly to find pending captures that:
+    - Are older than 1 hour
+    - Haven't had a reminder sent today
+    - Are in status 'pending', 'uploading', or 'downloaded'
+
+    For each matching pending capture, it sends an in-app notification
+    to remind the user to upload their recording.
+
+    Scheduled: Hourly
+    """
+    from apps.capture.models import PendingCapture
+    from apps.core.services.notification_service import NotificationService
+
+    logger.info("Running pending capture reminder job...")
+
+    now = timezone.now()
+    one_hour_ago = now - timedelta(hours=1)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    # Find pending captures that need reminders
+    pending_needing_reminder = PendingCapture.objects.filter(
+        status__in=[
+            PendingCapture.STATUS_PENDING,
+            PendingCapture.STATUS_UPLOADING,
+            PendingCapture.STATUS_DOWNLOADED,
+        ],
+        created_at__lte=one_hour_ago,
+    ).filter(
+        # No reminder sent today
+        models.Q(last_reminder_at__isnull=True) |
+        models.Q(last_reminder_at__lt=today_start)
+    ).select_related('user')
+
+    sent_count = 0
+    failed_count = 0
+
+    for pending in pending_needing_reminder:
+        try:
+            # Check if user has in-app capture notifications enabled
+            prefs = pending.user.preferences
+            if not getattr(prefs, 'notify_inapp_capture', True):
+                continue
+
+            # Calculate age for friendly message
+            age_hours = int((now - pending.created_at).total_seconds() / 3600)
+            if age_hours < 24:
+                age_text = f"{age_hours} hour{'s' if age_hours != 1 else ''}"
+            else:
+                age_days = age_hours // 24
+                age_text = f"{age_days} day{'s' if age_days != 1 else ''}"
+
+            # Send in-app notification
+            result = NotificationService.send(
+                user=pending.user,
+                category='capture',
+                title='Recording Waiting to Upload',
+                message=(
+                    f"You have a recording from {age_text} ago that hasn't "
+                    f"been uploaded yet. Open the Capture page to upload it."
+                ),
+                context={
+                    'pending_id': str(pending.id),
+                    'action_url': '/capture/record/',
+                    'action_label': 'Upload Now',
+                },
+            )
+
+            if result.get('inapp'):
+                # Update last reminder timestamp
+                pending.last_reminder_at = now
+                pending.save(update_fields=['last_reminder_at'])
+                sent_count += 1
+                logger.info(
+                    f"Sent pending capture reminder for {pending.id} "
+                    f"to {pending.user.email}"
+                )
+            else:
+                # Notification not sent (likely disabled)
+                pass
+
+        except Exception as e:
+            failed_count += 1
+            logger.exception(
+                f"Error sending pending capture reminder for {pending.id}: {e}"
+            )
+
+    if sent_count > 0 or failed_count > 0:
+        logger.info(
+            f"Pending capture reminder job complete: {sent_count} sent, "
+            f"{failed_count} failed"
+        )
+    else:
+        logger.debug("No pending captures need reminders")
+
+    return {
+        'sent': sent_count,
+        'failed': failed_count,
     }

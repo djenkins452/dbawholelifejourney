@@ -161,9 +161,19 @@ def start_scheduler():
             replace_existing=True,
         )
 
+        # Job 8: Send pending capture reminder notifications hourly
+        # Reminds users about recordings that haven't been uploaded
+        scheduler.add_job(
+            'apps.capture.jobs:send_pending_capture_reminders',
+            trigger=IntervalTrigger(hours=1),
+            id="send_pending_capture_reminders",
+            max_instances=1,
+            replace_existing=True,
+        )
+
         scheduler.start()
         logger.info("=" * 60)
-        logger.info("APScheduler STARTED successfully with 7 jobs:")
+        logger.info("APScheduler STARTED successfully with 8 jobs:")
         logger.info("  - SMS: schedule_daily_sms_reminders (daily at 00:00 UTC) [on hold]")
         logger.info("  - SMS: send_pending_sms (every 5 minutes) [on hold]")
         logger.info("  - Life: recalculate_task_priorities (daily at 06:00 UTC / 01:00 EST)")
@@ -171,6 +181,7 @@ def start_scheduler():
         logger.info("  - Core: cleanup_soft_deletes (weekly on Sunday at 03:00 UTC)")
         logger.info("  - Core: generate_faith_reminders (daily at 06:00 UTC / 01:00 EST)")
         logger.info("  - Capture: send_expiration_reminders (daily at 08:00 UTC / 03:00 EST)")
+        logger.info("  - Capture: send_pending_capture_reminders (hourly)")
         logger.info("=" * 60)
 
         # Ensure scheduler shuts down on exit

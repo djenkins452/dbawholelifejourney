@@ -4,130 +4,184 @@
 {% block title %}Security Dashboard | Whole Life Journey{% endblock %}
 
 {% block extra_head %}
-<script src="https://cdn.tailwindcss.com"></script>
+<style>
+    .security-grid-5 {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+    .security-grid-2 {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+    @media (max-width: 768px) {
+        .security-grid-5 {
+            grid-template-columns: repeat(2, 1fr);
+        }
+        .security-grid-2 {
+            grid-template-columns: 1fr;
+        }
+    }
+    .score-card {
+        background: white;
+        border-radius: 0.5rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        padding: 1rem;
+        text-align: center;
+    }
+    .score-value {
+        font-size: 2rem;
+        font-weight: 700;
+    }
+    .score-value-lg {
+        font-size: 2.5rem;
+        font-weight: 700;
+    }
+    .score-label {
+        font-size: 0.875rem;
+        color: #6b7280;
+    }
+    .score-sublabel {
+        font-size: 0.75rem;
+        color: #9ca3af;
+    }
+    .text-green { color: #16a34a; }
+    .text-red { color: #dc2626; }
+    .text-orange { color: #ea580c; }
+    .text-yellow { color: #ca8a04; }
+    .text-blue { color: #2563eb; }
+    .text-gray { color: #111827; }
+    .chart-container {
+        background: white;
+        border-radius: 0.5rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        padding: 1rem;
+    }
+</style>
 {% endblock %}
 
 {% block content %}
-<div class="max-w-7xl mx-auto px-4 py-6">
-    <div class="flex justify-between items-center mb-6">
-        <h1 class="text-2xl font-bold text-gray-900">Security Dashboard</h1>
-        <div class="flex gap-2">
-            <button onclick="runAssessment()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
-                Run Assessment
-            </button>
-        </div>
+<div style="max-width: 80rem; margin: 0 auto; padding: 1.5rem 1rem;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+        <h1 style="font-size: 1.5rem; font-weight: 700; color: #111827;">Security Dashboard</h1>
+        <button onclick="runAssessment()" style="padding: 0.5rem 1rem; background: #2563eb; color: white; border-radius: 0.375rem; border: none; cursor: pointer;">
+            Run Assessment
+        </button>
     </div>
 
     {% if latest_run %}
     <!-- Snapshot Cards -->
-    <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-        <div class="bg-white rounded-lg shadow p-4 text-center">
-            <div class="text-3xl font-bold text-gray-900">{{ latest_run.total_tests }}</div>
-            <div class="text-sm text-gray-500">Tests Run</div>
-            <div class="text-xs text-gray-400">100%</div>
+    <div class="security-grid-5">
+        <div class="score-card">
+            <div class="score-value text-gray">{{ latest_run.total_tests }}</div>
+            <div class="score-label">Tests Run</div>
+            <div class="score-sublabel">100%</div>
         </div>
-        <div class="bg-white rounded-lg shadow p-4 text-center">
-            <div class="text-3xl font-bold text-green-600">{{ latest_run.passed_tests }}</div>
-            <div class="text-sm text-gray-500">Passed</div>
-            <div class="text-xs text-gray-400">{{ latest_run.passed_tests|divisibleby:latest_run.total_tests|default:"0" }}%</div>
+        <div class="score-card">
+            <div class="score-value text-green">{{ latest_run.passed_tests }}</div>
+            <div class="score-label">Passed</div>
+            <div class="score-sublabel">{% widthratio latest_run.passed_tests latest_run.total_tests 100 %}%</div>
         </div>
-        <div class="bg-white rounded-lg shadow p-4 text-center">
-            <div class="text-3xl font-bold text-red-600">{{ latest_run.critical_findings }}</div>
-            <div class="text-sm text-gray-500">Critical</div>
+        <div class="score-card">
+            <div class="score-value text-red">{{ latest_run.critical_findings }}</div>
+            <div class="score-label">Critical</div>
         </div>
-        <div class="bg-white rounded-lg shadow p-4 text-center">
-            <div class="text-3xl font-bold text-orange-600">{{ latest_run.high_findings }}</div>
-            <div class="text-sm text-gray-500">High</div>
+        <div class="score-card">
+            <div class="score-value text-orange">{{ latest_run.high_findings }}</div>
+            <div class="score-label">High</div>
         </div>
-        <div class="bg-white rounded-lg shadow p-4 text-center">
-            <div class="text-3xl font-bold text-yellow-600">{{ latest_run.medium_findings }}</div>
-            <div class="text-sm text-gray-500">Medium</div>
+        <div class="score-card">
+            <div class="score-value text-yellow">{{ latest_run.medium_findings }}</div>
+            <div class="score-label">Medium</div>
         </div>
     </div>
 
     <!-- Score Cards -->
-    <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-        {% if latest_score %}
-        <div class="bg-white rounded-lg shadow p-4 text-center">
-            <div class="text-4xl font-bold {% if latest_score.securityscorecard_grade == 'A' %}text-green-600{% elif latest_score.securityscorecard_grade == 'B' %}text-blue-600{% elif latest_score.securityscorecard_grade == 'C' %}text-yellow-600{% else %}text-red-600{% endif %}">
+    {% if latest_score %}
+    <div class="security-grid-5">
+        <div class="score-card">
+            <div class="score-value-lg {% if latest_score.securityscorecard_grade == 'A' %}text-green{% elif latest_score.securityscorecard_grade == 'B' %}text-blue{% elif latest_score.securityscorecard_grade == 'C' %}text-yellow{% else %}text-red{% endif %}">
                 {{ latest_score.securityscorecard_grade }}
             </div>
-            <div class="text-sm text-gray-500">Grade</div>
+            <div class="score-label">Grade</div>
         </div>
-        <div class="bg-white rounded-lg shadow p-4 text-center">
-            <div class="text-3xl font-bold text-gray-900">{{ latest_score.bitsight_score }}</div>
-            <div class="text-sm text-gray-500">BitSight Score</div>
-            <div class="text-xs text-gray-400">/ 900</div>
+        <div class="score-card">
+            <div class="score-value text-gray">{{ latest_score.bitsight_score }}</div>
+            <div class="score-label">BitSight Score</div>
+            <div class="score-sublabel">/ 900</div>
         </div>
-        <div class="bg-white rounded-lg shadow p-4 text-center">
-            <div class="text-3xl font-bold text-gray-900">{{ latest_score.cvss_avg }}</div>
-            <div class="text-sm text-gray-500">CVSS Avg</div>
-            <div class="text-xs text-gray-400">/ 10.0</div>
+        <div class="score-card">
+            <div class="score-value text-gray">{{ latest_score.cvss_avg }}</div>
+            <div class="score-label">CVSS Avg</div>
+            <div class="score-sublabel">/ 10.0</div>
         </div>
-        <div class="bg-white rounded-lg shadow p-4 text-center">
-            <div class="text-3xl font-bold text-gray-900">{{ latest_score.risk_score_0_100 }}</div>
-            <div class="text-sm text-gray-500">Risk Score</div>
-            <div class="text-xs text-gray-400">/ 100</div>
+        <div class="score-card">
+            <div class="score-value text-gray">{{ latest_score.risk_score_0_100 }}</div>
+            <div class="score-label">Risk Score</div>
+            <div class="score-sublabel">/ 100</div>
         </div>
-        <div class="bg-white rounded-lg shadow p-4 text-center">
-            <div class="text-3xl font-bold text-gray-900">{{ latest_score.maturity_level }}</div>
-            <div class="text-sm text-gray-500">Maturity</div>
-            <div class="text-xs text-gray-400">/ 3</div>
+        <div class="score-card">
+            <div class="score-value text-gray">{{ latest_score.maturity_level }}</div>
+            <div class="score-label">Maturity</div>
+            <div class="score-sublabel">/ 3</div>
         </div>
-        {% endif %}
     </div>
+    {% endif %}
 
     <!-- Trend Charts -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-        <div class="bg-white rounded-lg shadow p-4">
-            <h3 class="text-lg font-semibold mb-4">BitSight Score Trend</h3>
+    <div class="security-grid-2">
+        <div class="chart-container">
+            <h3 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 1rem;">BitSight Score Trend</h3>
             <canvas id="bitsightChart" height="200"></canvas>
         </div>
-        <div class="bg-white rounded-lg shadow p-4">
-            <h3 class="text-lg font-semibold mb-4">Risk Score Trend</h3>
+        <div class="chart-container">
+            <h3 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 1rem;">Risk Score Trend</h3>
             <canvas id="riskChart" height="200"></canvas>
         </div>
     </div>
 
     <!-- Findings Table -->
-    <div class="bg-white rounded-lg shadow mb-6">
-        <div class="px-4 py-3 border-b flex justify-between items-center">
-            <h3 class="text-lg font-semibold">Latest Findings</h3>
-            <a href="{% url 'security:run_detail' latest_run.pk %}" class="text-blue-600 hover:underline text-sm">
+    <div class="score-card" style="text-align: left; margin-bottom: 1.5rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 0.75rem; border-bottom: 1px solid #e5e7eb; margin-bottom: 1rem;">
+            <h3 style="font-size: 1.125rem; font-weight: 600;">Latest Findings</h3>
+            <a href="{% url 'security:run_detail' latest_run.pk %}" style="color: #2563eb; font-size: 0.875rem;">
                 View All →
             </a>
         </div>
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                    <tr>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Title</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Severity</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">CVSS</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quick Win</th>
+        <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="background: #f9fafb;">
+                        <th style="padding: 0.75rem 1rem; text-align: left; font-size: 0.75rem; font-weight: 500; color: #6b7280; text-transform: uppercase;">ID</th>
+                        <th style="padding: 0.75rem 1rem; text-align: left; font-size: 0.75rem; font-weight: 500; color: #6b7280; text-transform: uppercase;">Title</th>
+                        <th style="padding: 0.75rem 1rem; text-align: left; font-size: 0.75rem; font-weight: 500; color: #6b7280; text-transform: uppercase;">Severity</th>
+                        <th style="padding: 0.75rem 1rem; text-align: left; font-size: 0.75rem; font-weight: 500; color: #6b7280; text-transform: uppercase;">CVSS</th>
+                        <th style="padding: 0.75rem 1rem; text-align: left; font-size: 0.75rem; font-weight: 500; color: #6b7280; text-transform: uppercase;">Quick Win</th>
                     </tr>
                 </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
+                <tbody>
                     {% for finding in latest_findings %}
-                    <tr class="hover:bg-gray-50 cursor-pointer" onclick="showFinding('{{ finding.pk }}')">
-                        <td class="px-4 py-3 text-sm font-mono text-blue-600">{{ finding.finding_id }}</td>
-                        <td class="px-4 py-3 text-sm">{{ finding.title }}</td>
-                        <td class="px-4 py-3">
-                            <span class="px-2 py-1 text-xs rounded-full {% if finding.severity == 'critical' %}bg-red-100 text-red-800{% elif finding.severity == 'high' %}bg-orange-100 text-orange-800{% elif finding.severity == 'medium' %}bg-yellow-100 text-yellow-800{% else %}bg-blue-100 text-blue-800{% endif %}">
+                    <tr style="border-top: 1px solid #e5e7eb; cursor: pointer;" onclick="showFinding('{{ finding.pk }}')">
+                        <td style="padding: 0.75rem 1rem; font-size: 0.875rem; font-family: monospace; color: #2563eb;">{{ finding.finding_id }}</td>
+                        <td style="padding: 0.75rem 1rem; font-size: 0.875rem;">{{ finding.title }}</td>
+                        <td style="padding: 0.75rem 1rem;">
+                            <span style="padding: 0.25rem 0.5rem; font-size: 0.75rem; border-radius: 9999px; {% if finding.severity == 'critical' %}background: #fee2e2; color: #991b1b;{% elif finding.severity == 'high' %}background: #ffedd5; color: #9a3412;{% elif finding.severity == 'medium' %}background: #fef9c3; color: #854d0e;{% else %}background: #dbeafe; color: #1e40af;{% endif %}">
                                 {{ finding.severity|upper }}
                             </span>
                         </td>
-                        <td class="px-4 py-3 text-sm font-mono">{{ finding.cvss_score }}</td>
-                        <td class="px-4 py-3 text-sm">
+                        <td style="padding: 0.75rem 1rem; font-size: 0.875rem; font-family: monospace;">{{ finding.cvss_score }}</td>
+                        <td style="padding: 0.75rem 1rem; font-size: 0.875rem;">
                             {% if finding.is_quick_win %}
-                            <span class="text-green-600">✓</span>
+                            <span style="color: #16a34a;">✓</span>
                             {% endif %}
                         </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="5" class="px-4 py-8 text-center text-gray-500">
+                        <td colspan="5" style="padding: 2rem 1rem; text-align: center; color: #6b7280;">
                             No findings - great job!
                         </td>
                     </tr>
@@ -138,58 +192,58 @@
     </div>
 
     <!-- Remediation Prompt Card -->
-    <div class="bg-white rounded-lg shadow p-4 mb-6">
-        <div class="flex justify-between items-center mb-2">
-            <h3 class="text-lg font-semibold">Remediation Prompt</h3>
-            <button onclick="copyRemediationPrompt('{{ latest_run.pk }}')" class="px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-sm">
+    <div class="score-card" style="text-align: left; margin-bottom: 1.5rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+            <h3 style="font-size: 1.125rem; font-weight: 600;">Remediation Prompt</h3>
+            <button onclick="copyRemediationPrompt('{{ latest_run.pk }}')" style="padding: 0.25rem 0.75rem; background: #f3f4f6; color: #374151; border-radius: 0.25rem; border: none; cursor: pointer; font-size: 0.875rem;">
                 Copy Prompt
             </button>
         </div>
-        <p class="text-sm text-gray-600">
+        <p style="font-size: 0.875rem; color: #4b5563;">
             Copy this prompt and paste it into a new Claude session to fix all findings systematically.
         </p>
     </div>
 
     <!-- Recent Runs -->
-    <div class="bg-white rounded-lg shadow">
-        <div class="px-4 py-3 border-b">
-            <h3 class="text-lg font-semibold">Recent Runs</h3>
+    <div class="score-card" style="text-align: left;">
+        <div style="padding-bottom: 0.75rem; border-bottom: 1px solid #e5e7eb; margin-bottom: 1rem;">
+            <h3 style="font-size: 1.125rem; font-weight: 600;">Recent Runs</h3>
         </div>
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                    <tr>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Grade</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">BitSight</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Findings</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Duration</th>
+        <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="background: #f9fafb;">
+                        <th style="padding: 0.75rem 1rem; text-align: left; font-size: 0.75rem; font-weight: 500; color: #6b7280; text-transform: uppercase;">Date</th>
+                        <th style="padding: 0.75rem 1rem; text-align: left; font-size: 0.75rem; font-weight: 500; color: #6b7280; text-transform: uppercase;">Grade</th>
+                        <th style="padding: 0.75rem 1rem; text-align: left; font-size: 0.75rem; font-weight: 500; color: #6b7280; text-transform: uppercase;">BitSight</th>
+                        <th style="padding: 0.75rem 1rem; text-align: left; font-size: 0.75rem; font-weight: 500; color: #6b7280; text-transform: uppercase;">Findings</th>
+                        <th style="padding: 0.75rem 1rem; text-align: left; font-size: 0.75rem; font-weight: 500; color: #6b7280; text-transform: uppercase;">Duration</th>
                     </tr>
                 </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
+                <tbody>
                     {% for run in runs %}
-                    <tr class="hover:bg-gray-50 cursor-pointer" onclick="location.href='{% url 'security:run_detail' run.pk %}'">
-                        <td class="px-4 py-3 text-sm">{{ run.run_timestamp|date:"M d, Y H:i" }}</td>
-                        <td class="px-4 py-3">
+                    <tr style="border-top: 1px solid #e5e7eb; cursor: pointer;" onclick="location.href='{% url 'security:run_detail' run.pk %}'">
+                        <td style="padding: 0.75rem 1rem; font-size: 0.875rem;">{{ run.run_timestamp|date:"M d, Y H:i" }}</td>
+                        <td style="padding: 0.75rem 1rem;">
                             {% with run.score as score %}
                             {% if score %}
-                            <span class="text-lg font-bold {% if score.securityscorecard_grade == 'A' %}text-green-600{% elif score.securityscorecard_grade == 'B' %}text-blue-600{% else %}text-yellow-600{% endif %}">
+                            <span style="font-size: 1.125rem; font-weight: 700; {% if score.securityscorecard_grade == 'A' %}color: #16a34a;{% elif score.securityscorecard_grade == 'B' %}color: #2563eb;{% else %}color: #ca8a04;{% endif %}">
                                 {{ score.securityscorecard_grade }}
                             </span>
                             {% endif %}
                             {% endwith %}
                         </td>
-                        <td class="px-4 py-3 text-sm">
+                        <td style="padding: 0.75rem 1rem; font-size: 0.875rem;">
                             {% with run.score as score %}
                             {{ score.bitsight_score|default:"-" }}
                             {% endwith %}
                         </td>
-                        <td class="px-4 py-3 text-sm">
-                            <span class="text-red-600">{{ run.critical_findings }}C</span> /
-                            <span class="text-orange-600">{{ run.high_findings }}H</span> /
-                            <span class="text-yellow-600">{{ run.medium_findings }}M</span>
+                        <td style="padding: 0.75rem 1rem; font-size: 0.875rem;">
+                            <span style="color: #dc2626;">{{ run.critical_findings }}C</span> /
+                            <span style="color: #ea580c;">{{ run.high_findings }}H</span> /
+                            <span style="color: #ca8a04;">{{ run.medium_findings }}M</span>
                         </td>
-                        <td class="px-4 py-3 text-sm text-gray-500">{{ run.duration_seconds }}s</td>
+                        <td style="padding: 0.75rem 1rem; font-size: 0.875rem; color: #6b7280;">{{ run.duration_seconds }}s</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -199,27 +253,27 @@
 
     {% else %}
     <!-- No runs yet -->
-    <div class="bg-white rounded-lg shadow p-8 text-center">
-        <h2 class="text-xl font-semibold text-gray-700 mb-2">No Security Assessments Yet</h2>
-        <p class="text-gray-500 mb-4">Run your first security assessment to see results here.</p>
-        <button onclick="runAssessment()" class="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+    <div class="score-card" style="padding: 2rem; text-align: center;">
+        <h2 style="font-size: 1.25rem; font-weight: 600; color: #374151; margin-bottom: 0.5rem;">No Security Assessments Yet</h2>
+        <p style="color: #6b7280; margin-bottom: 1rem;">Run your first security assessment to see results here.</p>
+        <button onclick="runAssessment()" style="padding: 0.5rem 1.5rem; background: #2563eb; color: white; border-radius: 0.375rem; border: none; cursor: pointer;">
             Run First Assessment
         </button>
-        <div class="mt-4 text-sm text-gray-400">
-            Or run from command line: <code class="bg-gray-100 px-2 py-1 rounded">python manage.py run_security_assessment</code>
+        <div style="margin-top: 1rem; font-size: 0.875rem; color: #9ca3af;">
+            Or run from command line: <code style="background: #f3f4f6; padding: 0.25rem 0.5rem; border-radius: 0.25rem;">python manage.py run_security_assessment</code>
         </div>
     </div>
     {% endif %}
 </div>
 
 <!-- Finding Detail Modal -->
-<div id="findingModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
-    <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-        <div class="p-4 border-b flex justify-between items-center sticky top-0 bg-white">
-            <h3 id="modalTitle" class="text-lg font-semibold"></h3>
-            <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">&times;</button>
+<div id="findingModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 50; justify-content: center; align-items: center;">
+    <div style="background: white; border-radius: 0.5rem; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); max-width: 42rem; width: 100%; margin: 1rem; max-height: 90vh; overflow-y: auto;">
+        <div style="padding: 1rem; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; background: white;">
+            <h3 id="modalTitle" style="font-size: 1.125rem; font-weight: 600;"></h3>
+            <button onclick="closeModal()" style="color: #9ca3af; font-size: 1.5rem; background: none; border: none; cursor: pointer;">&times;</button>
         </div>
-        <div id="modalContent" class="p-4">
+        <div id="modalContent" style="padding: 1rem;">
             <!-- Content loaded via AJAX -->
         </div>
     </div>
@@ -290,58 +344,56 @@
             .then(r => r.json())
             .then(data => {
                 document.getElementById('modalTitle').textContent = `${data.finding_id}: ${data.title}`;
+                const severityStyle = data.severity === 'critical' ? 'background:#fee2e2;color:#991b1b;' :
+                    data.severity === 'high' ? 'background:#ffedd5;color:#9a3412;' :
+                    data.severity === 'medium' ? 'background:#fef9c3;color:#854d0e;' : 'background:#dbeafe;color:#1e40af;';
                 document.getElementById('modalContent').innerHTML = `
-                    <div class="space-y-4">
-                        <div class="flex gap-2">
-                            <span class="px-2 py-1 text-xs rounded-full ${
-                                data.severity === 'critical' ? 'bg-red-100 text-red-800' :
-                                data.severity === 'high' ? 'bg-orange-100 text-orange-800' :
-                                data.severity === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                                'bg-blue-100 text-blue-800'
-                            }">${data.severity.toUpperCase()}</span>
-                            <span class="text-sm text-gray-500">CVSS ${data.cvss_score}</span>
-                            <span class="text-sm font-mono text-gray-400">${data.cvss_vector}</span>
+                    <div style="display:flex;flex-direction:column;gap:1rem;">
+                        <div style="display:flex;gap:0.5rem;align-items:center;">
+                            <span style="padding:0.25rem 0.5rem;font-size:0.75rem;border-radius:9999px;${severityStyle}">${data.severity.toUpperCase()}</span>
+                            <span style="font-size:0.875rem;color:#6b7280;">CVSS ${data.cvss_score}</span>
+                            <span style="font-size:0.875rem;font-family:monospace;color:#9ca3af;">${data.cvss_vector}</span>
                         </div>
 
                         <div>
-                            <h4 class="font-semibold text-sm text-gray-700">Description</h4>
-                            <p class="text-sm text-gray-600">${data.description}</p>
+                            <h4 style="font-weight:600;font-size:0.875rem;color:#374151;">Description</h4>
+                            <p style="font-size:0.875rem;color:#4b5563;">${data.description}</p>
                         </div>
 
                         <div>
-                            <h4 class="font-semibold text-sm text-gray-700">Risk Reasoning</h4>
-                            <p class="text-sm text-gray-600">${data.risk_reasoning}</p>
+                            <h4 style="font-weight:600;font-size:0.875rem;color:#374151;">Risk Reasoning</h4>
+                            <p style="font-size:0.875rem;color:#4b5563;">${data.risk_reasoning}</p>
                         </div>
 
                         <div>
-                            <h4 class="font-semibold text-sm text-gray-700">Affected Components</h4>
-                            <p class="text-sm text-gray-600">${(data.affected_components || []).join(', ') || 'N/A'}</p>
+                            <h4 style="font-weight:600;font-size:0.875rem;color:#374151;">Affected Components</h4>
+                            <p style="font-size:0.875rem;color:#4b5563;">${(data.affected_components || []).join(', ') || 'N/A'}</p>
                         </div>
 
                         <div>
-                            <h4 class="font-semibold text-sm text-gray-700">Recommendations</h4>
-                            <ul class="list-disc list-inside text-sm text-gray-600">
+                            <h4 style="font-weight:600;font-size:0.875rem;color:#374151;">Recommendations</h4>
+                            <ul style="list-style:disc;padding-left:1.5rem;font-size:0.875rem;color:#4b5563;">
                                 ${(data.recommendations || []).map(r => `<li>${r}</li>`).join('')}
                             </ul>
                         </div>
 
                         <div>
-                            <h4 class="font-semibold text-sm text-gray-700">Validation Steps</h4>
-                            <code class="block text-xs bg-gray-100 p-2 rounded">${data.validation_steps}</code>
+                            <h4 style="font-weight:600;font-size:0.875rem;color:#374151;">Validation Steps</h4>
+                            <code style="display:block;font-size:0.75rem;background:#f3f4f6;padding:0.5rem;border-radius:0.25rem;">${data.validation_steps}</code>
                         </div>
 
                         <div>
-                            <h4 class="font-semibold text-sm text-gray-700">Evidence</h4>
-                            <pre class="text-xs bg-gray-100 p-2 rounded overflow-x-auto">${JSON.stringify(data.evidence, null, 2)}</pre>
+                            <h4 style="font-weight:600;font-size:0.875rem;color:#374151;">Evidence</h4>
+                            <pre style="font-size:0.75rem;background:#f3f4f6;padding:0.5rem;border-radius:0.25rem;overflow-x:auto;">${JSON.stringify(data.evidence, null, 2)}</pre>
                         </div>
                     </div>
                 `;
-                document.getElementById('findingModal').classList.remove('hidden');
+                document.getElementById('findingModal').style.display = 'flex';
             });
     }
 
     function closeModal() {
-        document.getElementById('findingModal').classList.add('hidden');
+        document.getElementById('findingModal').style.display = 'none';
     }
 
     function copyRemediationPrompt(runPk) {

@@ -16,6 +16,21 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-23 Changes
 
+### Additional Scanner False Positive Fixes (Round 3)
+
+Fixed API pagination test detecting itself as using DRF.
+
+**Fix:**
+- **SEC-T072 API Pagination Test**: Scanner was detecting itself as using DRF because it contains string patterns like "REST_FRAMEWORK" in test recommendations
+   - Added exclusion for `scanner.py` when checking for DRF usage
+   - Changed DRF detection to look for actual imports (`from rest_framework import`/`from rest_framework.`) not just string mentions
+   - Changed settings check to look for quoted `'rest_framework'` in INSTALLED_APPS
+
+**Files Changed:**
+- `apps/security/scanner.py` - Fixed self-detection in pagination test
+
+---
+
 ### Additional Scanner False Positive Fixes (Round 2)
 
 Further improvements to reduce false positives in security scanner tests.

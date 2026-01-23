@@ -4881,11 +4881,13 @@ class SecurityScanner:
         }
         findings = []
 
-        # First, check if Django REST Framework is actually used
+        # First, check if Django REST Framework is actually used in settings
+        # (not just mentioned in scanner test descriptions)
         settings_file = self.base_path / 'config' / 'settings.py'
         if settings_file.exists():
             content = settings_file.read_text()
-            if 'rest_framework' in content or 'REST_FRAMEWORK' in content:
+            # Check for DRF in INSTALLED_APPS (the definitive indicator)
+            if "'rest_framework'" in content or '"rest_framework"' in content:
                 evidence['drf_used'] = True
 
             if 'PAGE_SIZE' in content or 'PAGINATION' in content:
@@ -4906,8 +4908,12 @@ class SecurityScanner:
                 content = py_file.read_text()
                 relative_path = str(py_file.relative_to(self.base_path))
 
-                # Check for DRF usage
-                if 'from rest_framework' in content:
+                # Skip scanner itself (contains DRF string patterns for test descriptions)
+                if 'scanner.py' in relative_path:
+                    continue
+
+                # Check for actual DRF imports (not string mentions)
+                if 'from rest_framework import' in content or 'from rest_framework.' in content:
                     evidence['drf_used'] = True
 
                 if 'PageNumberPagination' in content or 'LimitOffsetPagination' in content:

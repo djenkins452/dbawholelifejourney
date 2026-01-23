@@ -1237,12 +1237,19 @@ class ConfigureDashboardView(LoginRequiredMixin, View):
 
 
 class DashboardDebugView(LoginRequiredMixin, View):
-    """Temporary debug endpoint to diagnose dashboard errors."""
+    """Debug endpoint to diagnose dashboard errors. Staff only."""
 
     def get(self, request, *args, **kwargs):
         import traceback
+        from django.conf import settings
+
+        # Restrict to staff users only
+        if not request.user.is_staff:
+            return JsonResponse({'error': 'Staff access required'}, status=403)
+
         errors = []
         data = {}
+        show_tracebacks = settings.DEBUG  # Only show tracebacks in DEBUG mode
 
         user = request.user
         prefs = user.preferences
@@ -1309,7 +1316,11 @@ class DashboardDebugView(LoginRequiredMixin, View):
                     data['ai_daily_insight']['cached_style'] = cached.coaching_style
 
             except Exception as e:
-                errors.append(f"AI insight generation error: {e}\n{traceback.format_exc()}")
+                logger.error(f"AI insight generation error: {e}\n{traceback.format_exc()}")
+                error_msg = f"AI insight generation error: {e}"
+                if show_tracebacks:
+                    error_msg += f"\n{traceback.format_exc()}"
+                errors.append(error_msg)
                 data['ai_daily_insight'] = {'error': str(e)}
 
         # Test the actual DashboardView methods
@@ -1319,12 +1330,20 @@ class DashboardDebugView(LoginRequiredMixin, View):
         try:
             data['greeting'] = dashboard_view._get_greeting()
         except Exception as e:
-            errors.append(f"_get_greeting error: {e}\n{traceback.format_exc()}")
+            logger.error(f"_get_greeting error: {e}\n{traceback.format_exc()}")
+            error_msg = f"_get_greeting error: {e}"
+            if show_tracebacks:
+                error_msg += f"\n{traceback.format_exc()}"
+            errors.append(error_msg)
 
         try:
             data['encouragement'] = str(dashboard_view._get_daily_encouragement(prefs.faith_enabled))
         except Exception as e:
-            errors.append(f"_get_daily_encouragement error: {e}\n{traceback.format_exc()}")
+            logger.error(f"_get_daily_encouragement error: {e}\n{traceback.format_exc()}")
+            error_msg = f"_get_daily_encouragement error: {e}"
+            if show_tracebacks:
+                error_msg += f"\n{traceback.format_exc()}"
+            errors.append(error_msg)
 
         try:
             user_data = dashboard_view._gather_comprehensive_data(user, prefs)
@@ -1334,7 +1353,11 @@ class DashboardDebugView(LoginRequiredMixin, View):
             data['recent_prs_count'] = len(user_data.get('recent_prs', []))
             data['todays_medicine_count'] = len(user_data.get('todays_medicine_schedule', []))
         except Exception as e:
-            errors.append(f"_gather_comprehensive_data error: {e}\n{traceback.format_exc()}")
+            logger.error(f"_gather_comprehensive_data error: {e}\n{traceback.format_exc()}")
+            error_msg = f"_gather_comprehensive_data error: {e}"
+            if show_tracebacks:
+                error_msg += f"\n{traceback.format_exc()}"
+            errors.append(error_msg)
 
         try:
             if prefs.ai_enabled:
@@ -1350,13 +1373,21 @@ class DashboardDebugView(LoginRequiredMixin, View):
             else:
                 data['ai_insights'] = 'disabled (ai_enabled=False)'
         except Exception as e:
-            errors.append(f"_get_ai_insights error: {e}\n{traceback.format_exc()}")
+            logger.error(f"_get_ai_insights error: {e}\n{traceback.format_exc()}")
+            error_msg = f"_get_ai_insights error: {e}"
+            if show_tracebacks:
+                error_msg += f"\n{traceback.format_exc()}"
+            errors.append(error_msg)
 
         try:
             quick_stats = dashboard_view._get_quick_stats(user_data)
             data['quick_stats'] = quick_stats
         except Exception as e:
-            errors.append(f"_get_quick_stats error: {e}\n{traceback.format_exc()}")
+            logger.error(f"_get_quick_stats error: {e}\n{traceback.format_exc()}")
+            error_msg = f"_get_quick_stats error: {e}"
+            if show_tracebacks:
+                error_msg += f"\n{traceback.format_exc()}"
+            errors.append(error_msg)
 
         # Try to render the template
         try:
@@ -1380,7 +1411,11 @@ class DashboardDebugView(LoginRequiredMixin, View):
             data['template_rendered'] = True
             data['template_length'] = len(html)
         except Exception as e:
-            errors.append(f"Template render error: {e}\n{traceback.format_exc()}")
+            logger.error(f"Template render error: {e}\n{traceback.format_exc()}")
+            error_msg = f"Template render error: {e}"
+            if show_tracebacks:
+                error_msg += f"\n{traceback.format_exc()}"
+            errors.append(error_msg)
             data['template_rendered'] = False
 
         data['errors'] = errors

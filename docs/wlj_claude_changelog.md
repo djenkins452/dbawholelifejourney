@@ -16,6 +16,31 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-23 Changes
 
+### Security Scanner False Positive Fixes
+
+Fixed several scanner tests that were generating false positives or failing to detect proper implementations.
+
+**Fixes:**
+1. **SEC-002 SQL Injection False Positive**: Scanner was detecting its own regex patterns as potential SQL injection. Added exclusion for `scanner.py` in the SQL injection test.
+
+2. **SEC-003 API Pagination Test**: Scanner assumed Django REST Framework was in use. Updated test to:
+   - First check if DRF is actually used in the project
+   - If DRF is used, require proper pagination settings (PAGE_SIZE, MAX_PAGE_SIZE)
+   - If DRF is not used, check for manual limit enforcement in custom API views
+   - The project uses plain Django views with manual limit capping (e.g., `if limit > 100: limit = 100`)
+
+3. **SEC-006 Security Access Control Test**: Scanner was looking for literal `@staff_member_required` decorator but the security views use `@method_decorator(staff_member_required)`. Updated the check to recognize both patterns.
+
+**Findings Verified as False Positives:**
+- SEC-001: `.env` is already in `.gitignore` (line 41)
+- SEC-004: All webhooks (Stripe, Plaid, Twilio) properly validate signatures
+- SEC-005: All OAuth secrets use `env()` for configuration
+
+**Files Changed:**
+- `apps/security/scanner.py` - Updated 3 test methods to reduce false positives
+
+---
+
 ### Failing Tests Now Create Findings That Impact Scores
 
 Previously, security tests could fail without creating findings, meaning failed tests had no impact on the security score (BitSight, CVSS, grades). This has been fixed.

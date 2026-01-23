@@ -1615,6 +1615,9 @@ class SecurityScanner:
         for py_file in self.base_path.rglob('*.py'):
             if '/migrations/' in str(py_file):
                 continue
+            # Exclude the scanner itself - it contains regex patterns that look like SQL injection
+            if py_file.name == 'scanner.py' and 'security' in str(py_file):
+                continue
             try:
                 content = py_file.read_text()
                 for pattern in dangerous_patterns:
@@ -4869,16 +4872,22 @@ class SecurityScanner:
         test_id = "SEC-T072"
 
         evidence = {
+            'drf_used': False,
             'pagination_configured': False,
             'max_page_size': None,
             'default_page_size': None,
+            'manual_limits_found': False,
+            'manual_limit_locations': [],
         }
         findings = []
 
-        # Check DRF settings
+        # First, check if Django REST Framework is actually used
         settings_file = self.base_path / 'config' / 'settings.py'
         if settings_file.exists():
             content = settings_file.read_text()
+            if 'rest_framework' in content or 'REST_FRAMEWORK' in content:
+                evidence['drf_used'] = True
+
             if 'PAGE_SIZE' in content or 'PAGINATION' in content:
                 evidence['pagination_configured'] = True
 
@@ -4891,10 +4900,16 @@ class SecurityScanner:
             if match:
                 evidence['max_page_size'] = int(match.group(1))
 
-        # Check for pagination in views
+        # Check for DRF pagination in views and manual limit enforcement
         for py_file in self.base_path.rglob('*.py'):
             try:
                 content = py_file.read_text()
+                relative_path = str(py_file.relative_to(self.base_path))
+
+                # Check for DRF usage
+                if 'from rest_framework' in content:
+                    evidence['drf_used'] = True
+
                 if 'PageNumberPagination' in content or 'LimitOffsetPagination' in content:
                     evidence['pagination_configured'] = True
 
@@ -4903,13 +4918,53 @@ class SecurityScanner:
                         match = re.search(r'max_page_size\s*=\s*(\d+)', content)
                         if match:
                             evidence['max_page_size'] = int(match.group(1))
+
+                # Check for manual limit enforcement in custom API views
+                # Pattern: limit parameter with capping (e.g., "if limit > 100: limit = 100")
+                if re.search(r'limit\s*>\s*\d+', content) or re.search(r'limit\s*=\s*min\s*\(', content):
+                    evidence['manual_limits_found'] = True
+                    evidence['manual_limit_locations'].append(relative_path)
+
+                # Also check for [:limit] slicing with limit validation
+                if re.search(r'\[:limit\]', content) and 'limit' in content:
+                    # Check if there's a limit cap
+                    if re.search(r'limit\s*[<>=]', content):
+                        evidence['manual_limits_found'] = True
+                        if relative_path not in evidence['manual_limit_locations']:
+                            evidence['manual_limit_locations'].append(relative_path)
+
             except Exception:
                 pass
 
-        result = 'pass' if evidence['pagination_configured'] and evidence['max_page_size'] else 'fail'
+        # Pass conditions:
+        # 1. DRF is used AND pagination with max_page_size is configured, OR
+        # 2. DRF is not used AND manual limit enforcement is present, OR
+        # 3. DRF pagination is configured with max_page_size
+        if evidence['drf_used']:
+            # If using DRF, require proper DRF pagination settings
+            result = 'pass' if evidence['pagination_configured'] and evidence['max_page_size'] else 'fail'
+        else:
+            # If not using DRF, check for manual limit enforcement
+            result = 'pass' if evidence['manual_limits_found'] else 'fail'
+
         findings = []
 
         if result == 'fail':
+            if evidence['drf_used']:
+                description = "Django REST Framework pagination doesn't enforce maximum page size."
+                recommendations = [
+                    "Configure PAGE_SIZE and MAX_PAGE_SIZE in REST_FRAMEWORK settings",
+                    "Set reasonable limits (e.g., max 100 items per page)",
+                    "Add pagination to all list endpoints",
+                ]
+            else:
+                description = "API endpoints may not have pagination or size limits."
+                recommendations = [
+                    "Add limit parameters with max value caps to API views",
+                    "Use Django's Paginator for list views",
+                    "Enforce maximum result set sizes in querysets",
+                ]
+
             finding = self._add_finding(
                 finding_key="api_pagination_unlimited",
                 title="API Pagination Missing Size Limits",
@@ -4917,29 +4972,33 @@ class SecurityScanner:
                 likelihood='medium',
                 impact='medium',
                 cvss_vector="AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
-                description="API pagination doesn't enforce maximum page size, allowing data exfiltration.",
-                risk_reasoning="Without max_page_size, attackers can request huge pages, causing DoS or data scraping.",
+                description=description,
+                risk_reasoning="Without size limits, attackers can request huge result sets, causing DoS or data scraping.",
                 evidence=evidence,
                 affected_components=['API views', 'config/settings.py'],
-                recommendations=[
-                    "Configure PAGE_SIZE and MAX_PAGE_SIZE in DRF settings",
-                    "Set reasonable limits (e.g., max 100 items per page)",
-                    "Add pagination to all list endpoints",
-                ],
-                validation_steps="Check DRF pagination settings and view configurations",
+                recommendations=recommendations,
+                validation_steps="Check pagination settings and view limit configurations",
                 is_quick_win=True,
                 remediation_effort='low',
             )
             findings.append(finding)
+
+        # Generate result details
+        if evidence['drf_used']:
+            result_details = f"DRF: Yes, Pagination: {evidence['pagination_configured']}, Max size: {evidence['max_page_size']}"
+        else:
+            result_details = f"DRF: No, Manual limits: {evidence['manual_limits_found']}"
+            if evidence['manual_limit_locations']:
+                result_details += f" in {len(evidence['manual_limit_locations'])} files"
 
         self.results.append(TestResult(
             test_id=test_id,
             category='api',
             title="API Pagination Limits",
             description="Verify API pagination has maximum size limits.",
-            criteria="Pagination configured with max_page_size limit.",
+            criteria="Pagination configured with max_page_size limit or manual limit enforcement.",
             result=result,
-            result_details=f"Pagination: {evidence['pagination_configured']}, Max size: {evidence['max_page_size']}",
+            result_details=result_details,
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
             findings=findings,
@@ -6759,7 +6818,8 @@ class SecurityScanner:
         security_views = self.base_path / 'apps' / 'security' / 'views.py'
         if security_views.exists():
             content = security_views.read_text()
-            if '@staff_member_required' in content or 'LoginRequiredMixin' in content:
+            # Check for staff_member_required (directly or via method_decorator)
+            if 'staff_member_required' in content or 'LoginRequiredMixin' in content:
                 evidence['tier0_protected'] = True
 
         result = 'pass' if evidence['encrypted_storage'] and evidence['tier0_protected'] else 'fail'

@@ -621,14 +621,19 @@ class ExportCSVView(SecurityAccessMixin, View):
 
 class ExportPDFView(SecurityAccessMixin, View):
     """
-    Export security run as PDF report.
+    Export security run as comprehensive PDF report for CISO review.
 
-    Generates a comprehensive executive report with findings summary.
+    Generates a full transparency report with:
+    - BLUF (Bottom Line Up Front) with trend analysis
+    - Complete test methodology (all 100 tests)
+    - Full findings with evidence
+    - Good/Bad/Ugly sections
     """
 
     def get(self, request, pk):
         from django.http import HttpResponse
         from django.template.loader import render_to_string
+        from apps.security.finding_tracker import get_improvement_metrics
 
         run = get_object_or_404(SecurityRun, pk=pk)
 
@@ -645,6 +650,19 @@ class ExportPDFView(SecurityAccessMixin, View):
             score = run.score
         except Exception:
             score = None
+
+        # Get previous run for comparison
+        previous_run = SecurityRun.objects.filter(
+            status=SecurityRun.STATUS_COMPLETED,
+            run_timestamp__lt=run.run_timestamp,
+        ).order_by('-run_timestamp').first()
+
+        previous_score = None
+        if previous_run:
+            try:
+                previous_score = previous_run.score
+            except Exception:
+                pass
 
         # Calculate executive summary metrics
         total_tests = run.total_tests or 0
@@ -674,6 +692,33 @@ class ExportPDFView(SecurityAccessMixin, View):
         quick_wins = [f for f in findings_list if f.is_quick_win]
         top_actions = quick_wins[:5] if quick_wins else top_risks[:5]
 
+        # Build trend comparison (BLUF data)
+        trend = None
+        if previous_run and previous_score and score:
+            grade_order = {'A': 5, 'B': 4, 'C': 3, 'D': 2, 'F': 1}
+            prev_grade_val = grade_order.get(previous_score.securityscorecard_grade, 0)
+            curr_grade_val = grade_order.get(score.securityscorecard_grade, 0)
+
+            trend = {
+                'has_previous': True,
+                'previous_date': previous_run.run_timestamp,
+                'grade_improved': curr_grade_val > prev_grade_val,
+                'grade_same': curr_grade_val == prev_grade_val,
+                'grade_declined': curr_grade_val < prev_grade_val,
+                'previous_grade': previous_score.securityscorecard_grade,
+                'bitsight_change': score.bitsight_score - previous_score.bitsight_score,
+                'risk_change': previous_score.risk_score_0_100 - score.risk_score_0_100,  # Positive = improvement
+                'findings_change': previous_run.total_findings - run.total_findings,  # Positive = fewer findings
+                'fixed_count': run.fixed_findings,
+                'new_count': run.new_findings,
+                'regressed_count': run.regressed_findings,
+            }
+        else:
+            trend = {'has_previous': False}
+
+        # Get 30-day improvement metrics
+        improvement = get_improvement_metrics(days=30)
+
         # Build structured executive summary
         exec_summary = {
             'posture': posture,
@@ -690,7 +735,41 @@ class ExportPDFView(SecurityAccessMixin, View):
             },
             'top_risks': top_risks,
             'top_actions': top_actions,
+            'trend': trend,
+            'improvement': improvement,
         }
+
+        # Categorize what's working well (The Good)
+        the_good = []
+        if pass_rate >= 90:
+            the_good.append(f"{passed_tests} of {total_tests} security tests passing ({pass_rate}%)")
+        if run.critical_findings == 0:
+            the_good.append("No critical vulnerabilities detected")
+        if run.fixed_findings > 0:
+            the_good.append(f"{run.fixed_findings} finding(s) fixed since last assessment")
+        if score and score.bitsight_score >= 800:
+            the_good.append(f"BitSight score {score.bitsight_score}/900 indicates strong security posture")
+
+        # Identify concerns (The Bad)
+        the_bad = []
+        if run.high_findings > 0:
+            the_bad.append(f"{run.high_findings} high severity finding(s) require attention")
+        if run.recurring_findings > 0:
+            the_bad.append(f"{run.recurring_findings} recurring finding(s) not yet remediated")
+        if run.regressed_findings > 0:
+            the_bad.append(f"{run.regressed_findings} previously fixed finding(s) have regressed")
+        if pass_rate < 80:
+            the_bad.append(f"Only {pass_rate}% of security tests passing")
+
+        # Critical issues (The Ugly)
+        the_ugly = []
+        if run.critical_findings > 0:
+            the_ugly.append(f"{run.critical_findings} CRITICAL finding(s) require immediate action")
+        for f in findings_list:
+            if f.severity == 'critical':
+                the_ugly.append(f"CRITICAL: {f.title} (CVSS {f.cvss_score})")
+            elif f.cvss_score and f.cvss_score >= 9.0:
+                the_ugly.append(f"HIGH CVSS ({f.cvss_score}): {f.title}")
 
         # Build structured CISO Sleep Test data
         ciso_concerns = []
@@ -739,25 +818,56 @@ class ExportPDFView(SecurityAccessMixin, View):
                     'fix_first': f.recommendations[0] if f.recommendations else 'Address immediately',
                 })
 
+        # Group tests by category for methodology section
+        tests_by_category = {}
+        for test in run.tests.all().order_by('test_id'):
+            category = test.category or 'other'
+            if category not in tests_by_category:
+                tests_by_category[category] = []
+            tests_by_category[category].append(test)
+
+        # Category display names
+        category_names = {
+            'secrets': 'Secrets Management',
+            'auth': 'Authentication',
+            'authz': 'Authorization',
+            'input': 'Input Validation',
+            'data': 'Data Protection',
+            'logging': 'Logging & Monitoring',
+            'web': 'Web Security',
+            'deps': 'Dependencies',
+            'deploy': 'Deployment',
+            'abuse': 'Anti-Abuse',
+            'infra': 'Infrastructure',
+            'compliance': 'Compliance',
+            'database': 'Database Security',
+            'other': 'Other',
+        }
+
         # Generate HTML content for PDF
         context = {
             'run': run,
             'score': score,
+            'previous_run': previous_run,
+            'previous_score': previous_score,
             'exec_summary': exec_summary,
             'ciso_concerns': ciso_concerns[:3],
             'findings': findings_list,
             'tests': run.tests.all().order_by('test_id'),
+            'tests_by_category': tests_by_category,
+            'category_names': category_names,
             'critical_findings': run.findings.filter(severity='critical'),
             'high_findings': run.findings.filter(severity='high'),
             'medium_findings': run.findings.filter(severity='medium'),
             'low_findings': run.findings.filter(severity='low'),
+            'the_good': the_good,
+            'the_bad': the_bad,
+            'the_ugly': the_ugly,
         }
 
         html_content = render_to_string('security/export_pdf.html', context, request=request)
 
         # Return HTML that can be printed to PDF
-        # Note: For proper PDF generation, you'd use a library like weasyprint or xhtml2pdf
-        # For now, we return HTML with print styles that users can print to PDF
         response = HttpResponse(html_content, content_type='text/html')
         response['Content-Disposition'] = f'inline; filename="security_report_{run.run_timestamp.strftime("%Y%m%d_%H%M")}.html"'
 

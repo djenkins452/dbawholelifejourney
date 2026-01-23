@@ -16,6 +16,30 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-23 Changes
 
+### Comprehensive CISO Security Report
+
+Enhanced the security assessment PDF export to provide full transparency for CISO review.
+
+**New Report Sections:**
+1. **BLUF (Bottom Line Up Front)** - Grade with trend comparison to previous assessment
+   - Shows grade improvement/decline vs previous run
+   - BitSight score change (+/-)
+   - Fixed/new/regressed finding counts
+2. **Assessment Summary: The Good, Bad, and Ugly**
+   - What's Working Well (green) - passing tests, no criticals, fixes
+   - Areas Requiring Attention (yellow) - high findings, recurring issues
+   - Critical Issues (red) - critical findings, high CVSS scores
+3. **CISO Sleep Test** - Top 3 concerns with "why it matters", "disaster trigger", "fix first"
+4. **Findings Overview** - All findings table with severity, CVSS, status, quick-win flag
+5. **Detailed Findings** - Full evidence, risk reasoning, affected components, recommendations
+6. **Test Methodology** - All 100 tests grouped by category showing pass/fail
+
+**Files Changed:**
+- `apps/security/views.py` - Enhanced ExportPDFView with trend data, good/bad/ugly categorization
+- `apps/security/templates/security/export_pdf.html` - Complete template redesign for CISO
+
+---
+
 ### Security Scanner: Reduce False Positives and Fix PII Logging
 
 Improved the security scanner to reduce false positives and fixed actual PII logging issues.

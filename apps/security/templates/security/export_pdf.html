@@ -7,11 +7,12 @@
     <style>
         /* Print-optimized styles */
         @media print {
-            body { font-size: 11pt; }
+            body { font-size: 10pt; }
             .no-print { display: none !important; }
             .page-break { page-break-before: always; }
             table { page-break-inside: avoid; }
             h2 { page-break-after: avoid; }
+            .finding-detail { page-break-inside: avoid; }
         }
 
         * {
@@ -30,15 +31,15 @@
         }
 
         .header {
-            border-bottom: 2px solid #3b82f6;
+            border-bottom: 3px solid #1e40af;
             padding-bottom: 1rem;
-            margin-bottom: 2rem;
+            margin-bottom: 1.5rem;
         }
 
         .header h1 {
             font-size: 1.75rem;
             color: #1f2937;
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.25rem;
         }
 
         .header .subtitle {
@@ -46,29 +47,40 @@
             font-size: 0.875rem;
         }
 
-        .summary-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
+        /* BLUF Section - Most Important */
+        .bluf {
+            background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+            color: white;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .bluf h2 {
+            color: white;
+            border-bottom: 1px solid rgba(255,255,255,0.3);
+            padding-bottom: 0.5rem;
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+        }
+
+        .bluf-grade {
+            display: flex;
+            align-items: center;
             gap: 1rem;
-            margin-bottom: 2rem;
+            margin-bottom: 1rem;
         }
 
-        .summary-card {
-            background: #f9fafb;
+        .bluf-grade .grade-box {
+            background: white;
+            width: 80px;
+            height: 80px;
             border-radius: 0.5rem;
-            padding: 1rem;
-            text-align: center;
-        }
-
-        .summary-card .value {
-            font-size: 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3rem;
             font-weight: 700;
-        }
-
-        .summary-card .label {
-            font-size: 0.75rem;
-            color: #6b7280;
-            text-transform: uppercase;
         }
 
         .grade-a { color: #16a34a; }
@@ -77,18 +89,128 @@
         .grade-d { color: #ea580c; }
         .grade-f { color: #dc2626; }
 
-        h2 {
+        .bluf-grade .grade-text {
+            flex: 1;
+        }
+
+        .bluf-grade .grade-text h3 {
             font-size: 1.25rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .bluf-trend {
+            background: rgba(255,255,255,0.1);
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .bluf-trend .trend-title {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .trend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.25rem;
+            font-size: 0.875rem;
+        }
+
+        .trend-up { color: #86efac; }
+        .trend-down { color: #fca5a5; }
+        .trend-same { color: #fcd34d; }
+
+        /* Summary Cards */
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .summary-card {
+            background: #f9fafb;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            text-align: center;
+            border: 1px solid #e5e7eb;
+        }
+
+        .summary-card .value {
+            font-size: 1.75rem;
+            font-weight: 700;
+        }
+
+        .summary-card .label {
+            font-size: 0.7rem;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* Section Headers */
+        h2 {
+            font-size: 1.1rem;
             color: #1f2937;
-            border-bottom: 1px solid #e5e7eb;
+            border-bottom: 2px solid #e5e7eb;
             padding-bottom: 0.5rem;
             margin: 2rem 0 1rem 0;
         }
 
+        h3 {
+            font-size: 1rem;
+            color: #374151;
+            margin: 1.5rem 0 0.75rem 0;
+        }
+
+        /* Good/Bad/Ugly Sections */
+        .assessment-section {
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .the-good {
+            background: #dcfce7;
+            border-left: 4px solid #16a34a;
+        }
+
+        .the-bad {
+            background: #fef9c3;
+            border-left: 4px solid #ca8a04;
+        }
+
+        .the-ugly {
+            background: #fee2e2;
+            border-left: 4px solid #dc2626;
+        }
+
+        .assessment-section h3 {
+            margin-top: 0;
+            margin-bottom: 0.75rem;
+        }
+
+        .the-good h3 { color: #166534; }
+        .the-bad h3 { color: #854d0e; }
+        .the-ugly h3 { color: #991b1b; }
+
+        .assessment-section ul {
+            margin: 0;
+            padding-left: 1.25rem;
+        }
+
+        .assessment-section li {
+            margin-bottom: 0.25rem;
+            font-size: 0.875rem;
+        }
+
+        /* Executive Summary */
         .executive-summary {
             background: #f0f9ff;
             border-left: 4px solid #3b82f6;
-            padding: 1.5rem;
+            padding: 1.25rem;
             margin-bottom: 1.5rem;
             font-size: 0.875rem;
         }
@@ -96,10 +218,10 @@
         .executive-summary .section-title {
             font-weight: 700;
             color: #1e40af;
-            font-size: 0.8rem;
+            font-size: 0.75rem;
             text-transform: uppercase;
             letter-spacing: 0.05em;
-            margin-top: 1.25rem;
+            margin-top: 1rem;
             margin-bottom: 0.5rem;
         }
 
@@ -107,109 +229,34 @@
             margin-top: 0;
         }
 
-        .executive-summary .posture {
-            font-size: 1.1rem;
-            font-weight: 600;
-            margin-bottom: 0.75rem;
-        }
-
-        .executive-summary .posture.good { color: #16a34a; }
-        .executive-summary .posture.fair { color: #ca8a04; }
-        .executive-summary .posture.poor { color: #dc2626; }
-
-        .executive-summary .metric-grid {
+        .metric-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
             gap: 0.5rem;
             margin: 0.75rem 0;
         }
 
-        .executive-summary .metric {
+        .metric {
             display: flex;
             justify-content: space-between;
             padding: 0.25rem 0;
             border-bottom: 1px solid #dbeafe;
+            font-size: 0.8rem;
         }
 
-        .executive-summary .metric-label {
-            color: #4b5563;
-        }
+        .metric-label { color: #4b5563; }
+        .metric-value { font-weight: 600; color: #1f2937; }
 
-        .executive-summary .metric-value {
-            font-weight: 600;
-            color: #1f2937;
-        }
-
-        .executive-summary ol, .executive-summary ul {
-            margin: 0.5rem 0 0.5rem 1.25rem;
-            padding: 0;
-        }
-
-        .executive-summary li {
-            margin-bottom: 0.35rem;
-            color: #374151;
-        }
-
-        .executive-summary .risk-item {
-            display: flex;
-            align-items: baseline;
-            gap: 0.5rem;
-            margin-bottom: 0.35rem;
-        }
-
-        .executive-summary .risk-badge {
-            font-size: 0.65rem;
-            font-weight: 700;
-            padding: 0.15rem 0.4rem;
-            border-radius: 3px;
-            text-transform: uppercase;
-        }
-
-        .executive-summary .risk-badge.critical { background: #fee2e2; color: #991b1b; }
-        .executive-summary .risk-badge.high { background: #ffedd5; color: #9a3412; }
-        .executive-summary .risk-badge.medium { background: #fef9c3; color: #854d0e; }
-        .executive-summary .risk-badge.low { background: #dbeafe; color: #1e40af; }
-
-        .ciso-card {
-            background: #fef3c7;
-            border: 1px solid #f59e0b;
-            border-radius: 0.5rem;
-            padding: 1.25rem;
-            margin-bottom: 1rem;
-        }
-
-        .ciso-card h4 {
-            color: #b45309;
-            font-size: 1rem;
-            margin-bottom: 0.75rem;
-        }
-
-        .ciso-detail {
-            margin-bottom: 0.5rem;
-        }
-
-        .ciso-detail .label {
-            font-weight: 600;
-            color: #92400e;
-            font-size: 0.75rem;
-            text-transform: uppercase;
-        }
-
-        .ciso-detail .value {
-            color: #44403c;
-            font-size: 0.875rem;
-            margin-top: 0.15rem;
-        }
-
+        /* Tables */
         table {
             width: 100%;
             border-collapse: collapse;
             margin-bottom: 1.5rem;
-            font-size: 0.875rem;
+            font-size: 0.8rem;
         }
 
         th, td {
-            padding: 0.75rem;
+            padding: 0.5rem;
             text-align: left;
             border-bottom: 1px solid #e5e7eb;
         }
@@ -217,17 +264,19 @@
         th {
             background: #f9fafb;
             font-weight: 600;
-            font-size: 0.75rem;
+            font-size: 0.7rem;
             text-transform: uppercase;
             color: #6b7280;
         }
 
-        .severity-badge {
+        /* Status and Severity Badges */
+        .badge {
             display: inline-block;
-            padding: 0.25rem 0.5rem;
+            padding: 0.15rem 0.4rem;
             border-radius: 9999px;
-            font-size: 0.75rem;
+            font-size: 0.65rem;
             font-weight: 600;
+            text-transform: uppercase;
         }
 
         .severity-critical { background: #fee2e2; color: #991b1b; }
@@ -240,11 +289,16 @@
         .status-fixed { background: #dcfce7; color: #166534; }
         .status-regressed { background: #fee2e2; color: #991b1b; }
 
+        .result-pass { background: #dcfce7; color: #166534; }
+        .result-fail { background: #fee2e2; color: #991b1b; }
+
+        /* Finding Details */
         .finding-detail {
             background: #f9fafb;
             border-radius: 0.5rem;
             padding: 1rem;
             margin-bottom: 1rem;
+            border: 1px solid #e5e7eb;
         }
 
         .finding-detail h4 {
@@ -254,18 +308,86 @@
         }
 
         .finding-detail p {
-            font-size: 0.875rem;
+            font-size: 0.8rem;
             color: #4b5563;
+            margin-bottom: 0.5rem;
+        }
+
+        .finding-detail .meta {
+            font-size: 0.75rem;
+            color: #6b7280;
+            margin-bottom: 0.5rem;
+        }
+
+        .evidence-box {
+            background: #1f2937;
+            color: #e5e7eb;
+            font-family: monospace;
+            font-size: 0.7rem;
+            padding: 0.75rem;
+            border-radius: 0.25rem;
+            margin-top: 0.5rem;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
         }
 
         .recommendations {
-            padding-left: 1.5rem;
+            padding-left: 1.25rem;
+            margin-top: 0.5rem;
         }
 
         .recommendations li {
             margin-bottom: 0.25rem;
+            font-size: 0.8rem;
         }
 
+        /* CISO Sleep Test */
+        .ciso-card {
+            background: #fef3c7;
+            border: 1px solid #f59e0b;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .ciso-card h4 {
+            color: #b45309;
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .ciso-detail {
+            margin-bottom: 0.5rem;
+        }
+
+        .ciso-detail .label {
+            font-weight: 600;
+            color: #92400e;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+        }
+
+        .ciso-detail .value {
+            color: #44403c;
+            font-size: 0.8rem;
+            margin-top: 0.1rem;
+        }
+
+        /* Test Methodology */
+        .test-category {
+            margin-bottom: 1.5rem;
+        }
+
+        .test-category h4 {
+            background: #f3f4f6;
+            padding: 0.5rem;
+            border-radius: 0.25rem;
+            margin-bottom: 0.5rem;
+            font-size: 0.85rem;
+        }
+
+        /* Action Buttons */
         .action-buttons {
             position: fixed;
             top: 1rem;
@@ -284,49 +406,95 @@
             font-size: 0.875rem;
             font-weight: 600;
             text-decoration: none;
-            display: inline-block;
         }
 
-        .action-button:hover {
-            background: #2563eb;
-        }
+        .action-button:hover { background: #2563eb; }
+        .action-button.secondary { background: #6b7280; }
+        .action-button.secondary:hover { background: #4b5563; }
 
-        .action-button.secondary {
-            background: #6b7280;
-        }
-
-        .action-button.secondary:hover {
-            background: #4b5563;
-        }
-
+        /* Footer */
         .footer {
             margin-top: 3rem;
             padding-top: 1rem;
             border-top: 1px solid #e5e7eb;
             color: #6b7280;
-            font-size: 0.75rem;
+            font-size: 0.7rem;
             text-align: center;
+        }
+
+        /* Compact table for tests */
+        .tests-table td, .tests-table th {
+            padding: 0.35rem 0.5rem;
+            font-size: 0.75rem;
         }
     </style>
 </head>
 <body>
     <div class="action-buttons no-print">
-        <a href="{% url 'security:dashboard' %}" class="action-button secondary">← Back to Dashboard</a>
+        <a href="{% url 'security:dashboard' %}" class="action-button secondary">&larr; Back to Dashboard</a>
         <button class="action-button" onclick="window.print()">Print to PDF</button>
     </div>
 
     <div class="header">
         <h1>Security Assessment Report</h1>
         <div class="subtitle">
-            Whole Life Journey | Generated {{ run.run_timestamp|date:"F j, Y, g:i a" }}
+            Whole Life Journey | {{ run.run_timestamp|date:"F j, Y, g:i a" }} | Run ID: {{ run.id|truncatechars:8 }}
         </div>
     </div>
 
-    <!-- Summary Cards -->
+    <!-- BLUF - Bottom Line Up Front -->
+    <div class="bluf">
+        <h2>BOTTOM LINE UP FRONT</h2>
+        <div class="bluf-grade">
+            <div class="grade-box grade-{{ score.securityscorecard_grade|lower }}">{{ score.securityscorecard_grade }}</div>
+            <div class="grade-text">
+                <h3>Security Grade: {{ exec_summary.posture_label }}</h3>
+                <p>{{ exec_summary.posture_desc }}</p>
+            </div>
+        </div>
+
+        {% if exec_summary.trend.has_previous %}
+        <div class="bluf-trend">
+            <div class="trend-title">Compared to Previous Assessment ({{ exec_summary.trend.previous_date|date:"M j, Y" }}):</div>
+            {% if exec_summary.trend.grade_improved %}
+            <div class="trend-item trend-up">&#9650; Grade improved from {{ exec_summary.trend.previous_grade }} to {{ score.securityscorecard_grade }}</div>
+            {% elif exec_summary.trend.grade_declined %}
+            <div class="trend-item trend-down">&#9660; Grade declined from {{ exec_summary.trend.previous_grade }} to {{ score.securityscorecard_grade }}</div>
+            {% else %}
+            <div class="trend-item trend-same">&#9644; Grade unchanged at {{ score.securityscorecard_grade }}</div>
+            {% endif %}
+
+            {% if exec_summary.trend.bitsight_change > 0 %}
+            <div class="trend-item trend-up">&#9650; BitSight +{{ exec_summary.trend.bitsight_change }} points</div>
+            {% elif exec_summary.trend.bitsight_change < 0 %}
+            <div class="trend-item trend-down">&#9660; BitSight {{ exec_summary.trend.bitsight_change }} points</div>
+            {% endif %}
+
+            {% if exec_summary.trend.fixed_count > 0 %}
+            <div class="trend-item trend-up">&#10003; {{ exec_summary.trend.fixed_count }} finding(s) fixed</div>
+            {% endif %}
+
+            {% if exec_summary.trend.new_count > 0 %}
+            <div class="trend-item trend-down">&#9888; {{ exec_summary.trend.new_count }} new finding(s) identified</div>
+            {% endif %}
+
+            {% if exec_summary.trend.regressed_count > 0 %}
+            <div class="trend-item trend-down">&#9888; {{ exec_summary.trend.regressed_count }} finding(s) regressed</div>
+            {% endif %}
+        </div>
+        {% else %}
+        <div class="bluf-trend">
+            <div class="trend-title">First Assessment</div>
+            <p style="font-size: 0.85rem;">This is the baseline assessment. Future reports will include trend analysis.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Key Metrics -->
     <div class="summary-grid">
         <div class="summary-card">
-            <div class="value grade-{{ score.securityscorecard_grade|lower }}">{{ score.securityscorecard_grade }}</div>
-            <div class="label">Security Grade</div>
+            <div class="value">{{ run.passed_tests }}/{{ run.total_tests }}</div>
+            <div class="label">Tests Passed</div>
         </div>
         <div class="summary-card">
             <div class="value">{{ score.bitsight_score }}</div>
@@ -337,12 +505,12 @@
             <div class="label">Total Findings</div>
         </div>
         <div class="summary-card">
-            <div class="value">{{ run.passed_tests }}/{{ run.total_tests }}</div>
-            <div class="label">Tests Passed</div>
+            <div class="value">{{ score.risk_score_0_100 }}</div>
+            <div class="label">Risk Score</div>
         </div>
     </div>
 
-    <!-- Findings Summary -->
+    <!-- Severity Breakdown -->
     <div class="summary-grid">
         <div class="summary-card">
             <div class="value" style="color: #dc2626;">{{ run.critical_findings }}</div>
@@ -362,187 +530,54 @@
         </div>
     </div>
 
-    <!-- Status Summary -->
-    <div class="summary-grid">
-        <div class="summary-card">
-            <div class="value" style="color: #2563eb;">{{ run.new_findings }}</div>
-            <div class="label">New</div>
-        </div>
-        <div class="summary-card">
-            <div class="value" style="color: #ca8a04;">{{ run.recurring_findings }}</div>
-            <div class="label">Recurring</div>
-        </div>
-        <div class="summary-card">
-            <div class="value" style="color: #16a34a;">{{ run.fixed_findings }}</div>
-            <div class="label">Fixed</div>
-        </div>
-        <div class="summary-card">
-            <div class="value" style="color: {% if run.regressed_findings > 0 %}#dc2626{% else %}#6b7280{% endif %};">{{ run.regressed_findings }}</div>
-            <div class="label">Regressed</div>
-        </div>
-    </div>
+    <!-- The Good, The Bad, The Ugly -->
+    <h2>Assessment Summary</h2>
 
-    <!-- Executive Summary -->
-    <h2>Executive Summary</h2>
-    <div class="executive-summary">
-        <div class="section-title">Overall Security Posture</div>
-        <div class="posture {{ exec_summary.posture }}">{{ exec_summary.posture_label }}</div>
-        <p>{{ exec_summary.posture_desc }}</p>
-
-        <div class="section-title">Key Metrics</div>
-        <div class="metric-grid">
-            <div class="metric">
-                <span class="metric-label">Tests Run</span>
-                <span class="metric-value">{{ exec_summary.metrics.tests_run }}</span>
-            </div>
-            <div class="metric">
-                <span class="metric-label">Tests Passed</span>
-                <span class="metric-value">{{ exec_summary.metrics.tests_passed }} ({{ exec_summary.metrics.pass_rate }}%)</span>
-            </div>
-            <div class="metric">
-                <span class="metric-label">Security Grade</span>
-                <span class="metric-value">{{ exec_summary.metrics.grade }}</span>
-            </div>
-            <div class="metric">
-                <span class="metric-label">BitSight Score</span>
-                <span class="metric-value">{{ exec_summary.metrics.bitsight }}/900</span>
-            </div>
-            <div class="metric">
-                <span class="metric-label">Risk Score</span>
-                <span class="metric-value">{{ exec_summary.metrics.risk_score }}/100</span>
-            </div>
-            <div class="metric">
-                <span class="metric-label">Maturity Level</span>
-                <span class="metric-value">{{ exec_summary.metrics.maturity }}/3</span>
-            </div>
-        </div>
-
-        {% if exec_summary.top_risks %}
-        <div class="section-title">Top Risks</div>
-        {% for risk in exec_summary.top_risks %}
-        <div class="risk-item">
-            <span class="risk-badge {{ risk.severity }}">{{ risk.severity }}</span>
-            <span>{{ risk.title }} (CVSS {{ risk.cvss_score }})</span>
-        </div>
+    {% if the_good %}
+    <div class="assessment-section the-good">
+        <h3>&#10003; What's Working Well</h3>
+        <ul>
+        {% for item in the_good %}
+            <li>{{ item }}</li>
         {% endfor %}
-        {% endif %}
+        </ul>
+    </div>
+    {% endif %}
 
-        {% if exec_summary.top_actions %}
-        <div class="section-title">Recommended Actions</div>
-        <ol>
-        {% for action in exec_summary.top_actions %}
-            {% if action.recommendations %}
-            <li>{{ action.recommendations.0 }}</li>
-            {% else %}
-            <li>Address: {{ action.title }}</li>
-            {% endif %}
+    {% if the_bad %}
+    <div class="assessment-section the-bad">
+        <h3>&#9888; Areas Requiring Attention</h3>
+        <ul>
+        {% for item in the_bad %}
+            <li>{{ item }}</li>
         {% endfor %}
-        </ol>
-        {% endif %}
+        </ul>
     </div>
-
-    <!-- Findings Table -->
-    <h2>Findings Overview</h2>
-    {% if findings %}
-    <table>
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Title</th>
-                <th>Severity</th>
-                <th>CVSS</th>
-                <th>Status</th>
-                <th>Quick Win</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for finding in findings %}
-            <tr>
-                <td style="font-family: monospace;">{{ finding.finding_id }}</td>
-                <td>{{ finding.title }}</td>
-                <td><span class="severity-badge severity-{{ finding.severity }}">{{ finding.severity|upper }}</span></td>
-                <td>{{ finding.cvss_score }}</td>
-                <td><span class="severity-badge status-{{ finding.status }}">{{ finding.status|upper }}</span></td>
-                <td>{% if finding.is_quick_win %}Yes{% endif %}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    {% else %}
-    <p style="color: #16a34a; padding: 1rem; background: #dcfce7; border-radius: 0.5rem;">
-        No findings detected. Excellent security posture!
-    </p>
     {% endif %}
 
-    <!-- Detailed Findings -->
-    {% if critical_findings %}
-    <div class="page-break"></div>
-    <h2>Critical Findings (Immediate Action Required)</h2>
-    {% for finding in critical_findings %}
-    <div class="finding-detail">
-        <h4>{{ finding.finding_id }}: {{ finding.title }}</h4>
-        <p><strong>CVSS:</strong> {{ finding.cvss_score }} | <strong>Effort:</strong> {{ finding.remediation_effort }}</p>
-        <p style="margin-top: 0.5rem;">{{ finding.description }}</p>
-        {% if finding.recommendations %}
-        <p style="margin-top: 0.5rem;"><strong>Recommendations:</strong></p>
-        <ol class="recommendations">
-            {% for rec in finding.recommendations %}
-            <li>{{ rec }}</li>
-            {% endfor %}
-        </ol>
-        {% endif %}
+    {% if the_ugly %}
+    <div class="assessment-section the-ugly">
+        <h3>&#9888; Critical Issues</h3>
+        <ul>
+        {% for item in the_ugly %}
+            <li>{{ item }}</li>
+        {% endfor %}
+        </ul>
     </div>
-    {% endfor %}
     {% endif %}
 
-    {% if high_findings %}
-    <div class="page-break"></div>
-    <h2>High Severity Findings</h2>
-    {% for finding in high_findings %}
-    <div class="finding-detail">
-        <h4>{{ finding.finding_id }}: {{ finding.title }}</h4>
-        <p><strong>CVSS:</strong> {{ finding.cvss_score }} | <strong>Effort:</strong> {{ finding.remediation_effort }}</p>
-        <p style="margin-top: 0.5rem;">{{ finding.description }}</p>
-        {% if finding.recommendations %}
-        <p style="margin-top: 0.5rem;"><strong>Recommendations:</strong></p>
-        <ol class="recommendations">
-            {% for rec in finding.recommendations %}
-            <li>{{ rec }}</li>
-            {% endfor %}
-        </ol>
-        {% endif %}
+    {% if not the_good and not the_bad and not the_ugly %}
+    <div class="assessment-section the-good">
+        <h3>&#10003; Excellent Security Posture</h3>
+        <p>No significant issues detected. Continue monitoring and maintain current practices.</p>
     </div>
-    {% endfor %}
-    {% endif %}
-
-    {% if medium_findings %}
-    <div class="page-break"></div>
-    <h2>Medium Severity Findings</h2>
-    {% for finding in medium_findings %}
-    <div class="finding-detail">
-        <h4>{{ finding.finding_id }}: {{ finding.title }}</h4>
-        <p><strong>CVSS:</strong> {{ finding.cvss_score }} | <strong>Effort:</strong> {{ finding.remediation_effort }}</p>
-        <p style="margin-top: 0.5rem;">{{ finding.description }}</p>
-    </div>
-    {% endfor %}
-    {% endif %}
-
-    {% if low_findings %}
-    <h2>Low Severity Findings</h2>
-    {% for finding in low_findings %}
-    <div class="finding-detail">
-        <h4>{{ finding.finding_id }}: {{ finding.title }}</h4>
-        <p><strong>CVSS:</strong> {{ finding.cvss_score }} | <strong>Effort:</strong> {{ finding.remediation_effort }}</p>
-    </div>
-    {% endfor %}
     {% endif %}
 
     <!-- CISO Sleep Test -->
     {% if ciso_concerns %}
-    <div class="page-break"></div>
     <h2>CISO Sleep Test</h2>
-    <p style="color: #6b7280; font-style: italic; margin-bottom: 1rem;">
-        "If I were accountable for this in production, the top {{ ciso_concerns|length }} thing{{ ciso_concerns|length|pluralize }} that would keep me up at night..."
+    <p style="color: #6b7280; font-style: italic; margin-bottom: 1rem; font-size: 0.85rem;">
+        "If I were accountable for this system in production, these are the {{ ciso_concerns|length }} thing{{ ciso_concerns|length|pluralize }} that would keep me up at night..."
     </p>
     {% for concern in ciso_concerns %}
     <div class="ciso-card">
@@ -563,9 +598,180 @@
     {% endfor %}
     {% endif %}
 
+    <!-- Findings Table -->
+    <div class="page-break"></div>
+    <h2>Findings Overview</h2>
+    {% if findings %}
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Title</th>
+                <th>Severity</th>
+                <th>CVSS</th>
+                <th>Status</th>
+                <th>Quick Win</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for finding in findings %}
+            <tr>
+                <td style="font-family: monospace; font-size: 0.7rem;">{{ finding.finding_id }}</td>
+                <td>{{ finding.title }}</td>
+                <td><span class="badge severity-{{ finding.severity }}">{{ finding.severity|upper }}</span></td>
+                <td>{{ finding.cvss_score }}</td>
+                <td><span class="badge status-{{ finding.status }}">{{ finding.status|upper }}</span></td>
+                <td>{% if finding.is_quick_win %}&#10003;{% endif %}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="assessment-section the-good">
+        <h3>&#10003; No Findings Detected</h3>
+        <p>All security tests passed without identifying vulnerabilities. Excellent security posture!</p>
+    </div>
+    {% endif %}
+
+    <!-- Detailed Findings with Evidence -->
+    {% if critical_findings %}
+    <div class="page-break"></div>
+    <h2>Critical Findings (Immediate Action Required)</h2>
+    {% for finding in critical_findings %}
+    <div class="finding-detail" style="border-left: 4px solid #dc2626;">
+        <h4>{{ finding.finding_id }}: {{ finding.title }}</h4>
+        <div class="meta">
+            <span class="badge severity-critical">CRITICAL</span>
+            CVSS {{ finding.cvss_score }} | Effort: {{ finding.remediation_effort }} |
+            {% if finding.status == 'new' %}First detected this run{% elif finding.status == 'recurring' %}Recurring ({{ finding.occurrence_count }} runs){% endif %}
+        </div>
+        <p><strong>Description:</strong> {{ finding.description }}</p>
+        {% if finding.risk_reasoning %}
+        <p><strong>Risk:</strong> {{ finding.risk_reasoning }}</p>
+        {% endif %}
+        {% if finding.affected_components %}
+        <p><strong>Affected:</strong> {{ finding.affected_components|join:", " }}</p>
+        {% endif %}
+        {% if finding.recommendations %}
+        <p><strong>Recommendations:</strong></p>
+        <ol class="recommendations">
+            {% for rec in finding.recommendations %}
+            <li>{{ rec }}</li>
+            {% endfor %}
+        </ol>
+        {% endif %}
+        {% if finding.validation_steps %}
+        <p><strong>Validation:</strong> {{ finding.validation_steps }}</p>
+        {% endif %}
+        {% if finding.evidence %}
+        <p><strong>Evidence:</strong></p>
+        <div class="evidence-box">{{ finding.evidence|truncatewords:100 }}</div>
+        {% endif %}
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    {% if high_findings %}
+    <div class="page-break"></div>
+    <h2>High Severity Findings</h2>
+    {% for finding in high_findings %}
+    <div class="finding-detail" style="border-left: 4px solid #ea580c;">
+        <h4>{{ finding.finding_id }}: {{ finding.title }}</h4>
+        <div class="meta">
+            <span class="badge severity-high">HIGH</span>
+            CVSS {{ finding.cvss_score }} | Effort: {{ finding.remediation_effort }} |
+            {% if finding.status == 'new' %}First detected{% elif finding.status == 'recurring' %}Recurring ({{ finding.occurrence_count }} runs){% endif %}
+        </div>
+        <p>{{ finding.description }}</p>
+        {% if finding.recommendations %}
+        <p><strong>Recommendations:</strong></p>
+        <ol class="recommendations">
+            {% for rec in finding.recommendations %}
+            <li>{{ rec }}</li>
+            {% endfor %}
+        </ol>
+        {% endif %}
+        {% if finding.affected_components %}
+        <p style="font-size: 0.75rem;"><strong>Affected:</strong> {{ finding.affected_components|join:", " }}</p>
+        {% endif %}
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    {% if medium_findings %}
+    <h2>Medium Severity Findings</h2>
+    {% for finding in medium_findings %}
+    <div class="finding-detail" style="border-left: 4px solid #ca8a04;">
+        <h4>{{ finding.finding_id }}: {{ finding.title }}</h4>
+        <div class="meta">
+            <span class="badge severity-medium">MEDIUM</span>
+            CVSS {{ finding.cvss_score }} | Effort: {{ finding.remediation_effort }}
+        </div>
+        <p>{{ finding.description }}</p>
+        {% if finding.recommendations %}
+        <ol class="recommendations">
+            {% for rec in finding.recommendations %}
+            <li>{{ rec }}</li>
+            {% endfor %}
+        </ol>
+        {% endif %}
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    {% if low_findings %}
+    <h2>Low Severity Findings</h2>
+    {% for finding in low_findings %}
+    <div class="finding-detail" style="border-left: 4px solid #2563eb;">
+        <h4>{{ finding.finding_id }}: {{ finding.title }}</h4>
+        <div class="meta">
+            <span class="badge severity-low">LOW</span>
+            CVSS {{ finding.cvss_score }}
+        </div>
+        <p>{{ finding.description }}</p>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <!-- Test Methodology -->
+    <div class="page-break"></div>
+    <h2>Test Methodology</h2>
+    <p style="color: #6b7280; margin-bottom: 1rem; font-size: 0.85rem;">
+        This assessment ran {{ tests|length }} automated security tests across {{ tests_by_category|length }} categories.
+        Each test evaluates a specific security control or vulnerability pattern.
+    </p>
+
+    {% for category, category_tests in tests_by_category.items %}
+    <div class="test-category">
+        <h4>{{ category|title }} ({{ category_tests|length }} tests)</h4>
+        <table class="tests-table">
+            <thead>
+                <tr>
+                    <th style="width: 80px;">Test ID</th>
+                    <th>Test Name</th>
+                    <th style="width: 60px;">Result</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for test in category_tests %}
+                <tr>
+                    <td style="font-family: monospace;">{{ test.test_id }}</td>
+                    <td>{{ test.title }}</td>
+                    <td>
+                        <span class="badge result-{{ test.result }}">{{ test.result|upper }}</span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endfor %}
+
+    <!-- Footer -->
     <div class="footer">
-        <p>Generated by Whole Life Journey Security Assessment System</p>
-        <p>Run ID: {{ run.id }} | Duration: {{ run.duration_seconds }}s | Triggered by: {{ run.triggered_by }}</p>
+        <p><strong>Whole Life Journey Security Assessment System</strong></p>
+        <p>Run ID: {{ run.id }} | Duration: {{ run.duration_seconds|floatformat:1 }}s | Triggered by: {{ run.triggered_by }}</p>
+        <p>Generated {{ run.run_timestamp|date:"F j, Y, g:i a" }}</p>
     </div>
 </body>
 </html>

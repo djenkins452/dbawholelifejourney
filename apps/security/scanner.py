@@ -726,8 +726,9 @@ class SecurityScanner:
         settings_file = self.base_path / 'config' / 'settings.py'
         if settings_file.exists():
             content = settings_file.read_text()
-            # Check if DATABASE_URL uses env
-            if "env('DATABASE_URL" in content or "os.environ.get('DATABASE_URL" in content:
+            # Check if DATABASE_URL uses env (support both single and double quotes)
+            if ("env('DATABASE_URL" in content or 'env("DATABASE_URL' in content or
+                "os.environ.get('DATABASE_URL" in content or 'os.environ.get("DATABASE_URL' in content):
                 evidence['uses_env'] = True
 
             # Check for hardcoded database passwords
@@ -769,9 +770,10 @@ class SecurityScanner:
             content = settings_file.read_text()
             for var, service in services:
                 evidence['services_checked'].append(service)
-                # Check if loaded from env
+                # Check if loaded from env (support both single and double quotes)
                 if var in content:
-                    if f"env('{var}" in content or f'os.environ.get(\'{var}' in content:
+                    if (f"env('{var}" in content or f'env("{var}' in content or
+                        f"os.environ.get('{var}" in content or f'os.environ.get("{var}' in content):
                         pass  # Good - from env
                     elif f"'{var}':" in content or f'"{var}":' in content:
                         # Hardcoded

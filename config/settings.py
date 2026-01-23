@@ -135,6 +135,7 @@ INSTALLED_APPS = [
     'apps.sms',
     'apps.finance',
     'apps.billing',
+    'apps.security',
     'assistant',
     'django_apscheduler',
     'djstripe',

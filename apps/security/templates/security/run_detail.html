@@ -1,0 +1,312 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Security Run {{ run.run_timestamp|date:"Y-m-d H:i" }} | Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 py-6">
+    <!-- Header -->
+    <div class="flex justify-between items-center mb-6">
+        <div>
+            <a href="{% url 'security:dashboard' %}" class="text-blue-600 hover:underline text-sm">&larr; Back to Dashboard</a>
+            <h1 class="text-2xl font-bold text-gray-900 mt-1">
+                Security Assessment - {{ run.run_timestamp|date:"M d, Y H:i" }}
+            </h1>
+        </div>
+        <button onclick="copyRemediationPrompt()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+            Copy Remediation Prompt
+        </button>
+    </div>
+
+    <!-- Score Cards -->
+    {% if score %}
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+        <div class="bg-white rounded-lg shadow p-4 text-center">
+            <div class="text-4xl font-bold {% if score.securityscorecard_grade == 'A' %}text-green-600{% elif score.securityscorecard_grade == 'B' %}text-blue-600{% elif score.securityscorecard_grade == 'C' %}text-yellow-600{% else %}text-red-600{% endif %}">
+                {{ score.securityscorecard_grade }}
+            </div>
+            <div class="text-sm text-gray-500">Grade</div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4 text-center">
+            <div class="text-3xl font-bold text-gray-900">{{ score.bitsight_score }}</div>
+            <div class="text-sm text-gray-500">BitSight Score</div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4 text-center">
+            <div class="text-3xl font-bold text-gray-900">{{ score.cvss_avg }}</div>
+            <div class="text-sm text-gray-500">CVSS Avg</div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4 text-center">
+            <div class="text-3xl font-bold text-gray-900">{{ score.risk_score_0_100 }}</div>
+            <div class="text-sm text-gray-500">Risk Score</div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4 text-center">
+            <div class="text-3xl font-bold text-gray-900">{{ score.maturity_level }}</div>
+            <div class="text-sm text-gray-500">Maturity</div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Summary -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div class="bg-white rounded-lg shadow p-4">
+            <div class="text-2xl font-bold text-gray-900">{{ run.total_tests }}</div>
+            <div class="text-sm text-gray-500">Total Tests</div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4">
+            <div class="text-2xl font-bold text-green-600">{{ run.passed_tests }}</div>
+            <div class="text-sm text-gray-500">Passed</div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4">
+            <div class="text-2xl font-bold text-red-600">{{ run.failed_tests }}</div>
+            <div class="text-sm text-gray-500">Failed</div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4">
+            <div class="text-2xl font-bold text-gray-900">{{ run.total_findings }}</div>
+            <div class="text-sm text-gray-500">Findings</div>
+        </div>
+    </div>
+
+    <!-- Findings Section -->
+    <div class="bg-white rounded-lg shadow mb-6">
+        <div class="px-4 py-3 border-b">
+            <h2 class="text-lg font-semibold">Findings ({{ findings|length }})</h2>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Title</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Severity</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">CVSS</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Effort</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quick Win</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for finding in findings %}
+                    <tr class="hover:bg-gray-50 cursor-pointer" onclick="showFinding('{{ finding.pk }}')">
+                        <td class="px-4 py-3 text-sm font-mono text-blue-600">{{ finding.finding_id }}</td>
+                        <td class="px-4 py-3 text-sm">{{ finding.title }}</td>
+                        <td class="px-4 py-3">
+                            <span class="px-2 py-1 text-xs rounded-full {% if finding.severity == 'critical' %}bg-red-100 text-red-800{% elif finding.severity == 'high' %}bg-orange-100 text-orange-800{% elif finding.severity == 'medium' %}bg-yellow-100 text-yellow-800{% else %}bg-blue-100 text-blue-800{% endif %}">
+                                {{ finding.severity|upper }}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3 text-sm font-mono">{{ finding.cvss_score }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-500">{{ finding.remediation_effort }}</td>
+                        <td class="px-4 py-3 text-sm">
+                            {% if finding.is_quick_win %}
+                            <span class="text-green-600 font-bold">✓</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="px-4 py-8 text-center text-gray-500">
+                            No findings - excellent!
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Tests by Category -->
+    <div class="bg-white rounded-lg shadow mb-6">
+        <div class="px-4 py-3 border-b">
+            <h2 class="text-lg font-semibold">Tests by Category</h2>
+        </div>
+        <div class="p-4">
+            {% for category, tests_list in tests_by_category.items %}
+            <div class="mb-4">
+                <h3 class="font-semibold text-gray-700 mb-2">{{ category }}</h3>
+                <div class="space-y-1">
+                    {% for test in tests_list %}
+                    <div class="flex items-center justify-between p-2 rounded hover:bg-gray-50 cursor-pointer" onclick="showTest('{{ test.pk }}')">
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm font-mono text-gray-500">{{ test.test_id }}</span>
+                            <span class="text-sm">{{ test.title }}</span>
+                        </div>
+                        <span class="px-2 py-1 text-xs rounded {% if test.result == 'pass' %}bg-green-100 text-green-800{% elif test.result == 'fail' %}bg-red-100 text-red-800{% else %}bg-gray-100 text-gray-800{% endif %}">
+                            {{ test.result|upper }}
+                        </span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Executive Summary -->
+    {% if run.executive_summary %}
+    <div class="bg-white rounded-lg shadow mb-6">
+        <div class="px-4 py-3 border-b">
+            <h2 class="text-lg font-semibold">Executive Summary</h2>
+        </div>
+        <div class="p-4">
+            <pre class="whitespace-pre-wrap text-sm text-gray-700 font-sans">{{ run.executive_summary }}</pre>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- CISO Sleep Test -->
+    {% if run.ciso_sleep_test %}
+    <div class="bg-white rounded-lg shadow mb-6">
+        <div class="px-4 py-3 border-b bg-red-50">
+            <h2 class="text-lg font-semibold text-red-800">CISO Sleep Test</h2>
+        </div>
+        <div class="p-4">
+            <pre class="whitespace-pre-wrap text-sm text-gray-700 font-sans">{{ run.ciso_sleep_test }}</pre>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Finding Detail Modal -->
+<div id="findingModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+    <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <div class="p-4 border-b flex justify-between items-center sticky top-0 bg-white">
+            <h3 id="modalTitle" class="text-lg font-semibold"></h3>
+            <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+        </div>
+        <div id="modalContent" class="p-4">
+            <!-- Content loaded via AJAX -->
+        </div>
+    </div>
+</div>
+
+<script nonce="{{ request.csp_nonce }}">
+    function showFinding(pk) {
+        fetch(`/security/api/finding/${pk}/`)
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('modalTitle').textContent = `${data.finding_id}: ${data.title}`;
+                document.getElementById('modalContent').innerHTML = `
+                    <div class="space-y-4">
+                        <div class="flex gap-2 flex-wrap">
+                            <span class="px-2 py-1 text-xs rounded-full ${
+                                data.severity === 'critical' ? 'bg-red-100 text-red-800' :
+                                data.severity === 'high' ? 'bg-orange-100 text-orange-800' :
+                                data.severity === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-blue-100 text-blue-800'
+                            }">${data.severity.toUpperCase()}</span>
+                            <span class="text-sm text-gray-500">CVSS ${data.cvss_score}</span>
+                            <span class="text-xs font-mono text-gray-400">${data.cvss_vector}</span>
+                        </div>
+
+                        <div>
+                            <h4 class="font-semibold text-sm text-gray-700">Description</h4>
+                            <p class="text-sm text-gray-600">${data.description}</p>
+                        </div>
+
+                        <div>
+                            <h4 class="font-semibold text-sm text-gray-700">Risk Reasoning</h4>
+                            <p class="text-sm text-gray-600">${data.risk_reasoning}</p>
+                        </div>
+
+                        <div>
+                            <h4 class="font-semibold text-sm text-gray-700">Affected Components</h4>
+                            <p class="text-sm text-gray-600">${(data.affected_components || []).join(', ') || 'N/A'}</p>
+                        </div>
+
+                        <div>
+                            <h4 class="font-semibold text-sm text-gray-700">Recommendations</h4>
+                            <ul class="list-disc list-inside text-sm text-gray-600">
+                                ${(data.recommendations || []).map(r => `<li>${r}</li>`).join('')}
+                            </ul>
+                        </div>
+
+                        <div>
+                            <h4 class="font-semibold text-sm text-gray-700">Validation Steps</h4>
+                            <code class="block text-xs bg-gray-100 p-2 rounded">${data.validation_steps}</code>
+                        </div>
+
+                        <div>
+                            <h4 class="font-semibold text-sm text-gray-700">Evidence</h4>
+                            <pre class="text-xs bg-gray-100 p-2 rounded overflow-x-auto max-h-48">${JSON.stringify(data.evidence, null, 2)}</pre>
+                        </div>
+                    </div>
+                `;
+                document.getElementById('findingModal').classList.remove('hidden');
+            });
+    }
+
+    function showTest(pk) {
+        fetch(`/security/api/test/${pk}/`)
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('modalTitle').textContent = `${data.test_id}: ${data.title}`;
+                document.getElementById('modalContent').innerHTML = `
+                    <div class="space-y-4">
+                        <div class="flex gap-2">
+                            <span class="px-2 py-1 text-xs rounded ${
+                                data.result === 'pass' ? 'bg-green-100 text-green-800' :
+                                data.result === 'fail' ? 'bg-red-100 text-red-800' :
+                                'bg-gray-100 text-gray-800'
+                            }">${data.result.toUpperCase()}</span>
+                            <span class="text-sm text-gray-500">${data.category}</span>
+                            <span class="text-xs text-gray-400">${data.duration_ms}ms</span>
+                        </div>
+
+                        <div>
+                            <h4 class="font-semibold text-sm text-gray-700">Description</h4>
+                            <p class="text-sm text-gray-600">${data.description}</p>
+                        </div>
+
+                        <div>
+                            <h4 class="font-semibold text-sm text-gray-700">Criteria (What "Pass" Means)</h4>
+                            <p class="text-sm text-gray-600">${data.criteria}</p>
+                        </div>
+
+                        <div>
+                            <h4 class="font-semibold text-sm text-gray-700">Result Details</h4>
+                            <p class="text-sm text-gray-600">${data.result_details || 'N/A'}</p>
+                        </div>
+
+                        <div>
+                            <h4 class="font-semibold text-sm text-gray-700">Evidence</h4>
+                            <pre class="text-xs bg-gray-100 p-2 rounded overflow-x-auto max-h-48">${JSON.stringify(data.evidence, null, 2)}</pre>
+                        </div>
+
+                        ${data.findings.length > 0 ? `
+                        <div>
+                            <h4 class="font-semibold text-sm text-gray-700">Related Findings</h4>
+                            <ul class="text-sm">
+                                ${data.findings.map(f => `<li class="text-blue-600">${f.finding_id}: ${f.title} (${f.severity})</li>`).join('')}
+                            </ul>
+                        </div>
+                        ` : ''}
+                    </div>
+                `;
+                document.getElementById('findingModal').classList.remove('hidden');
+            });
+    }
+
+    function closeModal() {
+        document.getElementById('findingModal').classList.add('hidden');
+    }
+
+    function copyRemediationPrompt() {
+        fetch(`/security/api/remediation/{{ run.pk }}/`)
+            .then(r => r.json())
+            .then(data => {
+                navigator.clipboard.writeText(data.prompt).then(() => {
+                    alert('Remediation prompt copied to clipboard!\n\nPaste it into a new Claude session to fix all findings.');
+                });
+            });
+    }
+
+    // Close modal on click outside
+    document.getElementById('findingModal').addEventListener('click', function(e) {
+        if (e.target === this) closeModal();
+    });
+
+    // Close modal on Escape
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') closeModal();
+    });
+</script>
+{% endblock %}

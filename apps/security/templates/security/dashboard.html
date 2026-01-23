@@ -1,0 +1,367 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Security Dashboard | Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 py-6">
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-2xl font-bold text-gray-900">Security Dashboard</h1>
+        <div class="flex gap-2">
+            <button onclick="runAssessment()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                Run Assessment
+            </button>
+        </div>
+    </div>
+
+    {% if latest_run %}
+    <!-- Snapshot Cards -->
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+        <div class="bg-white rounded-lg shadow p-4 text-center">
+            <div class="text-3xl font-bold text-gray-900">{{ latest_run.total_tests }}</div>
+            <div class="text-sm text-gray-500">Tests Run</div>
+            <div class="text-xs text-gray-400">100%</div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4 text-center">
+            <div class="text-3xl font-bold text-green-600">{{ latest_run.passed_tests }}</div>
+            <div class="text-sm text-gray-500">Passed</div>
+            <div class="text-xs text-gray-400">{{ latest_run.passed_tests|divisibleby:latest_run.total_tests|default:"0" }}%</div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4 text-center">
+            <div class="text-3xl font-bold text-red-600">{{ latest_run.critical_findings }}</div>
+            <div class="text-sm text-gray-500">Critical</div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4 text-center">
+            <div class="text-3xl font-bold text-orange-600">{{ latest_run.high_findings }}</div>
+            <div class="text-sm text-gray-500">High</div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4 text-center">
+            <div class="text-3xl font-bold text-yellow-600">{{ latest_run.medium_findings }}</div>
+            <div class="text-sm text-gray-500">Medium</div>
+        </div>
+    </div>
+
+    <!-- Score Cards -->
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+        {% if latest_score %}
+        <div class="bg-white rounded-lg shadow p-4 text-center">
+            <div class="text-4xl font-bold {% if latest_score.securityscorecard_grade == 'A' %}text-green-600{% elif latest_score.securityscorecard_grade == 'B' %}text-blue-600{% elif latest_score.securityscorecard_grade == 'C' %}text-yellow-600{% else %}text-red-600{% endif %}">
+                {{ latest_score.securityscorecard_grade }}
+            </div>
+            <div class="text-sm text-gray-500">Grade</div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4 text-center">
+            <div class="text-3xl font-bold text-gray-900">{{ latest_score.bitsight_score }}</div>
+            <div class="text-sm text-gray-500">BitSight Score</div>
+            <div class="text-xs text-gray-400">/ 900</div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4 text-center">
+            <div class="text-3xl font-bold text-gray-900">{{ latest_score.cvss_avg }}</div>
+            <div class="text-sm text-gray-500">CVSS Avg</div>
+            <div class="text-xs text-gray-400">/ 10.0</div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4 text-center">
+            <div class="text-3xl font-bold text-gray-900">{{ latest_score.risk_score_0_100 }}</div>
+            <div class="text-sm text-gray-500">Risk Score</div>
+            <div class="text-xs text-gray-400">/ 100</div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4 text-center">
+            <div class="text-3xl font-bold text-gray-900">{{ latest_score.maturity_level }}</div>
+            <div class="text-sm text-gray-500">Maturity</div>
+            <div class="text-xs text-gray-400">/ 3</div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Trend Charts -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <div class="bg-white rounded-lg shadow p-4">
+            <h3 class="text-lg font-semibold mb-4">BitSight Score Trend</h3>
+            <canvas id="bitsightChart" height="200"></canvas>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4">
+            <h3 class="text-lg font-semibold mb-4">Risk Score Trend</h3>
+            <canvas id="riskChart" height="200"></canvas>
+        </div>
+    </div>
+
+    <!-- Findings Table -->
+    <div class="bg-white rounded-lg shadow mb-6">
+        <div class="px-4 py-3 border-b flex justify-between items-center">
+            <h3 class="text-lg font-semibold">Latest Findings</h3>
+            <a href="{% url 'security:run_detail' latest_run.pk %}" class="text-blue-600 hover:underline text-sm">
+                View All →
+            </a>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Title</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Severity</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">CVSS</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quick Win</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for finding in latest_findings %}
+                    <tr class="hover:bg-gray-50 cursor-pointer" onclick="showFinding('{{ finding.pk }}')">
+                        <td class="px-4 py-3 text-sm font-mono text-blue-600">{{ finding.finding_id }}</td>
+                        <td class="px-4 py-3 text-sm">{{ finding.title }}</td>
+                        <td class="px-4 py-3">
+                            <span class="px-2 py-1 text-xs rounded-full {% if finding.severity == 'critical' %}bg-red-100 text-red-800{% elif finding.severity == 'high' %}bg-orange-100 text-orange-800{% elif finding.severity == 'medium' %}bg-yellow-100 text-yellow-800{% else %}bg-blue-100 text-blue-800{% endif %}">
+                                {{ finding.severity|upper }}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3 text-sm font-mono">{{ finding.cvss_score }}</td>
+                        <td class="px-4 py-3 text-sm">
+                            {% if finding.is_quick_win %}
+                            <span class="text-green-600">✓</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="px-4 py-8 text-center text-gray-500">
+                            No findings - great job!
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Remediation Prompt Card -->
+    <div class="bg-white rounded-lg shadow p-4 mb-6">
+        <div class="flex justify-between items-center mb-2">
+            <h3 class="text-lg font-semibold">Remediation Prompt</h3>
+            <button onclick="copyRemediationPrompt('{{ latest_run.pk }}')" class="px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-sm">
+                Copy Prompt
+            </button>
+        </div>
+        <p class="text-sm text-gray-600">
+            Copy this prompt and paste it into a new Claude session to fix all findings systematically.
+        </p>
+    </div>
+
+    <!-- Recent Runs -->
+    <div class="bg-white rounded-lg shadow">
+        <div class="px-4 py-3 border-b">
+            <h3 class="text-lg font-semibold">Recent Runs</h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Grade</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">BitSight</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Findings</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Duration</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for run in runs %}
+                    <tr class="hover:bg-gray-50 cursor-pointer" onclick="location.href='{% url 'security:run_detail' run.pk %}'">
+                        <td class="px-4 py-3 text-sm">{{ run.run_timestamp|date:"M d, Y H:i" }}</td>
+                        <td class="px-4 py-3">
+                            {% with run.score as score %}
+                            {% if score %}
+                            <span class="text-lg font-bold {% if score.securityscorecard_grade == 'A' %}text-green-600{% elif score.securityscorecard_grade == 'B' %}text-blue-600{% else %}text-yellow-600{% endif %}">
+                                {{ score.securityscorecard_grade }}
+                            </span>
+                            {% endif %}
+                            {% endwith %}
+                        </td>
+                        <td class="px-4 py-3 text-sm">
+                            {% with run.score as score %}
+                            {{ score.bitsight_score|default:"-" }}
+                            {% endwith %}
+                        </td>
+                        <td class="px-4 py-3 text-sm">
+                            <span class="text-red-600">{{ run.critical_findings }}C</span> /
+                            <span class="text-orange-600">{{ run.high_findings }}H</span> /
+                            <span class="text-yellow-600">{{ run.medium_findings }}M</span>
+                        </td>
+                        <td class="px-4 py-3 text-sm text-gray-500">{{ run.duration_seconds }}s</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {% else %}
+    <!-- No runs yet -->
+    <div class="bg-white rounded-lg shadow p-8 text-center">
+        <h2 class="text-xl font-semibold text-gray-700 mb-2">No Security Assessments Yet</h2>
+        <p class="text-gray-500 mb-4">Run your first security assessment to see results here.</p>
+        <button onclick="runAssessment()" class="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+            Run First Assessment
+        </button>
+        <div class="mt-4 text-sm text-gray-400">
+            Or run from command line: <code class="bg-gray-100 px-2 py-1 rounded">python manage.py run_security_assessment</code>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Finding Detail Modal -->
+<div id="findingModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+    <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <div class="p-4 border-b flex justify-between items-center sticky top-0 bg-white">
+            <h3 id="modalTitle" class="text-lg font-semibold"></h3>
+            <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">&times;</button>
+        </div>
+        <div id="modalContent" class="p-4">
+            <!-- Content loaded via AJAX -->
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script nonce="{{ request.csp_nonce }}">
+    // Chart data from Django
+    const chartData = {{ chart_data|safe }};
+
+    // BitSight Chart
+    if (document.getElementById('bitsightChart') && chartData.labels.length > 0) {
+        new Chart(document.getElementById('bitsightChart'), {
+            type: 'line',
+            data: {
+                labels: chartData.labels,
+                datasets: [{
+                    label: 'BitSight Score',
+                    data: chartData.bitsight,
+                    borderColor: '#3B82F6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    fill: true,
+                    tension: 0.3,
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: { min: 250, max: 900 }
+                },
+                plugins: {
+                    legend: { display: false }
+                }
+            }
+        });
+    }
+
+    // Risk Chart
+    if (document.getElementById('riskChart') && chartData.labels.length > 0) {
+        new Chart(document.getElementById('riskChart'), {
+            type: 'line',
+            data: {
+                labels: chartData.labels,
+                datasets: [{
+                    label: 'Risk Score',
+                    data: chartData.risk,
+                    borderColor: '#EF4444',
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    fill: true,
+                    tension: 0.3,
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: { min: 0, max: 100 }
+                },
+                plugins: {
+                    legend: { display: false }
+                }
+            }
+        });
+    }
+
+    // Modal functions
+    function showFinding(pk) {
+        fetch(`/security/api/finding/${pk}/`)
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('modalTitle').textContent = `${data.finding_id}: ${data.title}`;
+                document.getElementById('modalContent').innerHTML = `
+                    <div class="space-y-4">
+                        <div class="flex gap-2">
+                            <span class="px-2 py-1 text-xs rounded-full ${
+                                data.severity === 'critical' ? 'bg-red-100 text-red-800' :
+                                data.severity === 'high' ? 'bg-orange-100 text-orange-800' :
+                                data.severity === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-blue-100 text-blue-800'
+                            }">${data.severity.toUpperCase()}</span>
+                            <span class="text-sm text-gray-500">CVSS ${data.cvss_score}</span>
+                            <span class="text-sm font-mono text-gray-400">${data.cvss_vector}</span>
+                        </div>
+
+                        <div>
+                            <h4 class="font-semibold text-sm text-gray-700">Description</h4>
+                            <p class="text-sm text-gray-600">${data.description}</p>
+                        </div>
+
+                        <div>
+                            <h4 class="font-semibold text-sm text-gray-700">Risk Reasoning</h4>
+                            <p class="text-sm text-gray-600">${data.risk_reasoning}</p>
+                        </div>
+
+                        <div>
+                            <h4 class="font-semibold text-sm text-gray-700">Affected Components</h4>
+                            <p class="text-sm text-gray-600">${(data.affected_components || []).join(', ') || 'N/A'}</p>
+                        </div>
+
+                        <div>
+                            <h4 class="font-semibold text-sm text-gray-700">Recommendations</h4>
+                            <ul class="list-disc list-inside text-sm text-gray-600">
+                                ${(data.recommendations || []).map(r => `<li>${r}</li>`).join('')}
+                            </ul>
+                        </div>
+
+                        <div>
+                            <h4 class="font-semibold text-sm text-gray-700">Validation Steps</h4>
+                            <code class="block text-xs bg-gray-100 p-2 rounded">${data.validation_steps}</code>
+                        </div>
+
+                        <div>
+                            <h4 class="font-semibold text-sm text-gray-700">Evidence</h4>
+                            <pre class="text-xs bg-gray-100 p-2 rounded overflow-x-auto">${JSON.stringify(data.evidence, null, 2)}</pre>
+                        </div>
+                    </div>
+                `;
+                document.getElementById('findingModal').classList.remove('hidden');
+            });
+    }
+
+    function closeModal() {
+        document.getElementById('findingModal').classList.add('hidden');
+    }
+
+    function copyRemediationPrompt(runPk) {
+        fetch(`/security/api/remediation/${runPk}/`)
+            .then(r => r.json())
+            .then(data => {
+                navigator.clipboard.writeText(data.prompt).then(() => {
+                    alert('Remediation prompt copied to clipboard!');
+                });
+            });
+    }
+
+    function runAssessment() {
+        alert('Run the assessment from command line:\n\npython manage.py run_security_assessment --report');
+    }
+
+    // Close modal on click outside
+    document.getElementById('findingModal').addEventListener('click', function(e) {
+        if (e.target === this) closeModal();
+    });
+
+    // Close modal on Escape
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') closeModal();
+    });
+</script>
+{% endblock %}

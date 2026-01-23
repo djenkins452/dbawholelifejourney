@@ -14,6 +14,99 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+## 2026-01-23 Changes
+
+### Security Assessment Dashboard and Automated Scanner
+
+**Objective:** Implement a comprehensive CISO-grade security assessment system with automated scanning, scoring, and remediation prompt generation.
+
+**New Security App (`apps/security/`):**
+
+1. **Models (`models.py`):**
+   - `SecurityRun` - Master record for each assessment run (append-only)
+   - `SecurityScore` - Computed scores (CVSS avg, Grade A-F, BitSight 250-900, Risk 0-100, Maturity 0-3)
+   - `SecurityTest` - Individual test results with criteria and evidence (encrypted)
+   - `SecurityFinding` - Detailed findings with CVSS v3.1 scores (encrypted)
+   - `SecurityAuditLog` - Access tracking for compliance
+   - Custom encrypted fields (`EncryptedTextField`, `EncryptedJSONField`) using Fernet AES-256
+
+2. **Scanner (`scanner.py`):**
+   - 50 automated security tests across 10 categories:
+     - Secrets & Credentials (8 tests)
+     - Authentication & Sessions (6 tests)
+     - Authorization (5 tests)
+     - Input Validation (5 tests)
+     - Data Protection (5 tests)
+     - Logging & Auditing (4 tests)
+     - Web Security (6 tests)
+     - Dependencies (3 tests)
+     - Deployment (4 tests)
+     - Abuse Resistance (4 tests)
+   - CVSS v3.1 calculator for accurate severity scoring
+
+3. **Scoring Engine (`scoring.py`):**
+   - CVSS average and severity counts
+   - SecurityScorecard-style grade (A-F)
+   - BitSight-style score (250-900)
+   - Risk score (0-100)
+   - AppSec maturity level (0-3)
+   - Documented methodology for all formulas
+
+4. **Report Generator (`report_generator.py`):**
+   - Executive summary (1-page format)
+   - Attack path narratives
+   - Failure mode analysis
+   - CISO sleep test
+   - **Master remediation prompt** - copy-paste to Claude to fix all issues
+
+5. **Dashboard Views (`views.py`):**
+   - `SecurityDashboardView` - Scores, trend graphs, recent findings
+   - `SecurityRunDetailView` - Full run details with tests by category
+   - `TestDetailAPIView` - AJAX popup for test criteria/evidence
+   - `FindingDetailAPIView` - AJAX popup for finding details
+   - `RemediationPromptView` - Copy remediation prompt API
+   - All views require staff access and log to audit trail
+
+6. **Management Command:**
+   - `python manage.py run_security_assessment` - Run full assessment
+   - Options: `--type=full|quick`, `--report`, `--json`
+
+7. **Dashboard Templates:**
+   - `security/dashboard.html` - Score cards, Chart.js trend graphs, findings table
+   - `security/run_detail.html` - Detailed run view with clickable tests/findings
+
+**Files Created:**
+- `apps/security/__init__.py`
+- `apps/security/apps.py`
+- `apps/security/models.py`
+- `apps/security/scanner.py`
+- `apps/security/scoring.py`
+- `apps/security/report_generator.py`
+- `apps/security/views.py`
+- `apps/security/urls.py`
+- `apps/security/management/__init__.py`
+- `apps/security/management/commands/__init__.py`
+- `apps/security/management/commands/run_security_assessment.py`
+- `apps/security/templates/security/dashboard.html`
+- `apps/security/templates/security/run_detail.html`
+- `apps/security/migrations/0001_initial.py`
+
+**Files Modified:**
+- `config/settings.py` - Added `apps.security` to INSTALLED_APPS
+- `config/urls.py` - Added `/security/` URL pattern
+
+**Initial Assessment Results:**
+- 50 tests run (78% passed)
+- 6 findings: 2 Critical, 2 High, 2 Medium
+- Grade: D, BitSight: 589/900, Risk: 48/100, Maturity: 3/3
+
+**Usage:**
+1. Run assessment: `python manage.py run_security_assessment --report`
+2. View dashboard: `/security/dashboard/` (staff only)
+3. Copy remediation prompt and paste to Claude to fix issues
+
+---
+
 ## 2026-01-22 Changes
 
 ### Email Batch: Tasks 376-385 - Bible Study Context False Positives

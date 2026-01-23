@@ -646,11 +646,106 @@ class ExportPDFView(SecurityAccessMixin, View):
         except Exception:
             score = None
 
+        # Calculate executive summary metrics
+        total_tests = run.total_tests or 0
+        passed_tests = run.passed_tests or 0
+        pass_rate = (passed_tests * 100 // total_tests) if total_tests else 0
+
+        # Determine posture
+        grade = score.securityscorecard_grade if score else 'N/A'
+        if grade in ['A', 'B']:
+            posture = 'good'
+            posture_label = 'GOOD'
+            posture_desc = 'The application demonstrates strong security practices with well-implemented controls.'
+        elif grade == 'C':
+            posture = 'fair'
+            posture_label = 'FAIR'
+            posture_desc = 'The application has adequate security but has areas requiring attention.'
+        else:
+            posture = 'poor'
+            posture_label = 'NEEDS IMPROVEMENT'
+            posture_desc = 'The application has significant security gaps that should be addressed promptly.'
+
+        # Top risks (sorted by CVSS)
+        findings_list = list(run.findings.all().order_by('-cvss_score'))
+        top_risks = findings_list[:5]
+
+        # Quick wins for recommended actions
+        quick_wins = [f for f in findings_list if f.is_quick_win]
+        top_actions = quick_wins[:5] if quick_wins else top_risks[:5]
+
+        # Build structured executive summary
+        exec_summary = {
+            'posture': posture,
+            'posture_label': posture_label,
+            'posture_desc': posture_desc,
+            'metrics': {
+                'tests_run': total_tests,
+                'tests_passed': passed_tests,
+                'pass_rate': pass_rate,
+                'grade': grade,
+                'bitsight': score.bitsight_score if score else 0,
+                'risk_score': score.risk_score_0_100 if score else 0,
+                'maturity': score.maturity_level if score else 0,
+            },
+            'top_risks': top_risks,
+            'top_actions': top_actions,
+        }
+
+        # Build structured CISO Sleep Test data
+        ciso_concerns = []
+
+        # Check for critical findings
+        critical = [f for f in findings_list if f.severity == 'critical']
+        if critical:
+            f = critical[0]
+            ciso_concerns.append({
+                'concern': f.title,
+                'why_matters': f"CVSS {f.cvss_score} - {f.risk_reasoning or 'Critical security vulnerability'}",
+                'disaster_trigger': 'Repository access by unauthorized party reveals vulnerability',
+                'fix_first': f.recommendations[0] if f.recommendations else 'Address this critical finding immediately',
+            })
+
+        # Check for MFA gap
+        mfa_findings = [f for f in findings_list if 'mfa' in f.title.lower()]
+        if mfa_findings and len(ciso_concerns) < 3:
+            ciso_concerns.append({
+                'concern': 'No MFA Enforcement for Privileged Access',
+                'why_matters': 'Credential compromise equals full account takeover without second factor',
+                'disaster_trigger': 'Admin credentials phished or leaked from another breach',
+                'fix_first': 'Require MFA for all staff and admin accounts',
+            })
+
+        # Check for PII logging
+        pii_findings = [f for f in findings_list if 'pii' in f.title.lower() or 'log' in f.title.lower()]
+        if pii_findings and len(ciso_concerns) < 3:
+            ciso_concerns.append({
+                'concern': 'PII Exposure in Logs',
+                'why_matters': 'Email addresses logged without hashing creates privacy violation risk',
+                'disaster_trigger': 'Log aggregation breach exposes user contact information',
+                'fix_first': 'Hash all PII before logging using hash_pii() utility',
+            })
+
+        # Fill remaining slots with high severity findings
+        high = [f for f in findings_list if f.severity == 'high']
+        for f in high:
+            if len(ciso_concerns) >= 3:
+                break
+            if not any(c['concern'] == f.title for c in ciso_concerns):
+                ciso_concerns.append({
+                    'concern': f.title,
+                    'why_matters': f.risk_reasoning or f.description[:150],
+                    'disaster_trigger': 'Exploitation by motivated attacker',
+                    'fix_first': f.recommendations[0] if f.recommendations else 'Address immediately',
+                })
+
         # Generate HTML content for PDF
         context = {
             'run': run,
             'score': score,
-            'findings': run.findings.all().order_by('-cvss_score'),
+            'exec_summary': exec_summary,
+            'ciso_concerns': ciso_concerns[:3],
+            'findings': findings_list,
             'tests': run.tests.all().order_by('test_id'),
             'critical_findings': run.findings.filter(severity='critical'),
             'high_findings': run.findings.filter(severity='high'),

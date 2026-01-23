@@ -488,9 +488,12 @@ class SecurityFindingAdmin(admin.ModelAdmin):
     @admin.display(description='Recommendations')
     def recommendations_display(self, obj):
         """Display recommendations (decrypted)."""
+        from django.utils.html import escape
+        from django.utils.safestring import mark_safe
         recs = obj.recommendations
         if recs:
-            return format_html('<ol>{}</ol>', ''.join(f'<li>{r}</li>' for r in recs))
+            items = ''.join(f'<li>{escape(r)}</li>' for r in recs)
+            return mark_safe(f'<ol>{items}</ol>')
         return '-'
 
     @admin.display(description='Validation Steps')

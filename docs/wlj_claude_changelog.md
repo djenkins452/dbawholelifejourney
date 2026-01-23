@@ -16,6 +16,30 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-23 Changes
 
+### Improvement: Security PDF Export for Executive Readability
+
+Improved the security assessment PDF export to be professional and suitable for executive team.
+
+**Issues Fixed:**
+1. Added "Back to Dashboard" button alongside "Print to PDF"
+2. Converted Executive Summary from raw markdown text to structured HTML
+3. Converted CISO Sleep Test from markdown to styled cards
+
+**Changes:**
+- Executive Summary now shows:
+  - Overall Security Posture with color-coded status (Good/Fair/Poor)
+  - Key Metrics in a clean 2-column grid
+  - Top Risks with severity badges
+  - Recommended Actions as numbered list
+- CISO Sleep Test now shows styled amber cards with clear sections
+- Removed markdown artifacts (=====, - bullets) for professional appearance
+
+**Files Updated:**
+- `apps/security/views.py`: Added structured data for exec_summary and ciso_concerns
+- `apps/security/templates/security/export_pdf.html`: New HTML structure and CSS styles
+
+---
+
 ### Medicine Tracker: "Taken at Scheduled Time" Button
 
 Added a new button to the medicine daily tracker that allows users to record a dose as taken at the scheduled time, rather than the current time. This is useful when users take their medicine on time but record it later.

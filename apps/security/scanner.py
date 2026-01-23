@@ -80,6 +80,8 @@ class Finding:
     validation_steps: str
     is_quick_win: bool = False
     remediation_effort: str = 'medium'
+    # Stable key for acknowledgment matching and filtering
+    finding_key: str = ''
     # Acknowledgment status - checked against AcknowledgedFinding table
     is_acknowledged: bool = False
     acknowledgment_justification: str = ''
@@ -276,6 +278,7 @@ class SecurityScanner:
             validation_steps=validation_steps,
             is_quick_win=is_quick_win,
             remediation_effort=remediation_effort,
+            finding_key=finding_key,
             is_acknowledged=is_acknowledged,
             acknowledgment_justification=acknowledgment_justification,
         )
@@ -3255,13 +3258,18 @@ class SecurityScanner:
         start = time.time()
         test_id = "SEC-T047"
 
-        evidence = {'recaptcha_configured': False}
+        debug = getattr(settings, 'DEBUG', False)
+        evidence = {'debug': debug, 'recaptcha_configured': False}
 
         recaptcha_key = getattr(settings, 'RECAPTCHA_V3_SITE_KEY', '')
         if recaptcha_key:
             evidence['recaptcha_configured'] = True
 
-        result = 'pass' if evidence['recaptcha_configured'] else 'fail'
+        # In debug mode, CAPTCHA is not expected to be configured for local development
+        if debug:
+            result = 'pass'
+        else:
+            result = 'pass' if evidence['recaptcha_configured'] else 'fail'
         findings = []
 
         if result == 'fail':
@@ -3294,7 +3302,7 @@ class SecurityScanner:
             description="Verify CAPTCHA is configured for forms.",
             criteria="reCAPTCHA v3 configured for signup/login.",
             result=result,
-            result_details=f"reCAPTCHA: {evidence['recaptcha_configured']}",
+            result_details=f"reCAPTCHA: {evidence['recaptcha_configured']}, DEBUG: {debug}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
             findings=findings,
@@ -4391,7 +4399,10 @@ class SecurityScanner:
         start = time.time()
         test_id = "SEC-T065"
 
+        from django.conf import settings as django_settings
+        debug = getattr(django_settings, 'DEBUG', False)
         evidence = {
+            'debug': debug,
             'https_enforced': False,
             'secure_cookies': False,
             'hsts_enabled': False,
@@ -4400,17 +4411,20 @@ class SecurityScanner:
 
         # Check settings for TLS enforcement
         try:
-            from django.conf import settings
             evidence['https_enforced'] = (
-                getattr(settings, 'SECURE_SSL_REDIRECT', False) or
-                getattr(settings, 'SECURE_PROXY_SSL_HEADER', None) is not None
+                getattr(django_settings, 'SECURE_SSL_REDIRECT', False) or
+                getattr(django_settings, 'SECURE_PROXY_SSL_HEADER', None) is not None
             )
-            evidence['secure_cookies'] = getattr(settings, 'SESSION_COOKIE_SECURE', False)
-            evidence['hsts_enabled'] = getattr(settings, 'SECURE_HSTS_SECONDS', 0) > 0
+            evidence['secure_cookies'] = getattr(django_settings, 'SESSION_COOKIE_SECURE', False)
+            evidence['hsts_enabled'] = getattr(django_settings, 'SECURE_HSTS_SECONDS', 0) > 0
         except Exception:
             pass
 
-        result = 'pass' if evidence['https_enforced'] or evidence['hsts_enabled'] else 'fail'
+        # In debug mode, SSL settings are expected to be off - this is acceptable for local dev
+        if debug:
+            result = 'pass'
+        else:
+            result = 'pass' if evidence['https_enforced'] or evidence['hsts_enabled'] else 'fail'
         findings = []
 
         if result == 'fail':

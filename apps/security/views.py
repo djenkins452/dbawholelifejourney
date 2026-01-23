@@ -58,13 +58,14 @@ class SecurityAccessMixin:
     def dispatch(self, request, *args, **kwargs):
         return super().dispatch(request, *args, **kwargs)
 
-    def log_access(self, request, action, resource_type='', resource_id=''):
+    def log_access(self, request, action, resource_type='', resource_id='', details=None):
         """Log access to security data."""
         SecurityAuditLog.log(
             request=request,
             action=action,
             resource_type=resource_type,
             resource_id=resource_id,
+            details=details,
         )
 
 

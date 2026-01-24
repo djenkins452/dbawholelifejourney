@@ -1091,5 +1091,123 @@ class TestBuildPersonalContextWithGoals(unittest.TestCase):
         self.assertIn('Completion rate: 25.0%', result)
 
 
+class TestTimezoneConversion(unittest.TestCase):
+    """Tests for timezone conversion in date formatting."""
+
+    def test_format_date_converts_utc_to_eastern(self):
+        """Should convert UTC datetime to Eastern timezone."""
+        from assistant.context_builder import _format_date
+        import pytz
+
+        # Create a datetime at 3:00 AM UTC on Jan 24
+        # In EST (UTC-5), this is still Jan 23 at 10:00 PM
+        utc_dt = datetime(2026, 1, 24, 3, 0, 0, tzinfo=pytz.UTC)
+
+        result = _format_date(utc_dt, 'America/New_York')
+
+        # Should be Jan 23 in Eastern timezone (EST is UTC-5)
+        self.assertEqual(result, '2026-01-23')
+
+    def test_format_date_converts_utc_to_pacific(self):
+        """Should convert UTC datetime to Pacific timezone."""
+        from assistant.context_builder import _format_date
+        import pytz
+
+        # Create a datetime at 5:00 AM UTC on Jan 24
+        # In PST (UTC-8), this is still Jan 23 at 9:00 PM
+        utc_dt = datetime(2026, 1, 24, 5, 0, 0, tzinfo=pytz.UTC)
+
+        result = _format_date(utc_dt, 'America/Los_Angeles')
+
+        # Should be Jan 23 in Pacific timezone (PST is UTC-8)
+        self.assertEqual(result, '2026-01-23')
+
+    def test_format_date_without_timezone_uses_utc(self):
+        """Should use datetime as-is when no timezone provided."""
+        from assistant.context_builder import _format_date
+        import pytz
+
+        utc_dt = datetime(2026, 1, 24, 3, 0, 0, tzinfo=pytz.UTC)
+
+        # Without user_timezone, should format as UTC date
+        result = _format_date(utc_dt, None)
+
+        self.assertEqual(result, '2026-01-24')
+
+    def test_format_date_handles_invalid_timezone(self):
+        """Should handle invalid timezone gracefully."""
+        from assistant.context_builder import _format_date
+        import pytz
+
+        utc_dt = datetime(2026, 1, 24, 3, 0, 0, tzinfo=pytz.UTC)
+
+        # Invalid timezone should fall back to using the datetime as-is
+        result = _format_date(utc_dt, 'Invalid/Timezone')
+
+        self.assertEqual(result, '2026-01-24')
+
+    def test_format_date_with_naive_datetime(self):
+        """Should handle naive datetime without conversion."""
+        from assistant.context_builder import _format_date
+
+        # Naive datetime (no tzinfo)
+        naive_dt = datetime(2026, 1, 24, 3, 0, 0)
+
+        # With timezone provided, but datetime is naive, no conversion happens
+        result = _format_date(naive_dt, 'America/New_York')
+
+        self.assertEqual(result, '2026-01-24')
+
+    def test_build_personal_context_with_timezone(self):
+        """Should apply timezone when building context for glucose data."""
+        from assistant.context_builder import build_personal_context
+        import pytz
+
+        # Create glucose data with UTC datetime
+        utc_dt = datetime(2026, 1, 24, 3, 0, 0, tzinfo=pytz.UTC)
+
+        data = {
+            'glucose': {
+                'type': 'glucose',
+                'count': 100,
+                'average': 155.9,
+                'latest': 276.0,
+                'latest_date': utc_dt,
+                'unit': 'mg/dL',
+            }
+        }
+
+        # Build context with Eastern timezone
+        result = build_personal_context(data, 'America/New_York')
+
+        # Date should be converted to EST (Jan 23 at 10pm EST)
+        self.assertIn('2026-01-23', result)
+        self.assertNotIn('2026-01-24', result)
+
+    def test_build_personal_context_without_timezone(self):
+        """Should use UTC date when no timezone provided."""
+        from assistant.context_builder import build_personal_context
+        import pytz
+
+        utc_dt = datetime(2026, 1, 24, 3, 0, 0, tzinfo=pytz.UTC)
+
+        data = {
+            'glucose': {
+                'type': 'glucose',
+                'count': 100,
+                'average': 155.9,
+                'latest': 276.0,
+                'latest_date': utc_dt,
+                'unit': 'mg/dL',
+            }
+        }
+
+        # Build context without timezone
+        result = build_personal_context(data, None)
+
+        # Date should be UTC (Jan 24)
+        self.assertIn('2026-01-24', result)
+
+
 if __name__ == '__main__':
     unittest.main()

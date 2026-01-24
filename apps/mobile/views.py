@@ -25,6 +25,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
 from apps.health.models import (
+    GlucoseEntry,
     StepsEntry,
     SleepEntry,
     WeightEntry,
@@ -477,6 +478,7 @@ def process_health_metric(user, metric):
         "weight": process_weight_metric,
         "sleep": process_sleep_metric,
         "heart_rate": process_heart_rate_metric,
+        "blood_glucose": process_blood_glucose_metric,
     }
 
     handler = handlers.get(metric_type)
@@ -805,6 +807,97 @@ def process_heart_rate_metric(user, metric_date, source, sync_id, data):
         bedtime=dummy_bedtime,
         wake_time=dummy_wake_time,
         **hr_data,
+    )
+    return "created"
+
+
+def process_blood_glucose_metric(user, metric_date, source, sync_id, data):
+    """
+    Process blood glucose metric from HealthKit.
+
+    GlucoseEntry fields:
+    - value (Decimal): glucose reading
+    - unit (str): mg/dL or mmol/L
+    - recorded_at (datetime): timestamp of reading
+    - source (str): manual, dexcom, imported
+    - context (str): cgm for HealthKit data
+    """
+    value = data.get("value")
+    unit = data.get("unit", "mg/dL")
+    timestamp = data.get("timestamp")
+
+    if value is None:
+        raise ValueError("value is required for blood_glucose")
+
+    try:
+        value = Decimal(str(value))
+    except (TypeError, InvalidOperation):
+        raise ValueError(f"Invalid blood glucose value: {value}")
+
+    # Validate ranges (mg/dL)
+    if unit == "mg/dL" and (value < 20 or value > 600):
+        raise ValueError(f"Blood glucose value out of range: {value}")
+
+    # Parse timestamp for recorded_at
+    recorded_at = None
+    if timestamp:
+        try:
+            # Try ISO8601 format
+            recorded_at = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+        except ValueError:
+            pass
+
+    if not recorded_at:
+        # Fall back to start of day
+        recorded_at = timezone.make_aware(datetime.combine(metric_date, datetime.min.time()))
+
+    # Map apple_health source to "imported" for GlucoseEntry
+    glucose_source = "imported" if source == "apple_health" else source
+
+    # Check for existing entry with same sync_id
+    if sync_id:
+        existing = GlucoseEntry.objects.filter(
+            user=user,
+            source=glucose_source,
+            dexcom_record_id=sync_id,  # Use dexcom_record_id field for sync tracking
+        ).first()
+
+        if existing:
+            if existing.value != value:
+                existing.value = value
+                existing.save(update_fields=["value", "updated_at"])
+                return "updated"
+            return "skipped"
+
+    # Check for existing entry at same timestamp from same source
+    # Allow 30 second tolerance for matching
+    time_window_start = recorded_at - timedelta(seconds=30)
+    time_window_end = recorded_at + timedelta(seconds=30)
+
+    existing = GlucoseEntry.objects.filter(
+        user=user,
+        source=glucose_source,
+        recorded_at__gte=time_window_start,
+        recorded_at__lte=time_window_end,
+    ).first()
+
+    if existing:
+        if existing.value != value:
+            existing.value = value
+            existing.dexcom_record_id = sync_id
+            existing.save(update_fields=["value", "dexcom_record_id", "updated_at"])
+            return "updated"
+        return "skipped"
+
+    # Create new entry
+    GlucoseEntry.objects.create(
+        user=user,
+        value=value,
+        unit=unit,
+        recorded_at=recorded_at,
+        source=glucose_source,
+        dexcom_record_id=sync_id,
+        context="cgm",  # CGM readings from HealthKit
     )
     return "created"
 

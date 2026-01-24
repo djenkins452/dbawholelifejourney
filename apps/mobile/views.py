@@ -51,6 +51,7 @@ MAX_METRICS_PER_REQUEST = 1000
 # =============================================================================
 
 
+@csrf_exempt
 @login_required
 @require_http_methods(["POST"])
 def generate_exchange_code(request):

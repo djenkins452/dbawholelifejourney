@@ -5,6 +5,7 @@
 // Handles authentication, health data submission, and error handling.
 
 import Foundation
+import UIKit
 
 class APIClient {
     static let shared = APIClient()

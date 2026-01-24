@@ -5,14 +5,18 @@
 // This provides native functionality beyond the WebView.
 
 import SwiftUI
+import WebKit
 
 struct SettingsView: View {
     @EnvironmentObject var appState: AppState
     @Environment(\.dismiss) var dismiss
 
     @State private var isSyncing = false
+    @State private var isConnecting = false
     @State private var showSyncError = false
+    @State private var showConnectError = false
     @State private var syncError: String = ""
+    @State private var connectError: String = ""
 
     var body: some View {
         NavigationStack {
@@ -67,7 +71,7 @@ struct SettingsView: View {
                         HStack {
                             Text("Status")
                             Spacer()
-                            Text("Logged In")
+                            Text("Connected")
                                 .foregroundColor(.green)
                         }
 
@@ -77,23 +81,40 @@ struct SettingsView: View {
                         } label: {
                             HStack {
                                 Image(systemName: "rectangle.portrait.and.arrow.right")
-                                Text("Log Out")
+                                Text("Disconnect Account")
                             }
                         }
                     } else {
                         HStack {
                             Text("Status")
                             Spacer()
-                            Text("Not Logged In")
+                            Text("Not Connected")
                                 .foregroundColor(.secondary)
                         }
 
-                        Text("Log in via the web to enable health sync.")
+                        Button(action: connectAccount) {
+                            HStack {
+                                if isConnecting {
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                } else {
+                                    Image(systemName: "link")
+                                }
+                                Text(isConnecting ? "Connecting..." : "Connect Account")
+                            }
+                        }
+                        .disabled(isConnecting)
+
+                        Text("Connect your account to enable health data sync. Make sure you're logged in via the web first.")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
                 } header: {
                     Text("Account")
+                } footer: {
+                    if !appState.isAuthenticated {
+                        Text("This links your web login to the native app for health sync.")
+                    }
                 }
 
                 // MARK: - About Section
@@ -159,7 +180,75 @@ struct SettingsView: View {
             } message: {
                 Text(syncError)
             }
+            .alert("Connection Error", isPresented: $showConnectError) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(connectError)
+            }
         }
+    }
+
+    private func connectAccount() {
+        isConnecting = true
+
+        Task {
+            do {
+                // Request exchange code from server (uses web session cookies)
+                let code = try await requestExchangeCode()
+
+                // Exchange code for API token
+                let response = try await APIClient.shared.exchangeToken(code: code)
+
+                await MainActor.run {
+                    appState.isAuthenticated = true
+                    isConnecting = false
+                }
+            } catch {
+                await MainActor.run {
+                    connectError = error.localizedDescription
+                    showConnectError = true
+                    isConnecting = false
+                }
+            }
+        }
+    }
+
+    private func requestExchangeCode() async throws -> String {
+        // Get cookies from WKWebView's data store
+        let dataStore = WKWebsiteDataStore.default()
+        let cookies = await dataStore.httpCookieStore.allCookies()
+
+        // Build cookie header
+        let wljCookies = cookies.filter { $0.domain.contains("wholelifejourney.com") }
+        let cookieHeader = wljCookies.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
+
+        // Make request with cookies
+        let url = URL(string: "https://wholelifejourney.com/api/mobile/generate-code/")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NSError(domain: "SettingsView", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid response"])
+        }
+
+        if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+            throw NSError(domain: "SettingsView", code: 401, userInfo: [NSLocalizedDescriptionKey: "Please log in via the web first, then try again."])
+        }
+
+        if httpResponse.statusCode != 200 {
+            throw NSError(domain: "SettingsView", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "Server error: \(httpResponse.statusCode)"])
+        }
+
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let code = json["code"] as? String else {
+            throw NSError(domain: "SettingsView", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid response from server"])
+        }
+
+        return code
     }
 
     private func syncNow() {

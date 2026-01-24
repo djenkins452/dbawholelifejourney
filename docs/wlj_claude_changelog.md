@@ -16,32 +16,20 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-24 Changes
 
-### Fix Bible Translation Preference Saving + API Error Handling
+### Add Milestone Edit Capability (Complete CRUD)
 
-Fixed two issues with Bible translation preferences:
+Added the ability to edit goal milestones. Previously only Create, Read, and Delete were available.
 
-**Issue 1: Preference Not Saving in Preferences Page**
-The Bible translation dropdown was not persisting user selections. This was caused by:
-- The `savedTranslation` variable being captured once at script load as a `const`
-- Multiple event listener registrations when toggling Faith on/off
-
-**Solution:**
-- Changed to read the hidden input value fresh each time translations are loaded
-- Added guard to prevent duplicate `change` event listeners
-- Added explicit string comparison for Bible ID matching
-
-**Issue 2: Poor Error Messages for API Failures**
-When a Bible translation doesn't support certain passages (e.g., some free versions
-have limited content), users got a generic "API returned 500" error.
-
-**Solution:**
-- Enhanced error handling in `make_api_request()` to extract error details from response
-- Added user-friendly messages for 404 (passage not found) and 403 (translation restricted) errors
-- Added URL logging for debugging
+**New Features:**
+- Edit button (pencil icon) added to each milestone row
+- Inline edit form appears when edit button clicked
+- Form pre-populated with existing milestone data
+- Only one milestone can be edited at a time (others auto-close)
 
 **Files Modified:**
-- `templates/users/preferences.html` - Fixed JavaScript for Bible translation loading
-- `apps/faith/views.py` - Improved API error handling with better messages
+- `apps/purpose/views.py` - Added `MilestoneUpdateView`
+- `apps/purpose/urls.py` - Added `milestone_update` URL pattern
+- `apps/purpose/templates/purpose/goal_detail.html` - Added edit button, inline edit form, JS toggle function, and CSS styles
 
 ---
 

@@ -991,6 +991,42 @@ class MilestoneToggleView(PurposeAccessMixin, View):
         return redirect('purpose:goal_detail', pk=milestone.goal.pk)
 
 
+class MilestoneUpdateView(PurposeAccessMixin, View):
+    """Update a milestone."""
+
+    def post(self, request, pk):
+        milestone = get_object_or_404(GoalMilestone, pk=pk, goal__user=request.user)
+
+        # Only allow editing milestones on active goals
+        if milestone.goal.status != 'active':
+            messages.error(request, "Cannot edit milestones on inactive goals.")
+            return redirect('purpose:goal_detail', pk=milestone.goal.pk)
+
+        title = request.POST.get('title', '').strip()
+        if not title:
+            messages.error(request, "Milestone title is required.")
+            return redirect('purpose:goal_detail', pk=milestone.goal.pk)
+
+        target_date_str = request.POST.get('target_date', '').strip()
+        target_date = None
+        if target_date_str:
+            try:
+                from datetime import datetime
+                target_date = datetime.strptime(target_date_str, '%Y-%m-%d').date()
+            except ValueError:
+                pass
+
+        description = request.POST.get('description', '').strip()
+
+        milestone.title = title
+        milestone.description = description
+        milestone.target_date = target_date
+        milestone.save()
+
+        messages.success(request, f"Milestone '{title}' updated.")
+        return redirect('purpose:goal_detail', pk=milestone.goal.pk)
+
+
 class MilestoneDeleteView(PurposeAccessMixin, View):
     """Delete a milestone."""
 

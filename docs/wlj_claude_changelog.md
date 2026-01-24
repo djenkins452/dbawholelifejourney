@@ -16,6 +16,19 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-24 Changes
 
+### Fix iOS app memory crash from too many HealthKit samples
+
+**Problem:** App was killed by iOS due to memory pressure. With Dexcom CGM producing ~288 readings/day, fetching 7 days of blood glucose data meant 2000+ samples loaded into memory at once.
+
+**Fix:**
+1. Blood glucose and blood oxygen now fetch only last 24 hours (instead of 7 days)
+2. Added 500 sample limit as safety cap on both queries
+
+**Files Modified:**
+- `ios/WLJWrapper/WLJWrapper/Services/HealthKitManager.swift` - Reduced time window and added sample limits
+
+---
+
 ### Reduce MAX_METRICS_PER_REQUEST from 10000 to 5000
 
 **Change:** Reset the iOS health data ingestion limit now that initial backfill is complete.

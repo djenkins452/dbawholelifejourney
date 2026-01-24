@@ -485,6 +485,8 @@ def process_health_metric(user, metric):
         "water": process_water_metric,
         "active_calories": process_active_calories_metric,
         "distance": process_distance_metric,
+        "resting_calories": process_resting_calories_metric,
+        "flights_climbed": process_flights_climbed_metric,
     }
 
     handler = handlers.get(metric_type)
@@ -1181,6 +1183,100 @@ def process_distance_metric(user, metric_date, source, sync_id, data):
         logged_date=metric_date,
         count=0,  # Will be updated by steps sync
         distance_miles=distance_value,
+        source=source,
+        sync_id=sync_id,
+    )
+    return "created"
+
+
+def process_resting_calories_metric(user, metric_date, source, sync_id, data):
+    """
+    Process resting/basal calories metric from Apple HealthKit.
+
+    Updates the resting_calories field on the StepsEntry for this date.
+    Creates a minimal StepsEntry if one doesn't exist.
+    """
+    resting_calories_value = data.get("resting_calories_value")
+
+    if resting_calories_value is None:
+        raise ValueError("resting_calories_value is required for resting_calories")
+
+    try:
+        resting_calories_value = int(resting_calories_value)
+    except (TypeError, ValueError):
+        raise ValueError(f"Invalid resting calories value: {resting_calories_value}")
+
+    # Validate range (0 to 5,000 calories is reasonable for basal)
+    if resting_calories_value < 0 or resting_calories_value > 5000:
+        raise ValueError(f"Resting calories value out of range: {resting_calories_value}")
+
+    # Find existing StepsEntry for this date and source
+    existing = StepsEntry.objects.filter(
+        user=user,
+        logged_date=metric_date,
+        source=source,
+    ).first()
+
+    if existing:
+        if existing.resting_calories != resting_calories_value:
+            existing.resting_calories = resting_calories_value
+            existing.save(update_fields=["resting_calories", "updated_at"])
+            return "updated"
+        return "skipped"
+
+    # Create new StepsEntry with just resting calories (count=0)
+    StepsEntry.objects.create(
+        user=user,
+        logged_date=metric_date,
+        count=0,  # Will be updated by steps sync
+        resting_calories=resting_calories_value,
+        source=source,
+        sync_id=sync_id,
+    )
+    return "created"
+
+
+def process_flights_climbed_metric(user, metric_date, source, sync_id, data):
+    """
+    Process flights climbed metric from Apple HealthKit.
+
+    Updates the flights_climbed field on the StepsEntry for this date.
+    Creates a minimal StepsEntry if one doesn't exist.
+    """
+    flights_value = data.get("flights_value")
+
+    if flights_value is None:
+        raise ValueError("flights_value is required for flights_climbed")
+
+    try:
+        flights_value = int(flights_value)
+    except (TypeError, ValueError):
+        raise ValueError(f"Invalid flights value: {flights_value}")
+
+    # Validate range (0 to 500 flights is reasonable)
+    if flights_value < 0 or flights_value > 500:
+        raise ValueError(f"Flights value out of range: {flights_value}")
+
+    # Find existing StepsEntry for this date and source
+    existing = StepsEntry.objects.filter(
+        user=user,
+        logged_date=metric_date,
+        source=source,
+    ).first()
+
+    if existing:
+        if existing.flights_climbed != flights_value:
+            existing.flights_climbed = flights_value
+            existing.save(update_fields=["flights_climbed", "updated_at"])
+            return "updated"
+        return "skipped"
+
+    # Create new StepsEntry with just flights (count=0)
+    StepsEntry.objects.create(
+        user=user,
+        logged_date=metric_date,
+        count=0,  # Will be updated by steps sync
+        flights_climbed=flights_value,
         source=source,
         sync_id=sync_id,
     )

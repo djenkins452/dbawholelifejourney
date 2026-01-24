@@ -768,7 +768,17 @@ class StepsEntry(UserOwnedModel):
     calories_burned = models.PositiveIntegerField(
         null=True,
         blank=True,
-        help_text="Estimated calories burned (if available)",
+        help_text="Active calories burned (if available)",
+    )
+    resting_calories = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Resting/basal calories burned (if available)",
+    )
+    flights_climbed = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Flights of stairs climbed (if available)",
     )
     notes = models.TextField(blank=True)
 

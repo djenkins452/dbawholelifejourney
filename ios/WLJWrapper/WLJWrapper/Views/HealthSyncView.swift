@@ -55,6 +55,8 @@ struct HealthSyncView: View {
                 DataTypeRow(icon: "drop.triangle.fill", title: "Water Intake", description: "Daily hydration")
                 DataTypeRow(icon: "flame.fill", title: "Active Calories", description: "Calories burned from activity")
                 DataTypeRow(icon: "figure.run", title: "Distance", description: "Walking and running distance")
+                DataTypeRow(icon: "bolt.fill", title: "Resting Calories", description: "Basal metabolic rate")
+                DataTypeRow(icon: "figure.stairs", title: "Flights Climbed", description: "Stairs climbed")
             } header: {
                 Text("Synced Data Types")
             } footer: {

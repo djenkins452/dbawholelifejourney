@@ -64,6 +64,16 @@ class HealthKitManager {
             types.insert(distanceType)
         }
 
+        // Basal Energy (Resting Calories)
+        if let basalEnergyType = HKQuantityType.quantityType(forIdentifier: .basalEnergyBurned) {
+            types.insert(basalEnergyType)
+        }
+
+        // Flights Climbed
+        if let flightsType = HKQuantityType.quantityType(forIdentifier: .flightsClimbed) {
+            types.insert(flightsType)
+        }
+
         return types
     }()
 
@@ -118,6 +128,8 @@ class HealthKitManager {
         let waterIntake = try await fetchWaterIntake(from: startDate, to: endDate)
         let activeCalories = try await fetchActiveCalories(from: startDate, to: endDate)
         let distance = try await fetchDistance(from: startDate, to: endDate)
+        let restingCalories = try await fetchRestingCalories(from: startDate, to: endDate)
+        let flightsClimbed = try await fetchFlightsClimbed(from: startDate, to: endDate)
 
         metrics.append(contentsOf: steps)
         metrics.append(contentsOf: weights)
@@ -128,6 +140,8 @@ class HealthKitManager {
         metrics.append(contentsOf: waterIntake)
         metrics.append(contentsOf: activeCalories)
         metrics.append(contentsOf: distance)
+        metrics.append(contentsOf: restingCalories)
+        metrics.append(contentsOf: flightsClimbed)
 
         if metrics.isEmpty {
             return SyncResult(created: 0, updated: 0, skipped: 0, errors: 0)
@@ -643,6 +657,114 @@ class HealthKitManager {
                                 distanceUnit: "mi",
                                 source: "apple_health",
                                 syncId: "distance-\(dateStr)"
+                            ))
+                        }
+                    }
+                }
+
+                continuation.resume(returning: metrics)
+            }
+
+            healthStore.execute(query)
+        }
+    }
+
+    // MARK: - Fetch Resting Calories (Basal Energy)
+
+    private func fetchRestingCalories(from startDate: Date, to endDate: Date) async throws -> [HealthMetric] {
+        guard let basalEnergyType = HKQuantityType.quantityType(forIdentifier: .basalEnergyBurned) else {
+            return []
+        }
+
+        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate)
+
+        // Query daily totals
+        let interval = DateComponents(day: 1)
+        let query = HKStatisticsCollectionQuery(
+            quantityType: basalEnergyType,
+            quantitySamplePredicate: predicate,
+            options: .cumulativeSum,
+            anchorDate: Calendar.current.startOfDay(for: startDate),
+            intervalComponents: interval
+        )
+
+        return try await withCheckedThrowingContinuation { continuation in
+            query.initialResultsHandler = { _, results, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                var metrics: [HealthMetric] = []
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateFormat = "yyyy-MM-dd"
+
+                results?.enumerateStatistics(from: startDate, to: endDate) { statistics, _ in
+                    if let sum = statistics.sumQuantity() {
+                        let calories = Int(sum.doubleValue(for: .kilocalorie()))
+                        let dateStr = dateFormatter.string(from: statistics.startDate)
+
+                        if calories > 0 {
+                            metrics.append(HealthMetric(
+                                type: "resting_calories",
+                                date: dateStr,
+                                restingCaloriesValue: calories,
+                                source: "apple_health",
+                                syncId: "resting-calories-\(dateStr)"
+                            ))
+                        }
+                    }
+                }
+
+                continuation.resume(returning: metrics)
+            }
+
+            healthStore.execute(query)
+        }
+    }
+
+    // MARK: - Fetch Flights Climbed
+
+    private func fetchFlightsClimbed(from startDate: Date, to endDate: Date) async throws -> [HealthMetric] {
+        guard let flightsType = HKQuantityType.quantityType(forIdentifier: .flightsClimbed) else {
+            return []
+        }
+
+        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate)
+
+        // Query daily totals
+        let interval = DateComponents(day: 1)
+        let query = HKStatisticsCollectionQuery(
+            quantityType: flightsType,
+            quantitySamplePredicate: predicate,
+            options: .cumulativeSum,
+            anchorDate: Calendar.current.startOfDay(for: startDate),
+            intervalComponents: interval
+        )
+
+        return try await withCheckedThrowingContinuation { continuation in
+            query.initialResultsHandler = { _, results, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                var metrics: [HealthMetric] = []
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateFormat = "yyyy-MM-dd"
+
+                results?.enumerateStatistics(from: startDate, to: endDate) { statistics, _ in
+                    if let sum = statistics.sumQuantity() {
+                        let flights = Int(sum.doubleValue(for: .count()))
+                        let dateStr = dateFormatter.string(from: statistics.startDate)
+
+                        if flights > 0 {
+                            metrics.append(HealthMetric(
+                                type: "flights_climbed",
+                                date: dateStr,
+                                flightsValue: flights,
+                                source: "apple_health",
+                                syncId: "flights-\(dateStr)"
                             ))
                         }
                     }

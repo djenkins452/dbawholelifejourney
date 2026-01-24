@@ -14,6 +14,36 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+## 2026-01-24 Changes
+
+### AI Assistant Timezone Fix
+
+Fixed AI Assistant chat displaying dates in UTC instead of user's local timezone.
+
+**Issue:** When asking "how has my blood sugar been doing?", the assistant would show
+the most recent reading date in UTC. For users in Eastern timezone, a reading taken
+at 11:37 PM on Jan 23 would incorrectly show as "January 24, 2026" because
+11:37 PM EST = 4:37 AM UTC the next day.
+
+**Solution:**
+- Updated `_format_date()` in `assistant/context_builder.py` to accept and apply
+  user timezone conversion using pytz
+- Updated `build_personal_context()` to accept `user_timezone` parameter
+- Updated all `_format_*` functions (weight, glucose, journal, food, mood, goals,
+  faith, heart_rate, blood_pressure, blood_oxygen, workout) to pass timezone through
+- Updated `process_assistant_message()` in `assistant/views.py` to get user's
+  timezone from preferences and pass it to context building
+
+**Files Modified:**
+- `assistant/context_builder.py` - Added timezone conversion to date formatting
+- `assistant/views.py` - Pass user timezone to build_personal_context()
+- `assistant/tests/test_context_builder.py` - Added 7 tests for timezone conversion
+
+**Result:** All dates shown in AI Assistant responses now respect the user's
+configured timezone setting.
+
+---
+
 ## 2026-01-23 Changes
 
 ### Switch Bible API from API.Bible to YouVersion Platform

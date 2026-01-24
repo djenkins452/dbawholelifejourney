@@ -8,8 +8,13 @@ natural language context suitable for AI prompts.
 from datetime import date, datetime
 from typing import Any, Dict, Optional
 
+import pytz
 
-def build_personal_context(data_results: Optional[Dict[str, Any]]) -> str:
+
+def build_personal_context(
+    data_results: Optional[Dict[str, Any]],
+    user_timezone: Optional[str] = None,
+) -> str:
     """
     Convert query results into natural language context for AI prompts.
 
@@ -49,13 +54,13 @@ def build_personal_context(data_results: Optional[Dict[str, Any]]) -> str:
 
     # Format weight data if present
     if 'weight' in data_results:
-        weight_section = _format_weight_data(data_results['weight'])
+        weight_section = _format_weight_data(data_results['weight'], user_timezone)
         if weight_section:
             sections.append(weight_section)
 
     # Format journal data if present
     if 'journal' in data_results:
-        journal_section = _format_journal_data(data_results['journal'])
+        journal_section = _format_journal_data(data_results['journal'], user_timezone)
         if journal_section:
             sections.append(journal_section)
 
@@ -67,55 +72,55 @@ def build_personal_context(data_results: Optional[Dict[str, Any]]) -> str:
 
     # Format food data if present
     if 'food' in data_results:
-        food_section = _format_food_data(data_results['food'])
+        food_section = _format_food_data(data_results['food'], user_timezone)
         if food_section:
             sections.append(food_section)
 
     # Format mood data if present
     if 'mood' in data_results:
-        mood_section = _format_mood_data(data_results['mood'])
+        mood_section = _format_mood_data(data_results['mood'], user_timezone)
         if mood_section:
             sections.append(mood_section)
 
     # Format glucose data if present
     if 'glucose' in data_results:
-        glucose_section = _format_glucose_data(data_results['glucose'])
+        glucose_section = _format_glucose_data(data_results['glucose'], user_timezone)
         if glucose_section:
             sections.append(glucose_section)
 
     # Format faith data if present
     if 'faith' in data_results:
-        faith_section = _format_faith_data(data_results['faith'])
+        faith_section = _format_faith_data(data_results['faith'], user_timezone)
         if faith_section:
             sections.append(faith_section)
 
     # Format goals data if present
     if 'goals' in data_results:
-        goals_section = _format_goals_data(data_results['goals'])
+        goals_section = _format_goals_data(data_results['goals'], user_timezone)
         if goals_section:
             sections.append(goals_section)
 
     # Format heart rate data if present
     if 'heart_rate' in data_results:
-        heart_rate_section = _format_heart_rate_data(data_results['heart_rate'])
+        heart_rate_section = _format_heart_rate_data(data_results['heart_rate'], user_timezone)
         if heart_rate_section:
             sections.append(heart_rate_section)
 
     # Format blood pressure data if present
     if 'blood_pressure' in data_results:
-        bp_section = _format_blood_pressure_data(data_results['blood_pressure'])
+        bp_section = _format_blood_pressure_data(data_results['blood_pressure'], user_timezone)
         if bp_section:
             sections.append(bp_section)
 
     # Format blood oxygen data if present
     if 'blood_oxygen' in data_results:
-        oxygen_section = _format_blood_oxygen_data(data_results['blood_oxygen'])
+        oxygen_section = _format_blood_oxygen_data(data_results['blood_oxygen'], user_timezone)
         if oxygen_section:
             sections.append(oxygen_section)
 
     # Format workout data if present
     if 'workout' in data_results:
-        workout_section = _format_workout_data(data_results['workout'])
+        workout_section = _format_workout_data(data_results['workout'], user_timezone)
         if workout_section:
             sections.append(workout_section)
 
@@ -149,7 +154,10 @@ def build_personal_context(data_results: Optional[Dict[str, Any]]) -> str:
     return header + '\n' + body + footer
 
 
-def _format_weight_data(weight_data: Dict[str, Any]) -> str:
+def _format_weight_data(
+    weight_data: Dict[str, Any],
+    user_timezone: Optional[str] = None,
+) -> str:
     """Format weight data into natural language."""
     if not weight_data:
         return ''
@@ -170,13 +178,16 @@ def _format_weight_data(weight_data: Dict[str, Any]) -> str:
     latest = weight_data.get('latest')
     latest_date = weight_data.get('latest_date')
     if latest is not None and latest_date is not None:
-        date_str = _format_date(latest_date)
+        date_str = _format_date(latest_date, user_timezone)
         lines.append(f'- Most recent: {latest} {unit} on {date_str}')
 
     return '\n'.join(lines)
 
 
-def _format_journal_data(journal_data: Dict[str, Any]) -> str:
+def _format_journal_data(
+    journal_data: Dict[str, Any],
+    user_timezone: Optional[str] = None,
+) -> str:
     """Format journal data into natural language."""
     if not journal_data:
         return ''
@@ -190,7 +201,7 @@ def _format_journal_data(journal_data: Dict[str, Any]) -> str:
     # Latest entry date
     latest_date = journal_data.get('latest_date')
     if latest_date is not None:
-        date_str = _format_date(latest_date)
+        date_str = _format_date(latest_date, user_timezone)
         lines.append(f'- Most recent entry: {date_str}')
 
     return '\n'.join(lines)
@@ -221,7 +232,10 @@ def _format_medication_data(medication_data: Dict[str, Any]) -> str:
     return '\n'.join(lines)
 
 
-def _format_food_data(food_data: Dict[str, Any]) -> str:
+def _format_food_data(
+    food_data: Dict[str, Any],
+    user_timezone: Optional[str] = None,
+) -> str:
     """Format food data into natural language."""
     if not food_data:
         return ''
@@ -245,13 +259,16 @@ def _format_food_data(food_data: Dict[str, Any]) -> str:
     # Latest entry date
     latest_date = food_data.get('latest_date')
     if latest_date is not None:
-        date_str = _format_date(latest_date)
+        date_str = _format_date(latest_date, user_timezone)
         lines.append(f'- Most recent entry: {date_str}')
 
     return '\n'.join(lines)
 
 
-def _format_mood_data(mood_data: Dict[str, Any]) -> str:
+def _format_mood_data(
+    mood_data: Dict[str, Any],
+    user_timezone: Optional[str] = None,
+) -> str:
     """Format mood data into natural language."""
     if not mood_data:
         return ''
@@ -277,13 +294,16 @@ def _format_mood_data(mood_data: Dict[str, Any]) -> str:
     latest_mood = mood_data.get('latest_mood')
     latest_date = mood_data.get('latest_date')
     if latest_mood and latest_date:
-        date_str = _format_date(latest_date)
+        date_str = _format_date(latest_date, user_timezone)
         lines.append(f'- Most recent: {latest_mood} on {date_str}')
 
     return '\n'.join(lines)
 
 
-def _format_glucose_data(glucose_data: Dict[str, Any]) -> str:
+def _format_glucose_data(
+    glucose_data: Dict[str, Any],
+    user_timezone: Optional[str] = None,
+) -> str:
     """Format glucose data into natural language."""
     if not glucose_data:
         return ''
@@ -304,13 +324,16 @@ def _format_glucose_data(glucose_data: Dict[str, Any]) -> str:
     latest = glucose_data.get('latest')
     latest_date = glucose_data.get('latest_date')
     if latest is not None and latest_date is not None:
-        date_str = _format_date(latest_date)
+        date_str = _format_date(latest_date, user_timezone)
         lines.append(f'- Most recent: {latest} {unit} on {date_str}')
 
     return '\n'.join(lines)
 
 
-def _format_goals_data(goals_data: Dict[str, Any]) -> str:
+def _format_goals_data(
+    goals_data: Dict[str, Any],
+    user_timezone: Optional[str] = None,
+) -> str:
     """Format goals data into natural language."""
     if not goals_data:
         return ''
@@ -361,13 +384,16 @@ def _format_goals_data(goals_data: Dict[str, Any]) -> str:
     if recent_completed:
         lines.append('- Recently completed:')
         for goal in recent_completed[:3]:  # Limit to 3 for brevity
-            date_str = _format_date(goal['completed_date'])
+            date_str = _format_date(goal['completed_date'], user_timezone)
             lines.append(f'  - {goal["title"]} ({date_str})')
 
     return '\n'.join(lines)
 
 
-def _format_faith_data(faith_data: Dict[str, Any]) -> str:
+def _format_faith_data(
+    faith_data: Dict[str, Any],
+    user_timezone: Optional[str] = None,
+) -> str:
     """Format faith data into natural language."""
     if not faith_data:
         return ''
@@ -383,7 +409,7 @@ def _format_faith_data(faith_data: Dict[str, Any]) -> str:
         lines.append(f'- Prayer requests: {total} total ({active} active, {answered} answered)')
         latest_date = prayer_data.get('latest_date')
         if latest_date:
-            date_str = _format_date(latest_date)
+            date_str = _format_date(latest_date, user_timezone)
             lines.append(f'- Most recent prayer: {date_str}')
 
     # Saved verses
@@ -407,7 +433,10 @@ def _format_faith_data(faith_data: Dict[str, Any]) -> str:
     return '\n'.join(lines)
 
 
-def _format_heart_rate_data(heart_rate_data: Dict[str, Any]) -> str:
+def _format_heart_rate_data(
+    heart_rate_data: Dict[str, Any],
+    user_timezone: Optional[str] = None,
+) -> str:
     """Format heart rate data into natural language."""
     if not heart_rate_data:
         return ''
@@ -425,14 +454,17 @@ def _format_heart_rate_data(heart_rate_data: Dict[str, Any]) -> str:
     latest_date = heart_rate_data.get('latest_date')
     context = heart_rate_data.get('context', '')
     if latest is not None and latest_date is not None:
-        date_str = _format_date(latest_date)
+        date_str = _format_date(latest_date, user_timezone)
         context_str = f' ({context})' if context else ''
         lines.append(f'- Most recent: {latest} bpm{context_str} on {date_str}')
 
     return '\n'.join(lines)
 
 
-def _format_blood_pressure_data(bp_data: Dict[str, Any]) -> str:
+def _format_blood_pressure_data(
+    bp_data: Dict[str, Any],
+    user_timezone: Optional[str] = None,
+) -> str:
     """Format blood pressure data into natural language."""
     if not bp_data:
         return ''
@@ -451,13 +483,16 @@ def _format_blood_pressure_data(bp_data: Dict[str, Any]) -> str:
     latest_dia = bp_data.get('latest_diastolic')
     latest_date = bp_data.get('latest_date')
     if latest_sys is not None and latest_dia is not None and latest_date is not None:
-        date_str = _format_date(latest_date)
+        date_str = _format_date(latest_date, user_timezone)
         lines.append(f'- Most recent: {latest_sys}/{latest_dia} mmHg on {date_str}')
 
     return '\n'.join(lines)
 
 
-def _format_blood_oxygen_data(oxygen_data: Dict[str, Any]) -> str:
+def _format_blood_oxygen_data(
+    oxygen_data: Dict[str, Any],
+    user_timezone: Optional[str] = None,
+) -> str:
     """Format blood oxygen (SpO2) data into natural language."""
     if not oxygen_data:
         return ''
@@ -474,13 +509,16 @@ def _format_blood_oxygen_data(oxygen_data: Dict[str, Any]) -> str:
     latest = oxygen_data.get('latest')
     latest_date = oxygen_data.get('latest_date')
     if latest is not None and latest_date is not None:
-        date_str = _format_date(latest_date)
+        date_str = _format_date(latest_date, user_timezone)
         lines.append(f'- Most recent: {latest}% on {date_str}')
 
     return '\n'.join(lines)
 
 
-def _format_workout_data(workout_data: Dict[str, Any]) -> str:
+def _format_workout_data(
+    workout_data: Dict[str, Any],
+    user_timezone: Optional[str] = None,
+) -> str:
     """Format workout data into natural language."""
     if not workout_data:
         return ''
@@ -505,7 +543,7 @@ def _format_workout_data(workout_data: Dict[str, Any]) -> str:
 
     latest_date = workout_data.get('latest_date')
     if latest_date is not None:
-        date_str = _format_date(latest_date)
+        date_str = _format_date(latest_date, user_timezone)
         lines.append(f'- Most recent workout: {date_str}')
 
     return '\n'.join(lines)
@@ -595,9 +633,30 @@ def _format_user_data(user_data: Dict[str, Any]) -> str:
     return '\n'.join(lines)
 
 
-def _format_date(dt: Any) -> str:
-    """Format a date or datetime object to YYYY-MM-DD string."""
+def _format_date(dt: Any, user_timezone: Optional[str] = None) -> str:
+    """
+    Format a date or datetime object to YYYY-MM-DD string.
+
+    If user_timezone is provided and dt is a timezone-aware datetime,
+    the datetime will be converted to the user's timezone before formatting.
+    This ensures dates are displayed in the user's local time, not UTC.
+
+    Args:
+        dt: A date, datetime, or other object to format.
+        user_timezone: Optional IANA timezone string (e.g., 'America/New_York').
+
+    Returns:
+        Date formatted as YYYY-MM-DD string.
+    """
     if isinstance(dt, datetime):
+        # Convert to user's timezone if provided and datetime is timezone-aware
+        if user_timezone and dt.tzinfo is not None:
+            try:
+                tz = pytz.timezone(user_timezone)
+                dt = dt.astimezone(tz)
+            except pytz.exceptions.UnknownTimeZoneError:
+                # Invalid timezone, use as-is
+                pass
         return dt.strftime('%Y-%m-%d')
     elif isinstance(dt, date):
         return dt.strftime('%Y-%m-%d')

@@ -183,7 +183,16 @@ def process_assistant_message(
     # Step 4: Build personal context if data exists
     if data_results:
         result['has_data'] = True
-        personal_context = build_personal_context(data_results)
+
+        # Get user's timezone for date formatting
+        user_timezone = None
+        if user and hasattr(user, 'preferences'):
+            try:
+                user_timezone = user.preferences.timezone_iana
+            except Exception:
+                pass  # Use None if preferences don't exist
+
+        personal_context = build_personal_context(data_results, user_timezone)
 
         # Append personal context to system prompt
         if personal_context:

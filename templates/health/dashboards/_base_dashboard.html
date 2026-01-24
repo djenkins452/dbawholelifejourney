@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% load static %}
+
+{# Base dashboard template for health metrics #}
+{# Subclasses override blocks for metric-specific content #}
+
+{% block title %}{{ metric_name }} Dashboard - Health - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    {# Breadcrumb #}
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'health:home' %}">Health</a>
+        <span>/</span>
+        <span>{{ metric_name }}</span>
+    </nav>
+
+    {# Page Header #}
+    <div class="page-header flex justify-between items-center">
+        <div>
+            <h1 class="page-title">{{ metric_name }} {% include "components/favorite_toggle.html" with page_title=metric_name %}</h1>
+            <p class="page-subtitle">{{ period_label }}{% if entry_count %} - {{ entry_count }} reading{{ entry_count|pluralize }}{% endif %}</p>
+        </div>
+        {% block header_actions %}
+        {% if create_url_name %}
+        <a href="{% url create_url_name %}" class="btn btn-primary">Log {{ metric_name }}</a>
+        {% endif %}
+        {% endblock %}
+    </div>
+
+    {# Period Selector #}
+    {% include "health/dashboards/_period_selector.html" %}
+
+    {# Latest Reading - can be overridden for complex metrics #}
+    {% block latest_reading %}
+    {% with latest_value=latest_reading|default:"" %}
+    {% include "health/dashboards/_latest_reading.html" %}
+    {% endwith %}
+    {% endblock %}
+
+    {# Statistics Grid - can be overridden for extra stats #}
+    {% block statistics %}
+    {% include "health/dashboards/_stats_grid.html" %}
+    {% endblock %}
+
+    {# AI Insight #}
+    {% include "health/dashboards/_ai_insight.html" %}
+
+    {# Chart #}
+    {% block chart %}
+    {% with chart_title=metric_name|add:" Over Time" %}
+    {% include "health/dashboards/_chart_container.html" %}
+    {% endwith %}
+    {% endblock %}
+
+    {# Recent Readings List - can be overridden for custom display #}
+    {% block readings_list %}
+    {% include "health/dashboards/_readings_list.html" %}
+    {% endblock %}
+
+    {# Back to Health link #}
+    <div class="mt-8 text-center">
+        <a href="{% url 'health:home' %}" class="btn btn-ghost">← Back to Health</a>
+    </div>
+</div>
+
+{# Additional metric-specific styles #}
+{% block extra_styles %}{% endblock %}
+
+{# Additional metric-specific scripts #}
+{% block extra_scripts %}{% endblock %}
+{% endblock %}

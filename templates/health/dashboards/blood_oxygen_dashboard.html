@@ -1,0 +1,379 @@
+{% extends "health/dashboards/_base_dashboard.html" %}
+
+{# Blood Oxygen (SpO2) Dashboard #}
+
+{% block latest_reading %}
+{% if latest_reading %}
+<div class="latest-reading-card">
+    <div class="latest-reading-header">
+        <span class="latest-label">Latest Blood Oxygen</span>
+        <span class="latest-time">{{ latest_reading.recorded_at|timesince }} ago</span>
+    </div>
+    <div class="latest-reading-body">
+        <div class="spo2-value-container">
+            <span class="spo2-value">{{ latest_reading.spo2 }}</span>
+            <span class="spo2-unit">%</span>
+        </div>
+        <span class="status-badge status-{{ latest_status_color|default:'gray' }}">
+            {{ latest_status_display }}
+        </span>
+    </div>
+    {% if latest_reading.pulse %}
+    <div class="latest-pulse">
+        <span class="pulse-icon">♥</span>
+        <span class="pulse-value">{{ latest_reading.pulse }}</span>
+        <span class="pulse-unit">bpm</span>
+    </div>
+    {% endif %}
+    {% if latest_reading.context != 'resting' %}
+    <div class="latest-context">
+        <span class="context-badge">{{ latest_reading.get_context_display }}</span>
+    </div>
+    {% endif %}
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.latest-reading-card {
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    margin-bottom: var(--space-6);
+}
+
+.latest-reading-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-3);
+}
+
+.latest-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.latest-time {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.latest-reading-body {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+}
+
+.spo2-value-container {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-1);
+}
+
+.spo2-value {
+    font-size: var(--font-size-4xl, 2.5rem);
+    font-weight: 700;
+    color: var(--color-text);
+    line-height: 1;
+}
+
+.spo2-unit {
+    font-size: var(--font-size-2xl);
+    color: var(--color-text-muted);
+}
+
+.status-badge {
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+}
+
+.status-green {
+    background: color-mix(in srgb, var(--color-success, #10b981) 15%, transparent);
+    color: var(--color-success, #10b981);
+}
+
+.status-yellow {
+    background: color-mix(in srgb, var(--color-warning, #f59e0b) 15%, transparent);
+    color: var(--color-warning, #f59e0b);
+}
+
+.status-orange {
+    background: color-mix(in srgb, #f97316 15%, transparent);
+    color: #f97316;
+}
+
+.status-red {
+    background: color-mix(in srgb, var(--color-error, #ef4444) 15%, transparent);
+    color: var(--color-error, #ef4444);
+}
+
+.status-gray {
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+}
+
+.latest-pulse {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    margin-top: var(--space-3);
+    color: var(--color-text-muted);
+}
+
+.pulse-icon {
+    color: #ef4444;
+}
+
+.pulse-value {
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.latest-context {
+    margin-top: var(--space-2);
+}
+
+.context-badge {
+    font-size: var(--font-size-xs);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+}
+
+@media (max-width: 480px) {
+    .latest-reading-card {
+        padding: var(--space-4);
+    }
+
+    .spo2-value {
+        font-size: var(--font-size-3xl, 2rem);
+    }
+
+    .latest-reading-body {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--space-3);
+    }
+}
+</style>
+{% else %}
+<div class="no-reading-card">
+    <p>No blood oxygen readings yet</p>
+    {% if create_url_name %}
+    <a href="{% url create_url_name %}" class="btn btn-primary mt-4">Log Your First Reading</a>
+    {% endif %}
+</div>
+<style nonce="{{ csp_nonce }}">
+.no-reading-card {
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    margin-bottom: var(--space-6);
+    text-align: center;
+    color: var(--color-text-muted);
+}
+</style>
+{% endif %}
+{% endblock %}
+
+{% block readings_list %}
+{% if entries %}
+<div class="readings-section">
+    <div class="readings-header">
+        <h3 class="readings-title">Recent Readings</h3>
+        {% if list_url_name %}
+        <a href="{% url list_url_name %}" class="view-all-link">View All</a>
+        {% endif %}
+    </div>
+
+    <div class="readings-list">
+        {% for entry in entries %}
+        <div class="reading-item">
+            <div class="reading-date">
+                <span class="date-main">{{ entry.recorded_at|date:"M j" }}</span>
+                <span class="date-time">{{ entry.recorded_at|date:"g:i A" }}</span>
+            </div>
+            <div class="reading-value-col">
+                <span class="reading-spo2">{{ entry.spo2 }}%</span>
+                {% if entry.pulse %}
+                <span class="reading-pulse">{{ entry.pulse }} bpm</span>
+                {% endif %}
+            </div>
+            <div class="reading-status">
+                {% if entry.spo2 >= 95 %}
+                <span class="status-badge-sm status-green">Normal</span>
+                {% elif entry.spo2 >= 90 %}
+                <span class="status-badge-sm status-yellow">Low</span>
+                {% elif entry.spo2 >= 85 %}
+                <span class="status-badge-sm status-orange">Concerning</span>
+                {% else %}
+                <span class="status-badge-sm status-red">Critical</span>
+                {% endif %}
+            </div>
+            {% if update_url_name %}
+            <div class="reading-actions">
+                <a href="{% url update_url_name entry.pk %}" class="btn btn-ghost btn-sm">Edit</a>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+
+    {% if entry_count > entries|length %}
+    <div class="readings-footer">
+        <span class="readings-more">Showing {{ entries|length }} of {{ entry_count }} readings</span>
+    </div>
+    {% endif %}
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.readings-section {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    margin-bottom: var(--space-6);
+}
+
+.readings-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.readings-title {
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    margin: 0;
+}
+
+.view-all-link {
+    font-size: var(--font-size-sm);
+    color: var(--color-accent);
+    text-decoration: none;
+}
+
+.view-all-link:hover {
+    text-decoration: underline;
+}
+
+.readings-list {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.reading-item {
+    display: flex;
+    align-items: center;
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+    gap: var(--space-4);
+}
+
+.reading-item:last-child {
+    border-bottom: none;
+}
+
+.reading-item:hover {
+    background: var(--color-surface);
+}
+
+.reading-date {
+    display: flex;
+    flex-direction: column;
+    min-width: 60px;
+}
+
+.date-main {
+    font-weight: 500;
+}
+
+.date-time {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.reading-value-col {
+    flex: 1;
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+}
+
+.reading-spo2 {
+    font-weight: 600;
+    font-size: var(--font-size-lg);
+}
+
+.reading-pulse {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.reading-status {
+    min-width: 70px;
+}
+
+.status-badge-sm {
+    font-size: var(--font-size-xs);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    font-weight: 500;
+}
+
+.reading-actions {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.readings-footer {
+    padding: var(--space-3) var(--space-4);
+    border-top: 1px solid var(--color-border);
+    text-align: center;
+}
+
+.readings-more {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+@media (max-width: 480px) {
+    .reading-item {
+        flex-wrap: wrap;
+    }
+
+    .reading-status {
+        order: 3;
+    }
+
+    .reading-actions {
+        order: 4;
+        width: 100%;
+        justify-content: flex-end;
+        margin-top: var(--space-2);
+    }
+}
+</style>
+{% else %}
+<div class="readings-empty">
+    <p>No readings for this period</p>
+</div>
+<style nonce="{{ csp_nonce }}">
+.readings-empty {
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    text-align: center;
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-6);
+}
+</style>
+{% endif %}
+{% endblock %}

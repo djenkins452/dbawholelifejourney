@@ -1,0 +1,108 @@
+{# Statistics grid partial #}
+{# Required context: stats (dict with avg, min, max, count), unit #}
+{# Optional context: extra_stats (list of {label, value, highlight} dicts) #}
+
+{% if stats %}
+<div class="stats-grid">
+    {% if stats.avg is not None %}
+    <div class="stat-card">
+        <span class="stat-label">Average</span>
+        <span class="stat-value">{{ stats.avg }} {% if unit %}{{ unit }}{% endif %}</span>
+    </div>
+    {% endif %}
+
+    {% if stats.min is not None %}
+    <div class="stat-card">
+        <span class="stat-label">Lowest</span>
+        <span class="stat-value">{{ stats.min }} {% if unit %}{{ unit }}{% endif %}</span>
+    </div>
+    {% endif %}
+
+    {% if stats.max is not None %}
+    <div class="stat-card">
+        <span class="stat-label">Highest</span>
+        <span class="stat-value">{{ stats.max }} {% if unit %}{{ unit }}{% endif %}</span>
+    </div>
+    {% endif %}
+
+    {% if stats.count is not None %}
+    <div class="stat-card">
+        <span class="stat-label">Readings</span>
+        <span class="stat-value">{{ stats.count }}</span>
+    </div>
+    {% endif %}
+
+    {# Extra stats for specific metrics #}
+    {% for extra in extra_stats %}
+    <div class="stat-card {% if extra.highlight %}stat-highlight{% endif %}">
+        <span class="stat-label">{{ extra.label }}</span>
+        <span class="stat-value {% if extra.color %}text-{{ extra.color }}{% endif %}">{{ extra.value }}</span>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<style nonce="{{ csp_nonce }}">
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: var(--space-4);
+    margin-bottom: var(--space-6);
+}
+
+.stat-card {
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.stat-card.stat-highlight {
+    border-left: 3px solid var(--color-accent);
+}
+
+.stat-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.stat-value {
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.stat-value.text-success {
+    color: var(--color-success, #10b981);
+}
+
+.stat-value.text-warning {
+    color: var(--color-warning, #f59e0b);
+}
+
+.stat-value.text-error {
+    color: var(--color-error, #ef4444);
+}
+
+.stat-value.text-info {
+    color: var(--color-info, #3b82f6);
+}
+
+@media (max-width: 480px) {
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .stat-card {
+        padding: var(--space-3);
+    }
+
+    .stat-value {
+        font-size: var(--font-size-lg);
+    }
+}
+</style>

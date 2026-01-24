@@ -1,0 +1,67 @@
+{# AI insight card partial #}
+{# Required context: ai_enabled, ai_insight #}
+{# Optional context: metric_name #}
+
+{% if ai_enabled and ai_insight %}
+<div class="ai-insight-card">
+    <div class="ai-insight-header">
+        <span class="ai-icon">✨</span>
+        <span class="ai-label">AI Insight</span>
+    </div>
+    <div class="ai-insight-content">
+        {{ ai_insight|linebreaks }}
+    </div>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.ai-insight-card {
+    background: linear-gradient(135deg,
+        color-mix(in srgb, var(--color-accent) 5%, var(--color-background)),
+        color-mix(in srgb, var(--color-accent) 10%, var(--color-background))
+    );
+    border: 1px solid color-mix(in srgb, var(--color-accent) 20%, var(--color-border));
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    margin-bottom: var(--space-6);
+}
+
+.ai-insight-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+}
+
+.ai-icon {
+    font-size: var(--font-size-lg);
+}
+
+.ai-label {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-accent);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.ai-insight-content {
+    font-size: var(--font-size-base);
+    line-height: 1.6;
+    color: var(--color-text);
+}
+
+.ai-insight-content p {
+    margin: 0 0 var(--space-3) 0;
+}
+
+.ai-insight-content p:last-child {
+    margin-bottom: 0;
+}
+
+@media (max-width: 480px) {
+    .ai-insight-card {
+        padding: var(--space-4);
+    }
+}
+</style>
+{% endif %}

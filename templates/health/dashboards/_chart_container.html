@@ -1,0 +1,179 @@
+{# Chart container partial - includes Chart.js setup #}
+{# Required context: chart_data, chart_color #}
+{# Optional context: chart_min, chart_max, chart_aggregated, unit, chart_id, chart_title #}
+
+{% if chart_data %}
+<div class="chart-container">
+    {% if chart_title %}
+    <div class="chart-header">
+        <h3 class="chart-title">{{ chart_title }}</h3>
+        {% if chart_aggregated %}
+        <span class="chart-note">Daily averages shown</span>
+        {% endif %}
+    </div>
+    {% endif %}
+    <div class="chart-wrapper">
+        <canvas id="{{ chart_id|default:'metricChart' }}"></canvas>
+    </div>
+</div>
+
+{{ chart_data|json_script:chart_id|default:"chart-data" }}
+
+<style nonce="{{ csp_nonce }}">
+.chart-container {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    margin-bottom: var(--space-6);
+}
+
+.chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-4);
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.chart-title {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    margin: 0;
+}
+
+.chart-note {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    font-style: italic;
+}
+
+.chart-wrapper {
+    position: relative;
+    height: 300px;
+}
+
+@media (max-width: 480px) {
+    .chart-container {
+        padding: var(--space-3);
+    }
+
+    .chart-wrapper {
+        height: 250px;
+    }
+}
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script nonce="{{ csp_nonce }}">
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('{{ chart_id|default:"metricChart" }}').getContext('2d');
+    const chartData = JSON.parse(document.getElementById('{{ chart_id|default:"chart-data" }}').textContent);
+
+    if (!chartData || chartData.length === 0) return;
+
+    const chartColor = '{{ chart_color|default:"#6366f1" }}';
+    const unit = '{{ unit|default:"" }}';
+
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: chartData.map(d => {
+                const date = new Date(d.time);
+                return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            }),
+            datasets: [{
+                label: unit ? `Value (${unit})` : 'Value',
+                data: chartData.map(d => d.value),
+                borderColor: chartColor,
+                backgroundColor: chartColor + '1a',
+                fill: true,
+                tension: 0.3,
+                pointRadius: chartData.length > 30 ? 2 : 4,
+                pointHoverRadius: 6,
+                pointBackgroundColor: chartColor,
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    titleFont: { size: 13 },
+                    bodyFont: { size: 12 },
+                    padding: 12,
+                    displayColors: false,
+                    callbacks: {
+                        title: function(context) {
+                            const dataPoint = chartData[context[0].dataIndex];
+                            const date = new Date(dataPoint.time);
+                            if (dataPoint.is_average) {
+                                return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) + ' (avg of ' + dataPoint.reading_count + ')';
+                            }
+                            return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+                        },
+                        label: function(context) {
+                            const value = context.parsed.y;
+                            return unit ? value.toFixed(1) + ' ' + unit : value.toFixed(1);
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    display: true,
+                    grid: {
+                        display: false
+                    },
+                    ticks: {
+                        maxRotation: 45,
+                        minRotation: 45,
+                        font: { size: 10 },
+                        maxTicksLimit: 10
+                    }
+                },
+                y: {
+                    display: true,
+                    beginAtZero: false,
+                    {% if chart_min is not None %}min: {{ chart_min }},{% endif %}
+                    {% if chart_max is not None %}max: {{ chart_max }},{% endif %}
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    },
+                    ticks: {
+                        callback: function(value) {
+                            return unit ? value + ' ' + unit : value;
+                        }
+                    }
+                }
+            },
+            interaction: {
+                intersect: false,
+                mode: 'index'
+            }
+        }
+    });
+});
+</script>
+{% else %}
+<div class="chart-empty">
+    <p>No data available for chart</p>
+</div>
+<style nonce="{{ csp_nonce }}">
+.chart-empty {
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    padding: var(--space-8);
+    text-align: center;
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-6);
+}
+</style>
+{% endif %}

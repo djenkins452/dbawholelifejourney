@@ -376,6 +376,14 @@ class UserPreferences(models.Model):
         'nutrition': {'label': 'Nutrition & Food', 'default': True, 'icon': '🥗'},
         'fasting': {'label': 'Fasting', 'default': True, 'icon': '🍽️'},
         'providers': {'label': 'Medical Providers', 'default': True, 'icon': '🏥'},
+        # Advanced metrics (default off - opt-in for users who track these)
+        'hrv': {'label': 'Heart Rate Variability', 'default': False, 'icon': '💓'},
+        'vo2_max': {'label': 'VO2 Max', 'default': False, 'icon': '🫁'},
+        'respiratory_rate': {'label': 'Respiratory Rate', 'default': False, 'icon': '🌬️'},
+        'body_temperature': {'label': 'Body Temperature', 'default': False, 'icon': '🌡️'},
+        'caffeine': {'label': 'Caffeine Tracking', 'default': False, 'icon': '☕'},
+        'mindful_minutes': {'label': 'Mindful Minutes', 'default': False, 'icon': '🧘'},
+        'activity_details': {'label': 'Activity Details', 'default': False, 'icon': '🏃'},
     }
 
     ORGANIZE_FEATURES = {

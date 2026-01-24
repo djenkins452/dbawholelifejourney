@@ -339,11 +339,14 @@ Authorization: Bearer <token>
 ```
 All mobile API endpoints require Bearer token auth (added via `MobileAuthenticationMiddleware`).
 
-**HealthKit Data Synced:**
-- Steps (daily totals) → `StepsEntry`
-- Weight (most recent/day) → `WeightEntry`
-- Sleep (sessions) → `SleepEntry`
-- Heart rate (resting) → stored as note
+**HealthKit Data Synced (17 types):**
+- Steps, Active Calories, Distance, Resting Calories, Flights Climbed, Exercise Minutes, Stand Hours → `StepsEntry`
+- Weight, Body Fat %, Lean Body Mass → `WeightEntry`
+- Sleep, Heart Rate, Respiratory Rate → `SleepEntry`
+- Blood Glucose → `BloodGlucoseReading`
+- Blood Oxygen → stored as note
+- Water Intake → `WaterEntry`
+- Workouts → `WorkoutSession`
 
 **Testing iOS Locally:**
 1. Open `ios/WLJWrapper/WLJWrapper.xcodeproj` in Xcode

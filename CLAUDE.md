@@ -100,6 +100,7 @@ python manage.py migrate
 - Django 5.x with django-allauth | PostgreSQL (prod) / SQLite (dev)
 - Railway deployment with Nixpacks | Gunicorn WSGI
 - OpenAI API for AI coaching features
+- **iOS App:** Native Swift/SwiftUI wrapper with WKWebView + HealthKit
 
 ## Responsive Design (REQUIRED)
 
@@ -128,7 +129,7 @@ python manage.py migrate
 
 ## Key Architecture
 
-- **Apps:** users, core, dashboard, journal, faith, health, purpose, ai, life, admin_console, help, scan
+- **Apps:** users, core, dashboard, journal, faith, health, purpose, ai, life, admin_console, help, scan, **mobile**
 - **User model:** Custom User (email-based auth) | UserPreferences for settings
 - **Soft deletes:** Models use `soft_delete()` method, not hard deletes. See troubleshoot.md #7 for SoftDeleteManager pattern
 
@@ -146,6 +147,9 @@ python manage.py migrate
 | `docs/wlj_third_party_services.md` | External service inventory |
 | `docs/improvement_tasks.md` | **Improvement backlog** - prioritized feature tasks |
 | `docs/task9_ai_assistant_search.md` | **Active:** AI Assistant search gateway design & sub-tasks |
+| `docs/ios-wrapper-setup.md` | iOS app Xcode setup and running guide |
+| `docs/ios-healthkit-integration.md` | HealthKit technical documentation |
+| `docs/ios-app-store-submission.md` | Complete App Store submission guide |
 
 ## Slash Commands
 
@@ -300,4 +304,60 @@ An ongoing project to create comprehensive Bible reading plans across multiple c
 
 ---
 
-*Last updated: 2026-01-20*
+## iOS App (Native Wrapper)
+
+**Location:** `ios/WLJWrapper/`
+
+Native iOS wrapper that loads WLJ in a WKWebView with HealthKit integration for App Store approval.
+
+**Key Components:**
+- `WLJWrapper.xcodeproj` - Xcode project (open to build/run)
+- `WLJWrapper/Views/MainWebView.swift` - WKWebView with domain allowlist + JS bridge
+- `WLJWrapper/Views/SettingsView.swift` - Native settings (required for App Store)
+- `WLJWrapper/Views/HealthSyncView.swift` - HealthKit authorization + sync
+- `WLJWrapper/Services/HealthKitManager.swift` - HealthKit queries (steps, weight, sleep, HR)
+- `WLJWrapper/Services/KeychainManager.swift` - Secure token storage
+- `WLJWrapper/Services/APIClient.swift` - HTTP client for mobile API
+
+**Django Backend:** `apps/mobile/`
+- Bearer token authentication (not session-based)
+- Token exchange flow: web session → one-time code → API token
+- Health data ingestion endpoint with audit logging
+- Device registration and management
+
+**Mobile API Endpoints:**
+| Endpoint | Purpose |
+|----------|---------|
+| `POST /api/mobile/generate-code/` | Get one-time exchange code (from web session) |
+| `POST /api/mobile/token/exchange/` | Exchange code for Bearer token |
+| `POST /api/mobile/health/ingest/` | Submit HealthKit data |
+| `GET /api/mobile/health/sync-status/` | Check last sync status |
+
+**Token Authentication:**
+```
+Authorization: Bearer <token>
+```
+All mobile API endpoints require Bearer token auth (added via `MobileAuthenticationMiddleware`).
+
+**HealthKit Data Synced:**
+- Steps (daily totals) → `StepsEntry`
+- Weight (most recent/day) → `WeightEntry`
+- Sleep (sessions) → `SleepEntry`
+- Heart rate (resting) → stored as note
+
+**Testing iOS Locally:**
+1. Open `ios/WLJWrapper/WLJWrapper.xcodeproj` in Xcode
+2. Configure signing (your Apple Developer team)
+3. Connect iPhone, enable Developer Mode
+4. Build and run (Cmd+R)
+
+**App Store Submission:**
+See `docs/ios-app-store-submission.md` for complete guide including:
+- Apple Developer Portal setup
+- Privacy nutrition label answers
+- HealthKit justification text
+- WKWebView defense (why it's not "just a website")
+
+---
+
+*Last updated: 2026-01-24*

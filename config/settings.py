@@ -136,6 +136,7 @@ INSTALLED_APPS = [
     'apps.finance',
     'apps.billing',
     'apps.security',
+    'apps.mobile',  # iOS/Android app integration
     'assistant',
     'django_apscheduler',
     'djstripe',
@@ -158,6 +159,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "apps.mobile.middleware.MobileAuthenticationMiddleware",  # Bearer token auth for native apps
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "allauth.account.middleware.AccountMiddleware",

@@ -16,6 +16,48 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-24 Changes
 
+### iOS Native Wrapper App + Mobile API Backend
+
+Complete implementation of native iOS app wrapper for WLJ with HealthKit integration.
+
+**Django Backend (`apps/mobile/`):**
+- `MobileDevice` model for registered devices
+- `MobileAPIToken` model with SHA-256 token hashing and Bearer auth
+- `MobileTokenExchangeCode` for secure web-to-native authentication flow
+- `HealthIngestionRun` audit model for tracking health data submissions
+- Token exchange endpoint: web session → one-time code → API token
+- Health data ingestion endpoint with deduplication via sync_id
+- `MobileAuthenticationMiddleware` for Bearer token authentication
+
+**iOS App (`ios/WLJWrapper/`):**
+- SwiftUI app with WKWebView for loading wholelifejourney.com
+- Domain allowlist (only wholelifejourney.com allowed)
+- JS bridge for web ↔ native communication
+- Native Settings screen (required for App Store approval)
+- HealthKit integration (steps, weight, sleep, heart rate)
+- Keychain storage for secure token/device ID
+- Custom URL scheme (`wlj://`)
+
+**Documentation:**
+- `docs/ios-wrapper-setup.md` - Xcode setup and running guide
+- `docs/ios-healthkit-integration.md` - HealthKit technical docs
+- `docs/ios-app-store-submission.md` - Complete App Store submission guide
+
+**Files Created:**
+- `apps/mobile/__init__.py`, `apps.py`, `models.py`, `views.py`, `urls.py`, `admin.py`, `middleware.py`
+- `apps/mobile/tests/test_models.py` (22 tests), `apps/mobile/tests/test_views.py` (17 tests)
+- `ios/WLJWrapper/` - Complete Xcode project
+
+**Files Modified:**
+- `config/settings.py` - Added mobile app and middleware
+- `config/urls.py` - Added `/api/mobile/` route
+- `apps/users/middleware.py` - Added `/api/` to TermsAcceptanceMiddleware EXEMPT_PATHS
+- `CLAUDE.md` - Added iOS project context and mobile app documentation
+
+**Migration:** `apps/mobile/migrations/0001_initial.py`
+
+---
+
 ### Add Milestone Edit Capability (Complete CRUD)
 
 Added the ability to edit goal milestones. Previously only Create, Read, and Delete were available.
@@ -30,6 +72,35 @@ Added the ability to edit goal milestones. Previously only Create, Read, and Del
 - `apps/purpose/views.py` - Added `MilestoneUpdateView`
 - `apps/purpose/urls.py` - Added `milestone_update` URL pattern
 - `apps/purpose/templates/purpose/goal_detail.html` - Added edit button, inline edit form, JS toggle function, and CSS styles
+
+---
+
+### Fix Bible Translation Preference Saving + API Error Handling
+
+Fixed two issues with Bible translation preferences:
+
+**Issue 1: Preference Not Saving in Preferences Page**
+The Bible translation dropdown was not persisting user selections. This was caused by:
+- The `savedTranslation` variable being captured once at script load as a `const`
+- Multiple event listener registrations when toggling Faith on/off
+
+**Solution:**
+- Changed to read the hidden input value fresh each time translations are loaded
+- Added guard to prevent duplicate `change` event listeners
+- Added explicit string comparison for Bible ID matching
+
+**Issue 2: Poor Error Messages for API Failures**
+When a Bible translation doesn't support certain passages (e.g., some free versions
+have limited content), users got a generic "API returned 500" error.
+
+**Solution:**
+- Enhanced error handling in `make_api_request()` to extract error details from response
+- Added user-friendly messages for 404 (passage not found) and 403 (translation restricted) errors
+- Added URL logging for debugging
+
+**Files Modified:**
+- `templates/users/preferences.html` - Fixed JavaScript for Bible translation loading
+- `apps/faith/views.py` - Improved API error handling with better messages
 
 ---
 

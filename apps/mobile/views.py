@@ -25,6 +25,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
 from apps.health.models import (
+    BloodOxygenEntry,
     GlucoseEntry,
     StepsEntry,
     SleepEntry,
@@ -909,13 +910,80 @@ def process_blood_oxygen_metric(user, metric_date, source, sync_id, data):
     """
     Process blood oxygen (SpO2) metric from HealthKit.
 
-    Note: WLJ doesn't have a dedicated SpO2 model yet.
-    For now, we skip these metrics silently.
-    Future: Could add SpO2Entry model or store in a generic vitals table.
+    BloodOxygenEntry fields:
+    - spo2 (int): oxygen saturation percentage
+    - recorded_at (datetime): timestamp of reading
+    - context (str): resting, active, sleep, etc.
+    - measurement_type (str): fingertip, wrist, etc.
     """
-    # Acknowledge receipt but don't store (no model available)
-    # This prevents "Unknown metric type" errors
-    return "skipped"
+    value = data.get("value")
+    timestamp = data.get("timestamp")
+
+    if value is None:
+        raise ValueError("value is required for blood_oxygen")
+
+    try:
+        spo2 = int(round(float(value)))
+    except (TypeError, ValueError):
+        raise ValueError(f"Invalid blood oxygen value: {value}")
+
+    # Validate range (0-100%)
+    if spo2 < 50 or spo2 > 100:
+        raise ValueError(f"Blood oxygen value out of range: {spo2}")
+
+    # Parse timestamp for recorded_at
+    recorded_at = None
+    if timestamp:
+        try:
+            recorded_at = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+        except ValueError:
+            pass
+
+    if not recorded_at:
+        recorded_at = timezone.make_aware(datetime.combine(metric_date, datetime.min.time()))
+
+    # Check for existing entry with same sync_id
+    if sync_id:
+        existing = BloodOxygenEntry.objects.filter(
+            user=user,
+            notes__contains=sync_id,
+        ).first()
+
+        if existing:
+            if existing.spo2 != spo2:
+                existing.spo2 = spo2
+                existing.save(update_fields=["spo2", "updated_at"])
+                return "updated"
+            return "skipped"
+
+    # Check for existing entry at same timestamp
+    time_window_start = recorded_at - timedelta(seconds=30)
+    time_window_end = recorded_at + timedelta(seconds=30)
+
+    existing = BloodOxygenEntry.objects.filter(
+        user=user,
+        recorded_at__gte=time_window_start,
+        recorded_at__lte=time_window_end,
+    ).first()
+
+    if existing:
+        if existing.spo2 != spo2:
+            existing.spo2 = spo2
+            existing.notes = f"Synced from {source} ({sync_id})"
+            existing.save(update_fields=["spo2", "notes", "updated_at"])
+            return "updated"
+        return "skipped"
+
+    # Create new entry
+    BloodOxygenEntry.objects.create(
+        user=user,
+        spo2=spo2,
+        recorded_at=recorded_at,
+        context="resting",  # Default context for HealthKit data
+        measurement_type="wrist",  # Most HealthKit SpO2 is from Apple Watch
+        notes=f"Synced from {source} ({sync_id})",
+    )
+    return "created"
 
 
 def process_water_intake_metric(user, metric_date, source, sync_id, data):

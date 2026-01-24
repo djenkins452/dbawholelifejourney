@@ -16,6 +16,31 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-24 Changes
 
+### Reduce MAX_METRICS_PER_REQUEST from 10000 to 5000
+
+**Change:** Reset the iOS health data ingestion limit now that initial backfill is complete.
+
+**Files Modified:**
+- `apps/mobile/views.py` - Changed MAX_METRICS_PER_REQUEST from 10000 to 5000
+
+---
+
+### Add server-side handlers for blood glucose, blood oxygen, and water intake
+
+**Feature:** Backend now processes blood_glucose, blood_oxygen, and water_intake metrics from iOS HealthKit sync.
+
+**Implementation:**
+1. `process_blood_glucose_metric` - Stores in GlucoseEntry with ISO8601 timestamp, uses `dexcom_record_id` for sync tracking
+2. `process_blood_oxygen_metric` - Stores in BloodOxygenEntry with SpO2 percentage
+3. `process_water_intake_metric` - Stores daily totals in WaterEntry
+
+**Files Modified:**
+- `apps/mobile/views.py` - Added imports and handler functions
+
+**Note:** Glucose data from Dexcom via Apple Health has ~3 hour delay due to Dexcom's batch sharing to Apple Health. This is a limitation of the Dexcom → Apple Health pathway, not WLJ.
+
+---
+
 ### Remove Dexcom direct connection UI from Blood Glucose dashboard
 
 **Change:** Removed the Dexcom CGM connection card and related UI elements from the Blood Glucose dashboard.

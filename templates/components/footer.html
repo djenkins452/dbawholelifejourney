@@ -4,9 +4,9 @@
     <div class="footer-container">
         <div class="footer-brand">
             <a href="{% url 'dashboard:home' %}" class="footer-logo-link">
-                <img src="{% static 'images/wlj-logo.png' %}" alt="Whole Life Journey" class="footer-logo">
+                <img src="{% if site_logo_url %}{{ site_logo_url }}{% else %}{% static 'images/wlj-logo.png' %}{% endif %}" alt="{{ site_name }}" class="footer-logo">
             </a>
-            <p class="footer-tagline">Your personal life operating system</p>
+            <p class="footer-tagline">{{ site_tagline }}</p>
         </div>
         
         <div class="footer-links">

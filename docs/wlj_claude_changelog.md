@@ -16,6 +16,20 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-24 Changes
 
+### Fix Site Configuration logo not appearing in navigation/footer
+
+**Problem:** Uploading a custom logo in Admin Console > Site Configuration didn't update the logo shown in the navigation header or footer. The templates were hardcoded to use a static image path instead of the dynamic `site_logo_url` from the context processor.
+
+**Fix:**
+1. Updated navigation.html to use `site_logo_url` when set, falling back to static default
+2. Updated footer.html to use `site_logo_url` and also use dynamic `site_name` and `site_tagline`
+
+**Files Modified:**
+- `templates/components/navigation.html` - Use dynamic logo from SiteConfiguration
+- `templates/components/footer.html` - Use dynamic logo, name, and tagline from SiteConfiguration
+
+---
+
 ### Fix iOS app memory crash from too many HealthKit samples
 
 **Problem:** App was killed by iOS due to memory pressure. With Dexcom CGM producing ~288 readings/day, fetching 7 days of blood glucose data meant 2000+ samples loaded into memory at once.

@@ -16,6 +16,42 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-24 Changes
 
+### Enhanced HealthKit Integration - Blood Glucose, SpO2, Water, Background Sync
+
+Expanded iOS HealthKit integration with additional health data types and automatic background sync.
+
+**New Health Data Types:**
+- Blood glucose readings (from Dexcom CGM via Apple Health)
+- Blood oxygen (SpO2 from Apple Watch)
+- Water intake (dietary water from Apple Health)
+
+**Background Sync:**
+- Automatic sync when app enters background
+- HealthKit observer queries for real-time data updates
+- Background processing task for periodic sync
+- Auto-sync when app becomes active
+
+**iOS Changes:**
+- `BackgroundSyncManager.swift` - Background delivery + BGTaskScheduler
+- `HealthKitManager.swift` - fetchBloodGlucose, fetchBloodOxygen, fetchWaterIntake
+- `HealthMetric.swift` - New fields for glucose, SpO2, water
+- Updated HealthSyncView with new data type rows
+- Info.plist - processing background mode, blood glucose/SpO2/water in usage description
+
+**Django Changes:**
+- `GlucoseEntry` - Added `apple_health` source choice, `sync_id` field
+- `BloodOxygenEntry` - Added `source`, `sync_id` fields
+- `WaterEntry` - Added `source`, `sync_id` fields
+- `apps/mobile/views.py` - process_blood_glucose_metric, process_blood_oxygen_metric, process_water_metric handlers
+
+**Migrations:**
+- `0028_add_glucose_apple_health_sync.py`
+- `0029_add_sync_fields_water_oxygen.py`
+
+**Also fixed:** Xcode compiler warnings (unused variables, discarded async results)
+
+---
+
 ### iOS Native Wrapper App + Mobile API Backend
 
 Complete implementation of native iOS app wrapper for WLJ with HealthKit integration.

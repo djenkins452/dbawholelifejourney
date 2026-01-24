@@ -62,7 +62,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Health")
                 } footer: {
-                    Text("Sync your Apple Health data to Whole Life Journey for tracking steps, weight, sleep, and heart rate.")
+                    Text("Sync your Apple Health data to Whole Life Journey for tracking steps, weight, sleep, heart rate, blood glucose, blood oxygen, and water intake.")
                 }
 
                 // MARK: - Account Section
@@ -197,7 +197,7 @@ struct SettingsView: View {
                 let code = try await requestExchangeCode()
 
                 // Exchange code for API token
-                let response = try await APIClient.shared.exchangeToken(code: code)
+                _ = try await APIClient.shared.exchangeToken(code: code)
 
                 await MainActor.run {
                     appState.isAuthenticated = true
@@ -256,7 +256,7 @@ struct SettingsView: View {
 
         Task {
             do {
-                try await HealthKitManager.shared.syncHealthData()
+                _ = try await HealthKitManager.shared.syncHealthData()
                 await MainActor.run {
                     appState.lastSyncDate = Date()
                     isSyncing = false

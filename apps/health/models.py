@@ -856,6 +856,23 @@ class WaterEntry(UserOwnedModel):
     )
     notes = models.TextField(blank=True)
 
+    # Sync fields for Apple Health integration
+    source = models.CharField(
+        max_length=20,
+        choices=[
+            ("manual", "Manual Entry"),
+            ("apple_health", "Apple Health"),
+            ("imported", "Imported"),
+        ],
+        default="manual",
+    )
+    sync_id = models.CharField(
+        max_length=100,
+        blank=True,
+        db_index=True,
+        help_text="External ID from synced source to prevent duplicates",
+    )
+
     class Meta:
         ordering = ["-logged_date", "-recorded_at"]
         verbose_name = "water entry"
@@ -940,6 +957,7 @@ class GlucoseEntry(UserOwnedModel):
     SOURCE_CHOICES = [
         ("manual", "Manual Entry"),
         ("dexcom", "Dexcom CGM"),
+        ("apple_health", "Apple Health"),
         ("imported", "Imported"),
     ]
 
@@ -1000,6 +1018,12 @@ class GlucoseEntry(UserOwnedModel):
         blank=True,
         db_index=True,
         help_text="Dexcom recordId for sync tracking"
+    )
+    sync_id = models.CharField(
+        max_length=100,
+        blank=True,
+        db_index=True,
+        help_text="External ID from synced source (HealthKit UUID) to prevent duplicates",
     )
     trend = models.CharField(
         max_length=20,
@@ -1230,6 +1254,23 @@ class BloodOxygenEntry(UserOwnedModel):
     )
     recorded_at = models.DateTimeField(default=timezone.now)
     notes = models.TextField(blank=True)
+
+    # Sync fields for Apple Health integration
+    source = models.CharField(
+        max_length=20,
+        choices=[
+            ("manual", "Manual Entry"),
+            ("apple_health", "Apple Health"),
+            ("imported", "Imported"),
+        ],
+        default="manual",
+    )
+    sync_id = models.CharField(
+        max_length=100,
+        blank=True,
+        db_index=True,
+        help_text="External ID from synced source to prevent duplicates",
+    )
 
     class Meta:
         ordering = ["-recorded_at"]

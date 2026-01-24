@@ -170,7 +170,7 @@ struct MainWebView: UIViewRepresentable {
         private func triggerHealthSync() {
             Task {
                 do {
-                    try await HealthKitManager.shared.syncHealthData()
+                    _ = try await HealthKitManager.shared.syncHealthData()
                     DispatchQueue.main.async {
                         self.parent.appState.lastSyncDate = Date()
                     }

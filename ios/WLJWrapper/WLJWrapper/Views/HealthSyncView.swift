@@ -50,6 +50,9 @@ struct HealthSyncView: View {
                 DataTypeRow(icon: "scalemass", title: "Weight", description: "Body weight measurements")
                 DataTypeRow(icon: "bed.double", title: "Sleep", description: "Sleep analysis and stages")
                 DataTypeRow(icon: "heart", title: "Heart Rate", description: "Resting and average heart rate")
+                DataTypeRow(icon: "drop.fill", title: "Blood Glucose", description: "CGM readings from Dexcom")
+                DataTypeRow(icon: "lungs.fill", title: "Blood Oxygen", description: "SpO2 from Apple Watch")
+                DataTypeRow(icon: "drop.triangle.fill", title: "Water Intake", description: "Daily hydration")
             } header: {
                 Text("Synced Data Types")
             } footer: {
@@ -131,7 +134,7 @@ struct HealthSyncView: View {
             do {
                 try await HealthKitManager.shared.requestAuthorization()
                 await MainActor.run {
-                    appState.healthKitAuthorized = true
+                    appState.onHealthKitAuthorized()
                     isRequestingPermission = false
                 }
             } catch {

@@ -34,6 +34,17 @@ struct HealthMetric: Codable {
     var maxHR: Int?
     var minHR: Int?
 
+    // Blood Glucose
+    var glucoseValue: Double?
+    var glucoseUnit: String?
+
+    // Blood Oxygen
+    var spo2Value: Int?
+
+    // Water Intake
+    var waterAmount: Double?
+    var waterUnit: String?
+
     enum CodingKeys: String, CodingKey {
         case type
         case date
@@ -52,6 +63,11 @@ struct HealthMetric: Codable {
         case avgHR = "avg_hr"
         case maxHR = "max_hr"
         case minHR = "min_hr"
+        case glucoseValue = "glucose_value"
+        case glucoseUnit = "glucose_unit"
+        case spo2Value = "spo2_value"
+        case waterAmount = "water_amount"
+        case waterUnit = "water_unit"
     }
 
     // MARK: - Convenience Initializers
@@ -101,6 +117,37 @@ struct HealthMetric: Codable {
         self.avgHR = avgHR
         self.maxHR = maxHR
         self.minHR = minHR
+        self.source = source
+        self.syncId = syncId
+    }
+
+    /// Create a blood glucose metric
+    init(type: String, date: String, glucoseValue: Double, glucoseUnit: String,
+         source: String, syncId: String) {
+        self.type = type
+        self.date = date
+        self.glucoseValue = glucoseValue
+        self.glucoseUnit = glucoseUnit
+        self.source = source
+        self.syncId = syncId
+    }
+
+    /// Create a blood oxygen metric
+    init(type: String, date: String, spo2Value: Int, source: String, syncId: String) {
+        self.type = type
+        self.date = date
+        self.spo2Value = spo2Value
+        self.source = source
+        self.syncId = syncId
+    }
+
+    /// Create a water intake metric
+    init(type: String, date: String, waterAmount: Double, waterUnit: String,
+         source: String, syncId: String) {
+        self.type = type
+        self.date = date
+        self.waterAmount = waterAmount
+        self.waterUnit = waterUnit
         self.source = source
         self.syncId = syncId
     }

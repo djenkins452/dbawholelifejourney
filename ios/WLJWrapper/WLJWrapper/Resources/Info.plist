@@ -31,7 +31,7 @@
 
     <!-- HealthKit Usage Description -->
     <key>NSHealthShareUsageDescription</key>
-    <string>Whole Life Journey reads your health data (steps, weight, sleep, and heart rate) to help you track your wellness journey. Your data is sent securely to your WLJ account and is never shared with third parties or used for advertising.</string>
+    <string>Whole Life Journey reads your health data (steps, weight, sleep, heart rate, blood glucose, blood oxygen, and water intake) to help you track your wellness journey. Your data is sent securely to your WLJ account and is never shared with third parties or used for advertising.</string>
 
     <!-- HealthKit Required Capabilities -->
     <key>UIRequiredDeviceCapabilities</key>
@@ -39,10 +39,17 @@
         <string>healthkit</string>
     </array>
 
-    <!-- Background Modes (scaffold for future background sync) -->
+    <!-- Background Modes for HealthKit background delivery -->
     <key>UIBackgroundModes</key>
     <array>
         <string>fetch</string>
+        <string>processing</string>
+    </array>
+
+    <!-- Background Task Identifiers -->
+    <key>BGTaskSchedulerPermittedIdentifiers</key>
+    <array>
+        <string>com.wholelifejourney.app.healthsync</string>
     </array>
 
     <!-- Supported Interface Orientations -->

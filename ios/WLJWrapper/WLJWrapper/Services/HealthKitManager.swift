@@ -39,6 +39,21 @@ class HealthKitManager {
             types.insert(sleepType)
         }
 
+        // Blood Glucose (from Dexcom CGM via Apple Health)
+        if let glucoseType = HKQuantityType.quantityType(forIdentifier: .bloodGlucose) {
+            types.insert(glucoseType)
+        }
+
+        // Blood Oxygen (SpO2 from Apple Watch)
+        if let oxygenType = HKQuantityType.quantityType(forIdentifier: .oxygenSaturation) {
+            types.insert(oxygenType)
+        }
+
+        // Dietary Water
+        if let waterType = HKQuantityType.quantityType(forIdentifier: .dietaryWater) {
+            types.insert(waterType)
+        }
+
         return types
     }()
 
@@ -88,11 +103,17 @@ class HealthKitManager {
         let weights = try await fetchWeight(from: startDate, to: endDate)
         let sleepData = try await fetchSleep(from: startDate, to: endDate)
         let heartRates = try await fetchHeartRate(from: startDate, to: endDate)
+        let glucoseReadings = try await fetchBloodGlucose(from: startDate, to: endDate)
+        let oxygenReadings = try await fetchBloodOxygen(from: startDate, to: endDate)
+        let waterIntake = try await fetchWaterIntake(from: startDate, to: endDate)
 
         metrics.append(contentsOf: steps)
         metrics.append(contentsOf: weights)
         metrics.append(contentsOf: sleepData)
         metrics.append(contentsOf: heartRates)
+        metrics.append(contentsOf: glucoseReadings)
+        metrics.append(contentsOf: oxygenReadings)
+        metrics.append(contentsOf: waterIntake)
 
         if metrics.isEmpty {
             return SyncResult(created: 0, updated: 0, skipped: 0, errors: 0)
@@ -353,6 +374,155 @@ class HealthKitManager {
                         source: "apple_health",
                         syncId: "hr-\(dateStr)"
                     ))
+                }
+
+                continuation.resume(returning: metrics)
+            }
+
+            healthStore.execute(query)
+        }
+    }
+
+    // MARK: - Fetch Blood Glucose
+
+    private func fetchBloodGlucose(from startDate: Date, to endDate: Date) async throws -> [HealthMetric] {
+        guard let glucoseType = HKQuantityType.quantityType(forIdentifier: .bloodGlucose) else {
+            return []
+        }
+
+        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate)
+        let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
+
+        return try await withCheckedThrowingContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: glucoseType,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: [sortDescriptor]
+            ) { _, samples, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                var metrics: [HealthMetric] = []
+                let isoFormatter = ISO8601DateFormatter()
+
+                for sample in (samples as? [HKQuantitySample]) ?? [] {
+                    // Blood glucose in mg/dL (standard US unit)
+                    let glucoseValue = sample.quantity.doubleValue(for: HKUnit(from: "mg/dL"))
+                    let timestamp = isoFormatter.string(from: sample.startDate)
+
+                    metrics.append(HealthMetric(
+                        type: "blood_glucose",
+                        date: timestamp,
+                        glucoseValue: glucoseValue,
+                        glucoseUnit: "mg/dL",
+                        source: "apple_health",
+                        syncId: "glucose-\(sample.uuid.uuidString)"
+                    ))
+                }
+
+                continuation.resume(returning: metrics)
+            }
+
+            healthStore.execute(query)
+        }
+    }
+
+    // MARK: - Fetch Blood Oxygen
+
+    private func fetchBloodOxygen(from startDate: Date, to endDate: Date) async throws -> [HealthMetric] {
+        guard let oxygenType = HKQuantityType.quantityType(forIdentifier: .oxygenSaturation) else {
+            return []
+        }
+
+        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate)
+        let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
+
+        return try await withCheckedThrowingContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: oxygenType,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: [sortDescriptor]
+            ) { _, samples, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                var metrics: [HealthMetric] = []
+                let isoFormatter = ISO8601DateFormatter()
+
+                for sample in (samples as? [HKQuantitySample]) ?? [] {
+                    // Blood oxygen is stored as a percentage (0.0-1.0), convert to %
+                    let spo2 = Int(sample.quantity.doubleValue(for: .percent()) * 100)
+                    let timestamp = isoFormatter.string(from: sample.startDate)
+
+                    metrics.append(HealthMetric(
+                        type: "blood_oxygen",
+                        date: timestamp,
+                        spo2Value: spo2,
+                        source: "apple_health",
+                        syncId: "oxygen-\(sample.uuid.uuidString)"
+                    ))
+                }
+
+                continuation.resume(returning: metrics)
+            }
+
+            healthStore.execute(query)
+        }
+    }
+
+    // MARK: - Fetch Water Intake
+
+    private func fetchWaterIntake(from startDate: Date, to endDate: Date) async throws -> [HealthMetric] {
+        guard let waterType = HKQuantityType.quantityType(forIdentifier: .dietaryWater) else {
+            return []
+        }
+
+        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate)
+
+        // Query daily totals
+        let interval = DateComponents(day: 1)
+        let query = HKStatisticsCollectionQuery(
+            quantityType: waterType,
+            quantitySamplePredicate: predicate,
+            options: .cumulativeSum,
+            anchorDate: Calendar.current.startOfDay(for: startDate),
+            intervalComponents: interval
+        )
+
+        return try await withCheckedThrowingContinuation { continuation in
+            query.initialResultsHandler = { _, results, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                var metrics: [HealthMetric] = []
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateFormat = "yyyy-MM-dd"
+
+                results?.enumerateStatistics(from: startDate, to: endDate) { statistics, _ in
+                    if let sum = statistics.sumQuantity() {
+                        // Water in fluid ounces
+                        let waterOz = sum.doubleValue(for: .fluidOunceUS())
+                        let dateStr = dateFormatter.string(from: statistics.startDate)
+
+                        if waterOz > 0 {
+                            metrics.append(HealthMetric(
+                                type: "water",
+                                date: dateStr,
+                                waterAmount: waterOz,
+                                waterUnit: "oz",
+                                source: "apple_health",
+                                syncId: "water-\(dateStr)"
+                            ))
+                        }
+                    }
                 }
 
                 continuation.resume(returning: metrics)

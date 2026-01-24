@@ -16,6 +16,30 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-24 Changes
 
+### Add Workout Sessions and Body Fat HealthKit Sync
+
+Extended HealthKit integration to sync workout sessions and body fat percentage.
+
+**iOS Changes:**
+- `HealthKitManager.swift` - Added `HKObjectType.workoutType()` and `.bodyFatPercentage` types
+- `HealthKitManager.swift` - New `fetchWorkouts()` function with activity type mapping (60+ workout types)
+- `HealthKitManager.swift` - New `fetchBodyFat()` function with daily deduplication
+- `HealthMetric.swift` - Added `bodyFatPercentage`, `workoutType`, `workoutDuration`, `workoutCalories`, `workoutDistance`, `workoutStartTime`, `workoutEndTime` fields
+- `BackgroundSyncManager.swift` - Observer queries for body fat and workouts
+- `HealthSyncView.swift` - New data type rows for Body Fat and Workouts
+- Updated Settings and Info.plist descriptions
+
+**Django Changes:**
+- `apps/health/models.py` - Added `body_fat_percentage`, `source`, `sync_id` fields to WeightEntry
+- `apps/health/models.py` - Added `workout_type`, `calories_burned`, `distance_miles`, `avg_heart_rate`, `source`, `sync_id` fields to WorkoutSession
+- `apps/mobile/views.py` - `process_body_fat_metric` and `process_workout_metric` handlers
+- Added `WorkoutSession` import and handlers for full workout sync
+
+**Migration:**
+- `0032_add_bodyfat_workout_sync_fields.py`
+
+---
+
 ### Add Exercise Minutes and Stand Hours HealthKit Sync
 
 Extended HealthKit integration to sync Apple Exercise Time and Stand Hours.

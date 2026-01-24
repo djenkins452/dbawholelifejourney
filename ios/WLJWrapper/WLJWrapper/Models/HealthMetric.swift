@@ -64,6 +64,17 @@ struct HealthMetric: Codable {
     // Stand Hours
     var standHoursValue: Int?
 
+    // Body Fat Percentage
+    var bodyFatPercentage: Double?
+
+    // Workout
+    var workoutType: String?
+    var workoutDuration: Int?
+    var workoutCalories: Int?
+    var workoutDistance: Double?
+    var workoutStartTime: String?
+    var workoutEndTime: String?
+
     enum CodingKeys: String, CodingKey {
         case type
         case date
@@ -94,6 +105,13 @@ struct HealthMetric: Codable {
         case flightsValue = "flights_value"
         case exerciseMinutesValue = "exercise_minutes_value"
         case standHoursValue = "stand_hours_value"
+        case bodyFatPercentage = "body_fat_percentage"
+        case workoutType = "workout_type"
+        case workoutDuration = "workout_duration"
+        case workoutCalories = "workout_calories"
+        case workoutDistance = "workout_distance"
+        case workoutStartTime = "workout_start_time"
+        case workoutEndTime = "workout_end_time"
     }
 
     // MARK: - Convenience Initializers
@@ -230,6 +248,31 @@ struct HealthMetric: Codable {
         self.type = type
         self.date = date
         self.standHoursValue = standHoursValue
+        self.source = source
+        self.syncId = syncId
+    }
+
+    /// Create a body fat percentage metric
+    init(type: String, date: String, bodyFatPercentage: Double, source: String, syncId: String) {
+        self.type = type
+        self.date = date
+        self.bodyFatPercentage = bodyFatPercentage
+        self.source = source
+        self.syncId = syncId
+    }
+
+    /// Create a workout metric
+    init(type: String, date: String, workoutType: String, workoutDuration: Int,
+         workoutCalories: Int?, workoutDistance: Double?, workoutStartTime: String,
+         workoutEndTime: String, source: String, syncId: String) {
+        self.type = type
+        self.date = date
+        self.workoutType = workoutType
+        self.workoutDuration = workoutDuration
+        self.workoutCalories = workoutCalories
+        self.workoutDistance = workoutDistance
+        self.workoutStartTime = workoutStartTime
+        self.workoutEndTime = workoutEndTime
         self.source = source
         self.syncId = syncId
     }

@@ -104,6 +104,8 @@ urlpatterns = [
     path('billing/', include('apps.billing.urls', namespace='billing')),
     # Security Assessment Dashboard (CISO Review)
     path('security/', include('apps.security.urls', namespace='security')),
+    # Mobile App API (iOS/Android)
+    path('api/mobile/', include('apps.mobile.urls', namespace='mobile')),
     # Referral link redirect (short URL)
     path('join', include([
         path('', lambda r: __import__('django.shortcuts', fromlist=['redirect']).redirect('billing:capture_referral') if r.GET.get('ref') else __import__('django.shortcuts', fromlist=['redirect']).redirect('account_signup')),

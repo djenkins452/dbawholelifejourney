@@ -68,6 +68,7 @@ class TermsAcceptanceMiddleware:
         "/admin/",
         "/static/",
         "/media/",
+        "/api/",  # API endpoints - handled with token auth, no session requirements
     ]
 
     ONBOARDING_PATHS = [

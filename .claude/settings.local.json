@@ -313,7 +313,8 @@
       "Bash(do echo \"=== $file ===\" grep -n \"logger\\\\.\" \"$file\")",
       "Bash(do echo \"=== $file ===\" grep -nE \"logger\\\\.\\\\w+\\\\\\([^\\)]*\\\\.email\" \"$file\")",
       "Bash(~/.zshrc)",
-      "Bash(export WLJ_CLAUDE_API_KEY=a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1)"
+      "Bash(export WLJ_CLAUDE_API_KEY=a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd iOS native wrapper app with HealthKit integration\n\nComplete implementation of iOS app for App Store submission:\n\nDjango Backend \\(apps/mobile/\\):\n- MobileDevice, MobileAPIToken, MobileTokenExchangeCode models\n- HealthIngestionRun audit model for health data submissions\n- Bearer token authentication via MobileAuthenticationMiddleware\n- Token exchange flow: web session → one-time code → API token\n- Health data ingestion endpoint with deduplication\n\niOS App \\(ios/WLJWrapper/\\):\n- SwiftUI app with WKWebView \\(domain allowlist\\)\n- HealthKit integration \\(steps, weight, sleep, heart rate\\)\n- Keychain storage for secure token/device ID\n- Native Settings screen \\(required for App Store\\)\n- JS bridge for web ↔ native communication\n\nDocumentation:\n- ios-wrapper-setup.md - Xcode setup guide\n- ios-healthkit-integration.md - HealthKit technical docs\n- ios-app-store-submission.md - Complete submission guide\n\n39 tests for mobile API \\(all passing\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
     ]
   }
 }

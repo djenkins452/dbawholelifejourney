@@ -16,6 +16,28 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-24 Changes
 
+### Add Resting Calories and Flights Climbed HealthKit Sync
+
+Extended HealthKit integration to sync basal/resting calories and flights of stairs climbed.
+
+**iOS Changes:**
+- `HealthKitManager.swift` - Added `.basalEnergyBurned` and `.flightsClimbed` types
+- `HealthKitManager.swift` - New `fetchRestingCalories()` and `fetchFlightsClimbed()` functions
+- `HealthMetric.swift` - Added `restingCaloriesValue`, `flightsValue` fields
+- `BackgroundSyncManager.swift` - Observer queries for basal energy and flights
+- `HealthSyncView.swift` - New data type rows for Resting Calories and Flights Climbed
+- `SettingsView.swift` - Updated sync description footer
+- `Info.plist` - Updated HealthKit usage description
+
+**Django Changes:**
+- `apps/health/models.py` - Added `resting_calories` and `flights_climbed` fields to StepsEntry
+- `apps/mobile/views.py` - `process_resting_calories_metric` and `process_flights_climbed_metric` handlers
+
+**Migration:**
+- `0030_add_resting_calories_flights_to_steps.py`
+
+---
+
 ### Add Active Calories and Distance HealthKit Sync
 
 Extended HealthKit integration to sync active calories burned and walking/running distance.

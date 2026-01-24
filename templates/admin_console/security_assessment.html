@@ -1,0 +1,787 @@
+{% extends "base.html" %}
+
+{% block title %}Security Assessment - Admin Console{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Security Assessment{% include "components/favorite_toggle.html" with page_title="Security Assessment" %}</h1>
+            <p class="page-subtitle">Comprehensive security posture report for Whole Life Journey</p>
+        </div>
+        <div class="header-actions">
+            <button type="button" class="btn btn-secondary" id="refresh-btn" title="Generate Fresh Report">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M23 4v6h-6M1 20v-6h6"/>
+                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                </svg>
+                Refresh
+            </button>
+            <button type="button" class="btn btn-primary" id="email-btn" title="Email Report">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                    <polyline points="22,6 12,13 2,6"/>
+                </svg>
+                Email Report
+            </button>
+        </div>
+    </div>
+
+    <!-- Email Modal -->
+    <div id="email-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Email Security Report</h3>
+                <button type="button" class="modal-close" id="close-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Send a comprehensive HTML security report to the specified email address.</p>
+                <div class="form-group">
+                    <label for="email-input">Recipient Email</label>
+                    <input type="email" id="email-input" class="form-control" placeholder="ciso@company.com">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" id="cancel-email">Cancel</button>
+                <button type="button" class="btn btn-primary" id="send-email">Send Report</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Executive Summary -->
+    <div class="summary-card">
+        <div class="summary-header">
+            <h2>Executive Summary</h2>
+            <div class="risk-badge risk-{{ assessment.overall_risk_level|lower }}">
+                {{ assessment.overall_risk_level }}
+            </div>
+        </div>
+        <div class="summary-meta">
+            <span><strong>Generated:</strong> {{ assessment.generated_at|date:"F j, Y H:i" }} UTC</span>
+            <span><strong>Controls:</strong> {{ assessment.total_controls }}</span>
+            <span><strong>Vulnerabilities:</strong> {{ assessment.total_vulnerabilities }}</span>
+        </div>
+
+        <div class="vuln-summary-grid">
+            <div class="vuln-summary-card critical">
+                <span class="vuln-count">{{ assessment.critical_vulnerabilities|length }}</span>
+                <span class="vuln-label">Critical</span>
+            </div>
+            <div class="vuln-summary-card high">
+                <span class="vuln-count">{{ assessment.high_vulnerabilities|length }}</span>
+                <span class="vuln-label">High</span>
+            </div>
+            <div class="vuln-summary-card medium">
+                <span class="vuln-count">{{ assessment.medium_vulnerabilities|length }}</span>
+                <span class="vuln-label">Medium</span>
+            </div>
+            <div class="vuln-summary-card low">
+                <span class="vuln-count">{{ assessment.low_vulnerabilities|length }}</span>
+                <span class="vuln-label">Low</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Compliance Status -->
+    <div class="section-card">
+        <h2>Compliance Status</h2>
+        <div class="compliance-grid">
+            {% for framework, status in assessment.compliance_status.items %}
+            <div class="compliance-item">
+                <span class="compliance-framework">{{ framework }}</span>
+                <span class="compliance-status {% if 'YES' in status %}status-yes{% elif 'PARTIAL' in status %}status-partial{% else %}status-no{% endif %}">
+                    {{ status }}
+                </span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Vulnerabilities Section -->
+    <div class="section-card">
+        <h2>Identified Vulnerabilities</h2>
+
+        {% if assessment.critical_vulnerabilities %}
+        <h3 class="risk-heading critical">Critical Risk ({{ assessment.critical_vulnerabilities|length }})</h3>
+        {% for vuln in assessment.critical_vulnerabilities %}
+        <div class="vuln-card critical">
+            <div class="vuln-header">
+                <span class="vuln-title">{{ vuln.title }}</span>
+                <span class="vuln-badge critical">CRITICAL</span>
+            </div>
+            <p class="vuln-description">{{ vuln.description }}</p>
+            <div class="vuln-details">
+                {% if vuln.location %}<p><strong>Location:</strong> <code>{{ vuln.location }}</code></p>{% endif %}
+                <p><strong>Impact:</strong> {{ vuln.impact }}</p>
+                <p><strong>Recommendation:</strong> {{ vuln.recommendation }}</p>
+                <p><strong>Estimated Effort:</strong> {{ vuln.effort }}</p>
+            </div>
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        {% if assessment.high_vulnerabilities %}
+        <h3 class="risk-heading high">High Risk ({{ assessment.high_vulnerabilities|length }})</h3>
+        {% for vuln in assessment.high_vulnerabilities %}
+        <div class="vuln-card high">
+            <div class="vuln-header">
+                <span class="vuln-title">{{ vuln.title }}</span>
+                <span class="vuln-badge high">HIGH</span>
+            </div>
+            <p class="vuln-description">{{ vuln.description }}</p>
+            <details class="vuln-details-toggle">
+                <summary>Details & Recommendation</summary>
+                <div class="vuln-details">
+                    {% if vuln.location %}<p><strong>Location:</strong> <code>{{ vuln.location }}</code></p>{% endif %}
+                    <p><strong>Impact:</strong> {{ vuln.impact }}</p>
+                    <p><strong>Recommendation:</strong> {{ vuln.recommendation }}</p>
+                    <p><strong>Estimated Effort:</strong> {{ vuln.effort }}</p>
+                </div>
+            </details>
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        {% if assessment.medium_vulnerabilities %}
+        <h3 class="risk-heading medium">Medium Risk ({{ assessment.medium_vulnerabilities|length }})</h3>
+        {% for vuln in assessment.medium_vulnerabilities %}
+        <div class="vuln-card medium">
+            <div class="vuln-header">
+                <span class="vuln-title">{{ vuln.title }}</span>
+                <span class="vuln-badge medium">MEDIUM</span>
+            </div>
+            <p class="vuln-description">{{ vuln.description }}</p>
+            <details class="vuln-details-toggle">
+                <summary>Details & Recommendation</summary>
+                <div class="vuln-details">
+                    {% if vuln.location %}<p><strong>Location:</strong> <code>{{ vuln.location }}</code></p>{% endif %}
+                    <p><strong>Impact:</strong> {{ vuln.impact }}</p>
+                    <p><strong>Recommendation:</strong> {{ vuln.recommendation }}</p>
+                    <p><strong>Estimated Effort:</strong> {{ vuln.effort }}</p>
+                </div>
+            </details>
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        {% if assessment.low_vulnerabilities %}
+        <h3 class="risk-heading low">Low Risk ({{ assessment.low_vulnerabilities|length }})</h3>
+        {% for vuln in assessment.low_vulnerabilities %}
+        <div class="vuln-card low">
+            <div class="vuln-header">
+                <span class="vuln-title">{{ vuln.title }}</span>
+                <span class="vuln-badge low">LOW</span>
+            </div>
+            <p class="vuln-description">{{ vuln.description }}</p>
+            <details class="vuln-details-toggle">
+                <summary>Details & Recommendation</summary>
+                <div class="vuln-details">
+                    {% if vuln.location %}<p><strong>Location:</strong> <code>{{ vuln.location }}</code></p>{% endif %}
+                    <p><strong>Impact:</strong> {{ vuln.impact }}</p>
+                    <p><strong>Recommendation:</strong> {{ vuln.recommendation }}</p>
+                    <p><strong>Estimated Effort:</strong> {{ vuln.effort }}</p>
+                </div>
+            </details>
+        </div>
+        {% endfor %}
+        {% endif %}
+    </div>
+
+    <!-- Implemented Controls Section -->
+    <div class="section-card">
+        <h2>Implemented Security Controls</h2>
+
+        <details class="controls-section" open>
+            <summary><h3>Authentication & Authorization ({{ assessment.authentication_controls|length }})</h3></summary>
+            {% for control in assessment.authentication_controls %}
+            <div class="control-card">
+                <div class="control-header">
+                    <span class="control-title">{{ control.title }}</span>
+                    <span class="control-badge {% if control.status == 'implemented' %}implemented{% else %}partial{% endif %}">
+                        {{ control.status|upper }}
+                    </span>
+                </div>
+                <p class="control-description">{{ control.description }}</p>
+                {% if control.details %}
+                <ul class="control-details">
+                    {% for detail in control.details %}
+                    <li>{{ detail }}</li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </details>
+
+        <details class="controls-section">
+            <summary><h3>Data Protection ({{ assessment.data_protection_controls|length }})</h3></summary>
+            {% for control in assessment.data_protection_controls %}
+            <div class="control-card">
+                <div class="control-header">
+                    <span class="control-title">{{ control.title }}</span>
+                    <span class="control-badge {% if control.status == 'implemented' %}implemented{% else %}partial{% endif %}">
+                        {{ control.status|upper }}
+                    </span>
+                </div>
+                <p class="control-description">{{ control.description }}</p>
+                {% if control.details %}
+                <ul class="control-details">
+                    {% for detail in control.details %}
+                    <li>{{ detail }}</li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </details>
+
+        <details class="controls-section">
+            <summary><h3>API Security ({{ assessment.api_security_controls|length }})</h3></summary>
+            {% for control in assessment.api_security_controls %}
+            <div class="control-card">
+                <div class="control-header">
+                    <span class="control-title">{{ control.title }}</span>
+                    <span class="control-badge {% if control.status == 'implemented' %}implemented{% else %}partial{% endif %}">
+                        {{ control.status|upper }}
+                    </span>
+                </div>
+                <p class="control-description">{{ control.description }}</p>
+                {% if control.details %}
+                <ul class="control-details">
+                    {% for detail in control.details %}
+                    <li>{{ detail }}</li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </details>
+
+        <details class="controls-section">
+            <summary><h3>Infrastructure ({{ assessment.infrastructure_controls|length }})</h3></summary>
+            {% for control in assessment.infrastructure_controls %}
+            <div class="control-card">
+                <div class="control-header">
+                    <span class="control-title">{{ control.title }}</span>
+                    <span class="control-badge {% if control.status == 'implemented' %}implemented{% else %}partial{% endif %}">
+                        {{ control.status|upper }}
+                    </span>
+                </div>
+                <p class="control-description">{{ control.description }}</p>
+                {% if control.details %}
+                <ul class="control-details">
+                    {% for detail in control.details %}
+                    <li>{{ detail }}</li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </details>
+
+        <details class="controls-section">
+            <summary><h3>Fraud Prevention ({{ assessment.fraud_prevention_controls|length }})</h3></summary>
+            {% for control in assessment.fraud_prevention_controls %}
+            <div class="control-card">
+                <div class="control-header">
+                    <span class="control-title">{{ control.title }}</span>
+                    <span class="control-badge {% if control.status == 'implemented' %}implemented{% else %}partial{% endif %}">
+                        {{ control.status|upper }}
+                    </span>
+                </div>
+                <p class="control-description">{{ control.description }}</p>
+                {% if control.details %}
+                <ul class="control-details">
+                    {% for detail in control.details %}
+                    <li>{{ detail }}</li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </details>
+
+        <details class="controls-section">
+            <summary><h3>Logging & Monitoring ({{ assessment.logging_controls|length }})</h3></summary>
+            {% for control in assessment.logging_controls %}
+            <div class="control-card">
+                <div class="control-header">
+                    <span class="control-title">{{ control.title }}</span>
+                    <span class="control-badge {% if control.status == 'implemented' %}implemented{% else %}partial{% endif %}">
+                        {{ control.status|upper }}
+                    </span>
+                </div>
+                <p class="control-description">{{ control.description }}</p>
+                {% if control.details %}
+                <ul class="control-details">
+                    {% for detail in control.details %}
+                    <li>{{ detail }}</li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </details>
+    </div>
+
+    <!-- Back to Admin Console -->
+    <div class="back-link">
+        <a href="{% url 'admin_console:dashboard' %}" class="btn btn-secondary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M19 12H5M12 19l-7-7 7-7"/>
+            </svg>
+            Back to Admin Console
+        </a>
+    </div>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+    margin-bottom: var(--space-6);
+}
+
+.header-actions {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.header-actions .btn {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+/* Summary Card */
+.summary-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    margin-bottom: var(--space-6);
+}
+
+.summary-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-4);
+}
+
+.summary-header h2 {
+    margin: 0;
+}
+
+.risk-badge {
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius-md);
+    font-weight: 700;
+    font-size: var(--font-size-sm);
+}
+
+.risk-badge.risk-critical { background: #fee2e2; color: #991b1b; }
+.risk-badge.risk-high { background: #fef3c7; color: #92400e; }
+.risk-badge.risk-medium { background: #fef9c3; color: #854d0e; }
+.risk-badge.risk-low { background: #dcfce7; color: #166534; }
+
+.summary-meta {
+    display: flex;
+    gap: var(--space-6);
+    margin-bottom: var(--space-6);
+    flex-wrap: wrap;
+    color: var(--color-text-muted);
+}
+
+.vuln-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--space-4);
+}
+
+@media (max-width: 768px) {
+    .vuln-summary-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+.vuln-summary-card {
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+    text-align: center;
+}
+
+.vuln-summary-card.critical { background: #fee2e2; border-left: 4px solid #ef4444; }
+.vuln-summary-card.high { background: #fef3c7; border-left: 4px solid #f59e0b; }
+.vuln-summary-card.medium { background: #fef9c3; border-left: 4px solid #eab308; }
+.vuln-summary-card.low { background: #dcfce7; border-left: 4px solid #22c55e; }
+
+.vuln-count {
+    display: block;
+    font-size: var(--font-size-3xl);
+    font-weight: 700;
+    line-height: 1;
+}
+
+.vuln-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+/* Section Card */
+.section-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    margin-bottom: var(--space-6);
+}
+
+.section-card h2 {
+    margin-top: 0;
+    margin-bottom: var(--space-4);
+    padding-bottom: var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+}
+
+/* Compliance Grid */
+.compliance-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: var(--space-3);
+}
+
+.compliance-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: var(--space-3);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+}
+
+.compliance-framework {
+    font-weight: 600;
+}
+
+.compliance-status {
+    font-size: var(--font-size-sm);
+    text-align: right;
+    max-width: 60%;
+}
+
+.compliance-status.status-yes { color: #166534; }
+.compliance-status.status-partial { color: #92400e; }
+.compliance-status.status-no { color: #991b1b; }
+
+/* Risk Headings */
+.risk-heading {
+    margin-top: var(--space-6);
+    margin-bottom: var(--space-4);
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius-md);
+}
+
+.risk-heading.critical { background: #fee2e2; color: #991b1b; }
+.risk-heading.high { background: #fef3c7; color: #92400e; }
+.risk-heading.medium { background: #fef9c3; color: #854d0e; }
+.risk-heading.low { background: #dcfce7; color: #166534; }
+
+/* Vulnerability Cards */
+.vuln-card {
+    padding: var(--space-4);
+    margin-bottom: var(--space-3);
+    border-radius: var(--radius-md);
+    border-left: 4px solid;
+}
+
+.vuln-card.critical { background: #fef2f2; border-color: #ef4444; }
+.vuln-card.high { background: #fffbeb; border-color: #f59e0b; }
+.vuln-card.medium { background: #fefce8; border-color: #eab308; }
+.vuln-card.low { background: #f0fdf4; border-color: #22c55e; }
+
+.vuln-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-2);
+}
+
+.vuln-title {
+    font-weight: 600;
+    font-size: var(--font-size-lg);
+}
+
+.vuln-badge {
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+}
+
+.vuln-badge.critical { background: #ef4444; color: white; }
+.vuln-badge.high { background: #f59e0b; color: white; }
+.vuln-badge.medium { background: #eab308; color: white; }
+.vuln-badge.low { background: #22c55e; color: white; }
+
+.vuln-description {
+    margin-bottom: var(--space-3);
+}
+
+.vuln-details-toggle {
+    margin-top: var(--space-2);
+}
+
+.vuln-details-toggle summary {
+    cursor: pointer;
+    color: var(--color-accent);
+    font-weight: 500;
+}
+
+.vuln-details {
+    margin-top: var(--space-3);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--color-border);
+}
+
+.vuln-details p {
+    margin: var(--space-2) 0;
+}
+
+.vuln-details code {
+    background: rgba(0,0,0,0.05);
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+}
+
+/* Controls Section */
+.controls-section {
+    margin-bottom: var(--space-4);
+}
+
+.controls-section summary {
+    cursor: pointer;
+    padding: var(--space-2);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-3);
+}
+
+.controls-section summary h3 {
+    display: inline;
+    margin: 0;
+}
+
+.control-card {
+    padding: var(--space-4);
+    margin-bottom: var(--space-3);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    border-left: 4px solid #22c55e;
+}
+
+.control-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-2);
+}
+
+.control-title {
+    font-weight: 600;
+}
+
+.control-badge {
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+}
+
+.control-badge.implemented { background: #22c55e; color: white; }
+.control-badge.partial { background: #f59e0b; color: white; }
+
+.control-description {
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-2);
+}
+
+.control-details {
+    margin: var(--space-2) 0 0 var(--space-4);
+    font-size: var(--font-size-sm);
+}
+
+.control-details li {
+    margin-bottom: var(--space-1);
+}
+
+/* Modal */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modal-content {
+    background: var(--color-background);
+    border-radius: var(--radius-lg);
+    width: 90%;
+    max-width: 500px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-4) var(--space-5);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.modal-header h3 {
+    margin: 0;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: var(--color-text-muted);
+}
+
+.modal-body {
+    padding: var(--space-5);
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-5);
+    border-top: 1px solid var(--color-border);
+}
+
+/* Back Link */
+.back-link {
+    margin-top: var(--space-6);
+}
+
+.back-link .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+/* Loading State */
+.btn.loading {
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+.btn.loading svg {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+</style>
+
+<script nonce="{{ csp_nonce }}">
+document.addEventListener('DOMContentLoaded', function() {
+    const refreshBtn = document.getElementById('refresh-btn');
+    const emailBtn = document.getElementById('email-btn');
+    const emailModal = document.getElementById('email-modal');
+    const closeModal = document.getElementById('close-modal');
+    const cancelEmail = document.getElementById('cancel-email');
+    const sendEmail = document.getElementById('send-email');
+    const emailInput = document.getElementById('email-input');
+
+    // Refresh button
+    refreshBtn.addEventListener('click', function() {
+        refreshBtn.classList.add('loading');
+        window.location.reload();
+    });
+
+    // Email modal
+    emailBtn.addEventListener('click', function() {
+        emailModal.style.display = 'flex';
+        emailInput.focus();
+    });
+
+    closeModal.addEventListener('click', function() {
+        emailModal.style.display = 'none';
+    });
+
+    cancelEmail.addEventListener('click', function() {
+        emailModal.style.display = 'none';
+    });
+
+    // Close modal on outside click
+    emailModal.addEventListener('click', function(e) {
+        if (e.target === emailModal) {
+            emailModal.style.display = 'none';
+        }
+    });
+
+    // Send email
+    sendEmail.addEventListener('click', function() {
+        const email = emailInput.value.trim();
+        if (!email) {
+            alert('Please enter an email address');
+            return;
+        }
+
+        sendEmail.classList.add('loading');
+        sendEmail.textContent = 'Sending...';
+
+        fetch('{% url "admin_console:api_security_assessment_email" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: 'email=' + encodeURIComponent(email)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Security report sent to ' + email);
+                emailModal.style.display = 'none';
+                emailInput.value = '';
+            } else {
+                alert('Error: ' + data.error);
+            }
+        })
+        .catch(error => {
+            alert('Error sending email: ' + error);
+        })
+        .finally(() => {
+            sendEmail.classList.remove('loading');
+            sendEmail.textContent = 'Send Report';
+        });
+    });
+
+    // Enter key in email input
+    emailInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            sendEmail.click();
+        }
+    });
+});
+</script>
+{% endblock %}

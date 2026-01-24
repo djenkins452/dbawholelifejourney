@@ -257,8 +257,13 @@ struct SettingsView: View {
         Task {
             do {
                 _ = try await HealthKitManager.shared.syncHealthData()
+
+                // Fetch the server's sync timestamp instead of using local Date()
+                let syncStatus = try await APIClient.shared.getSyncStatus()
+                let serverSyncDate = parseISO8601Date(syncStatus.lastSync)
+
                 await MainActor.run {
-                    appState.lastSyncDate = Date()
+                    appState.lastSyncDate = serverSyncDate ?? Date()
                     isSyncing = false
                 }
             } catch {
@@ -269,6 +274,20 @@ struct SettingsView: View {
                 }
             }
         }
+    }
+
+    private func parseISO8601Date(_ dateString: String?) -> Date? {
+        guard let dateString = dateString else { return nil }
+
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = formatter.date(from: dateString) {
+            return date
+        }
+
+        // Try without fractional seconds
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: dateString)
     }
 }
 

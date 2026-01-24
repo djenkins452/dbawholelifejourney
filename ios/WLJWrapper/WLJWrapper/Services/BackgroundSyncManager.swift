@@ -64,6 +64,10 @@ class BackgroundSyncManager {
             HKQuantityType.quantityType(forIdentifier: .bodyFatPercentage),
             HKQuantityType.quantityType(forIdentifier: .leanBodyMass),
             HKQuantityType.quantityType(forIdentifier: .respiratoryRate),
+            HKQuantityType.quantityType(forIdentifier: .heartRateVariabilitySDNN),
+            HKQuantityType.quantityType(forIdentifier: .vo2Max),
+            HKQuantityType.quantityType(forIdentifier: .dietaryCaffeine),
+            HKCategoryType.categoryType(forIdentifier: .mindfulSession),
             HKCategoryType.categoryType(forIdentifier: .sleepAnalysis),
             HKObjectType.workoutType()
         ].compactMap { $0 }

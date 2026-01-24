@@ -3460,6 +3460,40 @@ class SleepEntry(UserOwnedModel):
         help_text="Average breaths per minute during sleep",
     )
 
+    # Heart Rate Variability (HRV SDNN in milliseconds)
+    hrv_value = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Heart Rate Variability SDNN in milliseconds",
+    )
+
+    # VO2 Max (mL/kg/min - cardiorespiratory fitness)
+    vo2_max = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="VO2 Max in mL/kg/min (cardio fitness level)",
+    )
+
+    # Caffeine intake (milligrams)
+    caffeine_mg = models.DecimalField(
+        max_digits=6,
+        decimal_places=1,
+        null=True,
+        blank=True,
+        help_text="Daily caffeine intake in milligrams",
+    )
+
+    # Mindful minutes (meditation/mindfulness time)
+    mindful_minutes = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Daily mindful minutes (meditation, breathing exercises)",
+    )
+
     # Source tracking for wearable sync
     source = models.CharField(
         max_length=20,

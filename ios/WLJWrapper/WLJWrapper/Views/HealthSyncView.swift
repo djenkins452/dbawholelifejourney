@@ -63,6 +63,10 @@ struct HealthSyncView: View {
                 DataTypeRow(icon: "figure.mixed.cardio", title: "Workouts", description: "Workout sessions")
                 DataTypeRow(icon: "figure.arms.open", title: "Lean Body Mass", description: "Muscle and non-fat mass")
                 DataTypeRow(icon: "wind", title: "Respiratory Rate", description: "Breaths per minute")
+                DataTypeRow(icon: "waveform.path.ecg", title: "Heart Rate Variability", description: "HRV in milliseconds")
+                DataTypeRow(icon: "lungs", title: "VO2 Max", description: "Cardio fitness level")
+                DataTypeRow(icon: "cup.and.saucer.fill", title: "Caffeine", description: "Daily caffeine intake")
+                DataTypeRow(icon: "brain.head.profile", title: "Mindful Minutes", description: "Meditation and mindfulness")
             } header: {
                 Text("Synced Data Types")
             } footer: {

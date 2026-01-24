@@ -82,6 +82,18 @@ struct HealthMetric: Codable {
     // Respiratory Rate
     var respiratoryRate: Double?
 
+    // Heart Rate Variability (HRV)
+    var hrvValue: Double?
+
+    // VO2 Max
+    var vo2MaxValue: Double?
+
+    // Caffeine
+    var caffeineValue: Double?
+
+    // Mindful Minutes
+    var mindfulMinutesValue: Int?
+
     enum CodingKeys: String, CodingKey {
         case type
         case date
@@ -122,6 +134,10 @@ struct HealthMetric: Codable {
         case leanMassValue = "lean_mass_value"
         case leanMassUnit = "lean_mass_unit"
         case respiratoryRate = "respiratory_rate"
+        case hrvValue = "hrv_value"
+        case vo2MaxValue = "vo2_max_value"
+        case caffeineValue = "caffeine_value"
+        case mindfulMinutesValue = "mindful_minutes_value"
     }
 
     // MARK: - Convenience Initializers
@@ -303,6 +319,42 @@ struct HealthMetric: Codable {
         self.type = type
         self.date = date
         self.respiratoryRate = respiratoryRate
+        self.source = source
+        self.syncId = syncId
+    }
+
+    /// Create an HRV metric
+    init(type: String, date: String, hrvValue: Double, source: String, syncId: String) {
+        self.type = type
+        self.date = date
+        self.hrvValue = hrvValue
+        self.source = source
+        self.syncId = syncId
+    }
+
+    /// Create a VO2 Max metric
+    init(type: String, date: String, vo2MaxValue: Double, source: String, syncId: String) {
+        self.type = type
+        self.date = date
+        self.vo2MaxValue = vo2MaxValue
+        self.source = source
+        self.syncId = syncId
+    }
+
+    /// Create a caffeine metric
+    init(type: String, date: String, caffeineValue: Double, source: String, syncId: String) {
+        self.type = type
+        self.date = date
+        self.caffeineValue = caffeineValue
+        self.source = source
+        self.syncId = syncId
+    }
+
+    /// Create a mindful minutes metric
+    init(type: String, date: String, mindfulMinutesValue: Int, source: String, syncId: String) {
+        self.type = type
+        self.date = date
+        self.mindfulMinutesValue = mindfulMinutesValue
         self.source = source
         self.syncId = syncId
     }

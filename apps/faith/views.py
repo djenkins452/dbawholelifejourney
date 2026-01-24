@@ -70,8 +70,8 @@ from .models import (
 
 logger = logging.getLogger(__name__)
 
-# Bible API base URL (api.bible uses rest.api.bible endpoint)
-BIBLE_API_BASE = "https://rest.api.bible/v1"
+# YouVersion Bible API base URL
+BIBLE_API_BASE = "https://api.youversion.com/v1"
 
 
 class FaithRequiredMixin(UserPassesTestMixin):
@@ -712,22 +712,22 @@ class ReflectionCreateView(LoginRequiredMixin, FaithRequiredMixin, CreateView):
 
 class BibleAPIProxyMixin:
     """
-    Mixin providing Bible API proxy functionality.
+    Mixin providing YouVersion Bible API proxy functionality.
 
     Security: Keeps Bible API key server-side, never exposed to frontend.
     """
 
     def get_api_key(self):
-        """Get the Bible API key from settings."""
-        return getattr(settings, 'BIBLE_API_KEY', '')
+        """Get the YouVersion API key from settings."""
+        return getattr(settings, 'YOUVERSION_API_KEY', '')
 
     def is_api_configured(self):
-        """Check if Bible API is configured."""
+        """Check if YouVersion API is configured."""
         return bool(self.get_api_key())
 
     def make_api_request(self, endpoint, params=None):
         """
-        Make a request to the Bible API.
+        Make a request to the YouVersion Bible API.
 
         Args:
             endpoint: API endpoint path (e.g., '/bibles')
@@ -741,23 +741,23 @@ class BibleAPIProxyMixin:
             return False, {"error": "Bible API is not configured"}
 
         url = f"{BIBLE_API_BASE}{endpoint}"
-        headers = {"api-key": api_key}
+        headers = {"X-YVP-App-Key": api_key}
 
         try:
             response = requests.get(url, headers=headers, params=params, timeout=10)
             response.raise_for_status()
             return True, response.json()
         except requests.exceptions.Timeout:
-            logger.warning(f"Bible API timeout: {endpoint}")
+            logger.warning(f"YouVersion API timeout: {endpoint}")
             return False, {"error": "Request timed out"}
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 401:
-                logger.error("Bible API: Invalid or expired API key")
+                logger.error("YouVersion API: Invalid or expired API key")
                 return False, {"error": "Bible API key is invalid or expired. Please contact the administrator."}
-            logger.error(f"Bible API HTTP error: {e}")
+            logger.error(f"YouVersion API HTTP error: {e}")
             return False, {"error": f"Bible API error: {e.response.status_code}"}
         except requests.exceptions.RequestException as e:
-            logger.error(f"Bible API error: {e}")
+            logger.error(f"YouVersion API error: {e}")
             return False, {"error": "Failed to fetch from Bible API"}
 
 
@@ -776,9 +776,10 @@ class BibleAPIStatusView(LoginRequiredMixin, FaithRequiredMixin, BibleAPIProxyMi
 
 class BibleAPIBiblesView(LoginRequiredMixin, FaithRequiredMixin, BibleAPIProxyMixin, View):
     """
-    Proxy for Bible API /bibles endpoint.
+    Proxy for YouVersion API /bibles endpoint.
 
     Returns list of available Bible translations.
+    Supports language filtering via language_ranges parameter.
     """
 
     def get(self, request):
@@ -788,15 +789,33 @@ class BibleAPIBiblesView(LoginRequiredMixin, FaithRequiredMixin, BibleAPIProxyMi
                 status=503
             )
 
-        success, data = self.make_api_request("/bibles")
+        # YouVersion requires language_ranges parameter
+        # Default to English, but allow override via query param
+        params = {}
+        language = request.GET.get('language', 'en')
+        params['language_ranges[]'] = language
+
+        success, data = self.make_api_request("/bibles", params=params)
         if success:
-            return JsonResponse(data)
+            # Transform YouVersion response to match frontend expectations
+            # YouVersion returns: {"data": [...], "next_page_token": ..., "total_size": ...}
+            # Frontend expects: {"data": [{"id": ..., "name": ..., "abbreviation": ...}, ...]}
+            transformed_data = []
+            for bible in data.get('data', []):
+                transformed_data.append({
+                    'id': str(bible.get('id', '')),
+                    'name': bible.get('title', bible.get('localized_title', '')),
+                    'abbreviation': bible.get('abbreviation', bible.get('localized_abbreviation', '')),
+                    'language': bible.get('language_tag', ''),
+                    'copyright': bible.get('copyright', ''),
+                })
+            return JsonResponse({'data': transformed_data})
         return JsonResponse(data, status=500)
 
 
 class BibleAPIBooksView(LoginRequiredMixin, FaithRequiredMixin, BibleAPIProxyMixin, View):
     """
-    Proxy for Bible API /bibles/{bibleId}/books endpoint.
+    Proxy for YouVersion API /bibles/{bibleId}/books endpoint.
 
     Returns list of books in a specific Bible translation.
     """
@@ -812,13 +831,24 @@ class BibleAPIBooksView(LoginRequiredMixin, FaithRequiredMixin, BibleAPIProxyMix
         safe_bible_id = quote(bible_id, safe='')
         success, data = self.make_api_request(f"/bibles/{safe_bible_id}/books")
         if success:
-            return JsonResponse(data)
+            # Transform YouVersion response to match frontend expectations
+            # YouVersion returns array of books with id, title, abbreviation, etc.
+            transformed_data = []
+            books = data.get('data', data) if isinstance(data, dict) else data
+            if isinstance(books, list):
+                for book in books:
+                    transformed_data.append({
+                        'id': book.get('id', book.get('usfm', '')),
+                        'name': book.get('title', book.get('full_title', '')),
+                        'abbreviation': book.get('abbreviation', ''),
+                    })
+            return JsonResponse({'data': transformed_data})
         return JsonResponse(data, status=500)
 
 
 class BibleAPIChaptersView(LoginRequiredMixin, FaithRequiredMixin, BibleAPIProxyMixin, View):
     """
-    Proxy for Bible API /bibles/{bibleId}/books/{bookId}/chapters endpoint.
+    Proxy for YouVersion API /bibles/{bibleId}/books/{bookId}/chapters endpoint.
 
     Returns list of chapters in a specific book.
     """
@@ -837,15 +867,27 @@ class BibleAPIChaptersView(LoginRequiredMixin, FaithRequiredMixin, BibleAPIProxy
             f"/bibles/{safe_bible_id}/books/{safe_book_id}/chapters"
         )
         if success:
-            return JsonResponse(data)
+            # Transform YouVersion response to match frontend expectations
+            transformed_data = []
+            chapters = data.get('data', data) if isinstance(data, dict) else data
+            if isinstance(chapters, list):
+                for chapter in chapters:
+                    # YouVersion uses passage_id like "GEN.1"
+                    chapter_id = chapter.get('id', chapter.get('passage_id', ''))
+                    transformed_data.append({
+                        'id': chapter_id,
+                        'number': chapter.get('title', chapter_id.split('.')[-1] if '.' in str(chapter_id) else chapter_id),
+                    })
+            return JsonResponse({'data': transformed_data})
         return JsonResponse(data, status=500)
 
 
 class BibleAPIVersesView(LoginRequiredMixin, FaithRequiredMixin, BibleAPIProxyMixin, View):
     """
-    Proxy for Bible API /bibles/{bibleId}/chapters/{chapterId}/verses endpoint.
+    Proxy for YouVersion API - get verses in a chapter.
 
-    Returns list of verses in a specific chapter.
+    YouVersion doesn't have a direct verses list endpoint like api.bible.
+    We use the passages endpoint to get the full chapter text.
     """
 
     def get(self, request, bible_id, chapter_id):
@@ -857,20 +899,31 @@ class BibleAPIVersesView(LoginRequiredMixin, FaithRequiredMixin, BibleAPIProxyMi
 
         # Sanitize inputs
         safe_bible_id = quote(bible_id, safe='')
+        # chapter_id should be in format like "GEN.1"
         safe_chapter_id = quote(chapter_id, safe='')
+
+        # Use passages endpoint to get chapter content
         success, data = self.make_api_request(
-            f"/bibles/{safe_bible_id}/chapters/{safe_chapter_id}/verses"
+            f"/bibles/{safe_bible_id}/passages/{safe_chapter_id}"
         )
         if success:
-            return JsonResponse(data)
+            # Return passage data - frontend will handle display
+            return JsonResponse({
+                'data': {
+                    'id': data.get('id', chapter_id),
+                    'reference': data.get('reference', ''),
+                    'content': data.get('content', ''),
+                }
+            })
         return JsonResponse(data, status=500)
 
 
 class BibleAPIVerseView(LoginRequiredMixin, FaithRequiredMixin, BibleAPIProxyMixin, View):
     """
-    Proxy for Bible API /bibles/{bibleId}/verses/{verseId} endpoint.
+    Proxy for YouVersion API /bibles/{bibleId}/passages/{passageId} endpoint.
 
     Returns a specific verse or verse range.
+    YouVersion uses passages endpoint for both single verses and ranges.
     """
 
     def get(self, request, bible_id, verse_id):
@@ -882,33 +935,38 @@ class BibleAPIVerseView(LoginRequiredMixin, FaithRequiredMixin, BibleAPIProxyMix
 
         # Sanitize inputs
         safe_bible_id = quote(bible_id, safe='')
+        # verse_id should be in USFM format like "JHN.3.16" or "JHN.3.16-18"
         safe_verse_id = quote(verse_id, safe='')
 
         # Pass through query params for content options
         params = {}
-        if request.GET.get('content-type'):
-            params['content-type'] = request.GET['content-type']
-        if request.GET.get('include-notes'):
-            params['include-notes'] = request.GET['include-notes']
-        if request.GET.get('include-titles'):
-            params['include-titles'] = request.GET['include-titles']
-        if request.GET.get('include-chapter-numbers'):
-            params['include-chapter-numbers'] = request.GET['include-chapter-numbers']
-        if request.GET.get('include-verse-numbers'):
-            params['include-verse-numbers'] = request.GET['include-verse-numbers']
+        if request.GET.get('format'):
+            params['format'] = request.GET['format']
+        if request.GET.get('include_headings'):
+            params['include_headings'] = request.GET['include_headings']
+        if request.GET.get('include_notes'):
+            params['include_notes'] = request.GET['include_notes']
 
+        # YouVersion uses /passages/ endpoint for verse lookups
         success, data = self.make_api_request(
-            f"/bibles/{safe_bible_id}/verses/{safe_verse_id}",
+            f"/bibles/{safe_bible_id}/passages/{safe_verse_id}",
             params=params if params else None
         )
         if success:
-            return JsonResponse(data)
+            # Transform to match frontend expectations
+            return JsonResponse({
+                'data': {
+                    'id': data.get('id', verse_id),
+                    'reference': data.get('reference', ''),
+                    'content': data.get('content', ''),
+                }
+            })
         return JsonResponse(data, status=500)
 
 
 class BibleAPIPassageView(LoginRequiredMixin, FaithRequiredMixin, BibleAPIProxyMixin, View):
     """
-    Proxy for Bible API /bibles/{bibleId}/passages/{passageId} endpoint.
+    Proxy for YouVersion API /bibles/{bibleId}/passages/{passageId} endpoint.
 
     Returns a passage (can span multiple verses/chapters).
     """
@@ -922,67 +980,49 @@ class BibleAPIPassageView(LoginRequiredMixin, FaithRequiredMixin, BibleAPIProxyM
 
         # Sanitize inputs
         safe_bible_id = quote(bible_id, safe='')
+        # passage_id should be in USFM format like "JHN.3.16" or "JHN.3.16-18"
         safe_passage_id = quote(passage_id, safe='')
 
         # Pass through query params
         params = {}
-        if request.GET.get('content-type'):
-            params['content-type'] = request.GET['content-type']
-        if request.GET.get('include-notes'):
-            params['include-notes'] = request.GET['include-notes']
-        if request.GET.get('include-titles'):
-            params['include-titles'] = request.GET['include-titles']
-        if request.GET.get('include-chapter-numbers'):
-            params['include-chapter-numbers'] = request.GET['include-chapter-numbers']
-        if request.GET.get('include-verse-numbers'):
-            params['include-verse-numbers'] = request.GET['include-verse-numbers']
+        if request.GET.get('format'):
+            params['format'] = request.GET['format']
+        if request.GET.get('include_headings'):
+            params['include_headings'] = request.GET['include_headings']
+        if request.GET.get('include_notes'):
+            params['include_notes'] = request.GET['include_notes']
 
         success, data = self.make_api_request(
             f"/bibles/{safe_bible_id}/passages/{safe_passage_id}",
             params=params if params else None
         )
         if success:
-            return JsonResponse(data)
+            # Transform to match frontend expectations
+            return JsonResponse({
+                'data': {
+                    'id': data.get('id', passage_id),
+                    'reference': data.get('reference', ''),
+                    'content': data.get('content', ''),
+                }
+            })
         return JsonResponse(data, status=500)
 
 
 class BibleAPISearchView(LoginRequiredMixin, FaithRequiredMixin, BibleAPIProxyMixin, View):
     """
-    Proxy for Bible API /bibles/{bibleId}/search endpoint.
+    Search endpoint placeholder.
 
-    Searches for text within a Bible translation.
+    Note: YouVersion API does not currently support text search.
+    This endpoint returns a helpful message directing users to use
+    direct verse lookup instead.
     """
 
     def get(self, request, bible_id):
-        if not self.is_api_configured():
-            return JsonResponse(
-                {"error": "Bible API is not configured"},
-                status=503
-            )
-
-        query = request.GET.get('query', '')
-        if not query:
-            return JsonResponse(
-                {"error": "Search query is required"},
-                status=400
-            )
-
-        # Sanitize bible_id
-        safe_bible_id = quote(bible_id, safe='')
-
-        params = {'query': query}
-        if request.GET.get('limit'):
-            params['limit'] = request.GET['limit']
-        if request.GET.get('offset'):
-            params['offset'] = request.GET['offset']
-
-        success, data = self.make_api_request(
-            f"/bibles/{safe_bible_id}/search",
-            params=params
-        )
-        if success:
-            return JsonResponse(data)
-        return JsonResponse(data, status=500)
+        # YouVersion API does not support text search
+        return JsonResponse({
+            "error": "Text search is not available. Please use direct verse lookup (e.g., John 3:16).",
+            "data": {"verses": [], "total": 0}
+        }, status=501)
 
 
 class ToggleMemoryVerseView(LoginRequiredMixin, FaithRequiredMixin, View):

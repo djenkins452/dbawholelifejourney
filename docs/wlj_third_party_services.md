@@ -92,31 +92,42 @@ This document catalogs all external services, APIs, and third-party integrations
 
 ## Scripture & Bible APIs
 
-### 3. API.Bible
+### 3. YouVersion Platform API
 | Attribute | Value |
 |-----------|-------|
-| **Provider** | American Bible Society |
+| **Provider** | Life.Church / YouVersion |
 | **Type** | REST API |
-| **Pricing** | Free tier available |
+| **Pricing** | Free with App Key |
 | **Status** | Active |
 
 **Purpose:**
 - Scripture verse lookups for Faith module
-- Bible translation support (default: ESV)
-- Verse references and content retrieval
+- 1000+ Bible translations available
+- Verse and passage retrieval in USFM format
 
 **Configuration (Environment Variables):**
-- `BIBLE_API_KEY` - API authentication key
+- `YOUVERSION_API_KEY` - App Key from platform.youversion.com
+
+**API Base URL:** `https://api.youversion.com/v1`
+
+**Key Endpoints:**
+- `/bibles` - List available translations (requires `language_ranges[]` param)
+- `/bibles/{id}/books` - List books in a translation
+- `/bibles/{id}/books/{book}/chapters` - List chapters
+- `/bibles/{id}/passages/{usfm}` - Get passage content (e.g., `JHN.3.16`)
 
 **Key Files:**
-- `config/settings.py` (line 509)
-- `apps/faith/views.py` - Scripture API views
+- `config/settings.py` - YOUVERSION_API_KEY setting
+- `apps/faith/views.py` - BibleAPIProxyMixin and proxy views
+- `apps/ai/action_handlers.py` - Verse fetching for AI actions
 - `apps/users/models.py` - default_bible_translation field
 - `apps/faith/models.py` - ScriptureVerse, SavedVerse models
 
 **Security:**
 - Server-side proxy only (API key not exposed to frontend)
-- Security Fix C-2 from CSO review
+- Uses `X-YVP-App-Key` header for authentication
+
+**Developer Portal:** https://platform.youversion.com/
 
 ---
 
@@ -994,7 +1005,7 @@ The following services are NOT integrated but may be considered for future use:
 |---|---------|------|---------|--------|
 | 1 | OpenAI | AI API | Paid (usage) | Active |
 | 2 | Cloudinary | Media Storage | Free tier | Active |
-| 3 | API.Bible | Scripture API | Free tier | Active |
+| 3 | YouVersion | Scripture API | Free | Active |
 | 4 | Resend | Email API | Free tier | Active (prod) |
 | 5 | Google Calendar | Calendar API | Free | Active |
 | 6 | WebAuthn | Browser API | Free | Active |
@@ -1041,4 +1052,4 @@ The following services are NOT integrated but may be considered for future use:
 
 ---
 
-*Last Updated: 2026-01-15*
+*Last Updated: 2026-01-23*

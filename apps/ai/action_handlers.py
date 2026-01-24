@@ -27,10 +27,10 @@ from .intent_service import ActionResult
 
 logger = logging.getLogger(__name__)
 
-# Bible API constants
-BIBLE_API_BASE = "https://rest.api.bible/v1"
+# YouVersion Bible API constants
+BIBLE_API_BASE = "https://api.youversion.com/v1"
 
-# Book name to API abbreviation mapping
+# Book name to USFM abbreviation mapping (used by YouVersion)
 BOOK_ABBREVIATIONS = {
     'Genesis': 'GEN', 'Exodus': 'EXO', 'Leviticus': 'LEV', 'Numbers': 'NUM',
     'Deuteronomy': 'DEU', 'Joshua': 'JOS', 'Judges': 'JDG', 'Ruth': 'RUT',
@@ -51,6 +51,10 @@ BOOK_ABBREVIATIONS = {
     '1 Peter': '1PE', '2 Peter': '2PE', '1 John': '1JN', '2 John': '2JN',
     '3 John': '3JN', 'Jude': 'JUD', 'Revelation': 'REV',
 }
+
+# Default Bible ID for YouVersion (NIV)
+# Users can set their preference via default_bible_translation
+DEFAULT_YOUVERSION_BIBLE_ID = "111"
 
 
 class ActionHandler:
@@ -76,23 +80,23 @@ class ActionHandler:
         return get_user_today(self.user)
 
     def _fetch_verse_text(self, book_name: str, chapter: int, verse_start: int,
-                          verse_end: int = None, translation: str = "KJV") -> str:
+                          verse_end: int = None, translation: str = None) -> str:
         """
-        Fetch verse text from the Bible API.
+        Fetch verse text from the YouVersion Bible API.
 
         Args:
             book_name: Full book name (e.g., 'John', 'Genesis')
             chapter: Chapter number
             verse_start: Starting verse number
             verse_end: Ending verse number (optional, for ranges)
-            translation: Bible translation abbreviation
+            translation: Bible translation ID (YouVersion Bible ID)
 
         Returns:
             Verse text or empty string if lookup fails
         """
-        api_key = getattr(settings, 'BIBLE_API_KEY', '')
+        api_key = getattr(settings, 'YOUVERSION_API_KEY', '')
         if not api_key:
-            logger.warning("Bible API key not configured, cannot fetch verse text")
+            logger.warning("YouVersion API key not configured, cannot fetch verse text")
             return ""
 
         # Get the book abbreviation
@@ -101,41 +105,27 @@ class ActionHandler:
             logger.warning(f"Unknown book name: {book_name}")
             return ""
 
-        # Map common translation abbreviations to API.Bible IDs
-        # Default to KJV (de4e12af7f28f599-02)
-        translation_map = {
-            'KJV': 'de4e12af7f28f599-02',
-            'ESV': '9879dbb7cfe39e4d-04',  # ESV
-            'NIV': '78a9f6124f344018-01',  # NIV 2011
-            'NLT': '65eec8e0b60e656b-01',  # NLT
-            'NKJV': 'a5e6ca36e62d6e34-01',  # NKJV (if available)
-            'BSB': 'bba9f40183526463-01',  # Berean Standard Bible
-        }
-        bible_id = translation_map.get(translation, translation_map['KJV'])
+        # Use user's preferred translation or default to NIV (111)
+        bible_id = translation if translation else DEFAULT_YOUVERSION_BIBLE_ID
 
-        # Build the passage ID (e.g., "JHN.3.16" or "JHN.3.16-JHN.3.18")
+        # Build the passage ID in USFM format (e.g., "JHN.3.16" or "JHN.3.16-18")
         if verse_end and verse_end != verse_start:
-            passage_id = f"{book_abbrev}.{chapter}.{verse_start}-{book_abbrev}.{chapter}.{verse_end}"
+            passage_id = f"{book_abbrev}.{chapter}.{verse_start}-{verse_end}"
         else:
             passage_id = f"{book_abbrev}.{chapter}.{verse_start}"
 
         try:
             url = f"{BIBLE_API_BASE}/bibles/{bible_id}/passages/{passage_id}"
-            headers = {"api-key": api_key}
-            params = {
-                "content-type": "text",
-                "include-verse-numbers": "true",
-                "include-titles": "false",
-                "include-chapter-numbers": "false",
-            }
+            headers = {"X-YVP-App-Key": api_key}
 
-            response = requests.get(url, headers=headers, params=params, timeout=10)
+            response = requests.get(url, headers=headers, timeout=10)
             response.raise_for_status()
             data = response.json()
 
             # Extract the verse text from the response
-            if data.get('data') and data['data'].get('content'):
-                text = data['data']['content'].strip()
+            # YouVersion returns: {"id": "...", "content": "...", "reference": "..."}
+            if data.get('content'):
+                text = data['content'].strip()
                 # Clean up any extra whitespace
                 text = ' '.join(text.split())
                 return text
@@ -143,7 +133,7 @@ class ActionHandler:
             return ""
 
         except requests.exceptions.RequestException as e:
-            logger.error(f"Error fetching verse from Bible API: {e}")
+            logger.error(f"Error fetching verse from YouVersion API: {e}")
             return ""
 
     # =========================================================================

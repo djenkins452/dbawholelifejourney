@@ -796,20 +796,21 @@ async function lookupScripture() {
 
     try {
         let endpoint;
-        const queryParams = 'content-type=text&include-notes=false&include-titles=false&include-chapter-numbers=false&include-verse-numbers=true';
+        // YouVersion API parameters
+        const queryParams = 'format=text';
 
         if (verseStart) {
-            // Specific verse(s)
+            // Specific verse(s) - USFM format like "GEN.1.1" or "GEN.1.1-5"
             const bookChapter = chapterId; // e.g., "GEN.1"
             let passageId;
             if (verseEnd && verseEnd !== verseStart) {
-                passageId = `${bookChapter}.${verseStart}-${bookChapter}.${verseEnd}`;
+                passageId = `${bookChapter}.${verseStart}-${verseEnd}`;
             } else {
                 passageId = `${bookChapter}.${verseStart}`;
             }
             endpoint = `${API_PROXY_BASE}/bibles/${currentBibleId}/passages/${passageId}/?${queryParams}`;
         } else {
-            // Whole chapter - use verses endpoint for chapter
+            // Whole chapter - use passages endpoint with chapter ID
             endpoint = `${API_PROXY_BASE}/bibles/${currentBibleId}/passages/${chapterId}/?${queryParams}`;
         }
 

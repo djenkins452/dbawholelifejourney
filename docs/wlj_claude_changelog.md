@@ -16,6 +16,39 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-23 Changes
 
+### Switch Bible API from API.Bible to YouVersion Platform
+
+Replaced the API.Bible integration with YouVersion Platform API for Scripture lookups in the Faith module.
+
+**Why:**
+- YouVersion offers 1000+ Bible translations (vs limited options in API.Bible)
+- All translations now available dynamically via API (no hardcoded IDs)
+- Better long-term support from Life.Church/YouVersion
+
+**Changes:**
+
+| File | Change |
+|------|--------|
+| `config/settings.py` | `BIBLE_API_KEY` → `YOUVERSION_API_KEY` |
+| `.env.example` | Updated documentation for YouVersion |
+| `apps/faith/views.py` | Updated `BibleAPIProxyMixin` to use `X-YVP-App-Key` header |
+| `apps/faith/views.py` | Updated all proxy views for YouVersion endpoint format |
+| `apps/ai/action_handlers.py` | Updated `_fetch_verse_text()` for YouVersion API |
+| `templates/faith/scripture_list.html` | Updated query params for YouVersion format |
+| `docs/wlj_third_party_services.md` | Updated API documentation |
+
+**API Changes:**
+- Base URL: `https://rest.api.bible/v1` → `https://api.youversion.com/v1`
+- Auth header: `api-key` → `X-YVP-App-Key`
+- Passage format: Same USFM format (e.g., `JHN.3.16`)
+- Bible IDs: Simple integers (e.g., `111` for NIV) vs long UUIDs
+
+**Note:** YouVersion API does not support text search. Search endpoint now returns 501 with helpful message.
+
+**Environment Variable:** Add `YOUVERSION_API_KEY` to Railway and local `.env`
+
+---
+
 ### Security App Migration
 
 Added auto-generated migration for SecurityAuditLog action field choices.

@@ -733,9 +733,9 @@ WLJ_SETTINGS = {
     "API_LOG_RETENTION_DAYS": 30,
 }
 
-# Bible API (required for Scripture lookups in Faith module)
-# Get your API key at: https://scripture.api.bible/
-BIBLE_API_KEY = os.environ.get('BIBLE_API_KEY', '')
+# YouVersion Bible API (required for Scripture lookups in Faith module)
+# Get your API key at: https://platform.youversion.com/
+YOUVERSION_API_KEY = os.environ.get('YOUVERSION_API_KEY', '')
 
 # Camera Scan Settings
 # Vision analysis uses OpenAI's vision-capable models

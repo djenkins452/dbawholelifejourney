@@ -15,6 +15,7 @@ struct SettingsView: View {
     @State private var isConnecting = false
     @State private var showSyncError = false
     @State private var showConnectError = false
+    @State private var showSyncSuccess = false
     @State private var syncError: String = ""
     @State private var connectError: String = ""
 
@@ -185,6 +186,11 @@ struct SettingsView: View {
             } message: {
                 Text(connectError)
             }
+            .alert("Sync Complete", isPresented: $showSyncSuccess) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Your health data has been synced successfully.")
+            }
         }
     }
 
@@ -272,6 +278,7 @@ struct SettingsView: View {
                 await MainActor.run {
                     appState.lastSyncDate = serverSyncDate ?? Date()
                     isSyncing = false
+                    showSyncSuccess = true
                 }
             } catch {
                 await MainActor.run {

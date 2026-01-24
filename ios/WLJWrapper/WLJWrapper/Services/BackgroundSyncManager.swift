@@ -18,6 +18,9 @@ class BackgroundSyncManager {
     // Background task identifier
     static let healthSyncTaskId = "com.wholelifejourney.app.healthsync"
 
+    // Notification posted when any sync completes (background or foreground)
+    static let syncCompletedNotification = Notification.Name("HealthSyncCompleted")
+
     private init() {}
 
     // MARK: - Setup
@@ -141,6 +144,12 @@ class BackgroundSyncManager {
                 // Perform sync
                 _ = try await HealthKitManager.shared.syncHealthData()
                 print("Background sync completed successfully")
+
+                // Post notification so UI can update
+                await MainActor.run {
+                    NotificationCenter.default.post(name: Self.syncCompletedNotification, object: nil)
+                }
+
                 task.setTaskCompleted(success: true)
             } catch {
                 print("Background sync failed: \(error)")
@@ -170,6 +179,11 @@ class BackgroundSyncManager {
                 do {
                     _ = try await HealthKitManager.shared.syncHealthData()
                     print("Foreground sync completed")
+
+                    // Post notification so UI can update
+                    await MainActor.run {
+                        NotificationCenter.default.post(name: Self.syncCompletedNotification, object: nil)
+                    }
                 } catch {
                     print("Foreground sync failed: \(error)")
                 }

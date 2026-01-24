@@ -16,6 +16,23 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-24 Changes
 
+### iOS: Add sync completion feedback and background sync timestamp updates
+
+**Problem:** After a sync completed, users had no positive feedback that it succeeded - the spinner just stopped. Also, background syncs didn't update the "Last Sync" timestamp in the UI.
+
+**Fix:**
+1. Added a "Sync Complete" alert that appears after successful sync to provide positive feedback
+2. Added a notification system (`BackgroundSyncManager.syncCompletedNotification`) that fires when any sync completes (background or foreground)
+3. AppState now listens for this notification and refreshes the sync status from the server
+4. Updated footer text to include all synced health types (blood glucose, blood oxygen, water intake)
+
+**Files Modified:**
+- `ios/WLJWrapper/WLJWrapper/Views/SettingsView.swift` - Added `showSyncSuccess` state and alert, updated footer text
+- `ios/WLJWrapper/WLJWrapper/Services/BackgroundSyncManager.swift` - Added notification posting after sync completes
+- `ios/WLJWrapper/WLJWrapper/App/WLJWrapperApp.swift` - Added Combine subscriber to listen for sync notifications
+
+---
+
 ### Fix sync_status endpoint to return most recent ingestion run
 
 **Problem:** The `sync_status` API endpoint was returning an arbitrary (old) `HealthIngestionRun` record instead of the most recent one, causing the iOS app to display stale "Last Sync" times.

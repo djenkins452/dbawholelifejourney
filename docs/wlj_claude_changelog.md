@@ -16,76 +16,31 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-24 Changes
 
-### Remove Dexcom direct connection UI from Blood Glucose dashboard
+### Add Active Calories and Distance HealthKit Sync
 
-**Change:** Removed the Dexcom CGM connection card and related UI elements from the Blood Glucose dashboard.
+Extended HealthKit integration to sync active calories burned and walking/running distance.
 
-**Reason:** Blood glucose data now syncs via HealthKit through the iOS app, which can read Dexcom data from Apple Health. The direct Dexcom API integration is no longer needed and was causing confusion.
+**iOS Changes:**
+- `HealthKitManager.swift` - Added `.activeEnergyBurned` and `.distanceWalkingRunning` types
+- `HealthKitManager.swift` - New `fetchActiveCalories()` and `fetchDistance()` functions
+- `HealthMetric.swift` - Added `caloriesValue`, `distanceValue`, `distanceUnit` fields
+- `BackgroundSyncManager.swift` - Observer queries for active energy and distance
+- `HealthSyncView.swift` - New data type rows for Active Calories and Distance
+- `SettingsView.swift` - Updated sync description footer
+- `Info.plist` - Updated HealthKit usage description
 
-**Files Modified:**
-- `templates/health/glucose/dashboard.html` - Removed Dexcom connection card, sync button, and related CSS
-
----
-
-### iOS: Add blood glucose, blood oxygen, and water intake syncing
-
-**Feature:** Extended HealthKit sync to include three new health data types.
-
-**Implementation:**
-1. Added blood glucose (mg/dL), blood oxygen (SpO2 %), and water intake (fl oz) to HealthKit read types
-2. Created fetch functions for each new metric type
-3. Blood glucose and blood oxygen include timestamp for each reading
-4. Water intake aggregates daily totals similar to steps
+**Django Changes:**
+- `apps/mobile/views.py` - `process_active_calories_metric` and `process_distance_metric` handlers
+- Data stored in existing `StepsEntry.calories_burned` and `StepsEntry.distance_miles` fields
 
 **Files Modified:**
-- `ios/WLJWrapper/WLJWrapper/Services/HealthKitManager.swift` - Added readTypes and fetch functions
-- `ios/WLJWrapper/WLJWrapper/Models/HealthMetric.swift` - Added `timestamp` field for timestamped readings
-
----
-
-### iOS: Add sync completion feedback and background sync timestamp updates
-
-**Problem:** After a sync completed, users had no positive feedback that it succeeded - the spinner just stopped. Also, background syncs didn't update the "Last Sync" timestamp in the UI.
-
-**Fix:**
-1. Added a "Sync Complete" alert that appears after successful sync to provide positive feedback
-2. Added a notification system (`BackgroundSyncManager.syncCompletedNotification`) that fires when any sync completes (background or foreground)
-3. AppState now listens for this notification and refreshes the sync status from the server
-4. Updated footer text to include all synced health types (blood glucose, blood oxygen, water intake)
-
-**Files Modified:**
-- `ios/WLJWrapper/WLJWrapper/Views/SettingsView.swift` - Added `showSyncSuccess` state and alert, updated footer text
-- `ios/WLJWrapper/WLJWrapper/Services/BackgroundSyncManager.swift` - Added notification posting after sync completes
-- `ios/WLJWrapper/WLJWrapper/App/WLJWrapperApp.swift` - Added Combine subscriber to listen for sync notifications
-
----
-
-### Fix sync_status endpoint to return most recent ingestion run
-
-**Problem:** The `sync_status` API endpoint was returning an arbitrary (old) `HealthIngestionRun` record instead of the most recent one, causing the iOS app to display stale "Last Sync" times.
-
-**Root Cause:** The query `HealthIngestionRun.objects.filter(...).first()` had no ordering, so it returned whatever Django's default ordering produced (often the oldest record).
-
-**Fix:** Added `.order_by('-created_at')` to get the most recent ingestion run.
-
-**File Modified:** `apps/mobile/views.py` (line 844)
-
----
-
-### iOS: Fix "Last Sync" time display to use server timestamp
-
-**Problem:** The iOS app's "Last Sync" time in Settings kept climbing (e.g., "14 min ago", "15 min ago") even after successful syncs because it was using a local `Date()` timestamp instead of the server's actual sync time.
-
-**Root Cause:** `SettingsView.syncNow()` was setting `appState.lastSyncDate = Date()` locally after sync, rather than fetching the server's `last_sync` timestamp from the `sync-status` endpoint.
-
-**Fix:**
-1. After successful sync, fetch sync status from server via `APIClient.shared.getSyncStatus()`
-2. Parse the server's ISO8601 `last_sync` timestamp and use that for display
-3. On app startup, if authenticated, load the last sync date from the server so it persists across app restarts
-
-**Files Modified:**
-- `ios/WLJWrapper/WLJWrapper/Views/SettingsView.swift` - Updated `syncNow()` to fetch server timestamp, added `parseISO8601Date()` helper
-- `ios/WLJWrapper/WLJWrapper/App/WLJWrapperApp.swift` - Added `loadSyncStatus()` to fetch last sync on app init
+- `ios/WLJWrapper/WLJWrapper/Services/HealthKitManager.swift`
+- `ios/WLJWrapper/WLJWrapper/Services/BackgroundSyncManager.swift`
+- `ios/WLJWrapper/WLJWrapper/Models/HealthMetric.swift`
+- `ios/WLJWrapper/WLJWrapper/Views/HealthSyncView.swift`
+- `ios/WLJWrapper/WLJWrapper/Views/SettingsView.swift`
+- `ios/WLJWrapper/WLJWrapper/Resources/Info.plist`
+- `apps/mobile/views.py`
 
 ---
 

@@ -34,8 +34,23 @@ struct HealthMetric: Codable {
     var maxHR: Int?
     var minHR: Int?
 
-    // Timestamped readings (blood glucose, blood oxygen)
-    var timestamp: String?
+    // Blood Glucose
+    var glucoseValue: Double?
+    var glucoseUnit: String?
+
+    // Blood Oxygen
+    var spo2Value: Int?
+
+    // Water Intake
+    var waterAmount: Double?
+    var waterUnit: String?
+
+    // Active Calories
+    var caloriesValue: Int?
+
+    // Distance
+    var distanceValue: Double?
+    var distanceUnit: String?
 
     enum CodingKeys: String, CodingKey {
         case type
@@ -55,7 +70,14 @@ struct HealthMetric: Codable {
         case avgHR = "avg_hr"
         case maxHR = "max_hr"
         case minHR = "min_hr"
-        case timestamp
+        case glucoseValue = "glucose_value"
+        case glucoseUnit = "glucose_unit"
+        case spo2Value = "spo2_value"
+        case waterAmount = "water_amount"
+        case waterUnit = "water_unit"
+        case caloriesValue = "calories_value"
+        case distanceValue = "distance_value"
+        case distanceUnit = "distance_unit"
     }
 
     // MARK: - Convenience Initializers
@@ -109,14 +131,53 @@ struct HealthMetric: Codable {
         self.syncId = syncId
     }
 
-    /// Create a timestamped metric (blood glucose, blood oxygen)
-    init(type: String, date: String, value: Double, unit: String, timestamp: String,
+    /// Create a blood glucose metric
+    init(type: String, date: String, glucoseValue: Double, glucoseUnit: String,
          source: String, syncId: String) {
         self.type = type
         self.date = date
-        self.value = value
-        self.unit = unit
-        self.timestamp = timestamp
+        self.glucoseValue = glucoseValue
+        self.glucoseUnit = glucoseUnit
+        self.source = source
+        self.syncId = syncId
+    }
+
+    /// Create a blood oxygen metric
+    init(type: String, date: String, spo2Value: Int, source: String, syncId: String) {
+        self.type = type
+        self.date = date
+        self.spo2Value = spo2Value
+        self.source = source
+        self.syncId = syncId
+    }
+
+    /// Create a water intake metric
+    init(type: String, date: String, waterAmount: Double, waterUnit: String,
+         source: String, syncId: String) {
+        self.type = type
+        self.date = date
+        self.waterAmount = waterAmount
+        self.waterUnit = waterUnit
+        self.source = source
+        self.syncId = syncId
+    }
+
+    /// Create an active calories metric
+    init(type: String, date: String, caloriesValue: Int, source: String, syncId: String) {
+        self.type = type
+        self.date = date
+        self.caloriesValue = caloriesValue
+        self.source = source
+        self.syncId = syncId
+    }
+
+    /// Create a distance metric
+    init(type: String, date: String, distanceValue: Double, distanceUnit: String,
+         source: String, syncId: String) {
+        self.type = type
+        self.date = date
+        self.distanceValue = distanceValue
+        self.distanceUnit = distanceUnit
         self.source = source
         self.syncId = syncId
     }

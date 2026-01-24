@@ -16,6 +16,28 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-24 Changes
 
+### Fix YouVersion Bible Translations - Show All Licensed Versions
+
+Fixed Bible translation dropdown showing only public domain translations instead of
+all translations the API key is licensed for (NIV, ESV, KJV, NLT, etc.).
+
+**Issue:** The YouVersion API `/bibles` endpoint defaults to returning only freely
+available (public domain) translations. Even with an approved API key that has
+access to licensed translations, the dropdown was only showing ~12 public domain
+versions like ASV, BSB, and World English Bible.
+
+**Solution:**
+- Added `all_available=true` parameter to include all translations the API key
+  has permission to access
+- Added `page_size=100` to get more results per page (default was 25)
+
+**Files Modified:**
+- `apps/faith/views.py` - Added parameters to BibleAPIBiblesView
+
+**Reference:** YouVersion API docs at https://developers.youversion.com/api/bibles
+
+---
+
 ### AI Assistant Timezone Fix
 
 Fixed AI Assistant chat displaying dates in UTC instead of user's local timezone.

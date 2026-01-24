@@ -541,6 +541,30 @@ class WeightEntry(UserOwnedModel):
     recorded_at = models.DateTimeField(default=timezone.now)
     notes = models.TextField(blank=True)
 
+    # Body composition from HealthKit
+    body_fat_percentage = models.DecimalField(
+        max_digits=4,
+        decimal_places=1,
+        null=True,
+        blank=True,
+        help_text="Body fat percentage from Apple Health or smart scale",
+    )
+
+    # Sync fields for Apple Health integration
+    source = models.CharField(
+        max_length=20,
+        choices=[
+            ("manual", "Manual Entry"),
+            ("apple_health", "Apple Health"),
+        ],
+        default="manual",
+    )
+    sync_id = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Unique ID for deduplication during sync",
+    )
+
     class Meta:
         ordering = ["-recorded_at"]
         verbose_name = "weight entry"
@@ -1397,10 +1421,60 @@ class WorkoutSession(UserOwnedModel):
         help_text="Template this workout was created from, if any",
     )
 
+    # HealthKit workout fields
+    workout_type = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Workout type from HealthKit (e.g., Running, Cycling, Strength Training)",
+    )
+    calories_burned = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Total calories burned during workout",
+    )
+    distance_miles = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Distance for cardio workouts (in miles)",
+    )
+    avg_heart_rate = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Average heart rate during workout",
+    )
+
+    # Sync fields for Apple Health integration
+    source = models.CharField(
+        max_length=20,
+        choices=[
+            ("manual", "Manual Entry"),
+            ("apple_health", "Apple Health"),
+        ],
+        default="manual",
+    )
+    sync_id = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Unique ID for deduplication during sync",
+    )
+
     class Meta:
         ordering = ["-date", "-created_at"]
         verbose_name = "workout session"
         verbose_name_plural = "workout sessions"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "sync_id"],
+                name="unique_workout_sync_id",
+                condition=models.Q(sync_id__gt=""),
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["user", "date"]),
+            models.Index(fields=["source", "sync_id"]),
+        ]
 
     def __str__(self):
         if self.name:

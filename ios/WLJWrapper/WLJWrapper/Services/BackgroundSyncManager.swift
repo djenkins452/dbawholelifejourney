@@ -61,7 +61,9 @@ class BackgroundSyncManager {
             HKQuantityType.quantityType(forIdentifier: .flightsClimbed),
             HKQuantityType.quantityType(forIdentifier: .appleExerciseTime),
             HKQuantityType.quantityType(forIdentifier: .appleStandTime),
-            HKCategoryType.categoryType(forIdentifier: .sleepAnalysis)
+            HKQuantityType.quantityType(forIdentifier: .bodyFatPercentage),
+            HKCategoryType.categoryType(forIdentifier: .sleepAnalysis),
+            HKObjectType.workoutType()
         ].compactMap { $0 }
 
         for sampleType in typesToObserve {

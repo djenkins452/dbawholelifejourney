@@ -31,6 +31,7 @@ from apps.health.models import (
     SleepEntry,
     WaterEntry,
     WeightEntry,
+    WorkoutSession,
 )
 
 from .middleware import get_client_ip, require_auth, require_mobile_auth
@@ -489,6 +490,8 @@ def process_health_metric(user, metric):
         "flights_climbed": process_flights_climbed_metric,
         "exercise_minutes": process_exercise_minutes_metric,
         "stand_hours": process_stand_hours_metric,
+        "body_fat": process_body_fat_metric,
+        "workout": process_workout_metric,
     }
 
     handler = handlers.get(metric_type)
@@ -1373,6 +1376,171 @@ def process_stand_hours_metric(user, metric_date, source, sync_id, data):
         logged_date=metric_date,
         count=0,  # Will be updated by steps sync
         stand_hours=stand_hours_value,
+        source=source,
+        sync_id=sync_id,
+    )
+    return "created"
+
+
+def process_body_fat_metric(user, metric_date, source, sync_id, data):
+    """
+    Process body fat percentage metric from Apple HealthKit.
+
+    Updates or creates a WeightEntry with body_fat_percentage for this date.
+    If a weight entry already exists for this date, updates the body fat.
+    Otherwise creates a minimal entry with just body fat (no weight value).
+    """
+    body_fat_percentage = data.get("body_fat_percentage")
+
+    if body_fat_percentage is None:
+        raise ValueError("body_fat_percentage is required for body_fat")
+
+    try:
+        body_fat_percentage = Decimal(str(body_fat_percentage))
+    except (TypeError, InvalidOperation):
+        raise ValueError(f"Invalid body fat value: {body_fat_percentage}")
+
+    # Validate range (0 to 60% is reasonable)
+    if body_fat_percentage < 0 or body_fat_percentage > 60:
+        raise ValueError(f"Body fat percentage out of range: {body_fat_percentage}")
+
+    # Check for existing entry with this sync_id
+    existing = WeightEntry.objects.filter(
+        user=user,
+        sync_id=sync_id,
+    ).first()
+
+    if existing:
+        if existing.body_fat_percentage != body_fat_percentage:
+            existing.body_fat_percentage = body_fat_percentage
+            existing.save(update_fields=["body_fat_percentage", "updated_at"])
+            return "updated"
+        return "skipped"
+
+    # Check for weight entry on this date that we can update
+    weight_entry = WeightEntry.objects.filter(
+        user=user,
+        recorded_at__date=metric_date,
+    ).order_by("-recorded_at").first()
+
+    if weight_entry:
+        if weight_entry.body_fat_percentage != body_fat_percentage:
+            weight_entry.body_fat_percentage = body_fat_percentage
+            weight_entry.save(update_fields=["body_fat_percentage", "updated_at"])
+            return "updated"
+        return "skipped"
+
+    # Create new WeightEntry with just body fat (value=0 as placeholder)
+    # Note: This is a compromise - ideally we'd have a separate BodyFatEntry model
+    WeightEntry.objects.create(
+        user=user,
+        value=Decimal("0"),  # Placeholder - will be updated by weight sync
+        unit="lb",
+        recorded_at=timezone.make_aware(
+            datetime.combine(metric_date, datetime.min.time().replace(hour=12))
+        ),
+        body_fat_percentage=body_fat_percentage,
+        source=source,
+        sync_id=sync_id,
+    )
+    return "created"
+
+
+def process_workout_metric(user, metric_date, source, sync_id, data):
+    """
+    Process workout session metric from Apple HealthKit.
+
+    Creates or updates a WorkoutSession from HealthKit workout data.
+    """
+    workout_type = data.get("workout_type", "")
+    workout_duration = data.get("workout_duration")
+    workout_calories = data.get("workout_calories")
+    workout_distance = data.get("workout_distance")
+    workout_start_time = data.get("workout_start_time")
+    workout_end_time = data.get("workout_end_time")
+
+    if workout_duration is None:
+        raise ValueError("workout_duration is required for workout")
+
+    try:
+        workout_duration = int(workout_duration)
+    except (TypeError, ValueError):
+        raise ValueError(f"Invalid workout duration: {workout_duration}")
+
+    # Validate duration (0 to 720 minutes = 12 hours)
+    if workout_duration < 0 or workout_duration > 720:
+        raise ValueError(f"Workout duration out of range: {workout_duration}")
+
+    # Parse optional calories
+    if workout_calories is not None:
+        try:
+            workout_calories = int(workout_calories)
+            if workout_calories < 0 or workout_calories > 5000:
+                workout_calories = None
+        except (TypeError, ValueError):
+            workout_calories = None
+
+    # Parse optional distance
+    if workout_distance is not None:
+        try:
+            workout_distance = Decimal(str(workout_distance))
+            if workout_distance < 0 or workout_distance > 100:
+                workout_distance = None
+        except (TypeError, InvalidOperation):
+            workout_distance = None
+
+    # Parse start and end times
+    started_at = None
+    completed_at = None
+    if workout_start_time:
+        try:
+            started_at = datetime.fromisoformat(workout_start_time.replace("Z", "+00:00"))
+        except (ValueError, AttributeError):
+            pass
+    if workout_end_time:
+        try:
+            completed_at = datetime.fromisoformat(workout_end_time.replace("Z", "+00:00"))
+        except (ValueError, AttributeError):
+            pass
+
+    # Check for existing workout with this sync_id
+    existing = WorkoutSession.objects.filter(
+        user=user,
+        sync_id=sync_id,
+    ).first()
+
+    if existing:
+        # Check if anything has changed
+        changed = False
+        if existing.workout_type != workout_type:
+            existing.workout_type = workout_type
+            changed = True
+        if existing.duration_minutes != workout_duration:
+            existing.duration_minutes = workout_duration
+            changed = True
+        if existing.calories_burned != workout_calories:
+            existing.calories_burned = workout_calories
+            changed = True
+        if existing.distance_miles != workout_distance:
+            existing.distance_miles = workout_distance
+            changed = True
+
+        if changed:
+            existing.save()
+            return "updated"
+        return "skipped"
+
+    # Create new WorkoutSession
+    WorkoutSession.objects.create(
+        user=user,
+        date=metric_date,
+        name=workout_type,  # Use workout type as default name
+        workout_type=workout_type,
+        duration_minutes=workout_duration,
+        calories_burned=workout_calories,
+        distance_miles=workout_distance,
+        started_at=started_at,
+        completed_at=completed_at,
         source=source,
         sync_id=sync_id,
     )

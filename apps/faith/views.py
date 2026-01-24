@@ -889,11 +889,17 @@ class BibleAPIChaptersView(LoginRequiredMixin, FaithRequiredMixin, BibleAPIProxy
             chapters = data.get('data', data) if isinstance(data, dict) else data
             if isinstance(chapters, list):
                 for chapter in chapters:
-                    # YouVersion uses passage_id like "GEN.1"
-                    chapter_id = chapter.get('id', chapter.get('passage_id', ''))
+                    # YouVersion returns chapters with 'usfm' field like "JHN.3"
+                    # or sometimes just numeric 'id'. We need USFM format for passages API.
+                    chapter_id = chapter.get('usfm', chapter.get('id', chapter.get('passage_id', '')))
+                    # If we only got a numeric ID, construct USFM from book_id and chapter number
+                    if chapter_id and '.' not in str(chapter_id):
+                        # Try to construct from book context
+                        chapter_num = chapter.get('number', chapter_id)
+                        chapter_id = f"{safe_book_id}.{chapter_num}"
                     transformed_data.append({
                         'id': chapter_id,
-                        'number': chapter.get('title', chapter_id.split('.')[-1] if '.' in str(chapter_id) else chapter_id),
+                        'number': chapter.get('number', chapter.get('title', chapter_id.split('.')[-1] if '.' in str(chapter_id) else chapter_id)),
                     })
             return JsonResponse({'data': transformed_data})
         return JsonResponse(data, status=500)

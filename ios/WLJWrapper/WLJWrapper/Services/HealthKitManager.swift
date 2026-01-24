@@ -109,6 +109,16 @@ class HealthKitManager {
             types.insert(vo2MaxType)
         }
 
+        // Caffeine (dietary)
+        if let caffeineType = HKQuantityType.quantityType(forIdentifier: .dietaryCaffeine) {
+            types.insert(caffeineType)
+        }
+
+        // Mindful Minutes (category type, not quantity)
+        if let mindfulType = HKCategoryType.categoryType(forIdentifier: .mindfulSession) {
+            types.insert(mindfulType)
+        }
+
         // Workout Sessions
         types.insert(HKObjectType.workoutType())
 
@@ -176,6 +186,8 @@ class HealthKitManager {
         let respiratoryRate = try await fetchRespiratoryRate(from: startDate, to: endDate)
         let hrv = try await fetchHeartRateVariability(from: startDate, to: endDate)
         let vo2Max = try await fetchVO2Max(from: startDate, to: endDate)
+        let caffeine = try await fetchCaffeine(from: startDate, to: endDate)
+        let mindfulMinutes = try await fetchMindfulMinutes(from: startDate, to: endDate)
 
         metrics.append(contentsOf: steps)
         metrics.append(contentsOf: weights)
@@ -196,6 +208,8 @@ class HealthKitManager {
         metrics.append(contentsOf: respiratoryRate)
         metrics.append(contentsOf: hrv)
         metrics.append(contentsOf: vo2Max)
+        metrics.append(contentsOf: caffeine)
+        metrics.append(contentsOf: mindfulMinutes)
 
         if metrics.isEmpty {
             return SyncResult(created: 0, updated: 0, skipped: 0, errors: 0)
@@ -1323,6 +1337,116 @@ class HealthKitManager {
                         source: "apple_health",
                         syncId: "vo2max-\(dateStr)"
                     ))
+                }
+
+                continuation.resume(returning: metrics)
+            }
+
+            healthStore.execute(query)
+        }
+    }
+
+    // MARK: - Fetch Caffeine
+
+    private func fetchCaffeine(from startDate: Date, to endDate: Date) async throws -> [HealthMetric] {
+        guard let caffeineType = HKQuantityType.quantityType(forIdentifier: .dietaryCaffeine) else {
+            return []
+        }
+
+        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate)
+
+        // Query daily totals
+        let interval = DateComponents(day: 1)
+        let query = HKStatisticsCollectionQuery(
+            quantityType: caffeineType,
+            quantitySamplePredicate: predicate,
+            options: .cumulativeSum,
+            anchorDate: Calendar.current.startOfDay(for: startDate),
+            intervalComponents: interval
+        )
+
+        return try await withCheckedThrowingContinuation { continuation in
+            query.initialResultsHandler = { _, results, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                var metrics: [HealthMetric] = []
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateFormat = "yyyy-MM-dd"
+
+                results?.enumerateStatistics(from: startDate, to: endDate) { statistics, _ in
+                    if let sum = statistics.sumQuantity() {
+                        // Caffeine in milligrams
+                        let caffeineMg = sum.doubleValue(for: .gramUnit(with: .milli))
+                        let dateStr = dateFormatter.string(from: statistics.startDate)
+
+                        if caffeineMg > 0 {
+                            metrics.append(HealthMetric(
+                                type: "caffeine",
+                                date: dateStr,
+                                caffeineValue: caffeineMg,
+                                source: "apple_health",
+                                syncId: "caffeine-\(dateStr)"
+                            ))
+                        }
+                    }
+                }
+
+                continuation.resume(returning: metrics)
+            }
+
+            healthStore.execute(query)
+        }
+    }
+
+    // MARK: - Fetch Mindful Minutes
+
+    private func fetchMindfulMinutes(from startDate: Date, to endDate: Date) async throws -> [HealthMetric] {
+        guard let mindfulType = HKCategoryType.categoryType(forIdentifier: .mindfulSession) else {
+            return []
+        }
+
+        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: .strictEndDate)
+        let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
+
+        return try await withCheckedThrowingContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: mindfulType,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: [sortDescriptor]
+            ) { _, samples, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                var metrics: [HealthMetric] = []
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateFormat = "yyyy-MM-dd"
+
+                // Group by date, summing total minutes
+                var dailyMinutes: [String: Int] = [:]
+
+                for sample in (samples as? [HKCategorySample]) ?? [] {
+                    let duration = sample.endDate.timeIntervalSince(sample.startDate) / 60 // minutes
+                    let dateStr = dateFormatter.string(from: sample.startDate)
+
+                    dailyMinutes[dateStr, default: 0] += Int(duration)
+                }
+
+                for (dateStr, minutes) in dailyMinutes {
+                    if minutes > 0 {
+                        metrics.append(HealthMetric(
+                            type: "mindful_minutes",
+                            date: dateStr,
+                            mindfulMinutesValue: minutes,
+                            source: "apple_health",
+                            syncId: "mindful-\(dateStr)"
+                        ))
+                    }
                 }
 
                 continuation.resume(returning: metrics)

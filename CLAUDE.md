@@ -339,10 +339,10 @@ Authorization: Bearer <token>
 ```
 All mobile API endpoints require Bearer token auth (added via `MobileAuthenticationMiddleware`).
 
-**HealthKit Data Synced (19 types):**
+**HealthKit Data Synced (21 types):**
 - Steps, Active Calories, Distance, Resting Calories, Flights Climbed, Exercise Minutes, Stand Hours → `StepsEntry`
 - Weight, Body Fat %, Lean Body Mass → `WeightEntry`
-- Sleep, Heart Rate, Respiratory Rate, HRV, VO2 Max → `SleepEntry`
+- Sleep, Heart Rate, Respiratory Rate, HRV, VO2 Max, Caffeine, Mindful Minutes → `SleepEntry`
 - Blood Glucose → `BloodGlucoseReading`
 - Blood Oxygen → stored as note
 - Water Intake → `WaterEntry`

@@ -3478,6 +3478,22 @@ class SleepEntry(UserOwnedModel):
         help_text="VO2 Max in mL/kg/min (cardio fitness level)",
     )
 
+    # Caffeine intake (milligrams)
+    caffeine_mg = models.DecimalField(
+        max_digits=6,
+        decimal_places=1,
+        null=True,
+        blank=True,
+        help_text="Daily caffeine intake in milligrams",
+    )
+
+    # Mindful minutes (meditation/mindfulness time)
+    mindful_minutes = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Daily mindful minutes (meditation, breathing exercises)",
+    )
+
     # Source tracking for wearable sync
     source = models.CharField(
         max_length=20,

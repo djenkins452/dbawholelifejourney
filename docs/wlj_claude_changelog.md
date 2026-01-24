@@ -16,6 +16,31 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-24 Changes
 
+### Add Caffeine and Mindful Minutes HealthKit Sync
+
+Extended HealthKit integration to sync Caffeine intake and Mindful Minutes.
+
+**iOS Changes:**
+- `HealthKitManager.swift` - Added `.dietaryCaffeine` (quantity) and `.mindfulSession` (category) to readTypes
+- `HealthKitManager.swift` - New `fetchCaffeine()` function (daily total in mg)
+- `HealthKitManager.swift` - New `fetchMindfulMinutes()` function (daily total from session durations)
+- `HealthMetric.swift` - Added `caffeineValue` and `mindfulMinutesValue` fields with CodingKeys
+- `BackgroundSyncManager.swift` - Observer queries for caffeine and mindful sessions
+- `HealthSyncView.swift` - New data type rows for Caffeine and Mindful Minutes
+
+**Django Changes:**
+- `apps/health/models.py` - Added `caffeine_mg` and `mindful_minutes` fields to SleepEntry
+- `apps/mobile/views.py` - `process_caffeine_metric` and `process_mindful_minutes_metric` handlers
+- Both metrics update existing SleepEntry records (skip if no sleep data for date)
+- Caffeine validation: 0-2000 mg, Mindful minutes validation: 0-1440 min
+
+**Migration:**
+- `0035_add_caffeine_and_mindful_minutes_to_sleepentry.py`
+
+**Total HealthKit types synced: 21** (up from 19)
+
+---
+
 ### Add HRV and VO2 Max HealthKit Sync
 
 Extended HealthKit integration to sync Heart Rate Variability (HRV) and VO2 Max metrics.

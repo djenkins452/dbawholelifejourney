@@ -496,6 +496,8 @@ def process_health_metric(user, metric):
         "respiratory_rate": process_respiratory_rate_metric,
         "hrv": process_hrv_metric,
         "vo2_max": process_vo2_max_metric,
+        "caffeine": process_caffeine_metric,
+        "mindful_minutes": process_mindful_minutes_metric,
     }
 
     handler = handlers.get(metric_type)
@@ -1729,6 +1731,82 @@ def process_vo2_max_metric(user, metric_date, source, sync_id, data):
         if existing.vo2_max != vo2_max_value:
             existing.vo2_max = vo2_max_value
             existing.save(update_fields=["vo2_max", "updated_at"])
+            return "updated"
+        return "skipped"
+
+    # No sleep entry for this date - skip creating a minimal entry
+    return "skipped"
+
+
+def process_caffeine_metric(user, metric_date, source, sync_id, data):
+    """
+    Process caffeine intake metric from Apple HealthKit.
+
+    Updates the caffeine_mg field on the SleepEntry for this date.
+    Caffeine intake affects sleep quality.
+    """
+    caffeine_value = data.get("caffeine_value")
+
+    if caffeine_value is None:
+        raise ValueError("caffeine_value is required for caffeine")
+
+    try:
+        caffeine_value = Decimal(str(caffeine_value))
+    except (TypeError, InvalidOperation):
+        raise ValueError(f"Invalid caffeine value: {caffeine_value}")
+
+    # Validate range (0 to 2000 mg is reasonable - about 20 cups of coffee)
+    if caffeine_value < 0 or caffeine_value > 2000:
+        raise ValueError(f"Caffeine value out of range: {caffeine_value}")
+
+    # Find existing SleepEntry for this date
+    existing = SleepEntry.objects.filter(
+        user=user,
+        sleep_date=metric_date,
+    ).order_by("-bedtime").first()
+
+    if existing:
+        if existing.caffeine_mg != caffeine_value:
+            existing.caffeine_mg = caffeine_value
+            existing.save(update_fields=["caffeine_mg", "updated_at"])
+            return "updated"
+        return "skipped"
+
+    # No sleep entry for this date - skip creating a minimal entry
+    return "skipped"
+
+
+def process_mindful_minutes_metric(user, metric_date, source, sync_id, data):
+    """
+    Process mindful minutes metric from Apple HealthKit.
+
+    Updates the mindful_minutes field on the SleepEntry for this date.
+    Mindfulness practice can improve sleep quality.
+    """
+    mindful_minutes_value = data.get("mindful_minutes_value")
+
+    if mindful_minutes_value is None:
+        raise ValueError("mindful_minutes_value is required for mindful_minutes")
+
+    try:
+        mindful_minutes_value = int(mindful_minutes_value)
+    except (TypeError, ValueError):
+        raise ValueError(f"Invalid mindful minutes value: {mindful_minutes_value}")
+
+    # Validate range (0 to 1440 minutes = 24 hours max)
+    if mindful_minutes_value < 0 or mindful_minutes_value > 1440:
+        raise ValueError(f"Mindful minutes value out of range: {mindful_minutes_value}")
+
+    # Find existing SleepEntry for this date
+    existing = SleepEntry.objects.filter(
+        user=user,
+        sleep_date=metric_date,
+    ).order_by("-bedtime").first()
+
+    if existing:
+        if existing.mindful_minutes != mindful_minutes_value:
+            existing.mindful_minutes = mindful_minutes_value
+            existing.save(update_fields=["mindful_minutes", "updated_at"])
             return "updated"
         return "skipped"
 

@@ -16,6 +16,18 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-24 Changes
 
+### Fix sync_status endpoint to return most recent ingestion run
+
+**Problem:** The `sync_status` API endpoint was returning an arbitrary (old) `HealthIngestionRun` record instead of the most recent one, causing the iOS app to display stale "Last Sync" times.
+
+**Root Cause:** The query `HealthIngestionRun.objects.filter(...).first()` had no ordering, so it returned whatever Django's default ordering produced (often the oldest record).
+
+**Fix:** Added `.order_by('-created_at')` to get the most recent ingestion run.
+
+**File Modified:** `apps/mobile/views.py` (line 844)
+
+---
+
 ### iOS: Fix "Last Sync" time display to use server timestamp
 
 **Problem:** The iOS app's "Last Sync" time in Settings kept climbing (e.g., "14 min ago", "15 min ago") even after successful syncs because it was using a local `Date()` timestamp instead of the server's actual sync time.

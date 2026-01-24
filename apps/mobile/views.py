@@ -840,11 +840,11 @@ def sync_status(request):
     user = request.user
     device = request.mobile_device
 
-    # Get last ingestion run
+    # Get last ingestion run (most recent first)
     last_run = HealthIngestionRun.objects.filter(
         user=user,
         device=device,
-    ).first()
+    ).order_by('-created_at').first()
 
     # Get latest dates for each metric type
     latest_steps = StepsEntry.objects.filter(

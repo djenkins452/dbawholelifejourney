@@ -790,8 +790,10 @@ def process_heart_rate_metric(user, metric_date, source, sync_id, data):
 
     # Create minimal sleep entry to store HR data
     # SleepEntry requires bedtime/wake_time, so create dummy values for HR-only entries
+    # Bedtime is night before (10 PM), wake time is morning of metric_date (6 AM)
     from datetime import time as dt_time
-    dummy_bedtime = timezone.make_aware(datetime.combine(metric_date, dt_time(22, 0)))
+    prev_day = metric_date - timedelta(days=1)
+    dummy_bedtime = timezone.make_aware(datetime.combine(prev_day, dt_time(22, 0)))
     dummy_wake_time = timezone.make_aware(datetime.combine(metric_date, dt_time(6, 0)))
 
     SleepEntry.objects.create(
@@ -799,7 +801,7 @@ def process_heart_rate_metric(user, metric_date, source, sync_id, data):
         sleep_date=metric_date,
         source=source,
         sync_id=sync_id,
-        total_duration_minutes=0,  # No sleep data, just HR
+        total_duration_minutes=480,  # 8 hours dummy value for HR-only entry
         bedtime=dummy_bedtime,
         wake_time=dummy_wake_time,
         **hr_data,

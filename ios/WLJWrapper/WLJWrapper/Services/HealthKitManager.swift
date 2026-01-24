@@ -420,12 +420,11 @@ class HealthKitManager {
         let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate)
         let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)
 
-        // Limit to 500 samples max to prevent memory issues (CGM = ~288 samples/day)
         return try await withCheckedThrowingContinuation { continuation in
             let query = HKSampleQuery(
                 sampleType: glucoseType,
                 predicate: predicate,
-                limit: 500,
+                limit: HKObjectQueryNoLimit,
                 sortDescriptors: [sortDescriptor]
             ) { _, samples, error in
                 if let error = error {
@@ -471,12 +470,11 @@ class HealthKitManager {
         let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate)
         let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)
 
-        // Limit to 500 samples max to prevent memory issues
         return try await withCheckedThrowingContinuation { continuation in
             let query = HKSampleQuery(
                 sampleType: oxygenType,
                 predicate: predicate,
-                limit: 500,
+                limit: HKObjectQueryNoLimit,
                 sortDescriptors: [sortDescriptor]
             ) { _, samples, error in
                 if let error = error {

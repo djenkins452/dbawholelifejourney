@@ -25,11 +25,9 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
 from apps.health.models import (
-    BloodOxygenEntry,
     GlucoseEntry,
     StepsEntry,
     SleepEntry,
-    WaterEntry,
     WeightEntry,
 )
 
@@ -481,8 +479,6 @@ def process_health_metric(user, metric):
         "sleep": process_sleep_metric,
         "heart_rate": process_heart_rate_metric,
         "blood_glucose": process_blood_glucose_metric,
-        "blood_oxygen": process_blood_oxygen_metric,
-        "water": process_water_metric,
     }
 
     handler = handlers.get(metric_type)
@@ -817,268 +813,91 @@ def process_heart_rate_metric(user, metric_date, source, sync_id, data):
 
 def process_blood_glucose_metric(user, metric_date, source, sync_id, data):
     """
-    Process blood glucose metric from Apple HealthKit.
+    Process blood glucose metric from HealthKit.
 
-    GlucoseEntry uses:
-    - value (decimal, required)
-    - unit (mg/dL or mmol/L)
-    - recorded_at (datetime)
-    - source, sync_id for deduplication
-    - context defaults to 'cgm' for synced data
+    GlucoseEntry fields:
+    - value (Decimal): glucose reading
+    - unit (str): mg/dL or mmol/L
+    - recorded_at (datetime): timestamp of reading
+    - source (str): manual, dexcom, imported
+    - context (str): cgm for HealthKit data
     """
-    # For blood glucose, the date field is actually a timestamp
-    glucose_value = data.get("glucose_value")
-    glucose_unit = data.get("glucose_unit", "mg/dL")
+    value = data.get("value")
+    unit = data.get("unit", "mg/dL")
+    timestamp = data.get("timestamp")
 
-    if glucose_value is None:
-        raise ValueError("glucose_value is required for blood_glucose")
+    if value is None:
+        raise ValueError("value is required for blood_glucose")
 
     try:
-        glucose_value = Decimal(str(glucose_value))
+        value = Decimal(str(value))
     except (TypeError, InvalidOperation):
-        raise ValueError(f"Invalid glucose value: {glucose_value}")
+        raise ValueError(f"Invalid blood glucose value: {value}")
 
-    # Normalize unit
-    if glucose_unit.lower() in ("mg/dl", "mgdl"):
-        glucose_unit = "mg/dL"
-    elif glucose_unit.lower() in ("mmol/l", "mmoll"):
-        glucose_unit = "mmol/L"
-    else:
-        glucose_unit = "mg/dL"
+    # Validate ranges (mg/dL)
+    if unit == "mg/dL" and (value < 20 or value > 600):
+        raise ValueError(f"Blood glucose value out of range: {value}")
 
-    # Validate ranges based on unit
-    if glucose_unit == "mg/dL" and (glucose_value < 20 or glucose_value > 600):
-        raise ValueError(f"Glucose value out of range: {glucose_value}")
-    if glucose_unit == "mmol/L" and (glucose_value < 1.1 or glucose_value > 33.3):
-        raise ValueError(f"Glucose value out of range: {glucose_value}")
-
-    # Parse recorded_at timestamp from the date field (ISO format with time)
+    # Parse timestamp for recorded_at
     recorded_at = None
-    date_str = data.get("date", "")
-    if date_str:
+    if timestamp:
         try:
-            recorded_at = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+            # Try ISO8601 format
+            recorded_at = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
         except ValueError:
-            # If it's just a date, use noon
-            try:
-                from datetime import time as dt_time
-                metric_date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
-                recorded_at = timezone.make_aware(
-                    datetime.combine(metric_date_obj, dt_time(12, 0))
-                )
-            except ValueError:
-                recorded_at = timezone.now()
-    else:
-        recorded_at = timezone.now()
+            pass
+
+    if not recorded_at:
+        # Fall back to start of day
+        recorded_at = timezone.make_aware(datetime.combine(metric_date, datetime.min.time()))
+
+    # Map apple_health source to "imported" for GlucoseEntry
+    glucose_source = "imported" if source == "apple_health" else source
 
     # Check for existing entry with same sync_id
     if sync_id:
         existing = GlucoseEntry.objects.filter(
             user=user,
-            sync_id=sync_id,
+            source=glucose_source,
+            dexcom_record_id=sync_id,  # Use dexcom_record_id field for sync tracking
         ).first()
 
         if existing:
-            # Update if value changed
-            if existing.value != glucose_value or existing.unit != glucose_unit:
-                existing.value = glucose_value
-                existing.unit = glucose_unit
-                existing.recorded_at = recorded_at
-                existing.save(update_fields=["value", "unit", "recorded_at", "updated_at"])
+            if existing.value != value:
+                existing.value = value
+                existing.save(update_fields=["value", "updated_at"])
                 return "updated"
             return "skipped"
 
-    # Check for existing entry at same timestamp from same source (within 1 minute)
-    time_window_start = recorded_at - timedelta(minutes=1)
-    time_window_end = recorded_at + timedelta(minutes=1)
+    # Check for existing entry at same timestamp from same source
+    # Allow 30 second tolerance for matching
+    time_window_start = recorded_at - timedelta(seconds=30)
+    time_window_end = recorded_at + timedelta(seconds=30)
 
     existing = GlucoseEntry.objects.filter(
         user=user,
-        source=source,
+        source=glucose_source,
         recorded_at__gte=time_window_start,
         recorded_at__lte=time_window_end,
     ).first()
 
     if existing:
-        if existing.value != glucose_value:
-            existing.value = glucose_value
-            existing.unit = glucose_unit
-            existing.sync_id = sync_id
-            existing.save(update_fields=["value", "unit", "sync_id", "updated_at"])
+        if existing.value != value:
+            existing.value = value
+            existing.dexcom_record_id = sync_id
+            existing.save(update_fields=["value", "dexcom_record_id", "updated_at"])
             return "updated"
         return "skipped"
 
     # Create new entry
     GlucoseEntry.objects.create(
         user=user,
-        value=glucose_value,
-        unit=glucose_unit,
-        context="cgm",  # CGM reading from HealthKit
+        value=value,
+        unit=unit,
         recorded_at=recorded_at,
-        source=source,
-        sync_id=sync_id,
-    )
-    return "created"
-
-
-def process_blood_oxygen_metric(user, metric_date, source, sync_id, data):
-    """
-    Process blood oxygen (SpO2) metric from Apple HealthKit.
-
-    BloodOxygenEntry uses:
-    - spo2 (integer percentage)
-    - recorded_at (datetime)
-    - source, sync_id for deduplication
-    """
-    spo2_value = data.get("spo2_value")
-
-    if spo2_value is None:
-        raise ValueError("spo2_value is required for blood_oxygen")
-
-    try:
-        spo2_value = int(spo2_value)
-    except (TypeError, ValueError):
-        raise ValueError(f"Invalid spo2 value: {spo2_value}")
-
-    # Validate range (50-100%)
-    if spo2_value < 50 or spo2_value > 100:
-        raise ValueError(f"SpO2 value out of range: {spo2_value}")
-
-    # Parse recorded_at timestamp from the date field (ISO format with time)
-    recorded_at = None
-    date_str = data.get("date", "")
-    if date_str:
-        try:
-            recorded_at = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
-        except ValueError:
-            recorded_at = timezone.now()
-    else:
-        recorded_at = timezone.now()
-
-    # Check for existing entry with same sync_id
-    if sync_id:
-        existing = BloodOxygenEntry.objects.filter(
-            user=user,
-            sync_id=sync_id,
-        ).first()
-
-        if existing:
-            if existing.spo2 != spo2_value:
-                existing.spo2 = spo2_value
-                existing.recorded_at = recorded_at
-                existing.save(update_fields=["spo2", "recorded_at", "updated_at"])
-                return "updated"
-            return "skipped"
-
-    # Check for existing entry at same timestamp from same source (within 1 minute)
-    time_window_start = recorded_at - timedelta(minutes=1)
-    time_window_end = recorded_at + timedelta(minutes=1)
-
-    existing = BloodOxygenEntry.objects.filter(
-        user=user,
-        source=source,
-        recorded_at__gte=time_window_start,
-        recorded_at__lte=time_window_end,
-    ).first()
-
-    if existing:
-        if existing.spo2 != spo2_value:
-            existing.spo2 = spo2_value
-            existing.sync_id = sync_id
-            existing.save(update_fields=["spo2", "sync_id", "updated_at"])
-            return "updated"
-        return "skipped"
-
-    # Create new entry
-    BloodOxygenEntry.objects.create(
-        user=user,
-        spo2=spo2_value,
-        context="sleeping",  # Apple Watch measures SpO2 during sleep
-        measurement_method="wrist",
-        recorded_at=recorded_at,
-        source=source,
-        sync_id=sync_id,
-    )
-    return "created"
-
-
-def process_water_metric(user, metric_date, source, sync_id, data):
-    """
-    Process water intake metric from Apple HealthKit.
-
-    WaterEntry uses:
-    - amount (decimal)
-    - unit (oz, ml, etc.)
-    - logged_date (date)
-    - source, sync_id for deduplication
-    """
-    water_amount = data.get("water_amount")
-    water_unit = data.get("water_unit", "oz")
-
-    if water_amount is None:
-        raise ValueError("water_amount is required for water")
-
-    try:
-        water_amount = Decimal(str(water_amount))
-    except (TypeError, InvalidOperation):
-        raise ValueError(f"Invalid water amount: {water_amount}")
-
-    # Normalize unit
-    if water_unit.lower() in ("oz", "ounce", "ounces", "fl oz"):
-        water_unit = "oz"
-    elif water_unit.lower() in ("ml", "milliliter", "milliliters"):
-        water_unit = "ml"
-    elif water_unit.lower() in ("l", "liter", "liters"):
-        water_unit = "liters"
-    else:
-        water_unit = "oz"
-
-    # Validate range
-    if water_unit == "oz" and (water_amount < 0 or water_amount > 500):
-        raise ValueError(f"Water amount out of range: {water_amount}")
-    if water_unit == "ml" and (water_amount < 0 or water_amount > 15000):
-        raise ValueError(f"Water amount out of range: {water_amount}")
-
-    # Check for existing entry with same sync_id
-    if sync_id:
-        existing = WaterEntry.objects.filter(
-            user=user,
-            sync_id=sync_id,
-        ).first()
-
-        if existing:
-            if existing.amount != water_amount:
-                existing.amount = water_amount
-                existing.unit = water_unit
-                existing.save(update_fields=["amount", "unit", "updated_at"])
-                return "updated"
-            return "skipped"
-
-    # Check for existing entry on same date from same source
-    existing = WaterEntry.objects.filter(
-        user=user,
-        logged_date=metric_date,
-        source=source,
-    ).first()
-
-    if existing:
-        # For water, we want to replace the daily total rather than add
-        if existing.amount != water_amount:
-            existing.amount = water_amount
-            existing.unit = water_unit
-            existing.sync_id = sync_id
-            existing.save(update_fields=["amount", "unit", "sync_id", "updated_at"])
-            return "updated"
-        return "skipped"
-
-    # Create new entry
-    WaterEntry.objects.create(
-        user=user,
-        amount=water_amount,
-        unit=water_unit,
-        logged_date=metric_date,
-        source=source,
-        sync_id=sync_id,
+        source=glucose_source,
+        dexcom_record_id=sync_id,
+        context="cgm",  # CGM readings from HealthKit
     )
     return "created"
 
@@ -1136,11 +955,6 @@ def sync_status(request):
         source="apple_health",
     ).order_by("-sleep_date").values_list("sleep_date", flat=True).first()
 
-    latest_glucose = GlucoseEntry.objects.filter(
-        user=user,
-        source="apple_health",
-    ).order_by("-recorded_at").values_list("recorded_at", flat=True).first()
-
     return JsonResponse({
         "last_sync": last_run.created_at.isoformat() if last_run else None,
         "last_sync_status": last_run.status if last_run else None,
@@ -1149,7 +963,6 @@ def sync_status(request):
             # latest_weight is a datetime, get just the date
             "weight": latest_weight.date().isoformat() if latest_weight else None,
             "sleep": latest_sleep.isoformat() if latest_sleep else None,
-            "blood_glucose": latest_glucose.isoformat() if latest_glucose else None,
         },
         "device": {
             "name": device.device_name or device.device_model or "Unknown",

@@ -16,6 +16,20 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-24 Changes
 
+### Fix user dropdown being pushed off-screen in navigation
+
+**Problem:** On desktop with many nav items enabled, the user dropdown (profile/preferences/sign out) was being pushed off the right edge of the screen and not visible.
+
+**Fix:** Made nav-links flexible so it can shrink, while keeping help button and user menu always visible:
+- `.nav-links`: Added `flex: 1; min-width: 0; overflow-x: auto;`
+- `.nav-help`: Added `flex-shrink: 0;`
+
+**Files Modified:**
+- `static/css/main.css` - Added flex properties to nav elements
+- `templates/base.html` - Cache bust CSS version
+
+---
+
 ### Health Metric Dashboards - Phase 1 (Blood Pressure & Blood Oxygen)
 
 Created reusable dashboard infrastructure for all health metrics.

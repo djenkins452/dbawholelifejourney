@@ -794,6 +794,10 @@ class BibleAPIBiblesView(LoginRequiredMixin, FaithRequiredMixin, BibleAPIProxyMi
         params = {}
         language = request.GET.get('language', 'en')
         params['language_ranges[]'] = language
+        # Include all translations the API key has access to (not just public domain)
+        params['all_available'] = 'true'
+        # Get more results per page (default is 25)
+        params['page_size'] = '100'
 
         success, data = self.make_api_request("/bibles", params=params)
         if success:

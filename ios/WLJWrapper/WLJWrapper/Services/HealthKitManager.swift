@@ -54,6 +54,16 @@ class HealthKitManager {
             types.insert(waterType)
         }
 
+        // Active Energy (Calories Burned)
+        if let activeEnergyType = HKQuantityType.quantityType(forIdentifier: .activeEnergyBurned) {
+            types.insert(activeEnergyType)
+        }
+
+        // Distance Walking/Running
+        if let distanceType = HKQuantityType.quantityType(forIdentifier: .distanceWalkingRunning) {
+            types.insert(distanceType)
+        }
+
         return types
     }()
 
@@ -106,6 +116,8 @@ class HealthKitManager {
         let glucoseReadings = try await fetchBloodGlucose(from: startDate, to: endDate)
         let oxygenReadings = try await fetchBloodOxygen(from: startDate, to: endDate)
         let waterIntake = try await fetchWaterIntake(from: startDate, to: endDate)
+        let activeCalories = try await fetchActiveCalories(from: startDate, to: endDate)
+        let distance = try await fetchDistance(from: startDate, to: endDate)
 
         metrics.append(contentsOf: steps)
         metrics.append(contentsOf: weights)
@@ -114,6 +126,8 @@ class HealthKitManager {
         metrics.append(contentsOf: glucoseReadings)
         metrics.append(contentsOf: oxygenReadings)
         metrics.append(contentsOf: waterIntake)
+        metrics.append(contentsOf: activeCalories)
+        metrics.append(contentsOf: distance)
 
         if metrics.isEmpty {
             return SyncResult(created: 0, updated: 0, skipped: 0, errors: 0)
@@ -520,6 +534,115 @@ class HealthKitManager {
                                 waterUnit: "oz",
                                 source: "apple_health",
                                 syncId: "water-\(dateStr)"
+                            ))
+                        }
+                    }
+                }
+
+                continuation.resume(returning: metrics)
+            }
+
+            healthStore.execute(query)
+        }
+    }
+
+    // MARK: - Fetch Active Calories
+
+    private func fetchActiveCalories(from startDate: Date, to endDate: Date) async throws -> [HealthMetric] {
+        guard let activeEnergyType = HKQuantityType.quantityType(forIdentifier: .activeEnergyBurned) else {
+            return []
+        }
+
+        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate)
+
+        // Query daily totals
+        let interval = DateComponents(day: 1)
+        let query = HKStatisticsCollectionQuery(
+            quantityType: activeEnergyType,
+            quantitySamplePredicate: predicate,
+            options: .cumulativeSum,
+            anchorDate: Calendar.current.startOfDay(for: startDate),
+            intervalComponents: interval
+        )
+
+        return try await withCheckedThrowingContinuation { continuation in
+            query.initialResultsHandler = { _, results, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                var metrics: [HealthMetric] = []
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateFormat = "yyyy-MM-dd"
+
+                results?.enumerateStatistics(from: startDate, to: endDate) { statistics, _ in
+                    if let sum = statistics.sumQuantity() {
+                        let calories = Int(sum.doubleValue(for: .kilocalorie()))
+                        let dateStr = dateFormatter.string(from: statistics.startDate)
+
+                        if calories > 0 {
+                            metrics.append(HealthMetric(
+                                type: "active_calories",
+                                date: dateStr,
+                                caloriesValue: calories,
+                                source: "apple_health",
+                                syncId: "calories-\(dateStr)"
+                            ))
+                        }
+                    }
+                }
+
+                continuation.resume(returning: metrics)
+            }
+
+            healthStore.execute(query)
+        }
+    }
+
+    // MARK: - Fetch Distance Walking/Running
+
+    private func fetchDistance(from startDate: Date, to endDate: Date) async throws -> [HealthMetric] {
+        guard let distanceType = HKQuantityType.quantityType(forIdentifier: .distanceWalkingRunning) else {
+            return []
+        }
+
+        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate)
+
+        // Query daily totals
+        let interval = DateComponents(day: 1)
+        let query = HKStatisticsCollectionQuery(
+            quantityType: distanceType,
+            quantitySamplePredicate: predicate,
+            options: .cumulativeSum,
+            anchorDate: Calendar.current.startOfDay(for: startDate),
+            intervalComponents: interval
+        )
+
+        return try await withCheckedThrowingContinuation { continuation in
+            query.initialResultsHandler = { _, results, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                var metrics: [HealthMetric] = []
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateFormat = "yyyy-MM-dd"
+
+                results?.enumerateStatistics(from: startDate, to: endDate) { statistics, _ in
+                    if let sum = statistics.sumQuantity() {
+                        let miles = sum.doubleValue(for: .mile())
+                        let dateStr = dateFormatter.string(from: statistics.startDate)
+
+                        if miles > 0 {
+                            metrics.append(HealthMetric(
+                                type: "distance",
+                                date: dateStr,
+                                distanceValue: miles,
+                                distanceUnit: "mi",
+                                source: "apple_health",
+                                syncId: "distance-\(dateStr)"
                             ))
                         }
                     }

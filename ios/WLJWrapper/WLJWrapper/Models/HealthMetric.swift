@@ -45,6 +45,13 @@ struct HealthMetric: Codable {
     var waterAmount: Double?
     var waterUnit: String?
 
+    // Active Calories
+    var caloriesValue: Int?
+
+    // Distance
+    var distanceValue: Double?
+    var distanceUnit: String?
+
     enum CodingKeys: String, CodingKey {
         case type
         case date
@@ -68,6 +75,9 @@ struct HealthMetric: Codable {
         case spo2Value = "spo2_value"
         case waterAmount = "water_amount"
         case waterUnit = "water_unit"
+        case caloriesValue = "calories_value"
+        case distanceValue = "distance_value"
+        case distanceUnit = "distance_unit"
     }
 
     // MARK: - Convenience Initializers
@@ -148,6 +158,26 @@ struct HealthMetric: Codable {
         self.date = date
         self.waterAmount = waterAmount
         self.waterUnit = waterUnit
+        self.source = source
+        self.syncId = syncId
+    }
+
+    /// Create an active calories metric
+    init(type: String, date: String, caloriesValue: Int, source: String, syncId: String) {
+        self.type = type
+        self.date = date
+        self.caloriesValue = caloriesValue
+        self.source = source
+        self.syncId = syncId
+    }
+
+    /// Create a distance metric
+    init(type: String, date: String, distanceValue: Double, distanceUnit: String,
+         source: String, syncId: String) {
+        self.type = type
+        self.date = date
+        self.distanceValue = distanceValue
+        self.distanceUnit = distanceUnit
         self.source = source
         self.syncId = syncId
     }

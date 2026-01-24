@@ -16,6 +16,34 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-24 Changes
 
+### Add Active Calories and Distance HealthKit Sync
+
+Extended HealthKit integration to sync active calories burned and walking/running distance.
+
+**iOS Changes:**
+- `HealthKitManager.swift` - Added `.activeEnergyBurned` and `.distanceWalkingRunning` types
+- `HealthKitManager.swift` - New `fetchActiveCalories()` and `fetchDistance()` functions
+- `HealthMetric.swift` - Added `caloriesValue`, `distanceValue`, `distanceUnit` fields
+- `BackgroundSyncManager.swift` - Observer queries for active energy and distance
+- `HealthSyncView.swift` - New data type rows for Active Calories and Distance
+- `SettingsView.swift` - Updated sync description footer
+- `Info.plist` - Updated HealthKit usage description
+
+**Django Changes:**
+- `apps/mobile/views.py` - `process_active_calories_metric` and `process_distance_metric` handlers
+- Data stored in existing `StepsEntry.calories_burned` and `StepsEntry.distance_miles` fields
+
+**Files Modified:**
+- `ios/WLJWrapper/WLJWrapper/Services/HealthKitManager.swift`
+- `ios/WLJWrapper/WLJWrapper/Services/BackgroundSyncManager.swift`
+- `ios/WLJWrapper/WLJWrapper/Models/HealthMetric.swift`
+- `ios/WLJWrapper/WLJWrapper/Views/HealthSyncView.swift`
+- `ios/WLJWrapper/WLJWrapper/Views/SettingsView.swift`
+- `ios/WLJWrapper/WLJWrapper/Resources/Info.plist`
+- `apps/mobile/views.py`
+
+---
+
 ### Enhanced HealthKit Integration - Blood Glucose, SpO2, Water, Background Sync
 
 Expanded iOS HealthKit integration with additional health data types and automatic background sync.

@@ -483,6 +483,8 @@ def process_health_metric(user, metric):
         "blood_glucose": process_blood_glucose_metric,
         "blood_oxygen": process_blood_oxygen_metric,
         "water": process_water_metric,
+        "active_calories": process_active_calories_metric,
+        "distance": process_distance_metric,
     }
 
     handler = handlers.get(metric_type)
@@ -1077,6 +1079,108 @@ def process_water_metric(user, metric_date, source, sync_id, data):
         amount=water_amount,
         unit=water_unit,
         logged_date=metric_date,
+        source=source,
+        sync_id=sync_id,
+    )
+    return "created"
+
+
+def process_active_calories_metric(user, metric_date, source, sync_id, data):
+    """
+    Process active calories metric from Apple HealthKit.
+
+    Updates the calories_burned field on the StepsEntry for this date.
+    Creates a minimal StepsEntry if one doesn't exist.
+    """
+    calories_value = data.get("calories_value")
+
+    if calories_value is None:
+        raise ValueError("calories_value is required for active_calories")
+
+    try:
+        calories_value = int(calories_value)
+    except (TypeError, ValueError):
+        raise ValueError(f"Invalid calories value: {calories_value}")
+
+    # Validate range (0 to 10,000 calories is reasonable)
+    if calories_value < 0 or calories_value > 10000:
+        raise ValueError(f"Calories value out of range: {calories_value}")
+
+    # Find existing StepsEntry for this date and source
+    existing = StepsEntry.objects.filter(
+        user=user,
+        logged_date=metric_date,
+        source=source,
+    ).first()
+
+    if existing:
+        if existing.calories_burned != calories_value:
+            existing.calories_burned = calories_value
+            existing.save(update_fields=["calories_burned", "updated_at"])
+            return "updated"
+        return "skipped"
+
+    # Create new StepsEntry with just calories (count=0)
+    StepsEntry.objects.create(
+        user=user,
+        logged_date=metric_date,
+        count=0,  # Will be updated by steps sync
+        calories_burned=calories_value,
+        source=source,
+        sync_id=sync_id,
+    )
+    return "created"
+
+
+def process_distance_metric(user, metric_date, source, sync_id, data):
+    """
+    Process distance walking/running metric from Apple HealthKit.
+
+    Updates the distance_miles field on the StepsEntry for this date.
+    Creates a minimal StepsEntry if one doesn't exist.
+    """
+    distance_value = data.get("distance_value")
+    distance_unit = data.get("distance_unit", "mi")
+
+    if distance_value is None:
+        raise ValueError("distance_value is required for distance")
+
+    try:
+        distance_value = Decimal(str(distance_value))
+    except (TypeError, InvalidOperation):
+        raise ValueError(f"Invalid distance value: {distance_value}")
+
+    # Convert to miles if needed
+    if distance_unit.lower() in ("km", "kilometer", "kilometers"):
+        distance_value = distance_value / Decimal("1.60934")
+    elif distance_unit.lower() not in ("mi", "mile", "miles"):
+        # Assume miles if unknown unit
+        pass
+
+    # Validate range (0 to 100 miles is reasonable)
+    if distance_value < 0 or distance_value > 100:
+        raise ValueError(f"Distance value out of range: {distance_value}")
+
+    # Find existing StepsEntry for this date and source
+    existing = StepsEntry.objects.filter(
+        user=user,
+        logged_date=metric_date,
+        source=source,
+    ).first()
+
+    if existing:
+        if existing.distance_miles != distance_value:
+            existing.distance_miles = distance_value
+            existing.save(update_fields=["distance_miles", "updated_at"])
+            return "updated"
+        return "skipped"
+
+    # Create new StepsEntry with just distance (count=0)
+    StepsEntry.objects.create(
+        user=user,
+        logged_date=metric_date,
+        count=0,  # Will be updated by steps sync
+        distance_miles=distance_value,
         source=source,
         sync_id=sync_id,
     )

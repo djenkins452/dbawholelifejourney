@@ -53,6 +53,8 @@ struct HealthSyncView: View {
                 DataTypeRow(icon: "drop.fill", title: "Blood Glucose", description: "CGM readings from Dexcom")
                 DataTypeRow(icon: "lungs.fill", title: "Blood Oxygen", description: "SpO2 from Apple Watch")
                 DataTypeRow(icon: "drop.triangle.fill", title: "Water Intake", description: "Daily hydration")
+                DataTypeRow(icon: "flame.fill", title: "Active Calories", description: "Calories burned from activity")
+                DataTypeRow(icon: "figure.run", title: "Distance", description: "Walking and running distance")
             } header: {
                 Text("Synced Data Types")
             } footer: {

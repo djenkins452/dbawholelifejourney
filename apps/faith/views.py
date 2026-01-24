@@ -1009,6 +1009,7 @@ class BibleAPIPassageView(LoginRequiredMixin, FaithRequiredMixin, BibleAPIProxyM
         if request.GET.get('include_notes'):
             params['include_notes'] = request.GET['include_notes']
 
+        logger.debug(f"Fetching passage: bible_id={safe_bible_id}, passage_id={safe_passage_id}")
         success, data = self.make_api_request(
             f"/bibles/{safe_bible_id}/passages/{safe_passage_id}",
             params=params if params else None
@@ -1022,6 +1023,8 @@ class BibleAPIPassageView(LoginRequiredMixin, FaithRequiredMixin, BibleAPIProxyM
                     'content': data.get('content', ''),
                 }
             })
+        # Return the error with more context
+        logger.warning(f"Passage fetch failed: bible_id={safe_bible_id}, passage_id={safe_passage_id}, error={data}")
         return JsonResponse(data, status=500)
 
 

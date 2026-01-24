@@ -487,6 +487,8 @@ def process_health_metric(user, metric):
         "distance": process_distance_metric,
         "resting_calories": process_resting_calories_metric,
         "flights_climbed": process_flights_climbed_metric,
+        "exercise_minutes": process_exercise_minutes_metric,
+        "stand_hours": process_stand_hours_metric,
     }
 
     handler = handlers.get(metric_type)
@@ -1277,6 +1279,100 @@ def process_flights_climbed_metric(user, metric_date, source, sync_id, data):
         logged_date=metric_date,
         count=0,  # Will be updated by steps sync
         flights_climbed=flights_value,
+        source=source,
+        sync_id=sync_id,
+    )
+    return "created"
+
+
+def process_exercise_minutes_metric(user, metric_date, source, sync_id, data):
+    """
+    Process exercise minutes metric from Apple HealthKit.
+
+    Updates the exercise_minutes field on the StepsEntry for this date.
+    Creates a minimal StepsEntry if one doesn't exist.
+    """
+    exercise_minutes_value = data.get("exercise_minutes_value")
+
+    if exercise_minutes_value is None:
+        raise ValueError("exercise_minutes_value is required for exercise_minutes")
+
+    try:
+        exercise_minutes_value = int(exercise_minutes_value)
+    except (TypeError, ValueError):
+        raise ValueError(f"Invalid exercise minutes value: {exercise_minutes_value}")
+
+    # Validate range (0 to 1440 minutes = 24 hours)
+    if exercise_minutes_value < 0 or exercise_minutes_value > 1440:
+        raise ValueError(f"Exercise minutes value out of range: {exercise_minutes_value}")
+
+    # Find existing StepsEntry for this date and source
+    existing = StepsEntry.objects.filter(
+        user=user,
+        logged_date=metric_date,
+        source=source,
+    ).first()
+
+    if existing:
+        if existing.exercise_minutes != exercise_minutes_value:
+            existing.exercise_minutes = exercise_minutes_value
+            existing.save(update_fields=["exercise_minutes", "updated_at"])
+            return "updated"
+        return "skipped"
+
+    # Create new StepsEntry with just exercise minutes (count=0)
+    StepsEntry.objects.create(
+        user=user,
+        logged_date=metric_date,
+        count=0,  # Will be updated by steps sync
+        exercise_minutes=exercise_minutes_value,
+        source=source,
+        sync_id=sync_id,
+    )
+    return "created"
+
+
+def process_stand_hours_metric(user, metric_date, source, sync_id, data):
+    """
+    Process stand hours metric from Apple HealthKit.
+
+    Updates the stand_hours field on the StepsEntry for this date.
+    Creates a minimal StepsEntry if one doesn't exist.
+    """
+    stand_hours_value = data.get("stand_hours_value")
+
+    if stand_hours_value is None:
+        raise ValueError("stand_hours_value is required for stand_hours")
+
+    try:
+        stand_hours_value = int(stand_hours_value)
+    except (TypeError, ValueError):
+        raise ValueError(f"Invalid stand hours value: {stand_hours_value}")
+
+    # Validate range (0 to 24 hours)
+    if stand_hours_value < 0 or stand_hours_value > 24:
+        raise ValueError(f"Stand hours value out of range: {stand_hours_value}")
+
+    # Find existing StepsEntry for this date and source
+    existing = StepsEntry.objects.filter(
+        user=user,
+        logged_date=metric_date,
+        source=source,
+    ).first()
+
+    if existing:
+        if existing.stand_hours != stand_hours_value:
+            existing.stand_hours = stand_hours_value
+            existing.save(update_fields=["stand_hours", "updated_at"])
+            return "updated"
+        return "skipped"
+
+    # Create new StepsEntry with just stand hours (count=0)
+    StepsEntry.objects.create(
+        user=user,
+        logged_date=metric_date,
+        count=0,  # Will be updated by steps sync
+        stand_hours=stand_hours_value,
         source=source,
         sync_id=sync_id,
     )

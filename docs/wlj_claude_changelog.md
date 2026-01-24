@@ -16,6 +16,27 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-24 Changes
 
+### Add Exercise Minutes and Stand Hours HealthKit Sync
+
+Extended HealthKit integration to sync Apple Exercise Time and Stand Hours.
+
+**iOS Changes:**
+- `HealthKitManager.swift` - Added `.appleExerciseTime` and `.appleStandTime` types
+- `HealthKitManager.swift` - New `fetchExerciseMinutes()` and `fetchStandHours()` functions
+- `HealthMetric.swift` - Added `exerciseMinutesValue`, `standHoursValue` fields
+- `BackgroundSyncManager.swift` - Observer queries for exercise and stand time
+- `HealthSyncView.swift` - New data type rows for Exercise Minutes and Stand Hours
+- Updated Settings and Info.plist descriptions
+
+**Django Changes:**
+- `apps/health/models.py` - Added `exercise_minutes` and `stand_hours` fields to StepsEntry
+- `apps/mobile/views.py` - `process_exercise_minutes_metric` and `process_stand_hours_metric` handlers
+
+**Migration:**
+- `0031_add_exercise_stand_to_steps.py`
+
+---
+
 ### Add Resting Calories and Flights Climbed HealthKit Sync
 
 Extended HealthKit integration to sync basal/resting calories and flights of stairs climbed.

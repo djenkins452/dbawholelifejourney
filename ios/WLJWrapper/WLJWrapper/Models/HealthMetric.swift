@@ -58,6 +58,12 @@ struct HealthMetric: Codable {
     // Flights Climbed
     var flightsValue: Int?
 
+    // Exercise Minutes
+    var exerciseMinutesValue: Int?
+
+    // Stand Hours
+    var standHoursValue: Int?
+
     enum CodingKeys: String, CodingKey {
         case type
         case date
@@ -86,6 +92,8 @@ struct HealthMetric: Codable {
         case distanceUnit = "distance_unit"
         case restingCaloriesValue = "resting_calories_value"
         case flightsValue = "flights_value"
+        case exerciseMinutesValue = "exercise_minutes_value"
+        case standHoursValue = "stand_hours_value"
     }
 
     // MARK: - Convenience Initializers
@@ -204,6 +212,24 @@ struct HealthMetric: Codable {
         self.type = type
         self.date = date
         self.flightsValue = flightsValue
+        self.source = source
+        self.syncId = syncId
+    }
+
+    /// Create an exercise minutes metric
+    init(type: String, date: String, exerciseMinutesValue: Int, source: String, syncId: String) {
+        self.type = type
+        self.date = date
+        self.exerciseMinutesValue = exerciseMinutesValue
+        self.source = source
+        self.syncId = syncId
+    }
+
+    /// Create a stand hours metric
+    init(type: String, date: String, standHoursValue: Int, source: String, syncId: String) {
+        self.type = type
+        self.date = date
+        self.standHoursValue = standHoursValue
         self.source = source
         self.syncId = syncId
     }

@@ -56,6 +56,8 @@ class BackgroundSyncManager {
             HKQuantityType.quantityType(forIdentifier: .distanceWalkingRunning),
             HKQuantityType.quantityType(forIdentifier: .basalEnergyBurned),
             HKQuantityType.quantityType(forIdentifier: .flightsClimbed),
+            HKQuantityType.quantityType(forIdentifier: .appleExerciseTime),
+            HKQuantityType.quantityType(forIdentifier: .appleStandTime),
             HKCategoryType.categoryType(forIdentifier: .sleepAnalysis)
         ].compactMap { $0 }
 

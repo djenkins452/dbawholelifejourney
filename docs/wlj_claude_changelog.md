@@ -16,6 +16,31 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-24 Changes
 
+### Add HRV and VO2 Max HealthKit Sync
+
+Extended HealthKit integration to sync Heart Rate Variability (HRV) and VO2 Max metrics.
+
+**iOS Changes:**
+- `HealthKitManager.swift` - Added `.heartRateVariabilitySDNN` and `.vo2Max` to readTypes
+- `HealthKitManager.swift` - New `fetchHeartRateVariability()` function (daily average in ms)
+- `HealthKitManager.swift` - New `fetchVO2Max()` function (most recent per day in mL/kg/min)
+- `HealthMetric.swift` - Added `hrvValue` and `vo2MaxValue` fields with CodingKeys
+- `BackgroundSyncManager.swift` - Observer queries for HRV and VO2 Max
+- `HealthSyncView.swift` - New data type rows for HRV and VO2 Max
+
+**Django Changes:**
+- `apps/health/models.py` - Added `hrv_value` and `vo2_max` fields to SleepEntry
+- `apps/mobile/views.py` - `process_hrv_metric` and `process_vo2_max_metric` handlers
+- Both metrics update existing SleepEntry records (skip if no sleep data for date)
+- HRV validation: 5-300 ms, VO2 Max validation: 10-100 mL/kg/min
+
+**Migration:**
+- `0034_add_hrv_and_vo2max_to_sleepentry.py`
+
+**Total HealthKit types synced: 19** (up from 17)
+
+---
+
 ### Add Lean Body Mass and Respiratory Rate HealthKit Sync
 
 Extended HealthKit integration to sync lean body mass and respiratory rate.

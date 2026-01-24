@@ -99,6 +99,16 @@ class HealthKitManager {
             types.insert(respRateType)
         }
 
+        // Heart Rate Variability (SDNN)
+        if let hrvType = HKQuantityType.quantityType(forIdentifier: .heartRateVariabilitySDNN) {
+            types.insert(hrvType)
+        }
+
+        // VO2 Max
+        if let vo2MaxType = HKQuantityType.quantityType(forIdentifier: .vo2Max) {
+            types.insert(vo2MaxType)
+        }
+
         // Workout Sessions
         types.insert(HKObjectType.workoutType())
 
@@ -164,6 +174,8 @@ class HealthKitManager {
         let workouts = try await fetchWorkouts(from: startDate, to: endDate)
         let leanMass = try await fetchLeanBodyMass(from: startDate, to: endDate)
         let respiratoryRate = try await fetchRespiratoryRate(from: startDate, to: endDate)
+        let hrv = try await fetchHeartRateVariability(from: startDate, to: endDate)
+        let vo2Max = try await fetchVO2Max(from: startDate, to: endDate)
 
         metrics.append(contentsOf: steps)
         metrics.append(contentsOf: weights)
@@ -182,6 +194,8 @@ class HealthKitManager {
         metrics.append(contentsOf: workouts)
         metrics.append(contentsOf: leanMass)
         metrics.append(contentsOf: respiratoryRate)
+        metrics.append(contentsOf: hrv)
+        metrics.append(contentsOf: vo2Max)
 
         if metrics.isEmpty {
             return SyncResult(created: 0, updated: 0, skipped: 0, errors: 0)
@@ -1190,6 +1204,124 @@ class HealthKitManager {
                         leanMassUnit: "lb",
                         source: "apple_health",
                         syncId: "leanmass-\(dateStr)"
+                    ))
+                }
+
+                continuation.resume(returning: metrics)
+            }
+
+            healthStore.execute(query)
+        }
+    }
+
+    // MARK: - Fetch Heart Rate Variability (HRV)
+
+    private func fetchHeartRateVariability(from startDate: Date, to endDate: Date) async throws -> [HealthMetric] {
+        guard let hrvType = HKQuantityType.quantityType(forIdentifier: .heartRateVariabilitySDNN) else {
+            return []
+        }
+
+        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: .strictEndDate)
+        let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
+
+        return try await withCheckedThrowingContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: hrvType,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: [sortDescriptor]
+            ) { _, samples, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                var metrics: [HealthMetric] = []
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateFormat = "yyyy-MM-dd"
+
+                // Group by date, keeping average per day
+                var dailyReadings: [String: [Double]] = [:]
+
+                for sample in (samples as? [HKQuantitySample]) ?? [] {
+                    // HRV SDNN is in milliseconds
+                    let hrv = sample.quantity.doubleValue(for: HKUnit.secondUnit(with: .milli))
+                    let dateStr = dateFormatter.string(from: sample.startDate)
+
+                    if dailyReadings[dateStr] == nil {
+                        dailyReadings[dateStr] = []
+                    }
+                    dailyReadings[dateStr]?.append(hrv)
+                }
+
+                for (dateStr, readings) in dailyReadings {
+                    let avgHrv = readings.reduce(0, +) / Double(readings.count)
+                    metrics.append(HealthMetric(
+                        type: "hrv",
+                        date: dateStr,
+                        hrvValue: avgHrv,
+                        source: "apple_health",
+                        syncId: "hrv-\(dateStr)"
+                    ))
+                }
+
+                continuation.resume(returning: metrics)
+            }
+
+            healthStore.execute(query)
+        }
+    }
+
+    // MARK: - Fetch VO2 Max
+
+    private func fetchVO2Max(from startDate: Date, to endDate: Date) async throws -> [HealthMetric] {
+        guard let vo2MaxType = HKQuantityType.quantityType(forIdentifier: .vo2Max) else {
+            return []
+        }
+
+        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: .strictEndDate)
+        let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
+
+        return try await withCheckedThrowingContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: vo2MaxType,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: [sortDescriptor]
+            ) { _, samples, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                var metrics: [HealthMetric] = []
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateFormat = "yyyy-MM-dd"
+
+                // Group by date, keeping most recent per day (VO2 Max updates infrequently)
+                var latestPerDay: [String: (date: Date, value: Double)] = [:]
+
+                for sample in (samples as? [HKQuantitySample]) ?? [] {
+                    // VO2 Max is in mL/kg/min
+                    let vo2 = sample.quantity.doubleValue(for: HKUnit(from: "mL/kg*min"))
+                    let dateStr = dateFormatter.string(from: sample.startDate)
+
+                    if let existing = latestPerDay[dateStr] {
+                        if sample.startDate > existing.date {
+                            latestPerDay[dateStr] = (sample.startDate, vo2)
+                        }
+                    } else {
+                        latestPerDay[dateStr] = (sample.startDate, vo2)
+                    }
+                }
+
+                for (dateStr, data) in latestPerDay {
+                    metrics.append(HealthMetric(
+                        type: "vo2_max",
+                        date: dateStr,
+                        vo2MaxValue: data.value,
+                        source: "apple_health",
+                        syncId: "vo2max-\(dateStr)"
                     ))
                 }
 

@@ -494,6 +494,8 @@ def process_health_metric(user, metric):
         "workout": process_workout_metric,
         "lean_body_mass": process_lean_body_mass_metric,
         "respiratory_rate": process_respiratory_rate_metric,
+        "hrv": process_hrv_metric,
+        "vo2_max": process_vo2_max_metric,
     }
 
     handler = handlers.get(metric_type)
@@ -1654,6 +1656,83 @@ def process_respiratory_rate_metric(user, metric_date, source, sync_id, data):
     # No sleep entry for this date - respiratory rate is typically measured during sleep
     # We'll skip creating a minimal entry since it doesn't make sense without sleep data
     # The data will be captured when the next sleep sync includes this date
+    return "skipped"
+
+
+def process_hrv_metric(user, metric_date, source, sync_id, data):
+    """
+    Process Heart Rate Variability (HRV) metric from Apple HealthKit.
+
+    Updates the hrv_value field on the SleepEntry for this date.
+    HRV is typically measured during sleep or rest.
+    """
+    hrv_value = data.get("hrv_value")
+
+    if hrv_value is None:
+        raise ValueError("hrv_value is required for hrv")
+
+    try:
+        hrv_value = Decimal(str(hrv_value))
+    except (TypeError, InvalidOperation):
+        raise ValueError(f"Invalid HRV value: {hrv_value}")
+
+    # Validate range (10 to 200 ms is reasonable for SDNN)
+    if hrv_value < 5 or hrv_value > 300:
+        raise ValueError(f"HRV value out of range: {hrv_value}")
+
+    # Find existing SleepEntry for this date
+    existing = SleepEntry.objects.filter(
+        user=user,
+        sleep_date=metric_date,
+    ).order_by("-bedtime").first()
+
+    if existing:
+        if existing.hrv_value != hrv_value:
+            existing.hrv_value = hrv_value
+            existing.save(update_fields=["hrv_value", "updated_at"])
+            return "updated"
+        return "skipped"
+
+    # No sleep entry for this date - HRV is typically measured during sleep/rest
+    # Skip creating a minimal entry
+    return "skipped"
+
+
+def process_vo2_max_metric(user, metric_date, source, sync_id, data):
+    """
+    Process VO2 Max metric from Apple HealthKit.
+
+    Updates the vo2_max field on the SleepEntry for this date.
+    VO2 Max is a cardiorespiratory fitness indicator.
+    """
+    vo2_max_value = data.get("vo2_max_value")
+
+    if vo2_max_value is None:
+        raise ValueError("vo2_max_value is required for vo2_max")
+
+    try:
+        vo2_max_value = Decimal(str(vo2_max_value))
+    except (TypeError, InvalidOperation):
+        raise ValueError(f"Invalid VO2 Max value: {vo2_max_value}")
+
+    # Validate range (10 to 90 mL/kg/min is reasonable)
+    if vo2_max_value < 10 or vo2_max_value > 100:
+        raise ValueError(f"VO2 Max value out of range: {vo2_max_value}")
+
+    # Find existing SleepEntry for this date
+    existing = SleepEntry.objects.filter(
+        user=user,
+        sleep_date=metric_date,
+    ).order_by("-bedtime").first()
+
+    if existing:
+        if existing.vo2_max != vo2_max_value:
+            existing.vo2_max = vo2_max_value
+            existing.save(update_fields=["vo2_max", "updated_at"])
+            return "updated"
+        return "skipped"
+
+    # No sleep entry for this date - skip creating a minimal entry
     return "skipped"
 
 

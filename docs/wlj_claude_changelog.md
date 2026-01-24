@@ -16,6 +16,22 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-24 Changes
 
+### Add Claude limits conservation guidelines to CLAUDE.md
+
+**Change:** Added "CONSERVE CLAUDE LIMITS" section to behavior rules to prevent hitting API rate limits.
+
+**Guidelines added:**
+- Keep responses concise
+- Don't re-read files already seen
+- Batch related changes
+- Use Explore agent for broad searches
+- Warn before high-token operations
+
+**Files Modified:**
+- `CLAUDE.md` - Added conservation guidelines section
+
+---
+
 ### Remove mandatory/pinned status from AI Insights tile
 
 **Problem:** AI Insights was incorrectly set as `mandatory: True` with `pinned_position: 1`, which meant it would show for all users regardless of their AI preference setting. Nothing should appear in the system if the corresponding feature is disabled in Preferences.

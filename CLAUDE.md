@@ -30,6 +30,15 @@ When fetching a new task from the improvement backlog:
 - If something fails, fix it and move on
 - Summarize results, not intentions
 
+**⚠️ CONSERVE CLAUDE LIMITS:**
+- Keep responses concise - no verbose explanations
+- Don't re-read files already seen in the conversation
+- Batch related changes together
+- Use Task tool with Explore agent for broad searches (reduces back-and-forth)
+- Avoid unnecessary tool calls
+- When user says "be brief" - minimize output further
+- **WARN before high-token operations:** If a task will require reading many files, extensive searches, or generating large amounts of code, warn the user first with an estimate (e.g., "This will require reading ~10 files and generating significant code - proceed?")
+
 ---
 
 ## ⚠️ CRITICAL: ALWAYS DEPLOY AFTER CODE CHANGES

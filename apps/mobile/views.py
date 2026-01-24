@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 # Maximum payload size: 1MB
 MAX_PAYLOAD_SIZE = 1024 * 1024
 # Maximum metrics per request
-MAX_METRICS_PER_REQUEST = 5000
+MAX_METRICS_PER_REQUEST = 50000
 
 
 # =============================================================================

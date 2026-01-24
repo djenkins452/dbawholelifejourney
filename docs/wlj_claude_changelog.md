@@ -16,6 +16,28 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-24 Changes
 
+### Add Lean Body Mass and Respiratory Rate HealthKit Sync
+
+Extended HealthKit integration to sync lean body mass and respiratory rate.
+
+**iOS Changes:**
+- `HealthKitManager.swift` - Added `.leanBodyMass` and `.respiratoryRate` types
+- `HealthKitManager.swift` - New `fetchLeanBodyMass()` and `fetchRespiratoryRate()` functions
+- `HealthMetric.swift` - Added `leanMassValue`, `leanMassUnit`, `respiratoryRate` fields
+- `BackgroundSyncManager.swift` - Observer queries for lean mass and respiratory rate
+- `HealthSyncView.swift` - New data type rows for Lean Body Mass and Respiratory Rate
+- Updated Settings and Info.plist descriptions
+
+**Django Changes:**
+- `apps/health/models.py` - Added `lean_body_mass` field to WeightEntry
+- `apps/mobile/views.py` - `process_lean_body_mass_metric` and `process_respiratory_rate_metric` handlers
+- Respiratory rate updates existing SleepEntry (measured during sleep)
+
+**Migration:**
+- `0033_add_lean_body_mass_to_weight.py`
+
+---
+
 ### Add Workout Sessions and Body Fat HealthKit Sync
 
 Extended HealthKit integration to sync workout sessions and body fat percentage.

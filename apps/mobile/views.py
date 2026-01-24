@@ -492,6 +492,8 @@ def process_health_metric(user, metric):
         "stand_hours": process_stand_hours_metric,
         "body_fat": process_body_fat_metric,
         "workout": process_workout_metric,
+        "lean_body_mass": process_lean_body_mass_metric,
+        "respiratory_rate": process_respiratory_rate_metric,
     }
 
     handler = handlers.get(metric_type)
@@ -1545,6 +1547,114 @@ def process_workout_metric(user, metric_date, source, sync_id, data):
         sync_id=sync_id,
     )
     return "created"
+
+
+def process_lean_body_mass_metric(user, metric_date, source, sync_id, data):
+    """
+    Process lean body mass metric from Apple HealthKit.
+
+    Updates or creates a WeightEntry with lean_body_mass for this date.
+    If a weight entry already exists for this date, updates the lean mass.
+    Otherwise creates a minimal entry with just lean mass (no weight value).
+    """
+    lean_mass_value = data.get("lean_mass_value")
+    lean_mass_unit = data.get("lean_mass_unit", "lb")
+
+    if lean_mass_value is None:
+        raise ValueError("lean_mass_value is required for lean_body_mass")
+
+    try:
+        lean_mass_value = Decimal(str(lean_mass_value))
+    except (TypeError, InvalidOperation):
+        raise ValueError(f"Invalid lean mass value: {lean_mass_value}")
+
+    # Convert to pounds if needed
+    if lean_mass_unit.lower() == "kg":
+        lean_mass_value = lean_mass_value * Decimal("2.20462")
+
+    # Validate range (10 to 300 lbs is reasonable for lean mass)
+    if lean_mass_value < 10 or lean_mass_value > 300:
+        raise ValueError(f"Lean body mass out of range: {lean_mass_value}")
+
+    # Check for existing entry with this sync_id
+    existing = WeightEntry.objects.filter(
+        user=user,
+        sync_id=sync_id,
+    ).first()
+
+    if existing:
+        if existing.lean_body_mass != lean_mass_value:
+            existing.lean_body_mass = lean_mass_value
+            existing.save(update_fields=["lean_body_mass", "updated_at"])
+            return "updated"
+        return "skipped"
+
+    # Check for weight entry on this date that we can update
+    weight_entry = WeightEntry.objects.filter(
+        user=user,
+        recorded_at__date=metric_date,
+    ).order_by("-recorded_at").first()
+
+    if weight_entry:
+        if weight_entry.lean_body_mass != lean_mass_value:
+            weight_entry.lean_body_mass = lean_mass_value
+            weight_entry.save(update_fields=["lean_body_mass", "updated_at"])
+            return "updated"
+        return "skipped"
+
+    # Create new WeightEntry with just lean mass (value=0 as placeholder)
+    WeightEntry.objects.create(
+        user=user,
+        value=Decimal("0"),  # Placeholder - will be updated by weight sync
+        unit="lb",
+        recorded_at=timezone.make_aware(
+            datetime.combine(metric_date, datetime.min.time().replace(hour=12))
+        ),
+        lean_body_mass=lean_mass_value,
+        source=source,
+        sync_id=sync_id,
+    )
+    return "created"
+
+
+def process_respiratory_rate_metric(user, metric_date, source, sync_id, data):
+    """
+    Process respiratory rate metric from Apple HealthKit.
+
+    Updates the respiratory_rate field on the SleepEntry for this date.
+    Creates a minimal SleepEntry if one doesn't exist.
+    """
+    respiratory_rate = data.get("respiratory_rate")
+
+    if respiratory_rate is None:
+        raise ValueError("respiratory_rate is required for respiratory_rate")
+
+    try:
+        respiratory_rate = Decimal(str(respiratory_rate))
+    except (TypeError, InvalidOperation):
+        raise ValueError(f"Invalid respiratory rate value: {respiratory_rate}")
+
+    # Validate range (5 to 40 breaths per minute is reasonable)
+    if respiratory_rate < 5 or respiratory_rate > 40:
+        raise ValueError(f"Respiratory rate out of range: {respiratory_rate}")
+
+    # Find existing SleepEntry for this date
+    existing = SleepEntry.objects.filter(
+        user=user,
+        sleep_date=metric_date,
+    ).order_by("-bedtime").first()
+
+    if existing:
+        if existing.respiratory_rate != respiratory_rate:
+            existing.respiratory_rate = respiratory_rate
+            existing.save(update_fields=["respiratory_rate", "updated_at"])
+            return "updated"
+        return "skipped"
+
+    # No sleep entry for this date - respiratory rate is typically measured during sleep
+    # We'll skip creating a minimal entry since it doesn't make sense without sleep data
+    # The data will be captured when the next sleep sync includes this date
+    return "skipped"
 
 
 # =============================================================================

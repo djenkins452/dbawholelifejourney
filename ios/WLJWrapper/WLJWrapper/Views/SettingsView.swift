@@ -62,7 +62,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Health")
                 } footer: {
-                    Text("Sync your Apple Health data to Whole Life Journey for tracking steps, weight, sleep, heart rate, blood glucose, blood oxygen, water intake, calories, distance, flights, exercise, stand hours, body fat, and workouts.")
+                    Text("Sync your Apple Health data to Whole Life Journey for tracking steps, weight, sleep, heart rate, blood glucose, blood oxygen, water intake, calories, distance, flights, exercise, stand hours, body fat, workouts, lean body mass, and respiratory rate.")
                 }
 
                 // MARK: - Account Section

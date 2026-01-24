@@ -15,6 +15,7 @@ struct SettingsView: View {
     @State private var isConnecting = false
     @State private var showSyncError = false
     @State private var showConnectError = false
+    @State private var showSyncSuccess = false
     @State private var syncError: String = ""
     @State private var connectError: String = ""
 
@@ -62,7 +63,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Health")
                 } footer: {
-                    Text("Sync your Apple Health data to Whole Life Journey for tracking steps, weight, sleep, and heart rate.")
+                    Text("Sync your Apple Health data to Whole Life Journey for tracking steps, weight, sleep, heart rate, blood glucose, blood oxygen, and water intake.")
                 }
 
                 // MARK: - Account Section
@@ -185,6 +186,11 @@ struct SettingsView: View {
             } message: {
                 Text(connectError)
             }
+            .alert("Sync Complete", isPresented: $showSyncSuccess) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Your health data has been synced successfully.")
+            }
         }
     }
 
@@ -259,12 +265,20 @@ struct SettingsView: View {
                 try await HealthKitManager.shared.syncHealthData()
 
                 // Fetch the server's sync timestamp instead of using local Date()
-                let syncStatus = try await APIClient.shared.getSyncStatus()
-                let serverSyncDate = parseISO8601Date(syncStatus.lastSync)
+                // If this fails, fall back to current time (sync still succeeded)
+                var serverSyncDate: Date? = nil
+                do {
+                    let syncStatus = try await APIClient.shared.getSyncStatus()
+                    serverSyncDate = parseISO8601Date(syncStatus.lastSync)
+                } catch {
+                    print("Failed to fetch sync status: \(error)")
+                    // Don't fail the whole sync - just use current time
+                }
 
                 await MainActor.run {
                     appState.lastSyncDate = serverSyncDate ?? Date()
                     isSyncing = false
+                    showSyncSuccess = true
                 }
             } catch {
                 await MainActor.run {

@@ -5,6 +5,7 @@
 // Configures the app and sets up the initial view hierarchy.
 
 import SwiftUI
+import Combine
 
 @main
 struct WLJWrapperApp: App {
@@ -26,6 +27,8 @@ class AppState: ObservableObject {
     @Published var lastSyncDate: Date?
     @Published var healthKitAuthorized: Bool = false
 
+    private var cancellables = Set<AnyCancellable>()
+
     init() {
         // Check if we have a stored token
         isAuthenticated = KeychainManager.shared.getAPIToken() != nil
@@ -37,6 +40,14 @@ class AppState: ObservableObject {
         if isAuthenticated {
             loadSyncStatus()
         }
+
+        // Listen for background sync completions to update lastSyncDate
+        NotificationCenter.default.publisher(for: BackgroundSyncManager.syncCompletedNotification)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.loadSyncStatus()
+            }
+            .store(in: &cancellables)
     }
 
     /// Fetch the last sync date from the server

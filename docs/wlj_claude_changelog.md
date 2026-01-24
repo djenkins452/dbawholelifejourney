@@ -16,6 +16,12 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-24 Changes
 
+### Fix MAX_METRICS_PER_REQUEST limit
+
+Changed `MAX_METRICS_PER_REQUEST` from 1000 to 50000 in `apps/mobile/views.py` to allow larger health data syncs during development.
+
+---
+
 ### Add Caffeine and Mindful Minutes HealthKit Sync
 
 Extended HealthKit integration to sync Caffeine intake and Mindful Minutes.

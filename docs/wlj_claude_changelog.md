@@ -16,85 +16,14 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-24 Changes
 
-### Add Blood Pressure and Body Temperature HealthKit Sync
+### Remove mandatory/pinned status from AI Insights tile
 
-Extended HealthKit integration to sync Blood Pressure and Body Temperature from Apple Health.
+**Problem:** AI Insights was incorrectly set as `mandatory: True` with `pinned_position: 1`, which meant it would show for all users regardless of their AI preference setting. Nothing should appear in the system if the corresponding feature is disabled in Preferences.
 
-**iOS Changes:**
-- `HealthKitManager.swift` - Added `.bloodPressureSystolic`, `.bloodPressureDiastolic`, and `.bodyTemperature` to readTypes
-- `HealthKitManager.swift` - New `fetchBloodPressure()` function (matches systolic/diastolic pairs by timestamp)
-- `HealthKitManager.swift` - New `fetchBodyTemperature()` function (individual readings in Fahrenheit)
-- `HealthMetric.swift` - Added `systolicValue`, `diastolicValue`, `temperatureValue`, `temperatureUnit`, `recordedAt` fields
-- `BackgroundSyncManager.swift` - Observer queries for blood pressure and body temperature
-- `HealthSyncView.swift` - New data type rows for Blood Pressure and Body Temperature
+**Fix:** Removed `mandatory` and `pinned_position` from `ai_insights` tile definition. Now it properly respects the `module_dependency: 'ai_enabled'` - if AI is disabled in Preferences, AI Insights won't show on the dashboard.
 
-**Django Changes:**
-- `apps/health/models.py` - Added `source` and `sync_id` fields to `BloodPressureEntry`
-- `apps/health/models.py` - Created new `BodyTemperatureEntry` model with temperature, unit, context, source, sync_id
-- `apps/mobile/views.py` - `process_blood_pressure_metric` and `process_body_temperature_metric` handlers
-- Blood pressure validation: 60-250 systolic, 30-150 diastolic
-- Temperature validation: 90-110°F or 32-43°C
-
-**Migration:**
-- `0036_add_blood_pressure_source_and_body_temperature.py`
-
-**Total HealthKit types synced: 23** (up from 21)
-
----
-
-### Fix MAX_METRICS_PER_REQUEST limit
-
-Changed `MAX_METRICS_PER_REQUEST` from 1000 to 50000 in `apps/mobile/views.py` to allow larger health data syncs during development.
-
----
-
-### Add Caffeine and Mindful Minutes HealthKit Sync
-
-Extended HealthKit integration to sync Caffeine intake and Mindful Minutes.
-
-**iOS Changes:**
-- `HealthKitManager.swift` - Added `.dietaryCaffeine` (quantity) and `.mindfulSession` (category) to readTypes
-- `HealthKitManager.swift` - New `fetchCaffeine()` function (daily total in mg)
-- `HealthKitManager.swift` - New `fetchMindfulMinutes()` function (daily total from session durations)
-- `HealthMetric.swift` - Added `caffeineValue` and `mindfulMinutesValue` fields with CodingKeys
-- `BackgroundSyncManager.swift` - Observer queries for caffeine and mindful sessions
-- `HealthSyncView.swift` - New data type rows for Caffeine and Mindful Minutes
-
-**Django Changes:**
-- `apps/health/models.py` - Added `caffeine_mg` and `mindful_minutes` fields to SleepEntry
-- `apps/mobile/views.py` - `process_caffeine_metric` and `process_mindful_minutes_metric` handlers
-- Both metrics update existing SleepEntry records (skip if no sleep data for date)
-- Caffeine validation: 0-2000 mg, Mindful minutes validation: 0-1440 min
-
-**Migration:**
-- `0035_add_caffeine_and_mindful_minutes_to_sleepentry.py`
-
-**Total HealthKit types synced: 21** (up from 19)
-
----
-
-### Add HRV and VO2 Max HealthKit Sync
-
-Extended HealthKit integration to sync Heart Rate Variability (HRV) and VO2 Max metrics.
-
-**iOS Changes:**
-- `HealthKitManager.swift` - Added `.heartRateVariabilitySDNN` and `.vo2Max` to readTypes
-- `HealthKitManager.swift` - New `fetchHeartRateVariability()` function (daily average in ms)
-- `HealthKitManager.swift` - New `fetchVO2Max()` function (most recent per day in mL/kg/min)
-- `HealthMetric.swift` - Added `hrvValue` and `vo2MaxValue` fields with CodingKeys
-- `BackgroundSyncManager.swift` - Observer queries for HRV and VO2 Max
-- `HealthSyncView.swift` - New data type rows for HRV and VO2 Max
-
-**Django Changes:**
-- `apps/health/models.py` - Added `hrv_value` and `vo2_max` fields to SleepEntry
-- `apps/mobile/views.py` - `process_hrv_metric` and `process_vo2_max_metric` handlers
-- Both metrics update existing SleepEntry records (skip if no sleep data for date)
-- HRV validation: 5-300 ms, VO2 Max validation: 10-100 mL/kg/min
-
-**Migration:**
-- `0034_add_hrv_and_vo2max_to_sleepentry.py`
-
-**Total HealthKit types synced: 19** (up from 17)
+**Files Modified:**
+- `apps/dashboard/services/config_service.py` - Removed mandatory/pinned logic from ai_insights and simplified get_visible_tiles/update_config methods
 
 ---
 

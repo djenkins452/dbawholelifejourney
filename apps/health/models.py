@@ -780,6 +780,16 @@ class StepsEntry(UserOwnedModel):
         blank=True,
         help_text="Flights of stairs climbed (if available)",
     )
+    exercise_minutes = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Minutes of exercise (if available)",
+    )
+    stand_hours = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Hours with standing activity (if available)",
+    )
     notes = models.TextField(blank=True)
 
     class Meta:

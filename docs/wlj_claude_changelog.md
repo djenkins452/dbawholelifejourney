@@ -16,114 +16,110 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-24 Changes
 
-### Fix iOS app memory crash from too many HealthKit samples
+### Add Exercise Minutes and Stand Hours HealthKit Sync
 
-**Problem:** App was killed by iOS due to memory pressure. With Dexcom CGM producing ~288 readings/day, fetching 7 days of blood glucose data meant 2000+ samples loaded into memory at once.
+Extended HealthKit integration to sync Apple Exercise Time and Stand Hours.
 
-**Fix:**
-1. Blood glucose and blood oxygen now fetch only last 24 hours (instead of 7 days)
-2. Added 500 sample limit as safety cap on both queries
+**iOS Changes:**
+- `HealthKitManager.swift` - Added `.appleExerciseTime` and `.appleStandTime` types
+- `HealthKitManager.swift` - New `fetchExerciseMinutes()` and `fetchStandHours()` functions
+- `HealthMetric.swift` - Added `exerciseMinutesValue`, `standHoursValue` fields
+- `BackgroundSyncManager.swift` - Observer queries for exercise and stand time
+- `HealthSyncView.swift` - New data type rows for Exercise Minutes and Stand Hours
+- Updated Settings and Info.plist descriptions
 
-**Files Modified:**
-- `ios/WLJWrapper/WLJWrapper/Services/HealthKitManager.swift` - Reduced time window and added sample limits
+**Django Changes:**
+- `apps/health/models.py` - Added `exercise_minutes` and `stand_hours` fields to StepsEntry
+- `apps/mobile/views.py` - `process_exercise_minutes_metric` and `process_stand_hours_metric` handlers
 
----
-
-### Reduce MAX_METRICS_PER_REQUEST from 10000 to 5000
-
-**Change:** Reset the iOS health data ingestion limit now that initial backfill is complete.
-
-**Files Modified:**
-- `apps/mobile/views.py` - Changed MAX_METRICS_PER_REQUEST from 10000 to 5000
-
----
-
-### Add server-side handlers for blood glucose, blood oxygen, and water intake
-
-**Feature:** Backend now processes blood_glucose, blood_oxygen, and water_intake metrics from iOS HealthKit sync.
-
-**Implementation:**
-1. `process_blood_glucose_metric` - Stores in GlucoseEntry with ISO8601 timestamp, uses `dexcom_record_id` for sync tracking
-2. `process_blood_oxygen_metric` - Stores in BloodOxygenEntry with SpO2 percentage
-3. `process_water_intake_metric` - Stores daily totals in WaterEntry
-
-**Files Modified:**
-- `apps/mobile/views.py` - Added imports and handler functions
-
-**Note:** Glucose data from Dexcom via Apple Health has ~3 hour delay due to Dexcom's batch sharing to Apple Health. This is a limitation of the Dexcom → Apple Health pathway, not WLJ.
+**Migration:**
+- `0031_add_exercise_stand_to_steps.py`
 
 ---
 
-### Remove Dexcom direct connection UI from Blood Glucose dashboard
+### Add Resting Calories and Flights Climbed HealthKit Sync
 
-**Change:** Removed the Dexcom CGM connection card and related UI elements from the Blood Glucose dashboard.
+Extended HealthKit integration to sync basal/resting calories and flights of stairs climbed.
 
-**Reason:** Blood glucose data now syncs via HealthKit through the iOS app, which can read Dexcom data from Apple Health. The direct Dexcom API integration is no longer needed and was causing confusion.
+**iOS Changes:**
+- `HealthKitManager.swift` - Added `.basalEnergyBurned` and `.flightsClimbed` types
+- `HealthKitManager.swift` - New `fetchRestingCalories()` and `fetchFlightsClimbed()` functions
+- `HealthMetric.swift` - Added `restingCaloriesValue`, `flightsValue` fields
+- `BackgroundSyncManager.swift` - Observer queries for basal energy and flights
+- `HealthSyncView.swift` - New data type rows for Resting Calories and Flights Climbed
+- `SettingsView.swift` - Updated sync description footer
+- `Info.plist` - Updated HealthKit usage description
 
-**Files Modified:**
-- `templates/health/glucose/dashboard.html` - Removed Dexcom connection card, sync button, and related CSS
+**Django Changes:**
+- `apps/health/models.py` - Added `resting_calories` and `flights_climbed` fields to StepsEntry
+- `apps/mobile/views.py` - `process_resting_calories_metric` and `process_flights_climbed_metric` handlers
 
----
-
-### iOS: Add blood glucose, blood oxygen, and water intake syncing
-
-**Feature:** Extended HealthKit sync to include three new health data types.
-
-**Implementation:**
-1. Added blood glucose (mg/dL), blood oxygen (SpO2 %), and water intake (fl oz) to HealthKit read types
-2. Created fetch functions for each new metric type
-3. Blood glucose and blood oxygen include timestamp for each reading
-4. Water intake aggregates daily totals similar to steps
-
-**Files Modified:**
-- `ios/WLJWrapper/WLJWrapper/Services/HealthKitManager.swift` - Added readTypes and fetch functions
-- `ios/WLJWrapper/WLJWrapper/Models/HealthMetric.swift` - Added `timestamp` field for timestamped readings
+**Migration:**
+- `0030_add_resting_calories_flights_to_steps.py`
 
 ---
 
-### iOS: Add sync completion feedback and background sync timestamp updates
+### Add Active Calories and Distance HealthKit Sync
 
-**Problem:** After a sync completed, users had no positive feedback that it succeeded - the spinner just stopped. Also, background syncs didn't update the "Last Sync" timestamp in the UI.
+Extended HealthKit integration to sync active calories burned and walking/running distance.
 
-**Fix:**
-1. Added a "Sync Complete" alert that appears after successful sync to provide positive feedback
-2. Added a notification system (`BackgroundSyncManager.syncCompletedNotification`) that fires when any sync completes (background or foreground)
-3. AppState now listens for this notification and refreshes the sync status from the server
-4. Updated footer text to include all synced health types (blood glucose, blood oxygen, water intake)
+**iOS Changes:**
+- `HealthKitManager.swift` - Added `.activeEnergyBurned` and `.distanceWalkingRunning` types
+- `HealthKitManager.swift` - New `fetchActiveCalories()` and `fetchDistance()` functions
+- `HealthMetric.swift` - Added `caloriesValue`, `distanceValue`, `distanceUnit` fields
+- `BackgroundSyncManager.swift` - Observer queries for active energy and distance
+- `HealthSyncView.swift` - New data type rows for Active Calories and Distance
+- `SettingsView.swift` - Updated sync description footer
+- `Info.plist` - Updated HealthKit usage description
+
+**Django Changes:**
+- `apps/mobile/views.py` - `process_active_calories_metric` and `process_distance_metric` handlers
+- Data stored in existing `StepsEntry.calories_burned` and `StepsEntry.distance_miles` fields
 
 **Files Modified:**
-- `ios/WLJWrapper/WLJWrapper/Views/SettingsView.swift` - Added `showSyncSuccess` state and alert, updated footer text
-- `ios/WLJWrapper/WLJWrapper/Services/BackgroundSyncManager.swift` - Added notification posting after sync completes
-- `ios/WLJWrapper/WLJWrapper/App/WLJWrapperApp.swift` - Added Combine subscriber to listen for sync notifications
+- `ios/WLJWrapper/WLJWrapper/Services/HealthKitManager.swift`
+- `ios/WLJWrapper/WLJWrapper/Services/BackgroundSyncManager.swift`
+- `ios/WLJWrapper/WLJWrapper/Models/HealthMetric.swift`
+- `ios/WLJWrapper/WLJWrapper/Views/HealthSyncView.swift`
+- `ios/WLJWrapper/WLJWrapper/Views/SettingsView.swift`
+- `ios/WLJWrapper/WLJWrapper/Resources/Info.plist`
+- `apps/mobile/views.py`
 
 ---
 
-### Fix sync_status endpoint to return most recent ingestion run
+### Enhanced HealthKit Integration - Blood Glucose, SpO2, Water, Background Sync
 
-**Problem:** The `sync_status` API endpoint was returning an arbitrary (old) `HealthIngestionRun` record instead of the most recent one, causing the iOS app to display stale "Last Sync" times.
+Expanded iOS HealthKit integration with additional health data types and automatic background sync.
 
-**Root Cause:** The query `HealthIngestionRun.objects.filter(...).first()` had no ordering, so it returned whatever Django's default ordering produced (often the oldest record).
+**New Health Data Types:**
+- Blood glucose readings (from Dexcom CGM via Apple Health)
+- Blood oxygen (SpO2 from Apple Watch)
+- Water intake (dietary water from Apple Health)
 
-**Fix:** Added `.order_by('-created_at')` to get the most recent ingestion run.
+**Background Sync:**
+- Automatic sync when app enters background
+- HealthKit observer queries for real-time data updates
+- Background processing task for periodic sync
+- Auto-sync when app becomes active
 
-**File Modified:** `apps/mobile/views.py` (line 844)
+**iOS Changes:**
+- `BackgroundSyncManager.swift` - Background delivery + BGTaskScheduler
+- `HealthKitManager.swift` - fetchBloodGlucose, fetchBloodOxygen, fetchWaterIntake
+- `HealthMetric.swift` - New fields for glucose, SpO2, water
+- Updated HealthSyncView with new data type rows
+- Info.plist - processing background mode, blood glucose/SpO2/water in usage description
 
----
+**Django Changes:**
+- `GlucoseEntry` - Added `apple_health` source choice, `sync_id` field
+- `BloodOxygenEntry` - Added `source`, `sync_id` fields
+- `WaterEntry` - Added `source`, `sync_id` fields
+- `apps/mobile/views.py` - process_blood_glucose_metric, process_blood_oxygen_metric, process_water_metric handlers
 
-### iOS: Fix "Last Sync" time display to use server timestamp
+**Migrations:**
+- `0028_add_glucose_apple_health_sync.py`
+- `0029_add_sync_fields_water_oxygen.py`
 
-**Problem:** The iOS app's "Last Sync" time in Settings kept climbing (e.g., "14 min ago", "15 min ago") even after successful syncs because it was using a local `Date()` timestamp instead of the server's actual sync time.
-
-**Root Cause:** `SettingsView.syncNow()` was setting `appState.lastSyncDate = Date()` locally after sync, rather than fetching the server's `last_sync` timestamp from the `sync-status` endpoint.
-
-**Fix:**
-1. After successful sync, fetch sync status from server via `APIClient.shared.getSyncStatus()`
-2. Parse the server's ISO8601 `last_sync` timestamp and use that for display
-3. On app startup, if authenticated, load the last sync date from the server so it persists across app restarts
-
-**Files Modified:**
-- `ios/WLJWrapper/WLJWrapper/Views/SettingsView.swift` - Updated `syncNow()` to fetch server timestamp, added `parseISO8601Date()` helper
-- `ios/WLJWrapper/WLJWrapper/App/WLJWrapperApp.swift` - Added `loadSyncStatus()` to fetch last sync on app init
+**Also fixed:** Xcode compiler warnings (unused variables, discarded async results)
 
 ---
 

@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 # Maximum payload size: 1MB
 MAX_PAYLOAD_SIZE = 1024 * 1024
 # Maximum metrics per request
-MAX_METRICS_PER_REQUEST = 5000
+MAX_METRICS_PER_REQUEST = 1000
 
 
 # =============================================================================
@@ -482,7 +482,13 @@ def process_health_metric(user, metric):
         "heart_rate": process_heart_rate_metric,
         "blood_glucose": process_blood_glucose_metric,
         "blood_oxygen": process_blood_oxygen_metric,
-        "water_intake": process_water_intake_metric,
+        "water": process_water_metric,
+        "active_calories": process_active_calories_metric,
+        "distance": process_distance_metric,
+        "resting_calories": process_resting_calories_metric,
+        "flights_climbed": process_flights_climbed_metric,
+        "exercise_minutes": process_exercise_minutes_metric,
+        "stand_hours": process_stand_hours_metric,
     }
 
     handler = handlers.get(metric_type)
@@ -817,247 +823,558 @@ def process_heart_rate_metric(user, metric_date, source, sync_id, data):
 
 def process_blood_glucose_metric(user, metric_date, source, sync_id, data):
     """
-    Process blood glucose metric from HealthKit.
+    Process blood glucose metric from Apple HealthKit.
 
-    GlucoseEntry fields:
-    - value (Decimal): glucose reading
-    - unit (str): mg/dL or mmol/L
-    - recorded_at (datetime): timestamp of reading
-    - source (str): manual, dexcom, imported
-    - context (str): cgm for HealthKit data
+    GlucoseEntry uses:
+    - value (decimal, required)
+    - unit (mg/dL or mmol/L)
+    - recorded_at (datetime)
+    - source, sync_id for deduplication
+    - context defaults to 'cgm' for synced data
     """
-    value = data.get("value")
-    unit = data.get("unit", "mg/dL")
-    timestamp = data.get("timestamp")
+    # For blood glucose, the date field is actually a timestamp
+    glucose_value = data.get("glucose_value")
+    glucose_unit = data.get("glucose_unit", "mg/dL")
 
-    if value is None:
-        raise ValueError("value is required for blood_glucose")
+    if glucose_value is None:
+        raise ValueError("glucose_value is required for blood_glucose")
 
     try:
-        value = Decimal(str(value))
+        glucose_value = Decimal(str(glucose_value))
     except (TypeError, InvalidOperation):
-        raise ValueError(f"Invalid blood glucose value: {value}")
+        raise ValueError(f"Invalid glucose value: {glucose_value}")
 
-    # Validate ranges (mg/dL)
-    if unit == "mg/dL" and (value < 20 or value > 600):
-        raise ValueError(f"Blood glucose value out of range: {value}")
+    # Normalize unit
+    if glucose_unit.lower() in ("mg/dl", "mgdl"):
+        glucose_unit = "mg/dL"
+    elif glucose_unit.lower() in ("mmol/l", "mmoll"):
+        glucose_unit = "mmol/L"
+    else:
+        glucose_unit = "mg/dL"
 
-    # Parse timestamp for recorded_at
+    # Validate ranges based on unit
+    if glucose_unit == "mg/dL" and (glucose_value < 20 or glucose_value > 600):
+        raise ValueError(f"Glucose value out of range: {glucose_value}")
+    if glucose_unit == "mmol/L" and (glucose_value < 1.1 or glucose_value > 33.3):
+        raise ValueError(f"Glucose value out of range: {glucose_value}")
+
+    # Parse recorded_at timestamp from the date field (ISO format with time)
     recorded_at = None
-    if timestamp:
+    date_str = data.get("date", "")
+    if date_str:
         try:
-            # Try ISO8601 format
-            recorded_at = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+            recorded_at = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
         except ValueError:
-            pass
-
-    if not recorded_at:
-        # Fall back to start of day
-        recorded_at = timezone.make_aware(datetime.combine(metric_date, datetime.min.time()))
-
-    # Map apple_health source to "imported" for GlucoseEntry
-    glucose_source = "imported" if source == "apple_health" else source
+            # If it's just a date, use noon
+            try:
+                from datetime import time as dt_time
+                metric_date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
+                recorded_at = timezone.make_aware(
+                    datetime.combine(metric_date_obj, dt_time(12, 0))
+                )
+            except ValueError:
+                recorded_at = timezone.now()
+    else:
+        recorded_at = timezone.now()
 
     # Check for existing entry with same sync_id
     if sync_id:
         existing = GlucoseEntry.objects.filter(
             user=user,
-            source=glucose_source,
-            dexcom_record_id=sync_id,  # Use dexcom_record_id field for sync tracking
+            sync_id=sync_id,
         ).first()
 
         if existing:
-            if existing.value != value:
-                existing.value = value
-                existing.save(update_fields=["value", "updated_at"])
+            # Update if value changed
+            if existing.value != glucose_value or existing.unit != glucose_unit:
+                existing.value = glucose_value
+                existing.unit = glucose_unit
+                existing.recorded_at = recorded_at
+                existing.save(update_fields=["value", "unit", "recorded_at", "updated_at"])
                 return "updated"
             return "skipped"
 
-    # Check for existing entry at same timestamp from same source
-    # Allow 30 second tolerance for matching
-    time_window_start = recorded_at - timedelta(seconds=30)
-    time_window_end = recorded_at + timedelta(seconds=30)
+    # Check for existing entry at same timestamp from same source (within 1 minute)
+    time_window_start = recorded_at - timedelta(minutes=1)
+    time_window_end = recorded_at + timedelta(minutes=1)
 
     existing = GlucoseEntry.objects.filter(
         user=user,
-        source=glucose_source,
+        source=source,
         recorded_at__gte=time_window_start,
         recorded_at__lte=time_window_end,
     ).first()
 
     if existing:
-        if existing.value != value:
-            existing.value = value
-            existing.dexcom_record_id = sync_id
-            existing.save(update_fields=["value", "dexcom_record_id", "updated_at"])
+        if existing.value != glucose_value:
+            existing.value = glucose_value
+            existing.unit = glucose_unit
+            existing.sync_id = sync_id
+            existing.save(update_fields=["value", "unit", "sync_id", "updated_at"])
             return "updated"
         return "skipped"
 
     # Create new entry
     GlucoseEntry.objects.create(
         user=user,
-        value=value,
-        unit=unit,
+        value=glucose_value,
+        unit=glucose_unit,
+        context="cgm",  # CGM reading from HealthKit
         recorded_at=recorded_at,
-        source=glucose_source,
-        dexcom_record_id=sync_id,
-        context="cgm",  # CGM readings from HealthKit
+        source=source,
+        sync_id=sync_id,
     )
     return "created"
 
 
 def process_blood_oxygen_metric(user, metric_date, source, sync_id, data):
     """
-    Process blood oxygen (SpO2) metric from HealthKit.
+    Process blood oxygen (SpO2) metric from Apple HealthKit.
 
-    BloodOxygenEntry fields:
-    - spo2 (int): oxygen saturation percentage
-    - recorded_at (datetime): timestamp of reading
-    - context (str): resting, active, sleep, etc.
-    - measurement_type (str): fingertip, wrist, etc.
+    BloodOxygenEntry uses:
+    - spo2 (integer percentage)
+    - recorded_at (datetime)
+    - source, sync_id for deduplication
     """
-    value = data.get("value")
-    timestamp = data.get("timestamp")
+    spo2_value = data.get("spo2_value")
 
-    if value is None:
-        raise ValueError("value is required for blood_oxygen")
+    if spo2_value is None:
+        raise ValueError("spo2_value is required for blood_oxygen")
 
     try:
-        spo2 = int(round(float(value)))
+        spo2_value = int(spo2_value)
     except (TypeError, ValueError):
-        raise ValueError(f"Invalid blood oxygen value: {value}")
+        raise ValueError(f"Invalid spo2 value: {spo2_value}")
 
-    # Validate range (0-100%)
-    if spo2 < 50 or spo2 > 100:
-        raise ValueError(f"Blood oxygen value out of range: {spo2}")
+    # Validate range (50-100%)
+    if spo2_value < 50 or spo2_value > 100:
+        raise ValueError(f"SpO2 value out of range: {spo2_value}")
 
-    # Parse timestamp for recorded_at
+    # Parse recorded_at timestamp from the date field (ISO format with time)
     recorded_at = None
-    if timestamp:
+    date_str = data.get("date", "")
+    if date_str:
         try:
-            recorded_at = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+            recorded_at = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
         except ValueError:
-            pass
-
-    if not recorded_at:
-        recorded_at = timezone.make_aware(datetime.combine(metric_date, datetime.min.time()))
+            recorded_at = timezone.now()
+    else:
+        recorded_at = timezone.now()
 
     # Check for existing entry with same sync_id
     if sync_id:
         existing = BloodOxygenEntry.objects.filter(
             user=user,
-            notes__contains=sync_id,
+            sync_id=sync_id,
         ).first()
 
         if existing:
-            if existing.spo2 != spo2:
-                existing.spo2 = spo2
-                existing.save(update_fields=["spo2", "updated_at"])
+            if existing.spo2 != spo2_value:
+                existing.spo2 = spo2_value
+                existing.recorded_at = recorded_at
+                existing.save(update_fields=["spo2", "recorded_at", "updated_at"])
                 return "updated"
             return "skipped"
 
-    # Check for existing entry at same timestamp
-    time_window_start = recorded_at - timedelta(seconds=30)
-    time_window_end = recorded_at + timedelta(seconds=30)
+    # Check for existing entry at same timestamp from same source (within 1 minute)
+    time_window_start = recorded_at - timedelta(minutes=1)
+    time_window_end = recorded_at + timedelta(minutes=1)
 
     existing = BloodOxygenEntry.objects.filter(
         user=user,
+        source=source,
         recorded_at__gte=time_window_start,
         recorded_at__lte=time_window_end,
     ).first()
 
     if existing:
-        if existing.spo2 != spo2:
-            existing.spo2 = spo2
-            existing.notes = f"Synced from {source} ({sync_id})"
-            existing.save(update_fields=["spo2", "notes", "updated_at"])
+        if existing.spo2 != spo2_value:
+            existing.spo2 = spo2_value
+            existing.sync_id = sync_id
+            existing.save(update_fields=["spo2", "sync_id", "updated_at"])
             return "updated"
         return "skipped"
 
     # Create new entry
     BloodOxygenEntry.objects.create(
         user=user,
-        spo2=spo2,
+        spo2=spo2_value,
+        context="sleeping",  # Apple Watch measures SpO2 during sleep
+        measurement_method="wrist",
         recorded_at=recorded_at,
-        context="resting",  # Default context for HealthKit data
-        measurement_type="wrist",  # Most HealthKit SpO2 is from Apple Watch
-        notes=f"Synced from {source} ({sync_id})",
+        source=source,
+        sync_id=sync_id,
     )
     return "created"
 
 
-def process_water_intake_metric(user, metric_date, source, sync_id, data):
+def process_water_metric(user, metric_date, source, sync_id, data):
     """
-    Process water intake metric from HealthKit.
+    Process water intake metric from Apple HealthKit.
 
-    WaterEntry fields:
-    - amount (Decimal): amount consumed
-    - unit (str): oz, ml, cups, liters
-    - logged_date (date): date logged
-    - recorded_at (datetime): when recorded
+    WaterEntry uses:
+    - amount (decimal)
+    - unit (oz, ml, etc.)
+    - logged_date (date)
+    - source, sync_id for deduplication
     """
-    value = data.get("value")
-    unit = data.get("unit", "fl_oz")
+    water_amount = data.get("water_amount")
+    water_unit = data.get("water_unit", "oz")
 
-    if value is None:
-        raise ValueError("value is required for water_intake")
+    if water_amount is None:
+        raise ValueError("water_amount is required for water")
 
     try:
-        value = Decimal(str(value))
+        water_amount = Decimal(str(water_amount))
     except (TypeError, InvalidOperation):
-        raise ValueError(f"Invalid water intake value: {value}")
+        raise ValueError(f"Invalid water amount: {water_amount}")
 
-    # Convert fl_oz to oz (they're the same)
-    if unit == "fl_oz":
-        unit = "oz"
+    # Normalize unit
+    if water_unit.lower() in ("oz", "ounce", "ounces", "fl oz"):
+        water_unit = "oz"
+    elif water_unit.lower() in ("ml", "milliliter", "milliliters"):
+        water_unit = "ml"
+    elif water_unit.lower() in ("l", "liter", "liters"):
+        water_unit = "liters"
+    else:
+        water_unit = "oz"
 
-    # Validate unit
-    if unit not in ("oz", "ml", "cups", "liters"):
-        unit = "oz"  # Default to oz
+    # Validate range
+    if water_unit == "oz" and (water_amount < 0 or water_amount > 500):
+        raise ValueError(f"Water amount out of range: {water_amount}")
+    if water_unit == "ml" and (water_amount < 0 or water_amount > 15000):
+        raise ValueError(f"Water amount out of range: {water_amount}")
 
-    # Validate ranges
-    if unit == "oz" and (value < 0 or value > 500):
-        raise ValueError(f"Water intake value out of range: {value}")
-
-    # Check for existing entry on same date with same sync_id
+    # Check for existing entry with same sync_id
     if sync_id:
         existing = WaterEntry.objects.filter(
             user=user,
-            logged_date=metric_date,
-            notes__contains=sync_id,
+            sync_id=sync_id,
         ).first()
 
         if existing:
-            if existing.amount != value:
-                existing.amount = value
-                existing.save(update_fields=["amount", "updated_at"])
+            if existing.amount != water_amount:
+                existing.amount = water_amount
+                existing.unit = water_unit
+                existing.save(update_fields=["amount", "unit", "updated_at"])
                 return "updated"
             return "skipped"
 
-    # Check for existing daily total from apple_health
+    # Check for existing entry on same date from same source
     existing = WaterEntry.objects.filter(
         user=user,
         logged_date=metric_date,
-        notes__contains="apple_health",
+        source=source,
     ).first()
 
     if existing:
-        if existing.amount != value:
-            existing.amount = value
-            existing.notes = f"Synced from {source} ({sync_id})"
-            existing.save(update_fields=["amount", "notes", "updated_at"])
+        # For water, we want to replace the daily total rather than add
+        if existing.amount != water_amount:
+            existing.amount = water_amount
+            existing.unit = water_unit
+            existing.sync_id = sync_id
+            existing.save(update_fields=["amount", "unit", "sync_id", "updated_at"])
             return "updated"
         return "skipped"
 
     # Create new entry
     WaterEntry.objects.create(
         user=user,
-        amount=value,
-        unit=unit,
+        amount=water_amount,
+        unit=water_unit,
         logged_date=metric_date,
-        recorded_at=timezone.now(),
-        container="other",
-        notes=f"Synced from {source} ({sync_id})",
+        source=source,
+        sync_id=sync_id,
+    )
+    return "created"
+
+
+def process_active_calories_metric(user, metric_date, source, sync_id, data):
+    """
+    Process active calories metric from Apple HealthKit.
+
+    Updates the calories_burned field on the StepsEntry for this date.
+    Creates a minimal StepsEntry if one doesn't exist.
+    """
+    calories_value = data.get("calories_value")
+
+    if calories_value is None:
+        raise ValueError("calories_value is required for active_calories")
+
+    try:
+        calories_value = int(calories_value)
+    except (TypeError, ValueError):
+        raise ValueError(f"Invalid calories value: {calories_value}")
+
+    # Validate range (0 to 10,000 calories is reasonable)
+    if calories_value < 0 or calories_value > 10000:
+        raise ValueError(f"Calories value out of range: {calories_value}")
+
+    # Find existing StepsEntry for this date and source
+    existing = StepsEntry.objects.filter(
+        user=user,
+        logged_date=metric_date,
+        source=source,
+    ).first()
+
+    if existing:
+        if existing.calories_burned != calories_value:
+            existing.calories_burned = calories_value
+            existing.save(update_fields=["calories_burned", "updated_at"])
+            return "updated"
+        return "skipped"
+
+    # Create new StepsEntry with just calories (count=0)
+    StepsEntry.objects.create(
+        user=user,
+        logged_date=metric_date,
+        count=0,  # Will be updated by steps sync
+        calories_burned=calories_value,
+        source=source,
+        sync_id=sync_id,
+    )
+    return "created"
+
+
+def process_distance_metric(user, metric_date, source, sync_id, data):
+    """
+    Process distance walking/running metric from Apple HealthKit.
+
+    Updates the distance_miles field on the StepsEntry for this date.
+    Creates a minimal StepsEntry if one doesn't exist.
+    """
+    distance_value = data.get("distance_value")
+    distance_unit = data.get("distance_unit", "mi")
+
+    if distance_value is None:
+        raise ValueError("distance_value is required for distance")
+
+    try:
+        distance_value = Decimal(str(distance_value))
+    except (TypeError, InvalidOperation):
+        raise ValueError(f"Invalid distance value: {distance_value}")
+
+    # Convert to miles if needed
+    if distance_unit.lower() in ("km", "kilometer", "kilometers"):
+        distance_value = distance_value / Decimal("1.60934")
+    elif distance_unit.lower() not in ("mi", "mile", "miles"):
+        # Assume miles if unknown unit
+        pass
+
+    # Validate range (0 to 100 miles is reasonable)
+    if distance_value < 0 or distance_value > 100:
+        raise ValueError(f"Distance value out of range: {distance_value}")
+
+    # Find existing StepsEntry for this date and source
+    existing = StepsEntry.objects.filter(
+        user=user,
+        logged_date=metric_date,
+        source=source,
+    ).first()
+
+    if existing:
+        if existing.distance_miles != distance_value:
+            existing.distance_miles = distance_value
+            existing.save(update_fields=["distance_miles", "updated_at"])
+            return "updated"
+        return "skipped"
+
+    # Create new StepsEntry with just distance (count=0)
+    StepsEntry.objects.create(
+        user=user,
+        logged_date=metric_date,
+        count=0,  # Will be updated by steps sync
+        distance_miles=distance_value,
+        source=source,
+        sync_id=sync_id,
+    )
+    return "created"
+
+
+def process_resting_calories_metric(user, metric_date, source, sync_id, data):
+    """
+    Process resting/basal calories metric from Apple HealthKit.
+
+    Updates the resting_calories field on the StepsEntry for this date.
+    Creates a minimal StepsEntry if one doesn't exist.
+    """
+    resting_calories_value = data.get("resting_calories_value")
+
+    if resting_calories_value is None:
+        raise ValueError("resting_calories_value is required for resting_calories")
+
+    try:
+        resting_calories_value = int(resting_calories_value)
+    except (TypeError, ValueError):
+        raise ValueError(f"Invalid resting calories value: {resting_calories_value}")
+
+    # Validate range (0 to 5,000 calories is reasonable for basal)
+    if resting_calories_value < 0 or resting_calories_value > 5000:
+        raise ValueError(f"Resting calories value out of range: {resting_calories_value}")
+
+    # Find existing StepsEntry for this date and source
+    existing = StepsEntry.objects.filter(
+        user=user,
+        logged_date=metric_date,
+        source=source,
+    ).first()
+
+    if existing:
+        if existing.resting_calories != resting_calories_value:
+            existing.resting_calories = resting_calories_value
+            existing.save(update_fields=["resting_calories", "updated_at"])
+            return "updated"
+        return "skipped"
+
+    # Create new StepsEntry with just resting calories (count=0)
+    StepsEntry.objects.create(
+        user=user,
+        logged_date=metric_date,
+        count=0,  # Will be updated by steps sync
+        resting_calories=resting_calories_value,
+        source=source,
+        sync_id=sync_id,
+    )
+    return "created"
+
+
+def process_flights_climbed_metric(user, metric_date, source, sync_id, data):
+    """
+    Process flights climbed metric from Apple HealthKit.
+
+    Updates the flights_climbed field on the StepsEntry for this date.
+    Creates a minimal StepsEntry if one doesn't exist.
+    """
+    flights_value = data.get("flights_value")
+
+    if flights_value is None:
+        raise ValueError("flights_value is required for flights_climbed")
+
+    try:
+        flights_value = int(flights_value)
+    except (TypeError, ValueError):
+        raise ValueError(f"Invalid flights value: {flights_value}")
+
+    # Validate range (0 to 500 flights is reasonable)
+    if flights_value < 0 or flights_value > 500:
+        raise ValueError(f"Flights value out of range: {flights_value}")
+
+    # Find existing StepsEntry for this date and source
+    existing = StepsEntry.objects.filter(
+        user=user,
+        logged_date=metric_date,
+        source=source,
+    ).first()
+
+    if existing:
+        if existing.flights_climbed != flights_value:
+            existing.flights_climbed = flights_value
+            existing.save(update_fields=["flights_climbed", "updated_at"])
+            return "updated"
+        return "skipped"
+
+    # Create new StepsEntry with just flights (count=0)
+    StepsEntry.objects.create(
+        user=user,
+        logged_date=metric_date,
+        count=0,  # Will be updated by steps sync
+        flights_climbed=flights_value,
+        source=source,
+        sync_id=sync_id,
+    )
+    return "created"
+
+
+def process_exercise_minutes_metric(user, metric_date, source, sync_id, data):
+    """
+    Process exercise minutes metric from Apple HealthKit.
+
+    Updates the exercise_minutes field on the StepsEntry for this date.
+    Creates a minimal StepsEntry if one doesn't exist.
+    """
+    exercise_minutes_value = data.get("exercise_minutes_value")
+
+    if exercise_minutes_value is None:
+        raise ValueError("exercise_minutes_value is required for exercise_minutes")
+
+    try:
+        exercise_minutes_value = int(exercise_minutes_value)
+    except (TypeError, ValueError):
+        raise ValueError(f"Invalid exercise minutes value: {exercise_minutes_value}")
+
+    # Validate range (0 to 1440 minutes = 24 hours)
+    if exercise_minutes_value < 0 or exercise_minutes_value > 1440:
+        raise ValueError(f"Exercise minutes value out of range: {exercise_minutes_value}")
+
+    # Find existing StepsEntry for this date and source
+    existing = StepsEntry.objects.filter(
+        user=user,
+        logged_date=metric_date,
+        source=source,
+    ).first()
+
+    if existing:
+        if existing.exercise_minutes != exercise_minutes_value:
+            existing.exercise_minutes = exercise_minutes_value
+            existing.save(update_fields=["exercise_minutes", "updated_at"])
+            return "updated"
+        return "skipped"
+
+    # Create new StepsEntry with just exercise minutes (count=0)
+    StepsEntry.objects.create(
+        user=user,
+        logged_date=metric_date,
+        count=0,  # Will be updated by steps sync
+        exercise_minutes=exercise_minutes_value,
+        source=source,
+        sync_id=sync_id,
+    )
+    return "created"
+
+
+def process_stand_hours_metric(user, metric_date, source, sync_id, data):
+    """
+    Process stand hours metric from Apple HealthKit.
+
+    Updates the stand_hours field on the StepsEntry for this date.
+    Creates a minimal StepsEntry if one doesn't exist.
+    """
+    stand_hours_value = data.get("stand_hours_value")
+
+    if stand_hours_value is None:
+        raise ValueError("stand_hours_value is required for stand_hours")
+
+    try:
+        stand_hours_value = int(stand_hours_value)
+    except (TypeError, ValueError):
+        raise ValueError(f"Invalid stand hours value: {stand_hours_value}")
+
+    # Validate range (0 to 24 hours)
+    if stand_hours_value < 0 or stand_hours_value > 24:
+        raise ValueError(f"Stand hours value out of range: {stand_hours_value}")
+
+    # Find existing StepsEntry for this date and source
+    existing = StepsEntry.objects.filter(
+        user=user,
+        logged_date=metric_date,
+        source=source,
+    ).first()
+
+    if existing:
+        if existing.stand_hours != stand_hours_value:
+            existing.stand_hours = stand_hours_value
+            existing.save(update_fields=["stand_hours", "updated_at"])
+            return "updated"
+        return "skipped"
+
+    # Create new StepsEntry with just stand hours (count=0)
+    StepsEntry.objects.create(
+        user=user,
+        logged_date=metric_date,
+        count=0,  # Will be updated by steps sync
+        stand_hours=stand_hours_value,
+        source=source,
+        sync_id=sync_id,
     )
     return "created"
 
@@ -1093,11 +1410,11 @@ def sync_status(request):
     user = request.user
     device = request.mobile_device
 
-    # Get last ingestion run (most recent first)
+    # Get last ingestion run
     last_run = HealthIngestionRun.objects.filter(
         user=user,
         device=device,
-    ).order_by('-created_at').first()
+    ).first()
 
     # Get latest dates for each metric type
     latest_steps = StepsEntry.objects.filter(
@@ -1115,6 +1432,11 @@ def sync_status(request):
         source="apple_health",
     ).order_by("-sleep_date").values_list("sleep_date", flat=True).first()
 
+    latest_glucose = GlucoseEntry.objects.filter(
+        user=user,
+        source="apple_health",
+    ).order_by("-recorded_at").values_list("recorded_at", flat=True).first()
+
     return JsonResponse({
         "last_sync": last_run.created_at.isoformat() if last_run else None,
         "last_sync_status": last_run.status if last_run else None,
@@ -1123,6 +1445,7 @@ def sync_status(request):
             # latest_weight is a datetime, get just the date
             "weight": latest_weight.date().isoformat() if latest_weight else None,
             "sleep": latest_sleep.isoformat() if latest_sleep else None,
+            "blood_glucose": latest_glucose.isoformat() if latest_glucose else None,
         },
         "device": {
             "name": device.device_name or device.device_model or "Unknown",

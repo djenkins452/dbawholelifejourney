@@ -12,9 +12,11 @@
                 <h1 class="page-title">Multi-Factor Authentication Required</h1>
                 <p class="text-muted">
                     {% if is_superuser %}
-                    As a superuser, you must set up biometric authentication (Face ID, Touch ID, or security key) before accessing the application.
+                    As a superuser, you must verify your identity before accessing the application.
+                    {% elif is_staff %}
+                    As a staff member, you must verify your identity before accessing the application.
                     {% else %}
-                    As a staff member, you must set up biometric authentication (Face ID, Touch ID, or security key) before accessing the application.
+                    Please verify your identity to continue.
                     {% endif %}
                 </p>
             </div>
@@ -25,43 +27,87 @@
                     <div>
                         <strong>Security Requirement</strong>
                         <p class="mt-1 text-sm">
-                            Privileged accounts have access to sensitive data and administrative functions.
-                            Multi-factor authentication protects your account from credential theft and unauthorized access.
+                            Multi-factor authentication protects your account from unauthorized access.
+                            Choose one of the verification methods below.
                         </p>
                     </div>
                 </div>
             </div>
 
-            <div class="mb-6">
-                <h3 class="font-semibold mb-3">Why is MFA required?</h3>
-                <ul class="list-disc list-inside space-y-2 text-muted">
-                    <li>Staff/admin accounts can access user data and system settings</li>
-                    <li>Passwords alone are vulnerable to phishing and credential theft</li>
-                    <li>Biometric authentication is resistant to remote attacks</li>
-                    <li>This is a security best practice for privileged access</li>
-                </ul>
+            <!-- Option 1: Email Code -->
+            <div class="mb-6 p-4 border rounded-lg" id="emailCodeSection">
+                <h3 class="font-semibold mb-3 flex items-center gap-2">
+                    <span class="text-xl">📧</span>
+                    Option 1: Email Verification Code
+                </h3>
+                <p class="text-muted text-sm mb-4">
+                    We'll send a 6-digit code to <strong>{{ user.email }}</strong>
+                </p>
+
+                <div id="emailCodeForm">
+                    <button type="button" id="sendCodeBtn" class="btn btn-primary w-full mb-3">
+                        Send Code to My Email
+                    </button>
+                </div>
+
+                <div id="verifyCodeForm" style="display: none;">
+                    <p class="text-sm text-success mb-3" id="codeSentMessage">
+                        ✓ Code sent! Check your email.
+                    </p>
+                    <div class="flex gap-2 mb-3">
+                        <input type="text"
+                               id="codeInput"
+                               class="form-input flex-1 text-center text-xl tracking-widest"
+                               placeholder="000000"
+                               maxlength="6"
+                               pattern="[0-9]{6}"
+                               inputmode="numeric"
+                               autocomplete="one-time-code">
+                        <button type="button" id="verifyCodeBtn" class="btn btn-primary">
+                            Verify
+                        </button>
+                    </div>
+                    <p class="text-sm text-muted">
+                        <button type="button" id="resendCodeBtn" class="text-primary underline">
+                            Resend code
+                        </button>
+                        <span class="mx-2">•</span>
+                        Code expires in 10 minutes
+                    </p>
+                </div>
+
+                <div id="emailError" class="text-error text-sm mt-2" style="display: none;"></div>
             </div>
 
-            <div class="mb-6">
-                <h3 class="font-semibold mb-3">How to set up MFA:</h3>
-                <ol class="list-decimal list-inside space-y-2 text-muted">
-                    <li>Click the "Set Up Biometric Login" button below</li>
-                    <li>Follow your browser's prompts to register Face ID, Touch ID, or a security key</li>
-                    <li>Once registered, you'll be able to access the application</li>
-                </ol>
-            </div>
+            <!-- Option 2: Biometric -->
+            <div class="mb-6 p-4 border rounded-lg">
+                <h3 class="font-semibold mb-3 flex items-center gap-2">
+                    <span class="text-xl">👆</span>
+                    Option 2: Biometric Authentication
+                </h3>
+                <p class="text-muted text-sm mb-4">
+                    Use Face ID, Touch ID, Windows Hello, or a security key for faster, phishing-resistant login.
+                </p>
 
-            <div class="text-center">
-                <a href="{% url 'users:preferences' %}#biometric"
-                   class="btn btn-primary btn-lg"
-                   id="setupMfaBtn">
+                {% if has_webauthn %}
+                <button type="button" id="biometricLoginBtn" class="btn btn-secondary w-full">
+                    Use Biometric Login
+                </button>
+                {% else %}
+                <button type="button" id="setupBiometricBtn" class="btn btn-secondary w-full">
                     Set Up Biometric Login
-                </a>
+                </button>
+                <p class="text-sm text-muted mt-2">
+                    One-time setup - then use for quick login next time.
+                </p>
+                {% endif %}
+
+                <div id="biometricError" class="text-error text-sm mt-2" style="display: none;"></div>
             </div>
 
             <div class="mt-6 text-center">
                 <p class="text-sm text-muted">
-                    Having trouble? Contact your system administrator for assistance.
+                    Having trouble? Contact support for assistance.
                 </p>
                 <form method="post" action="{% url 'account_logout' %}" class="mt-4 inline">
                     {% csrf_token %}
@@ -75,22 +121,129 @@
 </div>
 
 <script>
-// Direct registration flow - skip preferences page
-document.getElementById('setupMfaBtn').addEventListener('click', function(e) {
-    e.preventDefault();
+const csrfToken = '{{ csrf_token }}';
 
-    // Try to start biometric registration directly
-    fetch('{% url "users:biometric_register_begin" %}', {
+// ============================================
+// Email Code Functions
+// ============================================
+
+document.getElementById('sendCodeBtn').addEventListener('click', sendEmailCode);
+document.getElementById('resendCodeBtn').addEventListener('click', sendEmailCode);
+document.getElementById('verifyCodeBtn').addEventListener('click', verifyEmailCode);
+
+// Auto-submit when 6 digits entered
+document.getElementById('codeInput').addEventListener('input', function(e) {
+    // Only allow digits
+    this.value = this.value.replace(/\D/g, '');
+    if (this.value.length === 6) {
+        verifyEmailCode();
+    }
+});
+
+function sendEmailCode() {
+    const sendBtn = document.getElementById('sendCodeBtn');
+    const resendBtn = document.getElementById('resendCodeBtn');
+    const errorDiv = document.getElementById('emailError');
+
+    // Disable buttons
+    if (sendBtn) sendBtn.disabled = true;
+    if (resendBtn) resendBtn.disabled = true;
+    errorDiv.style.display = 'none';
+
+    fetch('{% url "users:mfa_email_send" %}', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'X-CSRFToken': '{{ csrf_token }}'
+            'X-CSRFToken': csrfToken
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Show verify form
+            document.getElementById('emailCodeForm').style.display = 'none';
+            document.getElementById('verifyCodeForm').style.display = 'block';
+            document.getElementById('codeInput').focus();
+        } else {
+            errorDiv.textContent = data.error;
+            errorDiv.style.display = 'block';
+        }
+    })
+    .catch(error => {
+        errorDiv.textContent = 'Failed to send code. Please try again.';
+        errorDiv.style.display = 'block';
+    })
+    .finally(() => {
+        if (sendBtn) sendBtn.disabled = false;
+        if (resendBtn) resendBtn.disabled = false;
+    });
+}
+
+function verifyEmailCode() {
+    const code = document.getElementById('codeInput').value;
+    const verifyBtn = document.getElementById('verifyCodeBtn');
+    const errorDiv = document.getElementById('emailError');
+
+    if (code.length !== 6) {
+        errorDiv.textContent = 'Please enter all 6 digits';
+        errorDiv.style.display = 'block';
+        return;
+    }
+
+    verifyBtn.disabled = true;
+    errorDiv.style.display = 'none';
+
+    fetch('{% url "users:mfa_email_verify" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify({ code: code })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            window.location.href = '/';
+        } else {
+            errorDiv.textContent = data.error;
+            errorDiv.style.display = 'block';
+            document.getElementById('codeInput').value = '';
+            document.getElementById('codeInput').focus();
+        }
+    })
+    .catch(error => {
+        errorDiv.textContent = 'Verification failed. Please try again.';
+        errorDiv.style.display = 'block';
+    })
+    .finally(() => {
+        verifyBtn.disabled = false;
+    });
+}
+
+// ============================================
+// Biometric Functions
+// ============================================
+
+{% if has_webauthn %}
+document.getElementById('biometricLoginBtn').addEventListener('click', biometricLogin);
+
+function biometricLogin() {
+    const errorDiv = document.getElementById('biometricError');
+    errorDiv.style.display = 'none';
+
+    fetch('{% url "users:biometric_login_begin" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
         }
     })
     .then(response => response.json())
     .then(options => {
         if (options.error) {
-            alert('Error: ' + options.error);
+            errorDiv.textContent = options.error;
+            errorDiv.style.display = 'block';
             return;
         }
 
@@ -106,7 +259,110 @@ document.getElementById('setupMfaBtn').addEventListener('click', function(e) {
             return outputArray.buffer;
         }
 
-        // Prepare credential creation options
+        const publicKeyCredentialRequestOptions = {
+            challenge: base64urlToBuffer(options.challenge),
+            rpId: options.rpId,
+            allowCredentials: options.allowCredentials.map(cred => ({
+                type: cred.type,
+                id: base64urlToBuffer(cred.id)
+            })),
+            userVerification: options.userVerification,
+            timeout: options.timeout
+        };
+
+        return navigator.credentials.get({
+            publicKey: publicKeyCredentialRequestOptions
+        });
+    })
+    .then(assertion => {
+        if (!assertion) return;
+
+        function bufferToBase64url(buffer) {
+            const bytes = new Uint8Array(buffer);
+            let str = '';
+            for (let i = 0; i < bytes.length; i++) {
+                str += String.fromCharCode(bytes[i]);
+            }
+            return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        }
+
+        const assertionData = {
+            id: assertion.id,
+            rawId: bufferToBase64url(assertion.rawId),
+            type: assertion.type,
+            response: {
+                clientDataJSON: bufferToBase64url(assertion.response.clientDataJSON),
+                authenticatorData: bufferToBase64url(assertion.response.authenticatorData),
+                signature: bufferToBase64url(assertion.response.signature),
+                userHandle: assertion.response.userHandle ? bufferToBase64url(assertion.response.userHandle) : null
+            }
+        };
+
+        return fetch('{% url "users:biometric_login_complete" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify(assertionData)
+        });
+    })
+    .then(response => {
+        if (!response) return;
+        return response.json();
+    })
+    .then(result => {
+        if (!result) return;
+        if (result.success) {
+            window.location.href = '/';
+        } else {
+            errorDiv.textContent = result.error || 'Authentication failed';
+            errorDiv.style.display = 'block';
+        }
+    })
+    .catch(error => {
+        console.error('WebAuthn error:', error);
+        if (error.name === 'NotAllowedError') {
+            errorDiv.textContent = 'Authentication was cancelled or timed out.';
+        } else {
+            errorDiv.textContent = 'Biometric authentication failed: ' + error.message;
+        }
+        errorDiv.style.display = 'block';
+    });
+}
+{% else %}
+document.getElementById('setupBiometricBtn').addEventListener('click', setupBiometric);
+
+function setupBiometric() {
+    const errorDiv = document.getElementById('biometricError');
+    errorDiv.style.display = 'none';
+
+    fetch('{% url "users:biometric_register_begin" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        }
+    })
+    .then(response => response.json())
+    .then(options => {
+        if (options.error) {
+            errorDiv.textContent = options.error;
+            errorDiv.style.display = 'block';
+            return;
+        }
+
+        function base64urlToBuffer(base64url) {
+            const padding = '='.repeat((4 - base64url.length % 4) % 4);
+            const base64 = (base64url + padding).replace(/-/g, '+').replace(/_/g, '/');
+            const rawData = window.atob(base64);
+            const outputArray = new Uint8Array(rawData.length);
+            for (let i = 0; i < rawData.length; ++i) {
+                outputArray[i] = rawData.charCodeAt(i);
+            }
+            return outputArray.buffer;
+        }
+
         const publicKeyCredentialCreationOptions = {
             challenge: base64urlToBuffer(options.challenge),
             rp: {
@@ -131,7 +387,6 @@ document.getElementById('setupMfaBtn').addEventListener('click', function(e) {
             }));
         }
 
-        // Create credential
         return navigator.credentials.create({
             publicKey: publicKeyCredentialCreationOptions
         });
@@ -139,7 +394,6 @@ document.getElementById('setupMfaBtn').addEventListener('click', function(e) {
     .then(credential => {
         if (!credential) return;
 
-        // Encode the response for sending to server
         function bufferToBase64url(buffer) {
             const bytes = new Uint8Array(buffer);
             let str = '';
@@ -160,12 +414,11 @@ document.getElementById('setupMfaBtn').addEventListener('click', function(e) {
             deviceName: 'MFA Registration'
         };
 
-        // Send to server
         return fetch('{% url "users:biometric_register_complete" %}', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRFToken': '{{ csrf_token }}'
+                'X-CSRFToken': csrfToken
             },
             body: JSON.stringify(credentialData)
         });
@@ -178,20 +431,23 @@ document.getElementById('setupMfaBtn').addEventListener('click', function(e) {
         if (!result) return;
 
         if (result.success) {
-            alert('MFA setup complete! You can now access the application.');
+            alert('Biometric login set up successfully!');
             window.location.href = '/';
         } else {
-            alert('Error: ' + (result.error || 'Registration failed'));
+            errorDiv.textContent = result.error || 'Registration failed';
+            errorDiv.style.display = 'block';
         }
     })
     .catch(error => {
         console.error('WebAuthn error:', error);
         if (error.name === 'NotAllowedError') {
-            alert('Registration was cancelled or timed out. Please try again.');
+            errorDiv.textContent = 'Registration was cancelled or timed out.';
         } else {
-            alert('Error setting up biometric authentication: ' + error.message);
+            errorDiv.textContent = 'Biometric setup failed: ' + error.message;
         }
+        errorDiv.style.display = 'block';
     });
-});
+}
+{% endif %}
 </script>
 {% endblock %}

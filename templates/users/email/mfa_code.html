@@ -1,0 +1,25 @@
+{% extends "billing/email/base_email.html" %}
+
+{% block title %}Your Verification Code{% endblock %}
+
+{% block content %}
+<h2>Your Verification Code</h2>
+
+<p>Hi {{ user.first_name|default:"there" }},</p>
+
+<p>Use this code to complete your login to Whole Life Journey:</p>
+
+<div style="text-align: center; margin: 24px 0;">
+    <div style="display: inline-block; background: #f3f4f6; border-radius: 8px; padding: 16px 32px; font-size: 32px; font-family: monospace; letter-spacing: 8px; font-weight: bold; color: #111827;">
+        {{ code }}
+    </div>
+</div>
+
+<p style="color: #6b7280; font-size: 14px;">
+    This code expires in {{ expires_minutes }} minutes. If you didn't request this code, you can safely ignore this email.
+</p>
+
+<div class="highlight">
+    <strong>Security tip:</strong> Never share this code with anyone. Whole Life Journey staff will never ask for your verification code.
+</div>
+{% endblock %}

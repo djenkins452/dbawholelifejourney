@@ -44,14 +44,19 @@ Copyright:
 """
 
 import logging
+from datetime import date
 
 from django.conf import settings
 from django.contrib import messages
+from django.contrib.auth import login
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.core.mail import send_mail
 from django.http import JsonResponse
 from django.shortcuts import redirect
+from django.template.loader import render_to_string
 from django.urls import reverse_lazy
 from django.utils import timezone
+from django.utils.html import strip_tags
 from django.views.generic import TemplateView, UpdateView, View
 
 from allauth.account.views import SignupView as AllauthSignupView
@@ -1601,18 +1606,20 @@ class ConfirmPasswordView(LoginRequiredMixin, TemplateView):
 
 class MFARequiredView(LoginRequiredMixin, TemplateView):
     """
-    Page for staff/admin users who must set up MFA (WebAuthn).
+    Page for users who must complete MFA verification.
 
-    Staff and superuser accounts are required to have at least one
-    WebAuthn credential registered for security. This page explains
-    the requirement and provides a link to set it up.
+    Users can verify via:
+    1. Email code (6-digit code sent to their email)
+    2. WebAuthn biometric (Face ID, Touch ID, security key)
+
+    If user has already verified MFA this session, redirects to dashboard.
     """
 
     template_name = "users/mfa_required.html"
 
     def get(self, request, *args, **kwargs):
-        # If user already has MFA, redirect away
-        if request.user.webauthn_credentials.exists():
+        # If user already verified MFA this session, redirect away
+        if request.session.get('mfa_verified'):
             return redirect("dashboard:home")
         return super().get(request, *args, **kwargs)
 
@@ -1620,4 +1627,218 @@ class MFARequiredView(LoginRequiredMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         context['is_staff'] = self.request.user.is_staff
         context['is_superuser'] = self.request.user.is_superuser
+        context['has_webauthn'] = self.request.user.webauthn_credentials.exists()
         return context
+
+
+# ==============================================================================
+# MFA Email Code Views
+# ==============================================================================
+
+class MFAEmailCodeSendView(LoginRequiredMixin, View):
+    """
+    Send an MFA verification code to the user's email.
+
+    POST /user/mfa/email/send/
+    Returns JSON with success status.
+    """
+
+    def post(self, request, *args, **kwargs):
+        from .models import MFAEmailCode
+
+        # Get client IP
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            ip_address = x_forwarded_for.split(',')[0].strip()
+        else:
+            ip_address = request.META.get('REMOTE_ADDR')
+
+        # Create code
+        mfa_code, error = MFAEmailCode.create_for_user(request.user, ip_address)
+
+        if error:
+            return JsonResponse({'success': False, 'error': error}, status=429)
+
+        # Send email
+        try:
+            context = {
+                'user': request.user,
+                'code': mfa_code.code,
+                'expires_minutes': 10,
+                'current_year': date.today().year,
+            }
+
+            html_content = render_to_string('users/email/mfa_code.html', context)
+            text_content = strip_tags(html_content)
+
+            send_mail(
+                subject='Your Verification Code - Whole Life Journey',
+                message=text_content,
+                from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@wholelifejourney.com'),
+                recipient_list=[request.user.email],
+                html_message=html_content,
+                fail_silently=False,
+            )
+
+            logger.info(f"Sent MFA code email to {request.user.email}")
+            return JsonResponse({'success': True, 'message': 'Code sent to your email'})
+
+        except Exception as e:
+            logger.error(f"Failed to send MFA code email to {request.user.email}: {e}")
+            return JsonResponse({'success': False, 'error': 'Failed to send email. Please try again.'}, status=500)
+
+
+class MFAEmailCodeVerifyView(LoginRequiredMixin, View):
+    """
+    Verify an MFA email code and mark the user as MFA-verified for this session.
+
+    POST /user/mfa/email/verify/
+    Body: {"code": "123456"}
+    Returns JSON with success status.
+    """
+
+    def post(self, request, *args, **kwargs):
+        import json
+        from .models import MFAEmailCode
+
+        try:
+            data = json.loads(request.body)
+            code = data.get('code', '').strip()
+        except (json.JSONDecodeError, AttributeError):
+            return JsonResponse({'success': False, 'error': 'Invalid request'}, status=400)
+
+        if not code:
+            return JsonResponse({'success': False, 'error': 'Code is required'}, status=400)
+
+        if len(code) != 6 or not code.isdigit():
+            return JsonResponse({'success': False, 'error': 'Invalid code format'}, status=400)
+
+        # Verify the code
+        if MFAEmailCode.verify_code(request.user, code):
+            # Mark user as MFA verified in session
+            request.session['mfa_verified'] = True
+            request.session['mfa_verified_at'] = timezone.now().isoformat()
+
+            logger.info(f"MFA email code verified for {request.user.email}")
+            return JsonResponse({'success': True, 'message': 'Code verified successfully'})
+        else:
+            logger.warning(f"Invalid MFA code attempt for {request.user.email}")
+            return JsonResponse({'success': False, 'error': 'Invalid or expired code'}, status=400)
+
+
+class MFAEmailCodeLoginSendView(View):
+    """
+    Send an MFA verification code for login (before user is fully authenticated).
+
+    This is used when user has logged in with password but needs MFA verification.
+    The user_id is stored in the session during the login flow.
+
+    POST /user/mfa/email/login-send/
+    """
+
+    def post(self, request, *args, **kwargs):
+        from .models import MFAEmailCode, User
+
+        # Get pending MFA user from session
+        pending_user_id = request.session.get('mfa_pending_user_id')
+        if not pending_user_id:
+            return JsonResponse({'success': False, 'error': 'No pending login'}, status=400)
+
+        try:
+            user = User.objects.get(id=pending_user_id)
+        except User.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'User not found'}, status=400)
+
+        # Get client IP
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            ip_address = x_forwarded_for.split(',')[0].strip()
+        else:
+            ip_address = request.META.get('REMOTE_ADDR')
+
+        # Create code
+        mfa_code, error = MFAEmailCode.create_for_user(user, ip_address)
+
+        if error:
+            return JsonResponse({'success': False, 'error': error}, status=429)
+
+        # Send email
+        try:
+            context = {
+                'user': user,
+                'code': mfa_code.code,
+                'expires_minutes': 10,
+                'current_year': date.today().year,
+            }
+
+            html_content = render_to_string('users/email/mfa_code.html', context)
+            text_content = strip_tags(html_content)
+
+            send_mail(
+                subject='Your Verification Code - Whole Life Journey',
+                message=text_content,
+                from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@wholelifejourney.com'),
+                recipient_list=[user.email],
+                html_message=html_content,
+                fail_silently=False,
+            )
+
+            logger.info(f"Sent MFA login code email to {user.email}")
+            return JsonResponse({'success': True, 'message': 'Code sent to your email'})
+
+        except Exception as e:
+            logger.error(f"Failed to send MFA login code email to {user.email}: {e}")
+            return JsonResponse({'success': False, 'error': 'Failed to send email. Please try again.'}, status=500)
+
+
+class MFAEmailCodeLoginVerifyView(View):
+    """
+    Verify an MFA email code during login and complete the authentication.
+
+    POST /user/mfa/email/login-verify/
+    Body: {"code": "123456"}
+    """
+
+    def post(self, request, *args, **kwargs):
+        import json
+        from .models import MFAEmailCode, User
+
+        # Get pending MFA user from session
+        pending_user_id = request.session.get('mfa_pending_user_id')
+        if not pending_user_id:
+            return JsonResponse({'success': False, 'error': 'No pending login'}, status=400)
+
+        try:
+            user = User.objects.get(id=pending_user_id)
+        except User.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'User not found'}, status=400)
+
+        try:
+            data = json.loads(request.body)
+            code = data.get('code', '').strip()
+        except (json.JSONDecodeError, AttributeError):
+            return JsonResponse({'success': False, 'error': 'Invalid request'}, status=400)
+
+        if not code:
+            return JsonResponse({'success': False, 'error': 'Code is required'}, status=400)
+
+        if len(code) != 6 or not code.isdigit():
+            return JsonResponse({'success': False, 'error': 'Invalid code format'}, status=400)
+
+        # Verify the code
+        if MFAEmailCode.verify_code(user, code):
+            # Clear pending user from session
+            del request.session['mfa_pending_user_id']
+
+            # Log the user in
+            login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+
+            # Mark as MFA verified
+            request.session['mfa_verified'] = True
+            request.session['mfa_verified_at'] = timezone.now().isoformat()
+
+            logger.info(f"MFA email code login verified for {user.email}")
+            return JsonResponse({'success': True, 'message': 'Login successful', 'redirect': '/'})
+        else:
+            logger.warning(f"Invalid MFA login code attempt for {user.email}")
+            return JsonResponse({'success': False, 'error': 'Invalid or expired code'}, status=400)

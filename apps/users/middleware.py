@@ -178,23 +178,43 @@ class SubscriptionRequiredMiddleware:
 
 class MFAEnforcementMiddleware:
     """
-    Middleware to enforce MFA (WebAuthn) for staff and superuser accounts.
+    Middleware to enforce MFA for specific users.
 
-    Staff and admin users are required to have at least one WebAuthn credential
-    registered before they can access the application. This protects privileged
-    accounts from credential compromise.
+    MFA can be verified via:
+    1. Email code (6-digit code sent to email)
+    2. WebAuthn biometric (Face ID, Touch ID, security key)
+
+    Enforcement levels (in order of priority):
+    1. Users in MFA_EXEMPT_EMAILS are NEVER required to verify MFA
+    2. Users in MFA_REQUIRED_EMAILS are ALWAYS required to verify MFA
+    3. Staff/superuser accounts are ALWAYS required to verify MFA
+    4. All other users: not currently required (Phase 2 will enable for everyone)
 
     Flow:
-    1. Check if user is authenticated and is staff/superuser
-    2. Check if user has any WebAuthn credentials registered
-    3. If not, redirect to MFA setup page
+    1. Check if user is in exempt list (skip MFA)
+    2. Check if user is in required list OR is staff/superuser
+    3. Check if user has verified MFA this session
+    4. If not verified, redirect to MFA page
 
     Exempt paths:
     - Login/logout (authentication flow)
     - WebAuthn endpoints (to allow registration)
+    - MFA email code endpoints
     - Static/media files
-    - MFA setup page itself
+    - MFA verification page itself
     """
+
+    # Users who NEVER need MFA (owner account during testing)
+    MFA_EXEMPT_EMAILS = [
+        "dannyjenkins71@gmail.com",
+    ]
+
+    # Users who ALWAYS need MFA (testing before full rollout)
+    # Phase 1: Test with specific user
+    # Phase 2: Will change to enforce for all users
+    MFA_REQUIRED_EMAILS = [
+        "heatherjenkins74@gmail.com",
+    ]
 
     EXEMPT_PATHS = [
         "/accounts/",  # Login, logout, password reset
@@ -202,7 +222,8 @@ class MFAEnforcementMiddleware:
         "/static/",
         "/media/",
         "/user/biometric/",  # WebAuthn endpoints for registration
-        "/user/mfa-required/",  # MFA setup page
+        "/user/mfa-required/",  # MFA verification page
+        "/user/mfa/",  # MFA email code endpoints
         "/api/",  # API endpoints
     ]
 
@@ -210,16 +231,40 @@ class MFAEnforcementMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
-        # Only check for authenticated staff/superusers
-        if request.user.is_authenticated and (request.user.is_staff or request.user.is_superuser):
-            # Skip exempt paths
-            if not any(request.path.startswith(path) for path in self.EXEMPT_PATHS):
-                # Check if user has any WebAuthn credentials
-                if not request.user.webauthn_credentials.exists():
-                    return redirect("users:mfa_required")
+        if not request.user.is_authenticated:
+            return self.get_response(request)
 
-        response = self.get_response(request)
-        return response
+        user_email = request.user.email.lower()
+
+        # Check if user is exempt from MFA
+        if user_email in [e.lower() for e in self.MFA_EXEMPT_EMAILS]:
+            return self.get_response(request)
+
+        # Determine if MFA is required for this user
+        mfa_required = (
+            user_email in [e.lower() for e in self.MFA_REQUIRED_EMAILS]
+            or request.user.is_staff
+            or request.user.is_superuser
+        )
+
+        if not mfa_required:
+            return self.get_response(request)
+
+        # Skip exempt paths
+        if any(request.path.startswith(path) for path in self.EXEMPT_PATHS):
+            return self.get_response(request)
+
+        # Check if user has verified MFA this session
+        if request.session.get('mfa_verified'):
+            return self.get_response(request)
+
+        # For staff/superusers with WebAuthn credentials, allow access
+        # (they've already done the more secure biometric registration)
+        if (request.user.is_staff or request.user.is_superuser) and request.user.webauthn_credentials.exists():
+            return self.get_response(request)
+
+        # User needs to verify MFA
+        return redirect("users:mfa_required")
 
 
 class TimezoneMiddleware:

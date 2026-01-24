@@ -16,6 +16,38 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-24 Changes
 
+### MFA Email Code Feature + Targeted Enforcement
+
+Added email-based MFA verification as an alternative to WebAuthn biometrics, with targeted enforcement:
+
+**New Features:**
+1. **Email Code MFA Option** - Users can verify identity via 6-digit code sent to their email
+   - Codes expire after 10 minutes
+   - Rate limited to 5 requests per hour
+   - Auto-invalidates previous codes when new one requested
+
+2. **Targeted MFA Enforcement** - Configurable by user email:
+   - `MFA_EXEMPT_EMAILS`: Users who never need MFA (dannyjenkins71@gmail.com)
+   - `MFA_REQUIRED_EMAILS`: Users who always need MFA (heatherjenkins74@gmail.com for testing)
+   - Staff/superusers: Required (can bypass with existing WebAuthn credentials)
+
+3. **Updated MFA Required Page** - Now offers two verification options:
+   - Email verification code (primary)
+   - Biometric authentication (Face ID/Touch ID/security key)
+
+**Files Changed:**
+- `apps/users/models.py` - Added MFAEmailCode model
+- `apps/users/views.py` - Added email code send/verify views
+- `apps/users/urls.py` - Added `/user/mfa/email/*` routes
+- `apps/users/middleware.py` - Updated MFAEnforcementMiddleware for targeted enforcement
+- `templates/users/mfa_required.html` - Updated with both verification options
+- `templates/users/email/mfa_code.html` - New email template for verification codes
+- `apps/users/tests/test_mfa_email_code.py` - Comprehensive tests (33 tests)
+
+**Migration:** `apps/users/migrations/0047_mfa_email_code.py`
+
+---
+
 ### AI Assistant Timezone Fix
 
 Fixed AI Assistant chat displaying dates in UTC instead of user's local timezone.

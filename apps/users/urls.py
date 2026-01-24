@@ -76,6 +76,12 @@ urlpatterns = [
     # Password confirmation for sensitive operations (CISO Review 2026-01-12)
     path("confirm-password/", views.ConfirmPasswordView.as_view(), name="confirm_password"),
 
-    # MFA Enforcement (staff/admin users must register biometric)
+    # MFA Enforcement
     path("mfa-required/", views.MFARequiredView.as_view(), name="mfa_required"),
+
+    # MFA Email Code endpoints
+    path("mfa/email/send/", views.MFAEmailCodeSendView.as_view(), name="mfa_email_send"),
+    path("mfa/email/verify/", views.MFAEmailCodeVerifyView.as_view(), name="mfa_email_verify"),
+    path("mfa/email/login-send/", views.MFAEmailCodeLoginSendView.as_view(), name="mfa_email_login_send"),
+    path("mfa/email/login-verify/", views.MFAEmailCodeLoginVerifyView.as_view(), name="mfa_email_login_verify"),
 ]

@@ -67,6 +67,8 @@ struct HealthSyncView: View {
                 DataTypeRow(icon: "lungs", title: "VO2 Max", description: "Cardio fitness level")
                 DataTypeRow(icon: "cup.and.saucer.fill", title: "Caffeine", description: "Daily caffeine intake")
                 DataTypeRow(icon: "brain.head.profile", title: "Mindful Minutes", description: "Meditation and mindfulness")
+                DataTypeRow(icon: "heart.circle", title: "Blood Pressure", description: "Systolic and diastolic")
+                DataTypeRow(icon: "thermometer", title: "Body Temperature", description: "Temperature readings")
             } header: {
                 Text("Synced Data Types")
             } footer: {

@@ -94,6 +94,15 @@ struct HealthMetric: Codable {
     // Mindful Minutes
     var mindfulMinutesValue: Int?
 
+    // Blood Pressure
+    var systolicValue: Int?
+    var diastolicValue: Int?
+    var recordedAt: String?
+
+    // Body Temperature
+    var temperatureValue: Double?
+    var temperatureUnit: String?
+
     enum CodingKeys: String, CodingKey {
         case type
         case date
@@ -138,6 +147,11 @@ struct HealthMetric: Codable {
         case vo2MaxValue = "vo2_max_value"
         case caffeineValue = "caffeine_value"
         case mindfulMinutesValue = "mindful_minutes_value"
+        case systolicValue = "systolic_value"
+        case diastolicValue = "diastolic_value"
+        case recordedAt = "recorded_at"
+        case temperatureValue = "temperature_value"
+        case temperatureUnit = "temperature_unit"
     }
 
     // MARK: - Convenience Initializers
@@ -355,6 +369,30 @@ struct HealthMetric: Codable {
         self.type = type
         self.date = date
         self.mindfulMinutesValue = mindfulMinutesValue
+        self.source = source
+        self.syncId = syncId
+    }
+
+    /// Create a blood pressure metric
+    init(type: String, date: String, systolicValue: Int, diastolicValue: Int,
+         recordedAt: String, source: String, syncId: String) {
+        self.type = type
+        self.date = date
+        self.systolicValue = systolicValue
+        self.diastolicValue = diastolicValue
+        self.recordedAt = recordedAt
+        self.source = source
+        self.syncId = syncId
+    }
+
+    /// Create a body temperature metric
+    init(type: String, date: String, temperatureValue: Double, temperatureUnit: String,
+         recordedAt: String, source: String, syncId: String) {
+        self.type = type
+        self.date = date
+        self.temperatureValue = temperatureValue
+        self.temperatureUnit = temperatureUnit
+        self.recordedAt = recordedAt
         self.source = source
         self.syncId = syncId
     }

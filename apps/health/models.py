@@ -1217,6 +1217,18 @@ class BloodPressureEntry(UserOwnedModel):
     )
     recorded_at = models.DateTimeField(default=timezone.now)
     notes = models.TextField(blank=True)
+    source = models.CharField(
+        max_length=50,
+        default="manual",
+        help_text="Data source (manual, apple_health, etc.)"
+    )
+    sync_id = models.CharField(
+        max_length=100,
+        null=True,
+        blank=True,
+        unique=True,
+        help_text="Unique sync ID to prevent duplicates"
+    )
 
     class Meta:
         ordering = ["-recorded_at"]
@@ -1259,6 +1271,98 @@ class BloodPressureEntry(UserOwnedModel):
             "crisis": "Hypertensive Crisis",
         }
         return categories.get(self.category, "Unknown")
+
+
+class BodyTemperatureEntry(UserOwnedModel):
+    """
+    Body temperature tracking entry.
+
+    Records temperature readings with context.
+    """
+
+    UNIT_CHOICES = [
+        ("fahrenheit", "Fahrenheit"),
+        ("celsius", "Celsius"),
+    ]
+
+    CONTEXT_CHOICES = [
+        ("oral", "Oral"),
+        ("ear", "Ear (Tympanic)"),
+        ("forehead", "Forehead"),
+        ("armpit", "Armpit (Axillary)"),
+        ("rectal", "Rectal"),
+        ("other", "Other"),
+    ]
+
+    temperature = models.DecimalField(
+        max_digits=4,
+        decimal_places=1,
+        help_text="Temperature value"
+    )
+    unit = models.CharField(
+        max_length=10,
+        choices=UNIT_CHOICES,
+        default="fahrenheit",
+    )
+    context = models.CharField(
+        max_length=20,
+        choices=CONTEXT_CHOICES,
+        default="oral",
+    )
+    recorded_at = models.DateTimeField(default=timezone.now)
+    notes = models.TextField(blank=True)
+    source = models.CharField(
+        max_length=50,
+        default="manual",
+        help_text="Data source (manual, apple_health, etc.)"
+    )
+    sync_id = models.CharField(
+        max_length=100,
+        null=True,
+        blank=True,
+        unique=True,
+        help_text="Unique sync ID to prevent duplicates"
+    )
+
+    class Meta:
+        ordering = ["-recorded_at"]
+        verbose_name = "body temperature entry"
+        verbose_name_plural = "body temperature entries"
+
+    def __str__(self):
+        return f"{self.temperature}°{'F' if self.unit == 'fahrenheit' else 'C'} on {self.recorded_at.date()}"
+
+    @property
+    def temperature_fahrenheit(self):
+        """Return temperature in Fahrenheit."""
+        if self.unit == "fahrenheit":
+            return float(self.temperature)
+        return float(self.temperature) * 9 / 5 + 32
+
+    @property
+    def temperature_celsius(self):
+        """Return temperature in Celsius."""
+        if self.unit == "celsius":
+            return float(self.temperature)
+        return (float(self.temperature) - 32) * 5 / 9
+
+    @property
+    def status(self):
+        """
+        Categorize temperature (based on Fahrenheit).
+        Returns: low, normal, elevated, fever, high_fever
+        """
+        temp_f = self.temperature_fahrenheit
+        if temp_f < 97.0:
+            return "low"
+        elif temp_f < 99.0:
+            return "normal"
+        elif temp_f < 100.4:
+            return "elevated"
+        elif temp_f < 103.0:
+            return "fever"
+        else:
+            return "high_fever"
 
 
 class BloodOxygenEntry(UserOwnedModel):

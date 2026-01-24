@@ -259,8 +259,15 @@ struct SettingsView: View {
                 _ = try await HealthKitManager.shared.syncHealthData()
 
                 // Fetch the server's sync timestamp instead of using local Date()
-                let syncStatus = try await APIClient.shared.getSyncStatus()
-                let serverSyncDate = parseISO8601Date(syncStatus.lastSync)
+                // If this fails, fall back to current time (sync still succeeded)
+                var serverSyncDate: Date? = nil
+                do {
+                    let syncStatus = try await APIClient.shared.getSyncStatus()
+                    serverSyncDate = parseISO8601Date(syncStatus.lastSync)
+                } catch {
+                    print("Failed to fetch sync status: \(error)")
+                    // Don't fail the whole sync - just use current time
+                }
 
                 await MainActor.run {
                     appState.lastSyncDate = serverSyncDate ?? Date()

@@ -16,6 +16,17 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-24 Changes
 
+### Remove Dexcom direct connection UI from Blood Glucose dashboard
+
+**Change:** Removed the Dexcom CGM connection card and related UI elements from the Blood Glucose dashboard.
+
+**Reason:** Blood glucose data now syncs via HealthKit through the iOS app, which can read Dexcom data from Apple Health. The direct Dexcom API integration is no longer needed and was causing confusion.
+
+**Files Modified:**
+- `templates/health/glucose/dashboard.html` - Removed Dexcom connection card, sync button, and related CSS
+
+---
+
 ### iOS: Add blood glucose, blood oxygen, and water intake syncing
 
 **Feature:** Extended HealthKit sync to include three new health data types.

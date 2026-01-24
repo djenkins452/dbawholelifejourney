@@ -16,15 +16,7 @@
             <h1 class="page-title">Blood Glucose {% include "components/favorite_toggle.html" with page_title="Blood Glucose" %}</h1>
             <p class="page-subtitle">Track and monitor your blood sugar levels</p>
         </div>
-        <div class="flex gap-3">
-            {% if dexcom_connected %}
-                <form method="post" action="{% url 'health:dexcom_sync' %}">
-                    {% csrf_token %}
-                    <button type="submit" class="btn btn-ghost">Sync Now</button>
-                </form>
-            {% endif %}
-            <a href="{% url 'health:glucose_create' %}" class="btn btn-primary">Log Reading</a>
-        </div>
+        <a href="{% url 'health:glucose_create' %}" class="btn btn-primary">Log Reading</a>
     </div>
 
     <!-- Time Period Selector -->
@@ -34,43 +26,6 @@
         <a href="?period=30" class="btn {% if period == 30 %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">Last 30 Days</a>
         <a href="?period=60" class="btn {% if period == 60 %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">Last 60 Days</a>
         <a href="?period=90" class="btn {% if period == 90 %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">Last 90 Days</a>
-    </div>
-
-    <!-- Dexcom Connection Card -->
-    <div class="dexcom-card mb-6">
-        <div class="flex items-center justify-between">
-            <div class="flex items-center gap-4">
-                <div class="dexcom-icon">
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
-                    </svg>
-                </div>
-                <div>
-                    <h3 class="font-semibold">Dexcom CGM</h3>
-                    {% if dexcom_connected %}
-                        <p class="text-sm text-success">Connected</p>
-                        {% if dexcom_last_sync %}
-                            <p class="text-xs text-muted">Last sync: {{ dexcom_last_sync|timesince }} ago</p>
-                        {% endif %}
-                    {% elif dexcom_configured %}
-                        <p class="text-sm text-muted">Connect your Dexcom account to automatically sync glucose readings</p>
-                    {% else %}
-                        <p class="text-sm text-muted">Dexcom integration not configured</p>
-                    {% endif %}
-                </div>
-            </div>
-            <div>
-                {% if dexcom_connected %}
-                    <form method="post" action="{% url 'health:dexcom_disconnect' %}"
-                          onsubmit="return confirm('Are you sure you want to disconnect Dexcom? Your existing readings will be kept.');">
-                        {% csrf_token %}
-                        <button type="submit" class="btn btn-ghost btn-sm text-error">Disconnect</button>
-                    </form>
-                {% elif dexcom_configured %}
-                    <a href="{% url 'health:dexcom_connect' %}" class="btn btn-primary btn-sm">Connect Dexcom</a>
-                {% endif %}
-            </div>
-        </div>
     </div>
 
     {% if ai_insight %}
@@ -211,17 +166,10 @@
         <div class="empty-state">
             <h2 class="empty-state-title">No glucose readings yet</h2>
             <p class="empty-state-text">
-                {% if dexcom_configured and not dexcom_connected %}
-                    Connect your Dexcom to automatically sync readings, or log manually.
-                {% else %}
-                    Start tracking your blood glucose levels.
-                {% endif %}
+                Start tracking your blood glucose levels. Data syncs automatically from Apple Health via the iOS app.
             </p>
             <div class="flex gap-3 justify-center mt-4">
-                {% if dexcom_configured and not dexcom_connected %}
-                    <a href="{% url 'health:dexcom_connect' %}" class="btn btn-primary">Connect Dexcom</a>
-                {% endif %}
-                <a href="{% url 'health:glucose_create' %}" class="btn {% if dexcom_configured and not dexcom_connected %}btn-ghost{% else %}btn-primary{% endif %}">Log Manually</a>
+                <a href="{% url 'health:glucose_create' %}" class="btn btn-primary">Log Manually</a>
             </div>
         </div>
         {% endif %}
@@ -279,24 +227,6 @@
     font-size: var(--font-size-base);
     line-height: 1.6;
     margin: 0;
-}
-
-.dexcom-card {
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-lg);
-    padding: var(--space-4);
-}
-
-.dexcom-icon {
-    width: 48px;
-    height: 48px;
-    background: color-mix(in srgb, var(--color-primary) 15%, transparent);
-    color: var(--color-primary);
-    border-radius: var(--radius-md);
-    display: flex;
-    align-items: center;
-    justify-content: center;
 }
 
 .current-reading-card {

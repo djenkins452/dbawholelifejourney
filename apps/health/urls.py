@@ -6,6 +6,7 @@ from django.urls import path
 
 from . import views
 from . import views_cycle
+from . import views_dashboards
 from . import views_sleep_api
 
 app_name = "health"
@@ -80,6 +81,7 @@ urlpatterns = [
 
     # Blood Pressure
     path("blood-pressure/", views.BloodPressureListView.as_view(), name="blood_pressure_list"),
+    path("blood-pressure/dashboard/", views_dashboards.BloodPressureDashboardView.as_view(), name="blood_pressure_dashboard"),
     path("blood-pressure/log/", views.BloodPressureCreateView.as_view(), name="blood_pressure_create"),
     path("blood-pressure/<int:pk>/edit/", views.BloodPressureUpdateView.as_view(), name="blood_pressure_update"),
     path("blood-pressure/<int:pk>/delete/", views.BloodPressureDeleteView.as_view(), name="blood_pressure_delete"),
@@ -87,6 +89,7 @@ urlpatterns = [
 
     # Blood Oxygen
     path("blood-oxygen/", views.BloodOxygenListView.as_view(), name="blood_oxygen_list"),
+    path("blood-oxygen/dashboard/", views_dashboards.BloodOxygenDashboardView.as_view(), name="blood_oxygen_dashboard"),
     path("blood-oxygen/log/", views.BloodOxygenCreateView.as_view(), name="blood_oxygen_create"),
     path("blood-oxygen/<int:pk>/edit/", views.BloodOxygenUpdateView.as_view(), name="blood_oxygen_update"),
     path("blood-oxygen/<int:pk>/delete/", views.BloodOxygenDeleteView.as_view(), name="blood_oxygen_delete"),

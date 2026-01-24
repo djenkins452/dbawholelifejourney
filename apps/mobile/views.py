@@ -26,6 +26,8 @@ from django.views.decorators.http import require_http_methods
 
 from apps.health.models import (
     BloodOxygenEntry,
+    BloodPressureEntry,
+    BodyTemperatureEntry,
     GlucoseEntry,
     StepsEntry,
     SleepEntry,
@@ -498,6 +500,8 @@ def process_health_metric(user, metric):
         "vo2_max": process_vo2_max_metric,
         "caffeine": process_caffeine_metric,
         "mindful_minutes": process_mindful_minutes_metric,
+        "blood_pressure": process_blood_pressure_metric,
+        "body_temperature": process_body_temperature_metric,
     }
 
     handler = handlers.get(metric_type)
@@ -1812,6 +1816,145 @@ def process_mindful_minutes_metric(user, metric_date, source, sync_id, data):
 
     # No sleep entry for this date - skip creating a minimal entry
     return "skipped"
+
+
+def process_blood_pressure_metric(user, metric_date, source, sync_id, data):
+    """
+    Process blood pressure metric from Apple HealthKit.
+
+    Creates or updates BloodPressureEntry records.
+    """
+    systolic_value = data.get("systolic_value")
+    diastolic_value = data.get("diastolic_value")
+    recorded_at_str = data.get("recorded_at")
+
+    if systolic_value is None or diastolic_value is None:
+        raise ValueError("systolic_value and diastolic_value are required for blood_pressure")
+
+    try:
+        systolic_value = int(systolic_value)
+        diastolic_value = int(diastolic_value)
+    except (TypeError, ValueError):
+        raise ValueError(f"Invalid blood pressure values: {systolic_value}/{diastolic_value}")
+
+    # Validate ranges (reasonable BP range: 60-250 systolic, 30-150 diastolic)
+    if systolic_value < 60 or systolic_value > 250:
+        raise ValueError(f"Systolic value out of range: {systolic_value}")
+    if diastolic_value < 30 or diastolic_value > 150:
+        raise ValueError(f"Diastolic value out of range: {diastolic_value}")
+
+    # Parse recorded_at timestamp
+    recorded_at = None
+    if recorded_at_str:
+        try:
+            from django.utils.dateparse import parse_datetime
+            recorded_at = parse_datetime(recorded_at_str)
+        except (TypeError, ValueError):
+            pass
+
+    if not recorded_at:
+        from django.utils import timezone as tz
+        recorded_at = tz.make_aware(
+            datetime.combine(metric_date, datetime.min.time().replace(hour=12))
+        )
+
+    # Check for existing entry by sync_id
+    existing = BloodPressureEntry.objects.filter(
+        user=user,
+        sync_id=sync_id,
+    ).first()
+
+    if existing:
+        updated = False
+        if existing.systolic != systolic_value:
+            existing.systolic = systolic_value
+            updated = True
+        if existing.diastolic != diastolic_value:
+            existing.diastolic = diastolic_value
+            updated = True
+        if updated:
+            existing.save(update_fields=["systolic", "diastolic", "updated_at"])
+            return "updated"
+        return "skipped"
+
+    # Create new entry
+    BloodPressureEntry.objects.create(
+        user=user,
+        systolic=systolic_value,
+        diastolic=diastolic_value,
+        recorded_at=recorded_at,
+        source=source,
+        sync_id=sync_id,
+        context="resting",  # Default context for HealthKit data
+    )
+    return "created"
+
+
+def process_body_temperature_metric(user, metric_date, source, sync_id, data):
+    """
+    Process body temperature metric from Apple HealthKit.
+
+    Creates or updates BodyTemperatureEntry records.
+    """
+    temperature_value = data.get("temperature_value")
+    temperature_unit = data.get("temperature_unit", "fahrenheit")
+    recorded_at_str = data.get("recorded_at")
+
+    if temperature_value is None:
+        raise ValueError("temperature_value is required for body_temperature")
+
+    try:
+        temperature_value = float(temperature_value)
+    except (TypeError, ValueError):
+        raise ValueError(f"Invalid temperature value: {temperature_value}")
+
+    # Validate range (reasonable range: 90-110°F or 32-43°C)
+    if temperature_unit == "fahrenheit":
+        if temperature_value < 90.0 or temperature_value > 110.0:
+            raise ValueError(f"Temperature value out of range: {temperature_value}°F")
+    else:
+        if temperature_value < 32.0 or temperature_value > 43.0:
+            raise ValueError(f"Temperature value out of range: {temperature_value}°C")
+
+    # Parse recorded_at timestamp
+    recorded_at = None
+    if recorded_at_str:
+        try:
+            from django.utils.dateparse import parse_datetime
+            recorded_at = parse_datetime(recorded_at_str)
+        except (TypeError, ValueError):
+            pass
+
+    if not recorded_at:
+        from django.utils import timezone as tz
+        recorded_at = tz.make_aware(
+            datetime.combine(metric_date, datetime.min.time().replace(hour=12))
+        )
+
+    # Check for existing entry by sync_id
+    existing = BodyTemperatureEntry.objects.filter(
+        user=user,
+        sync_id=sync_id,
+    ).first()
+
+    if existing:
+        if float(existing.temperature) != temperature_value:
+            existing.temperature = temperature_value
+            existing.save(update_fields=["temperature", "updated_at"])
+            return "updated"
+        return "skipped"
+
+    # Create new entry
+    BodyTemperatureEntry.objects.create(
+        user=user,
+        temperature=temperature_value,
+        unit=temperature_unit,
+        recorded_at=recorded_at,
+        source=source,
+        sync_id=sync_id,
+        context="other",  # Default context for HealthKit data
+    )
+    return "created"
 
 
 # =============================================================================

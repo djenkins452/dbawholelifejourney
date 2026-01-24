@@ -1,0 +1,752 @@
+{% extends "health/dashboards/_base_dashboard.html" %}
+
+{# Blood Pressure Dashboard - shows systolic/diastolic together #}
+
+{% block latest_reading %}
+{% if latest_reading %}
+<div class="latest-reading-card">
+    <div class="latest-reading-header">
+        <span class="latest-label">Latest Blood Pressure</span>
+        <span class="latest-time">{{ latest_reading.recorded_at|timesince }} ago</span>
+    </div>
+    <div class="latest-reading-body">
+        <div class="bp-value-container">
+            <span class="bp-systolic">{{ latest_reading.systolic }}</span>
+            <span class="bp-separator">/</span>
+            <span class="bp-diastolic">{{ latest_reading.diastolic }}</span>
+            <span class="bp-unit">mmHg</span>
+        </div>
+        <span class="status-badge status-{{ latest_status_color|default:'gray' }}">
+            {{ latest_status_display }}
+        </span>
+    </div>
+    {% if latest_reading.pulse %}
+    <div class="latest-pulse">
+        <span class="pulse-icon">♥</span>
+        <span class="pulse-value">{{ latest_reading.pulse }}</span>
+        <span class="pulse-unit">bpm</span>
+    </div>
+    {% endif %}
+    {% if latest_reading.context != 'resting' %}
+    <div class="latest-context">
+        <span class="context-badge">{{ latest_reading.get_context_display }}</span>
+    </div>
+    {% endif %}
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.latest-reading-card {
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    margin-bottom: var(--space-6);
+}
+
+.latest-reading-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-3);
+}
+
+.latest-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.latest-time {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.latest-reading-body {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+}
+
+.bp-value-container {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-1);
+}
+
+.bp-systolic {
+    font-size: var(--font-size-4xl, 2.5rem);
+    font-weight: 700;
+    color: var(--color-text);
+    line-height: 1;
+}
+
+.bp-separator {
+    font-size: var(--font-size-2xl);
+    font-weight: 300;
+    color: var(--color-text-muted);
+}
+
+.bp-diastolic {
+    font-size: var(--font-size-3xl, 2rem);
+    font-weight: 600;
+    color: var(--color-text);
+    line-height: 1;
+}
+
+.bp-unit {
+    font-size: var(--font-size-lg);
+    color: var(--color-text-muted);
+    margin-left: var(--space-2);
+}
+
+.status-badge {
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+}
+
+.status-green {
+    background: color-mix(in srgb, var(--color-success, #10b981) 15%, transparent);
+    color: var(--color-success, #10b981);
+}
+
+.status-yellow {
+    background: color-mix(in srgb, var(--color-warning, #f59e0b) 15%, transparent);
+    color: var(--color-warning, #f59e0b);
+}
+
+.status-orange {
+    background: color-mix(in srgb, #f97316 15%, transparent);
+    color: #f97316;
+}
+
+.status-red {
+    background: color-mix(in srgb, var(--color-error, #ef4444) 15%, transparent);
+    color: var(--color-error, #ef4444);
+}
+
+.status-gray {
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+}
+
+.latest-pulse {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    margin-top: var(--space-3);
+    color: var(--color-text-muted);
+}
+
+.pulse-icon {
+    color: #ef4444;
+}
+
+.pulse-value {
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.latest-context {
+    margin-top: var(--space-2);
+}
+
+.context-badge {
+    font-size: var(--font-size-xs);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+}
+
+@media (max-width: 480px) {
+    .latest-reading-card {
+        padding: var(--space-4);
+    }
+
+    .bp-systolic {
+        font-size: var(--font-size-3xl, 2rem);
+    }
+
+    .bp-diastolic {
+        font-size: var(--font-size-2xl);
+    }
+
+    .latest-reading-body {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--space-3);
+    }
+}
+</style>
+{% else %}
+<div class="no-reading-card">
+    <p>No blood pressure readings yet</p>
+    {% if create_url_name %}
+    <a href="{% url create_url_name %}" class="btn btn-primary mt-4">Log Your First Reading</a>
+    {% endif %}
+</div>
+<style nonce="{{ csp_nonce }}">
+.no-reading-card {
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    margin-bottom: var(--space-6);
+    text-align: center;
+    color: var(--color-text-muted);
+}
+</style>
+{% endif %}
+{% endblock %}
+
+{% block statistics %}
+{% if stats %}
+<div class="stats-grid bp-stats-grid">
+    {% if stats.systolic_avg is not None %}
+    <div class="stat-card">
+        <span class="stat-label">Avg Systolic</span>
+        <span class="stat-value">{{ stats.systolic_avg|floatformat:0 }}</span>
+    </div>
+    {% endif %}
+
+    {% if stats.diastolic_avg is not None %}
+    <div class="stat-card">
+        <span class="stat-label">Avg Diastolic</span>
+        <span class="stat-value">{{ stats.diastolic_avg|floatformat:0 }}</span>
+    </div>
+    {% endif %}
+
+    {% if stats.pulse_avg is not None %}
+    <div class="stat-card">
+        <span class="stat-label">Avg Pulse</span>
+        <span class="stat-value">{{ stats.pulse_avg|floatformat:0 }} <small>bpm</small></span>
+    </div>
+    {% endif %}
+
+    {% if stats.count is not None %}
+    <div class="stat-card">
+        <span class="stat-label">Readings</span>
+        <span class="stat-value">{{ stats.count }}</span>
+    </div>
+    {% endif %}
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.bp-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: var(--space-4);
+    margin-bottom: var(--space-6);
+}
+
+.stat-card {
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.stat-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.stat-value {
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.stat-value small {
+    font-size: var(--font-size-sm);
+    font-weight: normal;
+    color: var(--color-text-muted);
+}
+
+@media (max-width: 480px) {
+    .bp-stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .stat-card {
+        padding: var(--space-3);
+    }
+
+    .stat-value {
+        font-size: var(--font-size-lg);
+    }
+}
+</style>
+{% endif %}
+{% endblock %}
+
+{% block chart %}
+{% if chart_data %}
+<div class="chart-container">
+    <div class="chart-header">
+        <h3 class="chart-title">Blood Pressure Over Time</h3>
+        {% if chart_aggregated %}
+        <span class="chart-note">Daily averages shown</span>
+        {% endif %}
+    </div>
+    <div class="chart-wrapper">
+        <canvas id="bpChart"></canvas>
+    </div>
+    <div class="chart-legend">
+        <span class="legend-item"><span class="legend-color systolic"></span> Systolic</span>
+        <span class="legend-item"><span class="legend-color diastolic"></span> Diastolic</span>
+    </div>
+</div>
+
+{{ chart_data|json_script:"bp-chart-data" }}
+
+<style nonce="{{ csp_nonce }}">
+.chart-container {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    margin-bottom: var(--space-6);
+}
+
+.chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-4);
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.chart-title {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    margin: 0;
+}
+
+.chart-note {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    font-style: italic;
+}
+
+.chart-wrapper {
+    position: relative;
+    height: 300px;
+}
+
+.chart-legend {
+    display: flex;
+    gap: var(--space-6);
+    justify-content: center;
+    margin-top: var(--space-4);
+    font-size: var(--font-size-sm);
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.legend-color {
+    width: 12px;
+    height: 12px;
+    border-radius: var(--radius-sm);
+}
+
+.legend-color.systolic {
+    background: #ef4444;
+}
+
+.legend-color.diastolic {
+    background: #3b82f6;
+}
+
+@media (max-width: 480px) {
+    .chart-container {
+        padding: var(--space-3);
+    }
+
+    .chart-wrapper {
+        height: 250px;
+    }
+}
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script nonce="{{ csp_nonce }}">
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('bpChart').getContext('2d');
+    const chartData = JSON.parse(document.getElementById('bp-chart-data').textContent);
+
+    if (!chartData || chartData.length === 0) return;
+
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: chartData.map(d => {
+                const date = new Date(d.time);
+                return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            }),
+            datasets: [
+                {
+                    label: 'Systolic',
+                    data: chartData.map(d => d.value),
+                    borderColor: '#ef4444',
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    fill: false,
+                    tension: 0.3,
+                    pointRadius: chartData.length > 30 ? 2 : 4,
+                    pointHoverRadius: 6,
+                    pointBackgroundColor: '#ef4444',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2
+                },
+                {
+                    label: 'Diastolic',
+                    data: chartData.map(d => d.diastolic),
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    fill: false,
+                    tension: 0.3,
+                    pointRadius: chartData.length > 30 ? 2 : 4,
+                    pointHoverRadius: 6,
+                    pointBackgroundColor: '#3b82f6',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    titleFont: { size: 13 },
+                    bodyFont: { size: 12 },
+                    padding: 12,
+                    callbacks: {
+                        title: function(context) {
+                            const dataPoint = chartData[context[0].dataIndex];
+                            const date = new Date(dataPoint.time);
+                            if (dataPoint.is_average) {
+                                return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) + ' (avg of ' + dataPoint.reading_count + ')';
+                            }
+                            return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+                        },
+                        label: function(context) {
+                            const dataPoint = chartData[context.dataIndex];
+                            if (context.datasetIndex === 0) {
+                                return 'Systolic: ' + context.parsed.y + ' mmHg';
+                            } else {
+                                return 'Diastolic: ' + context.parsed.y + ' mmHg';
+                            }
+                        },
+                        afterBody: function(context) {
+                            const dataPoint = chartData[context[0].dataIndex];
+                            if (dataPoint.pulse) {
+                                return ['Pulse: ' + dataPoint.pulse + ' bpm'];
+                            }
+                            return [];
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    display: true,
+                    grid: {
+                        display: false
+                    },
+                    ticks: {
+                        maxRotation: 45,
+                        minRotation: 45,
+                        font: { size: 10 },
+                        maxTicksLimit: 10
+                    }
+                },
+                y: {
+                    display: true,
+                    beginAtZero: false,
+                    min: 40,
+                    max: 200,
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    },
+                    ticks: {
+                        callback: function(value) {
+                            return value + ' mmHg';
+                        }
+                    }
+                }
+            },
+            interaction: {
+                intersect: false,
+                mode: 'index'
+            }
+        }
+    });
+});
+</script>
+{% else %}
+<div class="chart-empty">
+    <p>No data available for chart</p>
+</div>
+<style nonce="{{ csp_nonce }}">
+.chart-empty {
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    padding: var(--space-8);
+    text-align: center;
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-6);
+}
+</style>
+{% endif %}
+{% endblock %}
+
+{% block readings_list %}
+{% if entries %}
+<div class="readings-section">
+    <div class="readings-header">
+        <h3 class="readings-title">Recent Readings</h3>
+        {% if list_url_name %}
+        <a href="{% url list_url_name %}" class="view-all-link">View All</a>
+        {% endif %}
+    </div>
+
+    <div class="readings-list">
+        {% for entry in entries %}
+        <div class="reading-item">
+            <div class="reading-date">
+                <span class="date-main">{{ entry.recorded_at|date:"M j" }}</span>
+                <span class="date-time">{{ entry.recorded_at|date:"g:i A" }}</span>
+            </div>
+            <div class="reading-value-col">
+                <span class="reading-bp">{{ entry.systolic }}/{{ entry.diastolic }}</span>
+                <span class="reading-unit">mmHg</span>
+                {% if entry.pulse %}
+                <span class="reading-pulse">{{ entry.pulse }} bpm</span>
+                {% endif %}
+            </div>
+            <div class="reading-category">
+                <span class="category-badge category-{{ entry.category }}">
+                    {% if entry.category == 'normal' %}Normal
+                    {% elif entry.category == 'elevated' %}Elevated
+                    {% elif entry.category == 'high_stage1' %}Stage 1
+                    {% elif entry.category == 'high_stage2' %}Stage 2
+                    {% elif entry.category == 'crisis' %}Crisis
+                    {% endif %}
+                </span>
+            </div>
+            {% if update_url_name %}
+            <div class="reading-actions">
+                <a href="{% url update_url_name entry.pk %}" class="btn btn-ghost btn-sm">Edit</a>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+
+    {% if entry_count > entries|length %}
+    <div class="readings-footer">
+        <span class="readings-more">Showing {{ entries|length }} of {{ entry_count }} readings</span>
+    </div>
+    {% endif %}
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.readings-section {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    margin-bottom: var(--space-6);
+}
+
+.readings-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.readings-title {
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    margin: 0;
+}
+
+.view-all-link {
+    font-size: var(--font-size-sm);
+    color: var(--color-accent);
+    text-decoration: none;
+}
+
+.view-all-link:hover {
+    text-decoration: underline;
+}
+
+.readings-list {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.reading-item {
+    display: flex;
+    align-items: center;
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+    gap: var(--space-4);
+}
+
+.reading-item:last-child {
+    border-bottom: none;
+}
+
+.reading-item:hover {
+    background: var(--color-surface);
+}
+
+.reading-date {
+    display: flex;
+    flex-direction: column;
+    min-width: 60px;
+}
+
+.date-main {
+    font-weight: 500;
+}
+
+.date-time {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.reading-value-col {
+    flex: 1;
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.reading-bp {
+    font-weight: 600;
+    font-size: var(--font-size-lg);
+}
+
+.reading-unit {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.reading-pulse {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-left: var(--space-2);
+}
+
+.reading-pulse::before {
+    content: "•";
+    margin-right: var(--space-2);
+}
+
+.reading-category {
+    min-width: 70px;
+}
+
+.category-badge {
+    font-size: var(--font-size-xs);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    font-weight: 500;
+}
+
+.category-normal {
+    background: color-mix(in srgb, var(--color-success, #10b981) 15%, transparent);
+    color: var(--color-success, #10b981);
+}
+
+.category-elevated {
+    background: color-mix(in srgb, var(--color-warning, #f59e0b) 15%, transparent);
+    color: var(--color-warning, #f59e0b);
+}
+
+.category-high_stage1 {
+    background: color-mix(in srgb, #f97316 15%, transparent);
+    color: #f97316;
+}
+
+.category-high_stage2 {
+    background: color-mix(in srgb, var(--color-error, #ef4444) 15%, transparent);
+    color: var(--color-error, #ef4444);
+}
+
+.category-crisis {
+    background: var(--color-error, #ef4444);
+    color: white;
+}
+
+.reading-actions {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.readings-footer {
+    padding: var(--space-3) var(--space-4);
+    border-top: 1px solid var(--color-border);
+    text-align: center;
+}
+
+.readings-more {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+@media (max-width: 480px) {
+    .reading-item {
+        flex-wrap: wrap;
+    }
+
+    .reading-category {
+        order: 3;
+        width: 100%;
+        margin-top: var(--space-2);
+    }
+
+    .reading-actions {
+        order: 4;
+        width: 100%;
+        justify-content: flex-end;
+        margin-top: var(--space-2);
+    }
+}
+</style>
+{% else %}
+<div class="readings-empty">
+    <p>No readings for this period</p>
+</div>
+<style nonce="{{ csp_nonce }}">
+.readings-empty {
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    text-align: center;
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-6);
+}
+</style>
+{% endif %}
+{% endblock %}

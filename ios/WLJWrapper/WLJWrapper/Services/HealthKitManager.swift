@@ -119,6 +119,19 @@ class HealthKitManager {
             types.insert(mindfulType)
         }
 
+        // Blood Pressure (systolic and diastolic)
+        if let systolicType = HKQuantityType.quantityType(forIdentifier: .bloodPressureSystolic) {
+            types.insert(systolicType)
+        }
+        if let diastolicType = HKQuantityType.quantityType(forIdentifier: .bloodPressureDiastolic) {
+            types.insert(diastolicType)
+        }
+
+        // Body Temperature
+        if let tempType = HKQuantityType.quantityType(forIdentifier: .bodyTemperature) {
+            types.insert(tempType)
+        }
+
         // Workout Sessions
         types.insert(HKObjectType.workoutType())
 
@@ -188,6 +201,8 @@ class HealthKitManager {
         let vo2Max = try await fetchVO2Max(from: startDate, to: endDate)
         let caffeine = try await fetchCaffeine(from: startDate, to: endDate)
         let mindfulMinutes = try await fetchMindfulMinutes(from: startDate, to: endDate)
+        let bloodPressure = try await fetchBloodPressure(from: startDate, to: endDate)
+        let bodyTemperature = try await fetchBodyTemperature(from: startDate, to: endDate)
 
         metrics.append(contentsOf: steps)
         metrics.append(contentsOf: weights)
@@ -210,6 +225,8 @@ class HealthKitManager {
         metrics.append(contentsOf: vo2Max)
         metrics.append(contentsOf: caffeine)
         metrics.append(contentsOf: mindfulMinutes)
+        metrics.append(contentsOf: bloodPressure)
+        metrics.append(contentsOf: bodyTemperature)
 
         if metrics.isEmpty {
             return SyncResult(created: 0, updated: 0, skipped: 0, errors: 0)
@@ -1503,6 +1520,133 @@ class HealthKitManager {
                         respiratoryRate: avgRate,
                         source: "apple_health",
                         syncId: "resprate-\(dateStr)"
+                    ))
+                }
+
+                continuation.resume(returning: metrics)
+            }
+
+            healthStore.execute(query)
+        }
+    }
+
+    // MARK: - Fetch Blood Pressure
+
+    private func fetchBloodPressure(from startDate: Date, to endDate: Date) async throws -> [HealthMetric] {
+        guard let systolicType = HKQuantityType.quantityType(forIdentifier: .bloodPressureSystolic),
+              let diastolicType = HKQuantityType.quantityType(forIdentifier: .bloodPressureDiastolic) else {
+            return []
+        }
+
+        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: .strictEndDate)
+        let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
+
+        // Fetch systolic readings
+        let systolicReadings = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[HKQuantitySample], Error>) in
+            let query = HKSampleQuery(
+                sampleType: systolicType,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: [sortDescriptor]
+            ) { _, samples, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+                continuation.resume(returning: (samples as? [HKQuantitySample]) ?? [])
+            }
+            healthStore.execute(query)
+        }
+
+        // Fetch diastolic readings
+        let diastolicReadings = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[HKQuantitySample], Error>) in
+            let query = HKSampleQuery(
+                sampleType: diastolicType,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: [sortDescriptor]
+            ) { _, samples, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+                continuation.resume(returning: (samples as? [HKQuantitySample]) ?? [])
+            }
+            healthStore.execute(query)
+        }
+
+        // Match systolic and diastolic readings by timestamp (within 1 minute)
+        var metrics: [HealthMetric] = []
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        let timeFormatter = ISO8601DateFormatter()
+
+        for systolic in systolicReadings {
+            let systolicValue = Int(systolic.quantity.doubleValue(for: .millimeterOfMercury()))
+            let systolicTime = systolic.startDate
+
+            // Find matching diastolic reading (within 60 seconds)
+            if let diastolic = diastolicReadings.first(where: { abs($0.startDate.timeIntervalSince(systolicTime)) < 60 }) {
+                let diastolicValue = Int(diastolic.quantity.doubleValue(for: .millimeterOfMercury()))
+                let dateStr = dateFormatter.string(from: systolicTime)
+                let timeStr = timeFormatter.string(from: systolicTime)
+
+                metrics.append(HealthMetric(
+                    type: "blood_pressure",
+                    date: dateStr,
+                    systolicValue: systolicValue,
+                    diastolicValue: diastolicValue,
+                    recordedAt: timeStr,
+                    source: "apple_health",
+                    syncId: "bp-\(timeStr)"
+                ))
+            }
+        }
+
+        return metrics
+    }
+
+    // MARK: - Fetch Body Temperature
+
+    private func fetchBodyTemperature(from startDate: Date, to endDate: Date) async throws -> [HealthMetric] {
+        guard let tempType = HKQuantityType.quantityType(forIdentifier: .bodyTemperature) else {
+            return []
+        }
+
+        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: .strictEndDate)
+        let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
+
+        return try await withCheckedThrowingContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: tempType,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: [sortDescriptor]
+            ) { _, samples, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                var metrics: [HealthMetric] = []
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateFormat = "yyyy-MM-dd"
+                let timeFormatter = ISO8601DateFormatter()
+
+                for sample in (samples as? [HKQuantitySample]) ?? [] {
+                    // Temperature in Fahrenheit
+                    let tempF = sample.quantity.doubleValue(for: .degreeFahrenheit())
+                    let dateStr = dateFormatter.string(from: sample.startDate)
+                    let timeStr = timeFormatter.string(from: sample.startDate)
+
+                    metrics.append(HealthMetric(
+                        type: "body_temperature",
+                        date: dateStr,
+                        temperatureValue: tempF,
+                        temperatureUnit: "fahrenheit",
+                        recordedAt: timeStr,
+                        source: "apple_health",
+                        syncId: "temp-\(timeStr)"
                     ))
                 }
 

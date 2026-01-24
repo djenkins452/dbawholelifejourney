@@ -1,0 +1,143 @@
+{# Period selector partial - includes preset buttons and custom input #}
+{# Required context: period, preset_periods, is_custom_period, max_custom_period #}
+
+<div class="period-selector">
+    <div class="period-buttons">
+        {% for preset in preset_periods %}
+            <a href="?period={{ preset }}"
+               class="period-btn {% if period == preset and not is_custom_period %}active{% endif %}">
+                {% if preset == 0 %}Today{% elif preset == 7 %}7d{% elif preset == 30 %}30d{% elif preset == 60 %}60d{% elif preset == 90 %}90d{% else %}{{ preset }}d{% endif %}
+            </a>
+        {% endfor %}
+    </div>
+    <div class="period-custom">
+        <form method="get" class="period-form">
+            <input type="number"
+                   name="period"
+                   value="{% if is_custom_period %}{{ period }}{% endif %}"
+                   placeholder="Days"
+                   min="1"
+                   max="{{ max_custom_period }}"
+                   class="period-input {% if is_custom_period %}active{% endif %}">
+            <button type="submit" class="period-go-btn">Go</button>
+        </form>
+    </div>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.period-selector {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    align-items: center;
+    margin-bottom: var(--space-6);
+}
+
+.period-buttons {
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.period-btn {
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-background);
+    color: var(--color-text);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    text-decoration: none;
+    transition: all 0.15s ease;
+    min-width: 48px;
+    text-align: center;
+}
+
+.period-btn:hover {
+    border-color: var(--color-accent);
+    background: var(--color-surface);
+}
+
+.period-btn.active {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+    color: white;
+}
+
+.period-custom {
+    display: flex;
+    align-items: center;
+}
+
+.period-form {
+    display: flex;
+    gap: var(--space-1);
+}
+
+.period-input {
+    width: 80px;
+    padding: var(--space-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    background: var(--color-background);
+    color: var(--color-text);
+}
+
+.period-input:focus {
+    outline: none;
+    border-color: var(--color-accent);
+}
+
+.period-input.active {
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 10%, var(--color-background));
+}
+
+.period-go-btn {
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-accent);
+    border-radius: var(--radius-md);
+    background: var(--color-accent);
+    color: white;
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.period-go-btn:hover {
+    background: var(--color-accent-dark, var(--color-accent));
+    opacity: 0.9;
+}
+
+/* Remove number input arrows */
+.period-input::-webkit-outer-spin-button,
+.period-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+.period-input[type=number] {
+    -moz-appearance: textfield;
+}
+
+@media (max-width: 480px) {
+    .period-selector {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .period-buttons {
+        justify-content: center;
+    }
+
+    .period-custom {
+        justify-content: center;
+    }
+
+    .period-btn {
+        min-width: 44px;
+        padding: var(--space-2);
+    }
+}
+</style>

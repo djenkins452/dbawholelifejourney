@@ -16,28 +16,15 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-24 Changes
 
-### Add HRV and VO2 Max HealthKit Sync
+### One-time cleanup of recurring tasks for heatherjenkins74@gmail.com
 
-Extended HealthKit integration to sync Heart Rate Variability (HRV) and VO2 Max metrics.
+**Problem:** User heatherjenkins74@gmail.com had leftover problematic recurring tasks from an earlier bug. These tasks kept showing up in her task list, especially past-due ones.
 
-**iOS Changes:**
-- `HealthKitManager.swift` - Added `.heartRateVariabilitySDNN` and `.vo2Max` to readTypes
-- `HealthKitManager.swift` - New `fetchHeartRateVariability()` function (daily average in ms)
-- `HealthKitManager.swift` - New `fetchVO2Max()` function (most recent per day in mL/kg/min)
-- `HealthMetric.swift` - Added `hrvValue` and `vo2MaxValue` fields with CodingKeys
-- `BackgroundSyncManager.swift` - Observer queries for HRV and VO2 Max
-- `HealthSyncView.swift` - New data type rows for HRV and VO2 Max
+**Fix:** Added one-time cleanup to `load_initial_data.py` that automatically runs on deploy. Deletes all incomplete past-due recurring tasks for this user. Tracked via DataLoadConfig so it only runs once.
 
-**Django Changes:**
-- `apps/health/models.py` - Added `hrv_value` and `vo2_max` fields to SleepEntry
-- `apps/mobile/views.py` - `process_hrv_metric` and `process_vo2_max_metric` handlers
-- Both metrics update existing SleepEntry records (skip if no sleep data for date)
-- HRV validation: 5-300 ms, VO2 Max validation: 10-100 mL/kg/min
-
-**Migration:**
-- `0034_add_hrv_and_vo2max_to_sleepentry.py`
-
-**Total HealthKit types synced: 19** (up from 17)
+**Files Modified:**
+- `apps/core/management/commands/load_initial_data.py` - Added `_cleanup_heather_recurring_tasks()` method
+- `apps/life/management/commands/cleanup_recurring_tasks.py` - Created management command for manual cleanup (reference)
 
 ---
 

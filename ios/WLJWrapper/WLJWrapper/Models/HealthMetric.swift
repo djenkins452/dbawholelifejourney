@@ -75,6 +75,13 @@ struct HealthMetric: Codable {
     var workoutStartTime: String?
     var workoutEndTime: String?
 
+    // Lean Body Mass
+    var leanMassValue: Double?
+    var leanMassUnit: String?
+
+    // Respiratory Rate
+    var respiratoryRate: Double?
+
     enum CodingKeys: String, CodingKey {
         case type
         case date
@@ -112,6 +119,9 @@ struct HealthMetric: Codable {
         case workoutDistance = "workout_distance"
         case workoutStartTime = "workout_start_time"
         case workoutEndTime = "workout_end_time"
+        case leanMassValue = "lean_mass_value"
+        case leanMassUnit = "lean_mass_unit"
+        case respiratoryRate = "respiratory_rate"
     }
 
     // MARK: - Convenience Initializers
@@ -273,6 +283,26 @@ struct HealthMetric: Codable {
         self.workoutDistance = workoutDistance
         self.workoutStartTime = workoutStartTime
         self.workoutEndTime = workoutEndTime
+        self.source = source
+        self.syncId = syncId
+    }
+
+    /// Create a lean body mass metric
+    init(type: String, date: String, leanMassValue: Double, leanMassUnit: String,
+         source: String, syncId: String) {
+        self.type = type
+        self.date = date
+        self.leanMassValue = leanMassValue
+        self.leanMassUnit = leanMassUnit
+        self.source = source
+        self.syncId = syncId
+    }
+
+    /// Create a respiratory rate metric
+    init(type: String, date: String, respiratoryRate: Double, source: String, syncId: String) {
+        self.type = type
+        self.date = date
+        self.respiratoryRate = respiratoryRate
         self.source = source
         self.syncId = syncId
     }

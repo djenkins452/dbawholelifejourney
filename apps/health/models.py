@@ -549,6 +549,13 @@ class WeightEntry(UserOwnedModel):
         blank=True,
         help_text="Body fat percentage from Apple Health or smart scale",
     )
+    lean_body_mass = models.DecimalField(
+        max_digits=5,
+        decimal_places=1,
+        null=True,
+        blank=True,
+        help_text="Lean body mass in pounds from Apple Health or smart scale",
+    )
 
     # Sync fields for Apple Health integration
     source = models.CharField(

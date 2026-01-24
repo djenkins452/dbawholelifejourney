@@ -61,6 +61,8 @@ struct HealthSyncView: View {
                 DataTypeRow(icon: "figure.stand", title: "Stand Hours", description: "Hours with standing")
                 DataTypeRow(icon: "percent", title: "Body Fat", description: "Body fat percentage")
                 DataTypeRow(icon: "figure.mixed.cardio", title: "Workouts", description: "Workout sessions")
+                DataTypeRow(icon: "figure.arms.open", title: "Lean Body Mass", description: "Muscle and non-fat mass")
+                DataTypeRow(icon: "wind", title: "Respiratory Rate", description: "Breaths per minute")
             } header: {
                 Text("Synced Data Types")
             } footer: {

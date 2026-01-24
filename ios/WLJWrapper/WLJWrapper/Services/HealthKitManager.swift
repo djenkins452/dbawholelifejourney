@@ -89,6 +89,16 @@ class HealthKitManager {
             types.insert(bodyFatType)
         }
 
+        // Lean Body Mass
+        if let leanMassType = HKQuantityType.quantityType(forIdentifier: .leanBodyMass) {
+            types.insert(leanMassType)
+        }
+
+        // Respiratory Rate
+        if let respRateType = HKQuantityType.quantityType(forIdentifier: .respiratoryRate) {
+            types.insert(respRateType)
+        }
+
         // Workout Sessions
         types.insert(HKObjectType.workoutType())
 
@@ -152,6 +162,8 @@ class HealthKitManager {
         let standHours = try await fetchStandHours(from: startDate, to: endDate)
         let bodyFat = try await fetchBodyFat(from: startDate, to: endDate)
         let workouts = try await fetchWorkouts(from: startDate, to: endDate)
+        let leanMass = try await fetchLeanBodyMass(from: startDate, to: endDate)
+        let respiratoryRate = try await fetchRespiratoryRate(from: startDate, to: endDate)
 
         metrics.append(contentsOf: steps)
         metrics.append(contentsOf: weights)
@@ -168,6 +180,8 @@ class HealthKitManager {
         metrics.append(contentsOf: standHours)
         metrics.append(contentsOf: bodyFat)
         metrics.append(contentsOf: workouts)
+        metrics.append(contentsOf: leanMass)
+        metrics.append(contentsOf: respiratoryRate)
 
         if metrics.isEmpty {
             return SyncResult(created: 0, updated: 0, skipped: 0, errors: 0)
@@ -1123,6 +1137,123 @@ class HealthKitManager {
         case .transition: return "Transition"
         case .underwaterDiving: return "Underwater Diving"
         @unknown default: return "Other"
+        }
+    }
+
+    // MARK: - Fetch Lean Body Mass
+
+    private func fetchLeanBodyMass(from startDate: Date, to endDate: Date) async throws -> [HealthMetric] {
+        guard let leanMassType = HKQuantityType.quantityType(forIdentifier: .leanBodyMass) else {
+            return []
+        }
+
+        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: .strictEndDate)
+        let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
+
+        return try await withCheckedThrowingContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: leanMassType,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: [sortDescriptor]
+            ) { _, samples, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                var metrics: [HealthMetric] = []
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateFormat = "yyyy-MM-dd"
+
+                // Group by date, keeping most recent per day
+                var latestPerDay: [String: (date: Date, mass: Double)] = [:]
+
+                for sample in (samples as? [HKQuantitySample]) ?? [] {
+                    let mass = sample.quantity.doubleValue(for: .pound())
+                    let dateStr = dateFormatter.string(from: sample.startDate)
+
+                    if let existing = latestPerDay[dateStr] {
+                        if sample.startDate > existing.date {
+                            latestPerDay[dateStr] = (sample.startDate, mass)
+                        }
+                    } else {
+                        latestPerDay[dateStr] = (sample.startDate, mass)
+                    }
+                }
+
+                for (dateStr, data) in latestPerDay {
+                    metrics.append(HealthMetric(
+                        type: "lean_body_mass",
+                        date: dateStr,
+                        leanMassValue: data.mass,
+                        leanMassUnit: "lb",
+                        source: "apple_health",
+                        syncId: "leanmass-\(dateStr)"
+                    ))
+                }
+
+                continuation.resume(returning: metrics)
+            }
+
+            healthStore.execute(query)
+        }
+    }
+
+    // MARK: - Fetch Respiratory Rate
+
+    private func fetchRespiratoryRate(from startDate: Date, to endDate: Date) async throws -> [HealthMetric] {
+        guard let respRateType = HKQuantityType.quantityType(forIdentifier: .respiratoryRate) else {
+            return []
+        }
+
+        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: .strictEndDate)
+        let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
+
+        return try await withCheckedThrowingContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: respRateType,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: [sortDescriptor]
+            ) { _, samples, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                var metrics: [HealthMetric] = []
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateFormat = "yyyy-MM-dd"
+
+                // Group by date, keeping average per day
+                var dailyReadings: [String: [Double]] = [:]
+
+                for sample in (samples as? [HKQuantitySample]) ?? [] {
+                    let rate = sample.quantity.doubleValue(for: HKUnit.count().unitDivided(by: .minute()))
+                    let dateStr = dateFormatter.string(from: sample.startDate)
+
+                    if dailyReadings[dateStr] == nil {
+                        dailyReadings[dateStr] = []
+                    }
+                    dailyReadings[dateStr]?.append(rate)
+                }
+
+                for (dateStr, readings) in dailyReadings {
+                    let avgRate = readings.reduce(0, +) / Double(readings.count)
+                    metrics.append(HealthMetric(
+                        type: "respiratory_rate",
+                        date: dateStr,
+                        respiratoryRate: avgRate,
+                        source: "apple_health",
+                        syncId: "resprate-\(dateStr)"
+                    ))
+                }
+
+                continuation.resume(returning: metrics)
+            }
+
+            healthStore.execute(query)
         }
     }
 }

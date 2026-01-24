@@ -66,7 +66,8 @@ TILE_DEFINITIONS = {
         'default_visible': True,
         'default_size': 'large',
         'mandatory': True,  # Cannot be hidden
-        'default_order': 4,
+        'pinned_position': 1,  # Always first, cannot be reordered
+        'default_order': 1,
     },
     'celebrations': {
         'id': 'celebrations',
@@ -375,10 +376,12 @@ class DashboardConfigService:
 
         Returns:
             List of tile configs merged with definitions, ordered by user preference.
+            Pinned tiles (like AI Insights) are always at their designated position.
         """
         config = self.get_config()
         available_tiles = {t['id']: t for t in self.get_available_tiles()}
 
+        pinned = []
         visible = []
         for tile_config in config.get('tiles', []):
             tile_id = tile_config['id']
@@ -392,9 +395,17 @@ class DashboardConfigService:
 
             if is_visible:
                 merged = {**tile_def, **tile_config}
-                visible.append(merged)
+                # Pinned tiles go in a separate list to be inserted at their position
+                if tile_def.get('pinned_position') is not None:
+                    pinned.append((tile_def['pinned_position'], merged))
+                else:
+                    visible.append(merged)
 
-        return visible
+        # Sort pinned tiles by their position and insert at the front
+        pinned.sort(key=lambda x: x[0])
+        result = [tile for _, tile in pinned] + visible
+
+        return result
 
     def update_config(self, new_config: dict) -> bool:
         """
@@ -426,6 +437,10 @@ class DashboardConfigService:
             tile_def = available_tiles.get(tile_id)
             if tile_def and tile_def.get('mandatory'):
                 cleaned_tile['visible'] = True
+
+            # Ensure pinned tiles keep their pinned position
+            if tile_def and tile_def.get('pinned_position') is not None:
+                cleaned_tile['order'] = tile_def['pinned_position']
 
             cleaned_tiles.append(cleaned_tile)
 

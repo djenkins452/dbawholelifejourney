@@ -3,7 +3,7 @@ Dashboard Tile: Recent Workouts
 Shows latest workout sessions and personal records
 {% endcomment %}
 
-{% if health_enabled and user_data.recent_workouts %}
+{% if health_enabled and features.health.workouts and user_data.recent_workouts %}
 <section class="recent-workouts-section tile-size-{{ tile.size|default:'medium' }}" data-tile-id="recent_workouts">
     <div class="section-header">
         <h2 class="section-title">Recent Workouts</h2>

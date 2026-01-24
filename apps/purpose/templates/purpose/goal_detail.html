@@ -167,6 +167,12 @@
                     </div>
                     {% if goal.status == 'active' %}
                     <div class="milestone-actions">
+                        <button type="button" class="btn btn-ghost btn-sm" title="Edit milestone" onclick="toggleMilestoneEdit({{ milestone.pk }})">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                            </svg>
+                        </button>
                         <form method="post" action="{% url 'purpose:milestone_delete' milestone.pk %}" class="inline" data-confirm-delete="Delete this milestone?">
                             {% csrf_token %}
                             <button type="submit" class="btn btn-ghost btn-sm text-danger" title="Delete milestone">
@@ -179,6 +185,32 @@
                     </div>
                     {% endif %}
                 </div>
+                <!-- Edit form for this milestone (hidden by default) -->
+                {% if goal.status == 'active' %}
+                <div id="milestoneEditForm-{{ milestone.pk }}" class="milestone-edit-form" style="display: none;">
+                    <form method="post" action="{% url 'purpose:milestone_update' milestone.pk %}">
+                        {% csrf_token %}
+                        <div class="form-group">
+                            <label for="edit-title-{{ milestone.pk }}">Milestone</label>
+                            <input type="text" id="edit-title-{{ milestone.pk }}" name="title" required value="{{ milestone.title }}" class="form-input">
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="edit-date-{{ milestone.pk }}">Target Date (optional)</label>
+                                <input type="date" id="edit-date-{{ milestone.pk }}" name="target_date" value="{% if milestone.target_date %}{{ milestone.target_date|date:'Y-m-d' }}{% endif %}" class="form-input">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="edit-description-{{ milestone.pk }}">Description (optional)</label>
+                            <textarea id="edit-description-{{ milestone.pk }}" name="description" rows="2" class="form-input">{{ milestone.description }}</textarea>
+                        </div>
+                        <div class="form-actions">
+                            <button type="button" class="btn btn-ghost" onclick="toggleMilestoneEdit({{ milestone.pk }})">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Save</button>
+                        </div>
+                    </form>
+                </div>
+                {% endif %}
                 {% endfor %}
             </div>
             {% else %}
@@ -565,6 +597,55 @@
         gap: var(--space-1);
     }
 }
+
+/* Milestone Edit Form - reuses milestone-form styles */
+.milestone-edit-form {
+    margin: var(--space-2) 0;
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-accent);
+}
+
+.milestone-edit-form .form-group {
+    margin-bottom: var(--space-3);
+}
+
+.milestone-edit-form label {
+    display: block;
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-1);
+}
+
+.milestone-edit-form .form-input {
+    width: 100%;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-background);
+    font-size: 16px;
+}
+
+.milestone-edit-form .form-input:focus {
+    outline: none;
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 20%, transparent);
+}
+
+.milestone-edit-form .form-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+}
+
+.milestone-edit-form .form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    margin-top: var(--space-4);
+}
 </style>
 
 <!-- Celebration Modal -->
@@ -738,6 +819,26 @@ function toggleMilestoneForm() {
         form.querySelector('input[name="title"]').focus();
     } else {
         form.style.display = 'none';
+    }
+}
+
+function toggleMilestoneEdit(milestoneId) {
+    const form = document.getElementById('milestoneEditForm-' + milestoneId);
+    const item = form.previousElementSibling;
+    if (form.style.display === 'none') {
+        // Hide any other open edit forms
+        document.querySelectorAll('.milestone-edit-form').forEach(f => {
+            f.style.display = 'none';
+            if (f.previousElementSibling) {
+                f.previousElementSibling.style.display = '';
+            }
+        });
+        form.style.display = 'block';
+        item.style.display = 'none';
+        form.querySelector('input[name="title"]').focus();
+    } else {
+        form.style.display = 'none';
+        item.style.display = '';
     }
 }
 </script>

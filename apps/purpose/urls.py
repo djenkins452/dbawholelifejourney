@@ -23,6 +23,7 @@ from .views import (
     BulkDeleteGoalsView,
     # Goal Milestones
     MilestoneCreateView,
+    MilestoneUpdateView,
     MilestoneToggleView,
     MilestoneDeleteView,
     # Intentions
@@ -78,6 +79,7 @@ urlpatterns = [
 
     # Goal Milestones
     path("goals/<int:goal_pk>/milestones/", MilestoneCreateView.as_view(), name="milestone_create"),
+    path("milestones/<int:pk>/edit/", MilestoneUpdateView.as_view(), name="milestone_update"),
     path("milestones/<int:pk>/toggle/", MilestoneToggleView.as_view(), name="milestone_toggle"),
     path("milestones/<int:pk>/delete/", MilestoneDeleteView.as_view(), name="milestone_delete"),
 

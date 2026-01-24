@@ -16,6 +16,23 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-24 Changes
 
+### Add Milestone Edit Capability (Complete CRUD)
+
+Added the ability to edit goal milestones. Previously only Create, Read, and Delete were available.
+
+**New Features:**
+- Edit button (pencil icon) added to each milestone row
+- Inline edit form appears when edit button clicked
+- Form pre-populated with existing milestone data
+- Only one milestone can be edited at a time (others auto-close)
+
+**Files Modified:**
+- `apps/purpose/views.py` - Added `MilestoneUpdateView`
+- `apps/purpose/urls.py` - Added `milestone_update` URL pattern
+- `apps/purpose/templates/purpose/goal_detail.html` - Added edit button, inline edit form, JS toggle function, and CSS styles
+
+---
+
 ### Fix 500 Error When Saving Goal Milestones
 
 Fixed a 500 error that occurred when trying to save a new milestone on a goal.

@@ -3225,11 +3225,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Bible translation loading
 const API_PROXY_BASE = '/faith/api/bible';
-const savedTranslation = document.getElementById('id_default_bible_translation')?.value || '';
+let bibleTranslationsLoaded = false;  // Prevent duplicate loads
 
 async function loadBibleTranslations() {
     const select = document.getElementById('bible-translation-select');
-    if (!select) return;
+    const hiddenInput = document.getElementById('id_default_bible_translation');
+    if (!select || !hiddenInput) return;
+
+    // Get current saved value from hidden input (fresh read each time)
+    const savedTranslation = hiddenInput.value || '';
 
     try {
         const statusResponse = await fetch(`${API_PROXY_BASE}/status/`);
@@ -3277,19 +3281,26 @@ async function loadBibleTranslations() {
         }
 
         select.innerHTML = '<option value="">Select a translation</option>';
+        let foundMatch = false;
         uniqueBibles.forEach(bible => {
             const option = document.createElement('option');
             option.value = bible.id;
             option.textContent = `${bible.abbreviation} - ${bible.name}`;
-            if (bible.id === savedTranslation) {
+            // Compare as strings to handle type mismatches
+            if (String(bible.id) === String(savedTranslation)) {
                 option.selected = true;
+                foundMatch = true;
             }
             select.appendChild(option);
         });
 
-        select.addEventListener('change', function() {
-            document.getElementById('id_default_bible_translation').value = this.value;
-        });
+        // Only add the change listener once
+        if (!bibleTranslationsLoaded) {
+            select.addEventListener('change', function() {
+                hiddenInput.value = this.value;
+            });
+            bibleTranslationsLoaded = true;
+        }
 
     } catch (error) {
         console.error('Error loading Bible translations:', error);

@@ -754,7 +754,20 @@ class BibleAPIProxyMixin:
             if e.response.status_code == 401:
                 logger.error("YouVersion API: Invalid or expired API key")
                 return False, {"error": "Bible API key is invalid or expired. Please contact the administrator."}
-            logger.error(f"YouVersion API HTTP error: {e}")
+            # Try to extract error details from response body
+            error_detail = ""
+            try:
+                error_body = e.response.json()
+                if isinstance(error_body, dict):
+                    error_detail = error_body.get('message', error_body.get('error', ''))
+            except Exception:
+                error_detail = e.response.text[:200] if e.response.text else ""
+            logger.error(f"YouVersion API HTTP error: {e.response.status_code} - {error_detail} - URL: {url}")
+            # For 404/403 errors, provide user-friendly messages
+            if e.response.status_code == 404:
+                return False, {"error": "Scripture not found. This translation may not have this passage available."}
+            if e.response.status_code == 403:
+                return False, {"error": "This translation is not available for this passage. Please try a different translation."}
             return False, {"error": f"Bible API error: {e.response.status_code}"}
         except requests.exceptions.RequestException as e:
             logger.error(f"YouVersion API error: {e}")

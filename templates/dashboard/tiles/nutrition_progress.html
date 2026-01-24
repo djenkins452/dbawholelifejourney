@@ -3,7 +3,7 @@ Dashboard Tile: Nutrition Progress
 Shows daily calorie and macro tracking with progress toward goals
 {% endcomment %}
 
-{% if health_enabled and user_data.nutrition_progress %}
+{% if health_enabled and features.health.nutrition and user_data.nutrition_progress %}
 <section class="nutrition-progress-section tile-size-{{ tile.size|default:'medium' }}" data-tile-id="nutrition_progress">
     <div class="section-header">
         <h2 class="section-title">Today's Nutrition</h2>

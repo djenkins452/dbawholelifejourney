@@ -16,6 +16,36 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-24 Changes
 
+### Fix duplicate quick stats and enforce feature toggles site-wide
+
+**Problems:**
+1. Dashboard showed workout count (💪) twice - once hardcoded in header, once in Quick Stats tile
+2. Fasting card showed on Health home even when user disabled Fasting in Preferences
+3. Feature toggles weren't consistently enforced across dashboard tiles
+
+**Fixes:**
+1. Removed hardcoded quick stats from dashboard header (line 279-311 in home.html)
+2. Wrapped all Health home cards with feature toggle checks (`{% if features.health.<feature> %}`)
+3. Updated dashboard tiles to check sub-feature toggles:
+   - `quick_stats.html` - medicine and workouts now check their feature flags
+   - `recent_workouts.html` - checks `features.health.workouts`
+   - `current_fast.html` - checks `features.health.fasting`
+   - `medicine_schedule.html` - checks `features.health.medicine`
+   - `nutrition_progress.html` - checks `features.health.nutrition`
+4. Made AI Insights always appear first on dashboard with `pinned_position: 1`
+
+**Files Modified:**
+- `templates/dashboard/home.html` - Removed hardcoded quick stats
+- `templates/health/home.html` - Added feature checks to all 12 health cards
+- `templates/dashboard/tiles/quick_stats.html` - Added medicine/workouts feature checks
+- `templates/dashboard/tiles/recent_workouts.html` - Added workouts feature check
+- `templates/dashboard/tiles/current_fast.html` - Added fasting feature check
+- `templates/dashboard/tiles/medicine_schedule.html` - Added medicine feature check
+- `templates/dashboard/tiles/nutrition_progress.html` - Added nutrition feature check
+- `apps/dashboard/services/config_service.py` - AI Insights now pinned to position 1
+
+---
+
 ### Fix Site Configuration logo not appearing in navigation/footer
 
 **Problem:** Uploading a custom logo in Admin Console > Site Configuration didn't update the logo shown in the navigation header or footer. The templates were hardcoded to use a static image path instead of the dynamic `site_logo_url` from the context processor.

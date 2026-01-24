@@ -31,8 +31,8 @@
     </div>
     {% endif %}
 
-    <!-- Quick Log Banner -->
-    {% if active_fast %}
+    <!-- Quick Log Banner - Active Fast (only if fasting feature enabled) -->
+    {% if features.health.fasting and active_fast %}
     <div class="active-fast-banner mb-6">
         <div class="fast-info">
             <span class="fast-label">🕐 Active Fast</span>
@@ -54,6 +54,7 @@
     
     <div class="health-grid">
         <!-- Weight Card -->
+        {% if features.health.weight %}
         <div class="health-card">
             <div class="card-header">
                 <h2>
@@ -65,20 +66,20 @@
                 </h2>
                 <a href="{% url 'health:weight_create' %}" class="btn btn-primary btn-sm">Log</a>
             </div>
-            
+
             {% if latest_weight %}
                 <div class="metric-display">
                     <span class="metric-value">{{ latest_weight.value }}</span>
                     <span class="metric-unit">{{ latest_weight.unit }}</span>
                 </div>
                 <p class="metric-date">{{ latest_weight.recorded_at|date:"M j" }}</p>
-                
+
                 {% if weight_change_30d is not None %}
                     <p class="metric-change {% if weight_change_30d < 0 %}change-down{% elif weight_change_30d > 0 %}change-up{% endif %}">
                         {% if weight_change_30d > 0 %}+{% endif %}{{ weight_change_30d }} lb in 30 days
                     </p>
                 {% endif %}
-                
+
                 <a href="{% url 'health:weight_list' %}" class="card-link">View history ({{ weight_count }})</a>
             {% else %}
                 <p class="text-muted">No weight logged yet.</p>
@@ -87,8 +88,10 @@
                 </a>
             {% endif %}
         </div>
-        
+        {% endif %}
+
         <!-- Fasting Card -->
+        {% if features.health.fasting %}
         <div class="health-card">
             <div class="card-header">
                 <h2>
@@ -102,7 +105,7 @@
                     <a href="{% url 'health:fasting_start' %}" class="btn btn-primary btn-sm">Start Fast</a>
                 {% endif %}
             </div>
-            
+
             {% if fasts_this_month %}
                 <div class="fasting-stats">
                     <div class="stat">
@@ -117,11 +120,13 @@
             {% else %}
                 <p class="text-muted">No fasts completed this month.</p>
             {% endif %}
-            
+
             <a href="{% url 'health:fasting_list' %}" class="card-link">View all fasts</a>
         </div>
+        {% endif %}
         
         <!-- Heart Rate Card -->
+        {% if features.health.heart_rate %}
         <div class="health-card">
             <div class="card-header">
                 <h2>
@@ -132,7 +137,7 @@
                 </h2>
                 <a href="{% url 'health:heartrate_create' %}" class="btn btn-primary btn-sm">Log</a>
             </div>
-            
+
             {% if latest_heart_rate %}
                 <div class="metric-display">
                     <span class="metric-value">{{ latest_heart_rate.bpm }}</span>
@@ -140,11 +145,11 @@
                 </div>
                 <p class="metric-context">{{ latest_heart_rate.get_context_display }}</p>
                 <p class="metric-date">{{ latest_heart_rate.recorded_at|date:"M j" }}</p>
-                
+
                 {% if avg_resting_hr %}
                     <p class="metric-avg">Avg resting: {{ avg_resting_hr }} BPM</p>
                 {% endif %}
-                
+
                 <a href="{% url 'health:heartrate_list' %}" class="card-link">View history</a>
             {% else %}
                 <p class="text-muted">No heart rate logged yet.</p>
@@ -153,8 +158,10 @@
                 </a>
             {% endif %}
         </div>
+        {% endif %}
 
         <!-- Steps Card -->
+        {% if features.health.steps %}
         <div class="health-card">
             <div class="card-header">
                 <h2>
@@ -189,8 +196,10 @@
                 </a>
             {% endif %}
         </div>
+        {% endif %}
 
         <!-- Sleep Card -->
+        {% if features.health.sleep %}
         <div class="health-card">
             <div class="card-header">
                 <h2>
@@ -228,8 +237,9 @@
                 </a>
             {% endif %}
         </div>
+        {% endif %}
 
-        <!-- Water Card -->
+        <!-- Water Card (not feature-gated, always shown) -->
         <div class="health-card water-card">
             <div class="card-header">
                 <h2>
@@ -278,6 +288,7 @@
         </div>
 
         <!-- Glucose Card -->
+        {% if features.health.glucose %}
         <div class="health-card">
             <div class="card-header">
                 <h2>
@@ -312,8 +323,10 @@
                 </a>
             {% endif %}
         </div>
+        {% endif %}
 
         <!-- Blood Pressure Card -->
+        {% if features.health.blood_pressure %}
         <div class="health-card">
             <div class="card-header">
                 <h2>
@@ -349,8 +362,10 @@
                 </a>
             {% endif %}
         </div>
+        {% endif %}
 
         <!-- Blood Oxygen Card -->
+        {% if features.health.blood_oxygen %}
         <div class="health-card">
             <div class="card-header">
                 <h2>
@@ -387,8 +402,9 @@
                 </a>
             {% endif %}
         </div>
+        {% endif %}
 
-        <!-- Cycle Tracking Card (only shown if opted in) -->
+        <!-- Cycle Tracking Card (only shown if opted in via CycleSettings) -->
         {% if cycle_tracking_enabled %}
         <div class="health-card cycle-card">
             <div class="card-header">
@@ -445,6 +461,7 @@
         {% endif %}
 
         <!-- Medicine Card -->
+        {% if features.health.medicine %}
         <div class="health-card medicine-card">
             <div class="card-header">
                 <h2>
@@ -491,8 +508,10 @@
 
             <a href="{% url 'health:medicine_home' %}" class="card-link">Go to Medicines</a>
         </div>
+        {% endif %}
 
         <!-- Fitness Card -->
+        {% if features.health.workouts %}
         <div class="health-card fitness-card">
             <div class="card-header">
                 <h2>
@@ -532,8 +551,10 @@
 
             <a href="{% url 'health:fitness_home' %}" class="card-link">Go to Fitness</a>
         </div>
+        {% endif %}
 
         <!-- Nutrition Card -->
+        {% if features.health.nutrition %}
         <div class="health-card nutrition-card">
             <div class="card-header">
                 <h2>
@@ -563,8 +584,10 @@
 
             <a href="{% url 'health:nutrition_home' %}" class="card-link">Go to Nutrition</a>
         </div>
+        {% endif %}
 
         <!-- Medical Providers Card -->
+        {% if features.health.providers %}
         <div class="health-card providers-card">
             <div class="card-header">
                 <h2>
@@ -597,6 +620,7 @@
 
             <a href="{% url 'health:provider_list' %}" class="card-link">View Providers</a>
         </div>
+        {% endif %}
     </div>
 </div>
 

@@ -16,6 +16,23 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-24 Changes
 
+### iOS: Fix "Last Sync" time display to use server timestamp
+
+**Problem:** The iOS app's "Last Sync" time in Settings kept climbing (e.g., "14 min ago", "15 min ago") even after successful syncs because it was using a local `Date()` timestamp instead of the server's actual sync time.
+
+**Root Cause:** `SettingsView.syncNow()` was setting `appState.lastSyncDate = Date()` locally after sync, rather than fetching the server's `last_sync` timestamp from the `sync-status` endpoint.
+
+**Fix:**
+1. After successful sync, fetch sync status from server via `APIClient.shared.getSyncStatus()`
+2. Parse the server's ISO8601 `last_sync` timestamp and use that for display
+3. On app startup, if authenticated, load the last sync date from the server so it persists across app restarts
+
+**Files Modified:**
+- `ios/WLJWrapper/WLJWrapper/Views/SettingsView.swift` - Updated `syncNow()` to fetch server timestamp, added `parseISO8601Date()` helper
+- `ios/WLJWrapper/WLJWrapper/App/WLJWrapperApp.swift` - Added `loadSyncStatus()` to fetch last sync on app init
+
+---
+
 ### iOS Native Wrapper App + Mobile API Backend
 
 Complete implementation of native iOS app wrapper for WLJ with HealthKit integration.

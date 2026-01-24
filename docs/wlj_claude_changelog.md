@@ -16,6 +16,17 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-24 Changes
 
+### Remove mandatory/pinned status from AI Insights tile
+
+**Problem:** AI Insights was incorrectly set as `mandatory: True` with `pinned_position: 1`, which meant it would show for all users regardless of their AI preference setting. Nothing should appear in the system if the corresponding feature is disabled in Preferences.
+
+**Fix:** Removed `mandatory` and `pinned_position` from `ai_insights` tile definition. Now it properly respects the `module_dependency: 'ai_enabled'` - if AI is disabled in Preferences, AI Insights won't show on the dashboard.
+
+**Files Modified:**
+- `apps/dashboard/services/config_service.py` - Removed mandatory/pinned logic from ai_insights and simplified get_visible_tiles/update_config methods
+
+---
+
 ### One-time cleanup of recurring tasks for heatherjenkins74@gmail.com
 
 **Problem:** User heatherjenkins74@gmail.com had leftover problematic recurring tasks from an earlier bug. These tasks kept showing up in her task list, especially past-due ones.

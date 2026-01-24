@@ -65,8 +65,7 @@ TILE_DEFINITIONS = {
         'module_dependency': 'ai_enabled',
         'default_visible': True,
         'default_size': 'large',
-        'mandatory': True,  # Cannot be hidden
-        'pinned_position': 1,  # Always first, cannot be reordered
+        'mandatory': False,
         'default_order': 1,
     },
     'celebrations': {
@@ -376,12 +375,10 @@ class DashboardConfigService:
 
         Returns:
             List of tile configs merged with definitions, ordered by user preference.
-            Pinned tiles (like AI Insights) are always at their designated position.
         """
         config = self.get_config()
         available_tiles = {t['id']: t for t in self.get_available_tiles()}
 
-        pinned = []
         visible = []
         for tile_config in config.get('tiles', []):
             tile_id = tile_config['id']
@@ -390,22 +387,13 @@ class DashboardConfigService:
             if not tile_def:
                 continue
 
-            # Mandatory tiles are always visible
-            is_visible = tile_config.get('visible', True) or tile_def.get('mandatory', False)
+            is_visible = tile_config.get('visible', True)
 
             if is_visible:
                 merged = {**tile_def, **tile_config}
-                # Pinned tiles go in a separate list to be inserted at their position
-                if tile_def.get('pinned_position') is not None:
-                    pinned.append((tile_def['pinned_position'], merged))
-                else:
-                    visible.append(merged)
+                visible.append(merged)
 
-        # Sort pinned tiles by their position and insert at the front
-        pinned.sort(key=lambda x: x[0])
-        result = [tile for _, tile in pinned] + visible
-
-        return result
+        return visible
 
     def update_config(self, new_config: dict) -> bool:
         """
@@ -428,20 +416,8 @@ class DashboardConfigService:
         available_tiles = {t['id']: t for t in self.get_available_tiles()}
 
         for tile_config in new_config.get('tiles', []):
-            tile_id = tile_config['id']
-
             # Only keep config fields
             cleaned_tile = {k: v for k, v in tile_config.items() if k in config_fields}
-
-            # Ensure mandatory tiles remain visible
-            tile_def = available_tiles.get(tile_id)
-            if tile_def and tile_def.get('mandatory'):
-                cleaned_tile['visible'] = True
-
-            # Ensure pinned tiles keep their pinned position
-            if tile_def and tile_def.get('pinned_position') is not None:
-                cleaned_tile['order'] = tile_def['pinned_position']
-
             cleaned_tiles.append(cleaned_tile)
 
         storage_config = {'tiles': cleaned_tiles, 'version': new_config.get('version', 1)}

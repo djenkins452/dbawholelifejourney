@@ -16,6 +16,32 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-24 Changes
 
+### Add Blood Pressure and Body Temperature HealthKit Sync
+
+Extended HealthKit integration to sync Blood Pressure and Body Temperature from Apple Health.
+
+**iOS Changes:**
+- `HealthKitManager.swift` - Added `.bloodPressureSystolic`, `.bloodPressureDiastolic`, and `.bodyTemperature` to readTypes
+- `HealthKitManager.swift` - New `fetchBloodPressure()` function (matches systolic/diastolic pairs by timestamp)
+- `HealthKitManager.swift` - New `fetchBodyTemperature()` function (individual readings in Fahrenheit)
+- `HealthMetric.swift` - Added `systolicValue`, `diastolicValue`, `temperatureValue`, `temperatureUnit`, `recordedAt` fields
+- `BackgroundSyncManager.swift` - Observer queries for blood pressure and body temperature
+- `HealthSyncView.swift` - New data type rows for Blood Pressure and Body Temperature
+
+**Django Changes:**
+- `apps/health/models.py` - Added `source` and `sync_id` fields to `BloodPressureEntry`
+- `apps/health/models.py` - Created new `BodyTemperatureEntry` model with temperature, unit, context, source, sync_id
+- `apps/mobile/views.py` - `process_blood_pressure_metric` and `process_body_temperature_metric` handlers
+- Blood pressure validation: 60-250 systolic, 30-150 diastolic
+- Temperature validation: 90-110°F or 32-43°C
+
+**Migration:**
+- `0036_add_blood_pressure_source_and_body_temperature.py`
+
+**Total HealthKit types synced: 23** (up from 21)
+
+---
+
 ### Fix MAX_METRICS_PER_REQUEST limit
 
 Changed `MAX_METRICS_PER_REQUEST` from 1000 to 50000 in `apps/mobile/views.py` to allow larger health data syncs during development.

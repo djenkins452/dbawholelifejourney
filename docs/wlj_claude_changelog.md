@@ -58,6 +58,35 @@ Complete implementation of native iOS app wrapper for WLJ with HealthKit integra
 
 ---
 
+### iOS Health Sync Bug Fixes
+
+Fixed three issues discovered during first iOS app testing:
+
+**Issue 1: CSRF Token Required for Generate Code Endpoint**
+The `generate_exchange_code` view required CSRF token but iOS app only sends cookies.
+
+**Solution:** Added `@csrf_exempt` decorator to the view.
+
+**Issue 2: SleepEntry NotNullViolation for Heart Rate Data**
+When syncing heart rate data without existing sleep data, `SleepEntry.objects.create()`
+failed because `bedtime` and `wake_time` are required fields.
+
+**Solution:** Added dummy bedtime (10 PM previous night) and wake_time (6 AM) values
+for HR-only entries.
+
+**Issue 3: Negative Duration Check Constraint Violation**
+The dummy bedtime was on the same day as wake_time, resulting in negative duration (-960 min).
+
+**Solution:** Set bedtime to previous day and use positive duration (480 minutes).
+
+**Files Modified:**
+- `apps/mobile/views.py` - Added @csrf_exempt, fixed HR-only SleepEntry creation
+- `ios/WLJWrapper/WLJWrapper/Services/APIClient.swift` - Added `import UIKit`
+- `ios/WLJWrapper/WLJWrapper/Views/SettingsView.swift` - Added Connect Account button
+- `ios/WLJWrapper/WLJWrapper/WLJWrapper.entitlements` - Removed background-delivery
+
+---
+
 ### Add Milestone Edit Capability (Complete CRUD)
 
 Added the ability to edit goal milestones. Previously only Create, Read, and Delete were available.

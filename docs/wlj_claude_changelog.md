@@ -16,6 +16,15 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-24 Changes
 
+### Increase MAX_METRICS_PER_REQUEST to 50000 for testing
+
+**Change:** Temporarily increased the iOS health data ingestion limit to accommodate large HealthKit backfills during testing of new health metric types.
+
+**Files Modified:**
+- `apps/mobile/views.py` - Changed MAX_METRICS_PER_REQUEST from 5000 to 50000
+
+---
+
 ### Fix iOS app memory crash from too many HealthKit samples
 
 **Problem:** App was killed by iOS due to memory pressure. With Dexcom CGM producing ~288 readings/day, fetching 7 days of blood glucose data meant 2000+ samples loaded into memory at once.

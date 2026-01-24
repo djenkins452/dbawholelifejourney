@@ -16,6 +16,22 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-24 Changes
 
+### iOS: Add blood glucose, blood oxygen, and water intake syncing
+
+**Feature:** Extended HealthKit sync to include three new health data types.
+
+**Implementation:**
+1. Added blood glucose (mg/dL), blood oxygen (SpO2 %), and water intake (fl oz) to HealthKit read types
+2. Created fetch functions for each new metric type
+3. Blood glucose and blood oxygen include timestamp for each reading
+4. Water intake aggregates daily totals similar to steps
+
+**Files Modified:**
+- `ios/WLJWrapper/WLJWrapper/Services/HealthKitManager.swift` - Added readTypes and fetch functions
+- `ios/WLJWrapper/WLJWrapper/Models/HealthMetric.swift` - Added `timestamp` field for timestamped readings
+
+---
+
 ### iOS: Add sync completion feedback and background sync timestamp updates
 
 **Problem:** After a sync completed, users had no positive feedback that it succeeded - the spinner just stopped. Also, background syncs didn't update the "Last Sync" timestamp in the UI.

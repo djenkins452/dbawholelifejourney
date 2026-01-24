@@ -34,6 +34,9 @@ struct HealthMetric: Codable {
     var maxHR: Int?
     var minHR: Int?
 
+    // Timestamped readings (blood glucose, blood oxygen)
+    var timestamp: String?
+
     enum CodingKeys: String, CodingKey {
         case type
         case date
@@ -52,6 +55,7 @@ struct HealthMetric: Codable {
         case avgHR = "avg_hr"
         case maxHR = "max_hr"
         case minHR = "min_hr"
+        case timestamp
     }
 
     // MARK: - Convenience Initializers
@@ -101,6 +105,18 @@ struct HealthMetric: Codable {
         self.avgHR = avgHR
         self.maxHR = maxHR
         self.minHR = minHR
+        self.source = source
+        self.syncId = syncId
+    }
+
+    /// Create a timestamped metric (blood glucose, blood oxygen)
+    init(type: String, date: String, value: Double, unit: String, timestamp: String,
+         source: String, syncId: String) {
+        self.type = type
+        self.date = date
+        self.value = value
+        self.unit = unit
+        self.timestamp = timestamp
         self.source = source
         self.syncId = syncId
     }

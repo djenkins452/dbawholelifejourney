@@ -16,6 +16,18 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-24 Changes
 
+### One-time cleanup of recurring tasks for heatherjenkins74@gmail.com
+
+**Problem:** User heatherjenkins74@gmail.com had leftover problematic recurring tasks from an earlier bug. These tasks kept showing up in her task list, especially past-due ones.
+
+**Fix:** Added one-time cleanup to `load_initial_data.py` that automatically runs on deploy. Deletes all incomplete past-due recurring tasks for this user. Tracked via DataLoadConfig so it only runs once.
+
+**Files Modified:**
+- `apps/core/management/commands/load_initial_data.py` - Added `_cleanup_heather_recurring_tasks()` method
+- `apps/life/management/commands/cleanup_recurring_tasks.py` - Created management command for manual cleanup (reference)
+
+---
+
 ### Fix duplicate quick stats and enforce feature toggles site-wide
 
 **Problems:**

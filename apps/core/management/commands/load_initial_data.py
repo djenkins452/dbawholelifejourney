@@ -507,6 +507,9 @@ class Command(BaseCommand):
         # Send one-time test email to verify SMTP configuration
         self._send_smtp_test_email(DataLoadConfig, force, verbosity)
 
+        # One-time cleanup: remove problematic recurring tasks for specific user
+        self._cleanup_heather_recurring_tasks(DataLoadConfig, force, verbosity)
+
         # Only output summary if something loaded or if verbose
         if verbosity >= 1 and loaded_count > 0:
             self.stdout.write(self.style.SUCCESS(f'Initial data: loaded {loaded_count} items'))
@@ -579,3 +582,59 @@ This test email is sent once on first deploy after SMTP is configured.
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'SMTP test FAILED: {e}'))
+
+    def _cleanup_heather_recurring_tasks(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time cleanup of problematic recurring tasks for heatherjenkins74@gmail.com.
+
+        This user had recurring tasks that got corrupted/duplicated due to an earlier bug.
+        This cleanup removes all incomplete past-due recurring tasks for this user.
+        Only runs once (tracked via DataLoadConfig) unless force=True.
+        """
+        loader_name = 'cleanup_heather_recurring_tasks_2026_01'
+
+        # Check if already run (unless force mode)
+        if not force and self._is_loader_complete(DataLoadConfig, loader_name):
+            return  # Already cleaned up, skip silently
+
+        try:
+            from django.utils import timezone
+            from apps.users.models import User
+            from apps.life.models import Task
+
+            # Find the user
+            try:
+                user = User.objects.get(email='heatherjenkins74@gmail.com')
+            except User.DoesNotExist:
+                return  # User doesn't exist, skip silently
+
+            today = timezone.now().date()
+
+            # Find incomplete past-due recurring tasks
+            tasks_to_delete = Task.objects.filter(
+                user=user,
+                is_recurring=True,
+                is_completed=False,
+                due_date__lt=today,
+            )
+
+            count = tasks_to_delete.count()
+            if count > 0:
+                if verbosity >= 1:
+                    self.stdout.write(f'  Cleaning up {count} recurring tasks for heatherjenkins74@gmail.com...', ending='')
+
+                # Delete them (hard delete since these are problematic)
+                tasks_to_delete.delete()
+
+                if verbosity >= 1:
+                    self.stdout.write(self.style.SUCCESS(f' DONE'))
+
+            # Mark as complete so it doesn't run again
+            self._mark_loader_complete(
+                DataLoadConfig, loader_name, 'Heather Recurring Tasks Cleanup (Jan 2026)',
+                'command', 'One-time cleanup of problematic recurring tasks for heatherjenkins74@gmail.com'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Recurring tasks cleanup FAILED: {e}'))

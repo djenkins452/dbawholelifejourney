@@ -28,6 +28,7 @@ from apps.health.models import (
     GlucoseEntry,
     StepsEntry,
     SleepEntry,
+    WaterEntry,
     WeightEntry,
 )
 
@@ -479,6 +480,8 @@ def process_health_metric(user, metric):
         "sleep": process_sleep_metric,
         "heart_rate": process_heart_rate_metric,
         "blood_glucose": process_blood_glucose_metric,
+        "blood_oxygen": process_blood_oxygen_metric,
+        "water_intake": process_water_intake_metric,
     }
 
     handler = handlers.get(metric_type)
@@ -898,6 +901,95 @@ def process_blood_glucose_metric(user, metric_date, source, sync_id, data):
         source=glucose_source,
         dexcom_record_id=sync_id,
         context="cgm",  # CGM readings from HealthKit
+    )
+    return "created"
+
+
+def process_blood_oxygen_metric(user, metric_date, source, sync_id, data):
+    """
+    Process blood oxygen (SpO2) metric from HealthKit.
+
+    Note: WLJ doesn't have a dedicated SpO2 model yet.
+    For now, we skip these metrics silently.
+    Future: Could add SpO2Entry model or store in a generic vitals table.
+    """
+    # Acknowledge receipt but don't store (no model available)
+    # This prevents "Unknown metric type" errors
+    return "skipped"
+
+
+def process_water_intake_metric(user, metric_date, source, sync_id, data):
+    """
+    Process water intake metric from HealthKit.
+
+    WaterEntry fields:
+    - amount (Decimal): amount consumed
+    - unit (str): oz, ml, cups, liters
+    - logged_date (date): date logged
+    - recorded_at (datetime): when recorded
+    """
+    value = data.get("value")
+    unit = data.get("unit", "fl_oz")
+
+    if value is None:
+        raise ValueError("value is required for water_intake")
+
+    try:
+        value = Decimal(str(value))
+    except (TypeError, InvalidOperation):
+        raise ValueError(f"Invalid water intake value: {value}")
+
+    # Convert fl_oz to oz (they're the same)
+    if unit == "fl_oz":
+        unit = "oz"
+
+    # Validate unit
+    if unit not in ("oz", "ml", "cups", "liters"):
+        unit = "oz"  # Default to oz
+
+    # Validate ranges
+    if unit == "oz" and (value < 0 or value > 500):
+        raise ValueError(f"Water intake value out of range: {value}")
+
+    # Check for existing entry on same date with same sync_id
+    if sync_id:
+        existing = WaterEntry.objects.filter(
+            user=user,
+            logged_date=metric_date,
+            notes__contains=sync_id,
+        ).first()
+
+        if existing:
+            if existing.amount != value:
+                existing.amount = value
+                existing.save(update_fields=["amount", "updated_at"])
+                return "updated"
+            return "skipped"
+
+    # Check for existing daily total from apple_health
+    existing = WaterEntry.objects.filter(
+        user=user,
+        logged_date=metric_date,
+        notes__contains="apple_health",
+    ).first()
+
+    if existing:
+        if existing.amount != value:
+            existing.amount = value
+            existing.notes = f"Synced from {source} ({sync_id})"
+            existing.save(update_fields=["amount", "notes", "updated_at"])
+            return "updated"
+        return "skipped"
+
+    # Create new entry
+    WaterEntry.objects.create(
+        user=user,
+        amount=value,
+        unit=unit,
+        logged_date=metric_date,
+        recorded_at=timezone.now(),
+        container="other",
+        notes=f"Synced from {source} ({sync_id})",
     )
     return "created"
 

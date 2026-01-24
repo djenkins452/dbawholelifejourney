@@ -16,6 +16,21 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-24 Changes
 
+### Fix 500 Error When Saving Goal Milestones
+
+Fixed a 500 error that occurred when trying to save a new milestone on a goal.
+
+**Issue:** `MilestoneCreateView` was using `models.Max('sort_order')` but `models` was never
+imported. The file only had `from django.db.models import Count, Q` - specific function imports,
+not the `models` module itself.
+
+**Solution:** Added `Max` to the imports and updated the usage from `models.Max` to `Max`.
+
+**Files Modified:**
+- `apps/purpose/views.py` - Fixed import and usage of `Max`
+
+---
+
 ### Fix YouVersion Bible Translations - Show All Licensed Versions
 
 Fixed Bible translation dropdown showing only public domain translations instead of

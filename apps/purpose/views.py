@@ -8,7 +8,7 @@ Visited seasonally, not daily.
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import ValidationError
-from django.db.models import Count, Q
+from django.db.models import Count, Max, Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy, reverse
@@ -946,7 +946,7 @@ class MilestoneCreateView(PurposeAccessMixin, View):
 
         # Get next sort order
         max_order = goal.milestones.aggregate(
-            max_order=models.Max('sort_order')
+            max_order=Max('sort_order')
         )['max_order'] or 0
 
         GoalMilestone.objects.create(

@@ -35,6 +35,7 @@ Copyright:
 """
 
 import datetime
+import secrets
 import uuid
 
 from django.conf import settings
@@ -1280,6 +1281,134 @@ class WebAuthnCredential(models.Model):
 
     def __str__(self):
         return f"{self.user.email} - {self.device_name or 'Unknown device'}"
+
+
+class MFAEmailCode(models.Model):
+    """
+    Store temporary email codes for MFA verification.
+
+    Codes are 6-digit numeric strings, valid for 10 minutes.
+    Rate limited to 5 requests per hour per user.
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="mfa_email_codes",
+    )
+
+    code = models.CharField(
+        max_length=6,
+        help_text="6-digit verification code",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    expires_at = models.DateTimeField(
+        help_text="When this code expires (10 minutes from creation)",
+    )
+
+    used = models.BooleanField(
+        default=False,
+        help_text="Whether this code has been used",
+    )
+
+    used_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the code was used",
+    )
+
+    ip_address = models.GenericIPAddressField(
+        null=True,
+        blank=True,
+        help_text="IP address that requested the code",
+    )
+
+    class Meta:
+        verbose_name = "MFA email code"
+        verbose_name_plural = "MFA email codes"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        status = "used" if self.used else ("expired" if self.is_expired else "valid")
+        return f"{self.user.email} - {self.code} ({status})"
+
+    @property
+    def is_expired(self):
+        """Check if the code has expired."""
+        return timezone.now() > self.expires_at
+
+    @property
+    def is_valid(self):
+        """Check if the code is still valid (not used and not expired)."""
+        return not self.used and not self.is_expired
+
+    def mark_used(self):
+        """Mark the code as used."""
+        self.used = True
+        self.used_at = timezone.now()
+        self.save(update_fields=["used", "used_at"])
+
+    @classmethod
+    def generate_code(cls):
+        """Generate a random 6-digit code."""
+        return f"{secrets.randbelow(1000000):06d}"
+
+    @classmethod
+    def create_for_user(cls, user, ip_address=None):
+        """
+        Create a new MFA code for a user.
+
+        Returns tuple of (code_object, error_message).
+        Error message is None if successful, or string if rate limited.
+        """
+        # Rate limiting: max 5 codes per hour
+        one_hour_ago = timezone.now() - datetime.timedelta(hours=1)
+        recent_count = cls.objects.filter(
+            user=user,
+            created_at__gte=one_hour_ago,
+        ).count()
+
+        if recent_count >= 5:
+            return None, "Too many code requests. Please wait before requesting another code."
+
+        # Invalidate any existing unused codes
+        cls.objects.filter(user=user, used=False).update(used=True)
+
+        # Create new code
+        code = cls.generate_code()
+        expires_at = timezone.now() + datetime.timedelta(minutes=10)
+
+        mfa_code = cls.objects.create(
+            user=user,
+            code=code,
+            expires_at=expires_at,
+            ip_address=ip_address,
+        )
+
+        return mfa_code, None
+
+    @classmethod
+    def verify_code(cls, user, code):
+        """
+        Verify an MFA code for a user.
+
+        Returns True if code is valid and marks it as used.
+        Returns False if code is invalid, expired, or already used.
+        """
+        try:
+            mfa_code = cls.objects.get(
+                user=user,
+                code=code,
+                used=False,
+            )
+            if mfa_code.is_valid:
+                mfa_code.mark_used()
+                return True
+            return False
+        except cls.DoesNotExist:
+            return False
 
 
 class TermsAcceptance(models.Model):

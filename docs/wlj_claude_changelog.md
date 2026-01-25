@@ -16,6 +16,39 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-25 Changes
 
+### Feature: Mobile Navigation Redesign (Phase 1-5)
+
+**Summary:** Complete overhaul of mobile navigation to match modern app patterns (clean bottom tab bar + top-right utility icons).
+
+**Changes:**
+1. **Bottom Tab Bar:** Fixed bottom navigation with Home + 4 dynamic modules + More (evenly spaced, icons with labels)
+2. **Top Utility Icons:** Favorites, Chat Bot, Notifications, Profile icons in header (icons only)
+3. **Module System:** Created `ModuleDefinition` and `UserModulePreference` models for user-controlled module ordering
+4. **More Screen:** Tile grid hub at `/more/` showing overflow modules and quick links
+5. **Favorites Hub:** Tile grid at `/favorites/` showing user's starred pages
+6. **Chat Widget Fix:** Moved floating chat button above bottom tab bar on mobile
+
+**Files Created:**
+- `templates/components/bottom_tab_bar.html` - Mobile bottom navigation
+- `templates/components/top_utility_icons.html` - Top-right icon row
+- `templates/core/more.html` - More screen tile hub
+- `templates/core/favorites_hub.html` - Favorites tile hub
+- `apps/users/fixtures/module_definitions.json` - Module registry data
+- `apps/users/migrations/0048_add_module_navigation_models.py` - New models
+
+**Files Modified:**
+- `apps/users/models.py` - Added ModuleDefinition, UserModulePreference models
+- `apps/core/context_processors.py` - Added navigation_modules_context
+- `apps/core/urls.py` - Added /more/ and /favorites/ routes
+- `apps/core/views.py` - Added MoreView, FavoritesHubView
+- `config/settings.py` - Added navigation_modules_context processor
+- `templates/base.html` - Include bottom_tab_bar.html
+- `templates/components/navigation.html` - Include top_utility_icons.html
+- `templates/components/chat_widget.html` - Repositioned chat button above bottom bar
+- `static/css/main.css` - Bottom tab bar and utility icon styles, hide old hamburger menu
+
+---
+
 ### Fix: Activity Dashboard - Days Tracked and Label Accuracy
 
 **Issue:** Two bugs in the Activity dashboard:

@@ -16,6 +16,19 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-25 Changes
 
+### Fix: Navigation Order Module List Not Displaying
+
+**Summary:** The "Navigation Order" section in Preferences showed the description text but no draggable module list. This was caused by empty `ModuleDefinition` records in production - the fixture was registered in `load_initial_data.py` but was likely skipped due to a DataLoadConfig tracking issue.
+
+**Root Cause:** The `module_definitions` fixture was added in the same commit that registered it in `FIXTURE_LOADERS`, but if the `DataLoadConfig` record was created (marking it as "loaded") before the fixture file was actually present, the fixture data would never populate.
+
+**Fix:** Added a data migration that uses `update_or_create` to ensure all 7 ModuleDefinition records exist, regardless of the DataLoadConfig state.
+
+**Files Modified:**
+- `apps/users/migrations/0051_populate_module_definitions.py` - New data migration
+
+---
+
 ### Feature: Medicine Time-of-Day Grouping with Bulk Actions
 
 **Summary:** Added ability to group medicine doses by time period (Morning, Mid-Morning, Lunch, Afternoon, Evening, Nightly) with bulk "Take All" and "Skip All" actions for each group.

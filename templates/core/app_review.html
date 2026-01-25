@@ -105,6 +105,11 @@
                     <span class="credential-label">Password:</span>
                     <code class="credential-value">AppReview2026!</code>
                 </div>
+                <form method="post" action="{% url 'core:app_review_login' %}" style="margin-top: 1rem;">
+                    <input type="hidden" name="email" value="appreview@wholelifejourney.com">
+                    <input type="hidden" name="password" value="AppReview2026!">
+                    <button type="submit" class="quick-login-btn">Quick Login →</button>
+                </form>
             </div>
 
             <div class="info-box info-box-note">
@@ -576,8 +581,24 @@
     margin-bottom: 0.75rem;
 }
 
-.credential-row:last-child {
+.credential-row:last-of-type {
     margin-bottom: 0;
+}
+
+.quick-login-btn {
+    background: #10b981;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.quick-login-btn:hover {
+    background: #059669;
 }
 
 .credential-label {

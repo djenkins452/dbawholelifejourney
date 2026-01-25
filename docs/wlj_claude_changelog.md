@@ -16,6 +16,25 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-25 Changes
 
+### Add CSRF-Exempt Login for App Review Account
+
+**Summary:** Added a CSRF-exempt login endpoint for the Apple App Review demo account to fix login issues in iOS WKWebView.
+
+**Problem:** When Apple reviewers tried to log in as appreview@wholelifejourney.com from the iOS app, they got a "CSRF verification failed" error because WKWebView doesn't always handle CSRF cookies correctly.
+
+**Solution:**
+1. Added `/app-review/login/` endpoint that accepts POST with email/password
+2. Endpoint is CSRF-exempt but ONLY works for accounts with `is_app_review_account=True`
+3. Added "Quick Login" button on the app review page that uses this endpoint
+4. Regular users still use the standard CSRF-protected login flow
+
+**Files Modified:**
+- `apps/core/views.py` - Added `AppReviewLoginView` class with csrf_exempt decorator
+- `apps/core/urls.py` - Added URL pattern for `/app-review/login/`
+- `templates/core/app_review.html` - Added "Quick Login" button and styling
+
+---
+
 ### Register App Review Account in Auto-Deploy
 
 **Summary:** Added `setup_app_review_account` command to `load_initial_data.py` so the Apple App Review demo account is created automatically on deploy.

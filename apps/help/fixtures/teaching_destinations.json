@@ -1035,5 +1035,39 @@
             "created_at": "2026-01-20T00:00:00Z",
             "updated_at": "2026-01-20T00:00:00Z"
         }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 61,
+        "fields": {
+            "destination_id": "blood-pressure-dashboard",
+            "name": "Blood Pressure Dashboard",
+            "path_description": "Health - Blood Pressure",
+            "explanation": "View your blood pressure trends with charts, statistics, and AHA category tracking for systolic and diastolic readings.",
+            "url": "/health/blood-pressure/dashboard/",
+            "keywords": "blood pressure, bp, systolic, diastolic, blood pressure chart, blood pressure stats, blood pressure trends, blood pressure dashboard, hypertension, blood pressure history",
+            "module": "health",
+            "sort_order": 61,
+            "is_active": true,
+            "created_at": "2026-01-24T00:00:00Z",
+            "updated_at": "2026-01-24T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 62,
+        "fields": {
+            "destination_id": "blood-oxygen-dashboard",
+            "name": "Blood Oxygen Dashboard",
+            "path_description": "Health - Blood Oxygen",
+            "explanation": "Track your blood oxygen (SpO2) levels with charts, statistics, and health status indicators.",
+            "url": "/health/blood-oxygen/dashboard/",
+            "keywords": "blood oxygen, spo2, oxygen saturation, oxygen levels, blood oxygen chart, blood oxygen stats, blood oxygen dashboard, pulse oximeter, oxygen tracking",
+            "module": "health",
+            "sort_order": 62,
+            "is_active": true,
+            "created_at": "2026-01-24T00:00:00Z",
+            "updated_at": "2026-01-24T00:00:00Z"
+        }
     }
 ]

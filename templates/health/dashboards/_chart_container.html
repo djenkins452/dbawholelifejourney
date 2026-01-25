@@ -17,7 +17,7 @@
     </div>
 </div>
 
-{{ chart_data|json_script:chart_id|default:"chart-data" }}
+{% with script_id=chart_id|default:"chart-data" %}{{ chart_data|json_script:script_id }}{% endwith %}
 
 <style nonce="{{ csp_nonce }}">
 .chart-container {

@@ -56,6 +56,20 @@ For active development context, see `CLAUDE.md` (project root).
 **Migration:**
 - `apps/health/migrations/0037_bodytemperatureentry_status.py` - Adds status field to BodyTemperatureEntry
 
+### Chart Container Template Fix
+
+**Fix:** Fixed `_chart_container.html` template to properly handle `chart_id` default value with `json_script` filter.
+
+**Issue:** The Django template filter chain `chart_data|json_script:chart_id|default:"chart-data"` was applying `default` to the output of `json_script` instead of to the `chart_id` variable.
+
+**Solution:** Wrapped in `{% with %}` block to properly evaluate the default before passing to `json_script`:
+```django
+{% with script_id=chart_id|default:"chart-data" %}{{ chart_data|json_script:script_id }}{% endwith %}
+```
+
+**Files Modified:**
+- `templates/health/dashboards/_chart_container.html` - Fixed json_script filter chain
+
 ---
 
 ## 2026-01-24 Changes

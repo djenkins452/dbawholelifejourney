@@ -60,6 +60,30 @@ Disclaimer text: "Whole Life Journey provides informational insights only. It do
 
 ---
 
+### App Review Demo Guide Page
+
+**Summary:** Created a permanent App Review page at `/app-review/` for Apple App Store reviewers.
+
+**Page Contents:**
+- **Overview** - What the app does, key features, why native iOS app
+- **Demo Login** - Test account credentials (appreview@wholelifejourney.com)
+- **Feature Locations** - Table showing where to find each feature
+- **HealthKit Integration** - Step-by-step testing instructions, data types synced
+- **Account Management** - Delete account and data export instructions
+- **Compliance** - Health disclaimer, COPPA, GDPR/CCPA, subscription info
+- **Contact** - Support email for reviewer questions
+
+**URL:** `https://wholelifejourney.com/app-review/`
+
+**Files Created:**
+- `templates/core/app_review.html`
+
+**Files Modified:**
+- `apps/core/views.py` - Added AppReviewView
+- `apps/core/urls.py` - Added /app-review/ route
+
+---
+
 ### Teaching Tool: Added Profile, Delete Account, and Data Export Destinations
 
 **Summary:** Added new teaching destinations to help the AI Assistant provide accurate navigation guidance for account management.

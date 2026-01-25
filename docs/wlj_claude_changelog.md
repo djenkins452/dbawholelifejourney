@@ -16,6 +16,26 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-25 Changes
 
+### Feature: Favorites Dropdown Menu
+
+**Summary:** Changed the favorites utility icon from navigating to a page to showing a dropdown menu with quick-access tiles. Clicking the star icon now cascades a dropdown with icon+label tiles for each favorited page.
+
+**Changes:**
+- Replaced `<a href>` with `<button>` trigger for favorites icon in both mobile and desktop headers
+- Added dropdown panel with 2-column (mobile) / 3-column (desktop) grid of tile links
+- Each tile shows a star icon and the page title
+- Empty state shows helpful message when no favorites exist
+- "Manage Favorites" footer link still goes to full favorites hub page
+- Click-outside and Escape key close the dropdown
+
+**Files Modified:**
+- `templates/components/top_utility_icons.html` - Mobile favorites dropdown
+- `templates/components/desktop_top_bar.html` - Desktop favorites dropdown
+- `static/css/main.css` - Dropdown styling (position, grid, tiles, animations)
+- `static/js/favorites.js` - Added dropdown toggle functionality
+
+---
+
 ### Fix: Navigation Order Module List Not Displaying
 
 **Summary:** The "Navigation Order" section in Preferences showed the description text but no draggable module list. This was caused by empty `ModuleDefinition` records in production - the fixture was registered in `load_initial_data.py` but was likely skipped due to a DataLoadConfig tracking issue.

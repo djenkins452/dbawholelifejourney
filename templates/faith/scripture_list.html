@@ -645,6 +645,17 @@ function hideError() {
     document.getElementById('lookup-error').style.display = 'none';
 }
 
+// Test if a translation works by fetching a common passage
+async function testTranslation(bibleId) {
+    try {
+        // Test with John 3:16 - a very common passage that should exist in all complete Bibles
+        const response = await fetch(`${API_PROXY_BASE}/bibles/${bibleId}/passages/JHN.3.16/?format=text`);
+        return response.ok;
+    } catch (e) {
+        return false;
+    }
+}
+
 // Check if API is configured and fetch available Bibles
 async function fetchBibles() {
     const versionSelect = document.getElementById('bible-version');
@@ -687,6 +698,7 @@ async function fetchBibles() {
 
         console.log('Bibles loaded:', uniqueBibles.length, '(deduplicated from', bibles.length, ')');
 
+        // Show translations immediately, then test them in background
         versionSelect.innerHTML = '<option value="">Select Translation</option>';
 
         uniqueBibles.forEach(bible => {
@@ -706,6 +718,30 @@ async function fetchBibles() {
         if (DEFAULT_TRANSLATION && versionSelect.value === DEFAULT_TRANSLATION) {
             fetchBooks(DEFAULT_TRANSLATION);
         }
+
+        // Test translations in background and remove broken ones
+        // Batch test in parallel for speed (max 5 concurrent)
+        const batchSize = 5;
+        for (let i = 0; i < uniqueBibles.length; i += batchSize) {
+            const batch = uniqueBibles.slice(i, i + batchSize);
+            const results = await Promise.all(batch.map(bible => testTranslation(bible.id)));
+            batch.forEach((bible, idx) => {
+                if (!results[idx]) {
+                    console.warn(`Translation ${bible.abbreviation} (${bible.id}) failed test, removing`);
+                    const option = versionSelect.querySelector(`option[value="${bible.id}"]`);
+                    if (option) {
+                        // If this was the selected option, deselect it
+                        if (option.selected) {
+                            option.selected = false;
+                            versionSelect.value = '';
+                            showError(`Your default translation (${bible.abbreviation}) is currently unavailable. Please select a different one.`);
+                        }
+                        option.remove();
+                    }
+                }
+            });
+        }
+        console.log('Translation testing complete');
     } catch (error) {
         console.error('Error fetching Bibles:', error);
         versionSelect.innerHTML = '<option value="">Error loading translations</option>';

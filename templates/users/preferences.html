@@ -3257,6 +3257,16 @@ document.addEventListener('DOMContentLoaded', function() {
 const API_PROXY_BASE = '/faith/api/bible';
 let bibleTranslationsLoaded = false;  // Prevent duplicate loads
 
+// Test if a translation works by fetching a common passage
+async function testBibleTranslation(bibleId) {
+    try {
+        const response = await fetch(`${API_PROXY_BASE}/bibles/${bibleId}/passages/JHN.3.16/?format=text`);
+        return response.ok;
+    } catch (e) {
+        return false;
+    }
+}
+
 async function loadBibleTranslations() {
     const select = document.getElementById('bible-translation-select');
     const hiddenInput = document.getElementById('id_default_bible_translation');
@@ -3330,6 +3340,28 @@ async function loadBibleTranslations() {
                 hiddenInput.value = this.value;
             });
             bibleTranslationsLoaded = true;
+        }
+
+        // Test translations in background and remove broken ones
+        const batchSize = 5;
+        for (let i = 0; i < uniqueBibles.length; i += batchSize) {
+            const batch = uniqueBibles.slice(i, i + batchSize);
+            const results = await Promise.all(batch.map(bible => testBibleTranslation(bible.id)));
+            batch.forEach((bible, idx) => {
+                if (!results[idx]) {
+                    console.warn(`Translation ${bible.abbreviation} (${bible.id}) failed test, removing`);
+                    const option = select.querySelector(`option[value="${bible.id}"]`);
+                    if (option) {
+                        // If this was the selected option, clear the hidden input
+                        if (option.selected) {
+                            option.selected = false;
+                            select.value = '';
+                            hiddenInput.value = '';
+                        }
+                        option.remove();
+                    }
+                }
+            });
         }
 
     } catch (error) {

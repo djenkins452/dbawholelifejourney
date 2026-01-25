@@ -73,6 +73,12 @@ logger = logging.getLogger(__name__)
 # YouVersion Bible API base URL
 BIBLE_API_BASE = "https://api.youversion.com/v1"
 
+# Blocklist of Bible translation IDs that are known to not work properly
+# These translations return 403/500 errors due to licensing restrictions
+BLOCKED_BIBLE_TRANSLATIONS = {
+    '78a9f6124f344018-01',  # NIV11 - New International Version 2011 (licensing issues)
+}
+
 
 class FaithRequiredMixin(UserPassesTestMixin):
     """
@@ -819,8 +825,12 @@ class BibleAPIBiblesView(LoginRequiredMixin, FaithRequiredMixin, BibleAPIProxyMi
             # Frontend expects: {"data": [{"id": ..., "name": ..., "abbreviation": ...}, ...]}
             transformed_data = []
             for bible in data.get('data', []):
+                bible_id = str(bible.get('id', ''))
+                # Skip blocked translations that have known issues
+                if bible_id in BLOCKED_BIBLE_TRANSLATIONS:
+                    continue
                 transformed_data.append({
-                    'id': str(bible.get('id', '')),
+                    'id': bible_id,
                     'name': bible.get('title', bible.get('localized_title', '')),
                     'abbreviation': bible.get('abbreviation', bible.get('localized_abbreviation', '')),
                     'language': bible.get('language_tag', ''),

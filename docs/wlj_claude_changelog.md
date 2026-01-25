@@ -16,17 +16,20 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-24 Changes
 
-### Add Bible translation fallback for unavailable translations
+### Filter broken Bible translations from selection
 
-**Problem:** NIV11 translation was returning 403/500 errors from YouVersion API (likely licensing restrictions). Users with NIV11 as their preferred translation couldn't view scripture in Reading Plans or Scripture Library.
+**Problem:** NIV11 translation was returning 403/500 errors from YouVersion API (likely licensing restrictions). Users could select translations that don't work, leading to errors.
 
-**Fix:** Added automatic fallback to Berean Standard Bible (BSB) when user's preferred translation is unavailable:
-- Reading Plan: If primary translation fails, tries BSB and shows notice
-- Scripture Library: Same fallback logic with notice when fallback is used
+**Fix:** Two-layer protection:
+1. **Server-side blocklist** - Known broken translations (NIV11) are filtered out when the API returns available translations
+2. **Dynamic testing** - Scripture Library and User Preferences test each translation with John 3:16 and remove any that fail
+3. **Fallback** - If a translation fails during actual use, falls back to ESV with a notice
 
 **Files Modified:**
-- `templates/faith/reading_plans/progress.html` - Added `tryFetchPassage()` helper, fallback logic in `fetchScripture()`, CSS for fallback notice
-- `templates/faith/scripture_list.html` - Added `FALLBACK_BIBLE_ID` constant, `usedFallback` flag, fallback logic in `lookupScripture()`, updated `displayResults()` to show fallback notice, CSS for fallback notice
+- `apps/faith/views.py` - Added `BLOCKED_BIBLE_TRANSLATIONS` set, filter in `BibleAPIBiblesView`
+- `templates/faith/scripture_list.html` - Added `testTranslation()` function, background testing in `fetchBibles()`
+- `templates/users/preferences.html` - Added `testBibleTranslation()` function, background testing in `loadBibleTranslations()`
+- `templates/faith/reading_plans/progress.html` - ESV fallback with notice
 
 ---
 

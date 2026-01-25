@@ -27,6 +27,17 @@
     <form method="post" id="preferences-form">
         {% csrf_token %}
 
+        {% if form.errors %}
+        <div class="alert alert-danger" style="background: #fee; border: 1px solid #fcc; padding: 1rem; margin-bottom: 1rem; border-radius: 8px;">
+            <strong>Form errors:</strong>
+            <ul>
+            {% for field, errors in form.errors.items %}
+                <li>{{ field }}: {{ errors|join:", " }}</li>
+            {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
         <div class="accordion" data-accordion-id="preferences">
 
             <!-- ═══════════════════════════════════════════════════════════════════

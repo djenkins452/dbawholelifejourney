@@ -224,6 +224,73 @@ def favorites_context(request):
     return context
 
 
+def navigation_modules_context(request):
+    """
+    Add navigation module data to template context for mobile bottom nav.
+
+    Provides:
+    - nav_modules: List of module dicts for bottom nav (up to 4 enabled modules)
+    - all_user_modules: All user module preferences (for More screen)
+    - overflow_modules: Enabled modules beyond the first 4 (for More screen)
+
+    The bottom nav shows: Home + first 4 enabled modules + More
+    """
+    context = {
+        'nav_modules': [],
+        'all_user_modules': [],
+        'overflow_modules': [],
+    }
+
+    if not request.user.is_authenticated:
+        return context
+
+    try:
+        from apps.users.models import UserModulePreference, ModuleDefinition
+
+        # Initialize module preferences for user if needed
+        # Check if user has any preferences
+        user_prefs_count = UserModulePreference.objects.filter(user=request.user).count()
+
+        if user_prefs_count == 0:
+            # Initialize for user (first time)
+            UserModulePreference.initialize_for_user(request.user)
+
+        # Get all user module preferences
+        all_prefs = UserModulePreference.objects.filter(
+            user=request.user,
+            module__is_active=True,
+        ).select_related('module').order_by('sort_order', 'module__default_order')
+
+        # Build list of all modules with their state
+        all_modules = []
+        for pref in all_prefs:
+            all_modules.append({
+                'id': pref.id,
+                'slug': pref.module.slug,
+                'name': pref.module.name,
+                'description': pref.module.description,
+                'icon_svg': pref.module.icon_svg,
+                'route_name': pref.module.route_name,
+                'is_enabled': pref.is_enabled,
+                'sort_order': pref.sort_order,
+            })
+
+        context['all_user_modules'] = all_modules
+
+        # Get first 4 enabled modules for bottom nav
+        enabled_modules = [m for m in all_modules if m['is_enabled']]
+        context['nav_modules'] = enabled_modules[:4]
+
+        # Overflow = enabled modules beyond the first 4
+        context['overflow_modules'] = enabled_modules[4:] if len(enabled_modules) > 4 else []
+
+    except Exception:
+        # If tables don't exist yet (pre-migration), use fallback
+        pass
+
+    return context
+
+
 def pending_captures_context(request):
     """
     Add pending captures count to template context for global reminder banner.

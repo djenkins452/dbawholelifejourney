@@ -116,6 +116,11 @@ FIXTURE_LOADERS = [
         'display': 'Email Notification Templates',
         'description': 'Admin-editable templates for notification emails',
     },
+    {
+        'name': 'module_definitions',
+        'display': 'Module Definitions',
+        'description': 'System modules for mobile navigation (Journal, Health, Faith, etc.)',
+    },
 ]
 
 COMMAND_LOADERS = [

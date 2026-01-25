@@ -1581,6 +1581,191 @@ class DisposableEmailDomain(models.Model):
         return cls.objects.filter(domain=domain, confirmed=True).exists()
 
 
+class ModuleDefinition(models.Model):
+    """
+    System-defined module registry for mobile navigation.
+
+    Each module represents a major life area in the app (Journal, Health, Faith, etc.).
+    This model stores the canonical list of modules with their metadata.
+    Users can enable/disable and reorder modules via UserModulePreference.
+    """
+
+    # Unique identifier for the module (matches existing *_enabled fields)
+    slug = models.CharField(
+        max_length=50,
+        unique=True,
+        help_text="Unique identifier (e.g., 'journal', 'health', 'faith')",
+    )
+
+    # Display name
+    name = models.CharField(
+        max_length=50,
+        help_text="Display name shown in navigation (e.g., 'Journal', 'Health')",
+    )
+
+    # Description for settings/help
+    description = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Brief description of what this module does",
+    )
+
+    # SVG icon path data (for inline SVG rendering)
+    icon_svg = models.TextField(
+        help_text="SVG path data for the module icon",
+    )
+
+    # URL route name (Django URL name, e.g., 'journal:home')
+    route_name = models.CharField(
+        max_length=100,
+        help_text="Django URL name for the module home (e.g., 'journal:home')",
+    )
+
+    # Default sort order (used for new users)
+    default_order = models.PositiveIntegerField(
+        default=0,
+        help_text="Default display order for new users",
+    )
+
+    # Whether this module is available (admin can disable globally)
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Whether this module is available to users",
+    )
+
+    # Field name in UserPreferences for the *_enabled toggle
+    # e.g., 'journal_enabled', 'health_enabled'
+    preference_field = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="UserPreferences field name for enable toggle (e.g., 'journal_enabled')",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['default_order', 'name']
+        verbose_name = "Module Definition"
+        verbose_name_plural = "Module Definitions"
+
+    def __str__(self):
+        return self.name
+
+
+class UserModulePreference(models.Model):
+    """
+    User-specific module ordering and visibility preferences.
+
+    Each user has one record per module, tracking:
+    - Whether they have the module enabled
+    - Their custom sort order for the module
+    - When they last changed the setting
+
+    The bottom navigation bar shows:
+    - Home (always first)
+    - Up to 4 enabled modules in user's order
+    - More (always last)
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="module_preferences",
+    )
+
+    module = models.ForeignKey(
+        ModuleDefinition,
+        on_delete=models.CASCADE,
+        related_name="user_preferences",
+    )
+
+    # Whether user has this module enabled
+    is_enabled = models.BooleanField(
+        default=True,
+        help_text="Whether this module appears in navigation",
+    )
+
+    # User's custom sort order (lower = higher priority)
+    sort_order = models.PositiveIntegerField(
+        default=0,
+        help_text="User's custom display order (lower numbers appear first)",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['sort_order', 'module__default_order']
+        unique_together = ['user', 'module']
+        verbose_name = "User Module Preference"
+        verbose_name_plural = "User Module Preferences"
+
+    def __str__(self):
+        status = "enabled" if self.is_enabled else "disabled"
+        return f"{self.user.email} - {self.module.name} ({status}, order={self.sort_order})"
+
+    @classmethod
+    def get_user_modules(cls, user, enabled_only=True, limit=None):
+        """
+        Get modules for a user in their preferred order.
+
+        Args:
+            user: The user
+            enabled_only: If True, only return enabled modules
+            limit: Maximum number to return (for bottom nav, use 4)
+
+        Returns:
+            QuerySet of UserModulePreference objects with module data
+        """
+        qs = cls.objects.filter(
+            user=user,
+            module__is_active=True,
+        ).select_related('module')
+
+        if enabled_only:
+            qs = qs.filter(is_enabled=True)
+
+        qs = qs.order_by('sort_order', 'module__default_order')
+
+        if limit:
+            qs = qs[:limit]
+
+        return qs
+
+    @classmethod
+    def initialize_for_user(cls, user):
+        """
+        Create default module preferences for a new user.
+
+        Creates a UserModulePreference for each active ModuleDefinition,
+        using the module's default_order and checking the user's
+        existing *_enabled preferences.
+        """
+        modules = ModuleDefinition.objects.filter(is_active=True)
+
+        for module in modules:
+            # Check if user already has this module preference
+            if cls.objects.filter(user=user, module=module).exists():
+                continue
+
+            # Check user's existing preference field if it exists
+            is_enabled = True
+            if module.preference_field and hasattr(user, 'preferences'):
+                try:
+                    prefs = user.preferences
+                    is_enabled = getattr(prefs, module.preference_field, True)
+                except Exception:
+                    pass
+
+            cls.objects.create(
+                user=user,
+                module=module,
+                is_enabled=is_enabled,
+                sort_order=module.default_order,
+            )
+
+
 class SignupAttempt(models.Model):
     """
     Log all signup attempts for audit and fraud detection.

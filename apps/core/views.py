@@ -277,6 +277,17 @@ class AboutView(TemplateView):
     template_name = "core/about.html"
 
 
+class MoreView(LoginRequiredMixin, TemplateView):
+    """
+    More screen - shows overflow modules not in bottom nav.
+
+    Displays enabled modules beyond the first 4 as a tile grid.
+    Also provides quick links to Profile, Settings, Help, etc.
+    """
+
+    template_name = "core/more.html"
+
+
 # =============================================================================
 # CUSTOM ERROR HANDLERS
 # =============================================================================

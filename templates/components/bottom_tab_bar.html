@@ -1,7 +1,7 @@
 {% load static %}
-<!-- Mobile Bottom Tab Bar (Phase 1) -->
+<!-- Mobile Bottom Tab Bar (Phase 2: Dynamic) -->
 <nav class="bottom-tab-bar" aria-label="Mobile navigation">
-    {# Home - Always first #}
+    <!-- Home - Always first -->
     <a href="{% url 'dashboard:home' %}" class="bottom-tab {% if request.resolver_match.app_name == 'dashboard' %}active{% endif %}">
         <svg class="bottom-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
@@ -9,7 +9,16 @@
         <span class="bottom-tab-label">Home</span>
     </a>
 
-    {# Journal - Sample module #}
+    <!-- Dynamic modules from user preferences (up to 4) -->
+    {% for module in nav_modules %}
+    <a href="{% url module.route_name %}" class="bottom-tab {% if request.resolver_match.app_name == module.slug %}active{% endif %}">
+        <svg class="bottom-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            {{ module.icon_svg|safe }}
+        </svg>
+        <span class="bottom-tab-label">{{ module.name }}</span>
+    </a>
+    {% empty %}
+    <!-- Fallback to static modules if nav_modules not available -->
     {% if journal_enabled %}
     <a href="{% url 'journal:home' %}" class="bottom-tab {% if request.resolver_match.app_name == 'journal' %}active{% endif %}">
         <svg class="bottom-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -18,8 +27,6 @@
         <span class="bottom-tab-label">Journal</span>
     </a>
     {% endif %}
-
-    {# Health - Sample module #}
     {% if health_enabled %}
     <a href="{% url 'health:home' %}" class="bottom-tab {% if request.resolver_match.app_name == 'health' %}active{% endif %}">
         <svg class="bottom-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -28,8 +35,6 @@
         <span class="bottom-tab-label">Health</span>
     </a>
     {% endif %}
-
-    {# Faith - Sample module #}
     {% if faith_enabled %}
     <a href="{% url 'faith:home' %}" class="bottom-tab {% if request.resolver_match.app_name == 'faith' %}active{% endif %}">
         <svg class="bottom-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -38,9 +43,10 @@
         <span class="bottom-tab-label">Faith</span>
     </a>
     {% endif %}
+    {% endfor %}
 
-    {# More - Always last #}
-    <a href="{% url 'dashboard:home' %}" class="bottom-tab bottom-tab-more">
+    <!-- More - Always last -->
+    <a href="{% url 'core:more' %}" class="bottom-tab bottom-tab-more {% if request.resolver_match.url_name == 'more' %}active{% endif %}">
         <svg class="bottom-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="1"/>
             <circle cx="12" cy="5" r="1"/>

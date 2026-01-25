@@ -319,7 +319,8 @@
       "Bash(swiftc:*)",
       "Bash(python3 manage.py shell:*)",
       "Bash(git commit -m \"$\\(cat <<''EOF''\nPhase 1: Mobile navigation skeleton - bottom tab bar + utility icons\n\n- Add bottom_tab_bar.html: fixed bottom nav with Home, Journal, Health, Faith, More\n- Add top_utility_icons.html: Favorites, Chat, Notifications, Profile icons\n- Add CSS for mobile-only display \\(max-width: 768px\\)\n- Hide old hamburger menu on mobile\n- Include new components in base.html and navigation.html\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
-      "Bash(git commit -m \"$\\(cat <<''EOF''\nFix template comments bleeding into page content\n\nConvert multi-line Django comments to HTML comments to prevent\ntext from rendering on the page.\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nFix template comments bleeding into page content\n\nConvert multi-line Django comments to HTML comments to prevent\ntext from rendering on the page.\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nPhase 2: Module system with dynamic bottom nav and More screen\n\n- Add ModuleDefinition and UserModulePreference models\n- Add migration 0048_add_module_navigation_models\n- Add module_definitions.json fixture \\(Journal, Health, Faith, etc.\\)\n- Add navigation_modules_context processor for template data\n- Update bottom_tab_bar.html to use dynamic module data \\(first 4 enabled\\)\n- Add More screen \\(/more/\\) with tile grid for overflow modules\n- Register fixture in load_initial_data.py\n\nBottom nav now shows: Home + first 4 enabled modules + More\nUsers will be able to reorder/toggle modules in Preferences \\(drag-drop coming\\).\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
     ]
   }
 }

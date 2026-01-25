@@ -16,6 +16,19 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-25 Changes
 
+### Register App Review Account in Auto-Deploy
+
+**Summary:** Added `setup_app_review_account` command to `load_initial_data.py` so the Apple App Review demo account is created automatically on deploy.
+
+**Problem:** The `setup_app_review_account` management command existed but was never registered in `load_initial_data.py`, so the `appreview@wholelifejourney.com` account was never created in production.
+
+**Solution:** Added the command to `COMMAND_LOADERS` in `load_initial_data.py`. It will run once on next deploy (tracked via DataLoadConfig).
+
+**Files Modified:**
+- `apps/core/management/commands/load_initial_data.py` - Added `setup_app_review_account` to COMMAND_LOADERS
+
+---
+
 ### Add Subscription Button to Profile Page
 
 **Summary:** Added a Subscription button to the Profile page to make subscription management accessible through navigation.

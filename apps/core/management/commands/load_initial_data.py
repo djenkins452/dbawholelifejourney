@@ -186,6 +186,11 @@ COMMAND_LOADERS = [
         'display': 'Danny Workout Templates',
         'description': 'Workout templates for dannyjenkins71@gmail.com',
     },
+    {
+        'name': 'setup_app_review_account',
+        'display': 'App Review Demo Account',
+        'description': 'Apple App Store review demo account (appreview@wholelifejourney.com)',
+    },
 ]
 
 BLUEPRINT_LOADERS = [

@@ -16,6 +16,20 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-24 Changes
 
+### Add Bible translation fallback for unavailable translations
+
+**Problem:** NIV11 translation was returning 403/500 errors from YouVersion API (likely licensing restrictions). Users with NIV11 as their preferred translation couldn't view scripture in Reading Plans or Scripture Library.
+
+**Fix:** Added automatic fallback to Berean Standard Bible (BSB) when user's preferred translation is unavailable:
+- Reading Plan: If primary translation fails, tries BSB and shows notice
+- Scripture Library: Same fallback logic with notice when fallback is used
+
+**Files Modified:**
+- `templates/faith/reading_plans/progress.html` - Added `tryFetchPassage()` helper, fallback logic in `fetchScripture()`, CSS for fallback notice
+- `templates/faith/scripture_list.html` - Added `FALLBACK_BIBLE_ID` constant, `usedFallback` flag, fallback logic in `lookupScripture()`, updated `displayResults()` to show fallback notice, CSS for fallback notice
+
+---
+
 ### Fix user dropdown being pushed off-screen in navigation
 
 **Problem:** On desktop with many nav items enabled, the user dropdown (profile/preferences/sign out) was being pushed off the right edge of the screen and not visible.

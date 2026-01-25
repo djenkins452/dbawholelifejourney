@@ -527,6 +527,15 @@
     text-decoration: underline;
 }
 
+.scripture-fallback-notice {
+    font-size: var(--font-size-xs);
+    color: var(--color-warning);
+    background: color-mix(in srgb, var(--color-warning) 10%, transparent);
+    padding: var(--space-2);
+    border-radius: var(--radius-sm);
+    margin-bottom: var(--space-2);
+}
+
 .devotional-text p,
 .reflection-prompt p {
     line-height: 1.6;
@@ -1025,7 +1034,28 @@ document.addEventListener('DOMContentLoaded', function() {
         return cachedBibleId;
     }
 
-    // Fetch and display scripture
+    // Attempt to fetch scripture with a specific Bible ID
+    async function tryFetchPassage(bibleId, passageId) {
+        const params = 'content-type=text&include-verse-numbers=true&include-titles=false';
+        const response = await fetch(`${API_PROXY_BASE}/bibles/${bibleId}/passages/${passageId}/?${params}`);
+
+        if (!response.ok) {
+            let errorMessage = `API returned ${response.status}`;
+            try {
+                const errorData = await response.json();
+                if (errorData.error) {
+                    errorMessage = errorData.error;
+                }
+            } catch (e) {
+                // Ignore JSON parse errors
+            }
+            throw new Error(errorMessage);
+        }
+
+        return await response.json();
+    }
+
+    // Fetch and display scripture with fallback support
     async function fetchScripture(btn) {
         const reference = btn.dataset.reference;
         const item = btn.closest('.scripture-item');
@@ -1061,30 +1091,34 @@ document.addEventListener('DOMContentLoaded', function() {
         errorDiv.style.display = 'none';
 
         try {
-            const bibleId = await getBibleId();
-            if (!bibleId) throw new Error('No Bible translation available');
+            const primaryBibleId = await getBibleId();
+            if (!primaryBibleId) throw new Error('No Bible translation available');
 
             const passageId = buildPassageId(parsed);
-            const params = 'content-type=text&include-verse-numbers=true&include-titles=false';
-            const response = await fetch(`${API_PROXY_BASE}/bibles/${bibleId}/passages/${passageId}/?${params}`);
+            let data = null;
+            let usedFallback = false;
 
-            if (!response.ok) {
-                // Try to get error message from response
-                let errorMessage = `API returned ${response.status}`;
-                try {
-                    const errorData = await response.json();
-                    if (errorData.error) {
-                        errorMessage = errorData.error;
+            // Try primary translation first
+            try {
+                data = await tryFetchPassage(primaryBibleId, passageId);
+            } catch (primaryError) {
+                console.warn(`Primary translation failed: ${primaryError.message}, trying BSB fallback`);
+                // Try BSB (Berean Standard Bible) as fallback - freely licensed
+                const fallbackId = ENGLISH_BIBLE_IDS['BSB'];
+                if (fallbackId && fallbackId !== primaryBibleId) {
+                    try {
+                        data = await tryFetchPassage(fallbackId, passageId);
+                        usedFallback = true;
+                    } catch (fallbackError) {
+                        // Both failed, throw original error
+                        throw primaryError;
                     }
-                } catch (e) {
-                    // Ignore JSON parse errors
+                } else {
+                    throw primaryError;
                 }
-                throw new Error(errorMessage);
             }
 
-            const data = await response.json();
-
-            if (data.data) {
+            if (data && data.data) {
                 let text = data.data.content || '';
                 // Clean up whitespace
                 text = text.replace(/\s+/g, ' ').trim();
@@ -1099,11 +1133,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 textDiv.innerHTML = text;
 
+                // Add fallback notice if used
+                if (usedFallback) {
+                    textDiv.innerHTML = `<div class="scripture-fallback-notice">Shown in Berean Standard Bible (your preferred translation was unavailable)</div>` + textDiv.innerHTML;
+                }
+
                 // Add copyright if available
                 if (data.data.copyright) {
                     textDiv.innerHTML += `<div class="scripture-copyright">${data.data.copyright}</div>`;
                 }
-            } else if (data.error) {
+            } else if (data && data.error) {
                 throw new Error(data.error);
             } else {
                 throw new Error('No scripture data returned');

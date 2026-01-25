@@ -332,6 +332,15 @@
     font-style: italic;
 }
 
+.fallback-notice {
+    font-size: var(--font-size-sm);
+    color: var(--color-warning);
+    background: color-mix(in srgb, var(--color-warning) 10%, transparent);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    margin-bottom: var(--space-3);
+}
+
 .lookup-loading {
     display: flex;
     flex-direction: column;
@@ -597,12 +606,16 @@ const API_PROXY_BASE = '/faith/api/bible';
 const DEFAULT_TRANSLATION = '{{ default_translation }}';
 const LOOKUP_REFERENCE = '{{ lookup_reference|escapejs }}';
 
+// Fallback Bible ID (BSB - Berean Standard Bible, freely licensed)
+const FALLBACK_BIBLE_ID = 'bba9f40183526463-01';
+
 let currentBibleId = '';
 let currentBookId = '';
 let currentChapterId = '';
 let currentVerseData = null;
 let booksData = [];
 let apiConfigured = false;
+let usedFallback = false;
 
 // Get CSRF token for POST requests (if needed in future)
 function getCsrfToken() {
@@ -788,41 +801,56 @@ async function lookupScripture() {
     }
 
     currentChapterId = chapterId;
+    usedFallback = false;
 
     // Show loading
     document.getElementById('lookup-results').style.display = 'none';
     hideError();
     showLoading('Loading Scripture...');
 
-    try {
-        let endpoint;
-        // YouVersion API parameters
-        const queryParams = 'format=text';
-
-        if (verseStart) {
-            // Specific verse(s) - USFM format like "GEN.1.1" or "GEN.1.1-5"
-            const bookChapter = chapterId; // e.g., "GEN.1"
-            let passageId;
-            if (verseEnd && verseEnd !== verseStart) {
-                passageId = `${bookChapter}.${verseStart}-${verseEnd}`;
-            } else {
-                passageId = `${bookChapter}.${verseStart}`;
-            }
-            endpoint = `${API_PROXY_BASE}/bibles/${currentBibleId}/passages/${passageId}/?${queryParams}`;
+    // Build passage ID
+    const queryParams = 'format=text';
+    let passageId;
+    if (verseStart) {
+        const bookChapter = chapterId;
+        if (verseEnd && verseEnd !== verseStart) {
+            passageId = `${bookChapter}.${verseStart}-${verseEnd}`;
         } else {
-            // Whole chapter - use passages endpoint with chapter ID
-            endpoint = `${API_PROXY_BASE}/bibles/${currentBibleId}/passages/${chapterId}/?${queryParams}`;
+            passageId = `${bookChapter}.${verseStart}`;
         }
+    } else {
+        passageId = chapterId;
+    }
 
+    // Try primary translation first, fallback to BSB if it fails
+    async function tryFetch(bibleId) {
+        const endpoint = `${API_PROXY_BASE}/bibles/${bibleId}/passages/${passageId}/?${queryParams}`;
         console.log('Fetching via proxy:', endpoint);
-
         const response = await fetch(endpoint);
-
         if (!response.ok) {
             throw new Error(`API returned ${response.status}`);
         }
+        return await response.json();
+    }
 
-        const data = await response.json();
+    try {
+        let data;
+        try {
+            data = await tryFetch(currentBibleId);
+        } catch (primaryError) {
+            // Try fallback if primary fails and it's a different Bible
+            if (FALLBACK_BIBLE_ID && FALLBACK_BIBLE_ID !== currentBibleId) {
+                console.warn(`Primary translation failed: ${primaryError.message}, trying BSB fallback`);
+                try {
+                    data = await tryFetch(FALLBACK_BIBLE_ID);
+                    usedFallback = true;
+                } catch (fallbackError) {
+                    throw primaryError; // Throw original error if fallback also fails
+                }
+            } else {
+                throw primaryError;
+            }
+        }
 
         if (data.data) {
             displayResults(data.data);
@@ -840,25 +868,32 @@ async function lookupScripture() {
 function displayResults(data) {
     hideLoading();
     document.getElementById('lookup-results').style.display = 'block';
-    
+
     const reference = data.reference || data.id;
     document.getElementById('results-reference').textContent = reference;
-    
+
     // Format the text with verse numbers
     let text = data.content || '';
     // Clean up whitespace
     text = text.replace(/\s+/g, ' ').trim();
     // Style verse numbers
     text = text.replace(/\[(\d+)\]/g, '<span class="verse-num">$1</span>');
-    
-    document.getElementById('results-text').innerHTML = text;
+
+    // Add fallback notice if needed
+    let resultsHtml = '';
+    if (usedFallback) {
+        resultsHtml = '<div class="fallback-notice">Shown in Berean Standard Bible (your selected translation was unavailable for this passage)</div>';
+    }
+    resultsHtml += text;
+
+    document.getElementById('results-text').innerHTML = resultsHtml;
     document.getElementById('results-copyright').textContent = data.copyright || '';
-    
+
     // Store for saving
     const bookName = document.getElementById('bible-book').options[document.getElementById('bible-book').selectedIndex].text;
     const chapterNum = document.getElementById('bible-chapter').options[document.getElementById('bible-chapter').selectedIndex].text.replace('Chapter ', '');
-    const translation = document.getElementById('bible-version').options[document.getElementById('bible-version').selectedIndex].text;
-    
+    const translation = usedFallback ? 'Berean Standard Bible' : document.getElementById('bible-version').options[document.getElementById('bible-version').selectedIndex].text;
+
     currentVerseData = {
         reference: reference,
         text: text.replace(/<[^>]*>/g, ''), // Strip HTML for saving

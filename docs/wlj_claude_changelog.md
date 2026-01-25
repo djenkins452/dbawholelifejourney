@@ -16,6 +16,24 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-25 Changes
 
+### Fix: /more/ Page 500 Error - Module Route Names
+
+**Summary:** The `/more/` page was returning 500 errors due to `NoReverseMatch: Reverse for 'home' not found`. This was caused by `ModuleDefinition` records having incorrect `route_name` values (just `'home'` instead of properly namespaced `'journal:home'`, `'health:home'`, etc.).
+
+**Root Cause:**
+- Module definitions in production database had un-namespaced route names
+- The `module_definitions.json` fixture was also causing UNIQUE constraint errors because migration 0051 already populated the data
+
+**Fix:**
+- Added migration 0052 to force-update all module route_names to the correct namespaced values
+- Removed `module_definitions` from fixture loaders since migration handles this data
+
+**Files Modified:**
+- `apps/users/migrations/0052_fix_module_route_names.py` - New migration to fix route_name values
+- `apps/core/management/commands/load_initial_data.py` - Removed module_definitions from FIXTURE_LOADERS
+
+---
+
 ### Enhancement: Site Name Next to Logo in Header
 
 **Summary:** Added the site name text next to the logo in the top header bar.

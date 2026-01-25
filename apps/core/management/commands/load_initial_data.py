@@ -116,11 +116,8 @@ FIXTURE_LOADERS = [
         'display': 'Email Notification Templates',
         'description': 'Admin-editable templates for notification emails',
     },
-    {
-        'name': 'module_definitions',
-        'display': 'Module Definitions',
-        'description': 'System modules for mobile navigation (Journal, Health, Faith, etc.)',
-    },
+    # NOTE: module_definitions removed - now handled by migration 0052_fix_module_route_names
+    # Loading via fixture causes UNIQUE constraint errors since migration already creates the data
 ]
 
 COMMAND_LOADERS = [

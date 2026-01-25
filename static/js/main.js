@@ -39,15 +39,15 @@ function toggleDesktopRail() {
 
     var isCollapsed = rail.classList.toggle('collapsed');
 
-    // Update tooltip on toggle button
-    var toggleBtn = rail.querySelector('.rail-collapse-toggle');
-    if (toggleBtn) {
+    // Update tooltip and label on ALL toggle buttons (top and bottom)
+    var toggleBtns = rail.querySelectorAll('.rail-collapse-toggle');
+    toggleBtns.forEach(function(toggleBtn) {
         toggleBtn.setAttribute('data-tooltip', isCollapsed ? 'Expand' : 'Collapse');
         var label = toggleBtn.querySelector('.rail-label');
         if (label) {
             label.textContent = isCollapsed ? 'Expand' : 'Collapse';
         }
-    }
+    });
 
     // Persist preference via AJAX
     fetch('/users/preferences/toggle/', {

@@ -274,9 +274,13 @@
         transition: all var(--transition-fast);
         white-space: nowrap;
         overflow: hidden;
-        margin-top: auto;
         width: 100%;
         text-align: left;
+    }
+
+    /* Bottom toggle pushes to bottom */
+    .rail-collapse-bottom {
+        margin-top: auto;
     }
 
     .rail-collapse-toggle:hover {

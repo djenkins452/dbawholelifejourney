@@ -20,7 +20,7 @@
             <h2 class="more-section-title">All Modules</h2>
             <div class="tile-grid tile-grid-searchable" id="all-modules-grid">
                 {% for module in desktop_rail_modules %}
-                <a href="{% url module.route_name %}" class="tile" data-module-name="{{ module.name|lower }}" data-module="{{ module.slug }}">
+                <a href="{{ module.url }}" class="tile" data-module-name="{{ module.name|lower }}" data-module="{{ module.slug }}">
                     <div class="tile-icon">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             {{ module.icon_svg|safe }}
@@ -38,7 +38,7 @@
             <h2 class="more-section-title">Modules</h2>
             <div class="tile-grid">
                 {% for module in overflow_modules %}
-                <a href="{% url module.route_name %}" class="tile" data-module="{{ module.slug }}">
+                <a href="{{ module.url }}" class="tile" data-module="{{ module.slug }}">
                     <div class="tile-icon">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             {{ module.icon_svg|safe }}

@@ -321,7 +321,8 @@
       "Bash(source .env)",
       "Bash(git rev-list:*)",
       "Bash(git log:*)",
-      "Bash(git ls-tree:*)"
+      "Bash(git ls-tree:*)",
+      "Bash(/usr/bin/python3 manage.py:*)"
     ]
   }
 }

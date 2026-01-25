@@ -270,15 +270,42 @@ def navigation_modules_context(request):
         ).select_related('module').order_by('sort_order', 'module__default_order')
 
         # Build list of all modules with their state
+        from django.urls import reverse, NoReverseMatch
+
+        # Mapping of slug -> correct route name (fallback if DB has bad data)
+        CORRECT_ROUTES = {
+            'journal': 'journal:home',
+            'health': 'health:home',
+            'faith': 'faith:home',
+            'life': 'life:home',
+            'purpose': 'purpose:home',
+            'finance': 'finance:dashboard',
+            'capture': 'capture:list',
+        }
+
         all_modules = []
         for pref in all_prefs:
+            # Get route_name from DB, but fall back to known correct routes
+            route_name = pref.module.route_name
+            if route_name and ':' not in route_name:
+                # Route name is missing namespace - use fallback
+                route_name = CORRECT_ROUTES.get(pref.module.slug, route_name)
+
+            # Pre-resolve URL to catch any errors here instead of in template
+            try:
+                url = reverse(route_name) if route_name else '#'
+            except NoReverseMatch:
+                # Last resort fallback
+                url = f'/{pref.module.slug}/'
+
             all_modules.append({
                 'id': pref.id,
                 'slug': pref.module.slug,
                 'name': pref.module.name,
                 'description': pref.module.description,
                 'icon_svg': pref.module.icon_svg,
-                'route_name': pref.module.route_name,
+                'route_name': route_name,
+                'url': url,  # Pre-resolved URL
                 'is_enabled': pref.is_enabled,
                 'sort_order': pref.sort_order,
             })

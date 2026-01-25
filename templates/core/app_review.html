@@ -31,33 +31,48 @@
                 <div class="feature-card">
                     <span class="feature-icon">&#x2764;</span>
                     <h3>Health Tracking</h3>
+                    <span class="module-badge">Optional Module</span>
                     <p>Weight, heart rate, blood pressure, sleep, nutrition, medications, blood glucose, and more</p>
                 </div>
                 <div class="feature-card">
                     <span class="feature-icon">&#x1F4DD;</span>
                     <h3>Journaling</h3>
+                    <span class="module-badge">Optional Module</span>
                     <p>Daily journal entries with mood tracking and emotion tags</p>
                 </div>
                 <div class="feature-card">
                     <span class="feature-icon">&#x1F3AF;</span>
                     <h3>Goals & Habits</h3>
+                    <span class="module-badge">Optional Module</span>
                     <p>Set goals, track habits, and monitor progress</p>
                 </div>
                 <div class="feature-card">
                     <span class="feature-icon">&#x1F4C5;</span>
                     <h3>Life Organization</h3>
+                    <span class="module-badge">Optional Module</span>
                     <p>Tasks, calendar, recipes, documents, and more</p>
                 </div>
                 <div class="feature-card">
                     <span class="feature-icon">&#x271D;</span>
-                    <h3>Faith (Optional)</h3>
+                    <h3>Faith</h3>
+                    <span class="module-badge">Optional Module</span>
                     <p>Prayer tracking, Bible reading plans, scripture study</p>
                 </div>
                 <div class="feature-card">
-                    <span class="feature-icon">&#x1F4B0;</span>
-                    <h3>Finance (Optional)</h3>
-                    <p>Budget tracking, transactions, savings goals</p>
+                    <span class="feature-icon">&#x1F916;</span>
+                    <h3>AI Assistant</h3>
+                    <span class="module-badge">Optional Module</span>
+                    <p>Personalized coaching, insights, and guidance</p>
                 </div>
+            </div>
+
+            <div class="info-box info-box-note">
+                <h4>Modular Design</h4>
+                <p>
+                    All modules are <strong>optional</strong> and can be enabled or disabled individually in
+                    <strong>Settings &gt; Preferences &gt; Active Modules</strong>. Users can customize the app
+                    to include only the features they need.
+                </p>
             </div>
 
             <div class="info-box">
@@ -301,13 +316,6 @@
         </section>
     </main>
 
-    <footer class="review-footer">
-        <p>&copy; 2026 Beacon Innovations LLC. All rights reserved.</p>
-        <p>
-            <a href="/privacy/">Privacy Policy</a> |
-            <a href="/terms/">Terms of Service</a>
-        </p>
-    </footer>
 </div>
 
 <style nonce="{{ csp_nonce }}">
@@ -416,7 +424,18 @@
 
 .feature-card h3 {
     font-size: 1rem;
-    margin: 0 0 0.5rem;
+    margin: 0 0 0.25rem;
+}
+
+.module-badge {
+    display: inline-block;
+    background: #dbeafe;
+    color: #1e40af;
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.15rem 0.5rem;
+    border-radius: 10px;
+    margin-bottom: 0.5rem;
 }
 
 .feature-card p {
@@ -591,20 +610,6 @@
 /* Contact */
 .contact-email {
     font-size: 1.1rem;
-}
-
-/* Footer */
-.review-footer {
-    text-align: center;
-    padding: 2rem 0;
-    margin-top: 2rem;
-    border-top: 1px solid #e5e7eb;
-    color: #6b7280;
-    font-size: 0.9rem;
-}
-
-.review-footer a {
-    color: #065f46;
 }
 
 /* Mobile Responsive */

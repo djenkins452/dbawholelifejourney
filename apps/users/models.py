@@ -109,6 +109,12 @@ class User(AbstractBaseUser, PermissionsMixin):
         help_text="Date of birth for age verification (must be 13+ to use service)",
     )
     
+    # App review account flag (bypasses MFA and security checks for Apple reviewers)
+    is_app_review_account = models.BooleanField(
+        default=False,
+        help_text="App review demo account - bypasses MFA and security checks.",
+    )
+
     is_staff = models.BooleanField(
         default=False,
         help_text="Designates whether the user can log into the admin site.",

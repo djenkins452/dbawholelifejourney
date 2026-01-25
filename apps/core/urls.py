@@ -40,6 +40,9 @@ urlpatterns = [
     # More (mobile nav overflow)
     path("more/", views.MoreView.as_view(), name="more"),
 
+    # Favorites hub (mobile top icon)
+    path("favorites/", views.FavoritesHubView.as_view(), name="favorites_hub"),
+
     # What's New / Release Notes
     path("whats-new/", views.WhatsNewListView.as_view(), name="whats_new_list"),
     path("api/whats-new/check/", views.WhatsNewCheckView.as_view(), name="whats_new_check"),

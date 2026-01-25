@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Favorites | {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="favorites-hub">
+    <div class="container">
+        <header class="favorites-header">
+            <h1>Favorites</h1>
+            <p class="text-muted">Your starred pages for quick access</p>
+        </header>
+
+        {% if favorites %}
+        <div class="tile-grid">
+            {% for fav in favorites %}
+            <a href="{{ fav.url }}" class="tile">
+                <div class="tile-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" fill="currentColor"/>
+                    </svg>
+                </div>
+                <span class="tile-label">{{ fav.title }}</span>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="64" height="64">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                </svg>
+            </div>
+            <h3>No favorites yet</h3>
+            <p class="text-muted">
+                Tap the star icon on any page to add it to your favorites for quick access.
+            </p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+.favorites-hub {
+    padding: var(--space-4);
+    min-height: 100%;
+}
+
+.favorites-header {
+    margin-bottom: var(--space-6);
+}
+
+.favorites-header h1 {
+    font-size: var(--font-size-2xl);
+    font-weight: 600;
+    color: var(--color-text);
+    margin-bottom: var(--space-1);
+}
+
+.tile-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-3);
+}
+
+@media (min-width: 480px) {
+    .tile-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (min-width: 769px) {
+    .tile-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+.tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    text-decoration: none;
+    color: var(--color-text);
+    transition: all var(--transition-fast);
+    min-height: 100px;
+}
+
+.tile:hover {
+    background: var(--color-background);
+    border-color: var(--color-accent);
+    text-decoration: none;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.tile-icon {
+    width: 32px;
+    height: 32px;
+    color: var(--color-warning);
+}
+
+.tile-icon svg {
+    width: 100%;
+    height: 100%;
+}
+
+.tile-label {
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    text-align: center;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.empty-state {
+    text-align: center;
+    padding: var(--space-8) var(--space-4);
+}
+
+.empty-icon {
+    color: var(--color-text-muted);
+    opacity: 0.3;
+    margin-bottom: var(--space-4);
+}
+
+.empty-state h3 {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--color-text);
+    margin-bottom: var(--space-2);
+}
+
+.empty-state p {
+    max-width: 300px;
+    margin: 0 auto;
+}
+</style>
+{% endblock %}

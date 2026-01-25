@@ -288,6 +288,28 @@ class MoreView(LoginRequiredMixin, TemplateView):
     template_name = "core/more.html"
 
 
+class FavoritesHubView(LoginRequiredMixin, TemplateView):
+    """
+    Favorites hub - shows user's favorited pages as a tile grid.
+    """
+
+    template_name = "core/favorites_hub.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        from apps.core.models import FavoritePage
+
+        # Get all user favorites
+        favorites = FavoritePage.get_favorites_for_user(
+            self.request.user,
+            limit=FavoritePage.MAX_FAVORITES
+        )
+
+        context['favorites'] = favorites
+        return context
+
+
 # =============================================================================
 # CUSTOM ERROR HANDLERS
 # =============================================================================

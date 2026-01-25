@@ -2,9 +2,10 @@
 <!-- Desktop Top Bar (logo + utility icons) - visible only on desktop -->
 <header class="desktop-top-bar">
     <div class="desktop-top-bar-inner">
-        <!-- Logo -->
+        <!-- Logo + Site Name -->
         <a href="{% url 'dashboard:home' %}" class="desktop-logo">
             <img src="{% if site_logo_url %}{{ site_logo_url }}{% else %}{% static 'images/wlj-logo.png' %}{% endif %}" alt="{{ site_name }}" class="desktop-logo-img">
+            <span class="desktop-logo-text">Whole Life Journey</span>
         </a>
 
         <!-- Spacer -->

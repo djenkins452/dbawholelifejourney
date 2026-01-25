@@ -319,6 +319,11 @@ a:hover {
     flex-shrink: 0;
 }
 
+.nav-logo-img {
+    height: 32px;
+    width: auto;
+}
+
 .nav-logo-icon {
     width: 32px;
     height: 32px;
@@ -326,7 +331,12 @@ a:hover {
 
 .nav-logo-text {
     font-weight: 600;
-    font-size: var(--font-size-lg);
+    font-size: var(--font-size-base);
+    color: var(--color-text);
+}
+
+.nav-logo:hover .nav-logo-text {
+    color: var(--color-accent);
 }
 
 .nav-menu {

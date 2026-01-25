@@ -93,12 +93,27 @@
     }
 
     .desktop-logo {
+        display: flex;
+        align-items: center;
+        gap: var(--space-3);
+        text-decoration: none;
         flex-shrink: 0;
     }
 
     .desktop-logo-img {
         height: 36px;
         width: auto;
+    }
+
+    .desktop-logo-text {
+        font-size: var(--font-size-lg);
+        font-weight: 600;
+        color: var(--color-text);
+        letter-spacing: -0.01em;
+    }
+
+    .desktop-logo:hover .desktop-logo-text {
+        color: var(--color-accent);
     }
 
     .desktop-top-bar-spacer {

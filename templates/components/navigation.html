@@ -2,9 +2,10 @@
 
 <header class="site-header">
     <nav class="nav-container" aria-label="Main navigation">
-        <!-- Logo -->
+        <!-- Logo + Site Name -->
         <a href="{% url 'dashboard:home' %}" class="nav-logo">
             <img src="{% if site_logo_url %}{{ site_logo_url }}{% else %}{% static 'images/wlj-logo.png' %}{% endif %}" alt="{{ site_name }}" class="nav-logo-img">
+            <span class="nav-logo-text">WLJ</span>
         </a>
 
         <!-- Mobile top-right utility icons (Phase 1) -->

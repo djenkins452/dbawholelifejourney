@@ -16,6 +16,23 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-25 Changes
 
+### Enhancement: Site Name Next to Logo in Header
+
+**Summary:** Added the site name text next to the logo in the top header bar.
+
+**Changes:**
+- Desktop: Shows "Whole Life Journey" next to the logo
+- Mobile: Shows "WLJ" (abbreviated for space)
+- Text changes to accent color on hover
+
+**Files Modified:**
+- `templates/components/desktop_top_bar.html` - Added `desktop-logo-text` span
+- `templates/components/navigation.html` - Added `nav-logo-text` span
+- `static/css/desktop-nav.css` - Desktop logo text styling
+- `static/css/main.css` - Mobile logo text styling
+
+---
+
 ### Feature: Favorites Dropdown Menu
 
 **Summary:** Changed the favorites utility icon from navigating to a page to showing a dropdown menu with quick-access tiles. Clicking the star icon now cascades a dropdown with icon+label tiles for each favorited page.

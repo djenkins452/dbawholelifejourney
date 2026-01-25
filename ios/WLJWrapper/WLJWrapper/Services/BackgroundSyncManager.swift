@@ -21,6 +21,10 @@ class BackgroundSyncManager {
     // Notification posted when any sync completes (background or foreground)
     static let syncCompletedNotification = Notification.Name("HealthSyncCompleted")
 
+    // Throttle scheduling to prevent runaway loops
+    private var lastScheduleTime: Date?
+    private let scheduleThrottleInterval: TimeInterval = 60  // 1 minute minimum between schedules
+
     private init() {}
 
     // MARK: - Setup
@@ -127,8 +131,15 @@ class BackgroundSyncManager {
 
     // MARK: - Background Task Scheduling
 
-    /// Schedule a background sync task
+    /// Schedule a background sync task (throttled to prevent runaway loops)
     func scheduleBackgroundSync() {
+        // Throttle: only schedule if enough time has passed since last schedule
+        if let lastTime = lastScheduleTime,
+           Date().timeIntervalSince(lastTime) < scheduleThrottleInterval {
+            // Already scheduled recently, skip
+            return
+        }
+
         let request = BGProcessingTaskRequest(identifier: Self.healthSyncTaskId)
         request.requiresNetworkConnectivity = true
         request.requiresExternalPower = false
@@ -138,6 +149,7 @@ class BackgroundSyncManager {
 
         do {
             try BGTaskScheduler.shared.submit(request)
+            lastScheduleTime = Date()
             print("Background sync task scheduled")
         } catch {
             print("Failed to schedule background sync: \(error)")

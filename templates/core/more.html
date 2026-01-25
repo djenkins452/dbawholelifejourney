@@ -19,8 +19,7 @@
         <section class="more-section more-section-desktop-library">
             <h2 class="more-section-title">All Modules</h2>
             <div class="tile-grid tile-grid-searchable" id="all-modules-grid">
-                {% for module in all_user_modules %}
-                {% if module.is_enabled %}
+                {% for module in desktop_rail_modules %}
                 <a href="{% url module.route_name %}" class="tile" data-module-name="{{ module.name|lower }}">
                     <div class="tile-icon">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -29,7 +28,6 @@
                     </div>
                     <span class="tile-label">{{ module.name }}</span>
                 </a>
-                {% endif %}
                 {% endfor %}
             </div>
         </section>

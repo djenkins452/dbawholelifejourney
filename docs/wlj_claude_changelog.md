@@ -16,6 +16,7 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-25 Changes
 
+<<<<<<< HEAD
 ### Feature: Hide Navigation on Scroll Option
 
 **Summary:** Added user preference to hide mobile navigation bars (bottom tab bar and top header) when scrolling down, and show them again when scrolling up.
@@ -84,6 +85,18 @@ For active development context, see `CLAUDE.md` (project root).
 - `templates/components/navigation.html` - Include top_utility_icons.html
 - `templates/components/chat_widget.html` - Repositioned chat button above bottom bar
 - `static/css/main.css` - Bottom tab bar and utility icon styles, hide old hamburger menu
+
+---
+
+### Fix: Task List Help Showing Generic Admin Console Help
+
+**Issue:** The Task List page in Admin Console was showing generic "Admin Console Overview" help instead of Task List-specific help. The `ADMIN_CONSOLE_TASKS` help topic only existed in `AdminHelpTopic` model, but the help system queries the `HelpTopic` model.
+
+**Fix:** Added one-time data loader `_add_task_list_help_topic` that creates the `ADMIN_CONSOLE_TASKS` entry in the `HelpTopic` model. Also added the entry to `help_topics.json` fixture for future deployments.
+
+**Files Modified:**
+- `apps/core/management/commands/load_initial_data.py` - Added `_add_task_list_help_topic()` method
+- `apps/help/fixtures/help_topics.json` - Added ADMIN_CONSOLE_TASKS help topic (pk 24)
 
 ---
 

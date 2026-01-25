@@ -209,6 +209,22 @@
   },
   {
     "model": "help.helptopic",
+    "pk": 24,
+    "fields": {
+      "context_id": "ADMIN_CONSOLE_TASKS",
+      "help_id": "admin-console-tasks",
+      "title": "Task List",
+      "description": "View and manage all project tasks.",
+      "content": "## Task List\n\nThis page shows all tasks across all projects with filtering options.\n\n### Filtering Tasks\n\nUse the filter controls to narrow the list:\n- **Phase** - Filter by phase number\n- **Status** - Filter by task status (backlog, ready, in_progress, done, blocked)\n- **Project** - Filter by project\n\n### Task Status Workflow\n\n1. **Backlog** - Task created, not ready for work\n2. **Ready** - Task marked ready, available for Claude\n3. **In Progress** - Claude is actively working on it\n4. **Done** - Task completed successfully\n5. **Blocked** - Task waiting on dependency or issue\n\n### Mark Ready\n\nFor backlog tasks, use the **\"Mark Ready\"** button to make them available for Claude to execute.\n\n### Inline Editing\n\nSome fields can be edited inline:\n- Status can be changed via dropdown\n- Priority can be adjusted\n\n### Sorting\n\nTasks are sorted by priority (ascending) then creation date.",
+      "app_name": "admin_console",
+      "order": 5,
+      "is_active": true,
+      "created_at": "2026-01-25T00:00:00Z",
+      "updated_at": "2026-01-25T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
     "pk": 14,
     "fields": {
       "context_id": "NUTRITION_HOME",

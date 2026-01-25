@@ -86,4 +86,8 @@ urlpatterns = [
     path("mfa/email/verify/", views.MFAEmailCodeVerifyView.as_view(), name="mfa_email_verify"),
     path("mfa/email/login-send/", views.MFAEmailCodeLoginSendView.as_view(), name="mfa_email_login_send"),
     path("mfa/email/login-verify/", views.MFAEmailCodeLoginVerifyView.as_view(), name="mfa_email_login_verify"),
+
+    # Account deletion (GDPR/App Store compliance)
+    path("delete-account/", views.DeleteAccountView.as_view(), name="delete_account"),
+    path("export-data/", views.ExportAccountDataView.as_view(), name="export_data"),
 ]

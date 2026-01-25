@@ -16,6 +16,39 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-25 Changes
 
+### Feature: Account Deletion (GDPR/App Store Compliance)
+
+**Summary:** Added self-service account deletion feature allowing users to permanently delete their account and all associated data. This complies with GDPR Article 17 (right to erasure), Apple App Store requirements, and CCPA.
+
+**User Flow:**
+1. Profile page → "Delete Account" button
+2. Information screen showing what will be deleted + data export option
+3. Confirmation screen requiring password + "I understand" checkbox
+4. Account deleted, all data cascade deleted, user logged out
+
+**Features:**
+- Password confirmation required for identity verification
+- Optional data export (JSON download of all user data)
+- Summary of data counts before deletion
+- Optional reason selection
+- Audit trail for compliance (email hash, IP hash, deletion counts)
+- Automatic cleanup of uploaded files (avatar, documents, recordings)
+
+**Files Created:**
+- `apps/users/migrations/0053_account_deletion_audit.py` - AccountDeletionAudit model
+- `templates/users/delete_account.html` - Two-step deletion UI
+- `docs/account_deletion.md` - Complete documentation for compliance
+
+**Files Modified:**
+- `apps/users/models.py` - Added `AccountDeletionAudit` model
+- `apps/users/views.py` - Added `DeleteAccountView` and `ExportAccountDataView`
+- `apps/users/urls.py` - Added `/user/delete-account/` and `/user/export-data/` routes
+- `templates/users/profile.html` - Added "Delete Account" button to profile actions
+
+**Compliance Documentation:** See `docs/account_deletion.md` for complete list of data deleted, audit trail details, and compliance response templates.
+
+---
+
 ### Performance: Cache Navigation and Favorites Context Processors
 
 **Summary:** Added caching to context processors to reduce database queries per page load. Before this change, every page load was making 5+ database queries just for navigation and favorites data that rarely changes.

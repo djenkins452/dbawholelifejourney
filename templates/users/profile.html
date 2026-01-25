@@ -51,6 +51,7 @@
         <div class="profile-actions">
             <a href="{% url 'users:profile_edit' %}" class="btn btn-primary">Edit Profile</a>
             <a href="{% url 'users:preferences' %}" class="btn btn-secondary">Preferences</a>
+            <a href="{% url 'users:delete_account' %}" class="btn btn-ghost btn-danger-ghost">Delete Account</a>
         </div>
     </div>
     
@@ -174,6 +175,19 @@
 .profile-actions {
     display: flex;
     gap: var(--space-3);
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.btn-danger-ghost {
+    color: var(--color-text-muted);
+    border: 1px solid transparent;
+}
+
+.btn-danger-ghost:hover {
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.2);
 }
 
 .stats-grid {

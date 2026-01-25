@@ -1953,3 +1953,237 @@ class SignupAttempt(models.Model):
 
     def __str__(self):
         return f"SignupAttempt {self.id} - {self.status}"
+
+
+class AccountDeletionAudit(models.Model):
+    """
+    Audit trail for account deletions.
+
+    This model stores a permanent record of when accounts are deleted,
+    what data was removed, and why. This is required for:
+    - GDPR compliance (proving erasure was performed)
+    - Apple App Store requirements (account deletion)
+    - Legal/audit purposes
+
+    Note: This record does NOT contain any user PII after deletion.
+    The user's email is hashed for fraud detection, not identification.
+    """
+
+    # Hashed email for fraud detection (can detect if same person re-registers)
+    email_hash = models.CharField(
+        max_length=64,
+        db_index=True,
+        help_text="SHA-256 hash of the deleted user's email (for fraud detection)",
+    )
+
+    # Basic metadata about the deleted account (non-PII)
+    user_id_was = models.PositiveIntegerField(
+        help_text="The original user ID (for reference, user no longer exists)",
+    )
+    account_created_at = models.DateTimeField(
+        help_text="When the account was originally created",
+    )
+    account_deleted_at = models.DateTimeField(
+        default=timezone.now,
+        help_text="When the account was deleted",
+    )
+
+    # How the deletion was initiated
+    DELETION_METHOD_CHOICES = [
+        ("user_self_service", "User Self-Service"),
+        ("admin_request", "Admin Request"),
+        ("gdpr_request", "GDPR Right to Erasure"),
+        ("legal_request", "Legal/Court Order"),
+        ("fraud_account", "Fraud Account Removal"),
+        ("inactive_cleanup", "Inactive Account Cleanup"),
+    ]
+    deletion_method = models.CharField(
+        max_length=32,
+        choices=DELETION_METHOD_CHOICES,
+        default="user_self_service",
+    )
+
+    # IP address of requester (hashed for privacy but fraud detection)
+    ip_hash = models.CharField(
+        max_length=64,
+        blank=True,
+        help_text="SHA-256 hash of IP address that initiated deletion",
+    )
+
+    # Summary of what was deleted (no PII, just counts)
+    deletion_summary = models.JSONField(
+        default=dict,
+        help_text="Summary of data deleted: {'journal_entries': 50, 'health_entries': 100, ...}",
+    )
+
+    # User's stated reason (optional, free text sanitized of PII)
+    reason = models.TextField(
+        blank=True,
+        help_text="User's stated reason for deletion (optional, sanitized of PII)",
+    )
+
+    # Did user download their data first?
+    data_exported = models.BooleanField(
+        default=False,
+        help_text="Whether user downloaded their data before deletion",
+    )
+
+    # For audit trail
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "users_account_deletion_audit"
+        ordering = ["-account_deleted_at"]
+        verbose_name = "Account Deletion Audit"
+        verbose_name_plural = "Account Deletion Audits"
+
+    def __str__(self):
+        return f"Account Deletion #{self.id} - User {self.user_id_was} deleted {self.account_deleted_at.strftime('%Y-%m-%d')}"
+
+    @classmethod
+    def create_audit_record(cls, user, deletion_method, ip_address, reason="", data_exported=False):
+        """
+        Create an audit record before deleting the user.
+
+        Args:
+            user: The User object being deleted
+            deletion_method: One of DELETION_METHOD_CHOICES
+            ip_address: IP address of the requester
+            reason: User's stated reason (will be sanitized)
+            data_exported: Whether user downloaded their data
+
+        Returns:
+            AccountDeletionAudit instance
+        """
+        import hashlib
+
+        # Hash email and IP for privacy
+        email_hash = hashlib.sha256(user.email.lower().encode()).hexdigest()
+        ip_hash = hashlib.sha256(ip_address.encode()).hexdigest() if ip_address else ""
+
+        # Count user's data (before deletion)
+        deletion_summary = cls._count_user_data(user)
+
+        return cls.objects.create(
+            email_hash=email_hash,
+            user_id_was=user.id,
+            account_created_at=user.date_joined,
+            deletion_method=deletion_method,
+            ip_hash=ip_hash,
+            deletion_summary=deletion_summary,
+            reason=cls._sanitize_reason(reason),
+            data_exported=data_exported,
+        )
+
+    @staticmethod
+    def _count_user_data(user):
+        """
+        Count all user data that will be deleted.
+        Returns dict of model name -> count.
+        """
+        counts = {}
+
+        # Journal
+        try:
+            from apps.journal.models import JournalEntry
+            counts['journal_entries'] = JournalEntry.all_objects.filter(user=user).count()
+        except Exception:
+            pass
+
+        # Health
+        try:
+            from apps.health.models import (
+                WeightEntry, StepsEntry, WaterEntry, SleepEntry,
+                FastingWindow, Medicine, MedicineLog, WorkoutSession,
+                GlucoseEntry, BloodPressureEntry, FoodEntry
+            )
+            counts['weight_entries'] = WeightEntry.all_objects.filter(user=user).count()
+            counts['steps_entries'] = StepsEntry.all_objects.filter(user=user).count()
+            counts['water_entries'] = WaterEntry.all_objects.filter(user=user).count()
+            counts['sleep_entries'] = SleepEntry.all_objects.filter(user=user).count()
+            counts['fasting_windows'] = FastingWindow.all_objects.filter(user=user).count()
+            counts['medicines'] = Medicine.all_objects.filter(user=user).count()
+            counts['medicine_logs'] = MedicineLog.all_objects.filter(user=user).count()
+            counts['workout_sessions'] = WorkoutSession.all_objects.filter(user=user).count()
+            counts['glucose_entries'] = GlucoseEntry.all_objects.filter(user=user).count()
+            counts['blood_pressure_entries'] = BloodPressureEntry.all_objects.filter(user=user).count()
+            counts['food_entries'] = FoodEntry.all_objects.filter(user=user).count()
+        except Exception:
+            pass
+
+        # Faith
+        try:
+            from apps.faith.models import PrayerRequest, SavedVerse, BibleStudyNote
+            counts['prayer_requests'] = PrayerRequest.all_objects.filter(user=user).count()
+            counts['saved_verses'] = SavedVerse.all_objects.filter(user=user).count()
+            counts['bible_notes'] = BibleStudyNote.all_objects.filter(user=user).count()
+        except Exception:
+            pass
+
+        # Life/Organize
+        try:
+            from apps.life.models import Task, LifeEvent, Project, Document
+            counts['tasks'] = Task.all_objects.filter(user=user).count()
+            counts['events'] = LifeEvent.all_objects.filter(user=user).count()
+            counts['projects'] = Project.all_objects.filter(user=user).count()
+            counts['documents'] = Document.all_objects.filter(user=user).count()
+        except Exception:
+            pass
+
+        # Purpose/Goals
+        try:
+            from apps.purpose.models import LifeGoal, HabitGoal, Reflection
+            counts['life_goals'] = LifeGoal.all_objects.filter(user=user).count()
+            counts['habit_goals'] = HabitGoal.all_objects.filter(user=user).count()
+            counts['reflections'] = Reflection.all_objects.filter(user=user).count()
+        except Exception:
+            pass
+
+        # AI
+        try:
+            from apps.ai.models import AssistantConversation, AssistantMessage
+            counts['ai_conversations'] = AssistantConversation.objects.filter(user=user).count()
+            counts['ai_messages'] = AssistantMessage.objects.filter(user=user).count()
+        except Exception:
+            pass
+
+        # Capture
+        try:
+            from apps.capture.models import CaptureEntry
+            counts['capture_entries'] = CaptureEntry.objects.filter(user=user).count()
+        except Exception:
+            pass
+
+        # Core
+        try:
+            from apps.core.models import FavoritePage, Notification, CameraScan
+            counts['favorites'] = FavoritePage.objects.filter(user=user).count()
+            counts['notifications'] = Notification.objects.filter(user=user).count()
+            counts['camera_scans'] = CameraScan.all_objects.filter(user=user).count()
+        except Exception:
+            pass
+
+        # Total non-zero counts
+        counts['total_records'] = sum(v for v in counts.values() if isinstance(v, int))
+
+        return counts
+
+    @staticmethod
+    def _sanitize_reason(reason):
+        """
+        Sanitize the deletion reason to remove any potential PII.
+        """
+        if not reason:
+            return ""
+
+        # Limit length
+        reason = reason[:500]
+
+        # Remove email patterns
+        import re
+        reason = re.sub(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', '[EMAIL REMOVED]', reason)
+
+        # Remove phone patterns
+        reason = re.sub(r'\b\d{3}[-.]?\d{3}[-.]?\d{4}\b', '[PHONE REMOVED]', reason)
+
+        return reason

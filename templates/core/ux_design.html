@@ -1,0 +1,872 @@
+{% extends "base.html" %}
+
+{% block title %}UX Design & Philosophy - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="review-guide">
+    <header class="review-header">
+        <h1>Whole Life Journey</h1>
+        <p class="review-subtitle">UX Design Philosophy & User Experience</p>
+    </header>
+
+    <nav class="review-nav">
+        <a href="#philosophy">Design Philosophy</a>
+        <a href="#personas">User Personas</a>
+        <a href="#onboarding">Onboarding</a>
+        <a href="#personalization">Personalization</a>
+        <a href="#navigation">Navigation</a>
+        <a href="#accessibility">Accessibility</a>
+        <a href="#coaching">AI Coaching</a>
+        <a href="/app-review/">Back to App Review</a>
+    </nav>
+
+    <main class="review-content">
+        <!-- Design Philosophy Section -->
+        <section id="philosophy" class="review-section">
+            <h2>Core Design Philosophy</h2>
+            <p>
+                Whole Life Journey is built on a foundation of <strong>calm, respectful design</strong> that prioritizes
+                user wellbeing over engagement metrics. Our guiding principles:
+            </p>
+
+            <div class="philosophy-grid">
+                <div class="philosophy-card">
+                    <span class="philosophy-icon">&#x1F343;</span>
+                    <h3>Calm Over Clever</h3>
+                    <p>Simple, peaceful design that doesn't overwhelm. No flashy animations or attention-grabbing elements.</p>
+                </div>
+                <div class="philosophy-card">
+                    <span class="philosophy-icon">&#x1F3AF;</span>
+                    <h3>Simple Over Complex</h3>
+                    <p>Easy to use, nothing overwhelming. Features reveal progressively as users become comfortable.</p>
+                </div>
+                <div class="philosophy-card">
+                    <span class="philosophy-icon">&#x1F91D;</span>
+                    <h3>Respect Over Pressure</h3>
+                    <p>No gamification, no streaks, no guilt. We don't manipulate users into engagement.</p>
+                </div>
+                <div class="philosophy-card">
+                    <span class="philosophy-icon">&#x2728;</span>
+                    <h3>Clarity Over Features</h3>
+                    <p>Focused functionality. Every feature serves a clear purpose in the user's wellness journey.</p>
+                </div>
+                <div class="philosophy-card">
+                    <span class="philosophy-icon">&#x1F331;</span>
+                    <h3>Reflection Over Performance</h3>
+                    <p>Growth, not metrics. We encourage self-awareness without judgment or competition.</p>
+                </div>
+                <div class="philosophy-card">
+                    <span class="philosophy-icon">&#x1F512;</span>
+                    <h3>Stewardship Over Control</h3>
+                    <p>Your data belongs to you. Full export, deletion rights, and transparent data practices.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- User Personas Section -->
+        <section id="personas" class="review-section">
+            <h2>User Personas & Design Considerations</h2>
+            <p>
+                We design for diverse users at different stages of their wellness journey:
+            </p>
+
+            <div class="persona-card">
+                <div class="persona-header">
+                    <span class="persona-icon">&#x1F476;</span>
+                    <h3>New User</h3>
+                </div>
+                <div class="persona-content">
+                    <p><strong>Characteristics:</strong> First-time app users, may feel overwhelmed by features, unsure where to start.</p>
+                    <p><strong>Design Accommodations:</strong></p>
+                    <ul>
+                        <li>6-step onboarding wizard with progressive disclosure</li>
+                        <li>Module selection during setup (only enable what matters)</li>
+                        <li>Empty state guidance with helpful prompts</li>
+                        <li>"Where to start" suggestions on dashboard</li>
+                        <li>Context-aware help icons (?) throughout the app</li>
+                        <li>Teaching Tool AI that provides navigation guidance</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="persona-card">
+                <div class="persona-header">
+                    <span class="persona-icon">&#x1F4AA;</span>
+                    <h3>Experienced User</h3>
+                </div>
+                <div class="persona-content">
+                    <p><strong>Characteristics:</strong> Regular users who know the app well, want efficiency and depth.</p>
+                    <p><strong>Design Accommodations:</strong></p>
+                    <ul>
+                        <li>Cascading dropdown menus for direct navigation (skip module home pages)</li>
+                        <li>Dashboard tile shortcuts for quick logging</li>
+                        <li>Keyboard shortcuts (ESC to close menus)</li>
+                        <li>Collapsible navigation on mobile (hide on scroll)</li>
+                        <li>Collapsible left rail on desktop (icons only mode)</li>
+                        <li>Favorites system for quick access to frequent pages</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="persona-card">
+                <div class="persona-header">
+                    <span class="persona-icon">&#x1F4F1;</span>
+                    <h3>Mobile-Primary User</h3>
+                </div>
+                <div class="persona-content">
+                    <p><strong>Characteristics:</strong> Primarily uses phone, logs data on-the-go, needs quick entry.</p>
+                    <p><strong>Design Accommodations:</strong></p>
+                    <ul>
+                        <li>Mobile-first responsive design (375px minimum width)</li>
+                        <li>44x44px minimum touch targets</li>
+                        <li>16px font minimum on inputs (prevents iOS auto-zoom)</li>
+                        <li>Bottom navigation for thumb-friendly access</li>
+                        <li>Native iOS app with HealthKit integration</li>
+                        <li>Swipe-friendly list views</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="persona-card">
+                <div class="persona-header">
+                    <span class="persona-icon">&#x271D;</span>
+                    <h3>Faith-Focused User</h3>
+                </div>
+                <div class="persona-content">
+                    <p><strong>Characteristics:</strong> Primarily interested in spiritual growth, may not need health/finance features.</p>
+                    <p><strong>Design Accommodations:</strong></p>
+                    <ul>
+                        <li>Faith module can be used standalone (all other modules disabled)</li>
+                        <li>"Faith Only" subscription tier for minimal-cost access</li>
+                        <li>Christian Faith theme option</li>
+                        <li>Prayer tracking with answered prayer celebrations</li>
+                        <li>Bible reading plans with difficulty levels (Beginner/Intermediate/Advanced)</li>
+                        <li>Daily verse with reflection prompts</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="persona-card">
+                <div class="persona-header">
+                    <span class="persona-icon">&#x2764;</span>
+                    <h3>Health-Conscious User</h3>
+                </div>
+                <div class="persona-content">
+                    <p><strong>Characteristics:</strong> Focused on health metrics, may use wearables, wants data insights.</p>
+                    <p><strong>Design Accommodations:</strong></p>
+                    <ul>
+                        <li>17+ health metrics across vitals, lifestyle, and specialized categories</li>
+                        <li>Apple HealthKit integration (23 data types)</li>
+                        <li>Dexcom CGM integration for continuous glucose monitoring</li>
+                        <li>Comprehensive medicine management with schedules and adherence</li>
+                        <li>Nutrition tracking with FatSecret barcode scanning</li>
+                        <li>Cycle tracking with predictions (for female users)</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Onboarding Section -->
+        <section id="onboarding" class="review-section">
+            <h2>Onboarding Experience</h2>
+            <p>
+                Our 6-step onboarding wizard uses <strong>progressive disclosure</strong> to reduce cognitive load
+                and let users customize their experience from the start.
+            </p>
+
+            <table class="feature-table">
+                <thead>
+                    <tr>
+                        <th>Step</th>
+                        <th>Name</th>
+                        <th>Purpose</th>
+                        <th>User Benefit</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>1</td>
+                        <td>Welcome</td>
+                        <td>Introduction and value proposition</td>
+                        <td>Understand what the app offers</td>
+                    </tr>
+                    <tr>
+                        <td>2</td>
+                        <td>Theme</td>
+                        <td>Visual theme selection</td>
+                        <td>Personalize the look immediately</td>
+                    </tr>
+                    <tr>
+                        <td>3</td>
+                        <td>Modules</td>
+                        <td>Enable/disable feature areas</td>
+                        <td>Only see what's relevant</td>
+                    </tr>
+                    <tr>
+                        <td>4</td>
+                        <td>AI</td>
+                        <td>AI coaching preferences</td>
+                        <td>Choose coaching personality</td>
+                    </tr>
+                    <tr>
+                        <td>5</td>
+                        <td>Location</td>
+                        <td>Timezone and weather location</td>
+                        <td>Time-aware features work correctly</td>
+                    </tr>
+                    <tr>
+                        <td>6</td>
+                        <td>Complete</td>
+                        <td>Confirmation and dashboard access</td>
+                        <td>Ready to start their journey</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="info-box">
+                <h4>Why Progressive Disclosure?</h4>
+                <p>
+                    By letting users choose their modules upfront, we avoid overwhelming them with features they
+                    don't need. A faith-focused user never sees health metrics. A health enthusiast doesn't see
+                    prayer tracking. The app adapts to each user's actual needs.
+                </p>
+            </div>
+        </section>
+
+        <!-- Personalization Section -->
+        <section id="personalization" class="review-section">
+            <h2>Personalization Features</h2>
+
+            <h3>Theme System (7 Themes)</h3>
+            <div class="theme-grid">
+                <div class="theme-card">
+                    <span class="theme-swatch" style="background: linear-gradient(135deg, #ffffff, #f3f4f6);"></span>
+                    <span>Light</span>
+                </div>
+                <div class="theme-card">
+                    <span class="theme-swatch" style="background: linear-gradient(135deg, #1f2937, #111827);"></span>
+                    <span>Dark</span>
+                </div>
+                <div class="theme-card">
+                    <span class="theme-swatch" style="background: linear-gradient(135deg, #7c3aed, #4338ca);"></span>
+                    <span>Christian Faith</span>
+                </div>
+                <div class="theme-card">
+                    <span class="theme-swatch" style="background: linear-gradient(135deg, #dc2626, #991b1b);"></span>
+                    <span>Sports & Performance</span>
+                </div>
+                <div class="theme-card">
+                    <span class="theme-swatch" style="background: linear-gradient(135deg, #16a34a, #15803d);"></span>
+                    <span>Animals & Nature</span>
+                </div>
+                <div class="theme-card">
+                    <span class="theme-swatch" style="background: linear-gradient(135deg, #0284c7, #0369a1);"></span>
+                    <span>Outdoors & Adventure</span>
+                </div>
+                <div class="theme-card">
+                    <span class="theme-swatch" style="background: linear-gradient(135deg, #6b7280, #4b5563);"></span>
+                    <span>Minimal / Life Focus</span>
+                </div>
+            </div>
+
+            <h3>Module Toggles</h3>
+            <p>Users can enable/disable any combination of modules:</p>
+            <div class="data-types-grid">
+                <div class="data-type">Health Tracking</div>
+                <div class="data-type">Journaling</div>
+                <div class="data-type">Faith</div>
+                <div class="data-type">Goals & Habits</div>
+                <div class="data-type">Life Organization</div>
+                <div class="data-type">AI Assistant</div>
+                <div class="data-type">Capture (Audio)</div>
+                <div class="data-type">Scan (Camera AI)</div>
+            </div>
+
+            <h3>Additional Personalization</h3>
+            <ul class="numbered-list">
+                <li><strong>Custom accent color</strong> - Override theme accent with any hex color</li>
+                <li><strong>Gender selection</strong> - Enables relevant health features (cycle tracking)</li>
+                <li><strong>Timezone</strong> - Ensures time-aware features display correctly</li>
+                <li><strong>Navigation preferences</strong> - Hide nav on scroll, collapse desktop sidebar</li>
+                <li><strong>Notification preferences</strong> - SMS, email, and push notification controls</li>
+            </ul>
+        </section>
+
+        <!-- Navigation Section -->
+        <section id="navigation" class="review-section">
+            <h2>Navigation Design</h2>
+
+            <h3>Desktop Navigation</h3>
+            <p>
+                Desktop users get a full sidebar with <strong>cascading dropdown menus</strong> that allow
+                direct navigation to any page without visiting module home screens first.
+            </p>
+            <ul class="numbered-list">
+                <li>Hover to reveal dropdown menus</li>
+                <li>Health uses a "mega menu" with 5 columns for its many features</li>
+                <li>Click outside or press ESC to close all menus</li>
+                <li>Sidebar can be collapsed to icons-only mode</li>
+            </ul>
+
+            <h3>Mobile Navigation</h3>
+            <p>
+                Mobile users get a <strong>bottom tab bar</strong> optimized for thumb-friendly access:
+            </p>
+            <ul class="numbered-list">
+                <li>5 primary tabs in bottom navigation</li>
+                <li>Tap to toggle accordion-style dropdowns</li>
+                <li>"More" menu for overflow items</li>
+                <li>Optional: hide navigation on scroll (setting)</li>
+            </ul>
+
+            <h3>Navigation Help System</h3>
+            <p>
+                The app includes a <strong>Teaching Tool</strong> with 76+ destination mappings that help users
+                find features through natural language:
+            </p>
+
+            <div class="info-box info-box-note">
+                <h4>Example Teaching Tool Queries</h4>
+                <ul>
+                    <li>"Where do I log my weight?" → Health > Weight</li>
+                    <li>"How do I delete my account?" → Settings > Profile > Delete Account</li>
+                    <li>"Where are my prayer requests?" → Faith > Prayers</li>
+                    <li>"How do I track habits?" → Goals > Habits</li>
+                </ul>
+            </div>
+        </section>
+
+        <!-- Accessibility Section -->
+        <section id="accessibility" class="review-section">
+            <h2>Accessibility & Responsive Design</h2>
+
+            <h3>Responsive Breakpoints</h3>
+            <table class="feature-table">
+                <thead>
+                    <tr>
+                        <th>Device</th>
+                        <th>Breakpoint</th>
+                        <th>Layout</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Mobile</td>
+                        <td>max-width: 480px</td>
+                        <td>Single column, bottom navigation, stacked forms</td>
+                    </tr>
+                    <tr>
+                        <td>Tablet</td>
+                        <td>max-width: 768px</td>
+                        <td>Adaptive columns, collapsible sidebar</td>
+                    </tr>
+                    <tr>
+                        <td>Desktop</td>
+                        <td>min-width: 769px</td>
+                        <td>Full sidebar, multi-column layouts</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>Accessibility Features</h3>
+            <ul class="numbered-list">
+                <li><strong>ARIA support</strong> - Full aria-expanded, aria-haspopup attributes on interactive elements</li>
+                <li><strong>Keyboard navigation</strong> - ESC closes menus, Tab navigates forms</li>
+                <li><strong>Focus indicators</strong> - Visible focus outlines for keyboard users</li>
+                <li><strong>Screen reader compatible</strong> - Semantic HTML structure throughout</li>
+                <li><strong>Color contrast</strong> - All themes meet WCAG contrast requirements</li>
+                <li><strong>Touch targets</strong> - Minimum 44x44px for interactive elements</li>
+                <li><strong>No auto-zoom</strong> - 16px font minimum on inputs prevents iOS zoom</li>
+            </ul>
+
+            <h3>Help System</h3>
+            <p>Three-layer help architecture for different user needs:</p>
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <span class="feature-icon">&#x2753;</span>
+                    <h3>Context-Aware Help</h3>
+                    <p>"?" icon on each page shows step-by-step instructions specific to that screen</p>
+                </div>
+                <div class="feature-card">
+                    <span class="feature-icon">&#x1F4DA;</span>
+                    <h3>Help Articles</h3>
+                    <p>Searchable documentation organized by Getting Started, Features, FAQ, and Troubleshooting</p>
+                </div>
+                <div class="feature-card">
+                    <span class="feature-icon">&#x1F9ED;</span>
+                    <h3>Teaching Destinations</h3>
+                    <p>76+ navigation mappings that help users find features through natural language queries</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- AI Coaching Section -->
+        <section id="coaching" class="review-section">
+            <h2>AI Coaching Personalization</h2>
+            <p>
+                Users can choose from <strong>8 distinct AI coaching personalities</strong>, each with a unique
+                communication style and tone. Coaching styles are fully database-driven for easy customization.
+            </p>
+
+            <div class="coaching-grid">
+                <div class="coaching-card">
+                    <span class="coaching-icon">&#x1F31F;</span>
+                    <h4>Supportive</h4>
+                    <p>Warm, encouraging, celebrates small wins</p>
+                </div>
+                <div class="coaching-card">
+                    <span class="coaching-icon">&#x1F4CA;</span>
+                    <h4>Analytical</h4>
+                    <p>Data-driven, pattern-focused, precise</p>
+                </div>
+                <div class="coaching-card">
+                    <span class="coaching-icon">&#x1F4AA;</span>
+                    <h4>Motivational</h4>
+                    <p>High-energy, action-oriented, inspiring</p>
+                </div>
+                <div class="coaching-card">
+                    <span class="coaching-icon">&#x1F9D8;</span>
+                    <h4>Mindful</h4>
+                    <p>Calm, reflective, growth-focused</p>
+                </div>
+                <div class="coaching-card">
+                    <span class="coaching-icon">&#x1F3C6;</span>
+                    <h4>Drill Sergeant</h4>
+                    <p>Direct, no-nonsense, accountability-focused</p>
+                </div>
+                <div class="coaching-card">
+                    <span class="coaching-icon">&#x1F91D;</span>
+                    <h4>Balanced</h4>
+                    <p>Mix of support and accountability</p>
+                </div>
+                <div class="coaching-card">
+                    <span class="coaching-icon">&#x1FA96;</span>
+                    <h4>Military (Veterans)</h4>
+                    <p>Branch-specific communication for service members</p>
+                </div>
+                <div class="coaching-card">
+                    <span class="coaching-icon">&#x1F4AC;</span>
+                    <h4>Custom Styles</h4>
+                    <p>Admin can add new coaching personalities without code changes</p>
+                </div>
+            </div>
+
+            <div class="info-box">
+                <h4>AI Features Include</h4>
+                <ul>
+                    <li><strong>Daily priorities</strong> - Ranked by life dimension with time-aware urgency</li>
+                    <li><strong>Real data integration</strong> - AI knows actual user stats and history</li>
+                    <li><strong>Natural language actions</strong> - "Log my weight at 175" executes the action</li>
+                    <li><strong>Teaching Tool</strong> - Helps users navigate to features they're looking for</li>
+                    <li><strong>Conversation history</strong> - Maintains context across sessions</li>
+                </ul>
+            </div>
+        </section>
+
+        <!-- Back to App Review -->
+        <section class="review-section">
+            <h2>Additional Resources</h2>
+            <p>
+                For demo account access and testing instructions, see the main App Review Guide:
+            </p>
+            <p style="margin-top: 1rem;">
+                <a href="/app-review/" class="back-link">← Back to App Review Demo Guide</a>
+            </p>
+        </section>
+    </main>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+/* App Review Guide Styles (shared) */
+.review-guide {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #1a1a1a;
+    line-height: 1.6;
+}
+
+.review-header {
+    text-align: center;
+    padding: 2rem 0 1.5rem;
+    border-bottom: 2px solid #e5e7eb;
+    margin-bottom: 1.5rem;
+}
+
+.review-header h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0 0 0.5rem;
+    color: #065f46;
+}
+
+.review-subtitle {
+    font-size: 1.25rem;
+    color: #6b7280;
+    margin: 0;
+}
+
+/* Navigation */
+.review-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: center;
+    padding: 1rem 0;
+    margin-bottom: 2rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.review-nav a {
+    padding: 0.5rem 1rem;
+    background: #f3f4f6;
+    border-radius: 6px;
+    color: #374151;
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: background 0.2s, color 0.2s;
+}
+
+.review-nav a:hover {
+    background: #065f46;
+    color: white;
+}
+
+/* Sections */
+.review-section {
+    margin-bottom: 3rem;
+    padding-bottom: 2rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.review-section:last-of-type {
+    border-bottom: none;
+}
+
+.review-section h2 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #065f46;
+    margin: 0 0 1rem;
+}
+
+.review-section h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin: 1.5rem 0 0.75rem;
+    color: #1f2937;
+}
+
+/* Philosophy Grid */
+.philosophy-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+    margin: 1.5rem 0;
+}
+
+.philosophy-card {
+    background: linear-gradient(135deg, #f0fdf4, #ecfdf5);
+    border: 1px solid #bbf7d0;
+    border-radius: 8px;
+    padding: 1.25rem;
+}
+
+.philosophy-icon {
+    font-size: 1.5rem;
+    display: block;
+    margin-bottom: 0.5rem;
+}
+
+.philosophy-card h3 {
+    font-size: 1rem;
+    margin: 0 0 0.5rem;
+    color: #065f46;
+}
+
+.philosophy-card p {
+    font-size: 0.9rem;
+    color: #374151;
+    margin: 0;
+}
+
+/* Persona Cards */
+.persona-card {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    margin: 1rem 0;
+    overflow: hidden;
+}
+
+.persona-header {
+    background: #f3f4f6;
+    padding: 1rem 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.persona-icon {
+    font-size: 1.5rem;
+}
+
+.persona-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: #1f2937;
+}
+
+.persona-content {
+    padding: 1.25rem;
+}
+
+.persona-content p {
+    margin: 0 0 0.75rem;
+    font-size: 0.95rem;
+}
+
+.persona-content ul {
+    margin: 0;
+    padding-left: 1.25rem;
+    font-size: 0.95rem;
+}
+
+.persona-content li {
+    margin-bottom: 0.25rem;
+}
+
+/* Theme Grid */
+.theme-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin: 1rem 0;
+}
+
+.theme-card {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9rem;
+}
+
+.theme-swatch {
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    border: 1px solid rgba(0,0,0,0.1);
+}
+
+/* Coaching Grid */
+.coaching-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    margin: 1.5rem 0;
+}
+
+.coaching-card {
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 8px;
+    padding: 1rem;
+    text-align: center;
+}
+
+.coaching-icon {
+    font-size: 1.5rem;
+    display: block;
+    margin-bottom: 0.5rem;
+}
+
+.coaching-card h4 {
+    margin: 0 0 0.25rem;
+    font-size: 0.95rem;
+    color: #1e40af;
+}
+
+.coaching-card p {
+    margin: 0;
+    font-size: 0.8rem;
+    color: #4b5563;
+}
+
+/* Feature Grid & Cards */
+.feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+    margin: 1.5rem 0;
+}
+
+.feature-card {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1.25rem;
+}
+
+.feature-icon {
+    font-size: 1.5rem;
+    display: block;
+    margin-bottom: 0.5rem;
+}
+
+.feature-card h3 {
+    font-size: 1rem;
+    margin: 0 0 0.5rem;
+}
+
+.feature-card p {
+    font-size: 0.9rem;
+    color: #6b7280;
+    margin: 0;
+}
+
+/* Info Boxes */
+.info-box {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 8px;
+    padding: 1.25rem;
+    margin: 1.5rem 0;
+}
+
+.info-box h4 {
+    font-size: 1rem;
+    margin: 0 0 0.75rem;
+    color: #065f46;
+}
+
+.info-box ul, .info-box p {
+    margin: 0;
+    font-size: 0.95rem;
+}
+
+.info-box ul {
+    padding-left: 1.25rem;
+}
+
+.info-box li {
+    margin-bottom: 0.25rem;
+}
+
+.info-box-note {
+    background: #eff6ff;
+    border-color: #bfdbfe;
+}
+
+.info-box-note h4 {
+    color: #1e40af;
+}
+
+/* Feature Table */
+.feature-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+    font-size: 0.95rem;
+}
+
+.feature-table th,
+.feature-table td {
+    padding: 0.75rem 1rem;
+    text-align: left;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.feature-table th {
+    background: #f3f4f6;
+    font-weight: 600;
+    color: #374151;
+}
+
+.feature-table tr:hover td {
+    background: #f9fafb;
+}
+
+/* Numbered List */
+.numbered-list {
+    padding-left: 1.5rem;
+    margin: 1rem 0;
+}
+
+.numbered-list li {
+    margin-bottom: 0.5rem;
+}
+
+/* Data Types Grid */
+.data-types-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 1rem 0;
+}
+
+.data-type {
+    background: #e0e7ff;
+    color: #3730a3;
+    padding: 0.4rem 0.8rem;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+/* Back Link */
+.back-link {
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    background: #065f46;
+    color: white;
+    border-radius: 6px;
+    text-decoration: none;
+    font-weight: 500;
+    transition: background 0.2s;
+}
+
+.back-link:hover {
+    background: #047857;
+}
+
+/* Mobile Responsive */
+@media (max-width: 640px) {
+    .review-guide {
+        padding: 1rem;
+    }
+
+    .review-header h1 {
+        font-size: 1.5rem;
+    }
+
+    .review-nav {
+        gap: 0.4rem;
+    }
+
+    .review-nav a {
+        padding: 0.4rem 0.75rem;
+        font-size: 0.8rem;
+    }
+
+    .feature-table {
+        font-size: 0.85rem;
+    }
+
+    .feature-table th,
+    .feature-table td {
+        padding: 0.5rem;
+    }
+
+    .coaching-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+</style>
+{% endblock %}

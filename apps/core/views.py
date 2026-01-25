@@ -290,6 +290,19 @@ class AppReviewView(TemplateView):
     template_name = "core/app_review.html"
 
 
+class UXDesignView(TemplateView):
+    """
+    UX Design Philosophy page for Apple App Store reviewers.
+
+    Documents design decisions, user personas, onboarding flow,
+    personalization features, navigation design, and AI coaching styles.
+
+    URL: /ux-design/
+    """
+
+    template_name = "core/ux_design.html"
+
+
 class MoreView(LoginRequiredMixin, TemplateView):
     """
     More screen - shows all enabled modules as tiles plus quick links.

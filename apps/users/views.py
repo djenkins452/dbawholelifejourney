@@ -1968,3 +1968,361 @@ class PreferenceToggleView(LoginRequiredMixin, View):
             return JsonResponse({'success': True, 'field': field, 'value': value})
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=500)
+
+
+# ==============================================================================
+# Account Deletion
+# ==============================================================================
+
+
+class DeleteAccountView(LoginRequiredMixin, TemplateView):
+    """
+    Account deletion view with password confirmation.
+
+    This view allows users to permanently delete their account and all
+    associated data. The process includes:
+
+    1. First screen: Explain what will be deleted, offer data export
+    2. Confirmation: Require password re-entry
+    3. Final confirmation: "Are you sure?" checkbox
+    4. Deletion: Create audit record, delete user, logout
+
+    Security:
+    - Requires password confirmation
+    - Creates audit trail before deletion
+    - Logs IP address (hashed) for fraud detection
+    - All related data deleted via CASCADE
+
+    Compliance:
+    - GDPR Article 17: Right to erasure
+    - Apple App Store: Account deletion requirement
+    - CCPA: California Consumer Privacy Act
+    """
+
+    template_name = "users/delete_account.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['step'] = self.request.GET.get('step', 'info')
+
+        # Get counts of user's data for display
+        from .models import AccountDeletionAudit
+        context['data_counts'] = AccountDeletionAudit._count_user_data(self.request.user)
+
+        return context
+
+    def post(self, request, *args, **kwargs):
+        """Handle the deletion confirmation form."""
+        from django.contrib.auth import logout
+        from .models import AccountDeletionAudit
+
+        # Step 1: Validate password
+        password = request.POST.get('password', '')
+        if not request.user.check_password(password):
+            messages.error(request, "Incorrect password. Please try again.")
+            return redirect(f"{request.path}?step=confirm")
+
+        # Step 2: Validate final confirmation checkbox
+        confirm_delete = request.POST.get('confirm_delete')
+        if confirm_delete != 'yes':
+            messages.error(request, "Please confirm that you want to delete your account.")
+            return redirect(f"{request.path}?step=confirm")
+
+        # Step 3: Get optional reason
+        reason = request.POST.get('reason', '').strip()
+
+        # Step 4: Check if user exported data
+        data_exported = request.POST.get('data_exported') == 'yes'
+
+        # Step 5: Get IP address for audit
+        ip_address = self._get_client_ip(request)
+
+        # Step 6: Create audit record BEFORE deleting user
+        try:
+            AccountDeletionAudit.create_audit_record(
+                user=request.user,
+                deletion_method="user_self_service",
+                ip_address=ip_address,
+                reason=reason,
+                data_exported=data_exported,
+            )
+        except Exception as e:
+            logger.error(f"Failed to create deletion audit: {e}")
+            # Continue with deletion even if audit fails
+
+        # Step 7: Store email for goodbye message
+        user_email = request.user.email
+        user_first_name = request.user.first_name or "there"
+
+        # Step 8: Delete the user (CASCADE will delete all related data)
+        try:
+            # Delete any files in storage (avatar, documents, etc.)
+            self._cleanup_user_files(request.user)
+
+            # Delete the user account
+            request.user.delete()
+
+            # Logout (session is invalidated)
+            logout(request)
+
+            logger.info(f"User account deleted: {hash_pii(user_email, 'user')}")
+
+        except Exception as e:
+            logger.error(f"Failed to delete user account: {e}")
+            messages.error(request, "An error occurred while deleting your account. Please contact support.")
+            return redirect('users:profile')
+
+        # Step 9: Show goodbye message
+        messages.success(
+            request,
+            f"Goodbye, {user_first_name}. Your account and all associated data have been permanently deleted. "
+            "We're sorry to see you go. If you ever want to return, you're welcome to create a new account."
+        )
+
+        return redirect('account_login')
+
+    def _get_client_ip(self, request):
+        """Extract client IP address from request."""
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            return x_forwarded_for.split(',')[0].strip()
+        return request.META.get('REMOTE_ADDR', '')
+
+    def _cleanup_user_files(self, user):
+        """Delete user-uploaded files from storage."""
+        # Delete avatar
+        if user.avatar:
+            try:
+                user.avatar.delete(save=False)
+            except Exception as e:
+                logger.warning(f"Failed to delete avatar: {e}")
+
+        # Delete documents
+        try:
+            from apps.life.models import Document
+            for doc in Document.all_objects.filter(user=user):
+                if doc.file:
+                    try:
+                        doc.file.delete(save=False)
+                    except Exception:
+                        pass
+        except Exception as e:
+            logger.warning(f"Failed to delete documents: {e}")
+
+        # Delete capture recordings
+        try:
+            from apps.capture.models import CaptureEntry
+            for capture in CaptureEntry.objects.filter(user=user):
+                if capture.audio_file:
+                    try:
+                        capture.audio_file.delete(save=False)
+                    except Exception:
+                        pass
+        except Exception as e:
+            logger.warning(f"Failed to delete capture files: {e}")
+
+
+class ExportAccountDataView(LoginRequiredMixin, View):
+    """
+    Export all user data as a downloadable JSON file.
+
+    This view generates a comprehensive export of all user data
+    for GDPR data portability compliance (Article 20).
+
+    The export includes:
+    - User profile and preferences
+    - All journal entries
+    - All health data
+    - All faith data
+    - All tasks, events, projects
+    - All goals and reflections
+    - AI conversation history
+    """
+
+    def get(self, request, *args, **kwargs):
+        import json
+        from django.http import HttpResponse
+
+        user = request.user
+        export_data = {
+            'export_date': timezone.now().isoformat(),
+            'export_format_version': '1.0',
+            'user': self._export_user_profile(user),
+            'preferences': self._export_preferences(user),
+            'journal': self._export_journal(user),
+            'health': self._export_health(user),
+            'faith': self._export_faith(user),
+            'life': self._export_life(user),
+            'purpose': self._export_purpose(user),
+            'ai_conversations': self._export_ai(user),
+            'favorites': self._export_favorites(user),
+        }
+
+        # Create JSON response
+        response = HttpResponse(
+            json.dumps(export_data, indent=2, default=str),
+            content_type='application/json'
+        )
+        filename = f"wlj_data_export_{user.id}_{timezone.now().strftime('%Y%m%d_%H%M%S')}.json"
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+        return response
+
+    def _export_user_profile(self, user):
+        return {
+            'email': user.email,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'date_joined': user.date_joined.isoformat() if user.date_joined else None,
+            'last_login': user.last_login.isoformat() if user.last_login else None,
+        }
+
+    def _export_preferences(self, user):
+        try:
+            prefs = user.preferences
+            return {
+                'theme': prefs.theme,
+                'timezone': prefs.timezone,
+                'gender': prefs.gender,
+                'faith_enabled': prefs.faith_enabled,
+                'health_enabled': prefs.health_enabled,
+                'journal_enabled': prefs.journal_enabled,
+                'life_enabled': prefs.life_enabled,
+                'purpose_enabled': prefs.purpose_enabled,
+                'ai_enabled': prefs.ai_enabled,
+            }
+        except Exception:
+            return {}
+
+    def _export_journal(self, user):
+        try:
+            from apps.journal.models import JournalEntry
+            entries = JournalEntry.all_objects.filter(user=user).values(
+                'id', 'title', 'content', 'mood', 'entry_date', 'created_at', 'is_private'
+            )
+            return list(entries)
+        except Exception:
+            return []
+
+    def _export_health(self, user):
+        data = {}
+        try:
+            from apps.health.models import (
+                WeightEntry, StepsEntry, WaterEntry, SleepEntry,
+                FastingWindow, Medicine, MedicineLog, WorkoutSession,
+                GlucoseEntry, BloodPressureEntry, FoodEntry
+            )
+
+            data['weight'] = list(WeightEntry.all_objects.filter(user=user).values(
+                'id', 'weight', 'unit', 'date', 'notes', 'created_at'
+            ))
+            data['steps'] = list(StepsEntry.all_objects.filter(user=user).values(
+                'id', 'steps', 'date', 'created_at'
+            ))
+            data['water'] = list(WaterEntry.all_objects.filter(user=user).values(
+                'id', 'amount_ml', 'logged_at', 'created_at'
+            ))
+            data['sleep'] = list(SleepEntry.all_objects.filter(user=user).values(
+                'id', 'bedtime', 'wake_time', 'quality', 'notes', 'date', 'created_at'
+            ))
+            data['fasting'] = list(FastingWindow.all_objects.filter(user=user).values(
+                'id', 'start_time', 'end_time', 'fasting_type', 'notes', 'created_at'
+            ))
+            data['medicines'] = list(Medicine.all_objects.filter(user=user).values(
+                'id', 'name', 'dosage', 'frequency', 'notes', 'created_at'
+            ))
+            data['workouts'] = list(WorkoutSession.all_objects.filter(user=user).values(
+                'id', 'workout_type', 'started_at', 'ended_at', 'notes', 'calories', 'created_at'
+            ))
+            data['glucose'] = list(GlucoseEntry.all_objects.filter(user=user).values(
+                'id', 'value', 'unit', 'reading_type', 'logged_at', 'notes', 'created_at'
+            ))
+            data['blood_pressure'] = list(BloodPressureEntry.all_objects.filter(user=user).values(
+                'id', 'systolic', 'diastolic', 'pulse', 'logged_at', 'notes', 'created_at'
+            ))
+            data['food'] = list(FoodEntry.all_objects.filter(user=user).values(
+                'id', 'food_name', 'calories', 'protein', 'carbs', 'fat', 'meal_type', 'logged_at', 'created_at'
+            ))
+        except Exception:
+            pass
+        return data
+
+    def _export_faith(self, user):
+        data = {}
+        try:
+            from apps.faith.models import PrayerRequest, SavedVerse, BibleStudyNote
+            data['prayers'] = list(PrayerRequest.all_objects.filter(user=user).values(
+                'id', 'title', 'description', 'status', 'is_private', 'created_at', 'answered_at'
+            ))
+            data['saved_verses'] = list(SavedVerse.all_objects.filter(user=user).values(
+                'id', 'reference', 'text', 'translation', 'notes', 'created_at'
+            ))
+            data['bible_notes'] = list(BibleStudyNote.all_objects.filter(user=user).values(
+                'id', 'reference', 'note', 'created_at'
+            ))
+        except Exception:
+            pass
+        return data
+
+    def _export_life(self, user):
+        data = {}
+        try:
+            from apps.life.models import Task, LifeEvent, Project
+            data['tasks'] = list(Task.all_objects.filter(user=user).values(
+                'id', 'title', 'description', 'due_date', 'is_completed', 'priority', 'created_at'
+            ))
+            data['events'] = list(LifeEvent.all_objects.filter(user=user).values(
+                'id', 'title', 'description', 'start_datetime', 'end_datetime', 'location', 'created_at'
+            ))
+            data['projects'] = list(Project.all_objects.filter(user=user).values(
+                'id', 'name', 'description', 'status', 'created_at'
+            ))
+        except Exception:
+            pass
+        return data
+
+    def _export_purpose(self, user):
+        data = {}
+        try:
+            from apps.purpose.models import LifeGoal, HabitGoal, Reflection
+            data['life_goals'] = list(LifeGoal.all_objects.filter(user=user).values(
+                'id', 'title', 'description', 'target_date', 'status', 'created_at'
+            ))
+            data['habit_goals'] = list(HabitGoal.all_objects.filter(user=user).values(
+                'id', 'name', 'description', 'frequency', 'created_at'
+            ))
+            data['reflections'] = list(Reflection.all_objects.filter(user=user).values(
+                'id', 'title', 'content', 'reflection_type', 'created_at'
+            ))
+        except Exception:
+            pass
+        return data
+
+    def _export_ai(self, user):
+        data = {}
+        try:
+            from apps.ai.models import AssistantConversation, AssistantMessage
+            conversations = AssistantConversation.objects.filter(user=user)
+            data['conversations'] = []
+            for conv in conversations:
+                conv_data = {
+                    'id': conv.id,
+                    'title': conv.title,
+                    'created_at': conv.created_at.isoformat(),
+                    'messages': list(AssistantMessage.objects.filter(conversation=conv).values(
+                        'id', 'role', 'content', 'created_at'
+                    ))
+                }
+                data['conversations'].append(conv_data)
+        except Exception:
+            pass
+        return data
+
+    def _export_favorites(self, user):
+        try:
+            from apps.core.models import FavoritePage
+            return list(FavoritePage.objects.filter(user=user).values(
+                'id', 'url', 'title', 'created_at'
+            ))
+        except Exception:
+            return []

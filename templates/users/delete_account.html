@@ -1,0 +1,386 @@
+{% extends "base.html" %}
+
+{% block title %}Delete Account - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="content-container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'users:profile' %}">Profile</a>
+        <span>/</span>
+        <span>Delete Account</span>
+    </nav>
+
+    <div class="page-header">
+        <h1 class="page-title">Delete Account</h1>
+    </div>
+
+    {% if step == 'info' %}
+    <!-- Step 1: Information -->
+    <div class="delete-account-card card">
+        <div class="warning-banner">
+            <svg class="warning-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+            </svg>
+            <div class="warning-text">
+                <strong>This action cannot be undone</strong>
+                <p>Deleting your account will permanently remove all your data from Whole Life Journey.</p>
+            </div>
+        </div>
+
+        <h2 class="section-title">What will be deleted:</h2>
+
+        <div class="data-summary">
+            {% if data_counts.journal_entries %}
+            <div class="data-item">
+                <span class="data-icon">📝</span>
+                <span class="data-count">{{ data_counts.journal_entries }}</span>
+                <span class="data-label">Journal entries</span>
+            </div>
+            {% endif %}
+
+            {% if data_counts.weight_entries or data_counts.steps_entries or data_counts.sleep_entries %}
+            <div class="data-item">
+                <span class="data-icon">❤️</span>
+                <span class="data-count">{{ data_counts.weight_entries|default:0|add:data_counts.steps_entries|default:0|add:data_counts.sleep_entries|default:0 }}</span>
+                <span class="data-label">Health entries</span>
+            </div>
+            {% endif %}
+
+            {% if data_counts.prayer_requests %}
+            <div class="data-item">
+                <span class="data-icon">🙏</span>
+                <span class="data-count">{{ data_counts.prayer_requests }}</span>
+                <span class="data-label">Prayer requests</span>
+            </div>
+            {% endif %}
+
+            {% if data_counts.tasks or data_counts.events %}
+            <div class="data-item">
+                <span class="data-icon">📋</span>
+                <span class="data-count">{{ data_counts.tasks|default:0|add:data_counts.events|default:0 }}</span>
+                <span class="data-label">Tasks & events</span>
+            </div>
+            {% endif %}
+
+            {% if data_counts.life_goals or data_counts.habit_goals %}
+            <div class="data-item">
+                <span class="data-icon">🎯</span>
+                <span class="data-count">{{ data_counts.life_goals|default:0|add:data_counts.habit_goals|default:0 }}</span>
+                <span class="data-label">Goals</span>
+            </div>
+            {% endif %}
+
+            {% if data_counts.ai_conversations %}
+            <div class="data-item">
+                <span class="data-icon">💬</span>
+                <span class="data-count">{{ data_counts.ai_conversations }}</span>
+                <span class="data-label">AI conversations</span>
+            </div>
+            {% endif %}
+
+            <div class="data-item data-item-total">
+                <span class="data-icon">📊</span>
+                <span class="data-count">{{ data_counts.total_records|default:0 }}</span>
+                <span class="data-label">Total records</span>
+            </div>
+        </div>
+
+        <div class="also-deleted">
+            <h3>Also deleted:</h3>
+            <ul>
+                <li>Your profile and account settings</li>
+                <li>Uploaded photos and documents</li>
+                <li>Saved Bible verses and study notes</li>
+                <li>Favorites and notification history</li>
+                <li>Any connected calendars or integrations</li>
+                <li>Billing information and subscription history</li>
+            </ul>
+        </div>
+
+        <div class="export-section">
+            <h3>Download your data first?</h3>
+            <p>Before deleting your account, you can download a copy of all your data as a JSON file.</p>
+            <a href="{% url 'users:export_data' %}" class="btn btn-secondary">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                Download My Data
+            </a>
+        </div>
+
+        <div class="action-buttons">
+            <a href="{% url 'users:profile' %}" class="btn btn-secondary">Cancel</a>
+            <a href="?step=confirm" class="btn btn-danger">Continue to Delete</a>
+        </div>
+    </div>
+
+    {% elif step == 'confirm' %}
+    <!-- Step 2: Confirmation -->
+    <div class="delete-account-card card">
+        <div class="warning-banner warning-banner-final">
+            <svg class="warning-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="15" y1="9" x2="9" y2="15"/>
+                <line x1="9" y1="9" x2="15" y2="15"/>
+            </svg>
+            <div class="warning-text">
+                <strong>Final Confirmation Required</strong>
+                <p>Please enter your password and confirm to permanently delete your account.</p>
+            </div>
+        </div>
+
+        <form method="post" class="delete-form">
+            {% csrf_token %}
+
+            <div class="form-group">
+                <label for="password" class="form-label">Enter your password to confirm:</label>
+                <input type="password" id="password" name="password" class="form-input" required autocomplete="current-password">
+            </div>
+
+            <div class="form-group">
+                <label for="reason" class="form-label">Why are you leaving? (optional)</label>
+                <select id="reason" name="reason" class="form-select">
+                    <option value="">Select a reason...</option>
+                    <option value="Not using it enough">Not using it enough</option>
+                    <option value="Found a different app">Found a different app</option>
+                    <option value="Privacy concerns">Privacy concerns</option>
+                    <option value="Too complicated">Too complicated to use</option>
+                    <option value="Missing features">Missing features I need</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" name="data_exported" value="yes">
+                    <span>I have downloaded my data (optional)</span>
+                </label>
+            </div>
+
+            <div class="form-group final-confirm">
+                <label class="checkbox-label checkbox-label-danger">
+                    <input type="checkbox" name="confirm_delete" value="yes" required>
+                    <span>I understand that all my data will be permanently deleted and this action cannot be undone.</span>
+                </label>
+            </div>
+
+            <div class="action-buttons">
+                <a href="{% url 'users:profile' %}" class="btn btn-secondary">Cancel - Keep My Account</a>
+                <button type="submit" class="btn btn-danger">Delete My Account Forever</button>
+            </div>
+        </form>
+    </div>
+    {% endif %}
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.delete-account-card {
+    padding: var(--space-6);
+    max-width: 600px;
+}
+
+.warning-banner {
+    display: flex;
+    gap: var(--space-4);
+    padding: var(--space-4);
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-6);
+}
+
+.warning-banner-final {
+    background: rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+.warning-icon {
+    width: 32px;
+    height: 32px;
+    color: #f59e0b;
+    flex-shrink: 0;
+}
+
+.warning-banner-final .warning-icon {
+    color: #ef4444;
+}
+
+.warning-text strong {
+    display: block;
+    margin-bottom: var(--space-1);
+}
+
+.warning-text p {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.section-title {
+    font-size: var(--font-size-lg);
+    margin-bottom: var(--space-4);
+}
+
+.data-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: var(--space-3);
+    margin-bottom: var(--space-6);
+}
+
+.data-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: var(--space-3);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    text-align: center;
+}
+
+.data-item-total {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    justify-content: center;
+    gap: var(--space-2);
+    background: var(--color-border);
+}
+
+.data-icon {
+    font-size: 1.5rem;
+    margin-bottom: var(--space-1);
+}
+
+.data-item-total .data-icon {
+    margin-bottom: 0;
+}
+
+.data-count {
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+}
+
+.data-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.also-deleted {
+    margin-bottom: var(--space-6);
+}
+
+.also-deleted h3 {
+    font-size: var(--font-size-base);
+    margin-bottom: var(--space-2);
+}
+
+.also-deleted ul {
+    margin: 0;
+    padding-left: var(--space-5);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.also-deleted li {
+    margin-bottom: var(--space-1);
+}
+
+.export-section {
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-6);
+}
+
+.export-section h3 {
+    font-size: var(--font-size-base);
+    margin-bottom: var(--space-2);
+}
+
+.export-section p {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--space-3);
+}
+
+.export-section .btn svg {
+    margin-right: var(--space-2);
+}
+
+.action-buttons {
+    display: flex;
+    gap: var(--space-3);
+    justify-content: space-between;
+    flex-wrap: wrap;
+}
+
+.btn-danger {
+    background: #ef4444;
+    color: white;
+    border: none;
+}
+
+.btn-danger:hover {
+    background: #dc2626;
+}
+
+.delete-form .form-group {
+    margin-bottom: var(--space-4);
+}
+
+.delete-form .form-label {
+    display: block;
+    margin-bottom: var(--space-2);
+    font-weight: 500;
+}
+
+.delete-form .form-input,
+.delete-form .form-select {
+    width: 100%;
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-base);
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+    margin-top: 3px;
+    flex-shrink: 0;
+}
+
+.checkbox-label-danger {
+    padding: var(--space-3);
+    background: rgba(239, 68, 68, 0.05);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: var(--radius-md);
+}
+
+.final-confirm {
+    margin-top: var(--space-6);
+}
+
+@media (max-width: 480px) {
+    .action-buttons {
+        flex-direction: column;
+    }
+
+    .action-buttons .btn {
+        width: 100%;
+        text-align: center;
+    }
+
+    .data-summary {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+</style>
+{% endblock %}

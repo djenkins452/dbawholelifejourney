@@ -318,7 +318,8 @@
       "Bash(swift -parse:*)",
       "Bash(swiftc:*)",
       "Bash(python3 manage.py shell:*)",
-      "Bash(git commit -m \"$\\(cat <<''EOF''\nPhase 1: Mobile navigation skeleton - bottom tab bar + utility icons\n\n- Add bottom_tab_bar.html: fixed bottom nav with Home, Journal, Health, Faith, More\n- Add top_utility_icons.html: Favorites, Chat, Notifications, Profile icons\n- Add CSS for mobile-only display \\(max-width: 768px\\)\n- Hide old hamburger menu on mobile\n- Include new components in base.html and navigation.html\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nPhase 1: Mobile navigation skeleton - bottom tab bar + utility icons\n\n- Add bottom_tab_bar.html: fixed bottom nav with Home, Journal, Health, Faith, More\n- Add top_utility_icons.html: Favorites, Chat, Notifications, Profile icons\n- Add CSS for mobile-only display \\(max-width: 768px\\)\n- Hide old hamburger menu on mobile\n- Include new components in base.html and navigation.html\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nFix template comments bleeding into page content\n\nConvert multi-line Django comments to HTML comments to prevent\ntext from rendering on the page.\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
     ]
   }
 }

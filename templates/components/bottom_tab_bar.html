@@ -1,15 +1,5 @@
 {% load static %}
-{#
-    Mobile Bottom Tab Bar Navigation
-
-    Phase 1: Static skeleton with hardcoded tabs
-    - Shows only on mobile (max-width: 768px)
-    - Home + sample modules + More
-    - Evenly spaced icons with labels
-
-    Future phases will make this dynamic based on user module preferences.
-#}
-
+<!-- Mobile Bottom Tab Bar (Phase 1) -->
 <nav class="bottom-tab-bar" aria-label="Mobile navigation">
     {# Home - Always first #}
     <a href="{% url 'dashboard:home' %}" class="bottom-tab {% if request.resolver_match.app_name == 'dashboard' %}active{% endif %}">

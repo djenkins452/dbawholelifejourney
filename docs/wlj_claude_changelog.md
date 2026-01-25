@@ -16,6 +16,21 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-24 Changes
 
+### Move Finance module to "Coming Soon" status
+
+**Change:** Finance module is not ready for users yet. Moved it to the Coming Soon section in Preferences alongside Relationships and Habits.
+
+**Changes:**
+1. Moved Finance toggle from active modules to Coming Soon section in preferences.html
+2. Made the toggle disabled/grayed out so users cannot enable it
+3. Added one-time data migration to disable finances_enabled for all existing users
+
+**Files Modified:**
+- `templates/users/preferences.html` - Moved Finance to Coming Soon section with disabled toggle
+- `apps/core/management/commands/load_initial_data.py` - Added `_disable_finance_module()` one-time cleanup
+
+---
+
 ### Remove mandatory/pinned status from AI Insights tile
 
 **Problem:** AI Insights was incorrectly set as `mandatory: True` with `pinned_position: 1`, which meant it would show for all users regardless of their AI preference setting. Nothing should appear in the system if the corresponding feature is disabled in Preferences.

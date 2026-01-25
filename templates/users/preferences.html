@@ -225,7 +225,8 @@
                                 </p>
                             </div>
                             <label class="toggle-switch">
-                                <input type="checkbox" name="journal_enabled" {% if form.journal_enabled.value %}checked{% endif %}>
+                                <input type="hidden" name="journal_enabled" value="false">
+                                <input type="checkbox" name="journal_enabled" value="true" {% if form.journal_enabled.value %}checked{% endif %}>
                                 <span class="toggle-slider"></span>
                             </label>
                         </div>
@@ -242,7 +243,8 @@
                                 </p>
                             </div>
                             <label class="toggle-switch">
-                                <input type="checkbox" name="faith_enabled" {% if form.faith_enabled.value %}checked{% endif %}>
+                                <input type="hidden" name="faith_enabled" value="false">
+                                <input type="checkbox" name="faith_enabled" value="true" {% if form.faith_enabled.value %}checked{% endif %}>
                                 <span class="toggle-slider"></span>
                             </label>
                         </div>
@@ -259,7 +261,8 @@
                                 </p>
                             </div>
                             <label class="toggle-switch">
-                                <input type="checkbox" name="health_enabled" {% if form.health_enabled.value %}checked{% endif %}>
+                                <input type="hidden" name="health_enabled" value="false">
+                                <input type="checkbox" name="health_enabled" value="true" {% if form.health_enabled.value %}checked{% endif %}>
                                 <span class="toggle-slider"></span>
                             </label>
                         </div>
@@ -276,7 +279,8 @@
                                 </p>
                             </div>
                             <label class="toggle-switch">
-                                <input type="checkbox" name="life_enabled" {% if form.life_enabled.value %}checked{% endif %}>
+                                <input type="hidden" name="life_enabled" value="false">
+                                <input type="checkbox" name="life_enabled" value="true" {% if form.life_enabled.value %}checked{% endif %}>
                                 <span class="toggle-slider"></span>
                             </label>
                         </div>
@@ -293,7 +297,8 @@
                                 </p>
                             </div>
                             <label class="toggle-switch">
-                                <input type="checkbox" name="purpose_enabled" {% if form.purpose_enabled.value %}checked{% endif %}>
+                                <input type="hidden" name="purpose_enabled" value="false">
+                                <input type="checkbox" name="purpose_enabled" value="true" {% if form.purpose_enabled.value %}checked{% endif %}>
                                 <span class="toggle-slider"></span>
                             </label>
                         </div>
@@ -310,7 +315,8 @@
                                 </p>
                             </div>
                             <label class="toggle-switch">
-                                <input type="checkbox" name="finances_enabled" {% if form.finances_enabled.value %}checked{% endif %}>
+                                <input type="hidden" name="finances_enabled" value="false">
+                                <input type="checkbox" name="finances_enabled" value="true" {% if form.finances_enabled.value %}checked{% endif %}>
                                 <span class="toggle-slider"></span>
                             </label>
                         </div>
@@ -327,7 +333,8 @@
                                 </p>
                             </div>
                             <label class="toggle-switch">
-                                <input type="checkbox" name="capture_enabled" {% if form.capture_enabled.value %}checked{% endif %}>
+                                <input type="hidden" name="capture_enabled" value="false">
+                                <input type="checkbox" name="capture_enabled" value="true" {% if form.capture_enabled.value %}checked{% endif %}>
                                 <span class="toggle-slider"></span>
                             </label>
                         </div>
@@ -876,7 +883,8 @@ The AI will remember these to respond more thoughtfully in the future."
                                         </p>
                                     </div>
                                     <label class="toggle-switch">
-                                        <input type="checkbox" name="personal_assistant_enabled" id="personal_assistant_toggle" {% if form.personal_assistant_enabled.value %}checked{% endif %}>
+                                        <input type="hidden" name="personal_assistant_enabled" value="false">
+                                        <input type="checkbox" name="personal_assistant_enabled" value="true" id="personal_assistant_toggle" {% if form.personal_assistant_enabled.value %}checked{% endif %}>
                                         <span class="toggle-slider"></span>
                                     </label>
                                 </div>
@@ -1046,7 +1054,8 @@ The AI will remember these to respond more thoughtfully in the future."
                                         </p>
                                     </div>
                                     <label class="toggle-switch">
-                                        <input type="checkbox" name="notifications_enabled" id="notifications_enabled_toggle" {% if form.notifications_enabled.value %}checked{% endif %}>
+                                        <input type="hidden" name="notifications_enabled" value="false">
+                                        <input type="checkbox" name="notifications_enabled" value="true" id="notifications_enabled_toggle" {% if form.notifications_enabled.value %}checked{% endif %}>
                                         <span class="toggle-slider"></span>
                                     </label>
                                 </div>
@@ -1266,7 +1275,8 @@ The AI will remember these to respond more thoughtfully in the future."
                                         </p>
                                     </div>
                                     <label class="toggle-switch">
-                                        <input type="checkbox" name="email_notifications_enabled" id="email_notifications_enabled_toggle" {% if form.email_notifications_enabled.value %}checked{% endif %}>
+                                        <input type="hidden" name="email_notifications_enabled" value="false">
+                                        <input type="checkbox" name="email_notifications_enabled" value="true" id="email_notifications_enabled_toggle" {% if form.email_notifications_enabled.value %}checked{% endif %}>
                                         <span class="toggle-slider"></span>
                                     </label>
                                 </div>
@@ -1507,7 +1517,8 @@ The AI will remember these to respond more thoughtfully in the future."
                                             </p>
                                         </div>
                                         <label class="toggle-switch">
-                                            <input type="checkbox" name="sms_enabled" id="sms_enabled_toggle" {% if form.sms_enabled.value %}checked{% endif %}>
+                                            <input type="hidden" name="sms_enabled" value="false">
+                                            <input type="checkbox" name="sms_enabled" value="true" id="sms_enabled_toggle" {% if form.sms_enabled.value %}checked{% endif %}>
                                             <span class="toggle-slider"></span>
                                         </label>
                                     </div>
@@ -1647,7 +1658,8 @@ The AI will remember these to respond more thoughtfully in the future."
                                                 </p>
                                             </div>
                                             <label class="toggle-switch">
-                                                <input type="checkbox" name="sms_quiet_hours_enabled" id="sms_quiet_hours_toggle" {% if form.sms_quiet_hours_enabled.value %}checked{% endif %}>
+                                                <input type="hidden" name="sms_quiet_hours_enabled" value="false">
+                                                <input type="checkbox" name="sms_quiet_hours_enabled" value="true" id="sms_quiet_hours_toggle" {% if form.sms_quiet_hours_enabled.value %}checked{% endif %}>
                                                 <span class="toggle-slider"></span>
                                             </label>
                                         </div>
@@ -1725,7 +1737,8 @@ The AI will remember these to respond more thoughtfully in the future."
                         </div>
                         <div id="biometric-toggle-wrapper">
                             <label class="toggle-switch" id="biometric-toggle-label">
-                                <input type="checkbox" name="biometric_login_enabled" id="biometric_toggle" {% if form.biometric_login_enabled.value %}checked{% endif %}>
+                                <input type="hidden" name="biometric_login_enabled" value="false">
+                                <input type="checkbox" name="biometric_login_enabled" value="true" id="biometric_toggle" {% if form.biometric_login_enabled.value %}checked{% endif %}>
                                 <span class="toggle-slider"></span>
                             </label>
                         </div>
@@ -3003,6 +3016,25 @@ The AI will remember these to respond more thoughtfully in the future."
 <script src="{% static 'js/accordion.js' %}"></script>
 <script src="{% static 'js/timezone-lookup.js' %}"></script>
 <script nonce="{{ csp_nonce }}">
+// Fix checkbox submission: Add hidden inputs for unchecked checkboxes
+// Browsers don't submit unchecked checkboxes, so Django doesn't know to set them to False
+document.getElementById('preferences-form').addEventListener('submit', function(e) {
+    const form = e.target;
+    const checkboxes = form.querySelectorAll('input[type="checkbox"]:not(:disabled)');
+    checkboxes.forEach(function(checkbox) {
+        // Skip if there's already a hidden input with the same name
+        const existingHidden = form.querySelector('input[type="hidden"][name="' + checkbox.name + '"]');
+        if (!existingHidden && !checkbox.checked) {
+            // Create a hidden input to send "false" for unchecked checkboxes
+            const hidden = document.createElement('input');
+            hidden.type = 'hidden';
+            hidden.name = checkbox.name;
+            hidden.value = 'false';
+            form.appendChild(hidden);
+        }
+    });
+});
+
 // Update modules count badge
 function updateModulesCount() {
     const moduleCheckboxes = document.querySelectorAll('input[name="journal_enabled"], input[name="faith_enabled"], input[name="health_enabled"], input[name="life_enabled"], input[name="purpose_enabled"], input[name="finances_enabled"], input[name="capture_enabled"]');

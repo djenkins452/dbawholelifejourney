@@ -16,6 +16,31 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-25 Changes
 
+### Privacy Policy: Comprehensive Update for All Data Collection
+
+**Summary:** Updated the Privacy Policy to accurately reflect all data types collected by the app, including HealthKit integration, AI features, mobile app data, and age consent requirements.
+
+**New Sections Added:**
+- **Journal & Reflection Data** - mood, emotions, prompts
+- **Health & Wellness Data** - 22+ metric types (body composition, heart health, activity, sleep, nutrition, blood glucose, medications, female health, body temperature)
+- **Faith & Spiritual Data** - prayer requests, scripture, reading plans
+- **Life Planning Data** - goals, tasks, life areas
+- **Mobile App Data** - device info, tokens, push notifications
+- **Apple HealthKit Integration** - detailed list of synced data types with revocation instructions
+- **Security & Authentication Data** - biometrics/passkeys, MFA, fraud prevention
+- **AI Features expansion** - conversation history, AI profile, learned facts, consent levels, OpenAI disclosure
+- **Third-Party Services expansion** - added OpenAI, Dexcom, FatSecret, Apple HealthKit
+
+**Updated Sections:**
+- Account Information - added date of birth and avatar
+- CCPA Categories - added protected classifications, biometric info, expanded sensitive data
+- Sensitive Personal Information - detailed list (health, religious, biometric, mental health)
+
+**Files Modified:**
+- `templates/core/privacy.html`
+
+---
+
 ### iOS: Increased API Timeout for Health Data Syncs
 
 **Summary:** Increased iOS API client timeouts to handle large CGM data volumes (~2000+ readings/week).

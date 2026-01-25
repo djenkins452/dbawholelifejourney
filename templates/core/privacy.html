@@ -27,17 +27,51 @@
             <ul>
                 <li>Email address (for authentication and communication)</li>
                 <li>Name (optional, for personalization)</li>
+                <li>Date of birth (required, for age verification - see Children's Privacy section)</li>
                 <li>Password (stored securely using industry-standard hashing)</li>
+                <li>Avatar image (optional)</li>
             </ul>
-            
-            <h3>User Content</h3>
-            <p>Content you create within the Service:</p>
+
+            <h3>Journal & Reflection Data</h3>
+            <p>Content you create for personal journaling:</p>
             <ul>
-                <li>Journal entries and reflections</li>
-                <li>Health metrics (weight, heart rate, glucose, fasting data)</li>
-                <li>Mood tracking data</li>
-                <li>Tags and categories you create</li>
-                <li>Preferences and settings</li>
+                <li>Journal entries (title, body text, entry date)</li>
+                <li>Mood selections (great, good, okay, low, difficult)</li>
+                <li>Emotion tags (multiple selections from predefined emotions)</li>
+                <li>Custom tags and categories you create</li>
+                <li>Responses to journal prompts</li>
+            </ul>
+
+            <h3>Health & Wellness Data</h3>
+            <p>Health metrics you track manually or sync from devices:</p>
+            <ul>
+                <li><strong>Body composition:</strong> Weight, body fat percentage, lean body mass</li>
+                <li><strong>Heart health:</strong> Heart rate, resting heart rate, heart rate variability (HRV), blood pressure, blood oxygen</li>
+                <li><strong>Activity:</strong> Steps, active/resting calories, distance, flights climbed, exercise minutes, stand hours, workouts, VO2 max</li>
+                <li><strong>Sleep:</strong> Sleep duration, quality, stage breakdown, respiratory rate</li>
+                <li><strong>Nutrition:</strong> Food entries, calories, macronutrients, water intake, caffeine, fasting windows</li>
+                <li><strong>Blood glucose:</strong> Glucose readings (manual or from Dexcom integration)</li>
+                <li><strong>Medications:</strong> Medicine logs, refill tracking, dosage information</li>
+                <li><strong>Female health:</strong> Menstrual cycle data including flow level, symptoms, mood, and fertility predictions (if you enable this feature)</li>
+                <li><strong>Body temperature:</strong> Temperature readings</li>
+            </ul>
+
+            <h3>Faith & Spiritual Data</h3>
+            <p>If you use the faith features:</p>
+            <ul>
+                <li>Prayer requests (title, description, who you're praying for, priority, answered status)</li>
+                <li>Scripture verses you save or bookmark</li>
+                <li>Bible reading plan progress and preferences</li>
+                <li>Faith milestones and reflections</li>
+                <li>Personal notes on Bible passages</li>
+            </ul>
+
+            <h3>Life Planning Data</h3>
+            <p>If you use life planning features:</p>
+            <ul>
+                <li>Goals and progress tracking</li>
+                <li>Task lists and reminders</li>
+                <li>Life areas and priorities you define</li>
             </ul>
             
             <h3>Technical Information</h3>
@@ -47,6 +81,46 @@
                 <li>Browser type and device information</li>
                 <li>Usage patterns (pages visited, features used)</li>
                 <li>Cookies and similar technologies</li>
+            </ul>
+
+            <h3>Mobile App Data</h3>
+            <p>If you use our iOS mobile app:</p>
+            <ul>
+                <li><strong>Device information:</strong> Device model, OS version, app version, device name</li>
+                <li><strong>Authentication tokens:</strong> Secure API tokens for mobile access (encrypted)</li>
+                <li><strong>Push notifications:</strong> Device push token (if you enable notifications)</li>
+                <li><strong>HealthKit data:</strong> Health metrics synced from Apple Health (only with your explicit permission - see below)</li>
+            </ul>
+
+            <h3>Apple HealthKit Integration</h3>
+            <p>
+                If you use our iOS app and grant HealthKit permissions, we can sync health data
+                from Apple Health. This requires your explicit authorization for each data type:
+            </p>
+            <ul>
+                <li>Steps, distance, flights climbed, exercise minutes</li>
+                <li>Active and resting calories burned</li>
+                <li>Heart rate, resting heart rate, HRV, blood pressure, blood oxygen</li>
+                <li>Weight, body fat percentage, lean body mass</li>
+                <li>Sleep analysis and respiratory rate</li>
+                <li>Blood glucose readings</li>
+                <li>Water and caffeine intake</li>
+                <li>Mindful minutes and workouts</li>
+                <li>Body temperature</li>
+            </ul>
+            <p>
+                <strong>Important:</strong> HealthKit data is never used for advertising and is
+                stored securely. You can revoke HealthKit access at any time in your iPhone's
+                Settings app under Privacy &amp; Security &gt; Health &gt; Whole Life Journey.
+            </p>
+
+            <h3>Security & Authentication Data</h3>
+            <p>To protect your account, we may collect:</p>
+            <ul>
+                <li><strong>Biometric credentials:</strong> If you enable passkey/WebAuthn login, we store your public key credential (not your biometric data itself)</li>
+                <li><strong>Multi-factor authentication:</strong> Verification codes and their status</li>
+                <li><strong>Fraud prevention:</strong> Device fingerprint hashes, risk scores, CAPTCHA verification results</li>
+                <li><strong>Login history:</strong> IP addresses and timestamps of authentication attempts</li>
             </ul>
         </section>
         
@@ -75,17 +149,38 @@
         <section class="legal-section">
             <h2>AI Features and Your Data</h2>
             <p>
-                If you enable AI-powered insights, we process your entries to generate 
-                personalized reflections and suggestions. This processing:
+                Whole Life Journey offers AI-powered features to help you reflect, plan, and
+                track your wellness journey. If you enable AI features, here's how your data is used:
             </p>
+
+            <h3>What AI Features Collect</h3>
             <ul>
-                <li>Occurs only when you explicitly enable the feature</li>
-                <li>Uses your data solely to provide insights to you</li>
-                <li>Does not share your content with third-party AI providers in a way that identifies you</li>
-                <li>Can be disabled at any time in your settings</li>
+                <li><strong>Conversation history:</strong> Your messages and the AI's responses are stored to provide continuity</li>
+                <li><strong>AI profile:</strong> Optional personal context you provide (age, family, interests, goals, health conditions) to personalize responses</li>
+                <li><strong>Learned facts:</strong> Information the AI learns about you during conversations (stored encrypted)</li>
+                <li><strong>Coaching preferences:</strong> Your selected AI coaching style</li>
+                <li><strong>Generated insights:</strong> Daily, weekly, and monthly summaries created from your data</li>
+                <li><strong>Usage logs:</strong> API calls, token counts, and costs (for service operation)</li>
+            </ul>
+
+            <h3>How AI Processing Works</h3>
+            <ul>
+                <li>AI features require your explicit consent before activation</li>
+                <li>Your data is sent to OpenAI's API to generate responses and insights</li>
+                <li>We do not allow OpenAI to use your data for training their models</li>
+                <li>Conversations are associated with your account but not shared with other users</li>
+                <li>You can view, export, or delete your AI conversation history</li>
+            </ul>
+
+            <h3>AI Consent Levels</h3>
+            <ul>
+                <li><strong>Basic AI consent:</strong> Enables AI insights and daily check-ins</li>
+                <li><strong>Personal Assistant consent:</strong> Allows deeper data access for more personalized coaching</li>
             </ul>
             <p>
-                When AI features are disabled, your content is not processed by AI systems.
+                You can adjust or revoke AI consent at any time in your settings. When disabled,
+                your content is not processed by AI systems, though existing conversation history
+                is retained until you delete it.
             </p>
         </section>
         
@@ -191,15 +286,30 @@
 
         <section class="legal-section">
             <h2>Third-Party Services</h2>
-            <p>We use the following third-party services:</p>
+            <p>We use the following third-party services to provide the Service:</p>
+
+            <h3>Infrastructure & Operations</h3>
             <ul>
-                <li><strong>Hosting:</strong> Railway (data storage and processing)</li>
-                <li><strong>Email:</strong> Resend (transactional emails only)</li>
-                <li><strong>Google Calendar:</strong> Optional calendar sync (if you enable it)</li>
+                <li><strong>Railway:</strong> Cloud hosting and data storage</li>
+                <li><strong>Resend:</strong> Transactional email delivery (account notifications, password resets)</li>
+            </ul>
+
+            <h3>AI & Intelligence</h3>
+            <ul>
+                <li><strong>OpenAI:</strong> Powers AI coaching and insights features (only if you enable AI features)</li>
+            </ul>
+
+            <h3>Optional Integrations (User-Enabled)</h3>
+            <ul>
+                <li><strong>Google Calendar:</strong> Two-way calendar sync (see dedicated section above)</li>
+                <li><strong>Dexcom:</strong> Continuous glucose monitor data sync (if you connect your Dexcom account)</li>
+                <li><strong>FatSecret:</strong> Nutrition database for food logging</li>
+                <li><strong>Apple HealthKit:</strong> Health data sync from iPhone (iOS app only)</li>
             </ul>
             <p>
                 Each service has its own privacy policy governing their use of data.
                 We select partners who demonstrate commitment to data protection.
+                Optional integrations only activate when you explicitly connect them.
             </p>
         </section>
         
@@ -340,11 +450,14 @@
 
             <h3>Categories of Personal Information Collected</h3>
             <ul>
-                <li><strong>Identifiers:</strong> Email address, name, IP address</li>
-                <li><strong>Personal information (Cal. Civ. Code § 1798.80):</strong> Name, email</li>
+                <li><strong>Identifiers:</strong> Email address, name, date of birth, IP address, device identifiers</li>
+                <li><strong>Personal information (Cal. Civ. Code § 1798.80):</strong> Name, email, date of birth</li>
+                <li><strong>Protected classifications:</strong> Age (for COPPA compliance)</li>
                 <li><strong>Internet or network activity:</strong> Browsing history, interactions with Service</li>
                 <li><strong>Geolocation data:</strong> Approximate location from IP address</li>
-                <li><strong>Inferences:</strong> Preferences derived from your activity</li>
+                <li><strong>Biometric information:</strong> HealthKit data (heart rate, sleep patterns, etc.) if you enable mobile sync</li>
+                <li><strong>Sensitive personal information:</strong> Health data, religious beliefs (faith features), precise geolocation (if granted)</li>
+                <li><strong>Inferences:</strong> Preferences and insights derived from your activity</li>
             </ul>
 
             <h3>Your CCPA/CPRA Rights</h3>
@@ -366,8 +479,15 @@
 
             <h3>Sensitive Personal Information</h3>
             <p>
-                The Service may collect sensitive personal information including health
-                data, religious beliefs (if you use faith features), and precise geolocation.
+                The Service collects sensitive personal information including:
+            </p>
+            <ul>
+                <li>Health data (weight, heart rate, blood glucose, sleep, menstrual cycles, medications)</li>
+                <li>Religious beliefs and practices (prayer requests, Bible reading, faith reflections)</li>
+                <li>Biometric data from HealthKit (if you enable mobile sync)</li>
+                <li>Mental health indicators (mood tracking, journal entries about emotions)</li>
+            </ul>
+            <p>
                 This information is used solely to provide the Service features you request
                 and is never sold or used for advertising.
             </p>

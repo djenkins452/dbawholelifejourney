@@ -16,6 +16,20 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-25 Changes
 
+### Add Subscription Button to Profile Page
+
+**Summary:** Added a Subscription button to the Profile page to make subscription management accessible through navigation.
+
+**Problem:** Users had no way to navigate to subscription management (`/billing/settings/`) from within the app - the page existed but wasn't linked in the UI.
+
+**Solution:** Added a "Subscription" button on the Profile page next to the existing Preferences button.
+
+**Files Modified:**
+- `templates/users/profile.html` - Added Subscription button linking to `billing:billing_settings`
+- `templates/core/app_review.html` - Updated Feature Locations table and Video Script to show new navigation path (More → Profile → Subscription)
+
+---
+
 ### Landing Page Logo from Site Configuration
 
 **Summary:** Updated the landing page to use the logo from admin console Site Configuration instead of hardcoded static file.

@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}Delete Announcement - Admin Console{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <nav class="breadcrumb">
+                <a href="{% url 'admin_console:dashboard' %}">Admin Console</a>
+                <span>/</span>
+                <a href="{% url 'admin_console:system_announcement_list' %}">System Announcements</a>
+                <span>/</span>
+                <span>Delete</span>
+            </nav>
+            <h1 class="page-title">Delete Announcement</h1>
+        </div>
+    </div>
+
+    <div class="confirm-card">
+        <div class="confirm-icon">
+            <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+            </svg>
+        </div>
+        <h2>Are you sure?</h2>
+        <p>You are about to delete the announcement:</p>
+        <div class="announcement-preview">
+            <strong>{{ announcement.title }}</strong>
+            <span class="severity-badge severity-{{ announcement.severity }}">
+                {{ announcement.get_severity_display }}
+            </span>
+        </div>
+        <p class="text-muted">This action cannot be undone. Users who dismissed this announcement will no longer have a record of it.</p>
+
+        <form method="post" class="confirm-actions">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger">Yes, Delete</button>
+            <a href="{% url 'admin_console:system_announcement_list' %}" class="btn btn-ghost">Cancel</a>
+        </form>
+    </div>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-2);
+}
+
+.breadcrumb a {
+    color: var(--color-accent);
+}
+
+.confirm-card {
+    max-width: 500px;
+    margin: var(--space-8) auto;
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-8);
+    text-align: center;
+}
+
+.confirm-icon {
+    color: var(--color-error);
+    margin-bottom: var(--space-4);
+}
+
+.confirm-card h2 {
+    font-size: var(--font-size-xl);
+    margin-bottom: var(--space-2);
+}
+
+.confirm-card > p {
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-4);
+}
+
+.announcement-preview {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-3);
+    background: var(--color-surface);
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-4);
+}
+
+.severity-badge {
+    display: inline-block;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+}
+
+.severity-info { background: #dbeafe; color: #1e40af; }
+.severity-warning { background: #fef3c7; color: #92400e; }
+.severity-error { background: #fee2e2; color: #991b1b; }
+.severity-success { background: #dcfce7; color: #166534; }
+
+.confirm-actions {
+    display: flex;
+    justify-content: center;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+}
+
+.btn-danger {
+    background: var(--color-error);
+    color: white;
+    border: none;
+}
+
+.btn-danger:hover {
+    background: #dc2626;
+}
+</style>
+{% endblock %}

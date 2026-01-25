@@ -3990,3 +3990,131 @@ class ProcessEmailsAPIView(APIRateLimitMixin, View):
                 'success': False,
                 'error': f'Unexpected error: {str(e)}',
             }, status=500)
+
+
+# =============================================================================
+# System Announcements
+# =============================================================================
+
+class SystemAnnouncementListView(HelpContextMixin, AdminRequiredMixin, ListView):
+    """List all system announcements."""
+    template_name = "admin_console/system_announcement_list.html"
+    context_object_name = "announcements"
+    help_context_id = "ADMIN_CONSOLE_ANNOUNCEMENTS"
+
+    def get_queryset(self):
+        from .models import SystemAnnouncement
+        return SystemAnnouncement.objects.all().order_by('-starts_at')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        from django.utils import timezone
+        context['now'] = timezone.now()
+        return context
+
+
+class SystemAnnouncementCreateView(AdminRequiredMixin, CreateView):
+    """Create a new system announcement."""
+    template_name = "admin_console/system_announcement_form.html"
+    success_url = reverse_lazy('admin_console:system_announcement_list')
+
+    def get_form_class(self):
+        from django import forms
+        from .models import SystemAnnouncement
+
+        class SystemAnnouncementForm(forms.ModelForm):
+            class Meta:
+                model = SystemAnnouncement
+                fields = ['title', 'message', 'severity', 'starts_at', 'ends_at', 'is_published']
+                widgets = {
+                    'title': forms.TextInput(attrs={'class': 'form-input', 'placeholder': 'Announcement title'}),
+                    'message': forms.Textarea(attrs={'class': 'form-input', 'rows': 5, 'placeholder': 'Enter your message...'}),
+                    'severity': forms.Select(attrs={'class': 'form-input'}),
+                    'starts_at': forms.DateTimeInput(attrs={'class': 'form-input', 'type': 'datetime-local'}),
+                    'ends_at': forms.DateTimeInput(attrs={'class': 'form-input', 'type': 'datetime-local'}),
+                    'is_published': forms.CheckboxInput(attrs={'class': 'form-checkbox'}),
+                }
+
+        return SystemAnnouncementForm
+
+    def form_valid(self, form):
+        form.instance.created_by = self.request.user
+        messages.success(self.request, "Announcement created successfully.")
+        return super().form_valid(form)
+
+
+class SystemAnnouncementUpdateView(AdminRequiredMixin, UpdateView):
+    """Edit an existing system announcement."""
+    template_name = "admin_console/system_announcement_form.html"
+    success_url = reverse_lazy('admin_console:system_announcement_list')
+    context_object_name = 'announcement'
+
+    def get_queryset(self):
+        from .models import SystemAnnouncement
+        return SystemAnnouncement.objects.all()
+
+    def get_form_class(self):
+        from django import forms
+        from .models import SystemAnnouncement
+
+        class SystemAnnouncementForm(forms.ModelForm):
+            class Meta:
+                model = SystemAnnouncement
+                fields = ['title', 'message', 'severity', 'starts_at', 'ends_at', 'is_published']
+                widgets = {
+                    'title': forms.TextInput(attrs={'class': 'form-input', 'placeholder': 'Announcement title'}),
+                    'message': forms.Textarea(attrs={'class': 'form-input', 'rows': 5, 'placeholder': 'Enter your message...'}),
+                    'severity': forms.Select(attrs={'class': 'form-input'}),
+                    'starts_at': forms.DateTimeInput(attrs={'class': 'form-input', 'type': 'datetime-local'}),
+                    'ends_at': forms.DateTimeInput(attrs={'class': 'form-input', 'type': 'datetime-local'}),
+                    'is_published': forms.CheckboxInput(attrs={'class': 'form-checkbox'}),
+                }
+
+        return SystemAnnouncementForm
+
+    def form_valid(self, form):
+        messages.success(self.request, "Announcement updated successfully.")
+        return super().form_valid(form)
+
+
+class SystemAnnouncementDeleteView(AdminRequiredMixin, DeleteView):
+    """Delete a system announcement."""
+    template_name = "admin_console/system_announcement_confirm_delete.html"
+    success_url = reverse_lazy('admin_console:system_announcement_list')
+    context_object_name = 'announcement'
+
+    def get_queryset(self):
+        from .models import SystemAnnouncement
+        return SystemAnnouncement.objects.all()
+
+    def form_valid(self, form):
+        messages.success(self.request, "Announcement deleted.")
+        return super().form_valid(form)
+
+
+class SystemAnnouncementDismissAPIView(APIRateLimitMixin, View):
+    """
+    API endpoint for users to dismiss an announcement.
+
+    POST /api/announcements/<id>/dismiss/
+    """
+    rate_limit_action = "announcement_dismiss"
+
+    def post(self, request, pk):
+        if not request.user.is_authenticated:
+            return JsonResponse({'error': 'Authentication required'}, status=401)
+
+        from .models import SystemAnnouncement, SystemAnnouncementDismissal
+
+        try:
+            announcement = SystemAnnouncement.objects.get(pk=pk)
+        except SystemAnnouncement.DoesNotExist:
+            return JsonResponse({'error': 'Announcement not found'}, status=404)
+
+        # Create dismissal record (ignore if already exists)
+        SystemAnnouncementDismissal.objects.get_or_create(
+            user=request.user,
+            announcement=announcement
+        )
+
+        return JsonResponse({'success': True})

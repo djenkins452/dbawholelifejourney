@@ -979,3 +979,135 @@ class EmailNotificationTemplate(models.Model):
             return template
         except cls.DoesNotExist:
             return None
+
+
+class SystemAnnouncement(models.Model):
+    """
+    System-wide announcements that display to all users as a modal popup.
+
+    Used for maintenance notifications, feature announcements, important updates, etc.
+    Admins can schedule announcements with start/end dates.
+    Users can dismiss announcements, tracked via SystemAnnouncementDismissal.
+    """
+
+    SEVERITY_INFO = 'info'
+    SEVERITY_WARNING = 'warning'
+    SEVERITY_ERROR = 'error'
+    SEVERITY_SUCCESS = 'success'
+    SEVERITY_CHOICES = [
+        (SEVERITY_INFO, 'Info'),
+        (SEVERITY_WARNING, 'Warning'),
+        (SEVERITY_ERROR, 'Error/Urgent'),
+        (SEVERITY_SUCCESS, 'Success'),
+    ]
+
+    title = models.CharField(
+        max_length=200,
+        help_text="Short title for the announcement"
+    )
+    message = models.TextField(
+        help_text="Full message content (supports basic HTML: <b>, <i>, <a>, <br>, <ul>, <li>)"
+    )
+    severity = models.CharField(
+        max_length=20,
+        choices=SEVERITY_CHOICES,
+        default=SEVERITY_INFO,
+        help_text="Determines the color/styling of the announcement"
+    )
+
+    # Scheduling
+    starts_at = models.DateTimeField(
+        help_text="When to start showing this announcement"
+    )
+    ends_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When to stop showing (leave blank for indefinite)"
+    )
+
+    # Publishing
+    is_published = models.BooleanField(
+        default=False,
+        help_text="Only published announcements are shown to users"
+    )
+
+    # Tracking
+    created_by = models.ForeignKey(
+        'users.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='created_announcements'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-starts_at', '-created_at']
+        verbose_name = "System Announcement"
+        verbose_name_plural = "System Announcements"
+
+    def __str__(self):
+        return f"{self.title} ({self.get_severity_display()})"
+
+    @property
+    def is_active(self):
+        """Check if announcement is currently active (published and within date range)."""
+        from django.utils import timezone
+        now = timezone.now()
+        if not self.is_published:
+            return False
+        if now < self.starts_at:
+            return False
+        if self.ends_at and now > self.ends_at:
+            return False
+        return True
+
+    @classmethod
+    def get_active_announcements(cls):
+        """Get all currently active announcements."""
+        from django.utils import timezone
+        now = timezone.now()
+        return cls.objects.filter(
+            is_published=True,
+            starts_at__lte=now
+        ).filter(
+            models.Q(ends_at__isnull=True) | models.Q(ends_at__gte=now)
+        ).order_by('-severity', '-starts_at')
+
+    @classmethod
+    def get_active_for_user(cls, user):
+        """Get active announcements that the user hasn't dismissed."""
+        active = cls.get_active_announcements()
+        dismissed_ids = SystemAnnouncementDismissal.objects.filter(
+            user=user
+        ).values_list('announcement_id', flat=True)
+        return active.exclude(id__in=dismissed_ids)
+
+
+class SystemAnnouncementDismissal(models.Model):
+    """
+    Tracks which users have dismissed which announcements.
+
+    Once a user dismisses an announcement, they won't see it again
+    (even if it's still active).
+    """
+
+    user = models.ForeignKey(
+        'users.User',
+        on_delete=models.CASCADE,
+        related_name='dismissed_announcements'
+    )
+    announcement = models.ForeignKey(
+        SystemAnnouncement,
+        on_delete=models.CASCADE,
+        related_name='dismissals'
+    )
+    dismissed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'announcement')
+        verbose_name = "Announcement Dismissal"
+        verbose_name_plural = "Announcement Dismissals"
+
+    def __str__(self):
+        return f"{self.user} dismissed {self.announcement}"

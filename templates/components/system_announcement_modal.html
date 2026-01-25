@@ -1,0 +1,218 @@
+{% if has_active_announcements %}
+<!-- System Announcement Modal -->
+{% with announcement=active_announcements.0 %}
+<dialog id="system-announcement-modal" class="announcement-modal">
+    <div class="announcement-modal-content announcement-{{ announcement.severity }}">
+        <div class="announcement-header">
+            <div class="announcement-icon">
+                {% if announcement.severity == 'error' %}
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="12"/>
+                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                {% elif announcement.severity == 'warning' %}
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                    <line x1="12" y1="9" x2="12" y2="13"/>
+                    <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+                {% elif announcement.severity == 'success' %}
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                    <polyline points="22 4 12 14.01 9 11.01"/>
+                </svg>
+                {% else %}
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="16" x2="12" y2="12"/>
+                    <line x1="12" y1="8" x2="12.01" y2="8"/>
+                </svg>
+                {% endif %}
+            </div>
+            <h2 class="announcement-title">{{ announcement.title }}</h2>
+        </div>
+        <div class="announcement-body">
+            {{ announcement.message|safe }}
+        </div>
+        <div class="announcement-footer">
+            <button type="button" class="btn btn-primary" onclick="dismissAnnouncement({{ announcement.id }})">
+                Got it
+            </button>
+        </div>
+    </div>
+</dialog>
+
+<style nonce="{{ csp_nonce }}">
+.announcement-modal {
+    border: none;
+    border-radius: var(--radius-lg);
+    padding: 0;
+    max-width: 480px;
+    width: calc(100% - 2rem);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    background: transparent;
+}
+
+.announcement-modal::backdrop {
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+}
+
+.announcement-modal-content {
+    background: var(--color-background);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.announcement-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-5);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.announcement-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-full);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.announcement-icon svg {
+    width: 24px;
+    height: 24px;
+}
+
+/* Severity-specific colors */
+.announcement-info .announcement-icon {
+    background: #dbeafe;
+    color: #2563eb;
+}
+
+.announcement-warning .announcement-icon {
+    background: #fef3c7;
+    color: #d97706;
+}
+
+.announcement-error .announcement-icon {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+.announcement-success .announcement-icon {
+    background: #dcfce7;
+    color: #16a34a;
+}
+
+.announcement-title {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    margin: 0;
+    color: var(--color-text);
+}
+
+.announcement-body {
+    padding: var(--space-5);
+    font-size: var(--font-size-base);
+    line-height: 1.6;
+    color: var(--color-text);
+}
+
+.announcement-body p {
+    margin: 0 0 var(--space-3) 0;
+}
+
+.announcement-body p:last-child {
+    margin-bottom: 0;
+}
+
+.announcement-body a {
+    color: var(--color-accent);
+}
+
+.announcement-body ul, .announcement-body ol {
+    margin: var(--space-3) 0;
+    padding-left: var(--space-5);
+}
+
+.announcement-footer {
+    padding: var(--space-4) var(--space-5);
+    background: var(--color-surface);
+    display: flex;
+    justify-content: flex-end;
+}
+</style>
+
+<script nonce="{{ csp_nonce }}">
+// Show the modal on page load
+document.addEventListener('DOMContentLoaded', function() {
+    const modal = document.getElementById('system-announcement-modal');
+    if (modal) {
+        // Small delay for better UX
+        setTimeout(() => {
+            modal.showModal();
+        }, 500);
+    }
+});
+
+// Dismiss announcement and close modal
+function dismissAnnouncement(announcementId) {
+    const modal = document.getElementById('system-announcement-modal');
+
+    // Send dismiss request
+    fetch(`/admin-console/api/announcements/${announcementId}/dismiss/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken(),
+        },
+    }).then(response => {
+        if (!response.ok) {
+            console.error('Failed to dismiss announcement');
+        }
+    }).catch(error => {
+        console.error('Error dismissing announcement:', error);
+    });
+
+    // Close modal immediately
+    if (modal) {
+        modal.close();
+    }
+}
+
+// Get CSRF token
+function getCsrfToken() {
+    const cookies = document.cookie.split(';');
+    for (let cookie of cookies) {
+        const [key, value] = cookie.trim().split('=');
+        if (key === 'csrftoken') {
+            return value;
+        }
+    }
+    return '';
+}
+
+// Close on escape key (handled by dialog, but ensure dismiss is called)
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        const modal = document.getElementById('system-announcement-modal');
+        if (modal && modal.open) {
+            // Get announcement ID from the button
+            const btn = modal.querySelector('button[onclick]');
+            if (btn) {
+                const match = btn.getAttribute('onclick').match(/dismissAnnouncement\((\d+)\)/);
+                if (match) {
+                    dismissAnnouncement(parseInt(match[1]));
+                }
+            }
+        }
+    }
+});
+</script>
+{% endwith %}
+{% endif %}

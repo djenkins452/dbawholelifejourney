@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+
+{% block title %}{% if announcement %}Edit Announcement{% else %}New Announcement{% endif %} - Admin Console{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <nav class="breadcrumb">
+                <a href="{% url 'admin_console:dashboard' %}">Admin Console</a>
+                <span>/</span>
+                <a href="{% url 'admin_console:system_announcement_list' %}">System Announcements</a>
+                <span>/</span>
+                <span>{% if announcement %}Edit{% else %}New{% endif %}</span>
+            </nav>
+            <h1 class="page-title">{% if announcement %}Edit Announcement{% else %}New Announcement{% endif %}</h1>
+        </div>
+    </div>
+
+    <form method="post" class="admin-form">
+        {% csrf_token %}
+
+        {% if form.errors %}
+        <div class="form-errors">
+            <strong>Please fix the following errors:</strong>
+            <ul>
+                {% for field in form %}
+                    {% for error in field.errors %}
+                        <li>{{ field.label }}: {{ error }}</li>
+                    {% endfor %}
+                {% endfor %}
+                {% for error in form.non_field_errors %}
+                    <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        <div class="form-section">
+            <h2 class="section-title">Content</h2>
+
+            <div class="form-group">
+                <label for="id_title" class="form-label">Title *</label>
+                <input type="text" name="title" id="id_title" class="form-input"
+                       value="{{ form.title.value|default:'' }}" required
+                       placeholder="e.g., Scheduled Maintenance Tonight">
+            </div>
+
+            <div class="form-group">
+                <label for="id_message" class="form-label">Message *</label>
+                <textarea name="message" id="id_message" class="form-textarea" rows="5" required
+                          placeholder="Enter your announcement message...">{{ form.message.value|default:'' }}</textarea>
+                <p class="form-help">Supports basic HTML: &lt;b&gt;, &lt;i&gt;, &lt;a href=""&gt;, &lt;br&gt;, &lt;ul&gt;, &lt;li&gt;</p>
+            </div>
+
+            <div class="form-group">
+                <label for="id_severity" class="form-label">Severity</label>
+                <select name="severity" id="id_severity" class="form-input">
+                    <option value="info" {% if form.severity.value == 'info' %}selected{% endif %}>Info (blue)</option>
+                    <option value="success" {% if form.severity.value == 'success' %}selected{% endif %}>Success (green)</option>
+                    <option value="warning" {% if form.severity.value == 'warning' %}selected{% endif %}>Warning (yellow)</option>
+                    <option value="error" {% if form.severity.value == 'error' %}selected{% endif %}>Error/Urgent (red)</option>
+                </select>
+                <p class="form-help">Determines the color and visual weight of the announcement</p>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h2 class="section-title">Schedule</h2>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="id_starts_at" class="form-label">Start Date/Time *</label>
+                    <input type="datetime-local" name="starts_at" id="id_starts_at" class="form-input"
+                           value="{{ form.starts_at.value|date:'Y-m-d\TH:i'|default:'' }}" required>
+                    <p class="form-help">When to start showing the announcement</p>
+                </div>
+
+                <div class="form-group">
+                    <label for="id_ends_at" class="form-label">End Date/Time</label>
+                    <input type="datetime-local" name="ends_at" id="id_ends_at" class="form-input"
+                           value="{{ form.ends_at.value|date:'Y-m-d\TH:i'|default:'' }}">
+                    <p class="form-help">Optional. Leave blank for indefinite display</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h2 class="section-title">Publishing</h2>
+
+            <div class="form-group">
+                <label class="form-checkbox-label">
+                    <input type="checkbox" name="is_published" id="id_is_published"
+                           {% if form.is_published.value %}checked{% endif %}>
+                    <span class="checkbox-text">
+                        <strong>Publish this announcement</strong>
+                        <span class="text-muted">Only published announcements are shown to users</span>
+                    </span>
+                </label>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
+                {% if announcement %}Save Changes{% else %}Create Announcement{% endif %}
+            </button>
+            <a href="{% url 'admin_console:system_announcement_list' %}" class="btn btn-ghost">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-2);
+}
+
+.breadcrumb a {
+    color: var(--color-accent);
+}
+
+.admin-form {
+    max-width: 700px;
+}
+
+.form-errors {
+    background: #fee2e2;
+    border: 1px solid #fecaca;
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+    margin-bottom: var(--space-6);
+    color: #991b1b;
+}
+
+.form-errors ul {
+    margin: var(--space-2) 0 0 var(--space-4);
+}
+
+.form-section {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    margin-bottom: var(--space-6);
+}
+
+.section-title {
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    margin-bottom: var(--space-4);
+    padding-bottom: var(--space-2);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+}
+
+@media (max-width: 640px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+.form-checkbox-label {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    cursor: pointer;
+}
+
+.form-checkbox-label input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    margin-top: 2px;
+    flex-shrink: 0;
+}
+
+.checkbox-text {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.checkbox-text .text-muted {
+    font-size: var(--font-size-sm);
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+}
+</style>
+
+<script nonce="{{ csp_nonce }}">
+// Set default start time to now if creating new
+const startsAtInput = document.getElementById('id_starts_at');
+if (startsAtInput && !startsAtInput.value) {
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    startsAtInput.value = now.toISOString().slice(0, 16);
+}
+</script>
+{% endblock %}

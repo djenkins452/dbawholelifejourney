@@ -16,6 +16,42 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-25 Changes
 
+### Feature: System Announcements
+
+**Summary:** Added a system-wide announcement feature that allows admins to broadcast messages to all users as modal popups. Useful for maintenance notices, feature announcements, urgent alerts, etc.
+
+**Admin Interface:**
+- Located in Admin Console → System Announcements
+- Create/Edit/Delete announcements with:
+  - Title and message (supports basic HTML)
+  - Severity levels: Info (blue), Success (green), Warning (yellow), Error/Urgent (red)
+  - Start date/time (when to start showing)
+  - End date/time (optional, for scheduled maintenance windows)
+  - Published toggle (only published announcements are shown)
+
+**User Experience:**
+- Active announcements appear as modal popups on page load
+- Users can dismiss announcements (tracked per-user so they don't see them again)
+- Modal styling matches the severity level (icon color, header styling)
+
+**Files Created:**
+- `apps/admin_console/models.py` - SystemAnnouncement and SystemAnnouncementDismissal models
+- `apps/admin_console/migrations/0023_add_system_announcements.py` - Migration
+- `apps/admin_console/views.py` - List, Create, Update, Delete, Dismiss API views
+- `templates/admin_console/system_announcement_list.html` - List view
+- `templates/admin_console/system_announcement_form.html` - Create/Edit form
+- `templates/admin_console/system_announcement_confirm_delete.html` - Delete confirmation
+- `templates/components/system_announcement_modal.html` - User-facing modal
+
+**Files Modified:**
+- `apps/admin_console/urls.py` - Added announcement routes
+- `templates/admin_console/dashboard.html` - Added dashboard card
+- `apps/core/context_processors.py` - Added system_announcements_context
+- `config/settings.py` - Registered context processor
+- `templates/base.html` - Included modal component
+
+---
+
 ### Enhancement: Site Name Next to Logo in Header
 
 **Summary:** Added the site name text next to the logo in the top header bar.

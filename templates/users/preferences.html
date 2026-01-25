@@ -387,6 +387,65 @@
             </div>
 
             <!-- ═══════════════════════════════════════════════════════════════════
+                 NAVIGATION ORDER (Mobile Bottom Tab Bar)
+                 ═══════════════════════════════════════════════════════════════════ -->
+            <div class="accordion-group" data-accordion-key="nav-order">
+                <button type="button" class="accordion-header">
+                    <div class="accordion-header-content">
+                        <span class="accordion-icon">📱</span>
+                        <div class="accordion-title-group">
+                            <h2 class="accordion-title">Navigation Order</h2>
+                            <p class="accordion-subtitle">Drag to reorder modules in your mobile bottom navigation</p>
+                        </div>
+                    </div>
+                    <div class="accordion-header-right">
+                        <div class="accordion-status">
+                            <span class="accordion-badge accordion-badge-inactive">Mobile only</span>
+                        </div>
+                        <svg class="accordion-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                    </div>
+                </button>
+                <div class="accordion-body">
+                    <p class="text-muted text-sm mb-4">
+                        The mobile bottom navigation shows Home, up to 4 modules, and More. Drag items to change order. Toggle visibility to show/hide in the nav bar.
+                    </p>
+
+                    <div class="nav-order-list" id="nav-order-list">
+                        {% for pref in nav_module_prefs %}
+                        <div class="nav-order-item" data-slug="{{ pref.module.slug }}" draggable="true">
+                            <div class="nav-order-handle">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                                    <line x1="8" y1="6" x2="16" y2="6"></line>
+                                    <line x1="8" y1="12" x2="16" y2="12"></line>
+                                    <line x1="8" y1="18" x2="16" y2="18"></line>
+                                </svg>
+                            </div>
+                            <div class="nav-order-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    {{ pref.module.icon_svg|safe }}
+                                </svg>
+                            </div>
+                            <span class="nav-order-name">{{ pref.module.name }}</span>
+                            <label class="toggle-switch toggle-switch-sm">
+                                <input type="checkbox"
+                                       class="nav-order-toggle"
+                                       data-slug="{{ pref.module.slug }}"
+                                       {% if pref.is_enabled %}checked{% endif %}>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <p class="text-muted text-xs mt-3">
+                        <strong>Note:</strong> Only the first 4 enabled modules appear in the bottom nav. Others are accessible via the More menu.
+                    </p>
+                </div>
+            </div>
+
+            <!-- ═══════════════════════════════════════════════════════════════════
                  CUSTOMIZE FEATURES
                  ═══════════════════════════════════════════════════════════════════ -->
             <div class="accordion-group" data-accordion-key="features">
@@ -2341,6 +2400,83 @@ The AI will remember these to respond more thoughtfully in the future."
     transform: translateX(20px);
 }
 
+/* Small toggle switch for nav order */
+.toggle-switch-sm {
+    width: 40px;
+    height: 24px;
+}
+
+.toggle-switch-sm .toggle-slider:before {
+    height: 16px;
+    width: 16px;
+}
+
+.toggle-switch-sm input:checked + .toggle-slider:before {
+    transform: translateX(16px);
+}
+
+/* Navigation Order Drag-and-Drop List */
+.nav-order-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.nav-order-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    cursor: grab;
+    transition: all var(--transition-fast);
+    user-select: none;
+}
+
+.nav-order-item:hover {
+    border-color: var(--color-accent);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.nav-order-item.dragging {
+    opacity: 0.5;
+    cursor: grabbing;
+}
+
+.nav-order-item.drag-over {
+    border-color: var(--color-accent);
+    background: var(--color-background);
+}
+
+.nav-order-handle {
+    color: var(--color-text-muted);
+    cursor: grab;
+    flex-shrink: 0;
+}
+
+.nav-order-handle:active {
+    cursor: grabbing;
+}
+
+.nav-order-icon {
+    width: 24px;
+    height: 24px;
+    color: var(--color-accent);
+    flex-shrink: 0;
+}
+
+.nav-order-icon svg {
+    width: 100%;
+    height: 100%;
+}
+
+.nav-order-name {
+    flex: 1;
+    font-weight: 500;
+}
+
 .color-input-wrapper {
     display: flex;
     align-items: center;
@@ -3049,6 +3185,162 @@ document.addEventListener('DOMContentLoaded', function() {
         cb.addEventListener('change', updateModulesCount);
     });
 });
+
+// ============================================================================
+// Navigation Order Drag-and-Drop
+// ============================================================================
+(function() {
+    const list = document.getElementById('nav-order-list');
+    if (!list) return;
+
+    let draggedItem = null;
+
+    // Drag start
+    list.addEventListener('dragstart', function(e) {
+        const item = e.target.closest('.nav-order-item');
+        if (!item) return;
+        draggedItem = item;
+        item.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', item.dataset.slug);
+    });
+
+    // Drag end
+    list.addEventListener('dragend', function(e) {
+        const item = e.target.closest('.nav-order-item');
+        if (item) item.classList.remove('dragging');
+        draggedItem = null;
+        // Remove drag-over from all items
+        list.querySelectorAll('.nav-order-item').forEach(i => i.classList.remove('drag-over'));
+        // Save the new order
+        saveModuleOrder();
+    });
+
+    // Drag over
+    list.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        const targetItem = e.target.closest('.nav-order-item');
+        if (targetItem && targetItem !== draggedItem) {
+            // Remove drag-over from all, add to target
+            list.querySelectorAll('.nav-order-item').forEach(i => i.classList.remove('drag-over'));
+            targetItem.classList.add('drag-over');
+        }
+    });
+
+    // Drop
+    list.addEventListener('drop', function(e) {
+        e.preventDefault();
+        const targetItem = e.target.closest('.nav-order-item');
+        if (!targetItem || !draggedItem || targetItem === draggedItem) return;
+
+        // Determine position
+        const items = Array.from(list.querySelectorAll('.nav-order-item'));
+        const draggedIndex = items.indexOf(draggedItem);
+        const targetIndex = items.indexOf(targetItem);
+
+        if (draggedIndex < targetIndex) {
+            targetItem.after(draggedItem);
+        } else {
+            targetItem.before(draggedItem);
+        }
+    });
+
+    // Touch support for mobile
+    let touchStartY = 0;
+    let touchItem = null;
+
+    list.addEventListener('touchstart', function(e) {
+        const item = e.target.closest('.nav-order-item');
+        if (!item) return;
+        // Only start drag if touching the handle
+        if (!e.target.closest('.nav-order-handle')) return;
+        touchItem = item;
+        touchStartY = e.touches[0].clientY;
+        item.classList.add('dragging');
+    }, { passive: true });
+
+    list.addEventListener('touchmove', function(e) {
+        if (!touchItem) return;
+        e.preventDefault();
+        const touch = e.touches[0];
+        const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+        const targetItem = elementBelow?.closest('.nav-order-item');
+
+        // Remove drag-over from all
+        list.querySelectorAll('.nav-order-item').forEach(i => i.classList.remove('drag-over'));
+
+        if (targetItem && targetItem !== touchItem) {
+            targetItem.classList.add('drag-over');
+        }
+    }, { passive: false });
+
+    list.addEventListener('touchend', function(e) {
+        if (!touchItem) return;
+        const touch = e.changedTouches[0];
+        const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+        const targetItem = elementBelow?.closest('.nav-order-item');
+
+        if (targetItem && targetItem !== touchItem) {
+            const items = Array.from(list.querySelectorAll('.nav-order-item'));
+            const draggedIndex = items.indexOf(touchItem);
+            const targetIndex = items.indexOf(targetItem);
+
+            if (draggedIndex < targetIndex) {
+                targetItem.after(touchItem);
+            } else {
+                targetItem.before(touchItem);
+            }
+        }
+
+        touchItem.classList.remove('dragging');
+        list.querySelectorAll('.nav-order-item').forEach(i => i.classList.remove('drag-over'));
+        touchItem = null;
+
+        // Save the new order
+        saveModuleOrder();
+    });
+
+    // Toggle change handler
+    list.addEventListener('change', function(e) {
+        if (e.target.classList.contains('nav-order-toggle')) {
+            saveModuleOrder();
+        }
+    });
+
+    // Save module order to API
+    function saveModuleOrder() {
+        const items = list.querySelectorAll('.nav-order-item');
+        const modules = [];
+
+        items.forEach(item => {
+            const toggle = item.querySelector('.nav-order-toggle');
+            modules.push({
+                slug: item.dataset.slug,
+                enabled: toggle ? toggle.checked : true
+            });
+        });
+
+        fetch('{% url "users:module_order" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({ modules: modules })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Optionally show a brief success indicator
+                console.log('Module order saved');
+            }
+        })
+        .catch(error => {
+            console.error('Failed to save module order:', error);
+        });
+    }
+})();
 
 // Accent color handling
 document.getElementById('id_accent_color').addEventListener('input', function(e) {

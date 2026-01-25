@@ -256,6 +256,14 @@ class PreferencesView(HelpContextMixin, LoginRequiredMixin, UpdateView):
             if line.strip()
         ]) if ai_personal_context else 0
 
+        # Module navigation order for drag-and-drop reordering
+        from apps.users.models import ModuleDefinition, UserModulePreference
+        UserModulePreference.initialize_for_user(self.request.user)
+        nav_module_prefs = UserModulePreference.objects.filter(
+            user=self.request.user
+        ).select_related('module').order_by('sort_order')
+        context['nav_module_prefs'] = nav_module_prefs
+
         return context
 
     def form_valid(self, form):
@@ -1842,3 +1850,88 @@ class MFAEmailCodeLoginVerifyView(View):
         else:
             logger.warning(f"Invalid MFA login code attempt for {user.email}")
             return JsonResponse({'success': False, 'error': 'Invalid or expired code'}, status=400)
+
+
+# ==============================================================================
+# Module Navigation Ordering API
+# ==============================================================================
+
+class ModuleOrderView(LoginRequiredMixin, View):
+    """
+    API endpoint to get and save the order of modules in the bottom navigation bar.
+
+    GET /user/api/module-order/
+    Returns the current module order for the user.
+
+    POST /user/api/module-order/
+    Body: {
+        "modules": [
+            {"slug": "journal", "enabled": true},
+            {"slug": "health", "enabled": true},
+            {"slug": "faith", "enabled": false},
+            ...
+        ]
+    }
+    Saves the new module order.
+    """
+
+    def get(self, request, *args, **kwargs):
+        from .models import ModuleDefinition, UserModulePreference
+
+        # Initialize preferences if needed
+        UserModulePreference.initialize_for_user(request.user)
+
+        # Get all modules with user preferences
+        prefs = UserModulePreference.objects.filter(
+            user=request.user
+        ).select_related('module').order_by('sort_order')
+
+        modules = []
+        for pref in prefs:
+            modules.append({
+                'slug': pref.module.slug,
+                'name': pref.module.name,
+                'icon_svg': pref.module.icon_svg,
+                'enabled': pref.is_enabled,
+                'sort_order': pref.sort_order,
+            })
+
+        return JsonResponse({'modules': modules})
+
+    def post(self, request, *args, **kwargs):
+        import json
+        from .models import ModuleDefinition, UserModulePreference
+
+        try:
+            data = json.loads(request.body)
+            modules_data = data.get('modules', [])
+        except (json.JSONDecodeError, AttributeError):
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        if not isinstance(modules_data, list):
+            return JsonResponse({'error': 'modules must be an array'}, status=400)
+
+        # Initialize preferences if needed
+        UserModulePreference.initialize_for_user(request.user)
+
+        # Update each module's order and enabled state
+        for idx, mod_data in enumerate(modules_data):
+            slug = mod_data.get('slug')
+            enabled = mod_data.get('enabled', True)
+
+            if not slug:
+                continue
+
+            try:
+                pref = UserModulePreference.objects.get(
+                    user=request.user,
+                    module__slug=slug
+                )
+                pref.sort_order = idx
+                pref.is_enabled = bool(enabled)
+                pref.save(update_fields=['sort_order', 'is_enabled'])
+            except UserModulePreference.DoesNotExist:
+                # Module doesn't exist for this user, skip
+                pass
+
+        return JsonResponse({'success': True})

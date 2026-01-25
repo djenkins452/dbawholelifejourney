@@ -16,6 +16,23 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-25 Changes
 
+### Feature: Phase 2.2 - Module Reordering in Preferences
+
+**Summary:** Added drag-and-drop module reordering in Preferences. Users can now customize the order of modules in their mobile bottom navigation bar.
+
+**Changes:**
+1. **API Endpoint:** Added `ModuleOrderView` at `/user/api/module-order/` for GET/POST module order
+2. **Preferences UI:** Added "Navigation Order" accordion section with drag-and-drop list
+3. **Touch Support:** Full touch drag-and-drop support for mobile devices
+4. **Toggle Support:** Users can enable/disable modules from the nav order list
+
+**Files Modified:**
+- `apps/users/views.py` - Added ModuleOrderView, updated PreferencesView with nav_module_prefs context
+- `apps/users/urls.py` - Added module_order API route
+- `templates/users/preferences.html` - Added Navigation Order section with drag-drop UI and JS
+
+---
+
 ### Feature: Mobile Navigation Redesign (Phase 1-5)
 
 **Summary:** Complete overhaul of mobile navigation to match modern app patterns (clean bottom tab bar + top-right utility icons).

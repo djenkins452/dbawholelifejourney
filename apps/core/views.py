@@ -277,6 +277,19 @@ class AboutView(TemplateView):
     template_name = "core/about.html"
 
 
+class AppReviewView(TemplateView):
+    """
+    App Review Demo Guide for Apple App Store reviewers.
+
+    Provides a comprehensive overview of app functionality, demo credentials,
+    feature locations, and compliance information to facilitate app review.
+
+    URL: /app-review/
+    """
+
+    template_name = "core/app_review.html"
+
+
 class MoreView(LoginRequiredMixin, TemplateView):
     """
     More screen - shows all enabled modules as tiles plus quick links.

@@ -1,0 +1,649 @@
+{% extends "base.html" %}
+
+{% block title %}App Review Guide - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="review-guide">
+    <header class="review-header">
+        <h1>Whole Life Journey</h1>
+        <p class="review-subtitle">App Review Demo Guide</p>
+    </header>
+
+    <nav class="review-nav">
+        <a href="#overview">Overview</a>
+        <a href="#demo-login">Demo Login</a>
+        <a href="#features">Features</a>
+        <a href="#healthkit">HealthKit</a>
+        <a href="#account">Account Management</a>
+        <a href="#compliance">Compliance</a>
+    </nav>
+
+    <main class="review-content">
+        <!-- Overview Section -->
+        <section id="overview" class="review-section">
+            <h2>What This App Does</h2>
+            <p>
+                Whole Life Journey is a <strong>personal wellness and life management app</strong> that helps users
+                track their health, journal their thoughts, manage goals, and organize their lives in one place.
+            </p>
+
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <span class="feature-icon">&#x2764;</span>
+                    <h3>Health Tracking</h3>
+                    <p>Weight, heart rate, blood pressure, sleep, nutrition, medications, blood glucose, and more</p>
+                </div>
+                <div class="feature-card">
+                    <span class="feature-icon">&#x1F4DD;</span>
+                    <h3>Journaling</h3>
+                    <p>Daily journal entries with mood tracking and emotion tags</p>
+                </div>
+                <div class="feature-card">
+                    <span class="feature-icon">&#x1F3AF;</span>
+                    <h3>Goals & Habits</h3>
+                    <p>Set goals, track habits, and monitor progress</p>
+                </div>
+                <div class="feature-card">
+                    <span class="feature-icon">&#x1F4C5;</span>
+                    <h3>Life Organization</h3>
+                    <p>Tasks, calendar, recipes, documents, and more</p>
+                </div>
+                <div class="feature-card">
+                    <span class="feature-icon">&#x271D;</span>
+                    <h3>Faith (Optional)</h3>
+                    <p>Prayer tracking, Bible reading plans, scripture study</p>
+                </div>
+                <div class="feature-card">
+                    <span class="feature-icon">&#x1F4B0;</span>
+                    <h3>Finance (Optional)</h3>
+                    <p>Budget tracking, transactions, savings goals</p>
+                </div>
+            </div>
+
+            <div class="info-box">
+                <h4>Why Native iOS App?</h4>
+                <p>
+                    While the core app is web-based, the native iOS wrapper provides essential functionality:
+                </p>
+                <ul>
+                    <li><strong>HealthKit Integration</strong> - Sync health data from Apple Health (steps, heart rate, sleep, etc.)</li>
+                    <li><strong>Native Settings</strong> - iOS-native settings screen for HealthKit permissions</li>
+                    <li><strong>Secure Token Storage</strong> - Keychain-based authentication</li>
+                    <li><strong>Push Notifications</strong> - Native notification support (future)</li>
+                </ul>
+            </div>
+        </section>
+
+        <!-- Demo Login Section -->
+        <section id="demo-login" class="review-section">
+            <h2>Demo Account</h2>
+            <p>Use these credentials to test the full app experience:</p>
+
+            <div class="credentials-box">
+                <div class="credential-row">
+                    <span class="credential-label">Email:</span>
+                    <code class="credential-value">appreview@wholelifejourney.com</code>
+                </div>
+                <div class="credential-row">
+                    <span class="credential-label">Password:</span>
+                    <code class="credential-value">AppReview2026!</code>
+                </div>
+            </div>
+
+            <div class="info-box info-box-note">
+                <h4>Demo Account Features</h4>
+                <ul>
+                    <li>Pre-populated with sample data (journal entries, health metrics, goals)</li>
+                    <li>All modules enabled for testing</li>
+                    <li>AI features enabled with sample conversations</li>
+                    <li>HealthKit integration ready to test</li>
+                </ul>
+            </div>
+        </section>
+
+        <!-- Features Section -->
+        <section id="features" class="review-section">
+            <h2>Feature Locations</h2>
+            <p>Here's where to find key features in the app:</p>
+
+            <table class="feature-table">
+                <thead>
+                    <tr>
+                        <th>Feature</th>
+                        <th>Location</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Dashboard</td>
+                        <td>Home (first screen after login)</td>
+                        <td>Customizable tiles showing overview</td>
+                    </tr>
+                    <tr>
+                        <td>Health Tracking</td>
+                        <td>Health tab in bottom navigation</td>
+                        <td>Weight, heart rate, sleep, nutrition, etc.</td>
+                    </tr>
+                    <tr>
+                        <td>HealthKit Sync</td>
+                        <td>iOS Settings (gear icon) &gt; Health</td>
+                        <td>Native iOS screen for Apple Health sync</td>
+                    </tr>
+                    <tr>
+                        <td>Journal</td>
+                        <td>Journal tab in bottom navigation</td>
+                        <td>Create entries with mood and emotions</td>
+                    </tr>
+                    <tr>
+                        <td>Goals & Habits</td>
+                        <td>Goals tab in bottom navigation</td>
+                        <td>Track personal goals and daily habits</td>
+                    </tr>
+                    <tr>
+                        <td>Tasks & Calendar</td>
+                        <td>Organize tab in bottom navigation</td>
+                        <td>To-do lists and calendar view</td>
+                    </tr>
+                    <tr>
+                        <td>AI Assistant</td>
+                        <td>Chat bubble (bottom right)</td>
+                        <td>Personalized guidance and insights</td>
+                    </tr>
+                    <tr>
+                        <td>Settings</td>
+                        <td>More &gt; Preferences</td>
+                        <td>Theme, notifications, modules</td>
+                    </tr>
+                    <tr>
+                        <td>Profile</td>
+                        <td>More &gt; Profile</td>
+                        <td>Account info and delete account</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- HealthKit Section -->
+        <section id="healthkit" class="review-section">
+            <h2>HealthKit Integration</h2>
+            <p>
+                The app integrates with Apple HealthKit to sync health data. This is a key reason for the native iOS app.
+            </p>
+
+            <h3>How to Test HealthKit</h3>
+            <ol class="numbered-list">
+                <li>Open the iOS app and log in with the demo account</li>
+                <li>Tap the <strong>gear icon</strong> (Settings) in the top-right of the web view</li>
+                <li>In the native Settings screen, tap <strong>"Authorize HealthKit"</strong></li>
+                <li>Grant permissions for the health data types you want to sync</li>
+                <li>Tap <strong>"Sync Now"</strong> to pull data from Apple Health</li>
+                <li>Return to the Health section to see synced data</li>
+            </ol>
+
+            <h3>Data Types Synced</h3>
+            <div class="data-types-grid">
+                <div class="data-type">Steps</div>
+                <div class="data-type">Heart Rate</div>
+                <div class="data-type">Weight</div>
+                <div class="data-type">Sleep</div>
+                <div class="data-type">Blood Pressure</div>
+                <div class="data-type">Blood Glucose</div>
+                <div class="data-type">Blood Oxygen</div>
+                <div class="data-type">Active Calories</div>
+                <div class="data-type">Distance</div>
+                <div class="data-type">Workouts</div>
+                <div class="data-type">Water Intake</div>
+                <div class="data-type">Body Fat %</div>
+            </div>
+
+            <div class="info-box info-box-important">
+                <h4>HealthKit Data Usage</h4>
+                <p>
+                    Health data synced from HealthKit is <strong>only used to display personal health trends</strong>
+                    within the app. It is:
+                </p>
+                <ul>
+                    <li>Never sold or shared with third parties</li>
+                    <li>Never used for advertising</li>
+                    <li>Stored securely and encrypted</li>
+                    <li>Deletable at any time by the user</li>
+                </ul>
+            </div>
+        </section>
+
+        <!-- Account Management Section -->
+        <section id="account" class="review-section">
+            <h2>Account Management</h2>
+
+            <h3>Delete Account</h3>
+            <p>Users can permanently delete their account and all associated data:</p>
+            <ol class="numbered-list">
+                <li>Navigate to <strong>More &gt; Profile</strong></li>
+                <li>Click <strong>"Delete Account"</strong> (bottom right of profile card)</li>
+                <li>Optionally export data before deletion</li>
+                <li>Confirm deletion by typing "DELETE"</li>
+                <li>Account and all data are permanently removed</li>
+            </ol>
+
+            <h3>Export Data</h3>
+            <p>Users can download all their personal data (GDPR compliance):</p>
+            <ol class="numbered-list">
+                <li>Navigate to <strong>More &gt; Preferences</strong></li>
+                <li>Scroll to bottom and click <strong>"Export Your Data"</strong></li>
+                <li>Choose JSON or CSV format</li>
+                <li>Download contains all user content (journals, health, goals, etc.)</li>
+            </ol>
+
+            <div class="info-box">
+                <h4>Data Retention</h4>
+                <ul>
+                    <li>Active data: Kept while account is active</li>
+                    <li>Deleted items: 30-day recovery period, then permanent deletion</li>
+                    <li>Account deletion: All data permanently removed within 30 days</li>
+                </ul>
+            </div>
+        </section>
+
+        <!-- Compliance Section -->
+        <section id="compliance" class="review-section">
+            <h2>Compliance & Disclaimers</h2>
+
+            <div class="compliance-box">
+                <h3>Health Disclaimer</h3>
+                <p class="disclaimer-text">
+                    Whole Life Journey provides informational insights only. It does not provide medical advice,
+                    diagnosis, or treatment. Always consult a qualified healthcare professional for medical decisions.
+                </p>
+            </div>
+
+            <div class="compliance-box">
+                <h3>Age Requirement (COPPA)</h3>
+                <p>
+                    Users must be <strong>13 years or older</strong> to create an account. Date of birth is required
+                    during signup and verified. Users under 13 are blocked from registration.
+                </p>
+            </div>
+
+            <div class="compliance-box">
+                <h3>Privacy & Data Protection</h3>
+                <ul>
+                    <li><strong>GDPR Compliant</strong> - Data export, deletion rights, consent management</li>
+                    <li><strong>CCPA/CPRA Compliant</strong> - California privacy rights supported</li>
+                    <li><strong>No Data Selling</strong> - User data is never sold</li>
+                    <li><strong>Encryption</strong> - Data encrypted in transit (TLS) and at rest</li>
+                </ul>
+                <p>
+                    Full details: <a href="/privacy/" target="_blank">Privacy Policy</a> |
+                    <a href="/terms/" target="_blank">Terms of Service</a>
+                </p>
+            </div>
+
+            <div class="compliance-box">
+                <h3>Subscription / Trial</h3>
+                <p>
+                    The app offers a <strong>free trial period</strong> followed by optional premium subscription.
+                    Core features remain available on the free tier. No payment is required to test the app.
+                </p>
+            </div>
+        </section>
+
+        <!-- Contact Section -->
+        <section class="review-section">
+            <h2>Questions?</h2>
+            <p>
+                If you have any questions during the review process, please contact us:
+            </p>
+            <p class="contact-email">
+                <strong>Email:</strong> <a href="mailto:admin@wholelifejourney.com">admin@wholelifejourney.com</a>
+            </p>
+            <p>We typically respond within 24 hours.</p>
+        </section>
+    </main>
+
+    <footer class="review-footer">
+        <p>&copy; 2026 Beacon Innovations LLC. All rights reserved.</p>
+        <p>
+            <a href="/privacy/">Privacy Policy</a> |
+            <a href="/terms/">Terms of Service</a>
+        </p>
+    </footer>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+/* App Review Guide Styles */
+.review-guide {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #1a1a1a;
+    line-height: 1.6;
+}
+
+.review-header {
+    text-align: center;
+    padding: 2rem 0 1.5rem;
+    border-bottom: 2px solid #e5e7eb;
+    margin-bottom: 1.5rem;
+}
+
+.review-header h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0 0 0.5rem;
+    color: #065f46;
+}
+
+.review-subtitle {
+    font-size: 1.25rem;
+    color: #6b7280;
+    margin: 0;
+}
+
+/* Navigation */
+.review-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: center;
+    padding: 1rem 0;
+    margin-bottom: 2rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.review-nav a {
+    padding: 0.5rem 1rem;
+    background: #f3f4f6;
+    border-radius: 6px;
+    color: #374151;
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: background 0.2s, color 0.2s;
+}
+
+.review-nav a:hover {
+    background: #065f46;
+    color: white;
+}
+
+/* Sections */
+.review-section {
+    margin-bottom: 3rem;
+    padding-bottom: 2rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.review-section:last-of-type {
+    border-bottom: none;
+}
+
+.review-section h2 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #065f46;
+    margin: 0 0 1rem;
+}
+
+.review-section h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin: 1.5rem 0 0.75rem;
+    color: #1f2937;
+}
+
+/* Feature Grid */
+.feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+    margin: 1.5rem 0;
+}
+
+.feature-card {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1.25rem;
+}
+
+.feature-icon {
+    font-size: 1.5rem;
+    display: block;
+    margin-bottom: 0.5rem;
+}
+
+.feature-card h3 {
+    font-size: 1rem;
+    margin: 0 0 0.5rem;
+}
+
+.feature-card p {
+    font-size: 0.9rem;
+    color: #6b7280;
+    margin: 0;
+}
+
+/* Info Boxes */
+.info-box {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 8px;
+    padding: 1.25rem;
+    margin: 1.5rem 0;
+}
+
+.info-box h4 {
+    font-size: 1rem;
+    margin: 0 0 0.75rem;
+    color: #065f46;
+}
+
+.info-box ul, .info-box p {
+    margin: 0;
+    font-size: 0.95rem;
+}
+
+.info-box ul {
+    padding-left: 1.25rem;
+}
+
+.info-box li {
+    margin-bottom: 0.25rem;
+}
+
+.info-box-note {
+    background: #eff6ff;
+    border-color: #bfdbfe;
+}
+
+.info-box-note h4 {
+    color: #1e40af;
+}
+
+.info-box-important {
+    background: #fef3c7;
+    border-color: #fcd34d;
+}
+
+.info-box-important h4 {
+    color: #92400e;
+}
+
+/* Credentials Box */
+.credentials-box {
+    background: #1f2937;
+    color: white;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin: 1rem 0;
+}
+
+.credential-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+}
+
+.credential-row:last-child {
+    margin-bottom: 0;
+}
+
+.credential-label {
+    font-weight: 500;
+    min-width: 80px;
+}
+
+.credential-value {
+    background: #374151;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 1rem;
+}
+
+/* Feature Table */
+.feature-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+    font-size: 0.95rem;
+}
+
+.feature-table th,
+.feature-table td {
+    padding: 0.75rem 1rem;
+    text-align: left;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.feature-table th {
+    background: #f3f4f6;
+    font-weight: 600;
+    color: #374151;
+}
+
+.feature-table tr:hover td {
+    background: #f9fafb;
+}
+
+/* Numbered List */
+.numbered-list {
+    padding-left: 1.5rem;
+    margin: 1rem 0;
+}
+
+.numbered-list li {
+    margin-bottom: 0.5rem;
+}
+
+/* Data Types Grid */
+.data-types-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 1rem 0;
+}
+
+.data-type {
+    background: #e0e7ff;
+    color: #3730a3;
+    padding: 0.4rem 0.8rem;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+/* Compliance Boxes */
+.compliance-box {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1.25rem;
+    margin: 1rem 0;
+}
+
+.compliance-box h3 {
+    margin: 0 0 0.75rem;
+    font-size: 1rem;
+}
+
+.compliance-box p, .compliance-box ul {
+    margin: 0;
+    font-size: 0.95rem;
+}
+
+.compliance-box ul {
+    padding-left: 1.25rem;
+    margin-top: 0.5rem;
+}
+
+.disclaimer-text {
+    font-style: italic;
+    background: #fef9c3;
+    padding: 1rem;
+    border-radius: 6px;
+    border-left: 4px solid #eab308;
+}
+
+/* Contact */
+.contact-email {
+    font-size: 1.1rem;
+}
+
+/* Footer */
+.review-footer {
+    text-align: center;
+    padding: 2rem 0;
+    margin-top: 2rem;
+    border-top: 1px solid #e5e7eb;
+    color: #6b7280;
+    font-size: 0.9rem;
+}
+
+.review-footer a {
+    color: #065f46;
+}
+
+/* Mobile Responsive */
+@media (max-width: 640px) {
+    .review-guide {
+        padding: 1rem;
+    }
+
+    .review-header h1 {
+        font-size: 1.5rem;
+    }
+
+    .review-nav {
+        gap: 0.4rem;
+    }
+
+    .review-nav a {
+        padding: 0.4rem 0.75rem;
+        font-size: 0.8rem;
+    }
+
+    .credentials-box {
+        padding: 1rem;
+    }
+
+    .credential-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.25rem;
+    }
+
+    .feature-table {
+        font-size: 0.85rem;
+    }
+
+    .feature-table th,
+    .feature-table td {
+        padding: 0.5rem;
+    }
+}
+</style>
+{% endblock %}

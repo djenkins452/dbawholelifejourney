@@ -16,105 +16,18 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-24 Changes
 
-### Add Bible translation fallback for unavailable translations
+### Move Finance module to "Coming Soon" status
 
-**Problem:** NIV11 translation was returning 403/500 errors from YouVersion API (likely licensing restrictions). Users with NIV11 as their preferred translation couldn't view scripture in Reading Plans or Scripture Library.
+**Change:** Finance module is not ready for users yet. Moved it to the Coming Soon section in Preferences alongside Relationships and Habits.
 
-**Fix:** Added automatic fallback to Berean Standard Bible (BSB) when user's preferred translation is unavailable:
-- Reading Plan: If primary translation fails, tries BSB and shows notice
-- Scripture Library: Same fallback logic with notice when fallback is used
-
-**Files Modified:**
-- `templates/faith/reading_plans/progress.html` - Added `tryFetchPassage()` helper, fallback logic in `fetchScripture()`, CSS for fallback notice
-- `templates/faith/scripture_list.html` - Added `FALLBACK_BIBLE_ID` constant, `usedFallback` flag, fallback logic in `lookupScripture()`, updated `displayResults()` to show fallback notice, CSS for fallback notice
-
----
-
-### Fix user dropdown being pushed off-screen in navigation
-
-**Problem:** On desktop with many nav items enabled, the user dropdown (profile/preferences/sign out) was being pushed off the right edge of the screen and not visible.
-
-**Fix:** Made nav-links flexible so it can shrink, while keeping help button and user menu always visible:
-- `.nav-links`: Added `flex: 1; min-width: 0; overflow-x: auto;`
-- `.nav-help`: Added `flex-shrink: 0;`
+**Changes:**
+1. Moved Finance toggle from active modules to Coming Soon section in preferences.html
+2. Made the toggle disabled/grayed out so users cannot enable it
+3. Added one-time data migration to disable finances_enabled for all existing users
 
 **Files Modified:**
-- `static/css/main.css` - Added flex properties to nav elements
-- `templates/base.html` - Cache bust CSS version
-
----
-
-### Health Metric Dashboards - Phase 1 (Blood Pressure & Blood Oxygen)
-
-Created reusable dashboard infrastructure for all health metrics.
-
-**New Files:**
-- `apps/health/views_base.py` - Base dashboard mixin with:
-  - Period selection (Today, 7d, 30d, 60d, 90d, or custom days up to 730)
-  - Automatic statistics aggregation
-  - Chart data preparation
-  - Feature enablement checking via user preferences
-- `apps/health/views_dashboards.py` - Dashboard views for Blood Pressure and Blood Oxygen
-- `templates/health/dashboards/_base_dashboard.html` - Base template with overridable blocks
-- `templates/health/dashboards/_period_selector.html` - Period buttons + custom input
-- `templates/health/dashboards/_stats_grid.html` - Statistics grid partial
-- `templates/health/dashboards/_chart_container.html` - Chart.js container partial
-- `templates/health/dashboards/_latest_reading.html` - Latest reading card partial
-- `templates/health/dashboards/_readings_list.html` - Recent readings list partial
-- `templates/health/dashboards/_ai_insight.html` - AI insight card partial
-- `templates/health/dashboards/blood_pressure_dashboard.html` - BP dashboard with dual lines (systolic/diastolic)
-- `templates/health/dashboards/blood_oxygen_dashboard.html` - SpO2 dashboard
-
-**Modified Files:**
-- `apps/health/urls.py` - Added dashboard routes: `/blood-pressure/dashboard/`, `/blood-oxygen/dashboard/`
-- `apps/users/models.py` - Added advanced health features to HEALTH_FEATURES (HRV, VO2 Max, respiratory rate, body temperature, caffeine, mindful minutes, activity details - all default off)
-
-**Architecture:**
-- Single base mixin handles all common dashboard logic
-- Each metric is a thin subclass setting config variables
-- Templates extend base and override specific blocks for customization
-- User preferences control visibility of each metric
-
----
-
-### Add Caffeine and Mindful Minutes HealthKit Sync
-
-Extended HealthKit integration to sync Caffeine intake and Mindful Minutes.
-
-**iOS Changes:**
-- `HealthKitManager.swift` - Added `.dietaryCaffeine` (quantity) and `.mindfulSession` (category) to readTypes
-- `HealthKitManager.swift` - New `fetchCaffeine()` function (daily total in mg)
-- `HealthKitManager.swift` - New `fetchMindfulMinutes()` function (daily total from session durations)
-- `HealthMetric.swift` - Added `caffeineValue` and `mindfulMinutesValue` fields with CodingKeys
-- `BackgroundSyncManager.swift` - Observer queries for caffeine and mindful sessions
-- `HealthSyncView.swift` - New data type rows for Caffeine and Mindful Minutes
-
-**Django Changes:**
-- `apps/health/models.py` - Added `caffeine_mg` and `mindful_minutes` fields to SleepEntry
-- `apps/mobile/views.py` - `process_caffeine_metric` and `process_mindful_minutes_metric` handlers
-- Both metrics update existing SleepEntry records (skip if no sleep data for date)
-- Caffeine validation: 0-2000 mg, Mindful minutes validation: 0-1440 min
-
-**Migration:**
-- `0035_add_caffeine_and_mindful_minutes_to_sleepentry.py`
-
-**Total HealthKit types synced: 21** (up from 19)
-
----
-
-### Add Claude limits conservation guidelines to CLAUDE.md
-
-**Change:** Added "CONSERVE CLAUDE LIMITS" section to behavior rules to prevent hitting API rate limits.
-
-**Guidelines added:**
-- Keep responses concise
-- Don't re-read files already seen
-- Batch related changes
-- Use Explore agent for broad searches
-- Warn before high-token operations
-
-**Files Modified:**
-- `CLAUDE.md` - Added conservation guidelines section
+- `templates/users/preferences.html` - Moved Finance to Coming Soon section with disabled toggle
+- `apps/core/management/commands/load_initial_data.py` - Added `_disable_finance_module()` one-time cleanup
 
 ---
 

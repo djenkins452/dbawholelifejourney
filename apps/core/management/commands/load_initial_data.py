@@ -510,6 +510,9 @@ class Command(BaseCommand):
         # One-time cleanup: remove problematic recurring tasks for specific user
         self._cleanup_heather_recurring_tasks(DataLoadConfig, force, verbosity)
 
+        # One-time: Disable Finance module for all users (Coming Soon)
+        self._disable_finance_module(DataLoadConfig, force, verbosity)
+
         # Only output summary if something loaded or if verbose
         if verbosity >= 1 and loaded_count > 0:
             self.stdout.write(self.style.SUCCESS(f'Initial data: loaded {loaded_count} items'))
@@ -638,3 +641,37 @@ This test email is sent once on first deploy after SMTP is configured.
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Recurring tasks cleanup FAILED: {e}'))
+
+    def _disable_finance_module(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time disable of Finance module for all users.
+
+        Finance module is being moved to "Coming Soon" status.
+        This sets finances_enabled=False for all existing users.
+        Only runs once (tracked via DataLoadConfig) unless force=True.
+        """
+        loader_name = 'disable_finance_module_2026_01'
+
+        # Check if already run (unless force mode)
+        if not force and self._is_loader_complete(DataLoadConfig, loader_name):
+            return  # Already done, skip silently
+
+        try:
+            from apps.users.models import UserPreferences
+
+            # Update all users with Finance enabled
+            updated = UserPreferences.objects.filter(finances_enabled=True).update(finances_enabled=False)
+
+            if updated > 0:
+                if verbosity >= 1:
+                    self.stdout.write(f'  Disabled Finance module for {updated} users (Coming Soon)')
+
+            # Mark as complete so it doesn't run again
+            self._mark_loader_complete(
+                DataLoadConfig, loader_name, 'Disable Finance Module (Jan 2026)',
+                'command', 'One-time disable of Finance module - moved to Coming Soon status'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Finance module disable FAILED: {e}'))

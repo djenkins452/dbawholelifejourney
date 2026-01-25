@@ -1,6 +1,21 @@
 {% load static %}
 <!-- Desktop Left Rail Navigation (visible only on desktop) -->
 <aside class="desktop-left-rail{% if desktop_nav_collapsed %} collapsed{% endif %}" id="desktop-left-rail" aria-label="Main navigation">
+    <!-- Collapse/Expand Toggle at top -->
+    <button type="button" class="rail-collapse-toggle rail-collapse-top" onclick="toggleDesktopRail()" aria-label="Toggle navigation width" data-tooltip="{% if desktop_nav_collapsed %}Expand{% else %}Collapse{% endif %}">
+        <svg class="rail-icon rail-icon-collapse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M11 17l-5-5 5-5"/>
+            <path d="M18 17l-5-5 5-5"/>
+        </svg>
+        <svg class="rail-icon rail-icon-expand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M13 7l5 5-5 5"/>
+            <path d="M6 7l5 5-5 5"/>
+        </svg>
+        <span class="rail-label">{% if desktop_nav_collapsed %}Expand{% else %}Collapse{% endif %}</span>
+    </button>
+
+    <div class="rail-divider"></div>
+
     <!-- Home - Always first -->
     <a href="{% url 'dashboard:home' %}" class="rail-item{% if request.resolver_match.app_name == 'dashboard' %} active{% endif %}" data-tooltip="Home">
         <svg class="rail-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -8,8 +23,6 @@
         </svg>
         <span class="rail-label">Home</span>
     </a>
-
-    <div class="rail-divider"></div>
 
     <!-- Dynamic modules from user preferences -->
     {% for module in desktop_rail_modules %}
@@ -82,7 +95,7 @@
     {% endif %}
 
     <!-- Collapse/Expand Toggle at bottom -->
-    <button type="button" class="rail-collapse-toggle" onclick="toggleDesktopRail()" aria-label="Toggle navigation width" data-tooltip="Collapse">
+    <button type="button" class="rail-collapse-toggle rail-collapse-bottom" onclick="toggleDesktopRail()" aria-label="Toggle navigation width" data-tooltip="{% if desktop_nav_collapsed %}Expand{% else %}Collapse{% endif %}">
         <svg class="rail-icon rail-icon-collapse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M11 17l-5-5 5-5"/>
             <path d="M18 17l-5-5 5-5"/>
@@ -91,6 +104,6 @@
             <path d="M13 7l5 5-5 5"/>
             <path d="M6 7l5 5-5 5"/>
         </svg>
-        <span class="rail-label">Collapse</span>
+        <span class="rail-label">{% if desktop_nav_collapsed %}Expand{% else %}Collapse{% endif %}</span>
     </button>
 </aside>

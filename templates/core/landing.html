@@ -8,7 +8,7 @@
     <!-- Hero Section -->
     <section class="hero">
         <div class="hero-content">
-            <img src="{% static 'images/wlj-logo.png' %}" alt="Whole Life Journey" class="hero-logo">
+            <img src="{% if site_logo_url %}{{ site_logo_url }}{% else %}{% static 'images/wlj-logo.png' %}{% endif %}" alt="{{ site_name }}" class="hero-logo">
             <p class="hero-tagline">
                 A calm, intentional space to reflect, track, and grow across every area of your life.
             </p>
@@ -108,7 +108,7 @@
     <footer class="landing-footer">
         <div class="footer-content">
             <div class="footer-brand">
-                <img src="{% static 'images/wlj-logo.png' %}" alt="Whole Life Journey" class="footer-logo">
+                <img src="{% if site_logo_url %}{{ site_logo_url }}{% else %}{% static 'images/wlj-logo.png' %}{% endif %}" alt="{{ site_name }}" class="footer-logo">
                 <p>© 2025 Beacon Innovations LLC. All rights reserved.</p>
             </div>
             <div class="footer-links">

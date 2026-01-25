@@ -16,6 +16,18 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-25 Changes
 
+### Landing Page Logo from Site Configuration
+
+**Summary:** Updated the landing page to use the logo from admin console Site Configuration instead of hardcoded static file.
+
+**Changes:**
+- `templates/core/landing.html` - Hero logo now uses `site_logo_url` from context processor with fallback to static `wlj-logo.png`
+- Footer logo also updated to use dynamic logo
+
+**Why:** Landing page was showing old logo despite new logo being uploaded in admin console Site Configuration.
+
+---
+
 ### UX Design Philosophy Page
 
 **Summary:** Created a comprehensive UX Design Philosophy page at `/ux-design/` documenting all user experience decisions, user personas, onboarding flow, personalization features, and AI coaching styles.

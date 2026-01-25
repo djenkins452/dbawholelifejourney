@@ -249,6 +249,82 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // ==========================================================================
+// Page Load Progress Bar
+// ==========================================================================
+
+(function() {
+    var progressBar = null;
+
+    function showProgress() {
+        if (!progressBar) progressBar = document.getElementById('page-progress');
+        if (progressBar) {
+            progressBar.classList.remove('finishing');
+            progressBar.classList.add('active');
+        }
+    }
+
+    function hideProgress() {
+        if (!progressBar) progressBar = document.getElementById('page-progress');
+        if (progressBar) {
+            progressBar.classList.add('finishing');
+            setTimeout(function() {
+                progressBar.classList.remove('active', 'finishing');
+            }, 200);
+        }
+    }
+
+    // Show progress on link clicks (navigation)
+    document.addEventListener('click', function(e) {
+        var link = e.target.closest('a[href]');
+        if (!link) return;
+
+        var href = link.getAttribute('href');
+        // Skip if: external link, anchor, javascript, new tab, or HTMX-handled
+        if (!href ||
+            href.startsWith('#') ||
+            href.startsWith('javascript:') ||
+            href.startsWith('mailto:') ||
+            href.startsWith('tel:') ||
+            link.getAttribute('target') === '_blank' ||
+            link.hasAttribute('hx-get') ||
+            link.hasAttribute('hx-post') ||
+            link.hasAttribute('data-no-progress')) {
+            return;
+        }
+
+        showProgress();
+    });
+
+    // Show progress on form submissions
+    document.addEventListener('submit', function(e) {
+        var form = e.target;
+        if (form.hasAttribute('hx-post') || form.hasAttribute('hx-get')) return;
+        showProgress();
+    });
+
+    // Hide on page load complete
+    window.addEventListener('load', function() {
+        hideProgress();
+    });
+
+    // Handle browser back/forward
+    window.addEventListener('pageshow', function(e) {
+        if (e.persisted) {
+            hideProgress();
+        }
+    });
+
+    // HTMX integration
+    document.body.addEventListener('htmx:beforeRequest', function() {
+        showProgress();
+    });
+
+    document.body.addEventListener('htmx:afterRequest', function() {
+        hideProgress();
+    });
+})();
+
+// ==========================================================================
 // HTMX Enhancements
 // ==========================================================================
 

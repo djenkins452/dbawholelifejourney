@@ -16,6 +16,23 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-25 Changes
 
+### Fix: Module Navigation - Pre-resolve URLs in Context Processor
+
+**Summary:** Templates using `{% url module.route_name %}` would crash if the database had un-namespaced route_name values. Fixed by pre-resolving URLs in the context processor with graceful fallback.
+
+**Changes:**
+- Context processor now resolves URLs with try/except handling for bad data
+- Templates use `{{ module.url }}` instead of `{% url module.route_name %}`
+- Falls back to slug-based URLs (`/<slug>/`) if reverse lookup fails
+
+**Files Modified:**
+- `apps/core/context_processors.py` - Added URL pre-resolution with fallback
+- `templates/components/bottom_tab_bar.html` - Use `{{ module.url }}`
+- `templates/components/desktop_left_rail.html` - Use `{{ module.url }}`
+- `templates/core/more.html` - Use `{{ module.url }}`
+
+---
+
 ### Fix: /more/ Page 500 Error - Module Route Names
 
 **Summary:** The `/more/` page was returning 500 errors due to `NoReverseMatch: Reverse for 'home' not found`. This was caused by `ModuleDefinition` records having incorrect `route_name` values (just `'home'` instead of properly namespaced `'journal:home'`, `'health:home'`, etc.).

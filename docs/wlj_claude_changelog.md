@@ -16,6 +16,31 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-25 Changes
 
+### Feature: Medicine Time-of-Day Grouping with Bulk Actions
+
+**Summary:** Added ability to group medicine doses by time period (Morning, Mid-Morning, Lunch, Afternoon, Evening, Nightly) with bulk "Take All" and "Skip All" actions for each group.
+
+**Changes:**
+1. **Model:** Added `time_of_day` field to `MedicineSchedule` with auto-assignment based on scheduled time
+2. **Views:** Updated `MedicineHomeView` to group schedules by time_of_day; Added `MedicineBulkTakeView` and `MedicineBulkSkipView` for bulk actions
+3. **Templates:** Redesigned medicine home page with grouped cards showing bulk action buttons for each time period
+4. **Forms:** Updated `MedicineScheduleForm` to include time_of_day field selection
+5. **URLs:** Added routes for `medicine/bulk-take/<time_of_day>/` and `medicine/bulk-skip/<time_of_day>/`
+
+**Files Modified:**
+- `apps/health/models.py` - Added TIME_OF_DAY_CHOICES, time_of_day field, and auto-assignment in save()
+- `apps/health/views.py` - Added grouped_schedules context, MedicineBulkTakeView, MedicineBulkSkipView
+- `apps/health/forms.py` - Added time_of_day field to MedicineScheduleForm
+- `apps/health/urls.py` - Added bulk-take and bulk-skip URL routes
+- `templates/health/medicine/home.html` - Added time-group UI with bulk action buttons
+- `templates/health/medicine/medicine_schedules.html` - Added time_of_day field to schedule form
+
+**Migrations:**
+- `0038_add_time_of_day_to_medicine_schedule.py` - Adds time_of_day field
+- `0039_populate_time_of_day.py` - Populates existing schedules based on scheduled_time
+
+---
+
 ### Fix: Task List Help Showing Generic Admin Console Help
 
 **Issue:** The Task List page in Admin Console was showing generic "Admin Console Overview" help instead of Task List-specific help. The `ADMIN_CONSOLE_TASKS` help topic only existed in `AdminHelpTopic` model, but the help system queries the `HelpTopic` model.

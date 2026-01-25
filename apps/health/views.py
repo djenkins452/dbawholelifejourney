@@ -2434,9 +2434,38 @@ class MedicineHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                         "is_overdue": self._is_overdue(schedule, log, now, today, medicine),
                     })
 
-        # Sort by time
-        today_schedules.sort(key=lambda x: x["schedule"].scheduled_time)
+        # Sort by time_of_day order, then by scheduled_time
+        today_schedules.sort(key=lambda x: (
+            x["schedule"].time_of_day_order,
+            x["schedule"].scheduled_time
+        ))
         context["today_schedules"] = today_schedules
+
+        # Group schedules by time_of_day for bulk actions
+        from collections import OrderedDict
+        grouped_schedules = OrderedDict()
+        for item in today_schedules:
+            tod = item["schedule"].time_of_day or "unassigned"
+            tod_display = item["schedule"].time_of_day_display or "Other"
+            if tod not in grouped_schedules:
+                grouped_schedules[tod] = {
+                    "time_of_day": tod,
+                    "display_name": tod_display,
+                    "schedules": [],
+                    "all_taken": True,
+                    "all_skipped": True,
+                    "has_pending": False,
+                }
+            grouped_schedules[tod]["schedules"].append(item)
+            # Track group status
+            if not item["is_taken"]:
+                grouped_schedules[tod]["all_taken"] = False
+            if not (item["log"] and item["log"].log_status == "skipped"):
+                grouped_schedules[tod]["all_skipped"] = False
+            if not item["is_taken"] and not (item["log"] and item["log"].log_status == "skipped"):
+                grouped_schedules[tod]["has_pending"] = True
+
+        context["grouped_schedules"] = list(grouped_schedules.values())
 
         # Calculate today's stats
         total_scheduled = len(today_schedules)
@@ -2958,6 +2987,151 @@ class MedicineUndoView(LoginRequiredMixin, View):
         log.delete()
 
         messages.info(request, f"Undid {medicine.name} for today.")
+        next_url = request.POST.get("next", reverse_lazy("health:medicine_home"))
+        return redirect(next_url)
+
+
+class MedicineBulkTakeView(LoginRequiredMixin, View):
+    """
+    Mark all pending doses in a time_of_day group as taken.
+    """
+
+    def post(self, request, time_of_day):
+        from datetime import datetime
+        import pytz
+
+        user = request.user
+        today = get_user_today(user)
+
+        # Get all active medicines with schedules in this time_of_day
+        active_medicines = Medicine.objects.filter(
+            user=user,
+            medicine_status=Medicine.STATUS_ACTIVE,
+            is_prn=False,
+        )
+
+        taken_count = 0
+        taken_at = None
+
+        # Check if user wants to use scheduled time or current time
+        use_scheduled_time = request.POST.get("taken_at_scheduled") == "1"
+
+        for medicine in active_medicines:
+            for schedule in medicine.schedules.filter(
+                is_active=True,
+                time_of_day=time_of_day,
+            ):
+                if not schedule.applies_to_day(today.weekday()):
+                    continue
+
+                # Check if already logged
+                existing_log = MedicineLog.objects.filter(
+                    medicine=medicine,
+                    schedule=schedule,
+                    scheduled_date=today,
+                ).first()
+
+                if existing_log and existing_log.log_status in [
+                    MedicineLog.STATUS_TAKEN,
+                    MedicineLog.STATUS_LATE,
+                    MedicineLog.STATUS_SKIPPED,
+                ]:
+                    continue  # Already handled
+
+                # Create or update log
+                log, created = MedicineLog.objects.get_or_create(
+                    user=user,
+                    medicine=medicine,
+                    schedule=schedule,
+                    scheduled_date=today,
+                    defaults={
+                        "scheduled_time": schedule.scheduled_time,
+                        "is_prn_dose": False,
+                    }
+                )
+
+                # Determine taken_at time
+                if use_scheduled_time:
+                    user_tz = pytz.timezone(user.preferences.timezone_iana)
+                    scheduled_dt = datetime.combine(today, schedule.scheduled_time)
+                    taken_at = user_tz.localize(scheduled_dt)
+                else:
+                    taken_at = None  # mark_taken will use current time
+
+                log.mark_taken(taken_at=taken_at)
+                taken_count += 1
+
+                # Decrease supply if tracked
+                if medicine.current_supply is not None and medicine.current_supply > 0:
+                    medicine.current_supply -= 1
+                    medicine.save(update_fields=["current_supply", "updated_at"])
+
+        time_display = dict(MedicineSchedule.TIME_OF_DAY_CHOICES).get(time_of_day, time_of_day)
+        messages.success(request, f"Marked {taken_count} {time_display} dose{'s' if taken_count != 1 else ''} as taken.")
+
+        next_url = request.POST.get("next", reverse_lazy("health:medicine_home"))
+        return redirect(next_url)
+
+
+class MedicineBulkSkipView(LoginRequiredMixin, View):
+    """
+    Mark all pending doses in a time_of_day group as skipped.
+    """
+
+    def post(self, request, time_of_day):
+        user = request.user
+        today = get_user_today(user)
+
+        # Get all active medicines with schedules in this time_of_day
+        active_medicines = Medicine.objects.filter(
+            user=user,
+            medicine_status=Medicine.STATUS_ACTIVE,
+            is_prn=False,
+        )
+
+        skipped_count = 0
+        reason = request.POST.get("reason", "")
+
+        for medicine in active_medicines:
+            for schedule in medicine.schedules.filter(
+                is_active=True,
+                time_of_day=time_of_day,
+            ):
+                if not schedule.applies_to_day(today.weekday()):
+                    continue
+
+                # Check if already logged
+                existing_log = MedicineLog.objects.filter(
+                    medicine=medicine,
+                    schedule=schedule,
+                    scheduled_date=today,
+                ).first()
+
+                if existing_log and existing_log.log_status in [
+                    MedicineLog.STATUS_TAKEN,
+                    MedicineLog.STATUS_LATE,
+                    MedicineLog.STATUS_SKIPPED,
+                ]:
+                    continue  # Already handled
+
+                # Create or update log
+                log, created = MedicineLog.objects.get_or_create(
+                    user=user,
+                    medicine=medicine,
+                    schedule=schedule,
+                    scheduled_date=today,
+                    defaults={
+                        "scheduled_time": schedule.scheduled_time,
+                        "is_prn_dose": False,
+                    }
+                )
+
+                log.mark_skipped(reason)
+                skipped_count += 1
+
+        time_display = dict(MedicineSchedule.TIME_OF_DAY_CHOICES).get(time_of_day, time_of_day)
+        messages.info(request, f"Skipped {skipped_count} {time_display} dose{'s' if skipped_count != 1 else ''}.")
+
         next_url = request.POST.get("next", reverse_lazy("health:medicine_home"))
         return redirect(next_url)
 

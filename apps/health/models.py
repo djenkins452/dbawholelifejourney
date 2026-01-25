@@ -2172,6 +2172,33 @@ class MedicineSchedule(models.Model):
     For example, "twice daily" might be 8 AM and 8 PM.
     """
 
+    # Time of day groupings for bulk actions
+    TIME_MORNING = "morning"
+    TIME_MID_MORNING = "mid_morning"
+    TIME_LUNCH = "lunch"
+    TIME_AFTERNOON = "afternoon"
+    TIME_EVENING = "evening"
+    TIME_NIGHTLY = "nightly"
+
+    TIME_OF_DAY_CHOICES = [
+        (TIME_MORNING, "Morning"),
+        (TIME_MID_MORNING, "Mid-Morning"),
+        (TIME_LUNCH, "Lunch"),
+        (TIME_AFTERNOON, "Afternoon"),
+        (TIME_EVENING, "Evening"),
+        (TIME_NIGHTLY, "Nightly"),
+    ]
+
+    # Display order for time of day groupings
+    TIME_OF_DAY_ORDER = {
+        TIME_MORNING: 0,
+        TIME_MID_MORNING: 1,
+        TIME_LUNCH: 2,
+        TIME_AFTERNOON: 3,
+        TIME_EVENING: 4,
+        TIME_NIGHTLY: 5,
+    }
+
     medicine = models.ForeignKey(
         Medicine,
         on_delete=models.CASCADE,
@@ -2180,6 +2207,13 @@ class MedicineSchedule(models.Model):
 
     scheduled_time = models.TimeField(
         help_text="Time of day to take this dose",
+    )
+
+    time_of_day = models.CharField(
+        max_length=20,
+        choices=TIME_OF_DAY_CHOICES,
+        blank=True,
+        help_text="Time period for grouping doses (Morning, Lunch, Evening, etc.)",
     )
 
     label = models.CharField(
@@ -2223,6 +2257,38 @@ class MedicineSchedule(models.Model):
     def applies_to_day(self, day_of_week):
         """Check if this schedule applies to a given day (0=Mon, 6=Sun)."""
         return day_of_week in self.days_list
+
+    @property
+    def time_of_day_display(self):
+        """Return display name for time_of_day."""
+        if self.time_of_day:
+            return dict(self.TIME_OF_DAY_CHOICES).get(self.time_of_day, self.time_of_day)
+        return None
+
+    @property
+    def time_of_day_order(self):
+        """Return sort order for time_of_day grouping."""
+        if self.time_of_day:
+            return self.TIME_OF_DAY_ORDER.get(self.time_of_day, 99)
+        return 99
+
+    def save(self, *args, **kwargs):
+        """Auto-assign time_of_day based on scheduled_time if not set."""
+        if not self.time_of_day and self.scheduled_time:
+            hour = self.scheduled_time.hour
+            if hour < 10:
+                self.time_of_day = self.TIME_MORNING
+            elif hour < 12:
+                self.time_of_day = self.TIME_MID_MORNING
+            elif hour < 14:
+                self.time_of_day = self.TIME_LUNCH
+            elif hour < 17:
+                self.time_of_day = self.TIME_AFTERNOON
+            elif hour < 20:
+                self.time_of_day = self.TIME_EVENING
+            else:
+                self.time_of_day = self.TIME_NIGHTLY
+        super().save(*args, **kwargs)
 
 
 class MedicineLog(UserOwnedModel):

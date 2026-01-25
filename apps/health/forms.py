@@ -615,19 +615,25 @@ class MedicineScheduleForm(forms.ModelForm):
 
     class Meta:
         model = MedicineSchedule
-        fields = ["scheduled_time", "label", "is_active"]
+        fields = ["scheduled_time", "time_of_day", "label", "is_active"]
         widgets = {
             "scheduled_time": forms.TimeInput(attrs={
                 "class": "form-input",
                 "type": "time",
             }),
+            "time_of_day": forms.Select(attrs={
+                "class": "form-select",
+            }),
             "label": forms.TextInput(attrs={
                 "class": "form-input",
-                "placeholder": "e.g., morning, bedtime, with dinner",
+                "placeholder": "e.g., with breakfast, after dinner",
             }),
             "is_active": forms.CheckboxInput(attrs={
                 "class": "form-checkbox",
             }),
+        }
+        help_texts = {
+            "time_of_day": "Group doses by time period for bulk actions (auto-assigned if left blank)",
         }
 
     def __init__(self, *args, **kwargs):

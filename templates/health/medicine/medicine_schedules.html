@@ -38,6 +38,9 @@
             <div class="schedule-card">
                 <div class="schedule-info">
                     <span class="schedule-time">{{ schedule.scheduled_time|time:"g:i A" }}</span>
+                    {% if schedule.time_of_day %}
+                    <span class="badge badge-time-of-day">{{ schedule.time_of_day_display }}</span>
+                    {% endif %}
                     {% if schedule.label %}
                     <span class="schedule-label">{{ schedule.label }}</span>
                     {% endif %}
@@ -86,10 +89,16 @@
                     {{ form.scheduled_time }}
                 </div>
                 <div class="form-group">
-                    <label for="id_label">Label</label>
-                    {{ form.label }}
-                    <p class="form-help">e.g., morning, bedtime, with dinner</p>
+                    <label for="id_time_of_day">Time Period</label>
+                    {{ form.time_of_day }}
+                    <p class="form-help">Group doses for bulk "Take All" actions (auto-assigned if blank)</p>
                 </div>
+            </div>
+
+            <div class="form-group">
+                <label for="id_label">Label (optional)</label>
+                {{ form.label }}
+                <p class="form-help">e.g., with breakfast, after dinner</p>
             </div>
 
             <div class="form-group">
@@ -171,6 +180,15 @@
     border-radius: var(--radius-sm);
     font-size: var(--font-size-xs);
     color: var(--color-text-muted);
+}
+
+.badge-time-of-day {
+    padding: var(--space-1) var(--space-2);
+    background: color-mix(in srgb, var(--color-accent) 20%, transparent);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    color: var(--color-accent);
+    font-weight: 500;
 }
 
 .schedule-days {

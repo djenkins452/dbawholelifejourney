@@ -16,6 +16,39 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-25 Changes
 
+### Add Context-Aware Help Icon to Top Utility Bar
+
+**Summary:** Added the ? help icon to both mobile and desktop utility bars, and improved help search with synonym expansion.
+
+**Changes:**
+- Added help icon to `desktop_top_bar.html` (was missing on desktop)
+- Added help icon to `top_utility_icons.html` (mobile)
+- Updated `help.js` to accept click event for context (avoids duplicate IDs)
+- Added synonym expansion to help search (e.g., "account" also searches "settings", "preferences")
+- Improved keywords for Preferences article to include "account", "update", etc.
+
+**Files Modified:**
+- `templates/components/desktop_top_bar.html` - Added help button
+- `templates/components/top_utility_icons.html` - Added help button
+- `templates/components/navigation.html` - Removed duplicate ID
+- `static/js/help.js` - Accept event parameter for context
+- `apps/help/services.py` - Added `SEARCH_SYNONYMS` and `_expand_query_with_synonyms()`
+- `apps/help/fixtures/help_articles.json` - Expanded Preferences keywords
+
+---
+
+### Fix: iOS App Memory Crash from Background Sync Loop
+
+**Summary:** The iOS app was crashing due to memory exhaustion. HealthKit observer queries were firing immediately on creation for all 24 health types, each calling `scheduleBackgroundSync()`, creating a runaway loop.
+
+**Changes:**
+- Added throttle (1 minute minimum between schedules) to prevent rapid-fire scheduling
+
+**Files Modified:**
+- `ios/WLJWrapper/WLJWrapper/Services/BackgroundSyncManager.swift` - Added `lastScheduleTime` and throttle check
+
+---
+
 ### Fix: Simplify /more/ Page to Fix 500 Error
 
 **Summary:** The /more/ page was returning 500 errors due to complex context processor dependencies. Simplified the page to fetch module data directly in the view with proper error handling.

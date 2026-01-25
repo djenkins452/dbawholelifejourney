@@ -1935,3 +1935,31 @@ class ModuleOrderView(LoginRequiredMixin, View):
                 pass
 
         return JsonResponse({'success': True})
+
+
+class PreferenceToggleView(LoginRequiredMixin, View):
+    """
+    API endpoint to toggle boolean user preferences (e.g., desktop_nav_collapsed).
+
+    POST /user/preferences/toggle/
+    Body: field=desktop_nav_collapsed&value=true
+
+    Valid fields: hide_nav_on_scroll, desktop_nav_collapsed
+    """
+
+    VALID_FIELDS = ['hide_nav_on_scroll', 'desktop_nav_collapsed']
+
+    def post(self, request, *args, **kwargs):
+        field = request.POST.get('field', '')
+        value = request.POST.get('value', 'false').lower() == 'true'
+
+        if field not in self.VALID_FIELDS:
+            return JsonResponse({'error': f'Invalid field: {field}'}, status=400)
+
+        try:
+            prefs = request.user.preferences
+            setattr(prefs, field, value)
+            prefs.save(update_fields=[field])
+            return JsonResponse({'success': True, 'field': field, 'value': value})
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)

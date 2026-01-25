@@ -1,0 +1,83 @@
+{% load static %}
+<!-- Desktop Left Rail Navigation (visible only on desktop) -->
+<aside class="desktop-left-rail{% if desktop_nav_collapsed %} collapsed{% endif %}" id="desktop-left-rail" aria-label="Main navigation">
+    <!-- Home - Always first -->
+    <a href="{% url 'dashboard:home' %}" class="rail-item{% if request.resolver_match.app_name == 'dashboard' %} active{% endif %}" data-tooltip="Home">
+        <svg class="rail-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+        </svg>
+        <span class="rail-label">Home</span>
+    </a>
+
+    <div class="rail-divider"></div>
+
+    <!-- Dynamic modules from user preferences (up to 8) -->
+    {% for module in desktop_rail_modules %}
+    <a href="{% url module.route_name %}" class="rail-item{% if request.resolver_match.app_name == module.slug %} active{% endif %}" data-tooltip="{{ module.name }}">
+        <svg class="rail-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            {{ module.icon_svg|safe }}
+        </svg>
+        <span class="rail-label">{{ module.name }}</span>
+    </a>
+    {% empty %}
+    <!-- Fallback static modules if desktop_rail_modules not available -->
+    {% if journal_enabled %}
+    <a href="{% url 'journal:home' %}" class="rail-item{% if request.resolver_match.app_name == 'journal' %} active{% endif %}" data-tooltip="Journal">
+        <svg class="rail-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+        </svg>
+        <span class="rail-label">Journal</span>
+    </a>
+    {% endif %}
+    {% if health_enabled %}
+    <a href="{% url 'health:home' %}" class="rail-item{% if request.resolver_match.app_name == 'health' %} active{% endif %}" data-tooltip="Health">
+        <svg class="rail-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+        </svg>
+        <span class="rail-label">Health</span>
+    </a>
+    {% endif %}
+    {% if faith_enabled %}
+    <a href="{% url 'faith:home' %}" class="rail-item{% if request.resolver_match.app_name == 'faith' %} active{% endif %}" data-tooltip="Faith">
+        <svg class="rail-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2v20M7 7h10"/>
+        </svg>
+        <span class="rail-label">Faith</span>
+    </a>
+    {% endif %}
+    {% if life_enabled %}
+    <a href="{% url 'life:home' %}" class="rail-item{% if request.resolver_match.app_name == 'life' %} active{% endif %}" data-tooltip="Organize">
+        <svg class="rail-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+            <polyline points="9 22 9 12 15 12 15 22"/>
+        </svg>
+        <span class="rail-label">Organize</span>
+    </a>
+    {% endif %}
+    {% endfor %}
+
+    <div class="rail-divider"></div>
+
+    <!-- More - Always last -->
+    <a href="{% url 'core:more' %}" class="rail-item{% if request.resolver_match.url_name == 'more' %} active{% endif %}" data-tooltip="More">
+        <svg class="rail-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="1"/>
+            <circle cx="12" cy="5" r="1"/>
+            <circle cx="12" cy="19" r="1"/>
+        </svg>
+        <span class="rail-label">More</span>
+    </a>
+
+    <!-- Collapse/Expand Toggle at bottom -->
+    <button type="button" class="rail-collapse-toggle" onclick="toggleDesktopRail()" aria-label="Toggle navigation width" data-tooltip="Collapse">
+        <svg class="rail-icon rail-icon-collapse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M11 17l-5-5 5-5"/>
+            <path d="M18 17l-5-5 5-5"/>
+        </svg>
+        <svg class="rail-icon rail-icon-expand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M13 7l5 5-5 5"/>
+            <path d="M6 7l5 5-5 5"/>
+        </svg>
+        <span class="rail-label">Collapse</span>
+    </button>
+</aside>

@@ -249,6 +249,12 @@ class UserPreferences(models.Model):
         help_text="Hide navigation bars when scrolling down on mobile (show on scroll up)",
     )
 
+    # Navigation behavior (desktop)
+    desktop_nav_collapsed = models.BooleanField(
+        default=False,
+        help_text="Collapse the desktop left rail to icons only",
+    )
+
     # ===================
     # MODULE TOGGLES
     # ===================

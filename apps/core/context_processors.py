@@ -352,3 +352,39 @@ def pending_captures_context(request):
         pass
 
     return context
+
+
+def system_announcements_context(request):
+    """
+    Add active system announcements to template context.
+
+    Provides:
+    - active_announcements: QuerySet of announcements user hasn't dismissed
+    - has_active_announcements: Boolean for quick check
+
+    This runs on every authenticated page load. Announcements are shown as modals.
+    """
+    context = {
+        'active_announcements': [],
+        'has_active_announcements': False,
+    }
+
+    if not request.user.is_authenticated:
+        return context
+
+    # Skip for API, static, admin paths
+    path = request.path
+    if any(path.startswith(p) for p in ['/api/', '/static/', '/media/', '/admin/']):
+        return context
+
+    try:
+        from apps.admin_console.models import SystemAnnouncement
+
+        announcements = SystemAnnouncement.get_active_for_user(request.user)
+        context['active_announcements'] = list(announcements)
+        context['has_active_announcements'] = len(context['active_announcements']) > 0
+
+    except Exception:
+        pass
+
+    return context

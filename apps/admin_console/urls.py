@@ -148,4 +148,11 @@ urlpatterns = [
 
     # Codebase Metrics Report
     path("codebase-metrics/", views.CodebaseMetricsView.as_view(), name="codebase_metrics"),
+
+    # System Announcements
+    path("announcements/", views.SystemAnnouncementListView.as_view(), name="system_announcement_list"),
+    path("announcements/new/", views.SystemAnnouncementCreateView.as_view(), name="system_announcement_create"),
+    path("announcements/<int:pk>/edit/", views.SystemAnnouncementUpdateView.as_view(), name="system_announcement_update"),
+    path("announcements/<int:pk>/delete/", views.SystemAnnouncementDeleteView.as_view(), name="system_announcement_delete"),
+    path("api/announcements/<int:pk>/dismiss/", views.SystemAnnouncementDismissAPIView.as_view(), name="api_announcement_dismiss"),
 ]

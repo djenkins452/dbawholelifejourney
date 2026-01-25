@@ -285,6 +285,11 @@
     {% include "components/development_notice_modal.html" %}
     {% endif %}
 
+    <!-- System Announcement Modal (admin broadcasts) -->
+    {% if user.is_authenticated %}
+    {% include "components/system_announcement_modal.html" %}
+    {% endif %}
+
     <!-- WLJ Assistant Chat Widget -->
     {% if user.is_authenticated %}
     {% include "components/chat_widget.html" %}

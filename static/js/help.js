@@ -34,19 +34,24 @@
 
 /**
  * Opens the help modal and fetches content for the current context.
+ * @param {Event} [event] - Optional click event to get context from clicked button
  */
-function openHelpModal() {
+function openHelpModal(event) {
     const modal = document.getElementById('help-modal');
-    const trigger = document.getElementById('help-trigger');
 
-    if (!modal || !trigger) {
-        console.error('Help modal or trigger not found');
+    if (!modal) {
+        console.error('Help modal not found');
         return;
     }
 
-    // Get context from the trigger button
-    const contextId = trigger.dataset.helpContext || 'GENERAL';
-    const helpType = trigger.dataset.helpType || 'user';
+    // Get context from the clicked button, or fall back to first help-trigger
+    let trigger = event?.currentTarget || event?.target?.closest('[data-help-context]');
+    if (!trigger) {
+        trigger = document.querySelector('[data-help-context]');
+    }
+
+    const contextId = trigger?.dataset?.helpContext || 'GENERAL';
+    const helpType = trigger?.dataset?.helpType || 'user';
 
     // Show modal
     modal.showModal();

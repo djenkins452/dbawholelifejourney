@@ -602,12 +602,11 @@
                 <button
                     type="button"
                     class="help-button"
-                    id="help-trigger"
                     data-help-context="{{ help_context_id|default:'GENERAL' }}"
                     data-help-type="user"
                     aria-label="Get help for this page"
                     title="Help"
-                    onclick="openHelpModal(); return false;"
+                    onclick="openHelpModal(event); return false;"
                 >
                     <svg class="help-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <circle cx="12" cy="12" r="10"/>

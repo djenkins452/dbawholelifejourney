@@ -16,6 +16,18 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-25 Changes
 
+### Fix: Task List Help Showing Generic Admin Console Help
+
+**Issue:** The Task List page in Admin Console was showing generic "Admin Console Overview" help instead of Task List-specific help. The `ADMIN_CONSOLE_TASKS` help topic only existed in `AdminHelpTopic` model, but the help system queries the `HelpTopic` model.
+
+**Fix:** Added one-time data loader `_add_task_list_help_topic` that creates the `ADMIN_CONSOLE_TASKS` entry in the `HelpTopic` model. Also added the entry to `help_topics.json` fixture for future deployments.
+
+**Files Modified:**
+- `apps/core/management/commands/load_initial_data.py` - Added `_add_task_list_help_topic()` method
+- `apps/help/fixtures/help_topics.json` - Added ADMIN_CONSOLE_TASKS help topic (pk 24)
+
+---
+
 ### Fix: Activity Dashboard - Days Tracked and Label Accuracy
 
 **Issue:** Two bugs in the Activity dashboard:

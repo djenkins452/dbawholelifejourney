@@ -514,6 +514,9 @@ class Command(BaseCommand):
         # One-time: Disable Finance module for all users (Coming Soon)
         self._disable_finance_module(DataLoadConfig, force, verbosity)
 
+        # One-time: Add missing Task List help topic
+        self._add_task_list_help_topic(DataLoadConfig, force, verbosity)
+
         # Only output summary if something loaded or if verbose
         if verbosity >= 1 and loaded_count > 0:
             self.stdout.write(self.style.SUCCESS(f'Initial data: loaded {loaded_count} items'))
@@ -741,3 +744,85 @@ This test email is sent once on first deploy after SMTP is configured.
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Finance module disable FAILED: {e}'))
+
+    def _add_task_list_help_topic(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time add of ADMIN_CONSOLE_TASKS help topic.
+
+        This topic was missing from HelpTopic (only existed in AdminHelpTopic),
+        causing the Task List page to show generic Admin Console help.
+        Only runs once (tracked via DataLoadConfig) unless force=True.
+        """
+        loader_name = 'add_task_list_help_topic_2026_01'
+
+        # Check if already run (unless force mode)
+        if not force and self._is_loader_complete(DataLoadConfig, loader_name):
+            return  # Already done, skip silently
+
+        try:
+            from apps.help.models import HelpTopic
+
+            # Check if topic already exists
+            if HelpTopic.objects.filter(context_id='ADMIN_CONSOLE_TASKS').exists():
+                # Already exists, just mark complete
+                self._mark_loader_complete(
+                    DataLoadConfig, loader_name, 'Add Task List Help Topic (Jan 2026)',
+                    'command', 'One-time add of ADMIN_CONSOLE_TASKS help topic'
+                )
+                return
+
+            # Create the help topic
+            HelpTopic.objects.create(
+                context_id='ADMIN_CONSOLE_TASKS',
+                help_id='admin-console-tasks',
+                title='Task List',
+                description='View and manage all project tasks.',
+                content="""## Task List
+
+This page shows all tasks across all projects with filtering options.
+
+### Filtering Tasks
+
+Use the filter controls to narrow the list:
+- **Phase** - Filter by phase number
+- **Status** - Filter by task status (backlog, ready, in_progress, done, blocked)
+- **Project** - Filter by project
+
+### Task Status Workflow
+
+1. **Backlog** - Task created, not ready for work
+2. **Ready** - Task marked ready, available for Claude
+3. **In Progress** - Claude is actively working on it
+4. **Done** - Task completed successfully
+5. **Blocked** - Task waiting on dependency or issue
+
+### Mark Ready
+
+For backlog tasks, use the **"Mark Ready"** button to make them available for Claude to execute.
+
+### Inline Editing
+
+Some fields can be edited inline:
+- Status can be changed via dropdown
+- Priority can be adjusted
+
+### Sorting
+
+Tasks are sorted by priority (ascending) then creation date.""",
+                app_name='admin_console',
+                order=5,
+                is_active=True,
+            )
+
+            if verbosity >= 1:
+                self.stdout.write(self.style.SUCCESS('  Added ADMIN_CONSOLE_TASKS help topic'))
+
+            # Mark as complete so it doesn't run again
+            self._mark_loader_complete(
+                DataLoadConfig, loader_name, 'Add Task List Help Topic (Jan 2026)',
+                'command', 'One-time add of ADMIN_CONSOLE_TASKS help topic'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Add Task List help topic FAILED: {e}'))

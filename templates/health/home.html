@@ -12,6 +12,10 @@
         <p class="page-subtitle">Track your physical wellness, gently and without judgment</p>
     </div>
 
+    <div class="health-disclaimer">
+        <p>Whole Life Journey provides informational insights only. It does not provide medical advice, diagnosis, or treatment. Always consult a qualified healthcare professional for medical decisions.</p>
+    </div>
+
     {% if ai_insight %}
     <!-- AI Insight Card -->
     <div class="ai-insight-card mb-6">
@@ -711,6 +715,22 @@
 </div>
 
 <style nonce="{{ csp_nonce }}">
+/* Health Disclaimer */
+.health-disclaimer {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-3) var(--space-4);
+    margin-bottom: var(--space-6);
+}
+
+.health-disclaimer p {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    font-style: italic;
+}
+
 /* AI Insight Card */
 .ai-insight-card {
     background: linear-gradient(135deg, color-mix(in srgb, var(--color-accent) 10%, transparent), color-mix(in srgb, var(--color-primary) 5%, transparent));

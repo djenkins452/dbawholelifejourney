@@ -16,11 +16,24 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-25 Changes
 
-### Privacy Policy: Comprehensive Update for All Data Collection
+### Privacy Policy, Terms of Service, and Health Disclaimer Updates
 
-**Summary:** Updated the Privacy Policy to accurately reflect all data types collected by the app, including HealthKit integration, AI features, mobile app data, and age consent requirements.
+**Summary:** Comprehensive update to privacy policy, consolidated all contact emails to admin@wholelifejourney.com, and added health disclaimer across the app.
 
-**New Sections Added:**
+**Email Consolidation:**
+- All contact emails (privacy@, legal@, support@) now point to admin@wholelifejourney.com
+- Updated in Privacy Policy, Terms of Service, and iOS app
+
+**Health Disclaimer Added:**
+- Added to Privacy Policy under HealthKit section
+- Added to Health home page (web)
+- Added to Settings/Preferences page (web)
+- Added to iOS SettingsView (in Health footer)
+- Added to iOS HealthSyncView (dedicated section)
+
+Disclaimer text: "Whole Life Journey provides informational insights only. It does not provide medical advice, diagnosis, or treatment. Always consult a qualified healthcare professional for medical decisions."
+
+**Privacy Policy New Sections:**
 - **Journal & Reflection Data** - mood, emotions, prompts
 - **Health & Wellness Data** - 22+ metric types (body composition, heart health, activity, sleep, nutrition, blood glucose, medications, female health, body temperature)
 - **Faith & Spiritual Data** - prayer requests, scripture, reading plans
@@ -30,6 +43,7 @@ For active development context, see `CLAUDE.md` (project root).
 - **Security & Authentication Data** - biometrics/passkeys, MFA, fraud prevention
 - **AI Features expansion** - conversation history, AI profile, learned facts, consent levels, OpenAI disclosure
 - **Third-Party Services expansion** - added OpenAI, Dexcom, FatSecret, Apple HealthKit
+- **Health Information Disclaimer** - new subsection
 
 **Updated Sections:**
 - Account Information - added date of birth and avatar
@@ -37,7 +51,12 @@ For active development context, see `CLAUDE.md` (project root).
 - Sensitive Personal Information - detailed list (health, religious, biometric, mental health)
 
 **Files Modified:**
-- `templates/core/privacy.html`
+- `templates/core/privacy.html` - comprehensive data collection update, email updates, health disclaimer
+- `templates/core/terms.html` - email updates
+- `templates/health/home.html` - health disclaimer
+- `templates/users/preferences.html` - health disclaimer
+- `ios/WLJWrapper/WLJWrapper/Views/SettingsView.swift` - email update, health disclaimer
+- `ios/WLJWrapper/WLJWrapper/Views/HealthSyncView.swift` - health disclaimer
 
 ---
 

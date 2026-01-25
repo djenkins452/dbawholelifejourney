@@ -2284,9 +2284,30 @@ The AI will remember these to respond more thoughtfully in the future."
             </button>
         </div>
     </form>
+
+    <!-- Health Disclaimer -->
+    <div class="preferences-disclaimer">
+        <p>Whole Life Journey provides informational insights only. It does not provide medical advice, diagnosis, or treatment. Always consult a qualified healthcare professional for medical decisions.</p>
+    </div>
 </div>
 
 <style nonce="{{ csp_nonce }}">
+/* Health Disclaimer */
+.preferences-disclaimer {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-3) var(--space-4);
+    margin-top: var(--space-6);
+}
+
+.preferences-disclaimer p {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    font-style: italic;
+}
+
 /* Page header actions */
 .page-header-actions {
     display: flex;

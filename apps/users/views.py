@@ -1935,6 +1935,10 @@ class ModuleOrderView(LoginRequiredMixin, View):
                 # Module doesn't exist for this user, skip
                 pass
 
+        # Invalidate navigation cache since module order changed
+        from apps.core.context_processors import invalidate_navigation_cache
+        invalidate_navigation_cache(request.user.id)
+
         return JsonResponse({'success': True})
 
 

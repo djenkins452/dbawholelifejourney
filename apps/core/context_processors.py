@@ -170,6 +170,9 @@ def favorites_context(request):
     Provides:
     - favorites_menu_data: dict with favorites list, most_used list, count
     - is_current_page_favorite: boolean for star toggle state
+
+    Performance: Favorites data is cached per-user for 60 seconds.
+    is_current_page_favorite is NOT cached since it's path-dependent.
     """
     context = {
         'favorites_menu_data': {
@@ -189,42 +192,63 @@ def favorites_context(request):
         return context
 
     try:
+        from django.core.cache import cache
         from apps.core.models import FavoritePage, PageView
 
-        # Get favorites (up to 10)
-        favorites = FavoritePage.get_favorites_for_user(
-            request.user,
-            limit=FavoritePage.MAX_FAVORITES
-        )
+        # Cache favorites and most_used data (not path-dependent)
+        cache_key = f'favorites_menu_user_{request.user.id}'
+        cached_menu = cache.get(cache_key)
 
-        # Calculate how many most-used pages to show
-        favorites_count = favorites.count()
-        most_used_slots = FavoritePage.MAX_FAVORITES - favorites_count
-
-        # Get most-used pages, excluding favorites
-        most_used = []
-        if most_used_slots > 0:
-            favorite_urls = list(favorites.values_list('url', flat=True))
-            most_used = list(PageView.get_most_used_for_user(
+        if cached_menu is not None:
+            context['favorites_menu_data'] = cached_menu
+        else:
+            # Get favorites (up to 10)
+            favorites = FavoritePage.get_favorites_for_user(
                 request.user,
-                limit=most_used_slots,
-                exclude_urls=favorite_urls
-            ))
+                limit=FavoritePage.MAX_FAVORITES
+            )
 
-        # Check if current page is a favorite
-        is_favorite = FavoritePage.is_favorite(request.user, path)
+            # Calculate how many most-used pages to show
+            favorites_count = favorites.count()
+            most_used_slots = FavoritePage.MAX_FAVORITES - favorites_count
 
-        context['favorites_menu_data'] = {
-            'favorites': list(favorites),
-            'most_used': most_used,
-            'favorites_count': favorites_count,
-        }
-        context['is_current_page_favorite'] = is_favorite
+            # Get most-used pages, excluding favorites
+            most_used = []
+            if most_used_slots > 0:
+                favorite_urls = list(favorites.values_list('url', flat=True))
+                most_used = list(PageView.get_most_used_for_user(
+                    request.user,
+                    limit=most_used_slots,
+                    exclude_urls=favorite_urls
+                ))
+
+            menu_data = {
+                'favorites': list(favorites),
+                'most_used': most_used,
+                'favorites_count': favorites_count,
+            }
+            context['favorites_menu_data'] = menu_data
+
+            # Cache for 60 seconds (shorter since favorites change more often)
+            cache.set(cache_key, menu_data, 60)
+
+        # Check if current page is a favorite (path-dependent, not cached)
+        context['is_current_page_favorite'] = FavoritePage.is_favorite(request.user, path)
 
     except Exception:
         pass
 
     return context
+
+
+def invalidate_favorites_cache(user_id):
+    """
+    Invalidate favorites cache for a specific user.
+
+    Call this when user adds/removes favorites.
+    """
+    from django.core.cache import cache
+    cache.delete(f'favorites_menu_user_{user_id}')
 
 
 def navigation_modules_context(request):
@@ -240,6 +264,9 @@ def navigation_modules_context(request):
 
     Mobile bottom nav shows: Home + first 4 enabled modules + More
     Desktop left rail shows: Home + first 8 enabled modules + More
+
+    Performance: Uses caching to minimize database queries. Cache is invalidated when
+    user updates module preferences.
     """
     context = {
         'nav_modules': [],
@@ -252,14 +279,26 @@ def navigation_modules_context(request):
     if not request.user.is_authenticated:
         return context
 
+    # Skip for API, static, admin paths to reduce unnecessary processing
+    path = request.path
+    if any(path.startswith(p) for p in ['/api/', '/static/', '/media/', '/admin/']):
+        return context
+
     try:
+        from django.core.cache import cache
         from apps.users.models import UserModulePreference, ModuleDefinition
 
-        # Initialize module preferences for user if needed
-        # Check if user has any preferences
-        user_prefs_count = UserModulePreference.objects.filter(user=request.user).count()
+        # Cache key specific to this user
+        cache_key = f'nav_modules_user_{request.user.id}'
+        cached_data = cache.get(cache_key)
 
-        if user_prefs_count == 0:
+        if cached_data is not None:
+            # Use cached navigation data
+            return cached_data
+
+        # Initialize module preferences for user if needed
+        # Use exists() instead of count() - more efficient
+        if not UserModulePreference.objects.filter(user=request.user).exists():
             # Initialize for user (first time)
             UserModulePreference.initialize_for_user(request.user)
 
@@ -327,11 +366,24 @@ def navigation_modules_context(request):
         # Desktop overflow = empty since all modules are in the rail now
         context['desktop_overflow_modules'] = []
 
+        # Cache for 5 minutes (will be invalidated on preference changes)
+        cache.set(cache_key, context, 300)
+
     except Exception:
         # If tables don't exist yet (pre-migration), use fallback
         pass
 
     return context
+
+
+def invalidate_navigation_cache(user_id):
+    """
+    Invalidate navigation cache for a specific user.
+
+    Call this when user updates their module preferences.
+    """
+    from django.core.cache import cache
+    cache.delete(f'nav_modules_user_{user_id}')
 
 
 def pending_captures_context(request):

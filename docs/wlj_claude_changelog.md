@@ -16,6 +16,26 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-25 Changes
 
+### Performance: Cache Navigation and Favorites Context Processors
+
+**Summary:** Added caching to context processors to reduce database queries per page load. Before this change, every page load was making 5+ database queries just for navigation and favorites data that rarely changes.
+
+**Changes:**
+- Added 5-minute cache to `navigation_modules_context` for user module preferences
+- Added 60-second cache to `favorites_context` for favorites and most-used data
+- Added path exclusions for API/static/admin routes (no need for nav data on these)
+- Changed `count()` to `exists()` for initialization check (more efficient)
+- Added `invalidate_navigation_cache()` and `invalidate_favorites_cache()` helper functions
+- Added cache invalidation when user saves module order in `ModuleOrderView`
+- Added cache invalidation when user toggles favorites in `FavoriteToggleView`
+
+**Files Modified:**
+- `apps/core/context_processors.py` - Added caching and invalidation helpers
+- `apps/users/views.py` - Added cache invalidation on module order save
+- `apps/core/views.py` - Added cache invalidation on favorite toggle
+
+---
+
 ### Fix: Utility Icons Contrast on Themed Headers
 
 **Summary:** Utility icons (star, ?, chat, bell, profile) were barely visible on themes with dark colored headers (Nature, Faith, Sports, Outdoors). Icons were using `--color-text-muted` which doesn't contrast against colored header backgrounds.

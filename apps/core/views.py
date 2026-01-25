@@ -543,6 +543,10 @@ class FavoriteToggleView(LoginRequiredMixin, View):
 
             is_favorite, error = FavoritePage.toggle(request.user, url, title)
 
+            # Invalidate favorites cache since favorites changed
+            from apps.core.context_processors import invalidate_favorites_cache
+            invalidate_favorites_cache(request.user.id)
+
             response_data = {'is_favorite': is_favorite}
             if error:
                 response_data['error'] = error

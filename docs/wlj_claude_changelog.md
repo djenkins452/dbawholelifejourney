@@ -16,6 +16,19 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-25 Changes
 
+### iOS: Increased API Timeout for Health Data Syncs
+
+**Summary:** Increased iOS API client timeouts to handle large CGM data volumes (~2000+ readings/week).
+
+**Changes:**
+- Request timeout: 30s → 120s (2 minutes)
+- Resource timeout: 60s → 300s (5 minutes)
+
+**Files Modified:**
+- `ios/WLJWrapper/WLJWrapper/Services/APIClient.swift`
+
+---
+
 ### Bug Fix: Blood Glucose Sync from iOS HealthKit
 
 **Problem:** Blood glucose readings from HealthKit were failing to sync because the mobile API's date parser expected `YYYY-MM-DD` format, but HealthKit sends ISO8601 timestamps with time (e.g., `2026-01-25T10:30:00Z`).

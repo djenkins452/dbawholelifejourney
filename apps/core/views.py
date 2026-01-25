@@ -40,12 +40,15 @@ import logging
 
 from django.apps import apps
 from django.conf import settings
+from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import connection
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
+from django.utils.decorators import method_decorator
 from django.views import View
+from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django.views.generic import ListView, TemplateView
 
@@ -288,6 +291,50 @@ class AppReviewView(TemplateView):
     """
 
     template_name = "core/app_review.html"
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class AppReviewLoginView(View):
+    """
+    Auto-login endpoint for App Review demo account.
+
+    This CSRF-exempt endpoint allows Apple App Store reviewers to log in
+    without CSRF issues that can occur in WKWebView environments.
+
+    Security notes:
+    - Only works for the specific app review account (is_app_review_account=True)
+    - Credentials are already public on the /app-review/ page
+    - Does not work for any other user account
+
+    URL: /app-review/login/
+    """
+
+    def post(self, request):
+        from apps.users.models import User
+
+        email = request.POST.get('email', '').lower().strip()
+        password = request.POST.get('password', '')
+
+        # Only allow the app review account
+        try:
+            user = User.objects.get(email=email, is_app_review_account=True)
+        except User.DoesNotExist:
+            # Don't reveal whether account exists
+            return redirect('core:app_review')
+
+        # Verify password
+        if not user.check_password(password):
+            return redirect('core:app_review')
+
+        # Log in the user
+        login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+
+        # Redirect to dashboard
+        return redirect('dashboard:index')
+
+    def get(self, request):
+        # GET requests redirect to app review page
+        return redirect('core:app_review')
 
 
 class UXDesignView(TemplateView):

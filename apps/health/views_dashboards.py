@@ -473,7 +473,7 @@ class ActivityDashboardView(HealthMetricDashboardMixin):
             'avg_calories': round(float(stats['avg_calories']), 0) if stats['avg_calories'] else 0,
             'total_distance': round(float(stats['total_distance']), 1) if stats['total_distance'] else 0,
             'avg_distance': round(float(stats['avg_distance']), 1) if stats['avg_distance'] else 0,
-            'count': queryset.count(),
+            'count': queryset.values('logged_date').distinct().count(),
         }
 
     def get_chart_entry_extras(self, entry):

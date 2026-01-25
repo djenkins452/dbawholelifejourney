@@ -2,11 +2,17 @@
 
 {# Activity Dashboard (Steps, Calories, Distance) #}
 
+{% load tz %}
 {% block latest_reading %}
 {% if latest_reading %}
 <div class="latest-reading-card">
     <div class="latest-reading-header">
+        {% now "Y-m-d" as today_date %}
+        {% if latest_reading.logged_date|date:"Y-m-d" == today_date %}
         <span class="latest-label">Today's Activity</span>
+        {% else %}
+        <span class="latest-label">Latest Activity</span>
+        {% endif %}
         <span class="latest-time">{{ latest_reading.logged_date|date:"M j, Y" }}</span>
     </div>
 

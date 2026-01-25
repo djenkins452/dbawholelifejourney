@@ -16,6 +16,22 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-25 Changes
 
+### Fix: Activity Dashboard - Days Tracked and Label Accuracy
+
+**Issue:** Two bugs in the Activity dashboard:
+1. "Days Tracked" showed 8 for a 7-day period because it counted records instead of distinct dates (duplicate entries for same day from HealthKit sync)
+2. "Today's Activity" label was shown even when displaying data from a previous day
+
+**Fix:**
+1. Changed `count` calculation to use `queryset.values('logged_date').distinct().count()` for accurate day counting
+2. Updated template to show "Today's Activity" only when the data is actually from today, otherwise shows "Latest Activity"
+
+**Files Modified:**
+- `apps/health/views_dashboards.py` - Fixed distinct date counting in `ActivityDashboardView.get_statistics()`
+- `templates/health/dashboards/activity_dashboard.html` - Dynamic label based on whether data is from today
+
+---
+
 ### Fix: Recurring Tasks Cleanup for dannyjenkins71@gmail.com
 
 **Issue:** User had corrupted recurring tasks from earlier bug that couldn't be deleted through normal CRUD operations.

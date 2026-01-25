@@ -304,6 +304,12 @@ class PreferencesForm(forms.ModelForm):
     Form for editing user preferences.
     """
 
+    # Make notification_reminder_time not required (has model default)
+    notification_reminder_time = forms.TimeField(
+        required=False,
+        widget=forms.TimeInput(attrs={"class": "form-input", "type": "time"}),
+    )
+
     class Meta:
         model = UserPreferences
         fields = [

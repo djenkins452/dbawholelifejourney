@@ -243,6 +243,12 @@ class UserPreferences(models.Model):
         help_text="Custom hex color to override theme accent",
     )
 
+    # Navigation behavior (mobile)
+    hide_nav_on_scroll = models.BooleanField(
+        default=False,
+        help_text="Hide navigation bars when scrolling down on mobile (show on scroll up)",
+    )
+
     # ===================
     # MODULE TOGGLES
     # ===================

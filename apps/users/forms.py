@@ -323,6 +323,8 @@ class PreferencesForm(forms.ModelForm):
         fields = [
             "theme",
             "accent_color",
+            # Navigation behavior
+            "hide_nav_on_scroll",
             # Personal information
             "gender",
             # Module toggles

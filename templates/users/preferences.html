@@ -412,6 +412,26 @@
                         The mobile bottom navigation shows Home, up to 4 modules, and More. Drag items to change order. Toggle visibility to show/hide in the nav bar.
                     </p>
 
+                    <!-- Hide on Scroll Option -->
+                    <div class="toggle-option mb-4">
+                        <div class="toggle-info">
+                            <div class="module-header">
+                                <span class="module-icon">👆</span>
+                                <h4>Hide Navigation on Scroll</h4>
+                                {% if form.hide_nav_on_scroll.value %}<span class="module-status status-active">Active</span>{% endif %}
+                            </div>
+                            <p class="text-muted text-sm">
+                                Hide the bottom tab bar and top icons when scrolling down. They reappear when you scroll up.
+                            </p>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" name="hide_nav_on_scroll" {% if form.hide_nav_on_scroll.value %}checked{% endif %}>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+
+                    <h3 class="accordion-section-title">Module Order</h3>
+
                     <div class="nav-order-list" id="nav-order-list">
                         {% for pref in nav_module_prefs %}
                         <div class="nav-order-item" data-slug="{{ pref.module.slug }}" draggable="true">

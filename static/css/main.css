@@ -1737,3 +1737,29 @@ a:hover {
         display: none !important;
     }
 }
+
+/* ==========================================================================
+   Hide Navigation on Scroll (when data-hide-nav-on-scroll="true")
+   The bottom tab bar and top utility icons slide away when scrolling down
+   and reappear when scrolling up.
+   ========================================================================== */
+
+@media (max-width: 768px) {
+    /* Add transitions to nav elements */
+    [data-hide-nav-on-scroll="true"] .bottom-tab-bar {
+        transition: transform 0.25s ease-out;
+    }
+
+    [data-hide-nav-on-scroll="true"] .site-header {
+        transition: transform 0.25s ease-out;
+    }
+
+    /* Hidden state when scrolling down */
+    [data-hide-nav-on-scroll="true"].nav-hidden .bottom-tab-bar {
+        transform: translateY(100%);
+    }
+
+    [data-hide-nav-on-scroll="true"].nav-hidden .site-header {
+        transform: translateY(-100%);
+    }
+}

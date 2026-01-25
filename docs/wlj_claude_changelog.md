@@ -16,6 +16,27 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-25 Changes
 
+### Feature: Hide Navigation on Scroll Option
+
+**Summary:** Added user preference to hide mobile navigation bars (bottom tab bar and top header) when scrolling down, and show them again when scrolling up.
+
+**Changes:**
+1. **Preference Field:** Added `hide_nav_on_scroll` boolean field to UserPreferences
+2. **Preferences UI:** Added toggle in Navigation Order accordion section
+3. **Scroll Detection:** JavaScript detects scroll direction and toggles visibility
+4. **CSS Transitions:** Smooth slide animations for nav elements
+
+**Files Modified:**
+- `apps/users/models.py` - Added hide_nav_on_scroll field
+- `apps/users/forms.py` - Added field to PreferencesForm
+- `apps/core/context_processors.py` - Added hide_nav_on_scroll to context
+- `templates/base.html` - Added data attribute and scroll detection JS
+- `templates/users/preferences.html` - Added toggle in Navigation Order section
+- `static/css/main.css` - Added hide/show CSS transitions
+- `apps/users/migrations/0049_add_hide_nav_on_scroll.py` - Database migration
+
+---
+
 ### Feature: Phase 2.2 - Module Reordering in Preferences
 
 **Summary:** Added drag-and-drop module reordering in Preferences. Users can now customize the order of modules in their mobile bottom navigation bar.

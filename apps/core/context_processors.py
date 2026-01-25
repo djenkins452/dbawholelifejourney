@@ -93,6 +93,8 @@ def theme_context(request):
             prefs = request.user.preferences
             context['current_theme'] = prefs.theme or 'minimal'
             context['accent_color'] = prefs.accent_color if prefs.accent_color else None
+            # Navigation behavior
+            context['hide_nav_on_scroll'] = prefs.hide_nav_on_scroll
             # Module toggles
             context['journal_enabled'] = prefs.journal_enabled
             context['faith_enabled'] = prefs.faith_enabled

@@ -1,6 +1,6 @@
 {% load static %}
 <!DOCTYPE html>
-<html lang="en" data-theme="{{ current_theme }}">
+<html lang="en" data-theme="{{ current_theme }}"{% if hide_nav_on_scroll %} data-hide-nav-on-scroll="true"{% endif %}>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -124,6 +124,63 @@
         }
     });
     </script>
+
+    <!-- Hide Navigation on Scroll (if enabled) -->
+    {% if hide_nav_on_scroll %}
+    <script>
+    (function() {
+        'use strict';
+        // Only run on mobile
+        if (window.innerWidth > 768) return;
+
+        var lastScrollY = window.scrollY;
+        var ticking = false;
+        var scrollThreshold = 10; // Minimum scroll distance to trigger hide/show
+        var html = document.documentElement;
+
+        function updateNavVisibility() {
+            var currentScrollY = window.scrollY;
+            var scrollDelta = currentScrollY - lastScrollY;
+
+            // Only trigger if scrolled more than threshold
+            if (Math.abs(scrollDelta) < scrollThreshold) {
+                ticking = false;
+                return;
+            }
+
+            // At top of page - always show nav
+            if (currentScrollY <= 50) {
+                html.classList.remove('nav-hidden');
+            }
+            // Scrolling down - hide nav
+            else if (scrollDelta > 0) {
+                html.classList.add('nav-hidden');
+            }
+            // Scrolling up - show nav
+            else {
+                html.classList.remove('nav-hidden');
+            }
+
+            lastScrollY = currentScrollY;
+            ticking = false;
+        }
+
+        window.addEventListener('scroll', function() {
+            if (!ticking) {
+                window.requestAnimationFrame(updateNavVisibility);
+                ticking = true;
+            }
+        }, { passive: true });
+
+        // Re-check on resize (in case device orientation changes)
+        window.addEventListener('resize', function() {
+            if (window.innerWidth > 768) {
+                html.classList.remove('nav-hidden');
+            }
+        });
+    })();
+    </script>
+    {% endif %}
 
     <!-- Service Worker Registration (for background capture sync) -->
     {% if user.is_authenticated %}

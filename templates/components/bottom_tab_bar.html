@@ -11,7 +11,7 @@
 
     <!-- Dynamic modules from user preferences (up to 4) -->
     {% for module in nav_modules %}
-    <a href="{% url module.route_name %}" class="bottom-tab {% if request.resolver_match.app_name == module.slug %}active{% endif %}">
+    <a href="{{ module.url }}" class="bottom-tab {% if request.resolver_match.app_name == module.slug %}active{% endif %}">
         <svg class="bottom-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             {{ module.icon_svg|safe }}
         </svg>

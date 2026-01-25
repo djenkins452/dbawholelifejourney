@@ -26,7 +26,7 @@
 
     <!-- Dynamic modules from user preferences -->
     {% for module in desktop_rail_modules %}
-    <a href="{% url module.route_name %}" class="rail-item{% if request.resolver_match.app_name == module.slug %} active{% endif %}" data-tooltip="{{ module.name }}" data-module="{{ module.slug }}">
+    <a href="{{ module.url }}" class="rail-item{% if request.resolver_match.app_name == module.slug %} active{% endif %}" data-tooltip="{{ module.name }}" data-module="{{ module.slug }}">
         <svg class="rail-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             {{ module.icon_svg|safe }}
         </svg>

@@ -16,6 +16,23 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-24 Changes
 
+### Filter broken Bible translations from selection
+
+**Problem:** NIV11 translation was returning 403/500 errors from YouVersion API (likely licensing restrictions). Users could select translations that don't work, leading to errors.
+
+**Fix:** Two-layer protection:
+1. **Server-side blocklist** - Known broken translations (NIV11) are filtered out when the API returns available translations
+2. **Dynamic testing** - Scripture Library and User Preferences test each translation with John 3:16 and remove any that fail
+3. **Fallback** - If a translation fails during actual use, falls back to ESV with a notice
+
+**Files Modified:**
+- `apps/faith/views.py` - Added `BLOCKED_BIBLE_TRANSLATIONS` set, filter in `BibleAPIBiblesView`
+- `templates/faith/scripture_list.html` - Added `testTranslation()` function, background testing in `fetchBibles()`
+- `templates/users/preferences.html` - Added `testBibleTranslation()` function, background testing in `loadBibleTranslations()`
+- `templates/faith/reading_plans/progress.html` - ESV fallback with notice
+
+---
+
 ### Fix preferences form checkbox submission and notification_reminder_time
 
 **Problems:**

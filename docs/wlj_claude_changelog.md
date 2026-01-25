@@ -16,6 +16,21 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-25 Changes
 
+### Fix: Utility Icons Contrast on Themed Headers
+
+**Summary:** Utility icons (star, ?, chat, bell, profile) were barely visible on themes with dark colored headers (Nature, Faith, Sports, Outdoors). Icons were using `--color-text-muted` which doesn't contrast against colored header backgrounds.
+
+**Changes:**
+- Added theme-specific CSS rules to make utility icons white/light on dark-header themes
+- Applied to both mobile (`.utility-icon`) and desktop (`.desktop-utility-icon`)
+- Also fixed desktop logo text color and top bar background for each theme
+- Added Dark theme utility icon styling for consistency
+
+**Files Modified:**
+- `static/css/themes.css` - Added utility icon color overrides for Faith, Sports, Nature, Outdoors, and Dark themes
+
+---
+
 ### Add Context-Aware Help Icon to Top Utility Bar
 
 **Summary:** Added the ? help icon to both mobile and desktop utility bars, and improved help search with synonym expansion.

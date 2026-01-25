@@ -187,6 +187,24 @@
     border-color: var(--color-border);
 }
 
+/* Dark theme - utility icons need light color for dark header contrast */
+.theme-dark .utility-icon,
+.theme-dark .desktop-utility-icon {
+    color: var(--color-text);
+}
+
+.theme-dark .utility-icon:hover,
+.theme-dark .utility-icon:active,
+.theme-dark .desktop-utility-icon:hover {
+    color: var(--color-text);
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.theme-dark .desktop-top-bar {
+    background-color: var(--color-surface);
+    border-bottom-color: var(--color-border);
+}
+
 /* ==========================================================================
    Theme 3: Christian Faith
    Peaceful, grounded, spiritually respectful
@@ -240,6 +258,37 @@
     background-color: rgba(255, 255, 255, 0.1);
 }
 
+/* Faith theme - utility icons need white color for dark header contrast */
+.theme-faith .utility-icon,
+.theme-faith .desktop-utility-icon {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.theme-faith .utility-icon:hover,
+.theme-faith .utility-icon:active,
+.theme-faith .desktop-utility-icon:hover {
+    color: white;
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.theme-faith .desktop-utility-icon.active {
+    color: var(--color-accent);
+    background: rgba(212, 165, 116, 0.2);
+}
+
+.theme-faith .desktop-logo-text {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.theme-faith .desktop-logo:hover .desktop-logo-text {
+    color: white;
+}
+
+.theme-faith .desktop-top-bar {
+    background-color: #1e3a5f;
+    border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
 /* ==========================================================================
    Theme 4: Sports & Performance
    Goal-driven, disciplined, focused
@@ -291,6 +340,37 @@
 
 .theme-sports .nav-mobile-toggle:hover {
     background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Sports theme - utility icons need white color for dark header contrast */
+.theme-sports .utility-icon,
+.theme-sports .desktop-utility-icon {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.theme-sports .utility-icon:hover,
+.theme-sports .utility-icon:active,
+.theme-sports .desktop-utility-icon:hover {
+    color: white;
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.theme-sports .desktop-utility-icon.active {
+    color: var(--color-accent);
+    background: rgba(220, 38, 38, 0.2);
+}
+
+.theme-sports .desktop-logo-text {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.theme-sports .desktop-logo:hover .desktop-logo-text {
+    color: white;
+}
+
+.theme-sports .desktop-top-bar {
+    background-color: #1f2937;
+    border-bottom-color: rgba(255, 255, 255, 0.1);
 }
 
 /* ==========================================================================
@@ -347,6 +427,37 @@
     background-color: rgba(255, 255, 255, 0.1);
 }
 
+/* Nature theme - utility icons need white color for dark header contrast */
+.theme-nature .utility-icon,
+.theme-nature .desktop-utility-icon {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.theme-nature .utility-icon:hover,
+.theme-nature .utility-icon:active,
+.theme-nature .desktop-utility-icon:hover {
+    color: white;
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.theme-nature .desktop-utility-icon.active {
+    color: var(--color-accent);
+    background: rgba(125, 211, 252, 0.2);
+}
+
+.theme-nature .desktop-logo-text {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.theme-nature .desktop-logo:hover .desktop-logo-text {
+    color: white;
+}
+
+.theme-nature .desktop-top-bar {
+    background-color: #2d5a27;
+    border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
 /* ==========================================================================
    Theme 6: Outdoors & Adventure
    Curious, expansive, journey-focused
@@ -398,6 +509,37 @@
 
 .theme-outdoors .nav-mobile-toggle:hover {
     background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Outdoors theme - utility icons need white color for dark header contrast */
+.theme-outdoors .utility-icon,
+.theme-outdoors .desktop-utility-icon {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.theme-outdoors .utility-icon:hover,
+.theme-outdoors .utility-icon:active,
+.theme-outdoors .desktop-utility-icon:hover {
+    color: white;
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.theme-outdoors .desktop-utility-icon.active {
+    color: var(--color-accent);
+    background: rgba(249, 115, 22, 0.2);
+}
+
+.theme-outdoors .desktop-logo-text {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.theme-outdoors .desktop-logo:hover .desktop-logo-text {
+    color: white;
+}
+
+.theme-outdoors .desktop-top-bar {
+    background-color: #475569;
+    border-bottom-color: rgba(255, 255, 255, 0.1);
 }
 
 /* ==========================================================================

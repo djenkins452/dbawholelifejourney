@@ -7,6 +7,9 @@
             <img src="{% if site_logo_url %}{{ site_logo_url }}{% else %}{% static 'images/wlj-logo.png' %}{% endif %}" alt="{{ site_name }}" class="nav-logo-img">
         </a>
 
+        <!-- Mobile top-right utility icons (Phase 1) -->
+        {% include "components/top_utility_icons.html" %}
+
         <!-- Mobile menu button -->
         <button
             type="button"

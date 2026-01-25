@@ -1552,3 +1552,188 @@ a:hover {
         padding: 2px var(--space-1);
     }
 }
+
+/* ==========================================================================
+   Mobile Bottom Tab Bar Navigation
+   Phase 1: Static skeleton
+   ========================================================================== */
+
+.bottom-tab-bar {
+    display: none; /* Hidden by default, shown on mobile */
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--color-background);
+    border-top: 1px solid var(--color-border);
+    padding: var(--space-2) 0;
+    padding-bottom: calc(var(--space-2) + env(safe-area-inset-bottom, 0px)); /* iOS safe area */
+    z-index: 100;
+    justify-content: space-around; /* Even spacing based on item count */
+    align-items: center;
+}
+
+/* Show on mobile only */
+@media (max-width: 768px) {
+    .bottom-tab-bar {
+        display: flex;
+    }
+
+    /* Add padding to main content to prevent overlap with bottom bar */
+    .main-content {
+        padding-bottom: calc(70px + env(safe-area-inset-bottom, 0px));
+    }
+
+    /* Hide footer on mobile when bottom bar is present */
+    .site-footer {
+        display: none;
+    }
+}
+
+.bottom-tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-1);
+    padding: var(--space-1) var(--space-2);
+    color: var(--color-text-muted);
+    text-decoration: none;
+    border-radius: var(--radius-md);
+    transition: color var(--transition-fast);
+    min-width: 60px;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.bottom-tab:hover,
+.bottom-tab:active {
+    color: var(--color-text);
+    text-decoration: none;
+}
+
+.bottom-tab.active {
+    color: var(--color-accent);
+}
+
+.bottom-tab-icon {
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+}
+
+.bottom-tab-label {
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 1;
+    text-align: center;
+}
+
+/* ==========================================================================
+   Mobile Top-Right Utility Icons
+   Phase 1: Static skeleton
+   ========================================================================== */
+
+.top-utility-icons {
+    display: none; /* Hidden by default, shown on mobile */
+    align-items: center;
+    gap: var(--space-1);
+}
+
+/* Show on mobile only */
+@media (max-width: 768px) {
+    .top-utility-icons {
+        display: flex;
+    }
+}
+
+.utility-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    color: var(--color-text-muted);
+    background: none;
+    border: none;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: color var(--transition-fast), background-color var(--transition-fast);
+    position: relative;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.utility-icon:hover,
+.utility-icon:active {
+    color: var(--color-text);
+    background-color: var(--color-surface);
+    text-decoration: none;
+}
+
+.utility-icon svg {
+    width: 22px;
+    height: 22px;
+}
+
+/* Notification badge */
+.utility-icon-badge {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 16px;
+    text-align: center;
+    color: white;
+    background-color: var(--color-error);
+    border-radius: var(--radius-full);
+}
+
+/* Profile icon styles */
+.utility-icon-profile {
+    padding: 4px;
+}
+
+.utility-icon-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-full);
+    object-fit: cover;
+}
+
+.utility-icon-initial {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--color-accent);
+    color: white;
+    border-radius: var(--radius-full);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+/* Mobile navigation header layout adjustments */
+@media (max-width: 768px) {
+    /* Push utility icons to right with flex spacer behavior */
+    .nav-container {
+        gap: var(--space-2);
+    }
+
+    .top-utility-icons {
+        margin-left: auto; /* Push to right */
+    }
+
+    /* Hide the hamburger menu toggle - replaced by bottom tab bar */
+    .nav-mobile-toggle {
+        display: none !important;
+    }
+
+    /* Hide the old mobile menu overlay */
+    .nav-menu {
+        display: none !important;
+    }
+}

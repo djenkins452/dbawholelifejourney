@@ -317,7 +317,8 @@
       "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd iOS native wrapper app with HealthKit integration\n\nComplete implementation of iOS app for App Store submission:\n\nDjango Backend \\(apps/mobile/\\):\n- MobileDevice, MobileAPIToken, MobileTokenExchangeCode models\n- HealthIngestionRun audit model for health data submissions\n- Bearer token authentication via MobileAuthenticationMiddleware\n- Token exchange flow: web session → one-time code → API token\n- Health data ingestion endpoint with deduplication\n\niOS App \\(ios/WLJWrapper/\\):\n- SwiftUI app with WKWebView \\(domain allowlist\\)\n- HealthKit integration \\(steps, weight, sleep, heart rate\\)\n- Keychain storage for secure token/device ID\n- Native Settings screen \\(required for App Store\\)\n- JS bridge for web ↔ native communication\n\nDocumentation:\n- ios-wrapper-setup.md - Xcode setup guide\n- ios-healthkit-integration.md - HealthKit technical docs\n- ios-app-store-submission.md - Complete submission guide\n\n39 tests for mobile API \\(all passing\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(swift -parse:*)",
       "Bash(swiftc:*)",
-      "Bash(python3 manage.py shell:*)"
+      "Bash(python3 manage.py shell:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nPhase 1: Mobile navigation skeleton - bottom tab bar + utility icons\n\n- Add bottom_tab_bar.html: fixed bottom nav with Home, Journal, Health, Faith, More\n- Add top_utility_icons.html: Favorites, Chat, Notifications, Profile icons\n- Add CSS for mobile-only display \\(max-width: 768px\\)\n- Hide old hamburger menu on mobile\n- Include new components in base.html and navigation.html\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
     ]
   }
 }

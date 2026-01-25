@@ -1,12 +1,41 @@
 {% load static %}
 <!-- Mobile Top-Right Utility Icons (Phase 4) -->
 <div class="top-utility-icons">
-    <!-- Favorites -->
-    <a href="{% url 'core:favorites_hub' %}" class="utility-icon" aria-label="Favorites" title="Favorites">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-        </svg>
-    </a>
+    <!-- Favorites Dropdown -->
+    <div class="favorites-dropdown-container">
+        <button type="button" class="utility-icon favorites-dropdown-trigger" aria-label="Favorites" title="Favorites" aria-expanded="false" aria-haspopup="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+            </svg>
+        </button>
+        <div class="favorites-dropdown" role="menu" aria-label="Favorites menu">
+            {% if favorites_menu_data.favorites %}
+                <div class="favorites-dropdown-grid">
+                    {% for fav in favorites_menu_data.favorites %}
+                    <a href="{{ fav.url }}" class="favorites-dropdown-tile" role="menuitem">
+                        <span class="favorites-tile-icon">
+                            <svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1">
+                                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                            </svg>
+                        </span>
+                        <span class="favorites-tile-label">{{ fav.title }}</span>
+                    </a>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="favorites-dropdown-empty">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="32" height="32">
+                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                    </svg>
+                    <p>No favorites yet</p>
+                    <span class="text-muted text-xs">Tap ★ on any page to add</span>
+                </div>
+            {% endif %}
+            <a href="{% url 'core:favorites_hub' %}" class="favorites-dropdown-footer">
+                Manage Favorites
+            </a>
+        </div>
+    </div>
 
     <!-- Chat Bot / AI Assistant - opens the chat widget drawer -->
     {% if ai_enabled and personal_assistant_enabled %}

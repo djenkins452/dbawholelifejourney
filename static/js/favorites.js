@@ -168,17 +168,74 @@
         }
     }
 
+    // Favorites Dropdown functionality
+    function initDropdowns() {
+        const dropdownTriggers = document.querySelectorAll('.favorites-dropdown-trigger');
+
+        dropdownTriggers.forEach(trigger => {
+            const container = trigger.closest('.favorites-dropdown-container');
+            const dropdown = container?.querySelector('.favorites-dropdown');
+
+            if (!dropdown) return;
+
+            // Toggle on click
+            trigger.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+
+                const isOpen = dropdown.classList.contains('is-open');
+
+                // Close all other dropdowns first
+                closeAllDropdowns();
+
+                if (!isOpen) {
+                    dropdown.classList.add('is-open');
+                    trigger.setAttribute('aria-expanded', 'true');
+                }
+            });
+        });
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.favorites-dropdown-container')) {
+                closeAllDropdowns();
+            }
+        });
+
+        // Close on Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeAllDropdowns();
+            }
+        });
+    }
+
+    function closeAllDropdowns() {
+        document.querySelectorAll('.favorites-dropdown.is-open').forEach(dropdown => {
+            dropdown.classList.remove('is-open');
+            const trigger = dropdown.closest('.favorites-dropdown-container')?.querySelector('.favorites-dropdown-trigger');
+            if (trigger) {
+                trigger.setAttribute('aria-expanded', 'false');
+            }
+        });
+    }
+
     // Run when DOM is ready
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
+        document.addEventListener('DOMContentLoaded', () => {
+            init();
+            initDropdowns();
+        });
     } else {
         init();
+        initDropdowns();
     }
 
     // Expose for external use
     window.WLJFavorites = {
         toggleFavorite,
         showToast,
+        closeAllDropdowns,
     };
 
 })();

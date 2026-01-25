@@ -60,6 +60,7 @@ from django.utils.html import strip_tags
 from django.views.generic import TemplateView, UpdateView, View
 
 from allauth.account.views import SignupView as AllauthSignupView
+from apps.core.utils import hash_pii
 from apps.help.mixins import HelpContextMixin
 
 from .forms import CustomSignupForm, ProfileForm, PreferencesForm
@@ -1688,11 +1689,11 @@ class MFAEmailCodeSendView(LoginRequiredMixin, View):
                 fail_silently=False,
             )
 
-            logger.info(f"Sent MFA code email to {request.user.email}")
+            logger.info(f"Sent MFA code email to {hash_pii(request.user.email, 'user')}")
             return JsonResponse({'success': True, 'message': 'Code sent to your email'})
 
         except Exception as e:
-            logger.error(f"Failed to send MFA code email to {request.user.email}: {e}")
+            logger.error(f"Failed to send MFA code email to {hash_pii(request.user.email, 'user')}: {e}")
             return JsonResponse({'success': False, 'error': 'Failed to send email. Please try again.'}, status=500)
 
 
@@ -1727,10 +1728,10 @@ class MFAEmailCodeVerifyView(LoginRequiredMixin, View):
             request.session['mfa_verified'] = True
             request.session['mfa_verified_at'] = timezone.now().isoformat()
 
-            logger.info(f"MFA email code verified for {request.user.email}")
+            logger.info(f"MFA email code verified for {hash_pii(request.user.email, 'user')}")
             return JsonResponse({'success': True, 'message': 'Code verified successfully'})
         else:
-            logger.warning(f"Invalid MFA code attempt for {request.user.email}")
+            logger.warning(f"Invalid MFA code attempt for {hash_pii(request.user.email, 'user')}")
             return JsonResponse({'success': False, 'error': 'Invalid or expired code'}, status=400)
 
 
@@ -1791,11 +1792,11 @@ class MFAEmailCodeLoginSendView(View):
                 fail_silently=False,
             )
 
-            logger.info(f"Sent MFA login code email to {user.email}")
+            logger.info(f"Sent MFA login code email to {hash_pii(user.email, 'user')}")
             return JsonResponse({'success': True, 'message': 'Code sent to your email'})
 
         except Exception as e:
-            logger.error(f"Failed to send MFA login code email to {user.email}: {e}")
+            logger.error(f"Failed to send MFA login code email to {hash_pii(user.email, 'user')}: {e}")
             return JsonResponse({'success': False, 'error': 'Failed to send email. Please try again.'}, status=500)
 
 
@@ -1845,10 +1846,10 @@ class MFAEmailCodeLoginVerifyView(View):
             request.session['mfa_verified'] = True
             request.session['mfa_verified_at'] = timezone.now().isoformat()
 
-            logger.info(f"MFA email code login verified for {user.email}")
+            logger.info(f"MFA email code login verified for {hash_pii(user.email, 'user')}")
             return JsonResponse({'success': True, 'message': 'Login successful', 'redirect': '/'})
         else:
-            logger.warning(f"Invalid MFA login code attempt for {user.email}")
+            logger.warning(f"Invalid MFA login code attempt for {hash_pii(user.email, 'user')}")
             return JsonResponse({'success': False, 'error': 'Invalid or expired code'}, status=400)
 
 

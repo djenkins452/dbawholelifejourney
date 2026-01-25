@@ -507,8 +507,9 @@ class Command(BaseCommand):
         # Send one-time test email to verify SMTP configuration
         self._send_smtp_test_email(DataLoadConfig, force, verbosity)
 
-        # One-time cleanup: remove problematic recurring tasks for specific user
+        # One-time cleanup: remove problematic recurring tasks for specific users
         self._cleanup_heather_recurring_tasks(DataLoadConfig, force, verbosity)
+        self._cleanup_danny_recurring_tasks(DataLoadConfig, force, verbosity)
 
         # One-time: Disable Finance module for all users (Coming Soon)
         self._disable_finance_module(DataLoadConfig, force, verbosity)
@@ -641,6 +642,71 @@ This test email is sent once on first deploy after SMTP is configured.
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Recurring tasks cleanup FAILED: {e}'))
+
+    def _cleanup_danny_recurring_tasks(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time cleanup of ALL recurring tasks for dannyjenkins71@gmail.com.
+
+        This user had recurring tasks that got corrupted/duplicated due to an earlier bug.
+        This cleanup removes ALL recurring tasks (not just past-due) and any tasks
+        spawned from them.
+        Only runs once (tracked via DataLoadConfig) unless force=True.
+        """
+        loader_name = 'cleanup_danny_recurring_tasks_2026_01'
+
+        # Check if already run (unless force mode)
+        if not force and self._is_loader_complete(DataLoadConfig, loader_name):
+            return  # Already cleaned up, skip silently
+
+        try:
+            from apps.users.models import User
+            from apps.life.models import Task
+
+            # Find the user
+            try:
+                user = User.objects.get(email='dannyjenkins71@gmail.com')
+            except User.DoesNotExist:
+                return  # User doesn't exist, skip silently
+
+            # Get all recurring tasks for this user
+            recurring_tasks = Task.objects.filter(user=user, is_recurring=True)
+            recurring_titles = list(recurring_tasks.values_list('title', flat=True))
+            recurring_count = recurring_tasks.count()
+
+            # Find all tasks matching recurring task titles (spawned instances)
+            # These are the "scheduled" tasks created from recurring patterns
+            if recurring_titles:
+                spawned_tasks = Task.objects.filter(
+                    user=user,
+                    title__in=recurring_titles,
+                    is_recurring=False,
+                    is_completed=False,
+                )
+                spawned_count = spawned_tasks.count()
+
+                if spawned_count > 0:
+                    if verbosity >= 1:
+                        self.stdout.write(f'  Deleting {spawned_count} spawned tasks for dannyjenkins71@gmail.com...')
+                    spawned_tasks.delete()
+
+            if recurring_count > 0:
+                if verbosity >= 1:
+                    self.stdout.write(f'  Deleting {recurring_count} recurring tasks for dannyjenkins71@gmail.com...')
+                recurring_tasks.delete()
+
+            total = recurring_count + (spawned_count if recurring_titles else 0)
+            if total > 0 and verbosity >= 1:
+                self.stdout.write(self.style.SUCCESS(f'  Cleaned up {total} total tasks for dannyjenkins71@gmail.com'))
+
+            # Mark as complete so it doesn't run again
+            self._mark_loader_complete(
+                DataLoadConfig, loader_name, 'Danny Recurring Tasks Cleanup (Jan 2026)',
+                'command', 'One-time cleanup of problematic recurring tasks for dannyjenkins71@gmail.com'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Danny recurring tasks cleanup FAILED: {e}'))
 
     def _disable_finance_module(self, DataLoadConfig, force=False, verbosity=1):
         """

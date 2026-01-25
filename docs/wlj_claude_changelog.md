@@ -16,6 +16,21 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-25 Changes
 
+### Fix: Recurring Tasks Cleanup for dannyjenkins71@gmail.com
+
+**Issue:** User had corrupted recurring tasks from earlier bug that couldn't be deleted through normal CRUD operations.
+
+**Fix:** Added one-time cleanup function `_cleanup_danny_recurring_tasks` to `load_initial_data` command that:
+- Deletes ALL recurring tasks (`is_recurring=True`) for the user
+- Deletes all incomplete spawned tasks (tasks with matching titles created from recurring patterns)
+- Uses hard delete to bypass soft-delete issues
+- Tracked via DataLoadConfig so it only runs once
+
+**Files Modified:**
+- `apps/core/management/commands/load_initial_data.py` - Added `_cleanup_danny_recurring_tasks()` method
+
+---
+
 ### Health Metric Dashboards Phase 2
 
 **Feature:** Added 8 new metric dashboards using the reusable dashboard infrastructure (HealthMetricDashboardMixin, SleepDerivedMetricDashboardMixin).

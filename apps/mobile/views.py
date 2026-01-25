@@ -482,10 +482,17 @@ def process_health_metric(user, metric):
     if not metric_date:
         raise ValueError("date is required")
 
-    # Parse date
+    # Parse date - handle both YYYY-MM-DD and ISO8601 formats
     try:
         if isinstance(metric_date, str):
-            metric_date = datetime.strptime(metric_date, "%Y-%m-%d").date()
+            # Try ISO8601 format first (includes timestamp)
+            if "T" in metric_date:
+                metric_date = datetime.fromisoformat(
+                    metric_date.replace("Z", "+00:00")
+                ).date()
+            else:
+                # Plain date format
+                metric_date = datetime.strptime(metric_date, "%Y-%m-%d").date()
     except ValueError:
         raise ValueError(f"Invalid date format: {metric_date}")
 

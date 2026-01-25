@@ -16,6 +16,20 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-25 Changes
 
+### Bug Fix: Blood Glucose Sync from iOS HealthKit
+
+**Problem:** Blood glucose readings from HealthKit were failing to sync because the mobile API's date parser expected `YYYY-MM-DD` format, but HealthKit sends ISO8601 timestamps with time (e.g., `2026-01-25T10:30:00Z`).
+
+**Root Cause:** The `process_metric` function in `apps/mobile/views.py` at line 476 used `datetime.strptime(metric_date, "%Y-%m-%d")` which throws a ValueError for ISO timestamps.
+
+**Fix:** Updated date parsing to handle both formats - checks for "T" in the date string and uses `datetime.fromisoformat()` for ISO timestamps, falling back to `strptime` for plain dates.
+
+**Files Modified:**
+- `apps/mobile/views.py` - Fixed date parsing in process_metric function
+- `apps/mobile/tests/test_views.py` - Added test for blood glucose with ISO timestamp
+
+---
+
 ### Feature: System Announcements
 
 **Summary:** Added a system-wide announcement feature that allows admins to broadcast messages to all users as modal popups. Useful for maintenance notices, feature announcements, urgent alerts, etc.

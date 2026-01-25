@@ -12,7 +12,7 @@ from django.test import Client, TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from apps.health.models import SleepEntry, StepsEntry, WeightEntry
+from apps.health.models import GlucoseEntry, SleepEntry, StepsEntry, WeightEntry
 from apps.mobile.models import (
     HealthIngestionRun,
     MobileAPIToken,
@@ -353,6 +353,39 @@ class HealthIngestionTests(TestCase):
         data = response.json()
         self.assertEqual(len(data["errors"]), 1)
         self.assertIn("out of range", data["errors"][0]["error"])
+
+    def test_ingest_blood_glucose_with_iso_timestamp(self):
+        """Can ingest blood glucose with ISO8601 timestamp format."""
+        response = self.client.post(
+            "/api/mobile/health/ingest/",
+            data=json.dumps({
+                "metrics": [
+                    {
+                        "type": "blood_glucose",
+                        "date": "2024-01-15T10:30:00Z",  # ISO timestamp, not just date
+                        "glucose_value": 120.5,
+                        "glucose_unit": "mg/dL",
+                        "source": "apple_health",
+                        "sync_id": "glucose-abc123",
+                    }
+                ]
+            }),
+            content_type="application/json",
+            **self._auth_headers(),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["success"])
+        self.assertEqual(data["created"], 1)
+
+        # Glucose entry should exist with correct value
+        entry = GlucoseEntry.objects.filter(user=self.user).first()
+        self.assertIsNotNone(entry)
+        self.assertEqual(entry.value, Decimal("120.5"))
+        self.assertEqual(entry.unit, "mg/dL")
+        self.assertEqual(entry.source, "apple_health")
+        self.assertEqual(entry.sync_id, "glucose-abc123")
 
     def test_ingest_payload_size_limit(self):
         """Oversized payload is rejected by Django's built-in protection."""

@@ -279,10 +279,47 @@ class AboutView(TemplateView):
 
 class MoreView(LoginRequiredMixin, TemplateView):
     """
-    More screen - hello world for debugging.
+    More screen - shows all enabled modules as tiles plus quick links.
     """
 
     template_name = "core/more.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        # Hardcoded module URLs - avoids any DB/route_name issues
+        MODULE_URLS = {
+            'journal': '/journal/',
+            'health': '/health/',
+            'faith': '/faith/',
+            'life': '/life/',
+            'purpose': '/purpose/',
+            'finance': '/finance/',
+            'capture': '/capture/',
+        }
+
+        modules = []
+        try:
+            from apps.users.models import UserModulePreference
+
+            prefs = UserModulePreference.objects.filter(
+                user=self.request.user,
+                is_enabled=True,
+                module__is_active=True,
+            ).select_related('module').order_by('sort_order', 'module__default_order')
+
+            for pref in prefs:
+                modules.append({
+                    'slug': pref.module.slug,
+                    'name': pref.module.name,
+                    'icon_svg': pref.module.icon_svg,
+                    'url': MODULE_URLS.get(pref.module.slug, f'/{pref.module.slug}/'),
+                })
+        except Exception:
+            pass
+
+        context['modules'] = modules
+        return context
 
 
 class FavoritesHubView(LoginRequiredMixin, TemplateView):

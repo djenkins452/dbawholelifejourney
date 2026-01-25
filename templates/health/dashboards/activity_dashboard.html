@@ -1,0 +1,525 @@
+{% extends "health/dashboards/_base_dashboard.html" %}
+
+{# Activity Dashboard (Steps, Calories, Distance) #}
+
+{% block latest_reading %}
+{% if latest_reading %}
+<div class="latest-reading-card">
+    <div class="latest-reading-header">
+        <span class="latest-label">Today's Activity</span>
+        <span class="latest-time">{{ latest_reading.logged_date|date:"M j, Y" }}</span>
+    </div>
+
+    {# Activity metrics grid #}
+    <div class="activity-grid">
+        {# Steps #}
+        <div class="activity-metric">
+            <div class="metric-icon steps-icon">&#128102;</div>
+            <div class="metric-details">
+                <span class="metric-label">Steps</span>
+                <div class="metric-value-row">
+                    <span class="metric-value">{{ latest_reading.count|default:0 }}</span>
+                </div>
+            </div>
+            <span class="status-badge status-{{ latest_status_color|default:'gray' }}">
+                {{ latest_status_display }}
+            </span>
+        </div>
+
+        {# Calories #}
+        {% if latest_reading.calories_burned %}
+        <div class="activity-metric">
+            <div class="metric-icon calories-icon">&#128293;</div>
+            <div class="metric-details">
+                <span class="metric-label">Calories Burned</span>
+                <div class="metric-value-row">
+                    <span class="metric-value">{{ latest_reading.calories_burned }}</span>
+                    <span class="metric-unit">cal</span>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {# Distance #}
+        {% if latest_reading.distance_miles %}
+        <div class="activity-metric">
+            <div class="metric-icon distance-icon">&#128099;</div>
+            <div class="metric-details">
+                <span class="metric-label">Distance</span>
+                <div class="metric-value-row">
+                    <span class="metric-value">{{ latest_reading.distance_miles|floatformat:2 }}</span>
+                    <span class="metric-unit">mi</span>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {# Flights Climbed #}
+        {% if latest_reading.flights_climbed %}
+        <div class="activity-metric">
+            <div class="metric-icon flights-icon">&#127968;</div>
+            <div class="metric-details">
+                <span class="metric-label">Flights Climbed</span>
+                <div class="metric-value-row">
+                    <span class="metric-value">{{ latest_reading.flights_climbed }}</span>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.latest-reading-card {
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    margin-bottom: var(--space-6);
+}
+
+.latest-reading-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-4);
+}
+
+.latest-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.latest-time {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.activity-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: var(--space-4);
+}
+
+.activity-metric {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.metric-icon {
+    font-size: var(--font-size-2xl);
+    margin-bottom: var(--space-2);
+}
+
+.steps-icon { color: #22c55e; }
+.calories-icon { color: #f97316; }
+.distance-icon { color: #3b82f6; }
+.flights-icon { color: #8b5cf6; }
+
+.metric-details {
+    flex: 1;
+}
+
+.metric-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    display: block;
+    margin-bottom: var(--space-1);
+}
+
+.metric-value-row {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-1);
+}
+
+.metric-value {
+    font-size: var(--font-size-2xl);
+    font-weight: 700;
+    color: var(--color-text);
+    line-height: 1;
+}
+
+.metric-unit {
+    font-size: var(--font-size-base);
+    color: var(--color-text-muted);
+}
+
+.status-badge {
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+    text-align: center;
+    align-self: flex-start;
+}
+
+.status-green {
+    background: color-mix(in srgb, var(--color-success, #10b981) 15%, transparent);
+    color: var(--color-success, #10b981);
+}
+
+.status-yellow {
+    background: color-mix(in srgb, var(--color-warning, #f59e0b) 15%, transparent);
+    color: var(--color-warning, #f59e0b);
+}
+
+.status-orange {
+    background: color-mix(in srgb, #f97316 15%, transparent);
+    color: #f97316;
+}
+
+.status-gray {
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+}
+
+@media (max-width: 480px) {
+    .latest-reading-card {
+        padding: var(--space-4);
+    }
+
+    .activity-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .metric-value {
+        font-size: var(--font-size-xl);
+    }
+}
+</style>
+{% else %}
+<div class="no-reading-card">
+    <p>No activity data yet</p>
+    {% if create_url_name %}
+    <a href="{% url create_url_name %}" class="btn btn-primary mt-4">Log Your Activity</a>
+    {% endif %}
+</div>
+<style nonce="{{ csp_nonce }}">
+.no-reading-card {
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    margin-bottom: var(--space-6);
+    text-align: center;
+    color: var(--color-text-muted);
+}
+</style>
+{% endif %}
+{% endblock %}
+
+{% block statistics %}
+{% if stats %}
+<div class="stats-section">
+    <h3 class="stats-title">{{ period_label }} Summary</h3>
+    <div class="stats-grid">
+        {# Total Steps #}
+        <div class="stat-card">
+            <span class="stat-label">Total Steps</span>
+            <span class="stat-value">{{ stats.total_steps|default:0 }}</span>
+        </div>
+
+        {# Average Steps #}
+        <div class="stat-card">
+            <span class="stat-label">Daily Average</span>
+            <span class="stat-value">{{ stats.avg_steps|floatformat:0|default:0 }}</span>
+        </div>
+
+        {# Total Calories #}
+        {% if stats.total_calories %}
+        <div class="stat-card">
+            <span class="stat-label">Total Calories</span>
+            <span class="stat-value">{{ stats.total_calories }}</span>
+            <span class="stat-unit">cal</span>
+        </div>
+        {% endif %}
+
+        {# Total Distance #}
+        {% if stats.total_distance %}
+        <div class="stat-card">
+            <span class="stat-label">Total Distance</span>
+            <span class="stat-value">{{ stats.total_distance|floatformat:1 }}</span>
+            <span class="stat-unit">mi</span>
+        </div>
+        {% endif %}
+
+        {# Days Tracked #}
+        <div class="stat-card">
+            <span class="stat-label">Days Tracked</span>
+            <span class="stat-value">{{ stats.count }}</span>
+        </div>
+    </div>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.stats-section {
+    margin-bottom: var(--space-6);
+}
+
+.stats-title {
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    margin-bottom: var(--space-4);
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: var(--space-3);
+}
+
+.stat-card {
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.stat-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.stat-value {
+    font-size: var(--font-size-2xl);
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+.stat-unit {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+@media (max-width: 480px) {
+    .stats-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .stat-value {
+        font-size: var(--font-size-xl);
+    }
+}
+</style>
+{% endif %}
+{% endblock %}
+
+{% block readings_list %}
+{% if entries %}
+<div class="readings-section">
+    <div class="readings-header">
+        <h3 class="readings-title">Daily Activity</h3>
+        {% if list_url_name %}
+        <a href="{% url list_url_name %}" class="view-all-link">View All</a>
+        {% endif %}
+    </div>
+
+    <div class="readings-list">
+        {% for entry in entries %}
+        <div class="reading-item">
+            <div class="reading-date">
+                <span class="date-main">{{ entry.logged_date|date:"M j" }}</span>
+                <span class="date-day">{{ entry.logged_date|date:"l" }}</span>
+            </div>
+            <div class="reading-value-col">
+                <div class="activity-values">
+                    <span class="reading-steps">{{ entry.count }} steps</span>
+                    {% if entry.calories_burned %}
+                    <span class="reading-secondary">{{ entry.calories_burned }} cal</span>
+                    {% endif %}
+                    {% if entry.distance_miles %}
+                    <span class="reading-secondary">{{ entry.distance_miles|floatformat:1 }} mi</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="reading-status">
+                {% if entry.count >= 10000 %}
+                <span class="status-badge-sm status-green">Goal</span>
+                {% elif entry.count >= 7500 %}
+                <span class="status-badge-sm status-green">Good</span>
+                {% elif entry.count >= 5000 %}
+                <span class="status-badge-sm status-yellow">Moderate</span>
+                {% else %}
+                <span class="status-badge-sm status-orange">Low</span>
+                {% endif %}
+            </div>
+            {% if update_url_name %}
+            <div class="reading-actions">
+                <a href="{% url update_url_name entry.pk %}" class="btn btn-ghost btn-sm">Edit</a>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+
+    {% if entry_count > entries|length %}
+    <div class="readings-footer">
+        <span class="readings-more">Showing {{ entries|length }} of {{ entry_count }} days</span>
+    </div>
+    {% endif %}
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.readings-section {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    margin-bottom: var(--space-6);
+}
+
+.readings-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.readings-title {
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    margin: 0;
+}
+
+.view-all-link {
+    font-size: var(--font-size-sm);
+    color: var(--color-accent);
+    text-decoration: none;
+}
+
+.view-all-link:hover {
+    text-decoration: underline;
+}
+
+.readings-list {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.reading-item {
+    display: flex;
+    align-items: center;
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+    gap: var(--space-4);
+}
+
+.reading-item:last-child {
+    border-bottom: none;
+}
+
+.reading-item:hover {
+    background: var(--color-surface);
+}
+
+.reading-date {
+    display: flex;
+    flex-direction: column;
+    min-width: 70px;
+}
+
+.date-main {
+    font-weight: 500;
+}
+
+.date-day {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.reading-value-col {
+    flex: 1;
+}
+
+.activity-values {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.reading-steps {
+    font-weight: 600;
+    font-size: var(--font-size-lg);
+    color: #22c55e;
+}
+
+.reading-secondary {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.reading-status {
+    min-width: 60px;
+}
+
+.status-badge-sm {
+    font-size: var(--font-size-xs);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    font-weight: 500;
+}
+
+.reading-actions {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.readings-footer {
+    padding: var(--space-3) var(--space-4);
+    border-top: 1px solid var(--color-border);
+    text-align: center;
+}
+
+.readings-more {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+@media (max-width: 480px) {
+    .reading-item {
+        flex-wrap: wrap;
+    }
+
+    .reading-status {
+        order: 3;
+    }
+
+    .reading-actions {
+        order: 4;
+        width: 100%;
+        justify-content: flex-end;
+        margin-top: var(--space-2);
+    }
+
+    .activity-values {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--space-1);
+    }
+}
+</style>
+{% else %}
+<div class="readings-empty">
+    <p>No activity data for this period</p>
+</div>
+<style nonce="{{ csp_nonce }}">
+.readings-empty {
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    text-align: center;
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-6);
+}
+</style>
+{% endif %}
+{% endblock %}

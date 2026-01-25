@@ -150,7 +150,10 @@
                     <p class="metric-avg">Avg resting: {{ avg_resting_hr }} BPM</p>
                 {% endif %}
 
-                <a href="{% url 'health:heartrate_list' %}" class="card-link">View history</a>
+                <div class="card-actions">
+                    <a href="{% url 'health:heartrate_list' %}" class="card-link">View history</a>
+                    <a href="{% url 'health:heartrate_dashboard' %}" class="card-link-secondary">Dashboard</a>
+                </div>
             {% else %}
                 <p class="text-muted">No heart rate logged yet.</p>
                 <a href="{% url 'health:heartrate_create' %}" class="btn btn-secondary btn-sm mt-4">
@@ -188,7 +191,10 @@
                     <p class="metric-avg">7-day avg: {{ avg_steps|intcomma }}</p>
                 {% endif %}
 
-                <a href="{% url 'health:steps_list' %}" class="card-link">View history</a>
+                <div class="card-actions">
+                    <a href="{% url 'health:steps_list' %}" class="card-link">View history</a>
+                    <a href="{% url 'health:activity_dashboard' %}" class="card-link-secondary">Activity Dashboard</a>
+                </div>
             {% else %}
                 <p class="text-muted">No steps logged yet.</p>
                 <a href="{% url 'health:steps_create' %}" class="btn btn-secondary btn-sm mt-4">
@@ -354,7 +360,10 @@
                     <p class="metric-avg">Avg: {{ avg_systolic }}/{{ avg_diastolic }} mmHg</p>
                 {% endif %}
 
-                <a href="{% url 'health:blood_pressure_list' %}" class="card-link">View history</a>
+                <div class="card-actions">
+                    <a href="{% url 'health:blood_pressure_list' %}" class="card-link">View history</a>
+                    <a href="{% url 'health:blood_pressure_dashboard' %}" class="card-link-secondary">Dashboard</a>
+                </div>
             {% else %}
                 <p class="text-muted">No blood pressure logged yet.</p>
                 <a href="{% url 'health:blood_pressure_create' %}" class="btn btn-secondary btn-sm mt-4">
@@ -394,7 +403,10 @@
                     <p class="metric-avg">Avg: {{ avg_spo2 }}%</p>
                 {% endif %}
 
-                <a href="{% url 'health:blood_oxygen_list' %}" class="card-link">View history</a>
+                <div class="card-actions">
+                    <a href="{% url 'health:blood_oxygen_list' %}" class="card-link">View history</a>
+                    <a href="{% url 'health:blood_oxygen_dashboard' %}" class="card-link-secondary">Dashboard</a>
+                </div>
             {% else %}
                 <p class="text-muted">No blood oxygen logged yet.</p>
                 <a href="{% url 'health:blood_oxygen_create' %}" class="btn btn-secondary btn-sm mt-4">
@@ -622,6 +634,80 @@
         </div>
         {% endif %}
     </div>
+
+    {# Advanced Metrics Section - shows when user has wearable/sync data #}
+    {% if has_hrv_data or has_vo2_max_data or has_respiratory_rate_data or has_caffeine_data or has_mindful_minutes_data or has_body_temperature %}
+    <div class="advanced-metrics-section mt-8">
+        <h2 class="section-title">Advanced Metrics</h2>
+        <p class="section-subtitle">Detailed dashboards for metrics synced from your devices</p>
+
+        <div class="metric-links-grid">
+            {% if has_hrv_data %}
+            <a href="{% url 'health:hrv_dashboard' %}" class="metric-link-card">
+                <div class="metric-link-icon" style="color: #8b5cf6;">&#128156;</div>
+                <div class="metric-link-info">
+                    <span class="metric-link-name">Heart Rate Variability</span>
+                    {% if latest_hrv %}<span class="metric-link-value">{{ latest_hrv|floatformat:0 }} ms</span>{% endif %}
+                </div>
+                <span class="metric-link-arrow">→</span>
+            </a>
+            {% endif %}
+
+            {% if has_vo2_max_data %}
+            <a href="{% url 'health:vo2_max_dashboard' %}" class="metric-link-card">
+                <div class="metric-link-icon" style="color: #10b981;">&#127939;</div>
+                <div class="metric-link-info">
+                    <span class="metric-link-name">VO2 Max</span>
+                    {% if latest_vo2_max %}<span class="metric-link-value">{{ latest_vo2_max|floatformat:1 }} mL/kg/min</span>{% endif %}
+                </div>
+                <span class="metric-link-arrow">→</span>
+            </a>
+            {% endif %}
+
+            {% if has_respiratory_rate_data %}
+            <a href="{% url 'health:respiratory_rate_dashboard' %}" class="metric-link-card">
+                <div class="metric-link-icon" style="color: #06b6d4;">&#128168;</div>
+                <div class="metric-link-info">
+                    <span class="metric-link-name">Respiratory Rate</span>
+                    {% if latest_respiratory_rate %}<span class="metric-link-value">{{ latest_respiratory_rate|floatformat:1 }} brpm</span>{% endif %}
+                </div>
+                <span class="metric-link-arrow">→</span>
+            </a>
+            {% endif %}
+
+            {% if has_body_temperature %}
+            <a href="{% url 'health:body_temperature_dashboard' %}" class="metric-link-card">
+                <div class="metric-link-icon" style="color: #f97316;">&#127777;</div>
+                <div class="metric-link-info">
+                    <span class="metric-link-name">Body Temperature</span>
+                    {% if latest_body_temperature %}<span class="metric-link-value">{{ latest_body_temperature.temperature_fahrenheit|floatformat:1 }}°F</span>{% endif %}
+                </div>
+                <span class="metric-link-arrow">→</span>
+            </a>
+            {% endif %}
+
+            {% if has_caffeine_data %}
+            <a href="{% url 'health:caffeine_dashboard' %}" class="metric-link-card">
+                <div class="metric-link-icon" style="color: #92400e;">&#9749;</div>
+                <div class="metric-link-info">
+                    <span class="metric-link-name">Caffeine</span>
+                </div>
+                <span class="metric-link-arrow">→</span>
+            </a>
+            {% endif %}
+
+            {% if has_mindful_minutes_data %}
+            <a href="{% url 'health:mindful_minutes_dashboard' %}" class="metric-link-card">
+                <div class="metric-link-icon" style="color: #7c3aed;">&#128993;</div>
+                <div class="metric-link-info">
+                    <span class="metric-link-name">Mindful Minutes</span>
+                </div>
+                <span class="metric-link-arrow">→</span>
+            </a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
 </div>
 
 <style nonce="{{ csp_nonce }}">
@@ -1125,6 +1211,105 @@
     font-size: var(--font-size-xs);
     font-weight: 600;
     margin-bottom: var(--space-2);
+}
+
+/* Card actions with multiple links */
+.card-actions {
+    display: flex;
+    gap: var(--space-4);
+    margin-top: var(--space-4);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+
+.card-link-secondary {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.card-link-secondary:hover {
+    color: var(--color-accent);
+}
+
+/* Advanced Metrics Section */
+.advanced-metrics-section {
+    margin-top: var(--space-8);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--color-border);
+}
+
+.section-title {
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+    margin-bottom: var(--space-2);
+}
+
+.section-subtitle {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-5);
+}
+
+.metric-links-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: var(--space-4);
+}
+
+.metric-link-card {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    text-decoration: none;
+    color: var(--color-text);
+    transition: border-color 0.2s, background 0.2s;
+}
+
+.metric-link-card:hover {
+    border-color: var(--color-accent);
+    background: var(--color-surface);
+}
+
+.metric-link-icon {
+    font-size: var(--font-size-2xl);
+    flex-shrink: 0;
+}
+
+.metric-link-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.metric-link-name {
+    font-weight: 500;
+    font-size: var(--font-size-sm);
+}
+
+.metric-link-value {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.metric-link-arrow {
+    font-size: var(--font-size-lg);
+    color: var(--color-text-muted);
+}
+
+@media (max-width: 480px) {
+    .card-actions {
+        flex-direction: column;
+        gap: var(--space-2);
+    }
+
+    .metric-links-grid {
+        grid-template-columns: 1fr;
+    }
 }
 </style>
 {% endblock %}

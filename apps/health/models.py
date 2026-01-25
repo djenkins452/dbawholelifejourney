@@ -1347,7 +1347,7 @@ class BodyTemperatureEntry(UserOwnedModel):
         return (float(self.temperature) - 32) * 5 / 9
 
     @property
-    def status(self):
+    def temperature_status(self):
         """
         Categorize temperature (based on Fahrenheit).
         Returns: low, normal, elevated, fever, high_fever

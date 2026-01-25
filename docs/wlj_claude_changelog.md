@@ -14,6 +14,50 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+## 2026-01-25 Changes
+
+### Health Metric Dashboards Phase 2
+
+**Feature:** Added 8 new metric dashboards using the reusable dashboard infrastructure (HealthMetricDashboardMixin, SleepDerivedMetricDashboardMixin).
+
+**New Dashboards:**
+1. Heart Rate Dashboard - `/health/heart-rate/dashboard/`
+2. HRV (Heart Rate Variability) Dashboard - `/health/hrv/dashboard/`
+3. VO2 Max Dashboard - `/health/vo2-max/dashboard/`
+4. Respiratory Rate Dashboard - `/health/respiratory-rate/dashboard/`
+5. Body Temperature Dashboard - `/health/body-temperature/dashboard/`
+6. Caffeine Dashboard - `/health/caffeine/dashboard/`
+7. Mindful Minutes Dashboard - `/health/mindful-minutes/dashboard/`
+8. Activity Dashboard (Steps/Calories/Distance) - `/health/activity/dashboard/`
+
+**Changes:**
+- Added dashboard links to Health home page cards for Heart Rate, Steps, Blood Pressure, Blood Oxygen
+- Added "Advanced Metrics" section on Health home page showing dashboards for wearable-synced data
+- Added 8 Teaching Tool destinations for discoverability
+- Fixed BodyTemperatureEntry model: renamed `status` property to `temperature_status` to avoid shadowing SoftDeleteModel's status field
+
+**Files Modified:**
+- `apps/health/views_dashboards.py` - Added 8 new dashboard view classes
+- `apps/health/views_base.py` - Added imports for SleepDerivedMetricDashboardMixin
+- `apps/health/urls.py` - Added URL routes for all new dashboards
+- `apps/health/views.py` - Added context data for advanced metrics on health home
+- `apps/health/models.py` - Renamed `status` property to `temperature_status` on BodyTemperatureEntry
+- `templates/health/home.html` - Added dashboard links and Advanced Metrics section
+- `templates/health/dashboards/heart_rate_dashboard.html` - New template
+- `templates/health/dashboards/hrv_dashboard.html` - New template
+- `templates/health/dashboards/vo2_max_dashboard.html` - New template
+- `templates/health/dashboards/respiratory_rate_dashboard.html` - New template
+- `templates/health/dashboards/body_temperature_dashboard.html` - New template
+- `templates/health/dashboards/caffeine_dashboard.html` - New template
+- `templates/health/dashboards/mindful_minutes_dashboard.html` - New template
+- `templates/health/dashboards/activity_dashboard.html` - New template
+- `apps/help/fixtures/teaching_destinations.json` - Added 8 new teaching destinations
+
+**Migration:**
+- `apps/health/migrations/0037_bodytemperatureentry_status.py` - Adds status field to BodyTemperatureEntry
+
+---
+
 ## 2026-01-24 Changes
 
 ### Move Finance module to "Coming Soon" status

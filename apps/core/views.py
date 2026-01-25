@@ -279,58 +279,10 @@ class AboutView(TemplateView):
 
 class MoreView(LoginRequiredMixin, TemplateView):
     """
-    More screen - shows all enabled modules as tiles.
+    More screen - hello world for debugging.
     """
 
     template_name = "core/more.html"
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-
-        from apps.users.models import UserModulePreference
-        from django.urls import reverse, NoReverseMatch
-
-        # Fallback route names for modules
-        ROUTES = {
-            'journal': 'journal:home',
-            'health': 'health:home',
-            'faith': 'faith:home',
-            'life': 'life:home',
-            'purpose': 'purpose:home',
-            'finance': 'finance:dashboard',
-            'capture': 'capture:list',
-        }
-
-        modules = []
-        try:
-            prefs = UserModulePreference.objects.filter(
-                user=self.request.user,
-                is_enabled=True,
-                module__is_active=True,
-            ).select_related('module').order_by('sort_order', 'module__default_order')
-
-            for pref in prefs:
-                slug = pref.module.slug
-                route = ROUTES.get(slug, pref.module.route_name)
-
-                # Resolve URL safely
-                try:
-                    url = reverse(route) if route else f'/{slug}/'
-                except NoReverseMatch:
-                    url = f'/{slug}/'
-
-                modules.append({
-                    'slug': slug,
-                    'name': pref.module.name,
-                    'icon_svg': pref.module.icon_svg,
-                    'url': url,
-                })
-        except Exception:
-            # Fallback if tables don't exist
-            pass
-
-        context['modules'] = modules
-        return context
 
 
 class FavoritesHubView(LoginRequiredMixin, TemplateView):

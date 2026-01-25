@@ -16,6 +16,32 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-25 Changes
 
+### Enhancement: Colored Module Icons + Admin in Left Rail
+
+**Summary:** Added colorful module icons to the desktop left rail navigation and More page, plus added Admin Console link to left rail for staff users.
+
+**Changes:**
+1. **Module-specific colors:** Each module now has a distinct icon color (Journal=blue, Health=red, Faith=purple, etc.)
+2. **Admin Console in rail:** Staff users now see Admin Console link at bottom of left rail (orange icon)
+3. **More page colors:** Module tiles on More page now have matching colored icons
+
+**Files Modified:**
+- `templates/components/desktop_left_rail.html` - Added `data-module` attributes for color targeting, added Admin link for staff
+- `templates/core/more.html` - Added `data-module` attributes and module color CSS
+- `static/css/desktop-nav.css` - Added module icon color rules
+
+**Color Palette:**
+- Journal: #3b82f6 (blue)
+- Health: #ef4444 (red)
+- Faith: #8b5cf6 (purple)
+- Organize/Life: #f59e0b (amber)
+- Purpose: #14b8a6 (teal)
+- Finance: #22c55e (green)
+- Capture: #ec4899 (pink)
+- Admin: #f97316 (orange)
+
+---
+
 ### Feature: Desktop Left Rail Navigation
 
 **Summary:** Implemented a modern desktop navigation system with a collapsible left rail, replacing the horizontal dropdown menu system on desktop viewports (>=769px). Mobile navigation remains completely unchanged.

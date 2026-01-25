@@ -335,4 +335,64 @@
     .desktop-left-rail.collapsed .rail-collapse-toggle:hover::after {
         opacity: 1;
     }
+
+    /* ==========================================================================
+       Module Icon Colors
+       Colorful icons matching dashboard emoji aesthetics
+       ========================================================================== */
+
+    /* Journal - Blue (writing/creative) */
+    .rail-item[data-module="journal"] .rail-icon {
+        color: #3b82f6;
+    }
+
+    /* Health - Red (heart/wellness) */
+    .rail-item[data-module="health"] .rail-icon {
+        color: #ef4444;
+    }
+
+    /* Faith - Purple (spiritual) */
+    .rail-item[data-module="faith"] .rail-icon {
+        color: #8b5cf6;
+    }
+
+    /* Organize/Life - Amber (home/organization) */
+    .rail-item[data-module="life"] .rail-icon {
+        color: #f59e0b;
+    }
+
+    /* Purpose/Goals - Teal (direction/compass) */
+    .rail-item[data-module="purpose"] .rail-icon {
+        color: #14b8a6;
+    }
+
+    /* Finance - Green (money) */
+    .rail-item[data-module="finance"] .rail-icon {
+        color: #22c55e;
+    }
+
+    /* Capture - Pink (microphone/recording) */
+    .rail-item[data-module="capture"] .rail-icon {
+        color: #ec4899;
+    }
+
+    /* Admin - Orange (administrative) */
+    .rail-item[data-module="admin"] .rail-icon {
+        color: #f97316;
+    }
+
+    /* Home icon - accent color */
+    .rail-item[data-tooltip="Home"] .rail-icon {
+        color: var(--color-accent);
+    }
+
+    /* More icon - muted */
+    .rail-item[data-tooltip="More"] .rail-icon {
+        color: var(--color-text-muted);
+    }
+
+    /* Active state - keep module color but slightly more saturated */
+    .rail-item.active[data-module] .rail-icon {
+        filter: brightness(1.1);
+    }
 }

@@ -16,6 +16,31 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-25 Changes
 
+### UX Design Philosophy Page
+
+**Summary:** Created a comprehensive UX Design Philosophy page at `/ux-design/` documenting all user experience decisions, user personas, onboarding flow, personalization features, and AI coaching styles.
+
+**Page Sections:**
+- **Design Philosophy** - 6 core principles (Calm over Clever, Simple over Complex, Respect over Pressure, Clarity over Features, Reflection over Performance, Stewardship over Control)
+- **User Personas** - 5 personas with design accommodations (New User, Experienced User, Mobile-Primary User, Faith-Focused User, Health-Conscious User)
+- **Onboarding Experience** - 6-step wizard with progressive disclosure explanation
+- **Personalization Features** - 7 themes, module toggles, custom accent colors, navigation preferences
+- **Navigation Design** - Desktop cascading menus, mobile bottom tabs, Teaching Tool with 76+ destinations
+- **Accessibility** - Responsive breakpoints, ARIA support, keyboard navigation, touch targets
+- **AI Coaching** - 8 coaching personalities with database-driven customization
+
+**URL:** `https://wholelifejourney.com/ux-design/`
+
+**Files Created:**
+- `templates/core/ux_design.html`
+
+**Files Modified:**
+- `apps/core/views.py` - Added UXDesignView
+- `apps/core/urls.py` - Added /ux-design/ route
+- `templates/core/app_review.html` - Added link to UX Design page in navigation
+
+---
+
 ### Privacy Policy, Terms of Service, and Health Disclaimer Updates
 
 **Summary:** Comprehensive update to privacy policy, consolidated all contact emails to admin@wholelifejourney.com, and added health disclaimer across the app.

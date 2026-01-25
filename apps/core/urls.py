@@ -37,6 +37,7 @@ urlpatterns = [
     path("privacy/", views.PrivacyPolicyView.as_view(), name="privacy"),
     path("about/", views.AboutView.as_view(), name="about"),
     path("app-review/", views.AppReviewView.as_view(), name="app_review"),
+    path("ux-design/", views.UXDesignView.as_view(), name="ux_design"),
 
     # More (mobile nav overflow)
     path("more/", views.MoreView.as_view(), name="more"),

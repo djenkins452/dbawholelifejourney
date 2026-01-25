@@ -193,6 +193,60 @@ a:hover {
     border: 0;
 }
 
+/* ==========================================================================
+   Page Load Progress Bar
+   ========================================================================== */
+
+.page-progress {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    z-index: 9999;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.page-progress.active {
+    opacity: 1;
+}
+
+.page-progress-bar {
+    height: 100%;
+    width: 0;
+    background: var(--color-accent);
+    background: linear-gradient(90deg, var(--color-accent), color-mix(in srgb, var(--color-accent) 70%, white));
+    box-shadow: 0 0 8px var(--color-accent);
+    transition: width 0.2s ease;
+}
+
+.page-progress.active .page-progress-bar {
+    animation: progress-indeterminate 1.5s ease-in-out infinite;
+}
+
+@keyframes progress-indeterminate {
+    0% {
+        width: 0;
+        margin-left: 0;
+    }
+    50% {
+        width: 70%;
+        margin-left: 15%;
+    }
+    100% {
+        width: 0;
+        margin-left: 100%;
+    }
+}
+
+.page-progress.finishing .page-progress-bar {
+    animation: none;
+    width: 100%;
+    transition: width 0.15s ease;
+}
+
 .skip-link {
     position: absolute;
     top: -40px;

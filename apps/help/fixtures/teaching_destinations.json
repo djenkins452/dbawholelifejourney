@@ -1205,5 +1205,39 @@
             "created_at": "2026-01-24T00:00:00Z",
             "updated_at": "2026-01-24T00:00:00Z"
         }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 72,
+        "fields": {
+            "destination_id": "more-menu",
+            "name": "More Menu",
+            "path_description": "Navigation - More",
+            "explanation": "Access additional modules and quick links including Profile, Preferences, Help, Notifications, and Sign Out.",
+            "url": "/more/",
+            "keywords": "more, menu, additional options, overflow, settings, profile, preferences, help, sign out, logout",
+            "module": "core",
+            "sort_order": 72,
+            "is_active": true,
+            "created_at": "2026-01-25T00:00:00Z",
+            "updated_at": "2026-01-25T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 73,
+        "fields": {
+            "destination_id": "favorites-hub",
+            "name": "Favorites",
+            "path_description": "Navigation - Favorites",
+            "explanation": "View and access your starred pages for quick navigation. Tap the star icon on any page to add it to favorites.",
+            "url": "/favorites/",
+            "keywords": "favorites, starred, bookmarks, favorite pages, starred pages, quick access, shortcuts",
+            "module": "core",
+            "sort_order": 73,
+            "is_active": true,
+            "created_at": "2026-01-25T00:00:00Z",
+            "updated_at": "2026-01-25T00:00:00Z"
+        }
     }
 ]

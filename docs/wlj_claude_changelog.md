@@ -60,51 +60,17 @@ Disclaimer text: "Whole Life Journey provides informational insights only. It do
 
 ---
 
-### Feature: Account Deletion (GDPR/App Store Compliance)
+### Teaching Tool: Added Profile, Delete Account, and Data Export Destinations
 
-**Summary:** Added self-service account deletion feature allowing users to permanently delete their account and all associated data. This complies with GDPR Article 17 (right to erasure), Apple App Store requirements, and CCPA.
+**Summary:** Added new teaching destinations to help the AI Assistant provide accurate navigation guidance for account management.
 
-**User Flow:**
-1. Profile page → "Delete Account" button (right-aligned)
-2. Information screen showing what will be deleted + data export option
-3. Confirmation screen requiring password + "I understand" checkbox
-4. Account deleted, all data cascade deleted, user logged out
-
-**Features:**
-- Password confirmation required for identity verification
-- Optional data export (JSON download of all user data)
-- Summary of data counts before deletion
-- Optional reason selection
-- Audit trail for compliance (email hash, IP hash, deletion counts)
-- Automatic cleanup of uploaded files (avatar, documents, recordings)
-
-**Files Created:**
-- `apps/users/migrations/0053_account_deletion_audit.py` - AccountDeletionAudit model
-- `templates/users/delete_account.html` - Two-step deletion UI
-- `docs/account_deletion.md` - Complete documentation for compliance
+**New Destinations:**
+- **Profile** (`/user/profile/`) - View and edit profile information; includes delete account link
+- **Delete Account** (`/user/delete-account/`) - Permanently delete account and all associated data
+- **Export Your Data** (`/user/data-export/`) - Download complete personal data copy (JSON or CSV)
 
 **Files Modified:**
-- `apps/users/models.py` - Added `AccountDeletionAudit` model
-- `apps/users/views.py` - Added `DeleteAccountView` and `ExportAccountDataView`
-- `apps/users/urls.py` - Added `/user/delete-account/` and `/user/export-data/` routes
-- `templates/users/profile.html` - Added "Delete Account" button to profile actions (right-aligned)
-
-**Compliance Documentation:** See `docs/account_deletion.md` for complete list of data deleted, audit trail details, and compliance response templates.
-
----
-
-### Performance: Cache Navigation and Favorites Context Processors
-
-**Summary:** Fixed performance regression where page saves took ~20 seconds due to uncached context processors running multiple database queries on every request.
-
-**Changes:**
-- Added 5-minute cache for `navigation_modules_context` (enabled modules)
-- Added 60-second cache for `favorites_context` (user favorites)
-- Added `invalidate_navigation_cache()` and `invalidate_favorites_cache()` helper functions
-- Cache keys are user-specific to prevent data leakage
-
-**Files Modified:**
-- `apps/core/context_processors.py` - Added caching with Django's cache framework
+- `apps/help/fixtures/teaching_destinations.json`
 
 ---
 

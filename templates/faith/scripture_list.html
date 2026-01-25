@@ -606,8 +606,8 @@ const API_PROXY_BASE = '/faith/api/bible';
 const DEFAULT_TRANSLATION = '{{ default_translation }}';
 const LOOKUP_REFERENCE = '{{ lookup_reference|escapejs }}';
 
-// Fallback Bible ID (BSB - Berean Standard Bible, freely licensed)
-const FALLBACK_BIBLE_ID = 'bba9f40183526463-01';
+// Fallback Bible ID (ESV - English Standard Version)
+const FALLBACK_BIBLE_ID = '9879dbb7cfe39e4d-04';
 
 let currentBibleId = '';
 let currentBookId = '';
@@ -882,7 +882,7 @@ function displayResults(data) {
     // Add fallback notice if needed
     let resultsHtml = '';
     if (usedFallback) {
-        resultsHtml = '<div class="fallback-notice">Shown in Berean Standard Bible (your selected translation was unavailable for this passage)</div>';
+        resultsHtml = '<div class="fallback-notice">Shown in English Standard Version (your selected translation was unavailable for this passage)</div>';
     }
     resultsHtml += text;
 
@@ -892,7 +892,7 @@ function displayResults(data) {
     // Store for saving
     const bookName = document.getElementById('bible-book').options[document.getElementById('bible-book').selectedIndex].text;
     const chapterNum = document.getElementById('bible-chapter').options[document.getElementById('bible-chapter').selectedIndex].text.replace('Chapter ', '');
-    const translation = usedFallback ? 'Berean Standard Bible' : document.getElementById('bible-version').options[document.getElementById('bible-version').selectedIndex].text;
+    const translation = usedFallback ? 'English Standard Version' : document.getElementById('bible-version').options[document.getElementById('bible-version').selectedIndex].text;
 
     currentVerseData = {
         reference: reference,

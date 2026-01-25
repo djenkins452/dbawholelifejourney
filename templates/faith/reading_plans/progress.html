@@ -1102,9 +1102,9 @@ document.addEventListener('DOMContentLoaded', function() {
             try {
                 data = await tryFetchPassage(primaryBibleId, passageId);
             } catch (primaryError) {
-                console.warn(`Primary translation failed: ${primaryError.message}, trying BSB fallback`);
-                // Try BSB (Berean Standard Bible) as fallback - freely licensed
-                const fallbackId = ENGLISH_BIBLE_IDS['BSB'];
+                console.warn(`Primary translation failed: ${primaryError.message}, trying ESV fallback`);
+                // Try ESV (English Standard Version) as fallback
+                const fallbackId = ENGLISH_BIBLE_IDS['ESV'];
                 if (fallbackId && fallbackId !== primaryBibleId) {
                     try {
                         data = await tryFetchPassage(fallbackId, passageId);
@@ -1135,7 +1135,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 // Add fallback notice if used
                 if (usedFallback) {
-                    textDiv.innerHTML = `<div class="scripture-fallback-notice">Shown in Berean Standard Bible (your preferred translation was unavailable)</div>` + textDiv.innerHTML;
+                    textDiv.innerHTML = `<div class="scripture-fallback-notice">Shown in English Standard Version (your preferred translation was unavailable)</div>` + textDiv.innerHTML;
                 }
 
                 // Add copyright if available

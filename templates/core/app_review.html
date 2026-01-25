@@ -14,9 +14,10 @@
         <a href="#demo-login">Demo Login</a>
         <a href="#features">Features</a>
         <a href="#healthkit">HealthKit</a>
-        <a href="#account">Account Management</a>
+        <a href="#account">Account</a>
         <a href="#compliance">Compliance</a>
-        <a href="/ux-design/" class="nav-external">UX Design Philosophy →</a>
+        <a href="#video-script">Video Script</a>
+        <a href="/ux-design/" class="nav-external">UX Design →</a>
     </nav>
 
     <main class="review-content">
@@ -301,6 +302,58 @@
                     The app offers a <strong>free trial period</strong> followed by optional premium subscription.
                     Core features remain available on the free tier. No payment is required to test the app.
                 </p>
+            </div>
+        </section>
+
+        <!-- Demo Video Script Section -->
+        <section id="video-script" class="review-section">
+            <h2>Demo Video Script (60 seconds)</h2>
+            <p>
+                A companion video demonstrates key features. Follow this script to see each feature in action:
+            </p>
+
+            <div class="video-script">
+                <div class="script-step">
+                    <span class="step-time">0:00 - 0:10</span>
+                    <span class="step-title">Login</span>
+                    <p>Open app → Enter demo credentials → Tap "Sign In" → Dashboard loads</p>
+                </div>
+                <div class="script-step">
+                    <span class="step-time">0:10 - 0:25</span>
+                    <span class="step-title">HealthKit Integration</span>
+                    <p>Tap gear icon (top-right) → Native Settings opens → Tap "Authorize HealthKit" → Show permission toggles → Tap "Sync Now"</p>
+                </div>
+                <div class="script-step">
+                    <span class="step-time">0:25 - 0:35</span>
+                    <span class="step-title">Health Data Display</span>
+                    <p>Return to web view → Tap "Health" tab → Show weight chart with synced data → Show steps entries</p>
+                </div>
+                <div class="script-step">
+                    <span class="step-time">0:35 - 0:45</span>
+                    <span class="step-title">Subscription Screen</span>
+                    <p>Tap "More" → Tap "Subscription" or "Billing" → Show subscription options and current status</p>
+                </div>
+                <div class="script-step">
+                    <span class="step-time">0:45 - 0:55</span>
+                    <span class="step-title">Delete Account</span>
+                    <p>Tap "More" → Tap "Profile" → Scroll to "Delete Account" button → Tap to show confirmation screen (don't confirm)</p>
+                </div>
+                <div class="script-step">
+                    <span class="step-time">0:55 - 1:00</span>
+                    <span class="step-title">End</span>
+                    <p>Return to Dashboard → End recording</p>
+                </div>
+            </div>
+
+            <div class="info-box info-box-note">
+                <h4>Recording Tips</h4>
+                <ul>
+                    <li>Use iPhone's built-in screen recorder (Control Center)</li>
+                    <li>No narration needed - just smooth taps</li>
+                    <li>Pause briefly on each screen so reviewer can see content</li>
+                    <li>Upload as Unlisted YouTube or Private Vimeo</li>
+                    <li>Add video link to App Store Connect "App Review Notes"</li>
+                </ul>
             </div>
         </section>
 
@@ -598,6 +651,66 @@
 .compliance-box ul {
     padding-left: 1.25rem;
     margin-top: 0.5rem;
+}
+
+/* Video Script */
+.video-script {
+    background: #1f2937;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin: 1.5rem 0;
+}
+
+.script-step {
+    display: grid;
+    grid-template-columns: 90px 140px 1fr;
+    gap: 0.75rem;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid #374151;
+    align-items: start;
+}
+
+.script-step:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.script-step:first-child {
+    padding-top: 0;
+}
+
+.step-time {
+    color: #9ca3af;
+    font-family: monospace;
+    font-size: 0.85rem;
+}
+
+.step-title {
+    color: #10b981;
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+.script-step p {
+    color: #e5e7eb;
+    margin: 0;
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+@media (max-width: 640px) {
+    .script-step {
+        grid-template-columns: 1fr;
+        gap: 0.25rem;
+    }
+
+    .step-time {
+        font-size: 0.75rem;
+    }
+
+    .step-title {
+        font-size: 0.9rem;
+    }
 }
 
 .disclaimer-text {

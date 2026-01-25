@@ -20,7 +20,7 @@
             <h2 class="more-section-title">All Modules</h2>
             <div class="tile-grid tile-grid-searchable" id="all-modules-grid">
                 {% for module in desktop_rail_modules %}
-                <a href="{% url module.route_name %}" class="tile" data-module-name="{{ module.name|lower }}">
+                <a href="{% url module.route_name %}" class="tile" data-module-name="{{ module.name|lower }}" data-module="{{ module.slug }}">
                     <div class="tile-icon">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             {{ module.icon_svg|safe }}
@@ -38,7 +38,7 @@
             <h2 class="more-section-title">Modules</h2>
             <div class="tile-grid">
                 {% for module in overflow_modules %}
-                <a href="{% url module.route_name %}" class="tile">
+                <a href="{% url module.route_name %}" class="tile" data-module="{{ module.slug }}">
                     <div class="tile-icon">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             {{ module.icon_svg|safe }}
@@ -278,6 +278,15 @@
     height: 32px;
     color: var(--color-accent);
 }
+
+/* Module-specific icon colors */
+.tile[data-module="journal"] .tile-icon { color: #3b82f6; }
+.tile[data-module="health"] .tile-icon { color: #ef4444; }
+.tile[data-module="faith"] .tile-icon { color: #8b5cf6; }
+.tile[data-module="life"] .tile-icon { color: #f59e0b; }
+.tile[data-module="purpose"] .tile-icon { color: #14b8a6; }
+.tile[data-module="finance"] .tile-icon { color: #22c55e; }
+.tile[data-module="capture"] .tile-icon { color: #ec4899; }
 
 .tile-icon svg {
     width: 100%;

@@ -11,9 +11,9 @@
 
     <div class="rail-divider"></div>
 
-    <!-- Dynamic modules from user preferences (up to 8) -->
+    <!-- Dynamic modules from user preferences -->
     {% for module in desktop_rail_modules %}
-    <a href="{% url module.route_name %}" class="rail-item{% if request.resolver_match.app_name == module.slug %} active{% endif %}" data-tooltip="{{ module.name }}">
+    <a href="{% url module.route_name %}" class="rail-item{% if request.resolver_match.app_name == module.slug %} active{% endif %}" data-tooltip="{{ module.name }}" data-module="{{ module.slug }}">
         <svg class="rail-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             {{ module.icon_svg|safe }}
         </svg>
@@ -22,7 +22,7 @@
     {% empty %}
     <!-- Fallback static modules if desktop_rail_modules not available -->
     {% if journal_enabled %}
-    <a href="{% url 'journal:home' %}" class="rail-item{% if request.resolver_match.app_name == 'journal' %} active{% endif %}" data-tooltip="Journal">
+    <a href="{% url 'journal:home' %}" class="rail-item{% if request.resolver_match.app_name == 'journal' %} active{% endif %}" data-tooltip="Journal" data-module="journal">
         <svg class="rail-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
         </svg>
@@ -30,7 +30,7 @@
     </a>
     {% endif %}
     {% if health_enabled %}
-    <a href="{% url 'health:home' %}" class="rail-item{% if request.resolver_match.app_name == 'health' %} active{% endif %}" data-tooltip="Health">
+    <a href="{% url 'health:home' %}" class="rail-item{% if request.resolver_match.app_name == 'health' %} active{% endif %}" data-tooltip="Health" data-module="health">
         <svg class="rail-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
         </svg>
@@ -38,7 +38,7 @@
     </a>
     {% endif %}
     {% if faith_enabled %}
-    <a href="{% url 'faith:home' %}" class="rail-item{% if request.resolver_match.app_name == 'faith' %} active{% endif %}" data-tooltip="Faith">
+    <a href="{% url 'faith:home' %}" class="rail-item{% if request.resolver_match.app_name == 'faith' %} active{% endif %}" data-tooltip="Faith" data-module="faith">
         <svg class="rail-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 2v20M7 7h10"/>
         </svg>
@@ -46,7 +46,7 @@
     </a>
     {% endif %}
     {% if life_enabled %}
-    <a href="{% url 'life:home' %}" class="rail-item{% if request.resolver_match.app_name == 'life' %} active{% endif %}" data-tooltip="Organize">
+    <a href="{% url 'life:home' %}" class="rail-item{% if request.resolver_match.app_name == 'life' %} active{% endif %}" data-tooltip="Organize" data-module="life">
         <svg class="rail-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
             <polyline points="9 22 9 12 15 12 15 22"/>
@@ -67,6 +67,19 @@
         </svg>
         <span class="rail-label">More</span>
     </a>
+
+    {% if user.is_staff %}
+    <!-- Admin Console - Staff only -->
+    <a href="{% url 'admin_console:dashboard' %}" class="rail-item{% if request.resolver_match.app_name == 'admin_console' %} active{% endif %}" data-tooltip="Admin" data-module="admin">
+        <svg class="rail-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7"/>
+            <rect x="14" y="3" width="7" height="7"/>
+            <rect x="14" y="14" width="7" height="7"/>
+            <rect x="3" y="14" width="7" height="7"/>
+        </svg>
+        <span class="rail-label">Admin</span>
+    </a>
+    {% endif %}
 
     <!-- Collapse/Expand Toggle at bottom -->
     <button type="button" class="rail-collapse-toggle" onclick="toggleDesktopRail()" aria-label="Toggle navigation width" data-tooltip="Collapse">

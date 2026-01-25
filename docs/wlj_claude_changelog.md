@@ -16,64 +16,29 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-25 Changes
 
-### Fix: Navigation Order Module List Not Displaying
+### Enhancement: Colored Module Icons + Admin in Left Rail
 
-**Summary:** The "Navigation Order" section in Preferences showed the description text but no draggable module list. This was caused by empty `ModuleDefinition` records in production - the fixture was registered in `load_initial_data.py` but was likely skipped due to a DataLoadConfig tracking issue.
-
-**Root Cause:** The `module_definitions` fixture was added in the same commit that registered it in `FIXTURE_LOADERS`, but if the `DataLoadConfig` record was created (marking it as "loaded") before the fixture file was actually present, the fixture data would never populate.
-
-**Fix:** Added a data migration that uses `update_or_create` to ensure all 7 ModuleDefinition records exist, regardless of the DataLoadConfig state.
-
-**Files Modified:**
-- `apps/users/migrations/0051_populate_module_definitions.py` - New data migration
-
----
-
-### Security Remediation: Fix CSRF and PII Logging Findings
-
-**Summary:** Fixed 2 security findings from the automated security assessment to achieve Grade A.
-
-**SEC-001: CSRF Protection Issue (HIGH → Fixed)**
-- Removed unnecessary `@csrf_exempt` from GET-only endpoints (they don't need it)
-- Added comprehensive documentation explaining why POST endpoints legitimately use `@csrf_exempt` (REST API endpoints use Bearer token auth, not session/cookie auth, so CSRF doesn't apply)
-- Updated security scanner to recognize mobile API endpoints as legitimate `@csrf_exempt` usage
-
-**SEC-002: PII Logged Without Redaction (MEDIUM → Fixed)**
-- Updated all logging statements that logged raw email addresses to use `hash_pii()` utility
-- Fixed 11 logging statements across mobile views, middleware, and users views
-
-**Files Modified:**
-- `apps/mobile/views.py` - Added documentation, removed `@csrf_exempt` from GET endpoints, fixed 7 PII logging statements
-- `apps/mobile/middleware.py` - Fixed 1 PII logging statement
-- `apps/users/views.py` - Fixed 8 PII logging statements
-- `apps/security/scanner.py` - Updated CSRF check to recognize mobile API as legitimate
-
-**Result:** Security grade improved from C to A, 0 findings.
-
----
-
-### Feature: Medicine Time-of-Day Grouping with Bulk Actions
-
-**Summary:** Added ability to group medicine doses by time period (Morning, Mid-Morning, Lunch, Afternoon, Evening, Nightly) with bulk "Take All" and "Skip All" actions for each group.
+**Summary:** Added colorful module icons to the desktop left rail navigation and More page, plus added Admin Console link to left rail for staff users.
 
 **Changes:**
-1. **Model:** Added `time_of_day` field to `MedicineSchedule` with auto-assignment based on scheduled time
-2. **Views:** Updated `MedicineHomeView` to group schedules by time_of_day; Added `MedicineBulkTakeView` and `MedicineBulkSkipView` for bulk actions
-3. **Templates:** Redesigned medicine home page with grouped cards showing bulk action buttons for each time period
-4. **Forms:** Updated `MedicineScheduleForm` to include time_of_day field selection
-5. **URLs:** Added routes for `medicine/bulk-take/<time_of_day>/` and `medicine/bulk-skip/<time_of_day>/`
+1. **Module-specific colors:** Each module now has a distinct icon color (Journal=blue, Health=red, Faith=purple, etc.)
+2. **Admin Console in rail:** Staff users now see Admin Console link at bottom of left rail (orange icon)
+3. **More page colors:** Module tiles on More page now have matching colored icons
 
 **Files Modified:**
-- `apps/health/models.py` - Added TIME_OF_DAY_CHOICES, time_of_day field, and auto-assignment in save()
-- `apps/health/views.py` - Added grouped_schedules context, MedicineBulkTakeView, MedicineBulkSkipView
-- `apps/health/forms.py` - Added time_of_day field to MedicineScheduleForm
-- `apps/health/urls.py` - Added bulk-take and bulk-skip URL routes
-- `templates/health/medicine/home.html` - Added time-group UI with bulk action buttons
-- `templates/health/medicine/medicine_schedules.html` - Added time_of_day field to schedule form
+- `templates/components/desktop_left_rail.html` - Added `data-module` attributes for color targeting, added Admin link for staff
+- `templates/core/more.html` - Added `data-module` attributes and module color CSS
+- `static/css/desktop-nav.css` - Added module icon color rules
 
-**Migrations:**
-- `0038_add_time_of_day_to_medicine_schedule.py` - Adds time_of_day field
-- `0039_populate_time_of_day.py` - Populates existing schedules based on scheduled_time
+**Color Palette:**
+- Journal: #3b82f6 (blue)
+- Health: #ef4444 (red)
+- Faith: #8b5cf6 (purple)
+- Organize/Life: #f59e0b (amber)
+- Purpose: #14b8a6 (teal)
+- Finance: #22c55e (green)
+- Capture: #ec4899 (pink)
+- Admin: #f97316 (orange)
 
 ---
 

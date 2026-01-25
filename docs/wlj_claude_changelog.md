@@ -60,6 +60,21 @@ Disclaimer text: "Whole Life Journey provides informational insights only. It do
 
 ---
 
+### Teaching Tool: Added Profile and Data Export Destinations
+
+**Summary:** Added new teaching destinations to help the AI Assistant provide accurate navigation guidance.
+
+**New Destinations:**
+- **Profile** - View and edit profile information (name, email, avatar)
+- **Export Your Data** - Download complete personal data copy; includes note that account deletion requires contacting admin@wholelifejourney.com
+
+**Note:** The app does not currently have a self-service account deletion feature. Users who want to delete their account should contact admin@wholelifejourney.com.
+
+**Files Modified:**
+- `apps/help/fixtures/teaching_destinations.json`
+
+---
+
 ### iOS: Increased API Timeout for Health Data Syncs
 
 **Summary:** Increased iOS API client timeouts to handle large CGM data volumes (~2000+ readings/week).

@@ -1239,5 +1239,39 @@
             "created_at": "2026-01-25T00:00:00Z",
             "updated_at": "2026-01-25T00:00:00Z"
         }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 74,
+        "fields": {
+            "destination_id": "profile",
+            "name": "Profile",
+            "path_description": "User - Profile",
+            "explanation": "View and edit your profile information, including name, email, and avatar.",
+            "url": "/user/profile/",
+            "keywords": "profile, my profile, account, edit profile, change name, change email, user profile, personal info",
+            "module": "users",
+            "sort_order": 74,
+            "is_active": true,
+            "created_at": "2026-01-25T00:00:00Z",
+            "updated_at": "2026-01-25T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 75,
+        "fields": {
+            "destination_id": "data-export",
+            "name": "Export Your Data",
+            "path_description": "Settings - Export Data",
+            "explanation": "Download a complete copy of all your personal data (journal entries, health records, goals, etc.) in JSON or CSV format. To delete your account, contact admin@wholelifejourney.com.",
+            "url": "/user/data-export/",
+            "keywords": "data export, download data, export data, gdpr, my data, delete account, remove account, close account, account deletion, download my information",
+            "module": "users",
+            "sort_order": 75,
+            "is_active": true,
+            "created_at": "2026-01-25T00:00:00Z",
+            "updated_at": "2026-01-25T00:00:00Z"
+        }
     }
 ]

@@ -8,6 +8,17 @@ Endpoints for iOS app integration:
 - Sync status
 
 All endpoints return JSON responses.
+
+Security Note on @csrf_exempt:
+----------------------------
+POST endpoints in this module use @csrf_exempt because they are REST API endpoints
+for native mobile apps (iOS). These endpoints use Bearer token authentication
+via the Authorization header, not session cookies. Since CSRF attacks rely on
+browser cookies being automatically sent, CSRF protection is not applicable to
+API endpoints that don't use cookie-based authentication.
+
+The @require_mobile_auth decorator validates Bearer tokens for all protected
+endpoints, providing the appropriate authentication mechanism for API clients.
 """
 
 import json
@@ -36,6 +47,7 @@ from apps.health.models import (
     WorkoutSession,
 )
 
+from apps.core.utils import hash_pii
 from .middleware import get_client_ip, require_auth, require_mobile_auth
 from .models import (
     HealthIngestionRun,
@@ -80,7 +92,7 @@ def generate_exchange_code(request):
     # Create new code
     code = MobileTokenExchangeCode.create_code(request.user)
 
-    logger.info(f"Generated exchange code for user {request.user.email}")
+    logger.info(f"Generated exchange code for {hash_pii(request.user.email, 'user')}")
 
     return JsonResponse({
         "code": code.code,
@@ -205,7 +217,7 @@ def exchange_token(request):
         exchange_code.consume(device_id)
 
     logger.info(
-        f"Token exchanged for user {user.email}, "
+        f"Token exchanged for user {hash_pii(user.email, 'user')}, "
         f"device {device.device_name or device_id[:8]}"
     )
 
@@ -237,7 +249,7 @@ def revoke_token(request):
     token.revoke()
 
     logger.info(
-        f"Token revoked for user {request.user.email}, "
+        f"Token revoked for {hash_pii(request.user.email, 'user')}, "
         f"device {request.mobile_device.device_name or request.mobile_device.device_id[:8]}"
     )
 
@@ -261,7 +273,7 @@ def revoke_all_tokens(request):
         is_active=True,
     ).update(is_active=False)
 
-    logger.info(f"All tokens revoked for user {request.user.email}, count={count}")
+    logger.info(f"All tokens revoked for {hash_pii(request.user.email, 'user')}, count={count}")
 
     return JsonResponse({"success": True, "revoked_count": count})
 
@@ -341,7 +353,7 @@ def health_ingest(request):
     if content_length > MAX_PAYLOAD_SIZE:
         logger.warning(
             f"Oversized payload rejected: {content_length} bytes "
-            f"from user {user.email}"
+            f"from user {hash_pii(user.email, 'user')}"
         )
         return JsonResponse(
             {
@@ -438,7 +450,7 @@ def health_ingest(request):
         ingestion_run.mark_completed(created, updated, skipped)
 
     logger.info(
-        f"Health ingestion completed: user={user.email}, "
+        f"Health ingestion completed: user={hash_pii(user.email, 'user')}, "
         f"created={created}, updated={updated}, skipped={skipped}, errors={len(errors)}"
     )
 
@@ -1962,7 +1974,6 @@ def process_body_temperature_metric(user, metric_date, source, sync_id, data):
 # =============================================================================
 
 
-@csrf_exempt
 @require_mobile_auth
 @require_http_methods(["GET"])
 def sync_status(request):
@@ -2037,7 +2048,6 @@ def sync_status(request):
 # =============================================================================
 
 
-@csrf_exempt
 @require_mobile_auth
 @require_http_methods(["GET"])
 def list_devices(request):

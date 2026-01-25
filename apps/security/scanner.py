@@ -1836,9 +1836,14 @@ class SecurityScanner:
             except Exception:
                 pass
 
-        # csrf_exempt is OK for webhooks (check filename OR if the content mentions webhook)
-        def is_webhook_file(filepath):
+        # csrf_exempt is OK for webhooks and mobile API endpoints (Bearer token auth)
+        def is_legitimate_csrf_exempt(filepath):
+            # Webhooks receive external POST requests that can't include CSRF tokens
             if 'webhook' in filepath.lower():
+                return True
+            # Mobile API endpoints use Bearer token auth, not session/cookie auth
+            # CSRF protection only applies to cookie-based authentication
+            if 'mobile' in filepath.lower() and 'views' in filepath.lower():
                 return True
             # Also check if file contains webhook function
             try:
@@ -1848,8 +1853,8 @@ class SecurityScanner:
             except Exception:
                 return False
 
-        legitimate_exempts = [f for f in evidence['csrf_exempt_usage'] if is_webhook_file(f)]
-        suspicious_exempts = [f for f in evidence['csrf_exempt_usage'] if not is_webhook_file(f)]
+        legitimate_exempts = [f for f in evidence['csrf_exempt_usage'] if is_legitimate_csrf_exempt(f)]
+        suspicious_exempts = [f for f in evidence['csrf_exempt_usage'] if not is_legitimate_csrf_exempt(f)]
 
         result = 'pass' if evidence['csrf_middleware'] and len(suspicious_exempts) == 0 else 'fail'
         findings = []

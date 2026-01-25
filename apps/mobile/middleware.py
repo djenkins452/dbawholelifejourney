@@ -19,6 +19,8 @@ Usage in views:
 import functools
 import logging
 
+from apps.core.utils import hash_pii
+
 from django.http import JsonResponse
 
 from .models import MobileAPIToken
@@ -63,7 +65,7 @@ class MobileAuthenticationMiddleware:
                 request.is_mobile_authenticated = True
 
                 logger.debug(
-                    f"Mobile auth successful: user={token.user.email}, "
+                    f"Mobile auth successful: user={hash_pii(token.user.email, 'user')}, "
                     f"device={token.device.device_name or token.device.device_id[:8]}"
                 )
             else:

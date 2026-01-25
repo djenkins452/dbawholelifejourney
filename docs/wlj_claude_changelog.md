@@ -16,17 +16,37 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-24 Changes
 
+### Fix preferences form checkbox submission and notification_reminder_time
+
+**Problems:**
+1. Module toggle checkboxes (Health, Finance, etc.) weren't saving when unchecked
+2. Form had validation error: `notification_reminder_time: This field is required`
+3. Hidden input + checkbox with same name sent `['false', 'true']` causing 500 error
+
+**Fixes:**
+1. Removed duplicate hidden inputs from checkboxes - JS handler adds them only for unchecked
+2. Made `notification_reminder_time` form field not required with clean method defaulting to 7:00 AM
+3. Added form error display to preferences template for debugging
+
+**Files Modified:**
+- `templates/users/preferences.html` - Removed hidden inputs, added JS checkbox handler, added error display
+- `apps/users/forms.py` - Added `notification_reminder_time` field override with clean method
+
+---
+
 ### Fix user dropdown being pushed off-screen in navigation
 
 **Problem:** On desktop with many nav items enabled, the user dropdown (profile/preferences/sign out) was being pushed off the right edge of the screen and not visible.
 
-**Fix:** Made nav-links flexible so it can shrink, while keeping help button and user menu always visible:
-- `.nav-links`: Added `flex: 1; min-width: 0; overflow-x: auto;`
-- `.nav-help`: Added `flex-shrink: 0;`
+**Fix:** Reduced nav spacing to fit all items:
+- `.nav-menu`: Reduced gap from `space-6` to `space-3`
+- `.nav-links`: Reduced gap from `space-2` to `0`
+- `.nav-link`: Reduced padding and font size
+- Added `justify-content: space-between` to critical CSS
 
 **Files Modified:**
-- `static/css/main.css` - Added flex properties to nav elements
-- `templates/base.html` - Cache bust CSS version
+- `static/css/main.css` - Reduced nav spacing
+- `templates/base.html` - Added justify-content to critical CSS
 
 ---
 

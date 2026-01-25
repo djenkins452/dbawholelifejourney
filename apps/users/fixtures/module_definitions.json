@@ -10,7 +10,9 @@
       "route_name": "journal:home",
       "default_order": 1,
       "is_active": true,
-      "preference_field": "journal_enabled"
+      "preference_field": "journal_enabled",
+      "created_at": "2026-01-25T00:00:00Z",
+      "updated_at": "2026-01-25T00:00:00Z"
     }
   },
   {
@@ -24,7 +26,9 @@
       "route_name": "health:home",
       "default_order": 2,
       "is_active": true,
-      "preference_field": "health_enabled"
+      "preference_field": "health_enabled",
+      "created_at": "2026-01-25T00:00:00Z",
+      "updated_at": "2026-01-25T00:00:00Z"
     }
   },
   {
@@ -38,7 +42,9 @@
       "route_name": "faith:home",
       "default_order": 3,
       "is_active": true,
-      "preference_field": "faith_enabled"
+      "preference_field": "faith_enabled",
+      "created_at": "2026-01-25T00:00:00Z",
+      "updated_at": "2026-01-25T00:00:00Z"
     }
   },
   {
@@ -52,7 +58,9 @@
       "route_name": "life:home",
       "default_order": 4,
       "is_active": true,
-      "preference_field": "life_enabled"
+      "preference_field": "life_enabled",
+      "created_at": "2026-01-25T00:00:00Z",
+      "updated_at": "2026-01-25T00:00:00Z"
     }
   },
   {
@@ -66,7 +74,9 @@
       "route_name": "purpose:home",
       "default_order": 5,
       "is_active": true,
-      "preference_field": "purpose_enabled"
+      "preference_field": "purpose_enabled",
+      "created_at": "2026-01-25T00:00:00Z",
+      "updated_at": "2026-01-25T00:00:00Z"
     }
   },
   {
@@ -80,7 +90,9 @@
       "route_name": "finance:dashboard",
       "default_order": 6,
       "is_active": true,
-      "preference_field": "finances_enabled"
+      "preference_field": "finances_enabled",
+      "created_at": "2026-01-25T00:00:00Z",
+      "updated_at": "2026-01-25T00:00:00Z"
     }
   },
   {
@@ -94,7 +106,9 @@
       "route_name": "capture:list",
       "default_order": 7,
       "is_active": true,
-      "preference_field": "capture_enabled"
+      "preference_field": "capture_enabled",
+      "created_at": "2026-01-25T00:00:00Z",
+      "updated_at": "2026-01-25T00:00:00Z"
     }
   }
 ]

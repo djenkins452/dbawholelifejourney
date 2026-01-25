@@ -1,0 +1,335 @@
+{% extends "health/dashboards/_base_dashboard.html" %}
+
+{# Body Temperature Dashboard #}
+
+{% block latest_reading %}
+{% if latest_reading %}
+<div class="latest-reading-card">
+    <div class="latest-reading-header">
+        <span class="latest-label">Latest Body Temperature</span>
+        <span class="latest-time">{{ latest_reading.recorded_at|timesince }} ago</span>
+    </div>
+    <div class="latest-reading-body">
+        <div class="temp-value-container">
+            <span class="temp-value">{{ latest_reading.temperature_fahrenheit|floatformat:1 }}</span>
+            <span class="temp-unit">°F</span>
+        </div>
+        <span class="status-badge status-{{ latest_status_color|default:'gray' }}">
+            {{ latest_status_display }}
+        </span>
+    </div>
+    <div class="temp-secondary">
+        <span class="celsius-value">{{ latest_reading.temperature_celsius|floatformat:1 }}°C</span>
+        {% if latest_reading.context != 'oral' %}
+        <span class="context-badge">{{ latest_reading.get_context_display }}</span>
+        {% endif %}
+    </div>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.latest-reading-card {
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    margin-bottom: var(--space-6);
+}
+
+.latest-reading-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-3);
+}
+
+.latest-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.latest-time {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.latest-reading-body {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+}
+
+.temp-value-container {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-1);
+}
+
+.temp-value {
+    font-size: var(--font-size-4xl, 2.5rem);
+    font-weight: 700;
+    color: var(--color-text);
+    line-height: 1;
+}
+
+.temp-unit {
+    font-size: var(--font-size-2xl);
+    color: var(--color-text-muted);
+}
+
+.status-badge {
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+}
+
+.status-blue {
+    background: color-mix(in srgb, #3b82f6 15%, transparent);
+    color: #3b82f6;
+}
+
+.status-green {
+    background: color-mix(in srgb, var(--color-success, #10b981) 15%, transparent);
+    color: var(--color-success, #10b981);
+}
+
+.status-yellow {
+    background: color-mix(in srgb, var(--color-warning, #f59e0b) 15%, transparent);
+    color: var(--color-warning, #f59e0b);
+}
+
+.status-orange {
+    background: color-mix(in srgb, #f97316 15%, transparent);
+    color: #f97316;
+}
+
+.status-red {
+    background: color-mix(in srgb, var(--color-error, #ef4444) 15%, transparent);
+    color: var(--color-error, #ef4444);
+}
+
+.status-gray {
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+}
+
+.temp-secondary {
+    margin-top: var(--space-3);
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.celsius-value {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.context-badge {
+    font-size: var(--font-size-xs);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+    border: 1px solid var(--color-border);
+}
+
+@media (max-width: 480px) {
+    .latest-reading-card {
+        padding: var(--space-4);
+    }
+
+    .temp-value {
+        font-size: var(--font-size-3xl, 2rem);
+    }
+
+    .latest-reading-body {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--space-3);
+    }
+}
+</style>
+{% else %}
+<div class="no-reading-card">
+    <p>No body temperature readings yet</p>
+    <p class="mt-2 text-sm">Temperature data is synced from your connected devices.</p>
+</div>
+<style nonce="{{ csp_nonce }}">
+.no-reading-card {
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    margin-bottom: var(--space-6);
+    text-align: center;
+    color: var(--color-text-muted);
+}
+</style>
+{% endif %}
+{% endblock %}
+
+{% block readings_list %}
+{% if entries %}
+<div class="readings-section">
+    <div class="readings-header">
+        <h3 class="readings-title">Temperature History</h3>
+    </div>
+
+    <div class="readings-list">
+        {% for entry in entries %}
+        <div class="reading-item">
+            <div class="reading-date">
+                <span class="date-main">{{ entry.recorded_at|date:"M j" }}</span>
+                <span class="date-time">{{ entry.recorded_at|date:"g:i A" }}</span>
+            </div>
+            <div class="reading-value-col">
+                <span class="reading-temp">{{ entry.temperature_fahrenheit|floatformat:1 }}°F</span>
+                <span class="reading-celsius">({{ entry.temperature_celsius|floatformat:1 }}°C)</span>
+            </div>
+            <div class="reading-status">
+                {% with temp=entry.temperature_fahrenheit %}
+                {% if temp < 97.0 %}
+                <span class="status-badge-sm status-blue">Low</span>
+                {% elif temp <= 99.0 %}
+                <span class="status-badge-sm status-green">Normal</span>
+                {% elif temp <= 100.4 %}
+                <span class="status-badge-sm status-yellow">Elevated</span>
+                {% elif temp <= 103.0 %}
+                <span class="status-badge-sm status-orange">Fever</span>
+                {% else %}
+                <span class="status-badge-sm status-red">High Fever</span>
+                {% endif %}
+                {% endwith %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% if entry_count > entries|length %}
+    <div class="readings-footer">
+        <span class="readings-more">Showing {{ entries|length }} of {{ entry_count }} readings</span>
+    </div>
+    {% endif %}
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.readings-section {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    margin-bottom: var(--space-6);
+}
+
+.readings-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.readings-title {
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    margin: 0;
+}
+
+.readings-list {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.reading-item {
+    display: flex;
+    align-items: center;
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+    gap: var(--space-4);
+}
+
+.reading-item:last-child {
+    border-bottom: none;
+}
+
+.reading-item:hover {
+    background: var(--color-surface);
+}
+
+.reading-date {
+    display: flex;
+    flex-direction: column;
+    min-width: 60px;
+}
+
+.date-main {
+    font-weight: 500;
+}
+
+.date-time {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.reading-value-col {
+    flex: 1;
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+}
+
+.reading-temp {
+    font-weight: 600;
+    font-size: var(--font-size-lg);
+    color: #f97316;
+}
+
+.reading-celsius {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.reading-status {
+    min-width: 70px;
+}
+
+.status-badge-sm {
+    font-size: var(--font-size-xs);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    font-weight: 500;
+}
+
+.status-badge-sm.status-blue {
+    background: color-mix(in srgb, #3b82f6 15%, transparent);
+    color: #3b82f6;
+}
+
+.readings-footer {
+    padding: var(--space-3) var(--space-4);
+    border-top: 1px solid var(--color-border);
+    text-align: center;
+}
+
+.readings-more {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+</style>
+{% else %}
+<div class="readings-empty">
+    <p>No temperature readings for this period</p>
+</div>
+<style nonce="{{ csp_nonce }}">
+.readings-empty {
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    text-align: center;
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-6);
+}
+</style>
+{% endif %}
+{% endblock %}

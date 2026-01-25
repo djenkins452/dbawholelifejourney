@@ -32,10 +32,32 @@ urlpatterns = [
 
     # Heart Rate
     path("heart-rate/", views.HeartRateListView.as_view(), name="heartrate_list"),
+    path("heart-rate/dashboard/", views_dashboards.HeartRateDashboardView.as_view(), name="heartrate_dashboard"),
     path("heart-rate/log/", views.HeartRateCreateView.as_view(), name="heartrate_create"),
     path("heart-rate/<int:pk>/edit/", views.HeartRateUpdateView.as_view(), name="heartrate_update"),
     path("heart-rate/<int:pk>/delete/", views.HeartRateDeleteView.as_view(), name="heartrate_delete"),
     path("heart-rate/bulk/delete/", views.BulkDeleteHeartRateView.as_view(), name="heartrate_bulk_delete"),
+
+    # HRV (Heart Rate Variability) Dashboard
+    path("hrv/dashboard/", views_dashboards.HRVDashboardView.as_view(), name="hrv_dashboard"),
+
+    # VO2 Max Dashboard
+    path("vo2-max/dashboard/", views_dashboards.VO2MaxDashboardView.as_view(), name="vo2_max_dashboard"),
+
+    # Respiratory Rate Dashboard
+    path("respiratory-rate/dashboard/", views_dashboards.RespiratoryRateDashboardView.as_view(), name="respiratory_rate_dashboard"),
+
+    # Body Temperature Dashboard
+    path("body-temperature/dashboard/", views_dashboards.BodyTemperatureDashboardView.as_view(), name="body_temperature_dashboard"),
+
+    # Caffeine Dashboard
+    path("caffeine/dashboard/", views_dashboards.CaffeineDashboardView.as_view(), name="caffeine_dashboard"),
+
+    # Mindful Minutes Dashboard
+    path("mindful-minutes/dashboard/", views_dashboards.MindfulMinutesDashboardView.as_view(), name="mindful_minutes_dashboard"),
+
+    # Activity Dashboard (Steps, Calories, Distance)
+    path("activity/dashboard/", views_dashboards.ActivityDashboardView.as_view(), name="activity_dashboard"),
 
     # Steps
     path("steps/", views.StepsListView.as_view(), name="steps_list"),

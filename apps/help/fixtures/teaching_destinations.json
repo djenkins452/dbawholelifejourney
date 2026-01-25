@@ -1069,5 +1069,141 @@
             "created_at": "2026-01-24T00:00:00Z",
             "updated_at": "2026-01-24T00:00:00Z"
         }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 63,
+        "fields": {
+            "destination_id": "heart-rate-dashboard",
+            "name": "Heart Rate Dashboard",
+            "path_description": "Health - Heart Rate",
+            "explanation": "View your heart rate trends with charts, statistics, and context-based analysis for resting and active readings.",
+            "url": "/health/heart-rate/dashboard/",
+            "keywords": "heart rate, pulse, bpm, heart rate chart, heart rate stats, heart rate dashboard, resting heart rate, heart health, heart rate trends",
+            "module": "health",
+            "sort_order": 63,
+            "is_active": true,
+            "created_at": "2026-01-24T00:00:00Z",
+            "updated_at": "2026-01-24T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 64,
+        "fields": {
+            "destination_id": "hrv-dashboard",
+            "name": "HRV Dashboard",
+            "path_description": "Health - Heart Rate Variability",
+            "explanation": "Track your Heart Rate Variability (HRV) from wearable devices. Higher HRV generally indicates better recovery and fitness.",
+            "url": "/health/hrv/dashboard/",
+            "keywords": "hrv, heart rate variability, hrv chart, hrv stats, hrv dashboard, recovery, fitness, stress, hrv tracking, sdnn",
+            "module": "health",
+            "sort_order": 64,
+            "is_active": true,
+            "created_at": "2026-01-24T00:00:00Z",
+            "updated_at": "2026-01-24T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 65,
+        "fields": {
+            "destination_id": "vo2-max-dashboard",
+            "name": "VO2 Max Dashboard",
+            "path_description": "Health - VO2 Max",
+            "explanation": "Track your VO2 Max (cardiorespiratory fitness) from wearable devices. Higher values indicate better cardiovascular fitness.",
+            "url": "/health/vo2-max/dashboard/",
+            "keywords": "vo2 max, vo2max, cardio fitness, cardiovascular fitness, fitness level, aerobic capacity, vo2 max chart, vo2 max stats",
+            "module": "health",
+            "sort_order": 65,
+            "is_active": true,
+            "created_at": "2026-01-24T00:00:00Z",
+            "updated_at": "2026-01-24T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 66,
+        "fields": {
+            "destination_id": "respiratory-rate-dashboard",
+            "name": "Respiratory Rate Dashboard",
+            "path_description": "Health - Respiratory Rate",
+            "explanation": "Track your respiratory rate (breaths per minute) measured during sleep. Normal adult range is 12-20 breaths per minute.",
+            "url": "/health/respiratory-rate/dashboard/",
+            "keywords": "respiratory rate, breathing rate, breaths per minute, brpm, respiratory dashboard, sleep breathing, breathing patterns",
+            "module": "health",
+            "sort_order": 66,
+            "is_active": true,
+            "created_at": "2026-01-24T00:00:00Z",
+            "updated_at": "2026-01-24T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 67,
+        "fields": {
+            "destination_id": "body-temperature-dashboard",
+            "name": "Body Temperature Dashboard",
+            "path_description": "Health - Body Temperature",
+            "explanation": "Track your body temperature readings with fever detection and trend analysis.",
+            "url": "/health/body-temperature/dashboard/",
+            "keywords": "body temperature, temperature, fever, temp, thermometer, temperature chart, temperature tracking, fever tracking",
+            "module": "health",
+            "sort_order": 67,
+            "is_active": true,
+            "created_at": "2026-01-24T00:00:00Z",
+            "updated_at": "2026-01-24T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 68,
+        "fields": {
+            "destination_id": "caffeine-dashboard",
+            "name": "Caffeine Dashboard",
+            "path_description": "Health - Caffeine",
+            "explanation": "Track your daily caffeine intake from synced devices. FDA recommends no more than 400mg per day for healthy adults.",
+            "url": "/health/caffeine/dashboard/",
+            "keywords": "caffeine, coffee, caffeine tracking, caffeine intake, daily caffeine, coffee consumption, caffeine chart",
+            "module": "health",
+            "sort_order": 68,
+            "is_active": true,
+            "created_at": "2026-01-24T00:00:00Z",
+            "updated_at": "2026-01-24T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 69,
+        "fields": {
+            "destination_id": "mindful-minutes-dashboard",
+            "name": "Mindful Minutes Dashboard",
+            "path_description": "Health - Mindful Minutes",
+            "explanation": "Track your meditation and breathing exercise sessions from synced devices. Regular practice helps reduce stress.",
+            "url": "/health/mindful-minutes/dashboard/",
+            "keywords": "mindful minutes, meditation, mindfulness, breathing exercises, stress relief, mindful, meditation tracking, mindfulness tracking",
+            "module": "health",
+            "sort_order": 69,
+            "is_active": true,
+            "created_at": "2026-01-24T00:00:00Z",
+            "updated_at": "2026-01-24T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 70,
+        "fields": {
+            "destination_id": "activity-dashboard",
+            "name": "Activity Dashboard",
+            "path_description": "Health - Activity",
+            "explanation": "View your combined activity metrics including steps, calories burned, distance walked, and flights climbed.",
+            "url": "/health/activity/dashboard/",
+            "keywords": "activity, steps, calories, distance, activity dashboard, activity tracking, daily activity, fitness activity, calories burned, exercise",
+            "module": "health",
+            "sort_order": 70,
+            "is_active": true,
+            "created_at": "2026-01-24T00:00:00Z",
+            "updated_at": "2026-01-24T00:00:00Z"
+        }
     }
 ]

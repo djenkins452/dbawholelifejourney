@@ -54,6 +54,7 @@ from .forms import (
 from .models import (
     BloodOxygenEntry,
     BloodPressureEntry,
+    BodyTemperatureEntry,
     CardioDetails,
     ClassDetails,
     CustomFood,
@@ -231,6 +232,40 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             avg_spo2 = bo_entries.aggregate(avg=Avg("spo2"))["avg"]
             if avg_spo2:
                 context["avg_spo2"] = round(avg_spo2)
+
+        # Body Temperature summary
+        temp_entries = BodyTemperatureEntry.objects.filter(user=user)
+        if temp_entries.exists():
+            context["latest_body_temperature"] = temp_entries.first()
+            context["has_body_temperature"] = True
+
+        # Advanced metrics (derived from sleep data)
+        # These show dashboard links when user has data
+        sleep_with_hrv = SleepEntry.objects.filter(user=user, hrv_value__isnull=False)
+        if sleep_with_hrv.exists():
+            context["has_hrv_data"] = True
+            latest_hrv = sleep_with_hrv.first()
+            context["latest_hrv"] = latest_hrv.hrv_value
+
+        sleep_with_vo2 = SleepEntry.objects.filter(user=user, vo2_max__isnull=False)
+        if sleep_with_vo2.exists():
+            context["has_vo2_max_data"] = True
+            latest_vo2 = sleep_with_vo2.first()
+            context["latest_vo2_max"] = latest_vo2.vo2_max
+
+        sleep_with_rr = SleepEntry.objects.filter(user=user, respiratory_rate__isnull=False)
+        if sleep_with_rr.exists():
+            context["has_respiratory_rate_data"] = True
+            latest_rr = sleep_with_rr.first()
+            context["latest_respiratory_rate"] = latest_rr.respiratory_rate
+
+        sleep_with_caffeine = SleepEntry.objects.filter(user=user, caffeine_mg__isnull=False)
+        if sleep_with_caffeine.exists():
+            context["has_caffeine_data"] = True
+
+        sleep_with_mindful = SleepEntry.objects.filter(user=user, mindful_minutes__isnull=False)
+        if sleep_with_mindful.exists():
+            context["has_mindful_minutes_data"] = True
 
         # Medicine summary
         today = get_user_today(user)

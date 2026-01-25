@@ -16,6 +16,23 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-25 Changes
 
+### Fix: Simplify /more/ Page to Fix 500 Error
+
+**Summary:** The /more/ page was returning 500 errors due to complex context processor dependencies. Simplified the page to fetch module data directly in the view with proper error handling.
+
+**Changes:**
+- `MoreView` now fetches enabled modules directly with its own `get_context_data()`
+- Simplified template removes complex desktop/mobile switching logic
+- URL resolution uses hardcoded fallback routes to avoid database issues
+- Shows enabled modules as tiles + quick links (Profile, Preferences, Help, Sign Out)
+- Staff users see Admin Console link
+
+**Files Modified:**
+- `apps/core/views.py` - Added `get_context_data()` to MoreView
+- `templates/core/more.html` - Simplified template with direct module iteration
+
+---
+
 ### Fix: Module Navigation - Pre-resolve URLs in Context Processor
 
 **Summary:** Templates using `{% url module.route_name %}` would crash if the database had un-namespaced route_name values. Fixed by pre-resolving URLs in the context processor with graceful fallback.

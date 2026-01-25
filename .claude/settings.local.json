@@ -322,7 +322,8 @@
       "Bash(git rev-list:*)",
       "Bash(git log:*)",
       "Bash(git ls-tree:*)",
-      "Bash(/usr/bin/python3 manage.py:*)"
+      "Bash(/usr/bin/python3 manage.py:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nFix /more/ page 500 error with simplified implementation\n\nThe /more/ page was failing due to complex context processor dependencies.\nSimplified to fetch module data directly in the view with proper error handling.\n\nChanges:\n- MoreView now has its own get_context_data\\(\\) with fallback URL resolution\n- Simplified template shows enabled modules + quick links\n- Removed complex desktop/mobile switching logic\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
     ]
   }
 }

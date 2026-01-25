@@ -16,6 +16,54 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-24 Changes
 
+### Fix preferences form checkbox submission and notification_reminder_time
+
+**Problems:**
+1. Module toggle checkboxes (Health, Finance, etc.) weren't saving when unchecked
+2. Form had validation error: `notification_reminder_time: This field is required`
+3. Hidden input + checkbox with same name sent `['false', 'true']` causing 500 error
+
+**Fixes:**
+1. Removed duplicate hidden inputs from checkboxes - JS handler adds them only for unchecked
+2. Made `notification_reminder_time` form field not required with clean method defaulting to 7:00 AM
+3. Added form error display to preferences template for debugging
+
+**Files Modified:**
+- `templates/users/preferences.html` - Removed hidden inputs, added JS checkbox handler, added error display
+- `apps/users/forms.py` - Added `notification_reminder_time` field override with clean method
+
+---
+
+### Fix user dropdown being pushed off-screen in navigation
+
+**Fix:** Reduced nav spacing to fit all items:
+- `.nav-menu`: Reduced gap from `space-6` to `space-3`
+- `.nav-links`: Reduced gap from `space-2` to `0`
+- `.nav-link`: Reduced padding and font size
+- Added `justify-content: space-between` to critical CSS
+
+**Files Modified:**
+- `static/css/main.css` - Reduced nav spacing
+- `templates/base.html` - Added justify-content to critical CSS
+
+---
+
+### Add Claude limits conservation guidelines to CLAUDE.md
+
+**Change:** Added "CONSERVE CLAUDE LIMITS" section to behavior rules to prevent hitting API rate limits.
+
+**Guidelines added:**
+- Keep responses concise
+- Don't re-read files already seen
+- Batch related changes
+- Use Explore agent for broad searches
+- Warn before high-token operations
+
+**Files Modified:**
+- `CLAUDE.md` - Added conservation guidelines section
+
+---
+
 ### Move Finance module to "Coming Soon" status
 
 **Change:** Finance module is not ready for users yet. Moved it to the Coming Soon section in Preferences alongside Relationships and Habits.
@@ -31,6 +79,16 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+### Remove mandatory/pinned status from AI Insights tile
+
+**Problem:** AI Insights was incorrectly set as `mandatory: True` with `pinned_position: 1`, which meant it would show for all users regardless of their AI preference setting. Nothing should appear in the system if the corresponding feature is disabled in Preferences.
+
+**Fix:** Removed `mandatory` and `pinned_position` from `ai_insights` tile definition. Now it properly respects the `module_dependency: 'ai_enabled'` - if AI is disabled in Preferences, AI Insights won't show on the dashboard.
+
+**Files Modified:**
+- `apps/dashboard/services/config_service.py` - Removed mandatory/pinned logic from ai_insights and simplified get_visible_tiles/update_config methods
+
+---
 ### Remove mandatory/pinned status from AI Insights tile
 
 **Problem:** AI Insights was incorrectly set as `mandatory: True` with `pinned_position: 1`, which meant it would show for all users regardless of their AI preference setting. Nothing should appear in the system if the corresponding feature is disabled in Preferences.

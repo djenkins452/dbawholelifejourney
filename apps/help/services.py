@@ -147,6 +147,29 @@ class HelpChatService:
         """Get the welcome message for the chat."""
         return self.tone['greeting']
 
+    # Synonym mapping for common search terms
+    SEARCH_SYNONYMS = {
+        'account': ['settings', 'preferences', 'profile'],
+        'update': ['change', 'edit', 'modify'],
+        'my': ['profile', 'settings', 'preferences'],
+        'password': ['login', 'security', 'credentials'],
+        'log': ['journal', 'entry', 'record'],
+        'track': ['log', 'record', 'monitor'],
+        'workout': ['exercise', 'fitness', 'training'],
+        'food': ['nutrition', 'meal', 'diet', 'calories'],
+        'weight': ['body', 'mass', 'scale'],
+        'prayer': ['faith', 'spiritual'],
+        'bible': ['scripture', 'faith', 'verse'],
+    }
+
+    def _expand_query_with_synonyms(self, words):
+        """Expand search words with synonyms for better matching."""
+        expanded = set(words)
+        for word in words:
+            if word in self.SEARCH_SYNONYMS:
+                expanded.update(self.SEARCH_SYNONYMS[word])
+        return list(expanded)
+
     def search_articles(self, query, module=None, limit=5):
         """
         Search help articles for relevant content.
@@ -164,6 +187,9 @@ class HelpChatService:
 
         query = query.strip().lower()
         words = query.split()
+
+        # Expand with synonyms for better matching
+        words = self._expand_query_with_synonyms(words)
 
         # Build search query
         q_filter = Q()

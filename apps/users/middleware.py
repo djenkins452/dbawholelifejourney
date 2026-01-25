@@ -82,6 +82,10 @@ class TermsAcceptanceMiddleware:
     def __call__(self, request):
         # Only check for authenticated users
         if request.user.is_authenticated:
+            # App review accounts bypass all checks (for Apple App Store reviewers)
+            if getattr(request.user, 'is_app_review_account', False):
+                return self.get_response(request)
+
             # Skip exempt paths
             if not any(request.path.startswith(path) for path in self.EXEMPT_PATHS):
                 # Step 1: Check if user has accepted current terms
@@ -148,6 +152,10 @@ class SubscriptionRequiredMiddleware:
     def __call__(self, request):
         # Only check for authenticated users
         if request.user.is_authenticated:
+            # App review accounts bypass all checks (for Apple App Store reviewers)
+            if getattr(request.user, 'is_app_review_account', False):
+                return self.get_response(request)
+
             # Skip exempt paths
             if not any(request.path.startswith(path) for path in self.EXEMPT_PATHS):
                 # Skip for staff/superusers (admins always have access)
@@ -239,6 +247,10 @@ class MFAEnforcementMiddleware:
 
         # Check if user is exempt from MFA
         if user_email in [e.lower() for e in self.MFA_EXEMPT_EMAILS]:
+            return self.get_response(request)
+
+        # App review accounts bypass MFA (for Apple App Store reviewers)
+        if getattr(request.user, 'is_app_review_account', False):
             return self.get_response(request)
 
         # Determine if MFA is required for this user

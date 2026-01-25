@@ -84,6 +84,50 @@ Disclaimer text: "Whole Life Journey provides informational insights only. It do
 
 ---
 
+### App Review Demo Account Setup
+
+**Summary:** Created management command and infrastructure to set up the Apple App Store review demo account with sample data and security bypasses.
+
+**Demo Account:**
+- Email: `appreview@wholelifejourney.com`
+- Password: `AppReview2026!`
+- All modules enabled (Health, Journal, Faith, Life, Purpose, AI, Capture, Scan)
+- Onboarding complete, email verified, AI consent granted
+- Sample data: 5 journal entries, 14 weight entries, 14 steps entries, 7 sleep entries, 5 tasks, 3 prayer requests
+
+**Security Bypasses for App Review Account:**
+- MFA enforcement bypassed (MFAEnforcementMiddleware)
+- Terms acceptance bypassed (TermsAcceptanceMiddleware)
+- Subscription/trial check bypassed (SubscriptionRequiredMiddleware)
+
+**User Model Changes:**
+- Added `is_app_review_account` boolean field to User model
+- Migration: `apps/users/migrations/0054_add_is_app_review_account.py`
+
+**Files Created:**
+- `apps/users/management/commands/setup_app_review_account.py`
+
+**Files Modified:**
+- `apps/users/models.py` - Added is_app_review_account field
+- `apps/users/middleware.py` - Added app review account bypasses
+
+---
+
+### App Review Page: Module Documentation Update
+
+**Summary:** Updated the /app-review/ page to clarify that all modules are optional and can be enabled/disabled individually. Removed Finance module (coming soon).
+
+**Changes:**
+- Added "Optional Module" badges to all feature cards
+- Added info box explaining modular design
+- Replaced Finance card with AI Assistant card
+- Added module-badge CSS styling
+
+**Files Modified:**
+- `templates/core/app_review.html`
+
+---
+
 ### Teaching Tool: Added Profile, Delete Account, and Data Export Destinations
 
 **Summary:** Added new teaching destinations to help the AI Assistant provide accurate navigation guidance for account management.

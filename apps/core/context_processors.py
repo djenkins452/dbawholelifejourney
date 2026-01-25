@@ -291,14 +291,14 @@ def navigation_modules_context(request):
         # Mobile bottom nav: first 4 enabled modules
         context['nav_modules'] = enabled_modules[:4]
 
-        # Desktop left rail: first 8 enabled modules
-        context['desktop_rail_modules'] = enabled_modules[:8]
+        # Desktop left rail: ALL enabled modules (no limit)
+        context['desktop_rail_modules'] = enabled_modules
 
         # Overflow = enabled modules beyond the first 4 (mobile More screen)
         context['overflow_modules'] = enabled_modules[4:] if len(enabled_modules) > 4 else []
 
-        # Desktop overflow = enabled modules beyond the first 8 (desktop More screen)
-        context['desktop_overflow_modules'] = enabled_modules[8:] if len(enabled_modules) > 8 else []
+        # Desktop overflow = empty since all modules are in the rail now
+        context['desktop_overflow_modules'] = []
 
     except Exception:
         # If tables don't exist yet (pre-migration), use fallback

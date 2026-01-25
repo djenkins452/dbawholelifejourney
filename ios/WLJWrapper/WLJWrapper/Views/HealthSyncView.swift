@@ -129,6 +129,16 @@ struct HealthSyncView: View {
                 .font(.caption)
                 .foregroundColor(.secondary)
             }
+
+            // MARK: - Health Disclaimer Section
+            Section {
+                Text("Whole Life Journey provides informational insights only. It does not provide medical advice, diagnosis, or treatment. Always consult a qualified healthcare professional for medical decisions.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .italic()
+            } header: {
+                Text("Health Disclaimer")
+            }
         }
         .navigationTitle("Health Sync")
         .alert("Permission Required", isPresented: $showPermissionAlert) {

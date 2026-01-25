@@ -63,7 +63,11 @@ struct SettingsView: View {
                 } header: {
                     Text("Health")
                 } footer: {
-                    Text("Sync your Apple Health data to Whole Life Journey for tracking steps, weight, sleep, heart rate, blood glucose, blood oxygen, water intake, calories, distance, flights, exercise, stand hours, body fat, workouts, lean body mass, and respiratory rate.")
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Sync your Apple Health data to Whole Life Journey for tracking steps, weight, sleep, heart rate, blood glucose, blood oxygen, water intake, calories, distance, flights, exercise, stand hours, body fat, workouts, lean body mass, and respiratory rate.")
+                        Text("Whole Life Journey provides informational insights only. It does not provide medical advice, diagnosis, or treatment. Always consult a qualified healthcare professional for medical decisions.")
+                            .italic()
+                    }
                 }
 
                 // MARK: - Account Section
@@ -157,7 +161,7 @@ struct SettingsView: View {
 
                 // MARK: - Support Section
                 Section {
-                    Link(destination: URL(string: "mailto:support@wholelifejourney.com")!) {
+                    Link(destination: URL(string: "mailto:admin@wholelifejourney.com")!) {
                         HStack {
                             Image(systemName: "envelope")
                             Text("Contact Support")

@@ -15,8 +15,8 @@ class APIClient {
 
     private init() {
         let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 30
-        config.timeoutIntervalForResource = 60
+        config.timeoutIntervalForRequest = 120  // 2 minutes for large health data syncs
+        config.timeoutIntervalForResource = 300  // 5 minutes total
         session = URLSession(configuration: config)
     }
 

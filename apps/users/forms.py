@@ -304,11 +304,19 @@ class PreferencesForm(forms.ModelForm):
     Form for editing user preferences.
     """
 
-    # Make notification_reminder_time not required (has model default)
+    # notification_reminder_time - not required in form, will default to 7:00 AM
     notification_reminder_time = forms.TimeField(
         required=False,
         widget=forms.TimeInput(attrs={"class": "form-input", "type": "time"}),
     )
+
+    def clean_notification_reminder_time(self):
+        """Provide default if empty (model requires non-null)."""
+        import datetime
+        value = self.cleaned_data.get('notification_reminder_time')
+        if value is None:
+            return datetime.time(7, 0)  # Default to 7:00 AM
+        return value
 
     class Meta:
         model = UserPreferences

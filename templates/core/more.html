@@ -7,12 +7,36 @@
 <div class="more-screen">
     <div class="container">
         <header class="more-header">
-            <h1>More</h1>
+            <h1 class="more-title-mobile">More</h1>
+            <h1 class="more-title-desktop">Module Library</h1>
+            <!-- Desktop search box -->
+            <div class="more-search-desktop">
+                <input type="text" id="module-search" class="form-input" placeholder="Find a module..." autocomplete="off">
+            </div>
         </header>
 
-        <!-- Overflow modules (enabled modules beyond bottom nav) -->
+        <!-- Desktop: All modules as a library (visible on desktop only) -->
+        <section class="more-section more-section-desktop-library">
+            <h2 class="more-section-title">All Modules</h2>
+            <div class="tile-grid tile-grid-searchable" id="all-modules-grid">
+                {% for module in all_user_modules %}
+                {% if module.is_enabled %}
+                <a href="{% url module.route_name %}" class="tile" data-module-name="{{ module.name|lower }}">
+                    <div class="tile-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            {{ module.icon_svg|safe }}
+                        </svg>
+                    </div>
+                    <span class="tile-label">{{ module.name }}</span>
+                </a>
+                {% endif %}
+                {% endfor %}
+            </div>
+        </section>
+
+        <!-- Mobile: Overflow modules (enabled modules beyond bottom nav) -->
         {% if overflow_modules %}
-        <section class="more-section">
+        <section class="more-section more-section-mobile-overflow">
             <h2 class="more-section-title">Modules</h2>
             <div class="tile-grid">
                 {% for module in overflow_modules %}
@@ -136,6 +160,57 @@
     color: var(--color-text);
 }
 
+/* Mobile vs Desktop title switching */
+.more-title-desktop,
+.more-search-desktop {
+    display: none;
+}
+
+.more-title-mobile {
+    display: block;
+}
+
+/* Desktop library section hidden on mobile */
+.more-section-desktop-library {
+    display: none;
+}
+
+/* Mobile overflow section visible on mobile */
+.more-section-mobile-overflow {
+    display: block;
+}
+
+@media (min-width: 769px) {
+    .more-title-mobile {
+        display: none;
+    }
+
+    .more-title-desktop {
+        display: block;
+    }
+
+    .more-search-desktop {
+        display: block;
+        margin-top: var(--space-4);
+        max-width: 400px;
+    }
+
+    .more-search-desktop .form-input {
+        width: 100%;
+        padding: var(--space-3);
+        font-size: var(--font-size-base);
+    }
+
+    /* Show desktop library, hide mobile overflow */
+    .more-section-desktop-library {
+        display: block;
+    }
+
+    .more-section-mobile-overflow {
+        display: none;
+    }
+}
+
 .more-section {
     margin-bottom: var(--space-6);
 }
@@ -183,6 +258,11 @@
     min-height: 100px;
 }
 
+/* Hidden by search filter */
+.tile.hidden-by-search {
+    display: none;
+}
+
 .tile:hover {
     background: var(--color-background);
     border-color: var(--color-accent);
@@ -223,5 +303,55 @@
 .tile-danger:hover {
     border-color: var(--color-error);
 }
+
+/* No results message */
+.no-search-results {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: var(--space-6);
+    color: var(--color-text-muted);
+}
 </style>
+
+<script>
+// Module search functionality (desktop only)
+document.addEventListener('DOMContentLoaded', function() {
+    var searchInput = document.getElementById('module-search');
+    var modulesGrid = document.getElementById('all-modules-grid');
+
+    if (!searchInput || !modulesGrid) return;
+
+    searchInput.addEventListener('input', function() {
+        var query = this.value.toLowerCase().trim();
+        var tiles = modulesGrid.querySelectorAll('.tile[data-module-name]');
+        var visibleCount = 0;
+
+        tiles.forEach(function(tile) {
+            var name = tile.getAttribute('data-module-name') || '';
+            if (!query || name.indexOf(query) !== -1) {
+                tile.classList.remove('hidden-by-search');
+                visibleCount++;
+            } else {
+                tile.classList.add('hidden-by-search');
+            }
+        });
+
+        // Show "no results" message if needed
+        var noResults = modulesGrid.querySelector('.no-search-results');
+        if (visibleCount === 0 && query) {
+            if (!noResults) {
+                noResults = document.createElement('div');
+                noResults.className = 'no-search-results';
+                noResults.textContent = 'No modules found matching "' + query + '"';
+                modulesGrid.appendChild(noResults);
+            } else {
+                noResults.textContent = 'No modules found matching "' + query + '"';
+                noResults.style.display = 'block';
+            }
+        } else if (noResults) {
+            noResults.style.display = 'none';
+        }
+    });
+});
+</script>
 {% endblock %}

@@ -1,0 +1,52 @@
+{% load static %}
+<!-- Desktop Top Bar (logo + utility icons) - visible only on desktop -->
+<header class="desktop-top-bar">
+    <div class="desktop-top-bar-inner">
+        <!-- Logo -->
+        <a href="{% url 'dashboard:home' %}" class="desktop-logo">
+            <img src="{% if site_logo_url %}{{ site_logo_url }}{% else %}{% static 'images/wlj-logo.png' %}{% endif %}" alt="{{ site_name }}" class="desktop-logo-img">
+        </a>
+
+        <!-- Spacer -->
+        <div class="desktop-top-bar-spacer"></div>
+
+        <!-- Utility Icons (right side) -->
+        <div class="desktop-utility-icons">
+            <!-- Favorites -->
+            <a href="{% url 'core:favorites_hub' %}" class="desktop-utility-icon{% if request.resolver_match.url_name == 'favorites_hub' %} active{% endif %}" aria-label="Favorites" title="Favorites">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                </svg>
+            </a>
+
+            <!-- Chat Bot / AI Assistant -->
+            {% if ai_enabled and personal_assistant_enabled %}
+            <button type="button" class="desktop-utility-icon" aria-label="Assistant" title="Assistant" onclick="document.getElementById('assistant-toggle-btn')?.click()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+            </button>
+            {% endif %}
+
+            <!-- Notifications -->
+            <a href="{% url 'core:notifications' %}" class="desktop-utility-icon{% if request.resolver_match.url_name == 'notifications' %} active{% endif %}" aria-label="Notifications" title="Notifications">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                    <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                </svg>
+                {% if unread_notification_count %}
+                <span class="desktop-utility-badge">{{ unread_notification_count }}</span>
+                {% endif %}
+            </a>
+
+            <!-- Profile -->
+            <a href="{% url 'users:profile' %}" class="desktop-utility-icon desktop-utility-profile{% if request.resolver_match.url_name == 'profile' %} active{% endif %}" aria-label="Profile" title="Profile">
+                {% if user.avatar %}
+                <img src="{{ user.avatar.url }}" alt="" class="desktop-utility-avatar">
+                {% else %}
+                <span class="desktop-utility-initial">{{ user.get_initials }}</span>
+                {% endif %}
+            </a>
+        </div>
+    </div>
+</header>

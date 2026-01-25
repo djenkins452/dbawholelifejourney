@@ -41,6 +41,7 @@ urlpatterns = [
     # Preferences
     path("preferences/", views.PreferencesView.as_view(), name="preferences"),
     path("preferences/theme/", views.ThemeSelectionView.as_view(), name="theme_selection"),
+    path("preferences/toggle/", views.PreferenceToggleView.as_view(), name="preference_toggle"),
 
     # Terms acceptance
     path("accept-terms/", views.AcceptTermsView.as_view(), name="accept_terms"),

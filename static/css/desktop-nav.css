@@ -1,0 +1,338 @@
+/* ==========================================================================
+   Desktop Left Rail Navigation
+   Only applies to screens >= 769px (desktop)
+   Mobile navigation is untouched
+   ========================================================================== */
+
+/* Hide desktop nav components on mobile/tablet */
+.desktop-left-rail,
+.desktop-top-bar {
+    display: none;
+}
+
+/* Desktop-only styles */
+@media (min-width: 769px) {
+    /* ==========================================================================
+       Layout Structure
+       ========================================================================== */
+
+    /* Body class when desktop layout is active */
+    body.has-desktop-nav {
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh;
+    }
+
+    body.has-desktop-nav .desktop-top-bar {
+        display: block;
+    }
+
+    body.has-desktop-nav .desktop-left-rail {
+        display: flex;
+    }
+
+    /* Hide mobile nav components on desktop when using new nav */
+    body.has-desktop-nav .site-header {
+        display: none;
+    }
+
+    body.has-desktop-nav .bottom-tab-bar {
+        display: none;
+    }
+
+    body.has-desktop-nav .top-utility-icons {
+        display: none;
+    }
+
+    /* Main content area - flex container */
+    body.has-desktop-nav .desktop-layout-wrapper {
+        display: flex;
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    /* Main area (contains messages, content, footer) - scrollable */
+    body.has-desktop-nav .desktop-main-area {
+        flex: 1;
+        min-width: 0;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+    }
+
+    body.has-desktop-nav .main-content {
+        flex: 1;
+        padding-bottom: 0; /* Remove mobile bottom padding */
+    }
+
+    /* Footer inside the scrollable main area */
+    body.has-desktop-nav .site-footer {
+        flex-shrink: 0;
+    }
+
+    /* ==========================================================================
+       Desktop Top Bar
+       ========================================================================== */
+
+    .desktop-top-bar {
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        background: var(--color-background);
+        border-bottom: 1px solid var(--color-border);
+        height: 56px;
+    }
+
+    .desktop-top-bar-inner {
+        display: flex;
+        align-items: center;
+        height: 100%;
+        padding: 0 var(--space-4);
+        max-width: none;
+    }
+
+    .desktop-logo {
+        flex-shrink: 0;
+    }
+
+    .desktop-logo-img {
+        height: 36px;
+        width: auto;
+    }
+
+    .desktop-top-bar-spacer {
+        flex: 1;
+    }
+
+    /* Utility icons container */
+    .desktop-utility-icons {
+        display: flex;
+        align-items: center;
+        gap: var(--space-1);
+    }
+
+    .desktop-utility-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        border-radius: var(--radius-md);
+        color: var(--color-text-muted);
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        position: relative;
+        transition: all var(--transition-fast);
+        text-decoration: none;
+    }
+
+    .desktop-utility-icon:hover {
+        background: var(--color-surface);
+        color: var(--color-text);
+    }
+
+    .desktop-utility-icon.active {
+        color: var(--color-accent);
+        background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+    }
+
+    .desktop-utility-icon svg {
+        width: 20px;
+        height: 20px;
+    }
+
+    .desktop-utility-badge {
+        position: absolute;
+        top: 4px;
+        right: 4px;
+        min-width: 16px;
+        height: 16px;
+        padding: 0 4px;
+        font-size: 10px;
+        font-weight: 600;
+        line-height: 16px;
+        text-align: center;
+        color: white;
+        background: var(--color-error, #ef4444);
+        border-radius: 8px;
+    }
+
+    .desktop-utility-avatar {
+        width: 28px;
+        height: 28px;
+        border-radius: var(--radius-full);
+        object-fit: cover;
+    }
+
+    .desktop-utility-initial {
+        width: 28px;
+        height: 28px;
+        border-radius: var(--radius-full);
+        background: var(--color-accent);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        font-weight: 600;
+    }
+
+    /* ==========================================================================
+       Desktop Left Rail
+       ========================================================================== */
+
+    .desktop-left-rail {
+        flex-direction: column;
+        width: 200px;
+        min-width: 200px;
+        background: var(--color-surface);
+        border-right: 1px solid var(--color-border);
+        padding: var(--space-3) var(--space-2);
+        gap: var(--space-1);
+        overflow-y: auto;
+        overflow-x: hidden;
+        transition: width 0.2s ease, min-width 0.2s ease;
+    }
+
+    /* Collapsed state */
+    .desktop-left-rail.collapsed {
+        width: 56px;
+        min-width: 56px;
+    }
+
+    /* Rail items */
+    .rail-item {
+        display: flex;
+        align-items: center;
+        gap: var(--space-3);
+        padding: var(--space-2) var(--space-3);
+        border-radius: var(--radius-md);
+        color: var(--color-text-muted);
+        text-decoration: none;
+        transition: all var(--transition-fast);
+        white-space: nowrap;
+        overflow: hidden;
+    }
+
+    .rail-item:hover {
+        background: var(--color-background);
+        color: var(--color-text);
+        text-decoration: none;
+    }
+
+    .rail-item.active {
+        background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+        color: var(--color-accent);
+    }
+
+    .rail-icon {
+        width: 20px;
+        height: 20px;
+        flex-shrink: 0;
+    }
+
+    .rail-label {
+        font-size: var(--font-size-sm);
+        font-weight: 500;
+        opacity: 1;
+        transition: opacity 0.15s ease;
+    }
+
+    /* Collapsed: hide labels */
+    .desktop-left-rail.collapsed .rail-label {
+        opacity: 0;
+        width: 0;
+        overflow: hidden;
+    }
+
+    /* Collapsed: center icons */
+    .desktop-left-rail.collapsed .rail-item {
+        justify-content: center;
+        padding: var(--space-2);
+    }
+
+    /* Divider */
+    .rail-divider {
+        height: 1px;
+        background: var(--color-border);
+        margin: var(--space-2) var(--space-2);
+    }
+
+    /* Collapse toggle button */
+    .rail-collapse-toggle {
+        display: flex;
+        align-items: center;
+        gap: var(--space-3);
+        padding: var(--space-2) var(--space-3);
+        border-radius: var(--radius-md);
+        color: var(--color-text-muted);
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        transition: all var(--transition-fast);
+        white-space: nowrap;
+        overflow: hidden;
+        margin-top: auto;
+        width: 100%;
+        text-align: left;
+    }
+
+    .rail-collapse-toggle:hover {
+        background: var(--color-background);
+        color: var(--color-text);
+    }
+
+    /* Toggle icons */
+    .rail-icon-expand {
+        display: none;
+    }
+
+    .desktop-left-rail.collapsed .rail-icon-collapse {
+        display: none;
+    }
+
+    .desktop-left-rail.collapsed .rail-icon-expand {
+        display: block;
+    }
+
+    .desktop-left-rail.collapsed .rail-collapse-toggle {
+        justify-content: center;
+        padding: var(--space-2);
+    }
+
+    /* ==========================================================================
+       Tooltips (collapsed state only)
+       ========================================================================== */
+
+    .desktop-left-rail.collapsed .rail-item,
+    .desktop-left-rail.collapsed .rail-collapse-toggle {
+        position: relative;
+    }
+
+    .desktop-left-rail.collapsed .rail-item::after,
+    .desktop-left-rail.collapsed .rail-collapse-toggle::after {
+        content: attr(data-tooltip);
+        position: absolute;
+        left: calc(100% + 8px);
+        top: 50%;
+        transform: translateY(-50%);
+        padding: var(--space-1) var(--space-2);
+        background: var(--color-text);
+        color: var(--color-background);
+        font-size: var(--font-size-xs);
+        font-weight: 500;
+        border-radius: var(--radius-sm);
+        white-space: nowrap;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.15s ease;
+        z-index: 1000;
+    }
+
+    .desktop-left-rail.collapsed .rail-item:hover::after,
+    .desktop-left-rail.collapsed .rail-collapse-toggle:hover::after {
+        opacity: 1;
+    }
+}

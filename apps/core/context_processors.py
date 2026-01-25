@@ -95,6 +95,7 @@ def theme_context(request):
             context['accent_color'] = prefs.accent_color if prefs.accent_color else None
             # Navigation behavior
             context['hide_nav_on_scroll'] = prefs.hide_nav_on_scroll
+            context['desktop_nav_collapsed'] = prefs.desktop_nav_collapsed
             # Module toggles
             context['journal_enabled'] = prefs.journal_enabled
             context['faith_enabled'] = prefs.faith_enabled
@@ -228,19 +229,24 @@ def favorites_context(request):
 
 def navigation_modules_context(request):
     """
-    Add navigation module data to template context for mobile bottom nav.
+    Add navigation module data to template context for mobile bottom nav and desktop left rail.
 
     Provides:
-    - nav_modules: List of module dicts for bottom nav (up to 4 enabled modules)
+    - nav_modules: List of module dicts for mobile bottom nav (up to 4 enabled modules)
+    - desktop_rail_modules: List of module dicts for desktop left rail (up to 8 enabled modules)
     - all_user_modules: All user module preferences (for More screen)
-    - overflow_modules: Enabled modules beyond the first 4 (for More screen)
+    - overflow_modules: Enabled modules beyond the first 4 (for mobile More screen)
+    - desktop_overflow_modules: Enabled modules beyond the first 8 (for desktop More screen)
 
-    The bottom nav shows: Home + first 4 enabled modules + More
+    Mobile bottom nav shows: Home + first 4 enabled modules + More
+    Desktop left rail shows: Home + first 8 enabled modules + More
     """
     context = {
         'nav_modules': [],
+        'desktop_rail_modules': [],
         'all_user_modules': [],
         'overflow_modules': [],
+        'desktop_overflow_modules': [],
     }
 
     if not request.user.is_authenticated:
@@ -279,12 +285,20 @@ def navigation_modules_context(request):
 
         context['all_user_modules'] = all_modules
 
-        # Get first 4 enabled modules for bottom nav
+        # Get enabled modules for navigation
         enabled_modules = [m for m in all_modules if m['is_enabled']]
+
+        # Mobile bottom nav: first 4 enabled modules
         context['nav_modules'] = enabled_modules[:4]
 
-        # Overflow = enabled modules beyond the first 4
+        # Desktop left rail: first 8 enabled modules
+        context['desktop_rail_modules'] = enabled_modules[:8]
+
+        # Overflow = enabled modules beyond the first 4 (mobile More screen)
         context['overflow_modules'] = enabled_modules[4:] if len(enabled_modules) > 4 else []
+
+        # Desktop overflow = enabled modules beyond the first 8 (desktop More screen)
+        context['desktop_overflow_modules'] = enabled_modules[8:] if len(enabled_modules) > 8 else []
 
     except Exception:
         # If tables don't exist yet (pre-migration), use fallback

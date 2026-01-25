@@ -32,6 +32,53 @@
 // Navigation
 // ==========================================================================
 
+// Desktop Left Rail collapse/expand toggle
+function toggleDesktopRail() {
+    var rail = document.getElementById('desktop-left-rail');
+    if (!rail) return;
+
+    var isCollapsed = rail.classList.toggle('collapsed');
+
+    // Update tooltip on toggle button
+    var toggleBtn = rail.querySelector('.rail-collapse-toggle');
+    if (toggleBtn) {
+        toggleBtn.setAttribute('data-tooltip', isCollapsed ? 'Expand' : 'Collapse');
+        var label = toggleBtn.querySelector('.rail-label');
+        if (label) {
+            label.textContent = isCollapsed ? 'Expand' : 'Collapse';
+        }
+    }
+
+    // Persist preference via AJAX
+    fetch('/users/preferences/toggle/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': getCSRFToken()
+        },
+        body: 'field=desktop_nav_collapsed&value=' + (isCollapsed ? 'true' : 'false')
+    }).catch(function(err) {
+        console.warn('Failed to save rail preference:', err);
+    });
+}
+
+// Get CSRF token from cookie
+function getCSRFToken() {
+    var name = 'csrftoken';
+    var cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        var cookies = document.cookie.split(';');
+        for (var i = 0; i < cookies.length; i++) {
+            var cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
 function toggleMobileMenu() {
     const menu = document.getElementById('nav-menu');
     const button = document.querySelector('.nav-mobile-toggle');

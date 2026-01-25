@@ -16,7 +16,44 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-25 Changes
 
-<<<<<<< HEAD
+### Feature: Desktop Left Rail Navigation
+
+**Summary:** Implemented a modern desktop navigation system with a collapsible left rail, replacing the horizontal dropdown menu system on desktop viewports (>=769px). Mobile navigation remains completely unchanged.
+
+**Architecture:**
+- Desktop: Left rail + minimal top bar (like Notion/Slack/Asana)
+- Mobile: Unchanged bottom tabs + hamburger menu
+
+**Changes:**
+1. **Desktop Left Rail:** New vertical navigation showing Home + 8 modules + More
+2. **Desktop Top Bar:** Minimal header with logo and utility icons (Favorites, Chat, Notifications, Profile)
+3. **Collapse/Expand:** Rail collapses to icons-only mode with tooltips, persisted via user preference
+4. **Module Library:** Desktop More page shows all modules as searchable tile grid
+5. **Responsive:** All desktop styles scoped to `@media (min-width: 769px)`, mobile completely untouched
+
+**Files Created:**
+- `templates/components/desktop_left_rail.html` - Left rail navigation partial
+- `templates/components/desktop_top_bar.html` - Desktop top bar with utility icons
+- `static/css/desktop-nav.css` - Desktop-specific navigation styles
+- `apps/users/migrations/0050_add_desktop_nav_collapsed.py` - Collapse preference migration
+
+**Files Modified:**
+- `templates/base.html` - Added desktop layout structure with wrapper divs
+- `templates/core/more.html` - Added Module Library view for desktop with search
+- `apps/users/models.py` - Added `desktop_nav_collapsed` preference field
+- `apps/users/views.py` - Added `PreferenceToggleView` for AJAX preference updates
+- `apps/users/urls.py` - Added `/preferences/toggle/` endpoint
+- `apps/core/context_processors.py` - Added `desktop_nav_collapsed` and `desktop_rail_modules` (top 8)
+- `static/js/main.js` - Added `toggleDesktopRail()` function with AJAX persistence
+
+**Design Philosophy:**
+- Left rail = "my life modules" (personal operating system feel)
+- Collapsed rail = focus mode (icons only)
+- No hamburger menus, no cascading word menus on desktop
+- 2-click max to reach any module
+
+---
+
 ### Feature: Hide Navigation on Scroll Option
 
 **Summary:** Added user preference to hide mobile navigation bars (bottom tab bar and top header) when scrolling down, and show them again when scrolling up.
@@ -85,18 +122,6 @@ For active development context, see `CLAUDE.md` (project root).
 - `templates/components/navigation.html` - Include top_utility_icons.html
 - `templates/components/chat_widget.html` - Repositioned chat button above bottom bar
 - `static/css/main.css` - Bottom tab bar and utility icon styles, hide old hamburger menu
-
----
-
-### Fix: Task List Help Showing Generic Admin Console Help
-
-**Issue:** The Task List page in Admin Console was showing generic "Admin Console Overview" help instead of Task List-specific help. The `ADMIN_CONSOLE_TASKS` help topic only existed in `AdminHelpTopic` model, but the help system queries the `HelpTopic` model.
-
-**Fix:** Added one-time data loader `_add_task_list_help_topic` that creates the `ADMIN_CONSOLE_TASKS` entry in the `HelpTopic` model. Also added the entry to `help_topics.json` fixture for future deployments.
-
-**Files Modified:**
-- `apps/core/management/commands/load_initial_data.py` - Added `_add_task_list_help_topic()` method
-- `apps/help/fixtures/help_topics.json` - Added ADMIN_CONSOLE_TASKS help topic (pk 24)
 
 ---
 

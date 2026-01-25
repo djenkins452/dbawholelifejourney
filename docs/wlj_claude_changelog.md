@@ -16,123 +16,16 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-25 Changes
 
-### Performance: Cache Navigation and Favorites Context Processors
+### iOS: Increased API Timeout for Health Data Syncs
 
-**Summary:** Added caching to context processors to reduce database queries per page load. Before this change, every page load was making 5+ database queries just for navigation and favorites data that rarely changes.
-
-**Changes:**
-- Added 5-minute cache to `navigation_modules_context` for user module preferences
-- Added 60-second cache to `favorites_context` for favorites and most-used data
-- Added path exclusions for API/static/admin routes (no need for nav data on these)
-- Changed `count()` to `exists()` for initialization check (more efficient)
-- Added `invalidate_navigation_cache()` and `invalidate_favorites_cache()` helper functions
-- Added cache invalidation when user saves module order in `ModuleOrderView`
-- Added cache invalidation when user toggles favorites in `FavoriteToggleView`
-
-**Files Modified:**
-- `apps/core/context_processors.py` - Added caching and invalidation helpers
-- `apps/users/views.py` - Added cache invalidation on module order save
-- `apps/core/views.py` - Added cache invalidation on favorite toggle
-
----
-
-### Fix: Utility Icons Contrast on Themed Headers
-
-**Summary:** Utility icons (star, ?, chat, bell, profile) were barely visible on themes with dark colored headers (Nature, Faith, Sports, Outdoors). Icons were using `--color-text-muted` which doesn't contrast against colored header backgrounds.
+**Summary:** Increased iOS API client timeouts to handle large CGM data volumes (~2000+ readings/week).
 
 **Changes:**
-- Added theme-specific CSS rules to make utility icons white/light on dark-header themes
-- Applied to both mobile (`.utility-icon`) and desktop (`.desktop-utility-icon`)
-- Also fixed desktop logo text color and top bar background for each theme
-- Added Dark theme utility icon styling for consistency
+- Request timeout: 30s → 120s (2 minutes)
+- Resource timeout: 60s → 300s (5 minutes)
 
 **Files Modified:**
-- `static/css/themes.css` - Added utility icon color overrides for Faith, Sports, Nature, Outdoors, and Dark themes
-
----
-
-### Add Context-Aware Help Icon to Top Utility Bar
-
-**Summary:** Added the ? help icon to both mobile and desktop utility bars, and improved help search with synonym expansion.
-
-**Changes:**
-- Added help icon to `desktop_top_bar.html` (was missing on desktop)
-- Added help icon to `top_utility_icons.html` (mobile)
-- Updated `help.js` to accept click event for context (avoids duplicate IDs)
-- Added synonym expansion to help search (e.g., "account" also searches "settings", "preferences")
-- Improved keywords for Preferences article to include "account", "update", etc.
-
-**Files Modified:**
-- `templates/components/desktop_top_bar.html` - Added help button
-- `templates/components/top_utility_icons.html` - Added help button
-- `templates/components/navigation.html` - Removed duplicate ID
-- `static/js/help.js` - Accept event parameter for context
-- `apps/help/services.py` - Added `SEARCH_SYNONYMS` and `_expand_query_with_synonyms()`
-- `apps/help/fixtures/help_articles.json` - Expanded Preferences keywords
-
----
-
-### Fix: iOS App Memory Crash from Background Sync Loop
-
-**Summary:** The iOS app was crashing due to memory exhaustion. HealthKit observer queries were firing immediately on creation for all 24 health types, each calling `scheduleBackgroundSync()`, creating a runaway loop.
-
-**Changes:**
-- Added throttle (1 minute minimum between schedules) to prevent rapid-fire scheduling
-
-**Files Modified:**
-- `ios/WLJWrapper/WLJWrapper/Services/BackgroundSyncManager.swift` - Added `lastScheduleTime` and throttle check
-
----
-
-### Fix: Simplify /more/ Page to Fix 500 Error
-
-**Summary:** The /more/ page was returning 500 errors due to complex context processor dependencies. Simplified the page to fetch module data directly in the view with proper error handling.
-
-**Changes:**
-- `MoreView` now fetches enabled modules directly with its own `get_context_data()`
-- Simplified template removes complex desktop/mobile switching logic
-- URL resolution uses hardcoded fallback routes to avoid database issues
-- Shows enabled modules as tiles + quick links (Profile, Preferences, Help, Sign Out)
-- Staff users see Admin Console link
-
-**Files Modified:**
-- `apps/core/views.py` - Added `get_context_data()` to MoreView
-- `templates/core/more.html` - Simplified template with direct module iteration
-
----
-
-### Fix: Module Navigation - Pre-resolve URLs in Context Processor
-
-**Summary:** Templates using `{% url module.route_name %}` would crash if the database had un-namespaced route_name values. Fixed by pre-resolving URLs in the context processor with graceful fallback.
-
-**Changes:**
-- Context processor now resolves URLs with try/except handling for bad data
-- Templates use `{{ module.url }}` instead of `{% url module.route_name %}`
-- Falls back to slug-based URLs (`/<slug>/`) if reverse lookup fails
-
-**Files Modified:**
-- `apps/core/context_processors.py` - Added URL pre-resolution with fallback
-- `templates/components/bottom_tab_bar.html` - Use `{{ module.url }}`
-- `templates/components/desktop_left_rail.html` - Use `{{ module.url }}`
-- `templates/core/more.html` - Use `{{ module.url }}`
-
----
-
-### Fix: /more/ Page 500 Error - Module Route Names
-
-**Summary:** The `/more/` page was returning 500 errors due to `NoReverseMatch: Reverse for 'home' not found`. This was caused by `ModuleDefinition` records having incorrect `route_name` values (just `'home'` instead of properly namespaced `'journal:home'`, `'health:home'`, etc.).
-
-**Root Cause:**
-- Module definitions in production database had un-namespaced route names
-- The `module_definitions.json` fixture was also causing UNIQUE constraint errors because migration 0051 already populated the data
-
-**Fix:**
-- Added migration 0052 to force-update all module route_names to the correct namespaced values
-- Removed `module_definitions` from fixture loaders since migration handles this data
-
-**Files Modified:**
-- `apps/users/migrations/0052_fix_module_route_names.py` - New migration to fix route_name values
-- `apps/core/management/commands/load_initial_data.py` - Removed module_definitions from FIXTURE_LOADERS
+- `ios/WLJWrapper/WLJWrapper/Services/APIClient.swift`
 
 ---
 
@@ -225,36 +118,39 @@ For active development context, see `CLAUDE.md` (project root).
 
 ### Fix: Navigation Order Module List Not Displaying
 
-**Summary:** The "Navigation Order" section in Preferences showed the description text but no draggable module list. This was caused by empty `ModuleDefinition` records in production.
+**Summary:** The "Navigation Order" section in Preferences showed the description text but no draggable module list. This was caused by empty `ModuleDefinition` records in production - the fixture was registered in `load_initial_data.py` but was likely skipped due to a DataLoadConfig tracking issue.
+
+**Root Cause:** The `module_definitions` fixture was added in the same commit that registered it in `FIXTURE_LOADERS`, but if the `DataLoadConfig` record was created (marking it as "loaded") before the fixture file was actually present, the fixture data would never populate.
+
+**Fix:** Added a data migration that uses `update_or_create` to ensure all 7 ModuleDefinition records exist, regardless of the DataLoadConfig state.
 
 **Files Modified:**
 - `apps/users/migrations/0051_populate_module_definitions.py` - New data migration
 
 ---
 
-### Enhancement: Colored Module Icons + Admin in Left Rail
+### Feature: Medicine Time-of-Day Grouping with Bulk Actions
 
-**Summary:** Added colorful module icons to the desktop left rail navigation and More page, plus added Admin Console link to left rail for staff users.
+**Summary:** Added ability to group medicine doses by time period (Morning, Mid-Morning, Lunch, Afternoon, Evening, Nightly) with bulk "Take All" and "Skip All" actions for each group.
 
 **Changes:**
-1. **Module-specific colors:** Each module now has a distinct icon color (Journal=blue, Health=red, Faith=purple, etc.)
-2. **Admin Console in rail:** Staff users now see Admin Console link at bottom of left rail (orange icon)
-3. **More page colors:** Module tiles on More page now have matching colored icons
+1. **Model:** Added `time_of_day` field to `MedicineSchedule` with auto-assignment based on scheduled time
+2. **Views:** Updated `MedicineHomeView` to group schedules by time_of_day; Added `MedicineBulkTakeView` and `MedicineBulkSkipView` for bulk actions
+3. **Templates:** Redesigned medicine home page with grouped cards showing bulk action buttons for each time period
+4. **Forms:** Updated `MedicineScheduleForm` to include time_of_day field selection
+5. **URLs:** Added routes for `medicine/bulk-take/<time_of_day>/` and `medicine/bulk-skip/<time_of_day>/`
 
 **Files Modified:**
-- `templates/components/desktop_left_rail.html` - Added `data-module` attributes for color targeting, added Admin link for staff
-- `templates/core/more.html` - Added `data-module` attributes and module color CSS
-- `static/css/desktop-nav.css` - Added module icon color rules
+- `apps/health/models.py` - Added TIME_OF_DAY_CHOICES, time_of_day field, and auto-assignment in save()
+- `apps/health/views.py` - Added grouped_schedules context, MedicineBulkTakeView, MedicineBulkSkipView
+- `apps/health/forms.py` - Added time_of_day field to MedicineScheduleForm
+- `apps/health/urls.py` - Added bulk-take and bulk-skip URL routes
+- `templates/health/medicine/home.html` - Added time-group UI with bulk action buttons
+- `templates/health/medicine/medicine_schedules.html` - Added time_of_day field to schedule form
 
-**Color Palette:**
-- Journal: #3b82f6 (blue)
-- Health: #ef4444 (red)
-- Faith: #8b5cf6 (purple)
-- Organize/Life: #f59e0b (amber)
-- Purpose: #14b8a6 (teal)
-- Finance: #22c55e (green)
-- Capture: #ec4899 (pink)
-- Admin: #f97316 (orange)
+**Migrations:**
+- `0038_add_time_of_day_to_medicine_schedule.py` - Adds time_of_day field
+- `0039_populate_time_of_day.py` - Populates existing schedules based on scheduled_time
 
 ---
 

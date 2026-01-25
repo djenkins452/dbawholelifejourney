@@ -1239,5 +1239,56 @@
             "created_at": "2026-01-25T00:00:00Z",
             "updated_at": "2026-01-25T00:00:00Z"
         }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 74,
+        "fields": {
+            "destination_id": "profile",
+            "name": "Profile",
+            "path_description": "User - Profile",
+            "explanation": "View and edit your profile information, including name, email, and avatar. You can also delete your account from this page.",
+            "url": "/user/profile/",
+            "keywords": "profile, my profile, account, edit profile, change name, change email, user profile, personal info, delete account, remove account, close account",
+            "module": "users",
+            "sort_order": 74,
+            "is_active": true,
+            "created_at": "2026-01-25T00:00:00Z",
+            "updated_at": "2026-01-25T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 75,
+        "fields": {
+            "destination_id": "delete-account",
+            "name": "Delete Account",
+            "path_description": "Settings - Profile - Delete Account",
+            "explanation": "Permanently delete your Whole Life Journey account and all associated data. You can export your data first before deletion. This action cannot be undone.",
+            "url": "/user/delete-account/",
+            "keywords": "delete account, remove account, close account, cancel account, deactivate account, delete my account, permanently delete, account deletion, erase account, terminate account, leave, quit",
+            "module": "users",
+            "sort_order": 75,
+            "is_active": true,
+            "created_at": "2026-01-25T00:00:00Z",
+            "updated_at": "2026-01-25T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 76,
+        "fields": {
+            "destination_id": "data-export",
+            "name": "Export Your Data",
+            "path_description": "Settings - Export Data",
+            "explanation": "Download a complete copy of all your personal data (journal entries, health records, goals, etc.) in JSON or CSV format.",
+            "url": "/user/data-export/",
+            "keywords": "data export, download data, export data, gdpr, my data, download my information, backup data, data portability",
+            "module": "users",
+            "sort_order": 76,
+            "is_active": true,
+            "created_at": "2026-01-25T00:00:00Z",
+            "updated_at": "2026-01-25T00:00:00Z"
+        }
     }
 ]

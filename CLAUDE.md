@@ -262,6 +262,7 @@ After ANY code changes:
    - Include migration names if created
 
 2. **Merge and Deploy:**
+   - **Push worktree branch first:** `GIT_SSH_COMMAND="ssh -p 443" git push git@ssh.github.com:djenkins452/dbawholelifejourney.git <branch>:<branch>`
    - Go to main repo: `cd /Users/dannyjenkins/Projects/dbawholelifejourney`
    - Fetch worktree branch: `GIT_SSH_COMMAND="ssh -p 443" git fetch git@ssh.github.com:djenkins452/dbawholelifejourney.git <branch>:refs/remotes/origin/<branch>`
    - Checkout main and merge: `git checkout main && git merge origin/<branch> --no-edit`

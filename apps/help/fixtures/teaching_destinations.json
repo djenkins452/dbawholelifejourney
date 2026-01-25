@@ -1264,11 +1264,28 @@
             "destination_id": "data-export",
             "name": "Export Your Data",
             "path_description": "Settings - Export Data",
-            "explanation": "Download a complete copy of all your personal data (journal entries, health records, goals, etc.) in JSON or CSV format. To delete your account, contact admin@wholelifejourney.com.",
+            "explanation": "Download a complete copy of all your personal data (journal entries, health records, goals, etc.) in JSON format.",
             "url": "/user/data-export/",
-            "keywords": "data export, download data, export data, gdpr, my data, delete account, remove account, close account, account deletion, download my information",
+            "keywords": "data export, download data, export data, gdpr, my data, download my information, data portability",
             "module": "users",
             "sort_order": 75,
+            "is_active": true,
+            "created_at": "2026-01-25T00:00:00Z",
+            "updated_at": "2026-01-25T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 76,
+        "fields": {
+            "destination_id": "delete-account",
+            "name": "Delete Account",
+            "path_description": "Profile - Delete Account",
+            "explanation": "Permanently delete your account and all associated data. You can export your data first. This action cannot be undone.",
+            "url": "/user/delete-account/",
+            "keywords": "delete account, remove account, close account, account deletion, deactivate, cancel account, erase data, gdpr right to erasure, forget me",
+            "module": "users",
+            "sort_order": 76,
             "is_active": true,
             "created_at": "2026-01-25T00:00:00Z",
             "updated_at": "2026-01-25T00:00:00Z"

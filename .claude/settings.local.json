@@ -328,7 +328,8 @@
       "Bash(consult a qualified healthcare professional for medical decisions.\"\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(export YOUVERSION_API_KEY=\"ULShH2Frxm5FKOLSJCpzd7vy6YX3NjZexn79S14W7LUK9jCJ\")",
       "Bash(git commit -m \"$\\(cat <<''EOF''\nReorganize Health module into Physical Health & Cognitive Health\n\n- Add new Health landing page at /health/ with tiles for Physical and Cognitive Health\n- Move all existing health features to /health/physical/\n- Add 301 permanent redirects for backwards compatibility\n- Update teaching destinations and module definitions fixtures\n- Add breadcrumb navigation to Physical Health home\n- All 706 health tests pass\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
-      "Bash(git commit -m \"$\\(cat <<''EOF''\nFix Brain Training challenge generation on empty database\n\nGames weren''t loading when no pre-generated challenges existed.\nAdded on-demand challenge generation in api_batch view.\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nFix Brain Training challenge generation on empty database\n\nGames weren''t loading when no pre-generated challenges existed.\nAdded on-demand challenge generation in api_batch view.\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd Blind Spots Week 3 reading plan - Self-Centeredness\n\n- 6-day devotional based on SHCC sermon \\(Jan 25, 2026\\)\n- Interactive self-centeredness assessment quiz on Day 1\n- G-R-E-A-T acrostic for pursuing true greatness\n- Mark 10:35-45 focus on Jesus as model of servant leadership\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
     ]
   }
 }

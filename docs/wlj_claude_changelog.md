@@ -16,9 +16,24 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-26 Changes
 
+### Reading Plans Tile on Faith Home Page
+
+**Summary:** Added Reading Plans tile to Faith home page for easy access.
+
+**Changes:**
+- Added tile showing active reading plan with progress bar if user has one in progress
+- Shows "Start a reading plan" prompt if no active plan
+- View now passes `active_reading_plan` to template context
+
+**Files Modified:**
+- `templates/faith/home.html` - Added Reading Plans tile with progress display
+- `apps/faith/views.py` - Added active_reading_plan query to FaithHomeView
+
+---
+
 ### Blind Spots Week 3 Reading Plan - Self-Centeredness
 
-**Summary:** Added Week 3 of the SHCC Blind Spots series focusing on self-centeredness as a blind spot.
+**Summary:** Added Week 3 of the SHCC Blind Spots series focusing on self-centeredness as a blind spot (January 25, 2026 sermon).
 
 **Content:**
 - 6-day reading plan based on January 25, 2026 sermon

@@ -13,6 +13,9 @@ This fixes an issue where 0007 used filter().update() which didn't create
 missing profiles.
 """
 
+import secrets
+import string
+
 from django.db import migrations
 
 
@@ -27,6 +30,24 @@ LIFETIME_MEMBERS = [
 ]
 
 
+def generate_referral_code(user, BillingProfile):
+    """Generate a unique referral code for a user."""
+    if user.first_name:
+        base = user.first_name.upper()[:6]
+    else:
+        base = user.email.split('@')[0].upper()[:6]
+
+    suffix = ''.join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(4))
+    code = f"{base}-{suffix}"
+
+    # Ensure uniqueness
+    while BillingProfile.objects.filter(referral_code=code).exists():
+        suffix = ''.join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(4))
+        code = f"{base}-{suffix}"
+
+    return code
+
+
 def ensure_billing_profiles_and_lifetime(apps, schema_editor):
     """
     1. Create BillingProfile for any user missing one
@@ -38,11 +59,14 @@ def ensure_billing_profiles_and_lifetime(apps, schema_editor):
     # First, ensure ALL users have a billing profile
     all_users = User.objects.all()
     for user in all_users:
-        profile, created = BillingProfile.objects.get_or_create(
-            user=user,
-            defaults={'subscription_status': 'canceled'}
-        )
-        if created:
+        if not BillingProfile.objects.filter(user=user).exists():
+            # Generate unique referral code
+            referral_code = generate_referral_code(user, BillingProfile)
+            BillingProfile.objects.create(
+                user=user,
+                subscription_status='canceled',
+                referral_code=referral_code,
+            )
             print(f"  Created missing BillingProfile for: {user.email}")
 
     # Then set lifetime status for owner/family

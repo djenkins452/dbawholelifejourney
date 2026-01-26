@@ -885,8 +885,8 @@ RECAPTCHA_V3_SITE_KEY = env('RECAPTCHA_V3_SITE_KEY', default='')
 RECAPTCHA_V3_SECRET_KEY = env('RECAPTCHA_V3_SECRET_KEY', default='')
 
 # Score threshold (0.0-1.0) - higher is more likely human
-# 0.5 is recommended default, adjust based on observed traffic
-RECAPTCHA_SCORE_THRESHOLD = float(env('RECAPTCHA_SCORE_THRESHOLD', default='0.5'))
+# 0.6 threshold to reduce bot signups (raised from 0.5 on 2026-01-26)
+RECAPTCHA_SCORE_THRESHOLD = float(env('RECAPTCHA_SCORE_THRESHOLD', default='0.6'))
 
 
 # ==============================================================================

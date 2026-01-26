@@ -1,0 +1,394 @@
+[
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "tempmail.com",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "temp-mail.org",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "guerrillamail.com",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "guerrillamail.org",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "guerrillamailblock.com",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "10minutemail.com",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "10minutemail.net",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "mailinator.com",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "maildrop.cc",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "fakeinbox.com",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "throwaway.email",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "dispostable.com",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "sharklasers.com",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "trashmail.com",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "trashmail.net",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "yopmail.com",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "yopmail.fr",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "getnada.com",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "mohmal.com",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "tempail.com",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "tempr.email",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "discard.email",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "disposableemailaddresses.com",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "emailondeck.com",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "spamgourmet.com",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "mytemp.email",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "inboxalias.com",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "jetable.org",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "fakemailgenerator.com",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "burnermail.io",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "mailnesia.com",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "crazymailing.com",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "tmpmail.org",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "tmpmail.net",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "spambox.us",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "harakirimail.com",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "mailcatch.com",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "mailexpire.com",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "mailforspam.com",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "mailnator.com",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "mailsac.com",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "moakt.com",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "nada.email",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "spamspot.com",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "tempinbox.com",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "tempmailaddress.com",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "wegwerfmail.de",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "wegwerfmail.net",
+            "source": "seed",
+            "confirmed": true
+        }
+    },
+    {
+        "model": "users.disposableemaildomain",
+        "fields": {
+            "domain": "rambler.ru",
+            "source": "manual",
+            "confirmed": true
+        }
+    }
+]

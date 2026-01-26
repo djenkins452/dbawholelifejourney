@@ -1599,6 +1599,82 @@ class DisposableEmailDomain(models.Model):
         return cls.objects.filter(domain=domain, confirmed=True).exists()
 
 
+class AllowedInternationalEmail(models.Model):
+    """
+    Whitelist for international email addresses allowed to sign up.
+
+    By default, signups are geo-blocked to USA-only. This model allows
+    specific email addresses from international locations to bypass the
+    geo-block. Use this to whitelist friends, family, or known contacts
+    before they attempt to sign up.
+    """
+
+    email = models.EmailField(
+        unique=True,
+        db_index=True,
+        help_text="Email address allowed to sign up from outside the USA",
+    )
+    name = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Friendly name for reference (e.g., 'Mom', 'Friend John')",
+    )
+    note = models.TextField(
+        blank=True,
+        help_text="Optional note about why this email was whitelisted",
+    )
+    added_at = models.DateTimeField(default=timezone.now)
+    added_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="international_email_whitelist",
+        help_text="Admin who added this whitelist entry",
+    )
+    used_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this email was used to sign up",
+    )
+
+    class Meta:
+        db_table = "users_allowed_international_email"
+        verbose_name = "Allowed international email"
+        verbose_name_plural = "Allowed international emails"
+        ordering = ["-added_at"]
+
+    def __str__(self):
+        if self.name:
+            return f"{self.email} ({self.name})"
+        return self.email
+
+    @classmethod
+    def is_allowed(cls, email: str) -> bool:
+        """
+        Check if an email address is whitelisted for international signup.
+
+        Args:
+            email: The email address to check
+
+        Returns:
+            True if the email is in the whitelist, False otherwise
+        """
+        if not email:
+            return False
+        return cls.objects.filter(email__iexact=email.strip()).exists()
+
+    @classmethod
+    def mark_used(cls, email: str):
+        """
+        Mark a whitelisted email as used (signup completed).
+
+        Args:
+            email: The email address that was used to sign up
+        """
+        cls.objects.filter(email__iexact=email.strip()).update(used_at=timezone.now())
+
+
 class ModuleDefinition(models.Model):
     """
     System-defined module registry for mobile navigation.

@@ -122,6 +122,12 @@ FIXTURE_LOADERS = [
         'description': 'Game catalog for Brain Training module',
         'app': 'brain_training',
     },
+    {
+        'name': 'disposable_email_domains',
+        'display': 'Disposable Email Domains',
+        'description': 'Blocklist of temporary/disposable email domains',
+        'app': 'users',
+    },
     # NOTE: module_definitions removed - now handled by migration 0052_fix_module_route_names
     # Loading via fixture causes UNIQUE constraint errors since migration already creates the data
 ]

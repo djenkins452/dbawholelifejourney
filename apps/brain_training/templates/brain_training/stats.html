@@ -1,0 +1,394 @@
+{% extends "base.html" %}
+{% load static %}
+{% load brain_tags %}
+
+{% block title %}Brain Training Stats - Whole Life Journey{% endblock %}
+
+{% block extra_css %}
+<style>
+    .stats-page {
+        padding: var(--space-4);
+        max-width: 900px;
+        margin: 0 auto;
+    }
+
+    .stats-header {
+        margin-bottom: var(--space-6);
+    }
+
+    .stats-title {
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: var(--color-text);
+        margin-bottom: var(--space-2);
+    }
+
+    .back-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: var(--color-text-muted);
+        text-decoration: none;
+        font-size: 0.875rem;
+        margin-bottom: var(--space-4);
+    }
+
+    .back-link:hover {
+        color: var(--color-text);
+    }
+
+    /* Overall stats card */
+    .overall-card {
+        background: linear-gradient(135deg, var(--color-accent), color-mix(in srgb, var(--color-accent) 80%, purple));
+        border-radius: var(--radius-lg);
+        padding: var(--space-6);
+        color: white;
+        margin-bottom: var(--space-6);
+    }
+
+    .overall-card h2 {
+        font-size: 1.1rem;
+        font-weight: 500;
+        opacity: 0.9;
+        margin-bottom: var(--space-4);
+    }
+
+    .overall-stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+        gap: var(--space-4);
+    }
+
+    .overall-stat {
+        text-align: center;
+    }
+
+    .overall-stat-value {
+        font-size: 2rem;
+        font-weight: 700;
+    }
+
+    .overall-stat-label {
+        font-size: 0.75rem;
+        opacity: 0.9;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    /* Game stats cards */
+    .game-stats-section {
+        margin-bottom: var(--space-6);
+    }
+
+    .section-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: var(--color-text);
+        margin-bottom: var(--space-4);
+    }
+
+    .game-stats-grid {
+        display: grid;
+        gap: var(--space-4);
+    }
+
+    .game-stat-card {
+        background: var(--color-surface);
+        border-radius: var(--radius-lg);
+        padding: var(--space-4);
+        border: 1px solid var(--color-border);
+    }
+
+    .game-stat-header {
+        display: flex;
+        align-items: center;
+        gap: var(--space-3);
+        margin-bottom: var(--space-4);
+    }
+
+    .game-stat-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: var(--radius-md);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .game-stat-icon svg {
+        width: 24px;
+        height: 24px;
+        color: white;
+    }
+
+    .game-stat-name {
+        font-weight: 600;
+        color: var(--color-text);
+    }
+
+    .game-stat-category {
+        font-size: 0.75rem;
+        color: var(--color-text-muted);
+        text-transform: uppercase;
+    }
+
+    .game-metrics {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: var(--space-3);
+        margin-bottom: var(--space-4);
+    }
+
+    .game-metric {
+        text-align: center;
+    }
+
+    .game-metric-value {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: var(--color-text);
+    }
+
+    .game-metric-label {
+        font-size: 0.7rem;
+        color: var(--color-text-muted);
+        text-transform: uppercase;
+    }
+
+    /* Improvement indicator */
+    .improvement-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: var(--radius-sm);
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .improvement-badge.improving {
+        background: color-mix(in srgb, #10b981 15%, transparent);
+        color: #10b981;
+    }
+
+    .improvement-badge.declining {
+        background: color-mix(in srgb, #ef4444 15%, transparent);
+        color: #ef4444;
+    }
+
+    .improvement-badge.stable {
+        background: var(--color-surface);
+        color: var(--color-text-muted);
+    }
+
+    /* No data state */
+    .no-data {
+        text-align: center;
+        padding: var(--space-6);
+        color: var(--color-text-muted);
+    }
+
+    .no-data-icon {
+        font-size: 3rem;
+        margin-bottom: var(--space-2);
+    }
+
+    .start-btn {
+        display: inline-block;
+        margin-top: var(--space-4);
+        padding: var(--space-3) var(--space-5);
+        background: var(--color-accent);
+        color: white;
+        text-decoration: none;
+        border-radius: var(--radius-md);
+        font-weight: 500;
+    }
+
+    /* Progress chart placeholder */
+    .progress-chart {
+        height: 100px;
+        background: var(--color-background);
+        border-radius: var(--radius-md);
+        display: flex;
+        align-items: flex-end;
+        padding: var(--space-2);
+        gap: 2px;
+    }
+
+    .chart-bar {
+        flex: 1;
+        background: color-mix(in srgb, var(--color-accent) 30%, transparent);
+        border-radius: 2px 2px 0 0;
+        min-height: 4px;
+        transition: height 0.3s;
+    }
+
+    .chart-bar:hover {
+        background: var(--color-accent);
+    }
+
+    @media (max-width: 480px) {
+        .game-metrics {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .overall-stats-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="stats-page">
+    <a href="{% url 'brain_training:hub' %}" class="back-link">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M15 18l-6-6 6-6"/>
+        </svg>
+        Back to Brain Training
+    </a>
+
+    <header class="stats-header">
+        <h1 class="stats-title">Your Progress</h1>
+    </header>
+
+    <!-- Overall stats -->
+    {% if overall %}
+    <div class="overall-card">
+        <h2>Overall Brain Training</h2>
+        <div class="overall-stats-grid">
+            <div class="overall-stat">
+                <div class="overall-stat-value">{{ overall.total_completed }}</div>
+                <div class="overall-stat-label">Completed</div>
+            </div>
+            <div class="overall-stat">
+                <div class="overall-stat-value">{{ overall.total_minutes_trained }}</div>
+                <div class="overall-stat-label">Minutes</div>
+            </div>
+            <div class="overall-stat">
+                <div class="overall-stat-value">{{ overall.current_streak }}</div>
+                <div class="overall-stat-label">Streak</div>
+            </div>
+            <div class="overall-stat">
+                <div class="overall-stat-value">{{ overall.longest_streak }}</div>
+                <div class="overall-stat-label">Best Streak</div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="overall-card">
+        <div class="no-data">
+            <div class="no-data-icon">🧠</div>
+            <p>Start training to see your progress!</p>
+            <a href="{% url 'brain_training:hub' %}" class="start-btn">Begin Training</a>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Per-game stats -->
+    <section class="game-stats-section">
+        <h2 class="section-title">By Game</h2>
+        <div class="game-stats-grid">
+            {% for item in game_stats %}
+            <div class="game-stat-card">
+                <div class="game-stat-header">
+                    <div class="game-stat-icon" style="background-color: {{ item.game.color_primary }}">
+                        {{ item.game.icon_svg|safe }}
+                    </div>
+                    <div>
+                        <div class="game-stat-name">{{ item.game.name }}</div>
+                        <div class="game-stat-category">{{ item.game.get_category_display }}</div>
+                    </div>
+                    {% if item.improvement %}
+                    <div class="improvement-badge {{ item.improvement.trend }}">
+                        {% if item.improvement.trend == 'improving' %}
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                            <path d="M7 17l5-5 5 5M7 7l5 5 5-5"/>
+                        </svg>
+                        +{{ item.improvement.score_improvement_pct }}%
+                        {% elif item.improvement.trend == 'declining' %}
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                            <path d="M7 7l5 5 5-5M7 17l5-5 5 5"/>
+                        </svg>
+                        {{ item.improvement.score_improvement_pct }}%
+                        {% else %}
+                        Stable
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+
+                {% if item.stats %}
+                <div class="game-metrics">
+                    <div class="game-metric">
+                        <div class="game-metric-value">{{ item.stats.total_completed }}</div>
+                        <div class="game-metric-label">Completed</div>
+                    </div>
+                    <div class="game-metric">
+                        <div class="game-metric-value">{{ item.stats.best_score }}</div>
+                        <div class="game-metric-label">Best Score</div>
+                    </div>
+                    <div class="game-metric">
+                        <div class="game-metric-value">{{ item.stats.current_streak }}</div>
+                        <div class="game-metric-label">Streak</div>
+                    </div>
+                </div>
+
+                <!-- Simple progress visualization -->
+                <div class="progress-chart" data-game="{{ item.game.slug }}">
+                    {% comment %}
+                    This would be populated by JS with actual daily data
+                    For now, show placeholder bars
+                    {% endcomment %}
+                </div>
+                {% else %}
+                <div class="no-data" style="padding: var(--space-4);">
+                    <p>No sessions yet</p>
+                    <a href="{% url 'brain_training:play' game_slug=item.game.slug %}" style="color: var(--color-accent); text-decoration: none;">
+                        Start playing →
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Load chart data for games with stats
+    document.querySelectorAll('.progress-chart').forEach(async (chart) => {
+        const gameSlug = chart.dataset.game;
+
+        try {
+            const response = await fetch(`/health/cognitive/api/stats/${gameSlug}/`);
+            const data = await response.json();
+
+            if (data.daily && data.daily.length > 0) {
+                // Find max score for scaling
+                const maxScore = Math.max(...data.daily.map(d => d.total_score || 1));
+
+                chart.innerHTML = '';
+                // Show last 14 days
+                const days = data.daily.slice(-14);
+                days.forEach(day => {
+                    const bar = document.createElement('div');
+                    bar.className = 'chart-bar';
+                    const height = (day.total_score / maxScore) * 100;
+                    bar.style.height = `${Math.max(height, 5)}%`;
+                    bar.title = `${day.date}: Score ${day.total_score}`;
+                    chart.appendChild(bar);
+                });
+            } else {
+                // No data - show empty state
+                chart.innerHTML = '<div style="width:100%;text-align:center;color:var(--color-text-muted);font-size:0.75rem;align-self:center;">No recent data</div>';
+            }
+        } catch (err) {
+            console.error('Failed to load chart data:', err);
+        }
+    });
+</script>
+{% endblock %}

@@ -14,6 +14,53 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+## 2026-01-26 Changes
+
+### Brain Training Module Implementation
+
+**Summary:** Added a complete Brain Training module with 5 logic-based brain games under Health > Cognitive Health.
+
+**Games Implemented:**
+1. **Sudoku** - Classic 9x9 number puzzle with 4 difficulty levels
+2. **KenKen** - Math-based logic puzzle with arithmetic operations in cages
+3. **Nonogram** - Picture logic puzzle revealing hidden images
+4. **Word Ladder** - Transform one word into another, one letter at a time
+5. **Memory Matrix** - Visual working memory challenge with pattern recall
+
+**Features:**
+- Mobile-first, premium, calm UI design
+- Prefetch queue for instant challenge loading (batch of 10, refill at 5)
+- Server-side solution verification (SHA-256 hashing)
+- Session tracking with time spent, mistakes, hints used
+- Statistics dashboard with 14-day rolling improvement tracking
+- AI-ready JSON summary endpoint for future coaching features
+- Requires active subscription or trial to access
+
+**Technical Implementation:**
+- Django app: `apps/brain_training/`
+- URL prefix: `/health/cognitive/`
+- Models: Game, Challenge, GameSession, DailyStats, UserGameStats, UserOverallStats, ChallengeQueue
+- APIs: batch fetch, session start/complete/update, stats overview, game stats, AI summary
+- Generator services for each game type with configurable difficulty
+- Template system with base game layout and individual game UIs
+- 31 passing tests covering generators and API endpoints
+
+**Files Created:**
+- `apps/brain_training/` - Complete app directory with models, views, services, templates, tests
+- `apps/brain_training/fixtures/games.json` - Initial game catalog fixture
+- `apps/brain_training/services/` - Puzzle generators (sudoku, kenken, nonogram, word_ladder, memory_matrix)
+- `apps/brain_training/templates/brain_training/` - Hub, stats, and game templates
+
+**Files Modified:**
+- `config/settings.py` - Added brain_training to INSTALLED_APPS
+- `config/urls.py` - Added route for /health/cognitive/
+- `apps/core/management/commands/load_initial_data.py` - Added games fixture loader
+
+**Migration Created:**
+- `apps/brain_training/migrations/0001_initial.py` - All brain training models
+
+---
+
 ## 2026-01-25 Changes
 
 ### Fix YouVersion Bible API Integration

@@ -137,6 +137,7 @@ INSTALLED_APPS = [
     'apps.billing',
     'apps.security',
     'apps.mobile',  # iOS/Android app integration
+    'apps.brain_training',  # Premium brain training module
     'assistant',
     'django_apscheduler',
     'djstripe',

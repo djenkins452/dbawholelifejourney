@@ -1,0 +1,367 @@
+{% extends "brain_training/games/base_game.html" %}
+
+{% block game_css %}
+<style>
+    .nonogram-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: var(--space-2);
+    }
+
+    .nonogram-top-row {
+        display: flex;
+        margin-left: 80px;
+    }
+
+    .col-clue {
+        width: 32px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-end;
+        font-size: 0.75rem;
+        color: var(--color-text-muted);
+        padding-bottom: 4px;
+    }
+
+    .nonogram-row {
+        display: flex;
+        align-items: center;
+    }
+
+    .row-clue {
+        width: 80px;
+        display: flex;
+        justify-content: flex-end;
+        gap: 4px;
+        padding-right: 8px;
+        font-size: 0.75rem;
+        color: var(--color-text-muted);
+    }
+
+    .nonogram-board {
+        display: grid;
+        gap: 1px;
+        background: var(--color-border);
+        border: 2px solid var(--color-text);
+        border-radius: var(--radius-md);
+    }
+
+    .nonogram-board.size-5 { grid-template-columns: repeat(5, 32px); }
+    .nonogram-board.size-10 { grid-template-columns: repeat(10, 28px); }
+    .nonogram-board.size-15 { grid-template-columns: repeat(15, 24px); }
+
+    .nonogram-cell {
+        aspect-ratio: 1;
+        background: var(--color-background);
+        cursor: pointer;
+        transition: background-color 0.1s;
+    }
+
+    .nonogram-cell.filled {
+        background: var(--color-text);
+    }
+
+    .nonogram-cell.marked {
+        background: var(--color-surface);
+        position: relative;
+    }
+
+    .nonogram-cell.marked::after {
+        content: 'X';
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--color-text-muted);
+        font-size: 0.75rem;
+    }
+
+    .nonogram-cell:hover {
+        opacity: 0.8;
+    }
+
+    /* 5x5 borders */
+    .nonogram-board.size-10 .nonogram-cell:nth-child(5n),
+    .nonogram-board.size-15 .nonogram-cell:nth-child(5n) {
+        border-right: 2px solid var(--color-text);
+    }
+
+    .tool-select {
+        display: flex;
+        gap: var(--space-2);
+        margin-top: var(--space-4);
+    }
+
+    .tool-btn {
+        padding: var(--space-2) var(--space-4);
+        border: 2px solid var(--color-border);
+        border-radius: var(--radius-md);
+        background: var(--color-surface);
+        cursor: pointer;
+        font-weight: 500;
+    }
+
+    .tool-btn.active {
+        border-color: var(--color-accent);
+        background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+    }
+
+    @media (max-width: 480px) {
+        .nonogram-board.size-10 { grid-template-columns: repeat(10, 24px); }
+        .nonogram-board.size-15 { grid-template-columns: repeat(15, 18px); }
+        .col-clue { width: 24px; }
+        .row-clue { width: 60px; }
+        .nonogram-top-row { margin-left: 60px; }
+    }
+</style>
+{% endblock %}
+
+{% block game_area %}
+<div class="nonogram-container" id="nonogram-container">
+    <p>Loading...</p>
+</div>
+<div class="tool-select">
+    <button class="tool-btn active" id="tool-fill">Fill</button>
+    <button class="tool-btn" id="tool-mark">Mark X</button>
+</div>
+{% endblock %}
+
+{% block game_js %}
+<script>
+    const NonogramGame = Object.assign(Object.create(BrainGame), {
+        gridSize: 5,
+        rowClues: [],
+        colClues: [],
+        userGrid: [],
+        currentTool: 'fill',
+        isDragging: false,
+        dragValue: null,
+
+        init() {
+            BrainGame.init.call(this);
+            this.bindNonogramEvents();
+        },
+
+        bindNonogramEvents() {
+            document.getElementById('tool-fill').addEventListener('click', () => {
+                this.currentTool = 'fill';
+                document.getElementById('tool-fill').classList.add('active');
+                document.getElementById('tool-mark').classList.remove('active');
+            });
+
+            document.getElementById('tool-mark').addEventListener('click', () => {
+                this.currentTool = 'mark';
+                document.getElementById('tool-mark').classList.add('active');
+                document.getElementById('tool-fill').classList.remove('active');
+            });
+
+            document.addEventListener('mouseup', () => {
+                this.isDragging = false;
+            });
+        },
+
+        renderPuzzle(puzzleData) {
+            this.gridSize = puzzleData.size;
+            this.rowClues = puzzleData.row_clues;
+            this.colClues = puzzleData.col_clues;
+            this.userGrid = Array(this.gridSize).fill(null).map(() => Array(this.gridSize).fill(0));
+
+            const container = document.getElementById('nonogram-container');
+            container.innerHTML = '';
+
+            // Column clues row
+            const topRow = document.createElement('div');
+            topRow.className = 'nonogram-top-row';
+            for (let c = 0; c < this.gridSize; c++) {
+                const clueDiv = document.createElement('div');
+                clueDiv.className = 'col-clue';
+                clueDiv.innerHTML = this.colClues[c].join('<br>');
+                topRow.appendChild(clueDiv);
+            }
+            container.appendChild(topRow);
+
+            // Board with row clues
+            for (let r = 0; r < this.gridSize; r++) {
+                const rowDiv = document.createElement('div');
+                rowDiv.className = 'nonogram-row';
+
+                const rowClue = document.createElement('div');
+                rowClue.className = 'row-clue';
+                rowClue.textContent = this.rowClues[r].join(' ');
+                rowDiv.appendChild(rowClue);
+
+                if (r === 0) {
+                    const board = document.createElement('div');
+                    board.className = `nonogram-board size-${this.gridSize}`;
+                    board.id = 'nonogram-board';
+
+                    for (let row = 0; row < this.gridSize; row++) {
+                        for (let col = 0; col < this.gridSize; col++) {
+                            const cell = document.createElement('div');
+                            cell.className = 'nonogram-cell';
+                            cell.dataset.row = row;
+                            cell.dataset.col = col;
+
+                            cell.addEventListener('mousedown', (e) => {
+                                e.preventDefault();
+                                this.isDragging = true;
+                                this.dragValue = this.toggleCell(row, col);
+                            });
+
+                            cell.addEventListener('mouseenter', () => {
+                                if (this.isDragging) {
+                                    this.setCell(row, col, this.dragValue);
+                                }
+                            });
+
+                            cell.addEventListener('touchstart', (e) => {
+                                e.preventDefault();
+                                this.toggleCell(row, col);
+                            });
+
+                            board.appendChild(cell);
+                        }
+                    }
+                    rowDiv.appendChild(board);
+                }
+
+                if (r === 0) {
+                    container.appendChild(rowDiv);
+                } else {
+                    // Append row clues to the side
+                    const existingRow = container.querySelector('.nonogram-row');
+                    if (existingRow) {
+                        const newRowClue = document.createElement('div');
+                        newRowClue.className = 'row-clue';
+                        newRowClue.textContent = this.rowClues[r].join(' ');
+                        newRowClue.style.position = 'absolute';
+                        newRowClue.style.top = `${r * 32}px`;
+                    }
+                }
+            }
+
+            // Re-layout: actually need row clues positioned properly
+            this.relayoutClues();
+        },
+
+        relayoutClues() {
+            const container = document.getElementById('nonogram-container');
+            container.innerHTML = '';
+
+            // Create wrapper
+            const wrapper = document.createElement('div');
+            wrapper.style.display = 'flex';
+            wrapper.style.flexDirection = 'column';
+
+            // Top row with column clues
+            const topRow = document.createElement('div');
+            topRow.style.display = 'flex';
+            topRow.style.marginLeft = '80px';
+
+            for (let c = 0; c < this.gridSize; c++) {
+                const clue = document.createElement('div');
+                clue.className = 'col-clue';
+                clue.innerHTML = this.colClues[c].join('<br>');
+                topRow.appendChild(clue);
+            }
+            wrapper.appendChild(topRow);
+
+            // Main grid area
+            const mainArea = document.createElement('div');
+            mainArea.style.display = 'flex';
+
+            // Row clues column
+            const rowCluesCol = document.createElement('div');
+            rowCluesCol.style.display = 'flex';
+            rowCluesCol.style.flexDirection = 'column';
+
+            for (let r = 0; r < this.gridSize; r++) {
+                const clue = document.createElement('div');
+                clue.className = 'row-clue';
+                clue.style.height = '32px';
+                clue.style.display = 'flex';
+                clue.style.alignItems = 'center';
+                clue.textContent = this.rowClues[r].join(' ');
+                rowCluesCol.appendChild(clue);
+            }
+            mainArea.appendChild(rowCluesCol);
+
+            // Board
+            const board = document.createElement('div');
+            board.className = `nonogram-board size-${this.gridSize}`;
+
+            for (let r = 0; r < this.gridSize; r++) {
+                for (let c = 0; c < this.gridSize; c++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'nonogram-cell';
+                    cell.dataset.row = r;
+                    cell.dataset.col = c;
+
+                    cell.addEventListener('mousedown', (e) => {
+                        e.preventDefault();
+                        this.isDragging = true;
+                        this.dragValue = this.toggleCell(r, c);
+                    });
+
+                    cell.addEventListener('mouseenter', () => {
+                        if (this.isDragging) {
+                            this.setCell(r, c, this.dragValue);
+                        }
+                    });
+
+                    cell.addEventListener('touchstart', (e) => {
+                        e.preventDefault();
+                        this.toggleCell(r, c);
+                    });
+
+                    board.appendChild(cell);
+                }
+            }
+            mainArea.appendChild(board);
+            wrapper.appendChild(mainArea);
+            container.appendChild(wrapper);
+        },
+
+        toggleCell(row, col) {
+            const current = this.userGrid[row][col];
+            let newValue;
+
+            if (this.currentTool === 'fill') {
+                newValue = current === 1 ? 0 : 1;
+            } else {
+                newValue = current === 2 ? 0 : 2;
+            }
+
+            this.setCell(row, col, newValue);
+            return newValue;
+        },
+
+        setCell(row, col, value) {
+            this.userGrid[row][col] = value;
+            const cells = document.querySelectorAll('.nonogram-cell');
+            const cell = cells[row * this.gridSize + col];
+
+            cell.classList.remove('filled', 'marked');
+            if (value === 1) cell.classList.add('filled');
+            if (value === 2) cell.classList.add('marked');
+        },
+
+        checkSolution() {
+            // Convert user grid to binary (filled = 1, else = 0)
+            const solutionGrid = this.userGrid.map(row =>
+                row.map(cell => cell === 1 ? 1 : 0)
+            );
+            this.completeSession({ grid: solutionGrid });
+        },
+
+        useHint() {
+            BrainGame.useHint.call(this);
+        }
+    });
+
+    document.addEventListener('DOMContentLoaded', () => NonogramGame.init());
+</script>
+{% endblock %}

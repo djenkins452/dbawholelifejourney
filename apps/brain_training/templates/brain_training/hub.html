@@ -1,0 +1,257 @@
+{% extends "base.html" %}
+{% load static %}
+{% load brain_tags %}
+
+{% block title %}Brain Training - Whole Life Journey{% endblock %}
+
+{% block extra_css %}
+<style>
+    .brain-hub {
+        padding: var(--space-4);
+        max-width: 800px;
+        margin: 0 auto;
+    }
+
+    .brain-header {
+        text-align: center;
+        margin-bottom: var(--space-6);
+        padding: var(--space-4) 0;
+    }
+
+    .brain-title {
+        font-size: 1.75rem;
+        font-weight: 600;
+        color: var(--color-text);
+        margin-bottom: 0.5rem;
+    }
+
+    .brain-subtitle {
+        font-size: 0.9rem;
+        color: var(--color-text-muted);
+        letter-spacing: 0.05em;
+    }
+
+    /* Overall stats banner */
+    .overall-stats {
+        display: flex;
+        justify-content: center;
+        gap: var(--space-4);
+        margin-bottom: var(--space-6);
+        flex-wrap: wrap;
+    }
+
+    .stat-item {
+        text-align: center;
+        padding: var(--space-3) var(--space-4);
+        background: var(--color-surface);
+        border-radius: var(--radius-lg);
+        min-width: 100px;
+    }
+
+    .stat-value {
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: var(--color-accent);
+    }
+
+    .stat-label {
+        font-size: 0.75rem;
+        color: var(--color-text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    /* Game grid */
+    .games-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: var(--space-4);
+    }
+
+    @media (max-width: 480px) {
+        .games-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .game-card {
+        background: var(--color-surface);
+        border-radius: var(--radius-lg);
+        padding: var(--space-5);
+        text-decoration: none;
+        color: inherit;
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-3);
+        transition: transform 0.2s, box-shadow 0.2s;
+        border: 1px solid var(--color-border);
+    }
+
+    .game-card:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-md);
+    }
+
+    .game-card-header {
+        display: flex;
+        align-items: center;
+        gap: var(--space-3);
+    }
+
+    .game-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: var(--radius-md);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .game-icon svg {
+        width: 28px;
+        height: 28px;
+        color: white;
+    }
+
+    .game-info {
+        flex: 1;
+    }
+
+    .game-name {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: var(--color-text);
+        margin-bottom: 0.125rem;
+    }
+
+    .game-category {
+        font-size: 0.75rem;
+        color: var(--color-text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .game-description {
+        font-size: 0.875rem;
+        color: var(--color-text-muted);
+        line-height: 1.5;
+    }
+
+    .game-stats {
+        display: flex;
+        gap: var(--space-4);
+        padding-top: var(--space-3);
+        border-top: 1px solid var(--color-border);
+        font-size: 0.8rem;
+        color: var(--color-text-muted);
+    }
+
+    .game-stat {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+
+    .game-stat-value {
+        font-weight: 600;
+        color: var(--color-text);
+    }
+
+    .play-indicator {
+        margin-left: auto;
+        color: var(--color-accent);
+    }
+
+    /* Stats link */
+    .stats-link {
+        text-align: center;
+        margin-top: var(--space-6);
+    }
+
+    .stats-link a {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: var(--color-accent);
+        text-decoration: none;
+        font-size: 0.9rem;
+    }
+
+    .stats-link a:hover {
+        text-decoration: underline;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="brain-hub">
+    <header class="brain-header">
+        <h1 class="brain-title">Brain Training</h1>
+        <p class="brain-subtitle">Focus &bull; Logic &bull; Memory &bull; Reasoning &bull; Language</p>
+    </header>
+
+    {% if overall %}
+    <div class="overall-stats">
+        <div class="stat-item">
+            <div class="stat-value">{{ overall.total_completed }}</div>
+            <div class="stat-label">Completed</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value">{{ overall.current_streak }}</div>
+            <div class="stat-label">Day Streak</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value">{{ overall.total_minutes_trained }}</div>
+            <div class="stat-label">Minutes</div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="games-grid">
+        {% for game in games %}
+        <a href="{% url 'brain_training:play' game_slug=game.slug %}" class="game-card">
+            <div class="game-card-header">
+                <div class="game-icon" style="background-color: {{ game.color_primary }}">
+                    {{ game.icon_svg|safe }}
+                </div>
+                <div class="game-info">
+                    <div class="game-name">{{ game.name }}</div>
+                    <div class="game-category">{{ game.get_category_display }}</div>
+                </div>
+                <div class="play-indicator">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M9 18l6-6-6-6"/>
+                    </svg>
+                </div>
+            </div>
+            <p class="game-description">{{ game.description }}</p>
+            {% with stats=game_stats|get_item:game.slug %}
+            {% if stats %}
+            <div class="game-stats">
+                <div class="game-stat">
+                    <span class="game-stat-value">{{ stats.total_completed }}</span> played
+                </div>
+                <div class="game-stat">
+                    <span class="game-stat-value">{{ stats.current_streak }}</span> day streak
+                </div>
+                <div class="game-stat">
+                    <span class="game-stat-value">{{ stats.best_score }}</span> best
+                </div>
+            </div>
+            {% endif %}
+            {% endwith %}
+        </a>
+        {% endfor %}
+    </div>
+
+    <div class="stats-link">
+        <a href="{% url 'brain_training:stats_dashboard' %}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 20V10M12 20V4M6 20v-6"/>
+            </svg>
+            View detailed stats &amp; progress
+        </a>
+    </div>
+</div>
+{% endblock %}

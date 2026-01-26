@@ -1,0 +1,241 @@
+{% extends "brain_training/games/base_game.html" %}
+
+{% block game_css %}
+<style>
+    .kenken-board {
+        display: grid;
+        gap: 0;
+        background: var(--color-border);
+        border: 2px solid var(--color-text);
+        max-width: 400px;
+        width: 100%;
+        aspect-ratio: 1;
+        border-radius: var(--radius-md);
+        overflow: hidden;
+    }
+
+    .kenken-board.size-4 { grid-template-columns: repeat(4, 1fr); }
+    .kenken-board.size-5 { grid-template-columns: repeat(5, 1fr); }
+    .kenken-board.size-6 { grid-template-columns: repeat(6, 1fr); }
+
+    .kenken-cell {
+        background: var(--color-background);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: clamp(1rem, 5vw, 1.5rem);
+        font-weight: 500;
+        cursor: pointer;
+        position: relative;
+        border: 1px solid var(--color-border);
+    }
+
+    .kenken-cell.selected {
+        background: color-mix(in srgb, var(--color-accent) 20%, transparent);
+    }
+
+    .cage-label {
+        position: absolute;
+        top: 2px;
+        left: 4px;
+        font-size: 0.6rem;
+        font-weight: 700;
+        color: var(--color-text-muted);
+    }
+
+    /* Cage borders - applied dynamically */
+    .border-top { border-top: 2px solid var(--color-text) !important; }
+    .border-bottom { border-bottom: 2px solid var(--color-text) !important; }
+    .border-left { border-left: 2px solid var(--color-text) !important; }
+    .border-right { border-right: 2px solid var(--color-text) !important; }
+
+    .number-pad {
+        display: grid;
+        gap: var(--space-2);
+        max-width: 300px;
+        width: 100%;
+        margin-top: var(--space-4);
+    }
+
+    .number-pad.size-4 { grid-template-columns: repeat(4, 1fr); }
+    .number-pad.size-5 { grid-template-columns: repeat(5, 1fr); }
+    .number-pad.size-6 { grid-template-columns: repeat(6, 1fr); }
+
+    .number-btn {
+        padding: var(--space-3);
+        font-size: 1.25rem;
+        font-weight: 600;
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        background: var(--color-surface);
+        color: var(--color-text);
+        cursor: pointer;
+    }
+
+    .number-btn:hover {
+        background: var(--color-accent);
+        color: white;
+    }
+
+    .clear-btn {
+        grid-column: 1 / -1;
+    }
+</style>
+{% endblock %}
+
+{% block game_area %}
+<div class="kenken-board size-4" id="kenken-board"></div>
+<div class="number-pad size-4" id="number-pad"></div>
+{% endblock %}
+
+{% block game_js %}
+<script>
+    const KenKenGame = Object.assign(Object.create(BrainGame), {
+        gridSize: 4,
+        cages: [],
+        userGrid: [],
+        selectedCell: null,
+
+        init() {
+            BrainGame.init.call(this);
+            this.bindKenKenEvents();
+        },
+
+        bindKenKenEvents() {
+            document.addEventListener('keydown', (e) => {
+                const num = parseInt(e.key, 10);
+                if (num >= 1 && num <= this.gridSize) {
+                    this.enterNumber(num);
+                } else if (e.key === 'Backspace' || e.key === 'Delete') {
+                    this.enterNumber(0);
+                }
+            });
+        },
+
+        renderPuzzle(puzzleData) {
+            this.gridSize = puzzleData.size;
+            this.cages = puzzleData.cages;
+            this.userGrid = Array(this.gridSize).fill(null).map(() => Array(this.gridSize).fill(0));
+            this.selectedCell = null;
+
+            const board = document.getElementById('kenken-board');
+            board.className = `kenken-board size-${this.gridSize}`;
+            board.innerHTML = '';
+
+            // Build cage membership map
+            const cageMap = {};
+            this.cages.forEach((cage, cageIdx) => {
+                cage.cells.forEach(([r, c]) => {
+                    cageMap[`${r}-${c}`] = { cageIdx, cage };
+                });
+            });
+
+            for (let r = 0; r < this.gridSize; r++) {
+                for (let c = 0; c < this.gridSize; c++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'kenken-cell';
+                    cell.dataset.row = r;
+                    cell.dataset.col = c;
+
+                    const key = `${r}-${c}`;
+                    const info = cageMap[key];
+
+                    if (info) {
+                        // Add cage borders
+                        const cage = info.cage;
+                        const isTop = !cage.cells.some(([cr, cc]) => cr === r - 1 && cc === c);
+                        const isBottom = !cage.cells.some(([cr, cc]) => cr === r + 1 && cc === c);
+                        const isLeft = !cage.cells.some(([cr, cc]) => cr === r && cc === c - 1);
+                        const isRight = !cage.cells.some(([cr, cc]) => cr === r && cc === c + 1);
+
+                        if (isTop) cell.classList.add('border-top');
+                        if (isBottom) cell.classList.add('border-bottom');
+                        if (isLeft) cell.classList.add('border-left');
+                        if (isRight) cell.classList.add('border-right');
+
+                        // Add cage label to first cell of cage
+                        if (cage.cells[0][0] === r && cage.cells[0][1] === c) {
+                            const label = document.createElement('span');
+                            label.className = 'cage-label';
+                            const op = cage.operation || '';
+                            label.textContent = cage.target + op;
+                            cell.appendChild(label);
+                        }
+                    }
+
+                    cell.addEventListener('click', () => this.selectCell(r, c));
+                    board.appendChild(cell);
+                }
+            }
+
+            // Build number pad
+            const pad = document.getElementById('number-pad');
+            pad.className = `number-pad size-${this.gridSize}`;
+            pad.innerHTML = '';
+
+            for (let i = 1; i <= this.gridSize; i++) {
+                const btn = document.createElement('button');
+                btn.className = 'number-btn';
+                btn.textContent = i;
+                btn.addEventListener('click', () => this.enterNumber(i));
+                pad.appendChild(btn);
+            }
+
+            const clearBtn = document.createElement('button');
+            clearBtn.className = 'number-btn clear-btn';
+            clearBtn.textContent = 'Clear';
+            clearBtn.addEventListener('click', () => this.enterNumber(0));
+            pad.appendChild(clearBtn);
+        },
+
+        selectCell(row, col) {
+            document.querySelectorAll('.kenken-cell').forEach(c => c.classList.remove('selected'));
+            this.selectedCell = { row, col };
+            const cells = document.querySelectorAll('.kenken-cell');
+            cells[row * this.gridSize + col].classList.add('selected');
+        },
+
+        enterNumber(value) {
+            if (!this.selectedCell) return;
+
+            const { row, col } = this.selectedCell;
+            this.userGrid[row][col] = value;
+
+            const cells = document.querySelectorAll('.kenken-cell');
+            const cell = cells[row * this.gridSize + col];
+
+            // Update display (preserve cage label if present)
+            const label = cell.querySelector('.cage-label');
+            cell.textContent = value || '';
+            if (label) cell.prepend(label);
+        },
+
+        checkSolution() {
+            for (let r = 0; r < this.gridSize; r++) {
+                for (let c = 0; c < this.gridSize; c++) {
+                    if (this.userGrid[r][c] === 0) {
+                        alert('Please fill all cells.');
+                        return;
+                    }
+                }
+            }
+            this.completeSession({ grid: this.userGrid });
+        },
+
+        useHint() {
+            BrainGame.useHint.call(this);
+            // Highlight first empty cell
+            for (let r = 0; r < this.gridSize; r++) {
+                for (let c = 0; c < this.gridSize; c++) {
+                    if (this.userGrid[r][c] === 0) {
+                        this.selectCell(r, c);
+                        return;
+                    }
+                }
+            }
+        }
+    });
+
+    document.addEventListener('DOMContentLoaded', () => KenKenGame.init());
+</script>
+{% endblock %}

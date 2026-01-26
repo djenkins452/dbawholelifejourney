@@ -1,0 +1,494 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ game.name }} - Brain Training{% endblock %}
+
+{% block extra_css %}
+<style>
+    .game-container {
+        padding: var(--space-4);
+        max-width: 600px;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        min-height: calc(100vh - 120px);
+    }
+
+    .game-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: var(--space-4);
+    }
+
+    .game-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: var(--color-text);
+    }
+
+    .game-controls {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+    }
+
+    .difficulty-select {
+        padding: 0.375rem 0.75rem;
+        border-radius: var(--radius-md);
+        border: 1px solid var(--color-border);
+        background: var(--color-surface);
+        font-size: 0.875rem;
+        color: var(--color-text);
+    }
+
+    .timer {
+        font-family: monospace;
+        font-size: 1rem;
+        color: var(--color-text-muted);
+        padding: 0.375rem 0.75rem;
+        background: var(--color-surface);
+        border-radius: var(--radius-md);
+    }
+
+    .game-area {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .game-actions {
+        display: flex;
+        gap: var(--space-3);
+        margin-top: var(--space-4);
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .btn-game {
+        padding: 0.75rem 1.5rem;
+        border-radius: var(--radius-md);
+        font-size: 1rem;
+        font-weight: 500;
+        cursor: pointer;
+        border: none;
+        transition: all 0.2s;
+        min-width: 120px;
+    }
+
+    .btn-game-primary {
+        background: var(--color-accent);
+        color: white;
+    }
+
+    .btn-game-primary:hover {
+        filter: brightness(1.1);
+    }
+
+    .btn-game-secondary {
+        background: var(--color-surface);
+        color: var(--color-text);
+        border: 1px solid var(--color-border);
+    }
+
+    .btn-game-secondary:hover {
+        background: var(--color-border);
+    }
+
+    .completion-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        opacity: 0;
+        visibility: hidden;
+        transition: all 0.3s;
+    }
+
+    .completion-overlay.show {
+        opacity: 1;
+        visibility: visible;
+    }
+
+    .completion-card {
+        background: var(--color-background);
+        border-radius: var(--radius-lg);
+        padding: var(--space-6);
+        text-align: center;
+        max-width: 320px;
+        width: 90%;
+        transform: scale(0.9);
+        transition: transform 0.3s;
+    }
+
+    .completion-overlay.show .completion-card {
+        transform: scale(1);
+    }
+
+    .completion-title {
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: var(--color-text);
+        margin-bottom: var(--space-2);
+    }
+
+    .completion-score {
+        font-size: 3rem;
+        font-weight: 700;
+        color: var(--color-accent);
+        margin: var(--space-4) 0;
+    }
+
+    .completion-stats {
+        display: flex;
+        justify-content: center;
+        gap: var(--space-4);
+        margin-bottom: var(--space-4);
+        color: var(--color-text-muted);
+    }
+
+    .completion-stat {
+        text-align: center;
+    }
+
+    .completion-stat-value {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: var(--color-text);
+    }
+
+    .completion-actions {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-2);
+    }
+
+    .back-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: var(--color-text-muted);
+        text-decoration: none;
+        font-size: 0.875rem;
+        margin-bottom: var(--space-2);
+    }
+
+    .back-link:hover {
+        color: var(--color-text);
+    }
+</style>
+{% block game_css %}{% endblock %}
+{% endblock %}
+
+{% block content %}
+<div class="game-container">
+    <a href="{% url 'brain_training:hub' %}" class="back-link">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M15 18l-6-6 6-6"/>
+        </svg>
+        Back to Brain Training
+    </a>
+
+    <header class="game-header">
+        <h1 class="game-title">{{ game.name }}</h1>
+        <div class="game-controls">
+            <select class="difficulty-select" id="difficulty">
+                {% for level in difficulty_levels %}
+                <option value="{{ level }}" {% if level == preferred_difficulty %}selected{% endif %}>
+                    {{ level|title }}
+                </option>
+                {% endfor %}
+            </select>
+            <div class="timer" id="timer">0:00</div>
+        </div>
+    </header>
+
+    <div class="game-area" id="game-area">
+        {% block game_area %}
+        <p>Loading challenge...</p>
+        {% endblock %}
+    </div>
+
+    <div class="game-actions">
+        <button class="btn-game btn-game-secondary" id="btn-hint">
+            Hint
+        </button>
+        <button class="btn-game btn-game-primary" id="btn-check">
+            Check Solution
+        </button>
+        <button class="btn-game btn-game-secondary" id="btn-new">
+            New Challenge
+        </button>
+    </div>
+</div>
+
+<!-- Completion overlay -->
+<div class="completion-overlay" id="completion-overlay">
+    <div class="completion-card">
+        <h2 class="completion-title">Complete!</h2>
+        <div class="completion-score" id="completion-score">0</div>
+        <div class="completion-stats">
+            <div class="completion-stat">
+                <div class="completion-stat-value" id="completion-time">0:00</div>
+                <div>Time</div>
+            </div>
+            <div class="completion-stat">
+                <div class="completion-stat-value" id="completion-mistakes">0</div>
+                <div>Mistakes</div>
+            </div>
+        </div>
+        <div class="completion-actions">
+            <button class="btn-game btn-game-primary" id="btn-next">
+                Next Challenge
+            </button>
+            <button class="btn-game btn-game-secondary" id="btn-back-hub">
+                Back to Hub
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Common game functionality
+    const BrainGame = {
+        gameSlug: '{{ game.slug }}',
+        sessionId: null,
+        challengeId: null,
+        startTime: null,
+        timerInterval: null,
+        mistakes: 0,
+        hintsUsed: 0,
+        challengeQueue: [],
+        currentDifficulty: '{{ preferred_difficulty }}',
+
+        // Initialize the game
+        init() {
+            this.bindEvents();
+            this.loadChallenges();
+        },
+
+        // Bind common events
+        bindEvents() {
+            document.getElementById('difficulty').addEventListener('change', (e) => {
+                this.currentDifficulty = e.target.value;
+                this.loadChallenges();
+            });
+
+            document.getElementById('btn-new').addEventListener('click', () => {
+                this.loadNextChallenge();
+            });
+
+            document.getElementById('btn-check').addEventListener('click', () => {
+                this.checkSolution();
+            });
+
+            document.getElementById('btn-hint').addEventListener('click', () => {
+                this.useHint();
+            });
+
+            document.getElementById('btn-next').addEventListener('click', () => {
+                this.hideCompletion();
+                this.loadNextChallenge();
+            });
+
+            document.getElementById('btn-back-hub').addEventListener('click', () => {
+                window.location.href = '{% url "brain_training:hub" %}';
+            });
+        },
+
+        // Load batch of challenges
+        async loadChallenges() {
+            try {
+                const response = await fetch(
+                    `/health/cognitive/api/${this.gameSlug}/batch/?difficulty=${this.currentDifficulty}&count=10`
+                );
+                const data = await response.json();
+                this.challengeQueue = data.challenges || [];
+                if (this.challengeQueue.length > 0) {
+                    this.loadNextChallenge();
+                }
+            } catch (err) {
+                console.error('Failed to load challenges:', err);
+            }
+        },
+
+        // Load next challenge from queue
+        async loadNextChallenge() {
+            if (this.challengeQueue.length === 0) {
+                await this.loadChallenges();
+                return;
+            }
+
+            // Refill queue if low
+            if (this.challengeQueue.length < 5) {
+                this.refillQueue();
+            }
+
+            const challenge = this.challengeQueue.shift();
+            this.challengeId = challenge.id;
+            this.mistakes = 0;
+            this.hintsUsed = 0;
+
+            // Start session
+            await this.startSession(challenge.id);
+
+            // Reset timer
+            this.startTimer();
+
+            // Render the puzzle (game-specific)
+            this.renderPuzzle(challenge.puzzle);
+        },
+
+        // Refill queue in background
+        async refillQueue() {
+            try {
+                const response = await fetch(
+                    `/health/cognitive/api/${this.gameSlug}/batch/?difficulty=${this.currentDifficulty}&count=10`
+                );
+                const data = await response.json();
+                this.challengeQueue = this.challengeQueue.concat(data.challenges || []);
+            } catch (err) {
+                console.error('Failed to refill queue:', err);
+            }
+        },
+
+        // Start a session
+        async startSession(challengeId) {
+            try {
+                const response = await fetch('/health/cognitive/api/session/start/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': this.getCSRF(),
+                    },
+                    body: JSON.stringify({
+                        challenge_id: challengeId,
+                        platform: this.detectPlatform(),
+                    }),
+                });
+                const data = await response.json();
+                this.sessionId = data.session_id;
+                this.startTime = new Date();
+            } catch (err) {
+                console.error('Failed to start session:', err);
+            }
+        },
+
+        // Complete the session
+        async completeSession(solution) {
+            const timeSpent = Math.floor((new Date() - this.startTime) / 1000);
+
+            try {
+                const response = await fetch('/health/cognitive/api/session/complete/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': this.getCSRF(),
+                    },
+                    body: JSON.stringify({
+                        session_id: this.sessionId,
+                        solution: solution,
+                        time_spent: timeSpent,
+                        mistakes: this.mistakes,
+                        hints_used: this.hintsUsed,
+                    }),
+                });
+                const data = await response.json();
+
+                if (data.success && data.verified) {
+                    this.stopTimer();
+                    this.showCompletion(data.score, timeSpent, this.mistakes);
+                } else {
+                    this.mistakes++;
+                    this.showIncorrect();
+                }
+            } catch (err) {
+                console.error('Failed to complete session:', err);
+            }
+        },
+
+        // Timer functions
+        startTimer() {
+            this.startTime = new Date();
+            this.updateTimerDisplay();
+            if (this.timerInterval) clearInterval(this.timerInterval);
+            this.timerInterval = setInterval(() => this.updateTimerDisplay(), 1000);
+        },
+
+        stopTimer() {
+            if (this.timerInterval) {
+                clearInterval(this.timerInterval);
+                this.timerInterval = null;
+            }
+        },
+
+        updateTimerDisplay() {
+            const elapsed = Math.floor((new Date() - this.startTime) / 1000);
+            const mins = Math.floor(elapsed / 60);
+            const secs = elapsed % 60;
+            document.getElementById('timer').textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+        },
+
+        formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        },
+
+        // Completion overlay
+        showCompletion(score, time, mistakes) {
+            document.getElementById('completion-score').textContent = score;
+            document.getElementById('completion-time').textContent = this.formatTime(time);
+            document.getElementById('completion-mistakes').textContent = mistakes;
+            document.getElementById('completion-overlay').classList.add('show');
+        },
+
+        hideCompletion() {
+            document.getElementById('completion-overlay').classList.remove('show');
+        },
+
+        // CSRF token
+        getCSRF() {
+            const cookie = document.cookie.split(';').find(c => c.trim().startsWith('csrftoken='));
+            return cookie ? cookie.split('=')[1] : '';
+        },
+
+        // Platform detection
+        detectPlatform() {
+            const ua = navigator.userAgent.toLowerCase();
+            if (/iphone|ipad|ipod/.test(ua)) return 'ios';
+            if (/android/.test(ua)) return 'android';
+            return 'web';
+        },
+
+        // Methods to be overridden by specific games
+        renderPuzzle(puzzleData) {
+            console.log('renderPuzzle should be overridden', puzzleData);
+        },
+
+        checkSolution() {
+            console.log('checkSolution should be overridden');
+        },
+
+        useHint() {
+            this.hintsUsed++;
+            console.log('useHint should be overridden');
+        },
+
+        showIncorrect() {
+            // Flash the game area red briefly
+            const area = document.getElementById('game-area');
+            area.style.animation = 'shake 0.5s';
+            setTimeout(() => { area.style.animation = ''; }, 500);
+        }
+    };
+</script>
+{% block game_js %}{% endblock %}
+{% endblock %}

@@ -1,0 +1,394 @@
+{% extends "brain_training/games/base_game.html" %}
+
+{% block game_css %}
+<style>
+    .word-ladder-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: var(--space-4);
+        width: 100%;
+        max-width: 400px;
+    }
+
+    .word-display {
+        font-size: 2rem;
+        font-weight: 700;
+        letter-spacing: 0.2em;
+        color: var(--color-text);
+        padding: var(--space-4);
+        background: var(--color-surface);
+        border-radius: var(--radius-lg);
+        text-transform: uppercase;
+    }
+
+    .word-display.start {
+        color: var(--color-accent);
+    }
+
+    .word-display.target {
+        color: #10b981;
+    }
+
+    .arrow-down {
+        color: var(--color-text-muted);
+    }
+
+    .steps-container {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-2);
+        width: 100%;
+    }
+
+    .step-row {
+        display: flex;
+        gap: var(--space-1);
+        justify-content: center;
+    }
+
+    .step-input {
+        width: 48px;
+        height: 56px;
+        text-align: center;
+        font-size: 1.5rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        border: 2px solid var(--color-border);
+        border-radius: var(--radius-md);
+        background: var(--color-background);
+        color: var(--color-text);
+    }
+
+    .step-input:focus {
+        outline: none;
+        border-color: var(--color-accent);
+    }
+
+    .step-input.valid {
+        border-color: #10b981;
+        background: color-mix(in srgb, #10b981 10%, transparent);
+    }
+
+    .step-input.invalid {
+        border-color: #ef4444;
+        background: color-mix(in srgb, #ef4444 10%, transparent);
+    }
+
+    .step-number {
+        position: absolute;
+        left: -24px;
+        font-size: 0.75rem;
+        color: var(--color-text-muted);
+    }
+
+    .add-step-btn {
+        padding: var(--space-2) var(--space-4);
+        border: 2px dashed var(--color-border);
+        border-radius: var(--radius-md);
+        background: transparent;
+        color: var(--color-text-muted);
+        cursor: pointer;
+        font-size: 0.875rem;
+    }
+
+    .add-step-btn:hover {
+        border-color: var(--color-accent);
+        color: var(--color-accent);
+    }
+
+    .keyboard {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-1);
+        margin-top: var(--space-4);
+    }
+
+    .keyboard-row {
+        display: flex;
+        justify-content: center;
+        gap: var(--space-1);
+    }
+
+    .key {
+        width: 32px;
+        height: 40px;
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-sm);
+        background: var(--color-surface);
+        font-size: 0.875rem;
+        font-weight: 600;
+        cursor: pointer;
+        text-transform: uppercase;
+    }
+
+    .key:hover {
+        background: var(--color-accent);
+        color: white;
+    }
+
+    .key.wide {
+        width: 64px;
+    }
+</style>
+{% endblock %}
+
+{% block game_area %}
+<div class="word-ladder-container" id="word-ladder-container">
+    <div class="word-display start" id="start-word">----</div>
+    <div class="arrow-down">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 5v14M19 12l-7 7-7-7"/>
+        </svg>
+    </div>
+    <div class="steps-container" id="steps-container"></div>
+    <button class="add-step-btn" id="add-step-btn">+ Add Step</button>
+    <div class="arrow-down">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 5v14M19 12l-7 7-7-7"/>
+        </svg>
+    </div>
+    <div class="word-display target" id="end-word">----</div>
+</div>
+
+<div class="keyboard" id="keyboard">
+    <div class="keyboard-row">
+        <button class="key">Q</button>
+        <button class="key">W</button>
+        <button class="key">E</button>
+        <button class="key">R</button>
+        <button class="key">T</button>
+        <button class="key">Y</button>
+        <button class="key">U</button>
+        <button class="key">I</button>
+        <button class="key">O</button>
+        <button class="key">P</button>
+    </div>
+    <div class="keyboard-row">
+        <button class="key">A</button>
+        <button class="key">S</button>
+        <button class="key">D</button>
+        <button class="key">F</button>
+        <button class="key">G</button>
+        <button class="key">H</button>
+        <button class="key">J</button>
+        <button class="key">K</button>
+        <button class="key">L</button>
+    </div>
+    <div class="keyboard-row">
+        <button class="key">Z</button>
+        <button class="key">X</button>
+        <button class="key">C</button>
+        <button class="key">V</button>
+        <button class="key">B</button>
+        <button class="key">N</button>
+        <button class="key">M</button>
+        <button class="key wide">DEL</button>
+    </div>
+</div>
+{% endblock %}
+
+{% block game_js %}
+<script>
+    const WordLadderGame = Object.assign(Object.create(BrainGame), {
+        startWord: '',
+        endWord: '',
+        wordLength: 4,
+        steps: [],
+        focusedStep: 0,
+        focusedChar: 0,
+
+        init() {
+            BrainGame.init.call(this);
+            this.bindWordLadderEvents();
+        },
+
+        bindWordLadderEvents() {
+            document.getElementById('add-step-btn').addEventListener('click', () => {
+                this.addStep();
+            });
+
+            // Keyboard clicks
+            document.querySelectorAll('.key').forEach(key => {
+                key.addEventListener('click', () => {
+                    const char = key.textContent;
+                    if (char === 'DEL') {
+                        this.deleteChar();
+                    } else {
+                        this.enterChar(char);
+                    }
+                });
+            });
+
+            // Physical keyboard
+            document.addEventListener('keydown', (e) => {
+                if (e.key.match(/^[a-zA-Z]$/)) {
+                    this.enterChar(e.key.toUpperCase());
+                } else if (e.key === 'Backspace') {
+                    this.deleteChar();
+                } else if (e.key === 'Enter') {
+                    this.checkSolution();
+                }
+            });
+        },
+
+        renderPuzzle(puzzleData) {
+            this.startWord = puzzleData.start_word.toUpperCase();
+            this.endWord = puzzleData.end_word.toUpperCase();
+            this.wordLength = puzzleData.word_length;
+            this.steps = [];
+
+            document.getElementById('start-word').textContent = this.startWord;
+            document.getElementById('end-word').textContent = this.endWord;
+
+            // Clear steps
+            document.getElementById('steps-container').innerHTML = '';
+
+            // Add initial empty step
+            this.addStep();
+        },
+
+        addStep() {
+            const stepIndex = this.steps.length;
+            this.steps.push(Array(this.wordLength).fill(''));
+
+            const container = document.getElementById('steps-container');
+            const row = document.createElement('div');
+            row.className = 'step-row';
+            row.dataset.step = stepIndex;
+
+            for (let i = 0; i < this.wordLength; i++) {
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.maxLength = 1;
+                input.className = 'step-input';
+                input.dataset.step = stepIndex;
+                input.dataset.char = i;
+
+                input.addEventListener('focus', () => {
+                    this.focusedStep = stepIndex;
+                    this.focusedChar = i;
+                });
+
+                input.addEventListener('input', (e) => {
+                    const val = e.target.value.toUpperCase();
+                    this.steps[stepIndex][i] = val;
+                    e.target.value = val;
+
+                    // Auto-advance
+                    if (val && i < this.wordLength - 1) {
+                        this.focusChar(stepIndex, i + 1);
+                    }
+
+                    this.validateStep(stepIndex);
+                });
+
+                row.appendChild(input);
+            }
+
+            container.appendChild(row);
+            this.focusChar(stepIndex, 0);
+        },
+
+        focusChar(step, char) {
+            const input = document.querySelector(`input[data-step="${step}"][data-char="${char}"]`);
+            if (input) {
+                input.focus();
+                this.focusedStep = step;
+                this.focusedChar = char;
+            }
+        },
+
+        enterChar(char) {
+            this.steps[this.focusedStep][this.focusedChar] = char;
+            const input = document.querySelector(
+                `input[data-step="${this.focusedStep}"][data-char="${this.focusedChar}"]`
+            );
+            if (input) {
+                input.value = char;
+            }
+
+            // Auto-advance
+            if (this.focusedChar < this.wordLength - 1) {
+                this.focusChar(this.focusedStep, this.focusedChar + 1);
+            }
+
+            this.validateStep(this.focusedStep);
+        },
+
+        deleteChar() {
+            const input = document.querySelector(
+                `input[data-step="${this.focusedStep}"][data-char="${this.focusedChar}"]`
+            );
+
+            if (input && input.value) {
+                input.value = '';
+                this.steps[this.focusedStep][this.focusedChar] = '';
+            } else if (this.focusedChar > 0) {
+                this.focusChar(this.focusedStep, this.focusedChar - 1);
+                this.deleteChar();
+            }
+
+            this.validateStep(this.focusedStep);
+        },
+
+        validateStep(stepIndex) {
+            const word = this.steps[stepIndex].join('');
+            const inputs = document.querySelectorAll(`input[data-step="${stepIndex}"]`);
+
+            inputs.forEach(input => input.classList.remove('valid', 'invalid'));
+
+            if (word.length !== this.wordLength) return;
+
+            // Get previous word
+            const prevWord = stepIndex === 0 ? this.startWord : this.steps[stepIndex - 1].join('');
+
+            // Check difference count
+            let diff = 0;
+            for (let i = 0; i < this.wordLength; i++) {
+                if (word[i] !== prevWord[i]) diff++;
+            }
+
+            if (diff === 1) {
+                inputs.forEach(input => input.classList.add('valid'));
+            } else if (diff > 1) {
+                inputs.forEach(input => input.classList.add('invalid'));
+            }
+        },
+
+        checkSolution() {
+            // Build path
+            const path = [this.startWord.toLowerCase()];
+
+            for (const step of this.steps) {
+                const word = step.join('').toLowerCase();
+                if (word.length === this.wordLength && word.match(/^[a-z]+$/)) {
+                    path.push(word);
+                }
+            }
+
+            // Check if last step is the end word
+            if (path[path.length - 1] !== this.endWord.toLowerCase()) {
+                path.push(this.endWord.toLowerCase());
+            }
+
+            this.completeSession({ path: path });
+        },
+
+        useHint() {
+            BrainGame.useHint.call(this);
+            // Focus on first empty step
+            for (let s = 0; s < this.steps.length; s++) {
+                for (let c = 0; c < this.wordLength; c++) {
+                    if (!this.steps[s][c]) {
+                        this.focusChar(s, c);
+                        return;
+                    }
+                }
+            }
+        }
+    });
+
+    document.addEventListener('DOMContentLoaded', () => WordLadderGame.init());
+</script>
+{% endblock %}

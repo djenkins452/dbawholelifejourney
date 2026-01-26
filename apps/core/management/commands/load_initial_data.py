@@ -116,6 +116,12 @@ FIXTURE_LOADERS = [
         'display': 'Email Notification Templates',
         'description': 'Admin-editable templates for notification emails',
     },
+    {
+        'name': 'games',
+        'display': 'Brain Training Games',
+        'description': 'Game catalog for Brain Training module',
+        'app': 'brain_training',
+    },
     # NOTE: module_definitions removed - now handled by migration 0052_fix_module_route_names
     # Loading via fixture causes UNIQUE constraint errors since migration already creates the data
 ]

@@ -1,0 +1,364 @@
+{% extends "brain_training/games/base_game.html" %}
+
+{% block game_css %}
+<style>
+    .memory-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: var(--space-4);
+    }
+
+    .memory-board {
+        display: grid;
+        gap: 8px;
+        padding: var(--space-4);
+        background: var(--color-surface);
+        border-radius: var(--radius-lg);
+    }
+
+    .memory-board.size-3 { grid-template-columns: repeat(3, 1fr); }
+    .memory-board.size-4 { grid-template-columns: repeat(4, 1fr); }
+    .memory-board.size-5 { grid-template-columns: repeat(5, 1fr); }
+    .memory-board.size-6 { grid-template-columns: repeat(6, 1fr); }
+
+    .memory-cell {
+        width: 60px;
+        height: 60px;
+        background: var(--color-background);
+        border: 2px solid var(--color-border);
+        border-radius: var(--radius-md);
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+
+    @media (max-width: 400px) {
+        .memory-cell {
+            width: 50px;
+            height: 50px;
+        }
+    }
+
+    .memory-cell.highlighted {
+        background: var(--color-accent);
+        border-color: var(--color-accent);
+    }
+
+    .memory-cell.selected {
+        background: color-mix(in srgb, var(--color-accent) 60%, white);
+        border-color: var(--color-accent);
+    }
+
+    .memory-cell.correct {
+        background: #10b981;
+        border-color: #10b981;
+    }
+
+    .memory-cell.wrong {
+        background: #ef4444;
+        border-color: #ef4444;
+    }
+
+    .memory-cell:disabled {
+        cursor: not-allowed;
+    }
+
+    .phase-indicator {
+        text-align: center;
+        padding: var(--space-4);
+    }
+
+    .phase-title {
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: var(--color-text);
+        margin-bottom: var(--space-2);
+    }
+
+    .phase-subtitle {
+        color: var(--color-text-muted);
+    }
+
+    .countdown {
+        font-size: 4rem;
+        font-weight: 700;
+        color: var(--color-accent);
+    }
+
+    .selection-count {
+        font-size: 0.875rem;
+        color: var(--color-text-muted);
+        margin-top: var(--space-2);
+    }
+
+    .submit-btn {
+        margin-top: var(--space-4);
+        padding: var(--space-3) var(--space-6);
+        background: var(--color-accent);
+        color: white;
+        border: none;
+        border-radius: var(--radius-md);
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+    }
+
+    .submit-btn:hover {
+        filter: brightness(1.1);
+    }
+
+    .submit-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+</style>
+{% endblock %}
+
+{% block game_area %}
+<div class="memory-container" id="memory-container">
+    <div class="phase-indicator" id="phase-indicator">
+        <div class="phase-title">Get Ready</div>
+        <div class="countdown" id="countdown">3</div>
+    </div>
+    <div class="memory-board size-3" id="memory-board" style="display: none;"></div>
+    <div class="selection-count" id="selection-count" style="display: none;">
+        Selected: <span id="selected-count">0</span> / <span id="total-count">0</span>
+    </div>
+    <button class="submit-btn" id="submit-btn" style="display: none;">Check Answer</button>
+</div>
+{% endblock %}
+
+{% block game_js %}
+<script>
+    const MemoryMatrixGame = Object.assign(Object.create(BrainGame), {
+        gridSize: 3,
+        highlightedCells: [],
+        selectedCells: [],
+        viewTimeMs: 3000,
+        phase: 'ready', // ready, view, recall, result
+
+        init() {
+            BrainGame.init.call(this);
+            this.bindMemoryEvents();
+        },
+
+        bindMemoryEvents() {
+            document.getElementById('submit-btn').addEventListener('click', () => {
+                this.checkSolution();
+            });
+        },
+
+        renderPuzzle(puzzleData) {
+            this.gridSize = puzzleData.grid_size;
+            this.highlightedCells = puzzleData.highlighted_cells.map(c => `${c[0]}-${c[1]}`);
+            this.viewTimeMs = puzzleData.view_time_ms;
+            this.selectedCells = [];
+
+            document.getElementById('total-count').textContent = this.highlightedCells.length;
+            document.getElementById('selected-count').textContent = '0';
+
+            // Start the sequence
+            this.showReadyPhase();
+        },
+
+        showReadyPhase() {
+            this.phase = 'ready';
+
+            const indicator = document.getElementById('phase-indicator');
+            const board = document.getElementById('memory-board');
+            const countDisplay = document.getElementById('selection-count');
+            const submitBtn = document.getElementById('submit-btn');
+
+            indicator.style.display = 'block';
+            board.style.display = 'none';
+            countDisplay.style.display = 'none';
+            submitBtn.style.display = 'none';
+
+            indicator.innerHTML = `
+                <div class="phase-title">Get Ready</div>
+                <div class="countdown" id="countdown">3</div>
+            `;
+
+            let count = 3;
+            const countdownInterval = setInterval(() => {
+                count--;
+                document.getElementById('countdown').textContent = count;
+                if (count <= 0) {
+                    clearInterval(countdownInterval);
+                    this.showViewPhase();
+                }
+            }, 1000);
+        },
+
+        showViewPhase() {
+            this.phase = 'view';
+
+            const indicator = document.getElementById('phase-indicator');
+            const board = document.getElementById('memory-board');
+
+            indicator.innerHTML = `
+                <div class="phase-title">Memorize!</div>
+                <div class="phase-subtitle">Remember the highlighted cells</div>
+            `;
+
+            // Build board
+            board.className = `memory-board size-${this.gridSize}`;
+            board.innerHTML = '';
+            board.style.display = 'grid';
+
+            for (let r = 0; r < this.gridSize; r++) {
+                for (let c = 0; c < this.gridSize; c++) {
+                    const cell = document.createElement('button');
+                    cell.className = 'memory-cell';
+                    cell.dataset.row = r;
+                    cell.dataset.col = c;
+                    cell.disabled = true;
+
+                    const key = `${r}-${c}`;
+                    if (this.highlightedCells.includes(key)) {
+                        cell.classList.add('highlighted');
+                    }
+
+                    board.appendChild(cell);
+                }
+            }
+
+            // After view time, start recall phase
+            setTimeout(() => {
+                this.showRecallPhase();
+            }, this.viewTimeMs);
+        },
+
+        showRecallPhase() {
+            this.phase = 'recall';
+            this.recallStartTime = new Date();
+
+            const indicator = document.getElementById('phase-indicator');
+            const board = document.getElementById('memory-board');
+            const countDisplay = document.getElementById('selection-count');
+            const submitBtn = document.getElementById('submit-btn');
+
+            indicator.innerHTML = `
+                <div class="phase-title">Recall!</div>
+                <div class="phase-subtitle">Click the cells that were highlighted</div>
+            `;
+
+            countDisplay.style.display = 'block';
+            submitBtn.style.display = 'inline-block';
+
+            // Clear highlights and enable cells
+            document.querySelectorAll('.memory-cell').forEach(cell => {
+                cell.classList.remove('highlighted');
+                cell.disabled = false;
+                cell.addEventListener('click', () => this.toggleCell(cell));
+            });
+        },
+
+        toggleCell(cell) {
+            if (this.phase !== 'recall') return;
+
+            const key = `${cell.dataset.row}-${cell.dataset.col}`;
+
+            if (cell.classList.contains('selected')) {
+                cell.classList.remove('selected');
+                this.selectedCells = this.selectedCells.filter(c => c !== key);
+            } else {
+                cell.classList.add('selected');
+                this.selectedCells.push(key);
+            }
+
+            document.getElementById('selected-count').textContent = this.selectedCells.length;
+        },
+
+        checkSolution() {
+            if (this.phase !== 'recall') return;
+
+            this.phase = 'result';
+            const recallTime = new Date() - this.recallStartTime;
+
+            // Disable all cells
+            document.querySelectorAll('.memory-cell').forEach(cell => {
+                cell.disabled = true;
+            });
+
+            // Show results
+            document.querySelectorAll('.memory-cell').forEach(cell => {
+                const key = `${cell.dataset.row}-${cell.dataset.col}`;
+                const wasHighlighted = this.highlightedCells.includes(key);
+                const wasSelected = this.selectedCells.includes(key);
+
+                if (wasHighlighted && wasSelected) {
+                    cell.classList.add('correct');
+                } else if (wasHighlighted && !wasSelected) {
+                    cell.classList.add('highlighted'); // Show what they missed
+                } else if (!wasHighlighted && wasSelected) {
+                    cell.classList.add('wrong');
+                }
+            });
+
+            document.getElementById('submit-btn').style.display = 'none';
+            document.getElementById('phase-indicator').innerHTML = `
+                <div class="phase-title">Results</div>
+            `;
+
+            // Submit to server
+            this.completeSession({
+                selected_cells: this.selectedCells.map(k => k.split('-').map(Number))
+            });
+        },
+
+        // Override to use accuracy-based scoring
+        async completeSession(solution) {
+            const timeSpent = Math.floor((new Date() - this.startTime) / 1000);
+
+            try {
+                const response = await fetch('/health/cognitive/api/session/complete/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': this.getCSRF(),
+                    },
+                    body: JSON.stringify({
+                        session_id: this.sessionId,
+                        solution: solution,
+                        time_spent: timeSpent,
+                        mistakes: 0,
+                        hints_used: this.hintsUsed,
+                    }),
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    this.stopTimer();
+                    // Wait a moment to show the results
+                    setTimeout(() => {
+                        this.showCompletion(data.score, timeSpent, 0);
+                    }, 1500);
+                }
+            } catch (err) {
+                console.error('Failed to complete session:', err);
+            }
+        },
+
+        useHint() {
+            BrainGame.useHint.call(this);
+            // Flash highlighted cells briefly
+            if (this.phase === 'recall') {
+                document.querySelectorAll('.memory-cell').forEach(cell => {
+                    const key = `${cell.dataset.row}-${cell.dataset.col}`;
+                    if (this.highlightedCells.includes(key) && !cell.classList.contains('selected')) {
+                        cell.classList.add('highlighted');
+                        setTimeout(() => {
+                            if (this.phase === 'recall') {
+                                cell.classList.remove('highlighted');
+                            }
+                        }, 500);
+                    }
+                });
+            }
+        }
+    });
+
+    document.addEventListener('DOMContentLoaded', () => MemoryMatrixGame.init());
+</script>
+{% endblock %}

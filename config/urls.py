@@ -106,6 +106,8 @@ urlpatterns = [
     path('security/', include('apps.security.urls', namespace='security')),
     # Mobile App API (iOS/Android)
     path('api/mobile/', include('apps.mobile.urls', namespace='mobile')),
+    # Brain Training (Health > Cognitive Health)
+    path('health/cognitive/', include('apps.brain_training.urls', namespace='brain_training')),
     # Referral link redirect (short URL)
     path('join', include([
         path('', lambda r: __import__('django.shortcuts', fromlist=['redirect']).redirect('billing:capture_referral') if r.GET.get('ref') else __import__('django.shortcuts', fromlist=['redirect']).redirect('account_signup')),

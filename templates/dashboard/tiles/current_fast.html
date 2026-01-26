@@ -29,6 +29,9 @@ Shows live countdown timer for active fasting session
             <span class="timer-label">hours : minutes : seconds</span>
         </div>
         {% if user_data.active_fast.target_hours %}
+        <div class="fast-remaining-container" id="fast-remaining-container">
+            <span class="fast-remaining" id="fast-remaining">{{ user_data.active_fast.remaining_display }}</span>
+        </div>
         <div class="fast-progress-container">
             <div class="fast-progress-bar">
                 <div class="fast-progress-fill" id="fast-progress" style="width: {{ user_data.active_fast.progress_percent|floatformat:0 }}%"></div>

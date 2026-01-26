@@ -489,6 +489,26 @@
     color: var(--color-text-muted);
 }
 
+.fast-remaining-container {
+    text-align: center;
+    margin-bottom: var(--space-3);
+}
+
+.fast-remaining {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--color-accent);
+    display: inline-block;
+    padding: var(--space-2) var(--space-4);
+    background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+    border-radius: var(--radius-md);
+}
+
+.fast-remaining.goal-reached {
+    color: var(--color-success);
+    background: color-mix(in srgb, var(--color-success) 15%, transparent);
+}
+
 .fast-progress-container {
     margin-bottom: var(--space-4);
 }

@@ -669,16 +669,42 @@ body.edit-mode .tile-name-label {
             document.getElementById('timer-minutes').textContent = String(minutes).padStart(2, '0');
             document.getElementById('timer-seconds').textContent = String(seconds).padStart(2, '0');
 
-            // Update progress bar if target set
+            // Update progress bar and remaining time if target set
             if (targetHours > 0) {
                 const progressEl = document.getElementById('fast-progress');
                 const progressHoursEl = document.getElementById('progress-hours');
+                const remainingEl = document.getElementById('fast-remaining');
+
                 if (progressEl) {
                     const percent = Math.min(100, (elapsed / (targetHours * 3600)) * 100);
                     progressEl.style.width = percent + '%';
                 }
                 if (progressHoursEl) {
                     progressHoursEl.textContent = `${hours}h ${minutes}m`;
+                }
+
+                // Update remaining time
+                if (remainingEl) {
+                    const targetSeconds = targetHours * 3600;
+                    const remaining = targetSeconds - elapsed;
+
+                    if (remaining <= 0) {
+                        remainingEl.textContent = 'Goal reached!';
+                        remainingEl.classList.add('goal-reached');
+                    } else {
+                        const remHours = Math.floor(remaining / 3600);
+                        const remMinutes = Math.floor((remaining % 3600) / 60);
+                        const remSeconds = remaining % 60;
+
+                        if (remHours > 0) {
+                            remainingEl.textContent = `${remHours}h ${remMinutes}m ${remSeconds}s remaining`;
+                        } else if (remMinutes > 0) {
+                            remainingEl.textContent = `${remMinutes}m ${remSeconds}s remaining`;
+                        } else {
+                            remainingEl.textContent = `${remSeconds}s remaining`;
+                        }
+                        remainingEl.classList.remove('goal-reached');
+                    }
                 }
             }
         }

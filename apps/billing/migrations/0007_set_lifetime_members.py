@@ -33,10 +33,16 @@ def set_lifetime_members(apps, schema_editor):
     for email in LIFETIME_MEMBERS:
         try:
             user = User.objects.get(email__iexact=email)
-            BillingProfile.objects.filter(user=user).update(
-                subscription_status='lifetime'
+            # Use get_or_create to ensure profile exists, then update
+            profile, created = BillingProfile.objects.get_or_create(
+                user=user,
+                defaults={'subscription_status': 'lifetime'}
             )
-            print(f"  Set lifetime status for: {email}")
+            if not created:
+                # Profile existed, update it
+                profile.subscription_status = 'lifetime'
+                profile.save(update_fields=['subscription_status'])
+            print(f"  Set lifetime status for: {email} (profile {'created' if created else 'updated'})")
         except User.DoesNotExist:
             print(f"  User not found (skipping): {email}")
 

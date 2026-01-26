@@ -586,7 +586,9 @@ class FilterTest(TestCase):
         """Test severity filter filters correctly."""
         request = self.factory.get('/', {'severity': 'high'})
         severity_filter = SeverityFilter(request, {'severity': 'high'}, SecurityFinding, self.admin)
-        queryset = severity_filter.queryset(request, SecurityFinding.objects.all())
+        # Filter by our run to isolate from other tests
+        base_queryset = SecurityFinding.objects.filter(run=self.run)
+        queryset = severity_filter.queryset(request, base_queryset)
         self.assertEqual(queryset.count(), 1)
         self.assertEqual(queryset.first().severity, 'high')
 
@@ -603,7 +605,8 @@ class FilterTest(TestCase):
         """Test quick win filter for yes."""
         request = self.factory.get('/', {'quick_win': 'yes'})
         qw_filter = QuickWinFilter(request, {'quick_win': 'yes'}, SecurityFinding, self.admin)
-        queryset = qw_filter.queryset(request, SecurityFinding.objects.all())
+        base_queryset = SecurityFinding.objects.filter(run=self.run)
+        queryset = qw_filter.queryset(request, base_queryset)
         self.assertEqual(queryset.count(), 1)
         self.assertTrue(queryset.first().is_quick_win)
 
@@ -611,7 +614,8 @@ class FilterTest(TestCase):
         """Test quick win filter for no."""
         request = self.factory.get('/', {'quick_win': 'no'})
         qw_filter = QuickWinFilter(request, {'quick_win': 'no'}, SecurityFinding, self.admin)
-        queryset = qw_filter.queryset(request, SecurityFinding.objects.all())
+        base_queryset = SecurityFinding.objects.filter(run=self.run)
+        queryset = qw_filter.queryset(request, base_queryset)
         self.assertEqual(queryset.count(), 3)
         for finding in queryset:
             self.assertFalse(finding.is_quick_win)
@@ -629,7 +633,8 @@ class FilterTest(TestCase):
         """Test acknowledged filter for yes."""
         request = self.factory.get('/', {'acknowledged': 'yes'})
         ack_filter = AcknowledgedFilter(request, {'acknowledged': 'yes'}, SecurityFinding, self.admin)
-        queryset = ack_filter.queryset(request, SecurityFinding.objects.all())
+        base_queryset = SecurityFinding.objects.filter(run=self.run)
+        queryset = ack_filter.queryset(request, base_queryset)
         self.assertEqual(queryset.count(), 1)
         self.assertTrue(queryset.first().is_acknowledged)
 
@@ -637,7 +642,8 @@ class FilterTest(TestCase):
         """Test acknowledged filter for no."""
         request = self.factory.get('/', {'acknowledged': 'no'})
         ack_filter = AcknowledgedFilter(request, {'acknowledged': 'no'}, SecurityFinding, self.admin)
-        queryset = ack_filter.queryset(request, SecurityFinding.objects.all())
+        base_queryset = SecurityFinding.objects.filter(run=self.run)
+        queryset = ack_filter.queryset(request, base_queryset)
         self.assertEqual(queryset.count(), 3)
         for finding in queryset:
             self.assertFalse(finding.is_acknowledged)
@@ -657,7 +663,8 @@ class FilterTest(TestCase):
         """Test finding status filter filters correctly."""
         request = self.factory.get('/', {'status': 'new'})
         status_filter = FindingStatusFilter(request, {'status': 'new'}, SecurityFinding, self.admin)
-        queryset = status_filter.queryset(request, SecurityFinding.objects.all())
+        base_queryset = SecurityFinding.objects.filter(run=self.run)
+        queryset = status_filter.queryset(request, base_queryset)
         self.assertEqual(queryset.count(), 2)  # critical and high are 'new'
         for finding in queryset:
             self.assertEqual(finding.status, 'new')

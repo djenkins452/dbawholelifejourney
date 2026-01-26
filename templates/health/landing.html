@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Health - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="health-landing">
+    <header class="landing-header">
+        <h1 class="landing-title">Health {% include "components/favorite_toggle.html" with page_title="Health" %}</h1>
+        <p class="landing-subtitle">Track your physical and cognitive wellness</p>
+    </header>
+
+    <div class="health-disclaimer">
+        <p>Whole Life Journey provides informational insights only. It does not provide medical advice, diagnosis, or treatment. Always consult a qualified healthcare professional for medical decisions.</p>
+    </div>
+
+    <div class="health-categories">
+        <a href="{% url 'health:home' %}" class="category-tile physical-tile">
+            <div class="tile-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                </svg>
+            </div>
+            <div class="tile-content">
+                <h2 class="tile-title">Physical Health</h2>
+                <p class="tile-description">Body metrics, fitness, sleep, nutrition, and medical tracking</p>
+                <ul class="tile-features">
+                    <li>Weight & Body Composition</li>
+                    <li>Heart Rate & Blood Pressure</li>
+                    <li>Sleep & Activity</li>
+                    <li>Nutrition & Fasting</li>
+                    <li>Medications & Providers</li>
+                </ul>
+            </div>
+            <div class="tile-arrow">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 18l6-6-6-6"/>
+                </svg>
+            </div>
+        </a>
+
+        <a href="{% url 'brain_training:hub' %}" class="category-tile cognitive-tile">
+            <div class="tile-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M12 2a9 9 0 0 1 9 9c0 3.6-2.4 6.9-6 8.3V21a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-1.7C5.4 17.9 3 14.6 3 11a9 9 0 0 1 9-9z"/>
+                    <path d="M9 21v1M15 21v1M12 17v-3M9 10.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM15 10.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z"/>
+                </svg>
+            </div>
+            <div class="tile-content">
+                <h2 class="tile-title">Cognitive Health</h2>
+                <p class="tile-description">Brain training, mental exercises, and cognitive wellness</p>
+                <ul class="tile-features">
+                    <li>Brain Training Games</li>
+                    <li>Logic & Problem Solving</li>
+                    <li>Memory Exercises</li>
+                    <li>Focus & Concentration</li>
+                    <li>Track Improvement</li>
+                </ul>
+            </div>
+            <div class="tile-arrow">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 18l6-6-6-6"/>
+                </svg>
+            </div>
+        </a>
+    </div>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.health-landing {
+    padding: var(--space-4);
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.landing-header {
+    text-align: center;
+    margin-bottom: var(--space-6);
+    padding: var(--space-4) 0;
+}
+
+.landing-title {
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: var(--color-text);
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+}
+
+.landing-subtitle {
+    font-size: 0.9rem;
+    color: var(--color-text-muted);
+    letter-spacing: 0.05em;
+}
+
+.health-disclaimer {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-3) var(--space-4);
+    margin-bottom: var(--space-6);
+}
+
+.health-disclaimer p {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    font-style: italic;
+    text-align: center;
+}
+
+.health-categories {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.category-tile {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-4);
+    padding: var(--space-6);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    text-decoration: none;
+    color: inherit;
+    transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+}
+
+.category-tile:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+    border-color: var(--color-accent);
+}
+
+.tile-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: var(--radius-lg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.tile-icon svg {
+    width: 36px;
+    height: 36px;
+}
+
+.physical-tile .tile-icon {
+    background: linear-gradient(135deg, #ef4444 0%, #f97316 100%);
+    color: white;
+}
+
+.cognitive-tile .tile-icon {
+    background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+    color: white;
+}
+
+.tile-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.tile-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--color-text);
+    margin-bottom: var(--space-2);
+}
+
+.tile-description {
+    font-size: 0.9rem;
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-3);
+    line-height: 1.5;
+}
+
+.tile-features {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.tile-features li {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    background: var(--color-background);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-full);
+    border: 1px solid var(--color-border);
+}
+
+.tile-arrow {
+    width: 24px;
+    height: 24px;
+    color: var(--color-accent);
+    flex-shrink: 0;
+    align-self: center;
+}
+
+.tile-arrow svg {
+    width: 100%;
+    height: 100%;
+}
+
+@media (max-width: 480px) {
+    .category-tile {
+        flex-direction: column;
+        text-align: center;
+        padding: var(--space-5);
+    }
+
+    .tile-icon {
+        margin: 0 auto var(--space-3);
+    }
+
+    .tile-features {
+        justify-content: center;
+    }
+
+    .tile-arrow {
+        display: none;
+    }
+}
+</style>
+{% endblock %}

@@ -16,6 +16,38 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-26 Changes
 
+### Health Module Reorganization - Physical Health & Cognitive Health
+
+**Summary:** Reorganized the Health module into two sub-categories: Physical Health and Cognitive Health. Added a new landing page at `/health/` with tiles for each category.
+
+**URL Structure Changes:**
+- `/health/` - New landing page with Physical Health and Cognitive Health tiles
+- `/health/physical/` - All existing health features (weight, heart rate, sleep, fitness, etc.)
+- `/health/cognitive/` - Brain Training (no change)
+
+**Key Changes:**
+- Created `HealthLandingView` with tile-based navigation
+- Added `physical/` prefix to all physical health URLs (100+ routes)
+- Added 301 permanent redirects for backwards compatibility (old URLs → new URLs)
+- Updated teaching destinations fixture with new paths and path descriptions
+- Updated module definitions to point to new landing page
+- Added breadcrumb navigation to Physical Health home
+- Fixed hardcoded URL in test_medicine.py
+
+**Files Modified:**
+- `apps/health/views.py` - Added HealthLandingView, updated HealthHomeView
+- `apps/health/urls.py` - Complete rewrite with physical/ prefix and legacy redirects
+- `templates/health/landing.html` - New landing page template
+- `templates/health/home.html` - Updated title, added breadcrumb
+- `apps/help/fixtures/teaching_destinations.json` - Updated all health URLs and path descriptions
+- `apps/users/fixtures/module_definitions.json` - Updated health route_name
+- `apps/health/tests/test_medicine.py` - Fixed hardcoded URL
+
+**Backwards Compatibility:**
+All old URLs (e.g., `/health/weight/`, `/health/fitness/`) permanently redirect to new URLs (`/health/physical/weight/`, `/health/physical/fitness/`). Bookmarks and external links continue to work.
+
+---
+
 ### Brain Training Module Implementation
 
 **Summary:** Added a complete Brain Training module with 5 logic-based brain games under Health > Cognitive Health.

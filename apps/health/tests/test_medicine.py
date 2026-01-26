@@ -1454,7 +1454,7 @@ class MedicineLogEditTest(MedicineTestMixin, TestCase):
         )
 
         response = self.client.get(reverse('health:medicine_history'))
-        self.assertContains(response, f'/health/medicine/log/{log.pk}/edit/')
+        self.assertContains(response, f'/health/physical/medicine/log/{log.pk}/edit/')
 
     def test_medicine_home_shows_edit_link_for_taken_doses(self):
         """Medicine home shows edit link for taken doses."""
@@ -1471,4 +1471,4 @@ class MedicineLogEditTest(MedicineTestMixin, TestCase):
         )
 
         response = self.client.get(reverse('health:medicine_home'))
-        self.assertContains(response, f'/health/medicine/log/{log.pk}/edit/')
+        self.assertContains(response, f'/health/physical/medicine/log/{log.pk}/edit/')

@@ -1,14 +1,21 @@
 {% extends "base.html" %}
 {% load static humanize %}
 
-{% block title %}Health - Whole Life Journey{% endblock %}
+{% block title %}Physical Health - Whole Life Journey{% endblock %}
 
 {% block content %}
 <div class="container">
-    {% include "components/intro_banner.html" with module="health" title="Welcome to Health" message="Track vitals, medicines, fitness, and nutrition at your own pace. Log what matters to you and see trends over time. No judgment, just awareness." icon="❤️" %}
+    {% include "components/intro_banner.html" with module="health" title="Welcome to Physical Health" message="Track vitals, medicines, fitness, and nutrition at your own pace. Log what matters to you and see trends over time. No judgment, just awareness." icon="❤️" %}
+
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+        <a href="{% url 'health:landing' %}">Health</a>
+        <span>/</span>
+        <span>Physical Health</span>
+    </nav>
 
     <div class="page-header">
-        <h1 class="page-title">Health {% include "components/favorite_toggle.html" with page_title="Health" %}</h1>
+        <h1 class="page-title">Physical Health {% include "components/favorite_toggle.html" with page_title="Physical Health" %}</h1>
         <p class="page-subtitle">Track your physical wellness, gently and without judgment</p>
     </div>
 

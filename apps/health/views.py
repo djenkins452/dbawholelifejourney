@@ -81,13 +81,29 @@ from .models import (
 )
 
 
+class HealthLandingView(HelpContextMixin, LoginRequiredMixin, TemplateView):
+    """
+    Health landing page - choose between Physical Health and Cognitive Health.
+    """
+
+    template_name = "health/landing.html"
+    help_context_id = "HEALTH_LANDING"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["breadcrumbs"] = [
+            {"title": "Health", "url": None},
+        ]
+        return context
+
+
 class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
     """
-    Health module home - overview of all health metrics.
+    Physical Health home - overview of all physical health metrics.
     """
 
     template_name = "health/home.html"
-    help_context_id = "HEALTH_HOME"
+    help_context_id = "HEALTH_PHYSICAL_HOME"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -455,6 +471,12 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                 )
         except Exception:
             pass
+
+        # Breadcrumbs for Physical Health
+        context["breadcrumbs"] = [
+            {"title": "Health", "url": reverse("health:landing")},
+            {"title": "Physical Health", "url": None},
+        ]
 
         return context
 

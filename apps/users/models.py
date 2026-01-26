@@ -659,7 +659,7 @@ class UserPreferences(models.Model):
         max_length=50,
         blank=True,
         default="",
-        help_text="Default Bible translation ID for Scripture lookup (e.g., 'de4e12af7f28f599-02' for KJV)",
+        help_text="Default Bible translation ID for Scripture lookup (e.g., '3034' for BSB)",
     )
 
     # Onboarding status

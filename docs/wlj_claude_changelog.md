@@ -16,6 +16,32 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-25 Changes
 
+### Fix YouVersion Bible API Integration
+
+**Summary:** Fixed Scripture lookup not loading books after migrating from API.Bible to YouVersion API.
+
+**Problem:** Users reported the Scripture Library page showing "Loading books..." indefinitely. The page had old API.Bible IDs that don't work with YouVersion:
+1. Fallback Bible ID was `9879dbb7cfe39e4d-04` (old API.Bible ESV format)
+2. Blocklist contained old API.Bible IDs like `78a9f6124f344018-01` (NIV11)
+3. User preferences might have old API.Bible translation IDs saved
+4. Help text referenced old API.Bible ID format
+
+**Solution:**
+1. Updated fallback Bible ID to `3034` (BSB - Berean Standard Bible, valid YouVersion ID)
+2. Cleared the blocklist since YouVersion uses different IDs (numeric vs UUID)
+3. Added error handling when saved default translation doesn't match available translations
+4. Updated fallback translation name from "English Standard Version" to "Berean Standard Bible"
+5. Updated model help text to show YouVersion ID format example
+
+**Files Modified:**
+- `templates/faith/scripture_list.html` - Updated fallback ID and added translation validation
+- `apps/faith/views.py` - Cleared outdated blocklist
+- `apps/users/models.py` - Updated help text for default_bible_translation field
+
+**Note:** Users with old saved default translations will need to re-select a translation in Preferences.
+
+---
+
 ### Add CSRF-Exempt Login for App Review Account
 
 **Summary:** Added a CSRF-exempt login endpoint for the Apple App Review demo account to fix login issues in iOS WKWebView.

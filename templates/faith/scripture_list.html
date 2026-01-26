@@ -606,8 +606,8 @@ const API_PROXY_BASE = '/faith/api/bible';
 const DEFAULT_TRANSLATION = '{{ default_translation }}';
 const LOOKUP_REFERENCE = '{{ lookup_reference|escapejs }}';
 
-// Fallback Bible ID (ESV - English Standard Version)
-const FALLBACK_BIBLE_ID = '9879dbb7cfe39e4d-04';
+// Fallback Bible ID (BSB - Berean Standard Bible, YouVersion ID: 3034)
+const FALLBACK_BIBLE_ID = '3034';
 
 let currentBibleId = '';
 let currentBookId = '';
@@ -701,22 +701,31 @@ async function fetchBibles() {
         // Show translations immediately, then test them in background
         versionSelect.innerHTML = '<option value="">Select Translation</option>';
 
+        let foundDefaultTranslation = false;
         uniqueBibles.forEach(bible => {
             const option = document.createElement('option');
             option.value = bible.id;
             option.textContent = `${bible.abbreviation} - ${bible.name}`;
-            // Preselect user's default translation
-            if (DEFAULT_TRANSLATION && bible.id === DEFAULT_TRANSLATION) {
+            // Preselect user's default translation (compare as strings for type safety)
+            if (DEFAULT_TRANSLATION && String(bible.id) === String(DEFAULT_TRANSLATION)) {
                 option.selected = true;
+                foundDefaultTranslation = true;
             }
             versionSelect.appendChild(option);
         });
 
         versionSelect.disabled = false;
 
+        // Handle case where saved default translation doesn't exist in available translations
+        if (DEFAULT_TRANSLATION && !foundDefaultTranslation) {
+            console.warn(`Saved default translation "${DEFAULT_TRANSLATION}" not found in available translations`);
+            // Don't show error - just let user select a translation
+            // The old translation ID may be from a different API (e.g., API.Bible vs YouVersion)
+        }
+
         // If default translation was selected, load its books
-        if (DEFAULT_TRANSLATION && versionSelect.value === DEFAULT_TRANSLATION) {
-            fetchBooks(DEFAULT_TRANSLATION);
+        if (DEFAULT_TRANSLATION && foundDefaultTranslation && versionSelect.value) {
+            fetchBooks(versionSelect.value);
         }
 
         // Test translations in background and remove broken ones
@@ -918,7 +927,7 @@ function displayResults(data) {
     // Add fallback notice if needed
     let resultsHtml = '';
     if (usedFallback) {
-        resultsHtml = '<div class="fallback-notice">Shown in English Standard Version (your selected translation was unavailable for this passage)</div>';
+        resultsHtml = '<div class="fallback-notice">Shown in Berean Standard Bible (your selected translation was unavailable for this passage)</div>';
     }
     resultsHtml += text;
 
@@ -928,7 +937,7 @@ function displayResults(data) {
     // Store for saving
     const bookName = document.getElementById('bible-book').options[document.getElementById('bible-book').selectedIndex].text;
     const chapterNum = document.getElementById('bible-chapter').options[document.getElementById('bible-chapter').selectedIndex].text.replace('Chapter ', '');
-    const translation = usedFallback ? 'English Standard Version' : document.getElementById('bible-version').options[document.getElementById('bible-version').selectedIndex].text;
+    const translation = usedFallback ? 'Berean Standard Bible' : document.getElementById('bible-version').options[document.getElementById('bible-version').selectedIndex].text;
 
     currentVerseData = {
         reference: reference,

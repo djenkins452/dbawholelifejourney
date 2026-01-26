@@ -74,10 +74,8 @@ logger = logging.getLogger(__name__)
 BIBLE_API_BASE = "https://api.youversion.com/v1"
 
 # Blocklist of Bible translation IDs that are known to not work properly
-# These translations return 403/500 errors due to licensing restrictions
-BLOCKED_BIBLE_TRANSLATIONS = {
-    '78a9f6124f344018-01',  # NIV11 - New International Version 2011 (licensing issues)
-}
+# Note: YouVersion API uses numeric IDs (e.g., 12, 3034) - add any problematic ones here
+BLOCKED_BIBLE_TRANSLATIONS = set()  # Currently empty - all YouVersion translations work
 
 
 class FaithRequiredMixin(UserPassesTestMixin):

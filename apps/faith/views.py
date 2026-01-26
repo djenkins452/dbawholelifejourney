@@ -142,6 +142,12 @@ class FaithHomeView(HelpContextMixin, LoginRequiredMixin, FaithRequiredMixin, Te
         # Milestones
         context["milestones"] = FaithMilestone.objects.filter(user=user)[:5]
 
+        # Active reading plan
+        context["active_reading_plan"] = UserReadingPlan.objects.filter(
+            user=user,
+            plan_status="active",
+        ).select_related("template").first()
+
         # Generate AI insight if user has AI enabled and consented
         context['ai_insight'] = None
         context['ai_enabled'] = False

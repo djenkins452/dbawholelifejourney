@@ -1184,9 +1184,8 @@ class ReadingPlanListView(HelpContextMixin, LoginRequiredMixin, FaithRequiredMix
         public_plans = []
 
         for plan in accessible_plans.order_by("source", "series", "series_order"):
-            # Skip completed plans - they go in the Completed section at bottom
-            if plan.pk in completed_template_ids:
-                continue
+            # Note: Completed plans now stay in grouped sections with a "Completed" badge
+            # They also appear in the Completed section at the bottom for easy reference
 
             if plan.source:
                 source_key = plan.source_abbreviation or plan.source

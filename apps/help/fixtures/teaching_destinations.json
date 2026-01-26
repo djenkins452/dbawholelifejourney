@@ -413,7 +413,7 @@
         "fields": {
             "destination_id": "cycle-daily-log",
             "name": "Log Cycle Day",
-            "path_description": "Health - Cycle - Daily Log",
+            "path_description": "Health - Physical - Cycle - Daily Log",
             "explanation": "Record daily cycle data including flow level, symptoms, mood, and energy levels.",
             "url": "/health/physical/cycle/log/",
             "keywords": "log cycle, log period, daily log, track flow, cycle symptoms, period symptoms, log cramps, mood tracker, energy level",
@@ -1354,6 +1354,91 @@
             "keywords": "physical health, body health, fitness, weight, heart rate, sleep, steps, water, nutrition, medicine, physical wellness",
             "module": "health",
             "sort_order": 80,
+            "is_active": true,
+            "created_at": "2026-01-26T00:00:00Z",
+            "updated_at": "2026-01-26T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 81,
+        "fields": {
+            "destination_id": "brain-training-sudoku",
+            "name": "Sudoku",
+            "path_description": "Health - Cognitive - Brain Training - Sudoku",
+            "explanation": "Classic 9x9 number puzzle. Fill the grid so each row, column, and 3x3 box contains digits 1-9.",
+            "url": "/health/cognitive/sudoku/play/",
+            "keywords": "sudoku, number puzzle, logic puzzle, 9x9, brain game, sudoku puzzle",
+            "module": "health",
+            "sort_order": 81,
+            "is_active": true,
+            "created_at": "2026-01-26T00:00:00Z",
+            "updated_at": "2026-01-26T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 82,
+        "fields": {
+            "destination_id": "brain-training-kenken",
+            "name": "KenKen",
+            "path_description": "Health - Cognitive - Brain Training - KenKen",
+            "explanation": "Math-based logic puzzle. Fill the grid using arithmetic operations in each cage.",
+            "url": "/health/cognitive/kenken/play/",
+            "keywords": "kenken, math puzzle, arithmetic, cage puzzle, brain game, ken ken, calcudoku",
+            "module": "health",
+            "sort_order": 82,
+            "is_active": true,
+            "created_at": "2026-01-26T00:00:00Z",
+            "updated_at": "2026-01-26T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 83,
+        "fields": {
+            "destination_id": "brain-training-nonogram",
+            "name": "Nonogram",
+            "path_description": "Health - Cognitive - Brain Training - Nonogram",
+            "explanation": "Picture logic puzzle. Use number clues to reveal a hidden image by filling cells.",
+            "url": "/health/cognitive/nonogram/play/",
+            "keywords": "nonogram, picross, picture puzzle, grid puzzle, brain game, pixel puzzle, griddler",
+            "module": "health",
+            "sort_order": 83,
+            "is_active": true,
+            "created_at": "2026-01-26T00:00:00Z",
+            "updated_at": "2026-01-26T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 84,
+        "fields": {
+            "destination_id": "brain-training-word-ladder",
+            "name": "Word Ladder",
+            "path_description": "Health - Cognitive - Brain Training - Word Ladder",
+            "explanation": "Transform one word into another by changing one letter at a time. Each step must be a valid word.",
+            "url": "/health/cognitive/word_ladder/play/",
+            "keywords": "word ladder, word puzzle, word game, letter change, vocabulary, brain game, word chain",
+            "module": "health",
+            "sort_order": 84,
+            "is_active": true,
+            "created_at": "2026-01-26T00:00:00Z",
+            "updated_at": "2026-01-26T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 85,
+        "fields": {
+            "destination_id": "brain-training-memory-matrix",
+            "name": "Memory Matrix",
+            "path_description": "Health - Cognitive - Brain Training - Memory Matrix",
+            "explanation": "Memory challenge. Watch the pattern, then recreate it from memory. Tests visual working memory.",
+            "url": "/health/cognitive/memory_matrix/play/",
+            "keywords": "memory matrix, memory game, pattern memory, visual memory, brain game, recall, memory test",
+            "module": "health",
+            "sort_order": 85,
             "is_active": true,
             "created_at": "2026-01-26T00:00:00Z",
             "updated_at": "2026-01-26T00:00:00Z"

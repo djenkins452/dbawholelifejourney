@@ -16,6 +16,19 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-26 Changes
 
+### Add Teaching Destinations for Brain Training Games
+
+**Summary:** Added context-aware help entries for individual brain training games and fixed path descriptions.
+
+**Changes:**
+- Added teaching destinations for Sudoku, KenKen, Nonogram, Word Ladder, and Memory Matrix games
+- Fixed cycle daily log path_description from "Health - Cycle" to "Health - Physical - Cycle"
+
+**Files Modified:**
+- `apps/help/fixtures/teaching_destinations.json` - Added 5 new game destinations (pk 81-85), fixed pk 25
+
+---
+
 ### Reading Plans Tile on Faith Home Page
 
 **Summary:** Added Reading Plans tile to Faith home page for easy access.

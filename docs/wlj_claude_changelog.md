@@ -16,6 +16,22 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-26 Changes
 
+### Add Time Remaining to Dashboard Fasting Tile
+
+**Summary:** Added live "time remaining" countdown to the fasting widget on the dashboard, matching the feature on the fasting list page.
+
+**Changes:**
+- `templates/dashboard/tiles/current_fast.html` - Added remaining time display element
+- `templates/dashboard/home.html` - Added JavaScript to calculate and update remaining time live
+- `static/css/dashboard.css` - Added CSS styles for the remaining time display
+
+**Behavior:**
+- Shows "Xh Xm Xs remaining" countdown when fasting with a target set
+- Displays "Goal reached!" when the target is met (with green styling)
+- Updates every second alongside the elapsed timer
+
+---
+
 ### Brain Training Module Implementation
 
 **Summary:** Added a complete Brain Training module with 5 logic-based brain games under Health > Cognitive Health.

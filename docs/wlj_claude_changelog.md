@@ -248,6 +248,23 @@ All old URLs (e.g., `/health/weight/`, `/health/fitness/`) permanently redirect 
 **Migration Created:**
 - `apps/users/migrations/0055_add_allowed_international_email.py`
 
+### Fix MFA Enforcement for Biometric Login
+
+**Summary:** Fixed MFA enforcement not working properly after biometric login or registration.
+
+**Problem:** Users in the `MFA_REQUIRED_EMAILS` list (like `heatherjenkins74@gmail.com`) could bypass MFA enforcement if they:
+1. Logged in via biometric/WebAuthn
+2. Registered a new biometric credential from the MFA required page
+
+The root cause was that biometric login and registration did not set the `mfa_verified` session flag, even though biometric authentication IS a form of MFA verification.
+
+**Solution:** Added `mfa_verified = True` and `mfa_verified_at` timestamp to session in both:
+- `BiometricLoginCompleteView` - after successful biometric login
+- `BiometricRegisterCompleteView` - after registering a new biometric credential
+
+**Files Modified:**
+- `apps/users/views.py` - Added mfa_verified session flag to biometric login and registration flows
+
 ---
 
 ## 2026-01-25 Changes

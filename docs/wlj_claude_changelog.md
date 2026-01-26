@@ -16,6 +16,19 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-26 Changes
 
+### Fix Brain Training Challenge Generation on Empty Database
+
+**Summary:** Fixed Brain Training games not loading when the database has no pre-generated challenges.
+
+**Issue:** Sudoku and other games showed empty grids because `api_batch` only fetched from the queue/database but didn't generate new challenges when none existed.
+
+**Fix:** Modified `api_batch` view to call `get_or_create_challenges` when the database has fewer challenges than requested.
+
+**Files Modified:**
+- `apps/brain_training/views.py` - Added import for `get_or_create_challenges` and logic to generate challenges on-demand
+
+---
+
 ### Health Module Reorganization - Physical Health & Cognitive Health
 
 **Summary:** Reorganized the Health module into two sub-categories: Physical Health and Cognitive Health. Added a new landing page at `/health/` with tiles for each category.

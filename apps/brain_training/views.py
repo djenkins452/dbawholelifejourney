@@ -25,6 +25,7 @@ from .models import (
     UserGameStats,
     UserOverallStats,
 )
+from .services.generator import get_or_create_challenges
 from .services.stats import get_improvement_stats
 
 
@@ -134,7 +135,7 @@ def api_batch(request, game_slug):
             if challenge:
                 challenges.append(challenge)
 
-    # Fill remaining from database
+    # Fill remaining from database or generate new ones
     needed = count - len(challenges)
     if needed > 0:
         # Get challenges the user hasn't completed recently
@@ -145,14 +146,18 @@ def api_batch(request, game_slug):
             completed_at__gte=timezone.now() - timedelta(days=7),
         ).values_list('challenge_id', flat=True)
 
-        db_challenges = Challenge.objects.filter(
+        db_challenges = list(Challenge.objects.filter(
             game=game,
             difficulty=difficulty,
         ).exclude(
             id__in=recent_completed
-        ).order_by('?')[:needed]
+        ).order_by('?')[:needed])
 
-        challenges.extend(list(db_challenges))
+        # If we don't have enough challenges, generate new ones
+        if len(db_challenges) < needed:
+            db_challenges = get_or_create_challenges(game, difficulty, needed)
+
+        challenges.extend(db_challenges)
 
     # Format response
     data = {

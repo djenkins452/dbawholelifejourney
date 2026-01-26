@@ -69,6 +69,8 @@ class TermsAcceptanceMiddleware:
         "/static/",
         "/media/",
         "/api/",  # API endpoints - handled with token auth, no session requirements
+        "/app-review/",  # App Store review page (must be public for Apple reviewers)
+        "/ux-design/",  # UX design page (public for App Store review)
     ]
 
     ONBOARDING_PATHS = [
@@ -139,6 +141,8 @@ class SubscriptionRequiredMiddleware:
         "/api/",  # API endpoints - use decorators for API auth
         "/help/",  # Help pages should be accessible
         "/__debug__/",  # Django debug toolbar
+        "/app-review/",  # App Store review page (must be public for Apple reviewers)
+        "/ux-design/",  # UX design page (public for App Store review)
     ]
 
     # Paths allowed for Faith Only users (free tier with Faith module only)

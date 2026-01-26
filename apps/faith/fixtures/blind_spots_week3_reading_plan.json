@@ -1,0 +1,126 @@
+[
+  {
+    "model": "faith.readingplantemplate",
+    "pk": 103,
+    "fields": {
+      "title": "Self-Centeredness",
+      "slug": "blind-spots-self-centeredness",
+      "description": "Week 3 of the Blind Spots series at Seymour Heights Christian Church. Self-centeredness is one of the most pervasive blind spots we face. When our world revolves around us, we become blind to others. This 6-day plan examines how Jesus redefined greatness through service and humility, challenging us to get over ourselves and put others first.",
+      "category": "devotional",
+      "difficulty": "beginner",
+      "duration_days": 6,
+      "image_url": "",
+      "topics": ["blind-spots-series", "self-centeredness", "humility", "service", "greatness", "pride"],
+      "source": "Seymour Heights Christian Church",
+      "source_abbreviation": "SHCC",
+      "series": "Blind Spots",
+      "series_order": 3,
+      "allowed_emails": ["dannyjenkins71@gmail.com", "heatherjenkins74@gmail.com"],
+      "is_active": true,
+      "is_featured": false,
+      "created_at": "2026-01-26T00:00:00Z",
+      "updated_at": "2026-01-26T00:00:00Z"
+    }
+  },
+  {
+    "model": "faith.readingplanday",
+    "pk": 1031,
+    "fields": {
+      "plan": 103,
+      "day_number": 1,
+      "title": "Am I Selfish?",
+      "scripture_references": ["Mark 10:32-34"],
+      "reflection_prompt": "Take the Self-Centeredness Assessment below. Be honest with yourself—remember, the goal is to see what you've been missing. Which questions made you pause? What patterns do you notice?",
+      "devotional_text": "Today's blind spot centers on self-centeredness. Remember, our goal in this series is to allow the Holy Spirit to search and reveal what's going on in our lives and this potential blind spot in us.\n\nIf a car is in my blind spot, there'll be a little light up on my side mirror or my front mirror indicating, letting me know that a car is in that particular spot. And if I would begin to change lanes, there's a little kind of a tone, but kind of like to let me know, oh, someone is there. And I just wondered if we as human beings were equipped with a blind spot monitoring system, I imagine that selfishness would be one of those blind spots that would trigger all of our systems to some degree.\n\nWe live in a world that encourages us to be the center of our own little universe. Do what we want. Listen to what we want. Have everything, even the algorithms that are in our electronics and Facebook. I just want to get what I want. I don't want a different genre of music. I don't want that news feed. I want this. I want to have the world be an echo chamber to tell me that I'm doing exactly what I want when I want, how I want.\n\nBut when we focus on ourselves, it leads to conflict. We focus on ourselves and not our spouse. Conflict. We focus on ourselves and not our kids. Conflict. Focus on ourselves and not our brothers and sisters in Christ. It opens up the door for conflict. Unhealthy conflict.\n\nSo before we move any further, let's pause for just a moment. Heavenly Father, open up our eyes. Open up our ears. Open our minds. Open our hearts to the prompting of your Holy Spirit. In Jesus' name, amen.\n\nPrayer Focus: Ask God to help you honestly assess where self-centeredness may be operating in your life."
+    }
+  },
+  {
+    "model": "faith.readingplanday",
+    "pk": 1032,
+    "fields": {
+      "plan": 103,
+      "day_number": 2,
+      "title": "A Selfish Picture of Glory",
+      "scripture_references": ["Mark 10:35-40"],
+      "reflection_prompt": "James and John wanted positions of honor and power. Where in your life are you seeking recognition, status, or the 'best seat'? What would it look like to release that desire to God?",
+      "devotional_text": "Mark in his beautiful biography, really a Christography telling the story of Jesus, shows us how all of the disciples of Jesus were impacted by this blind spot of self-centeredness.\n\nPeter replies and says, you are the Christ, you are the Messiah. And then Jesus right there goes on to say, and the son of man, speaking of himself, is going to be turned over to the religious leaders that the son of man is going to suffer. And right then is when Peter, it's the Greek word, epitomao, say it with me, epitomao, you know Greek, you're awesome, Peter epitomao Jesus, which means the slap on the knuckles. And he says, no, that's not what you're going to, I won't let you do that. And that's when Jesus turns around and epitomao's Peter on the knuckles and says, get behind me, Satan. Here's where I'm headed. And I don't want you to go there because if you go there, I might have to go there. That's Mark 8, 31, chapter nine, verse 31.\n\nAnd now we get to this third passion prediction in Mark chapter 10. We're going to Jerusalem, he said, and the son of man will be delivered over to the chief priest and the teachers of the law. They will condemn him to death and will hand him over to the Gentiles who will mock him and spit on him, flog him and kill him. Three days later, he will rise.\n\nAnd once again, I'm afraid the words of Jesus go in the disciples ears one in one way and out the next. Now why do I say that? Because just as soon as Jesus finishes that, James and John bebop up to Jesus with a request. Look at verse 35. Then James and John, the sons of Zebedee came in to him, teacher, they said, we want you to do for us whatever we ask. What do you want me to do for you? He asked, they replied, let one of us sit on your right and the other at your left in your glory.\n\nSee James and John have a selfish picture of glory. That's what's running through their head. They were having kind of the inside track to Jesus. They were some of the first disciples called. So it makes sense that we get to be with you when you come into your power and glory. It's almost like they were saying, Hey, Jesus, we know that you are going to be the president and chief executive officer of this, of this kingdom you've been talking about. That's wonderful. And we would like one of us to be the chief operating officer and we would like one of us to be the chief financial officer.\n\nThe Zebedee brothers are blind to their self-centered request. They're looking at this from the viewpoint that, that being with Jesus should give you some special privileges, right? I mean, we, we want the best seats in the house. We want the, we want the, the perks that come, uh, that, that will come with being with, with Jesus and the spotlights for that and, and, and all the activity and all the applause James and John are, are correct. Jesus is headed for glory. They believe that in the end, that if he wins, he will be King Jesus, but the means by which he will receive glory, they don't have a clue. Jesus will have someone at his right and left, but there'll be two thieves on a cross.\n\nPrayer Focus: Ask God to reveal any areas where you're seeking glory, recognition, or special treatment for yourself."
+    }
+  },
+  {
+    "model": "faith.readingplanday",
+    "pk": 1033,
+    "fields": {
+      "plan": 103,
+      "day_number": 3,
+      "title": "The Model of True Greatness",
+      "scripture_references": ["Mark 10:41-45"],
+      "reflection_prompt": "Jesus came not to be served but to serve. How does this challenge your definition of success and greatness? What would change in your daily life if you truly embraced servant leadership?",
+      "devotional_text": "Oh, we'll see it in other people, but not in ourselves. You see, Jesus has a heart for us to pursue true greatness. Jesus is the model of true greatness. It's marked by sacrificial other-centered service. You know, our Christian life will never make much sense to us until we surrender our self-centeredness. Jesus desires us to grow and mature in him through service. Greatness comes through service, not selfishness. Greatness comes through service, not selfishness.\n\nAnd that brings us to the key verse in Mark's gospel. Mark 10, 45. It's going to come on the screen. Read it with me. For even the Son of Man did not come to be served, but to serve and to give his life as a ransom for many.\n\nJesus came not to be served, but to die. You know, that sets Jesus apart from any other founder of any other major religion. The purpose of other founders, you know, were to live and be an example. Jesus' purpose was to die and be a sacrifice. The word for, at the start of verse 45, is connecting the argument of verses 43 to 44. Who should become a servant? Why should you become a servant? Because that's what your Savior did.\n\nJesus gave his life as a ransom, a ransom meaning he's paying the price for your sin and my sin and for the world's sin, one sin for all, price paid in full, to send the sin and evil that we cannot deal with in ourselves has been paid by a Savior who came to serve.\n\nSo here's what I'm thinking. If Jesus chose not to be self-centered, but to serve, how can we choose anything else? How do we battle this blind spot of self-centeredness? Well, according to Jesus, we exchange our understanding of what greatness is.\n\nYou know, all of us have this tendency to view greatness as focusing on ourselves and getting our way. It is a great day when I get the last Pop-Tart out of the box. It is a great day when I get the front seat. It is a great day when I get the highest grade in class. It is a great day when I get noticed at work. It is a great day when I decide what's for supper. It's a great day when I've got the remote.\n\nAnd Jesus says, you want to be great? Let me give you a new definition. Gene, get over yourself.\n\nPrayer Focus: Meditate on Jesus' example of servanthood. Ask Him to transform your definition of greatness."
+    }
+  },
+  {
+    "model": "faith.readingplanday",
+    "pk": 1034,
+    "fields": {
+      "plan": 103,
+      "day_number": 4,
+      "title": "G-R-E-A-T (Part 1)",
+      "scripture_references": ["Philippians 2:3-8", "James 4:6-10"],
+      "reflection_prompt": "Which is harder for you: Getting over yourself or Resisting pride? What specific situation this week requires you to apply one of these principles?",
+      "devotional_text": "We need to ask God to make us unimpressed with our successes and accomplishments. Here's how to pursue true greatness:\n\n**Letter G: Get over yourself.**\n\nResist pride. Letter E, engage in service. It's so good to get our minds off of ourselves and engage in service by thinking of other people. It's the amazing the health in that, of just changing your focus by thinking of other people and engaging in service.\n\nJohn Stott says in the book, the cross of Christ, he says, our world, even in the church is full of people like James and John, go getters, status seekers, hungry for honor and prestige, measuring life by achievements and everlastingly dreaming of success.\n\nDo we ever get caught up in self-centered desires? Sometimes we don't see just how doggone selfish we are. Jesus says, open up your eyes and realize it's not about you. Serve others. Think of other people. Who puts others ahead of ourselves?\n\n**Letter R: Resist pride. We just need to confess our pride.**\n\nAnd I encourage all of us to have somebody hold us accountable. Get over yourself. Resist pride.\n\nThe world tells us to promote ourselves, to build our personal brand, to make sure we get credit. But Jesus calls us to something radically different. He calls us to die to self. To consider others better than ourselves. To take the lowest seat rather than grasping for the highest.\n\nThis isn't natural. Our flesh screams against it. But it's the path to true greatness in God's kingdom.\n\nPrayer Focus: Confess specific areas of pride to God. Ask Him to help you get over yourself and resist the pull of self-promotion."
+    }
+  },
+  {
+    "model": "faith.readingplanday",
+    "pk": 1035,
+    "fields": {
+      "plan": 103,
+      "day_number": 5,
+      "title": "G-R-E-A-T (Part 2)",
+      "scripture_references": ["Galatians 5:13-14", "1 Peter 4:10-11", "Proverbs 3:5-6"],
+      "reflection_prompt": "Think about the practical examples: being first to apologize, cleaning up, letting others go first. Which specific act of service is God calling you to this week? Who can you put ahead of yourself today?",
+      "devotional_text": "Continuing our journey through what it means to be G-R-E-A-T in God's kingdom:\n\n**Letter E: Engage in service by thinking of other people.**\n\nIt's so good to get our minds off of ourselves and engage in service by thinking of other people. It's amazing the health in that, of just changing your focus by thinking of other people and engaging in service.\n\n**Letter A: Assume the role of a servant. Put others above ourselves.**\n\nStart serving and thanking them. How can I help with this? How can I do this? What do you need from me?\n\n**And the letter T: Totally depend on God. Persist in seeking God. Rely on Him, not ourselves.**\n\nSo I ask you, of those, G-R-E-A-T, of those thoughts about great and Jesus' understanding of it, which one has made me speaking to you tonight? Which one is like, oh, that's the one that I'm not doing very well at. This is the one that really stands out to me. This is the one that got my attention. This is the one that caught my eye that I need to lean into. I need to surrender to. I need to apply to my life. Which one is it for you tonight?\n\nEvery day, we face a simple test. Will I exalt myself or humble myself? Jesus' disciples, they struggled with that blind spot, and we struggled with that blind spot, too. We face the same test with every relationship. Am I going to exalt myself or am I going to humble myself? Because we can't do both.\n\nWill we be the first to apologize in that argument? I'm going to make sure I'm not going to be first. I'll let somebody else do that. Who grabs the towel first to clean up things? I'm going to wait and let somebody else do it. Are you going to be the first one that jumps in? I'll start cleaning. Who puts others ahead of themselves? That's what Jesus calls us to do.\n\nPrayer Focus: Choose one letter from G-R-E-A-T to focus on today. Ask God to give you an opportunity to practice it."
+    }
+  },
+  {
+    "model": "faith.readingplanday",
+    "pk": 1036,
+    "fields": {
+      "plan": 103,
+      "day_number": 6,
+      "title": "Following His Example",
+      "scripture_references": ["Mark 10:45", "John 13:12-17", "1 Peter 2:21"],
+      "reflection_prompt": "As you conclude this week, what is the one thing God has revealed about your self-centeredness? What specific step will you take to follow Jesus' example of humble service? Write out your commitment.",
+      "devotional_text": "This blind spot has a powerful root that can grow in our lives. We're just going through life doing our own thing. Sometimes we don't see just how doggone selfish we are.\n\nJesus says, open up your eyes and realize it's not about you. Serve others. Think of other people. Who puts others ahead of ourselves?\n\nLet's pray. God, help us to see the blind spot of self-centeredness alive in our lives. And then, Lord, help us surrender it to you.\n\nLord, help us follow your example, your wonderful example of humble service. You showed us what true greatness looks like—not in grasping for power and position, but in laying down your life for others. You washed the disciples' feet. You touched the untouchable. You served the very ones who would abandon and betray you.\n\nHelp us to get over ourselves. Help us to resist pride. Help us to engage in service. Help us to assume the role of a servant. Help us to totally depend on you.\n\nWe confess that self-centeredness comes naturally to us. We want the best seat, the last word, the credit, the recognition. But you call us to something different. You call us to die to self and live for others.\n\nThis week, open our eyes to see opportunities to serve. Give us the courage to be first to apologize, first to help, first to put others ahead of ourselves. Transform our understanding of greatness from the world's definition to yours.\n\nIn Jesus' name, Amen.\n\nPrayer Focus: Pray through the G-R-E-A-T acrostic, surrendering each area to God. Ask Him to continue revealing and healing this blind spot in your life."
+    }
+  },
+  {
+    "model": "faith.readingplanassessment",
+    "pk": 3,
+    "fields": {
+      "plan_day": 1031,
+      "title": "Self-Centeredness Assessment",
+      "description": "This is a vulnerable evening for us. Be honest with yourself as you answer these questions. Rate yourself on a scale of 1-5. Remember, the goal is to allow the Holy Spirit to search and reveal what's going on in our lives.",
+      "questions": [
+        {"id": "1", "text": "There's one slice of pizza left at a party and you are hungry. What do you do? Eat it? Give it to your best friend because they're hungry too? Give it to someone else in exchange for a taco? Or leave it?", "min_label": "Leave it", "mid_label": "Offer to share", "max_label": "Eat it"},
+        {"id": "2", "text": "You see someone drop a $5 bill and they don't notice. Do you glide over and sweep it up like a vacuum cleaner? Or do you pick it up and give it back to them?", "min_label": "Return it", "mid_label": "Hesitate", "max_label": "Keep it"},
+        {"id": "3", "text": "I love being first.", "min_label": "Not at all", "mid_label": "Sometimes", "max_label": "Definitely"},
+        {"id": "4", "text": "I love to win.", "min_label": "Not at all", "mid_label": "Sometimes", "max_label": "Definitely"},
+        {"id": "5", "text": "I love getting the last word.", "min_label": "Not at all", "mid_label": "Sometimes", "max_label": "Definitely"},
+        {"id": "6", "text": "I love being right.", "min_label": "Not at all", "mid_label": "Sometimes", "max_label": "Definitely"},
+        {"id": "7", "text": "When our world revolves around us, we become blind to others. How often do you find yourself focused on your own needs above others?", "min_label": "Rarely", "mid_label": "Sometimes", "max_label": "Often"},
+        {"id": "8", "text": "Do you find yourself wanting the best seat, the recognition, or the credit in situations?", "min_label": "Rarely", "mid_label": "Sometimes", "max_label": "Often"}
+      ],
+      "score_ranges": [
+        {"min": 32, "max": 40, "label": "Significant Self-Centeredness", "description": "Your honest answers reveal that self-centeredness may be a significant blind spot in your life. This isn't condemnation—it's the beginning of freedom. James and John had this same blind spot, and Jesus lovingly redirected them. Let this week's study help you exchange your understanding of greatness for His."},
+        {"min": 24, "max": 31, "label": "Moderate Self-Centeredness", "description": "You show some tendencies toward self-centeredness that deserve attention. Like the disciples, you may not always see how this blind spot affects your relationships and witness. Use the G-R-E-A-T acrostic this week to begin addressing these areas."},
+        {"min": 16, "max": 23, "label": "Growing Awareness", "description": "You demonstrate good awareness of self-centered tendencies, but there's always room to grow. Pay attention to the specific questions where you scored higher—those may point to areas the Holy Spirit wants to address."},
+        {"min": 8, "max": 15, "label": "Strong Servant Heart", "description": "You scored low, which could indicate a genuine servant heart—or it could be a blind spot in itself. Make sure you answered honestly. Even Jesus' closest disciples struggled with self-centeredness. Ask a trusted friend if they see anything you might be missing."}
+      ],
+      "min_score_per_question": 1,
+      "max_score_per_question": 5,
+      "created_at": "2026-01-26T00:00:00Z",
+      "updated_at": "2026-01-26T00:00:00Z"
+    }
+  }
+]

@@ -112,6 +112,11 @@ FIXTURE_LOADERS = [
         'description': 'Opening Your Eyes 6-day reading plan with self-assessment',
     },
     {
+        'name': 'blind_spots_week3_reading_plan',
+        'display': 'Blind Spots Reading Plan (Week 3)',
+        'description': 'Self-Centeredness 6-day reading plan with assessment',
+    },
+    {
         'name': 'email_notification_templates',
         'display': 'Email Notification Templates',
         'description': 'Admin-editable templates for notification emails',

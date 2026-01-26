@@ -16,6 +16,29 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-26 Changes
 
+### Blind Spots Week 3 Reading Plan - Self-Centeredness
+
+**Summary:** Added Week 3 of the SHCC Blind Spots series focusing on self-centeredness as a blind spot.
+
+**Content:**
+- 6-day reading plan based on January 25, 2026 sermon
+- Day 1: "Am I Selfish?" with interactive self-centeredness assessment quiz
+- Day 2: "A Selfish Picture of Glory" - James & John's request (Mark 10:35-40)
+- Day 3: "The Model of True Greatness" - Mark 10:45, Jesus came to serve
+- Day 4: "G-R-E-A-T (Part 1)" - Get over yourself, Resist pride
+- Day 5: "G-R-E-A-T (Part 2)" - Engage in service, Assume servant role, Totally depend on God
+- Day 6: "Following His Example" - Application and commitment
+
+**Assessment:** 8 questions covering pizza/taco scenario, $5 bill scenario, love being first/winning/last word/being right, and self-awareness questions. Score ranges from "Strong Servant Heart" to "Significant Self-Centeredness".
+
+**Files Created:**
+- `apps/faith/fixtures/blind_spots_week3_reading_plan.json` - Full 6-day plan with assessment
+
+**Files Modified:**
+- `apps/core/management/commands/load_initial_data.py` - Registered new fixture
+
+---
+
 ### Brain Training Save/Resume and Sudoku Notes Feature
 
 **Summary:** Added ability to pause puzzles, save progress, and resume later. Also added pencil marks/notes feature for Sudoku.

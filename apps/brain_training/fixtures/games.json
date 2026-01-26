@@ -3,6 +3,8 @@
         "model": "brain_training.game",
         "pk": 1,
         "fields": {
+            "created_at": "2026-01-26T00:00:00Z",
+            "updated_at": "2026-01-26T00:00:00Z",
             "slug": "sudoku",
             "name": "Sudoku",
             "description": "Classic 9x9 number puzzle. Fill the grid so each row, column, and 3x3 box contains digits 1-9.",
@@ -20,6 +22,8 @@
         "model": "brain_training.game",
         "pk": 2,
         "fields": {
+            "created_at": "2026-01-26T00:00:00Z",
+            "updated_at": "2026-01-26T00:00:00Z",
             "slug": "kenken",
             "name": "KenKen",
             "description": "Math-based logic puzzle. Fill the grid using arithmetic operations in each cage.",
@@ -37,6 +41,8 @@
         "model": "brain_training.game",
         "pk": 3,
         "fields": {
+            "created_at": "2026-01-26T00:00:00Z",
+            "updated_at": "2026-01-26T00:00:00Z",
             "slug": "nonogram",
             "name": "Nonogram",
             "description": "Picture logic puzzle. Use number clues to reveal a hidden image by filling cells.",
@@ -54,6 +60,8 @@
         "model": "brain_training.game",
         "pk": 4,
         "fields": {
+            "created_at": "2026-01-26T00:00:00Z",
+            "updated_at": "2026-01-26T00:00:00Z",
             "slug": "word_ladder",
             "name": "Word Ladder",
             "description": "Transform one word into another by changing one letter at a time. Each step must be a valid word.",
@@ -71,6 +79,8 @@
         "model": "brain_training.game",
         "pk": 5,
         "fields": {
+            "created_at": "2026-01-26T00:00:00Z",
+            "updated_at": "2026-01-26T00:00:00Z",
             "slug": "memory_matrix",
             "name": "Memory Matrix",
             "description": "Memory challenge. Watch the pattern, then recreate it from memory. Tests visual working memory.",

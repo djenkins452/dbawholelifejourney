@@ -43,7 +43,7 @@ def hub(request):
     Brain Training hub page showing all available games.
     """
     if not check_subscription(request.user):
-        return redirect('billing:subscribe')
+        return redirect('billing:select_plan')
 
     games = Game.objects.filter(is_active=True).order_by('sort_order')
 
@@ -80,7 +80,7 @@ def play(request, game_slug):
     Game play page for a specific game.
     """
     if not check_subscription(request.user):
-        return redirect('billing:subscribe')
+        return redirect('billing:select_plan')
 
     game = get_object_or_404(Game, slug=game_slug, is_active=True)
 
@@ -505,7 +505,7 @@ def stats_dashboard(request):
     Stats dashboard page showing detailed progress and improvement trends.
     """
     if not check_subscription(request.user):
-        return redirect('billing:subscribe')
+        return redirect('billing:select_plan')
 
     games = Game.objects.filter(is_active=True)
 

@@ -585,7 +585,8 @@ class FilterTest(TestCase):
     def test_severity_filter_queryset(self):
         """Test severity filter filters correctly."""
         request = self.factory.get('/', {'severity': 'high'})
-        severity_filter = SeverityFilter(request, {'severity': 'high'}, SecurityFinding, self.admin)
+        # Django 5.0+ expects params values to be tuples/lists for multi-value support
+        severity_filter = SeverityFilter(request, {'severity': ('high',)}, SecurityFinding, self.admin)
         # Filter by our run to isolate from other tests
         base_queryset = SecurityFinding.objects.filter(run=self.run)
         queryset = severity_filter.queryset(request, base_queryset)
@@ -604,7 +605,8 @@ class FilterTest(TestCase):
     def test_quick_win_filter_queryset_yes(self):
         """Test quick win filter for yes."""
         request = self.factory.get('/', {'quick_win': 'yes'})
-        qw_filter = QuickWinFilter(request, {'quick_win': 'yes'}, SecurityFinding, self.admin)
+        # Django 5.0+ expects params values to be tuples/lists for multi-value support
+        qw_filter = QuickWinFilter(request, {'quick_win': ('yes',)}, SecurityFinding, self.admin)
         base_queryset = SecurityFinding.objects.filter(run=self.run)
         queryset = qw_filter.queryset(request, base_queryset)
         self.assertEqual(queryset.count(), 1)
@@ -613,7 +615,8 @@ class FilterTest(TestCase):
     def test_quick_win_filter_queryset_no(self):
         """Test quick win filter for no."""
         request = self.factory.get('/', {'quick_win': 'no'})
-        qw_filter = QuickWinFilter(request, {'quick_win': 'no'}, SecurityFinding, self.admin)
+        # Django 5.0+ expects params values to be tuples/lists for multi-value support
+        qw_filter = QuickWinFilter(request, {'quick_win': ('no',)}, SecurityFinding, self.admin)
         base_queryset = SecurityFinding.objects.filter(run=self.run)
         queryset = qw_filter.queryset(request, base_queryset)
         self.assertEqual(queryset.count(), 3)
@@ -632,7 +635,8 @@ class FilterTest(TestCase):
     def test_acknowledged_filter_queryset_yes(self):
         """Test acknowledged filter for yes."""
         request = self.factory.get('/', {'acknowledged': 'yes'})
-        ack_filter = AcknowledgedFilter(request, {'acknowledged': 'yes'}, SecurityFinding, self.admin)
+        # Django 5.0+ expects params values to be tuples/lists for multi-value support
+        ack_filter = AcknowledgedFilter(request, {'acknowledged': ('yes',)}, SecurityFinding, self.admin)
         base_queryset = SecurityFinding.objects.filter(run=self.run)
         queryset = ack_filter.queryset(request, base_queryset)
         self.assertEqual(queryset.count(), 1)
@@ -641,7 +645,8 @@ class FilterTest(TestCase):
     def test_acknowledged_filter_queryset_no(self):
         """Test acknowledged filter for no."""
         request = self.factory.get('/', {'acknowledged': 'no'})
-        ack_filter = AcknowledgedFilter(request, {'acknowledged': 'no'}, SecurityFinding, self.admin)
+        # Django 5.0+ expects params values to be tuples/lists for multi-value support
+        ack_filter = AcknowledgedFilter(request, {'acknowledged': ('no',)}, SecurityFinding, self.admin)
         base_queryset = SecurityFinding.objects.filter(run=self.run)
         queryset = ack_filter.queryset(request, base_queryset)
         self.assertEqual(queryset.count(), 3)
@@ -662,7 +667,8 @@ class FilterTest(TestCase):
     def test_finding_status_filter_queryset(self):
         """Test finding status filter filters correctly."""
         request = self.factory.get('/', {'status': 'new'})
-        status_filter = FindingStatusFilter(request, {'status': 'new'}, SecurityFinding, self.admin)
+        # Django 5.0+ expects params values to be tuples/lists for multi-value support
+        status_filter = FindingStatusFilter(request, {'status': ('new',)}, SecurityFinding, self.admin)
         base_queryset = SecurityFinding.objects.filter(run=self.run)
         queryset = status_filter.queryset(request, base_queryset)
         self.assertEqual(queryset.count(), 2)  # critical and high are 'new'

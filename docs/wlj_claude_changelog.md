@@ -16,6 +16,19 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-26 Changes
 
+### Fix Security Admin Filter Tests for Django 5.x Compatibility
+
+**Summary:** Updated security admin filter tests to use tuple params as required by Django 5.0+ multi-value parameter support.
+
+**Changes:**
+- Changed filter test params from plain strings to tuples (e.g., `{'severity': ('high',)}` instead of `{'severity': 'high'}`)
+- Django 5.0+ changed `SimpleListFilter.__init__` to use `value[-1]` instead of storing value directly, requiring params to be sequences
+
+**Files Modified:**
+- `apps/security/tests/test_admin.py` - Updated 6 filter queryset tests with tuple params
+
+---
+
 ### Add Teaching Destinations for Brain Training Games
 
 **Summary:** Added context-aware help entries for individual brain training games and fixed path descriptions.

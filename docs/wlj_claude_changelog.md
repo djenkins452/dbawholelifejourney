@@ -59,6 +59,19 @@ For active development context, see `CLAUDE.md` (project root).
 **Migration Created:**
 - `apps/brain_training/migrations/0001_initial.py` - All brain training models
 
+### Brain Training Deployment Fix
+
+**Summary:** Fixed two deployment issues with the Brain Training module.
+
+**Issues Fixed:**
+1. **Fixture missing timestamps** - `games.json` was missing `created_at`/`updated_at` fields, causing PostgreSQL not-null constraint violation
+2. **Invalid redirect URL** - Used non-existent `billing:subscribe` instead of `billing:select_plan`
+
+**Files Modified:**
+- `apps/brain_training/fixtures/games.json` - Added timestamp fields
+- `apps/brain_training/views.py` - Fixed redirect URL (3 occurrences)
+- `apps/admin_console/migrations/0024_reset_games_loader.py` - Reset DataLoadConfig to reload fixture
+
 ---
 
 ## 2026-01-25 Changes

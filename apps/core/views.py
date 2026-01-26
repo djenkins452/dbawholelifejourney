@@ -310,27 +310,38 @@ class AppReviewLoginView(View):
     """
 
     def post(self, request):
-        from apps.users.models import User
+        logger = logging.getLogger(__name__)
 
-        email = request.POST.get('email', '').lower().strip()
-        password = request.POST.get('password', '')
-
-        # Only allow the app review account
         try:
-            user = User.objects.get(email=email, is_app_review_account=True)
-        except User.DoesNotExist:
-            # Don't reveal whether account exists
+            from apps.users.models import User
+
+            email = request.POST.get('email', '').lower().strip()
+            password = request.POST.get('password', '')
+
+            logger.info(f"App review login attempt for: {email}")
+
+            # Only allow the app review account
+            try:
+                user = User.objects.get(email=email, is_app_review_account=True)
+            except User.DoesNotExist:
+                logger.warning(f"App review login: user {email} not found or not app_review_account")
+                return redirect('core:app_review')
+
+            # Verify password
+            if not user.check_password(password):
+                logger.warning(f"App review login: wrong password for {email}")
+                return redirect('core:app_review')
+
+            # Log in the user
+            login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+            logger.info(f"App review login successful for: {email}")
+
+            # Redirect to dashboard
+            return redirect('dashboard:index')
+
+        except Exception as e:
+            logger.exception(f"App review login error: {e}")
             return redirect('core:app_review')
-
-        # Verify password
-        if not user.check_password(password):
-            return redirect('core:app_review')
-
-        # Log in the user
-        login(request, user, backend='django.contrib.auth.backends.ModelBackend')
-
-        # Redirect to dashboard
-        return redirect('dashboard:index')
 
     def get(self, request):
         # GET requests redirect to app review page

@@ -16,6 +16,30 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-26 Changes
 
+### Brain Training Save/Resume and Sudoku Notes Feature
+
+**Summary:** Added ability to pause puzzles, save progress, and resume later. Also added pencil marks/notes feature for Sudoku.
+
+**Features:**
+- **Pause & Resume:** Click "Save & Exit" to save current progress and return to hub. In-progress sessions appear in a "Continue Playing" section at the top of the hub.
+- **Auto-save:** Game state is automatically saved when navigating away from the page.
+- **Sudoku Notes/Pencil Marks:** Toggle "Notes" mode (button or press 'N') to enter candidate numbers in cells. Notes display as small numbers in a 3x3 grid within the cell.
+- **Resume with State:** Resuming a game restores the grid, notes, elapsed time, mistakes, and hints used.
+
+**API Endpoints Added:**
+- `GET /health/cognitive/api/sessions/in-progress/` - List user's in-progress sessions
+- `GET /health/cognitive/api/session/<id>/resume/` - Get session data for resuming
+- `POST /health/cognitive/api/session/<id>/pause/` - Save current state and pause session
+
+**Files Modified:**
+- `apps/brain_training/views.py` - Added `api_in_progress_sessions`, `api_session_resume`, `api_session_pause` views
+- `apps/brain_training/urls.py` - Added routes for new endpoints
+- `apps/brain_training/templates/brain_training/games/base_game.html` - Added pause/resume JS logic, "Save & Exit" button, auto-save on unload
+- `apps/brain_training/templates/brain_training/games/sudoku.html` - Added notes mode toggle, notes grid display, getState/restoreState methods
+- `apps/brain_training/templates/brain_training/hub.html` - Added "Continue Playing" section that loads in-progress sessions
+
+---
+
 ### Add Time Remaining to Dashboard Fasting Tile
 
 **Summary:** Added live "time remaining" countdown to the fasting widget on the dashboard, matching the feature on the fasting list page.

@@ -505,6 +505,115 @@ def api_ai_summary(request):
 
 
 @login_required
+@require_GET
+def api_in_progress_sessions(request):
+    """
+    Get all in-progress game sessions for the current user.
+
+    Used by the hub to show "Continue" section.
+    """
+    if not check_subscription(request.user):
+        return JsonResponse({'error': 'Subscription required'}, status=403)
+
+    sessions = GameSession.objects.filter(
+        user=request.user,
+        status=GameSession.STATUS_IN_PROGRESS,
+    ).select_related('challenge__game').order_by('-updated_at')[:10]
+
+    data = []
+    for session in sessions:
+        data.append({
+            'session_id': session.id,
+            'game_slug': session.challenge.game.slug,
+            'game_name': session.challenge.game.name,
+            'challenge_id': session.challenge.challenge_id,
+            'difficulty': session.challenge.difficulty,
+            'time_spent': session.time_spent_seconds,
+            'started_at': session.started_at.isoformat(),
+            'updated_at': session.updated_at.isoformat(),
+            'has_state': bool(session.current_state),
+        })
+
+    return JsonResponse({'sessions': data})
+
+
+@login_required
+@require_GET
+def api_session_resume(request, session_id):
+    """
+    Resume an in-progress session.
+
+    Returns the challenge puzzle data and saved state.
+    """
+    if not check_subscription(request.user):
+        return JsonResponse({'error': 'Subscription required'}, status=403)
+
+    try:
+        session = GameSession.objects.select_related('challenge__game').get(
+            id=session_id,
+            user=request.user,
+            status=GameSession.STATUS_IN_PROGRESS,
+        )
+    except GameSession.DoesNotExist:
+        return JsonResponse({'error': 'Session not found or already completed'}, status=404)
+
+    return JsonResponse({
+        'session_id': session.id,
+        'game_slug': session.challenge.game.slug,
+        'challenge_id': session.challenge.challenge_id,
+        'difficulty': session.challenge.difficulty,
+        'puzzle': session.challenge.puzzle_data,
+        'current_state': session.current_state,
+        'time_spent': session.time_spent_seconds,
+        'mistakes': session.mistakes,
+        'hints_used': session.hints_used,
+        'started_at': session.started_at.isoformat(),
+    })
+
+
+@login_required
+@require_POST
+def api_session_pause(request, session_id):
+    """
+    Pause a session and save current state.
+
+    Body:
+    - current_state: Current puzzle state JSON
+    - time_spent: Current time spent in seconds
+    """
+    if not check_subscription(request.user):
+        return JsonResponse({'error': 'Subscription required'}, status=403)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    try:
+        session = GameSession.objects.get(
+            id=session_id,
+            user=request.user,
+            status=GameSession.STATUS_IN_PROGRESS,
+        )
+    except GameSession.DoesNotExist:
+        return JsonResponse({'error': 'Session not found'}, status=404)
+
+    # Save current state
+    if 'current_state' in data:
+        session.current_state = data['current_state']
+    if 'time_spent' in data:
+        session.time_spent_seconds = data['time_spent']
+    if 'mistakes' in data:
+        session.mistakes = data['mistakes']
+    if 'hints_used' in data:
+        session.hints_used = data['hints_used']
+
+    session.save(update_fields=['current_state', 'time_spent_seconds', 'mistakes', 'hints_used', 'updated_at'])
+
+    return JsonResponse({'success': True, 'session_id': session.id})
+
+
+@login_required
 def stats_dashboard(request):
     """
     Stats dashboard page showing detailed progress and improvement trends.

@@ -1,7 +1,7 @@
 [
   {
     "model": "faith.readingplantemplate",
-    "pk": 103,
+    "pk": 10003,
     "fields": {
       "title": "Self-Centeredness",
       "slug": "blind-spots-self-centeredness",
@@ -24,9 +24,9 @@
   },
   {
     "model": "faith.readingplanday",
-    "pk": 1031,
+    "pk": 100031,
     "fields": {
-      "plan": 103,
+      "plan": 10003,
       "day_number": 1,
       "title": "Am I Selfish?",
       "scripture_references": ["Mark 10:32-34"],
@@ -36,9 +36,9 @@
   },
   {
     "model": "faith.readingplanday",
-    "pk": 1032,
+    "pk": 100032,
     "fields": {
-      "plan": 103,
+      "plan": 10003,
       "day_number": 2,
       "title": "A Selfish Picture of Glory",
       "scripture_references": ["Mark 10:35-40"],
@@ -48,9 +48,9 @@
   },
   {
     "model": "faith.readingplanday",
-    "pk": 1033,
+    "pk": 100033,
     "fields": {
-      "plan": 103,
+      "plan": 10003,
       "day_number": 3,
       "title": "The Model of True Greatness",
       "scripture_references": ["Mark 10:41-45"],
@@ -60,9 +60,9 @@
   },
   {
     "model": "faith.readingplanday",
-    "pk": 1034,
+    "pk": 100034,
     "fields": {
-      "plan": 103,
+      "plan": 10003,
       "day_number": 4,
       "title": "G-R-E-A-T (Part 1)",
       "scripture_references": ["Philippians 2:3-8", "James 4:6-10"],
@@ -72,9 +72,9 @@
   },
   {
     "model": "faith.readingplanday",
-    "pk": 1035,
+    "pk": 100035,
     "fields": {
-      "plan": 103,
+      "plan": 10003,
       "day_number": 5,
       "title": "G-R-E-A-T (Part 2)",
       "scripture_references": ["Galatians 5:13-14", "1 Peter 4:10-11", "Proverbs 3:5-6"],
@@ -84,9 +84,9 @@
   },
   {
     "model": "faith.readingplanday",
-    "pk": 1036,
+    "pk": 100036,
     "fields": {
-      "plan": 103,
+      "plan": 10003,
       "day_number": 6,
       "title": "Following His Example",
       "scripture_references": ["Mark 10:45", "John 13:12-17", "1 Peter 2:21"],
@@ -96,9 +96,9 @@
   },
   {
     "model": "faith.readingplanassessment",
-    "pk": 3,
+    "pk": 10003,
     "fields": {
-      "plan_day": 1031,
+      "plan_day": 100031,
       "title": "Self-Centeredness Assessment",
       "description": "This is a vulnerable evening for us. Be honest with yourself as you answer these questions. Rate yourself on a scale of 1-5. Remember, the goal is to allow the Holy Spirit to search and reveal what's going on in our lives.",
       "questions": [

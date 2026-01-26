@@ -88,12 +88,11 @@ class CustomSignupForm(SignupForm):
 
     def clean(self):
         """
-        Validate form data including honeypot and reCAPTCHA score.
+        Validate form data including honeypot, reCAPTCHA, geo-blocking, and disposable emails.
 
-        Validates both honeypot and reCAPTCHA here (during form validation)
-        rather than in adapter.save_user() so that blocked signups result in
-        form validation errors instead of unhandled exceptions that trigger
-        error emails.
+        Validates during form validation rather than in adapter.save_user() so that
+        blocked signups result in form validation errors instead of unhandled
+        exceptions that trigger error emails.
         """
         from django.conf import settings
         from apps.users.services import RecaptchaService
@@ -105,15 +104,29 @@ class CustomSignupForm(SignupForm):
         if not self.request:
             return cleaned_data
 
+        email = cleaned_data.get('email', '')
+
         # Check honeypot field - bots will fill this hidden field
         honeypot_value = self.request.POST.get("website", "")
         if honeypot_value:
             # Log the blocked attempt
-            self._log_honeypot_block(cleaned_data.get('email', ''))
+            self._log_honeypot_block(email)
             # Raise generic error to not reveal honeypot detection
             raise forms.ValidationError(
                 "Unable to create account. Please try again later."
             )
+
+        # Check for disposable email domains
+        if email and self._is_disposable_email(email):
+            self._log_blocked_attempt(email, "disposable_email")
+            raise forms.ValidationError(
+                "Please use a non-temporary email address to create your account."
+            )
+
+        # Check geo-blocking (USA only, unless whitelisted)
+        geo_error = self._check_geo_blocking(email)
+        if geo_error:
+            raise forms.ValidationError(geo_error)
 
         # Get reCAPTCHA token from POST data
         token = self.request.POST.get("recaptcha_token", "")
@@ -132,7 +145,6 @@ class CustomSignupForm(SignupForm):
                 threshold = getattr(settings, 'RECAPTCHA_SCORE_THRESHOLD', 0.5)
                 if result.score < threshold:
                     # Log the blocked attempt
-                    email = cleaned_data.get('email', '')
                     log_security_event(
                         event_type='bot_activity',
                         severity='warning',
@@ -163,6 +175,103 @@ class CustomSignupForm(SignupForm):
             logger.error("reCAPTCHA verification error in form: %s", e)
 
         return cleaned_data
+
+    def _is_disposable_email(self, email: str) -> bool:
+        """Check if email uses a disposable/temporary domain."""
+        from apps.users.models import DisposableEmailDomain
+        return DisposableEmailDomain.is_disposable(email)
+
+    def _check_geo_blocking(self, email: str):
+        """
+        Check if signup should be blocked based on geographic location.
+
+        Returns error message if blocked, None if allowed.
+        Fails open - allows signup if geolocation fails.
+        """
+        import logging
+        from apps.users.adapters import get_client_ip
+        from apps.users.services import GeoIPService
+        from apps.users.models import AllowedInternationalEmail
+
+        logger = logging.getLogger(__name__)
+
+        try:
+            ip = get_client_ip(self.request)
+            service = GeoIPService()
+            result = service.get_country_from_ip(ip)
+
+            # Store country code for logging
+            self._country_code = result.country_code
+
+            # If geolocation failed, fail open (allow signup)
+            if not result.success:
+                logger.info("GeoIP lookup failed, allowing signup: %s", result.error)
+                return None
+
+            # USA is always allowed
+            if result.is_usa:
+                return None
+
+            # Check if email is whitelisted for international signup
+            if AllowedInternationalEmail.is_allowed(email):
+                logger.info(
+                    "International signup allowed for whitelisted email from %s",
+                    result.country_code
+                )
+                return None
+
+            # Block non-US signups that aren't whitelisted
+            self._log_blocked_attempt(email, "geo_blocked", result.country_code)
+            return "Whole Life Journey is currently only available in the United States."
+
+        except Exception as e:
+            # Fail open - don't block signup if geo check fails
+            logger.error("Geo-blocking check failed: %s", e)
+            return None
+
+    def _log_blocked_attempt(self, email: str, block_reason: str, country_code: str = ""):
+        """Log a blocked signup attempt to SignupAttempt."""
+        import logging
+        from apps.users.adapters import get_client_ip
+        from apps.users.models import SignupAttempt
+        from apps.users.security import hash_email, hash_ip
+        from apps.core.security_logging import log_security_event
+
+        logger = logging.getLogger(__name__)
+
+        try:
+            ip = get_client_ip(self.request)
+            user_agent = self.request.META.get("HTTP_USER_AGENT", "")[:500]
+
+            SignupAttempt.objects.create(
+                email_hash=hash_email(email) if email else "",
+                ip_hash=hash_ip(ip),
+                user_agent=user_agent,
+                country_code=country_code,
+                status="blocked",
+                block_reason=block_reason,
+                risk_level="medium" if block_reason == "geo_blocked" else "high",
+                risk_score=0.7 if block_reason == "geo_blocked" else 0.9,
+            )
+
+            # Log security event
+            log_security_event(
+                event_type='signup_blocked',
+                severity='warning',
+                message=f'Signup blocked: {block_reason}',
+                request=self.request,
+                details={
+                    'block_reason': block_reason,
+                    'country_code': country_code,
+                },
+            )
+
+            logger.warning(
+                "Signup blocked (%s) from IP: %s, country: %s",
+                block_reason, ip[:20], country_code,
+            )
+        except Exception as e:
+            logger.error("Failed to log blocked signup attempt: %s", e)
 
     def _log_honeypot_block(self, email=None):
         """

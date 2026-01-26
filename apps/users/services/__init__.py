@@ -11,9 +11,19 @@ Service layer for user-related business logic.
 Modules:
     - recaptcha: reCAPTCHA v3 verification for bot detection
     - data_export: GDPR data portability export functionality
+    - geoip: IP geolocation for geo-blocking
 """
 
 from .recaptcha import RecaptchaService, RecaptchaResult
 from .data_export import DataExportService, export_user_data
+from .geoip import GeoIPService, GeoIPResult, get_country_from_ip
 
-__all__ = ['RecaptchaService', 'RecaptchaResult', 'DataExportService', 'export_user_data']
+__all__ = [
+    'RecaptchaService',
+    'RecaptchaResult',
+    'DataExportService',
+    'export_user_data',
+    'GeoIPService',
+    'GeoIPResult',
+    'get_country_from_ip',
+]

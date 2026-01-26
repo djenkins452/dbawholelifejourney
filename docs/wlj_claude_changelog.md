@@ -72,6 +72,33 @@ For active development context, see `CLAUDE.md` (project root).
 - `apps/brain_training/views.py` - Fixed redirect URL (3 occurrences)
 - `apps/admin_console/migrations/0024_reset_games_loader.py` - Reset DataLoadConfig to reload fixture
 
+### Security Enhancements: Geo-blocking, Disposable Email Blocking, reCAPTCHA Update
+
+**Summary:** Added security enhancements to prevent spam/bot signups including geo-blocking (USA-only), disposable email blocking, increased reCAPTCHA threshold, and international email whitelist.
+
+**Features Added:**
+1. **GeoIPService** - IP geolocation using ipinfo.io to determine country
+2. **Geo-blocking** - Non-US signups blocked unless email is whitelisted
+3. **Disposable email blocking** - Blocks signups from temporary email domains
+4. **AllowedInternationalEmail model** - Whitelist for international friends/family
+5. **reCAPTCHA threshold** - Increased from 0.5 to 0.6 for stricter bot detection
+6. **Disposable domains fixture** - 50 common temp email domains (including rambler.ru)
+
+**Files Created:**
+- `apps/users/services/geoip.py` - GeoIPService with caching and fail-open design
+- `apps/users/fixtures/disposable_email_domains.json` - Temp email domain blocklist
+
+**Files Modified:**
+- `apps/users/models.py` - Added AllowedInternationalEmail model
+- `apps/users/forms.py` - Added geo-blocking and disposable email checks to signup
+- `apps/users/admin.py` - Added AllowedInternationalEmail admin interface
+- `apps/users/services/__init__.py` - Exported GeoIPService
+- `config/settings.py` - Updated RECAPTCHA_SCORE_THRESHOLD to 0.6
+- `apps/core/management/commands/load_initial_data.py` - Added disposable_email_domains fixture
+
+**Migration Created:**
+- `apps/users/migrations/0055_add_allowed_international_email.py`
+
 ---
 
 ## 2026-01-25 Changes

@@ -25,6 +25,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
 from .models import (
+    AllowedInternationalEmail,
     DisposableEmailDomain,
     IPBlocklist,
     SignupAttempt,
@@ -190,3 +191,42 @@ class DisposableEmailDomainAdmin(admin.ModelAdmin):
     def mark_unconfirmed(self, request, queryset):
         updated = queryset.update(confirmed=False)
         self.message_user(request, f"{updated} domain(s) marked as unconfirmed.")
+
+
+@admin.register(AllowedInternationalEmail)
+class AllowedInternationalEmailAdmin(admin.ModelAdmin):
+    """
+    Admin for managing international email whitelist.
+
+    Add email addresses here BEFORE international friends/family attempt to sign up.
+    This allows them to bypass the USA-only geo-blocking.
+    """
+
+    list_display = ["email", "name", "added_at", "used_at", "added_by"]
+    list_filter = ["added_at", "used_at"]
+    search_fields = ["email", "name", "note"]
+    ordering = ["-added_at"]
+    readonly_fields = ["used_at"]
+    raw_id_fields = ["added_by"]
+
+    fieldsets = (
+        (None, {
+            "fields": ("email", "name"),
+            "description": "Add the email address of someone outside the USA who you want to allow to sign up.",
+        }),
+        ("Details", {
+            "fields": ("note", "added_by"),
+            "classes": ("collapse",),
+        }),
+        ("Status", {
+            "fields": ("used_at",),
+            "classes": ("collapse",),
+            "description": "This is automatically set when the email is used to sign up.",
+        }),
+    )
+
+    def save_model(self, request, obj, form, change):
+        """Automatically set added_by to the current admin user."""
+        if not change:  # Only on create
+            obj.added_by = request.user
+        super().save_model(request, obj, form, change)

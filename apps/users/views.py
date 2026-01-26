@@ -1305,10 +1305,17 @@ class BiometricRegisterCompleteView(LoginRequiredMixin, View):
             prefs.biometric_login_enabled = True
             prefs.save(update_fields=['biometric_login_enabled', 'updated_at'])
 
+            # Mark MFA as verified - biometric registration IS MFA verification
+            # (user has proven possession of their device with biometric)
+            request.session['mfa_verified'] = True
+            request.session['mfa_verified_at'] = timezone.now().isoformat()
+
             # Clear session challenge
             del request.session['webauthn_challenge']
             if 'webauthn_user_id' in request.session:
                 del request.session['webauthn_user_id']
+
+            logger.info(f"Biometric credential registered for {hash_pii(request.user.email, 'user')}")
 
             return JsonResponse({
                 'success': True,
@@ -1427,8 +1434,14 @@ class BiometricLoginCompleteView(View):
             user = credential.user
             login(request, user, backend='django.contrib.auth.backends.ModelBackend')
 
+            # Mark MFA as verified - biometric login IS MFA verification
+            request.session['mfa_verified'] = True
+            request.session['mfa_verified_at'] = timezone.now().isoformat()
+
             # Clear session challenge
             del request.session['webauthn_login_challenge']
+
+            logger.info(f"Biometric login successful for {hash_pii(user.email, 'user')}")
 
             return JsonResponse({
                 'success': True,

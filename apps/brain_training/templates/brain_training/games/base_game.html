@@ -221,6 +221,9 @@
         <button class="btn-game btn-game-primary" id="btn-check">
             Check Solution
         </button>
+        <button class="btn-game btn-game-secondary" id="btn-pause">
+            Save & Exit
+        </button>
         <button class="btn-game btn-game-secondary" id="btn-new">
             New Challenge
         </button>
@@ -267,11 +270,64 @@
         hintsUsed: 0,
         challengeQueue: [],
         currentDifficulty: '{{ preferred_difficulty }}',
+        resumeSessionId: null, // Set via URL param to resume a session
+        elapsedOffset: 0, // For resumed sessions, previously elapsed time
 
         // Initialize the game
         init() {
             this.bindEvents();
-            this.loadChallenges();
+            this.checkForResume();
+        },
+
+        // Check if we're resuming a session
+        checkForResume() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const resumeId = urlParams.get('resume');
+            if (resumeId) {
+                this.resumeSession(parseInt(resumeId, 10));
+            } else {
+                this.loadChallenges();
+            }
+        },
+
+        // Resume an existing session
+        async resumeSession(sessionId) {
+            try {
+                const response = await fetch(`/health/cognitive/api/session/${sessionId}/resume/`);
+                if (!response.ok) {
+                    console.error('Failed to resume session');
+                    this.loadChallenges();
+                    return;
+                }
+                const data = await response.json();
+
+                this.sessionId = data.session_id;
+                this.challengeId = data.challenge_id;
+                this.mistakes = data.mistakes || 0;
+                this.hintsUsed = data.hints_used || 0;
+                this.elapsedOffset = data.time_spent || 0;
+                this.currentDifficulty = data.difficulty;
+
+                // Update difficulty selector
+                document.getElementById('difficulty').value = data.difficulty;
+
+                // Start timer with offset
+                this.startTimer();
+
+                // Render the puzzle
+                this.renderPuzzle(data.puzzle);
+
+                // Restore saved state if available
+                if (data.current_state && Object.keys(data.current_state).length > 0) {
+                    this.restoreState(data.current_state);
+                }
+
+                // Load more challenges in background for "New Challenge" button
+                this.loadChallenges(false);
+            } catch (err) {
+                console.error('Failed to resume session:', err);
+                this.loadChallenges();
+            }
         },
 
         // Bind common events
@@ -293,6 +349,10 @@
                 this.useHint();
             });
 
+            document.getElementById('btn-pause').addEventListener('click', () => {
+                this.pauseSession();
+            });
+
             document.getElementById('btn-next').addEventListener('click', () => {
                 this.hideCompletion();
                 this.loadNextChallenge();
@@ -301,17 +361,24 @@
             document.getElementById('btn-back-hub').addEventListener('click', () => {
                 window.location.href = '{% url "brain_training:hub" %}';
             });
+
+            // Auto-save on page unload
+            window.addEventListener('beforeunload', () => {
+                if (this.sessionId) {
+                    this.saveState();
+                }
+            });
         },
 
         // Load batch of challenges
-        async loadChallenges() {
+        async loadChallenges(autoStart = true) {
             try {
                 const response = await fetch(
                     `/health/cognitive/api/${this.gameSlug}/batch/?difficulty=${this.currentDifficulty}&count=10`
                 );
                 const data = await response.json();
                 this.challengeQueue = data.challenges || [];
-                if (this.challengeQueue.length > 0) {
+                if (autoStart && this.challengeQueue.length > 0) {
                     this.loadNextChallenge();
                 }
             } catch (err) {
@@ -335,6 +402,7 @@
             this.challengeId = challenge.id;
             this.mistakes = 0;
             this.hintsUsed = 0;
+            this.elapsedOffset = 0;
 
             // Start session
             await this.startSession(challenge.id);
@@ -383,7 +451,7 @@
 
         // Complete the session
         async completeSession(solution) {
-            const timeSpent = Math.floor((new Date() - this.startTime) / 1000);
+            const timeSpent = this.getElapsedSeconds();
 
             try {
                 const response = await fetch('/health/cognitive/api/session/complete/', {
@@ -429,8 +497,12 @@
             }
         },
 
+        getElapsedSeconds() {
+            return Math.floor((new Date() - this.startTime) / 1000) + this.elapsedOffset;
+        },
+
         updateTimerDisplay() {
-            const elapsed = Math.floor((new Date() - this.startTime) / 1000);
+            const elapsed = this.getElapsedSeconds();
             const mins = Math.floor(elapsed / 60);
             const secs = elapsed % 60;
             document.getElementById('timer').textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
@@ -440,6 +512,54 @@
             const mins = Math.floor(seconds / 60);
             const secs = seconds % 60;
             return `${mins}:${secs.toString().padStart(2, '0')}`;
+        },
+
+        // Pause and save current session
+        async pauseSession() {
+            if (!this.sessionId) {
+                window.location.href = '{% url "brain_training:hub" %}';
+                return;
+            }
+
+            this.stopTimer();
+            await this.saveState();
+            window.location.href = '{% url "brain_training:hub" %}';
+        },
+
+        // Save current state to server
+        async saveState() {
+            if (!this.sessionId) return;
+
+            const state = this.getState();
+            const timeSpent = this.getElapsedSeconds();
+
+            try {
+                await fetch(`/health/cognitive/api/session/${this.sessionId}/pause/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': this.getCSRF(),
+                    },
+                    body: JSON.stringify({
+                        current_state: state,
+                        time_spent: timeSpent,
+                        mistakes: this.mistakes,
+                        hints_used: this.hintsUsed,
+                    }),
+                });
+            } catch (err) {
+                console.error('Failed to save state:', err);
+            }
+        },
+
+        // Get current game state (to be overridden by specific games)
+        getState() {
+            return {};
+        },
+
+        // Restore game state (to be overridden by specific games)
+        restoreState(state) {
+            console.log('restoreState should be overridden', state);
         },
 
         // Completion overlay

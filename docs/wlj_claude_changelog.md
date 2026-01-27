@@ -16,25 +16,28 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-27 Changes
 
-### Scripture Loading Fix and Performance Improvement
+### Scripture Loading Fix and Permanent Caching
 
-**Summary:** Fixed "Scripture not found" error when expanding scripture references in reading plan progress page, and added caching to improve load times.
+**Summary:** Fixed "Scripture not found" error when expanding scripture references in reading plan progress page, and added permanent localStorage caching for scripture text.
 
 **Problem:**
 - Scripture references like "Mark 10:32-34" were returning 404 errors ("Scripture not found")
 - The passage ID was being built incorrectly as `MRK.10.32-MRK.10.34` instead of the correct USFM format `MRK.10.32-34`
-- Scripture loading was slow due to no caching of API responses
+- Scripture loading was slow with no caching
 
 **Fixes:**
 1. Fixed `buildPassageId()` function to use correct USFM verse range format
    - Before: `${base}.${verseStart}-${base}.${verseEnd}` (e.g., MRK.10.32-MRK.10.34)
    - After: `${base}.${verseStart}-${verseEnd}` (e.g., MRK.10.32-34)
-2. Added sessionStorage-based caching with 1-hour TTL for scripture responses
-   - Subsequent loads of the same passage are instant from cache
-   - Cache persists within browser session
+2. Added permanent localStorage caching for scripture responses
+   - Scripture text is immutable (ASV John 3:16 will never change)
+   - Cache persists indefinitely in browser localStorage
+   - Auto-cleanup when storage is full (removes oldest 50% of entries)
+   - Applied to both Reading Plan progress page and Scripture Library
 
 **Files Modified:**
-- `templates/faith/reading_plans/progress.html` - Fixed buildPassageId function and added scripture caching
+- `templates/faith/reading_plans/progress.html` - Fixed buildPassageId, added permanent caching
+- `templates/faith/scripture_list.html` - Added permanent caching for Scripture Library lookups
 
 ---
 

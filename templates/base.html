@@ -78,6 +78,79 @@
         }
     </style>
     {% endif %}
+    {% if custom_theme_colors %}
+    <!-- Custom theme color overrides -->
+    <style>
+        :root,
+        [data-theme="custom"],
+        .theme-custom {
+            --color-primary: {{ custom_theme_colors.primary }} !important;
+            --color-accent: {{ custom_theme_colors.accent }} !important;
+            --color-background: {{ custom_theme_colors.background }} !important;
+            --color-surface: {{ custom_theme_colors.surface }} !important;
+            --color-text: {{ custom_theme_colors.text }} !important;
+            --color-secondary: {{ custom_theme_colors.background }} !important;
+        }
+
+        /* Header styling for custom theme */
+        .theme-custom .site-header,
+        .theme-custom .desktop-top-bar {
+            background-color: {{ custom_theme_colors.primary }};
+            border-color: color-mix(in srgb, {{ custom_theme_colors.primary }} 80%, black);
+        }
+
+        .theme-custom .site-header *,
+        .theme-custom .desktop-top-bar *,
+        .theme-custom .desktop-top-bar .nav-link,
+        .theme-custom .desktop-top-bar .nav-link:hover {
+            color: white;
+        }
+
+        .theme-custom .nav-user-initial {
+            background-color: {{ custom_theme_colors.accent }};
+        }
+
+        /* Body and surface */
+        .theme-custom {
+            background-color: {{ custom_theme_colors.background }};
+            color: {{ custom_theme_colors.text }};
+        }
+
+        .theme-custom .card,
+        .theme-custom .content-container,
+        .theme-custom .form-input,
+        .theme-custom .form-select,
+        .theme-custom .form-textarea {
+            background-color: {{ custom_theme_colors.surface }};
+        }
+
+        /* Accent colors for interactive elements */
+        .theme-custom .btn-primary {
+            background-color: {{ custom_theme_colors.accent }};
+        }
+
+        .theme-custom .btn-primary:hover {
+            background-color: color-mix(in srgb, {{ custom_theme_colors.accent }} 85%, black);
+        }
+
+        .theme-custom a,
+        .theme-custom .tile-icon,
+        .theme-custom .quick-action-icon {
+            color: {{ custom_theme_colors.accent }};
+        }
+
+        .theme-custom .form-input:focus,
+        .theme-custom .form-select:focus,
+        .theme-custom .form-textarea:focus {
+            border-color: {{ custom_theme_colors.accent }};
+            box-shadow: 0 0 0 3px color-mix(in srgb, {{ custom_theme_colors.accent }} 20%, transparent);
+        }
+
+        .theme-custom .toggle-switch input:checked + .toggle-slider {
+            background-color: {{ custom_theme_colors.accent }};
+        }
+    </style>
+    {% endif %}
 </head>
 <body class="theme-{{ current_theme }}{% if user.is_authenticated %} has-desktop-nav{% endif %}">
     {% block body %}

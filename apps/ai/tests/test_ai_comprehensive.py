@@ -1432,7 +1432,7 @@ class AIProfilePreferencesTest(AITestMixin, TestCase):
         form = PreferencesForm(
             instance=self.user.preferences,
             data={
-                'theme': 'minimal',
+                'theme': 'sanctuary',
                 'ai_enabled': True,
                 'ai_data_consent': True,
                 'ai_coaching_style': 'supportive',

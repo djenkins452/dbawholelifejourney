@@ -93,6 +93,15 @@ def theme_context(request):
             prefs = request.user.preferences
             context['current_theme'] = prefs.theme or 'minimal'
             context['accent_color'] = prefs.accent_color if prefs.accent_color else None
+            # Custom theme colors (when theme='custom')
+            if prefs.theme == 'custom':
+                context['custom_theme_colors'] = {
+                    'primary': prefs.custom_primary or '#6b7280',
+                    'accent': prefs.custom_accent or '#6366f1',
+                    'background': prefs.custom_background or '#f9fafb',
+                    'surface': prefs.custom_surface or '#ffffff',
+                    'text': prefs.custom_text or '#1f2937',
+                }
             # Navigation behavior
             context['hide_nav_on_scroll'] = prefs.hide_nav_on_scroll
             context['desktop_nav_collapsed'] = prefs.desktop_nav_collapsed

@@ -308,9 +308,10 @@ class PreferencesView(HelpContextMixin, LoginRequiredMixin, UpdateView):
 class ThemeSelectionView(LoginRequiredMixin, TemplateView):
     """
     Theme selection page with visual previews.
-    
+
     This is a more visual interface for choosing a theme,
-    separate from the full preferences form.
+    separate from the full preferences form. Also includes
+    a custom theme builder with color pickers.
     """
 
     template_name = "users/theme_selection.html"
@@ -318,16 +319,68 @@ class ThemeSelectionView(LoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["themes"] = settings.WLJ_SETTINGS["THEMES"]
-        context["current_theme"] = self.request.user.preferences.theme
+        prefs = self.request.user.preferences
+        context["current_theme"] = prefs.theme
+
+        # Default custom colors from settings
+        default_custom = settings.WLJ_SETTINGS["THEMES"].get("custom", {})
+
+        # Custom theme colors - use user's saved colors or defaults
+        context["custom_colors"] = {
+            "primary": prefs.custom_primary or default_custom.get("primary", "#6b7280"),
+            "accent": prefs.custom_accent or default_custom.get("accent", "#6366f1"),
+            "background": prefs.custom_background or default_custom.get("secondary", "#f9fafb"),
+            "surface": prefs.custom_surface or default_custom.get("surface", "#ffffff"),
+            "text": prefs.custom_text or default_custom.get("text", "#1f2937"),
+        }
         return context
+
+    def _is_valid_hex(self, value):
+        """Validate hex color format."""
+        import re
+        return bool(value and re.match(r'^#[0-9A-Fa-f]{6}$', value))
 
     def post(self, request, *args, **kwargs):
         theme = request.POST.get("theme")
         if theme in settings.WLJ_SETTINGS["THEMES"]:
             prefs = request.user.preferences
             prefs.theme = theme
-            prefs.save(update_fields=["theme", "updated_at"])
-            messages.success(request, f"Theme changed to {settings.WLJ_SETTINGS['THEMES'][theme]['name']}.")
+
+            # If custom theme, also save the custom colors
+            if theme == "custom":
+                update_fields = ["theme", "updated_at"]
+
+                # Validate and save each custom color
+                custom_primary = request.POST.get("custom_primary", "")
+                if self._is_valid_hex(custom_primary):
+                    prefs.custom_primary = custom_primary
+                    update_fields.append("custom_primary")
+
+                custom_accent = request.POST.get("custom_accent", "")
+                if self._is_valid_hex(custom_accent):
+                    prefs.custom_accent = custom_accent
+                    update_fields.append("custom_accent")
+
+                custom_background = request.POST.get("custom_background", "")
+                if self._is_valid_hex(custom_background):
+                    prefs.custom_background = custom_background
+                    update_fields.append("custom_background")
+
+                custom_surface = request.POST.get("custom_surface", "")
+                if self._is_valid_hex(custom_surface):
+                    prefs.custom_surface = custom_surface
+                    update_fields.append("custom_surface")
+
+                custom_text = request.POST.get("custom_text", "")
+                if self._is_valid_hex(custom_text):
+                    prefs.custom_text = custom_text
+                    update_fields.append("custom_text")
+
+                prefs.save(update_fields=update_fields)
+                messages.success(request, "Custom theme applied successfully.")
+            else:
+                prefs.save(update_fields=["theme", "updated_at"])
+                messages.success(request, f"Theme changed to {settings.WLJ_SETTINGS['THEMES'][theme]['name']}.")
         return redirect("users:preferences")
 
 

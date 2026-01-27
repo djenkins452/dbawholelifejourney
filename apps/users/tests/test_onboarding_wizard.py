@@ -169,10 +169,10 @@ class OnboardingWizardSubmissionTest(TestCase):
         """Theme selection is saved to preferences."""
         self.client.post(
             reverse("users:onboarding_wizard_step", kwargs={"step": "theme"}),
-            {"theme": "faith", "action": "next"}
+            {"theme": "sanctuary", "action": "next"}
         )
         self.user.preferences.refresh_from_db()
-        self.assertEqual(self.user.preferences.theme, "faith")
+        self.assertEqual(self.user.preferences.theme, "sanctuary")
 
     def test_modules_selection_saves(self):
         """Module toggles are saved correctly."""

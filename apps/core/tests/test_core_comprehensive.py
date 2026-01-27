@@ -1101,7 +1101,7 @@ class WhatsNewPreferenceTest(CoreTestMixin, TestCase):
     def test_can_disable_whats_new(self):
         """User can disable What's New popup via preferences."""
         response = self.client.post(reverse('users:preferences'), {
-            'theme': 'minimal',
+            'theme': 'sanctuary',
             'timezone': 'US/Eastern',
             'ai_coaching_style': 'supportive',
             'default_fasting_type': '16:8',
@@ -1123,7 +1123,7 @@ class WhatsNewPreferenceTest(CoreTestMixin, TestCase):
         self.user.preferences.save()
 
         response = self.client.post(reverse('users:preferences'), {
-            'theme': 'minimal',
+            'theme': 'sanctuary',
             'timezone': 'US/Eastern',
             'ai_coaching_style': 'supportive',
             'default_fasting_type': '16:8',

@@ -113,31 +113,56 @@
                     {% endif %}
 
                     <div class="assessment-questions">
+                        {% with question_num=0 %}
                         {% for question in item.assessment.questions %}
-                        <div class="assessment-question">
-                            <label class="question-text">{{ forloop.counter }}. {{ question.text }}</label>
-                            <select class="form-select assessment-response" data-question-id="{{ question.id }}">
-                                <option value="">-- Select --</option>
-                                {% if question.options %}
-                                    {% comment %}Choice-based question with custom options{% endcomment %}
-                                    {% for option in question.options %}
-                                    <option value="{{ option.label }}">{{ option.label }}</option>
-                                    {% endfor %}
-                                {% elif question.type == "yesno" %}
-                                    {% comment %}Yes/No question{% endcomment %}
-                                    <option value="Yes">Yes</option>
-                                    <option value="No">No</option>
-                                {% else %}
-                                    {% comment %}Scale-based question (1-5){% endcomment %}
-                                    <option value="1">1 - {{ question.min_label|default:"Never" }}</option>
-                                    <option value="2">2</option>
-                                    <option value="3">3 - {{ question.mid_label|default:"Sometimes" }}</option>
-                                    <option value="4">4</option>
-                                    <option value="5">5 - {{ question.max_label|default:"Always" }}</option>
-                                {% endif %}
-                            </select>
-                        </div>
+                        {% if question.type == "section_header" %}
+                            {% comment %}Section header - display as instructional text{% endcomment %}
+                            <div class="assessment-section-header">
+                                <p class="section-header-text">{{ question.text }}</p>
+                            </div>
+                        {% elif question.type == "truefalse" %}
+                            {% comment %}True/False question with radio buttons{% endcomment %}
+                            <div class="assessment-question truefalse-question">
+                                <label class="question-text">{{ question.text }}</label>
+                                <div class="truefalse-options" data-question-id="{{ question.id }}">
+                                    <label class="truefalse-option">
+                                        <input type="radio" name="question_{{ question.id }}" value="True" class="assessment-radio">
+                                        <span class="truefalse-label">True</span>
+                                    </label>
+                                    <label class="truefalse-option">
+                                        <input type="radio" name="question_{{ question.id }}" value="False" class="assessment-radio">
+                                        <span class="truefalse-label">False</span>
+                                    </label>
+                                </div>
+                            </div>
+                        {% else %}
+                            {% comment %}Choice-based or scale question with dropdown{% endcomment %}
+                            <div class="assessment-question">
+                                <label class="question-text">{{ forloop.counter }}. {{ question.text }}</label>
+                                <select class="form-select assessment-response" data-question-id="{{ question.id }}">
+                                    <option value="">-- Select --</option>
+                                    {% if question.options %}
+                                        {% comment %}Choice-based question with custom options{% endcomment %}
+                                        {% for option in question.options %}
+                                        <option value="{{ option.label }}">{{ option.label }}</option>
+                                        {% endfor %}
+                                    {% elif question.type == "yesno" %}
+                                        {% comment %}Yes/No question{% endcomment %}
+                                        <option value="Yes">Yes</option>
+                                        <option value="No">No</option>
+                                    {% else %}
+                                        {% comment %}Scale-based question (1-5){% endcomment %}
+                                        <option value="1">1 - {{ question.min_label|default:"Never" }}</option>
+                                        <option value="2">2</option>
+                                        <option value="3">3 - {{ question.mid_label|default:"Sometimes" }}</option>
+                                        <option value="4">4</option>
+                                        <option value="5">5 - {{ question.max_label|default:"Always" }}</option>
+                                    {% endif %}
+                                </select>
+                            </div>
+                        {% endif %}
                         {% endfor %}
+                        {% endwith %}
                     </div>
 
                     {% if not item.assessment.is_reflection_only %}
@@ -688,6 +713,76 @@
     max-width: 300px;
 }
 
+/* Section header for assessment instructions */
+.assessment-section-header {
+    padding: var(--space-4);
+    background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+    border-left: 3px solid var(--color-accent);
+    border-radius: var(--radius-md);
+    margin: var(--space-4) 0;
+}
+
+.section-header-text {
+    color: var(--color-text);
+    font-style: italic;
+    margin: 0;
+    line-height: 1.6;
+}
+
+/* True/False radio button questions */
+.truefalse-question {
+    padding: var(--space-3) 0;
+}
+
+.truefalse-options {
+    display: flex;
+    gap: var(--space-6);
+    margin-top: var(--space-2);
+}
+
+.truefalse-option {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+    padding: var(--space-2) var(--space-4);
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-background);
+    transition: all 0.15s ease;
+}
+
+.truefalse-option:hover {
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 5%, var(--color-background));
+}
+
+.truefalse-option:has(input:checked) {
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 15%, var(--color-background));
+}
+
+.assessment-radio {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--color-accent);
+    cursor: pointer;
+}
+
+.truefalse-label {
+    font-weight: 500;
+    font-size: var(--font-size-base);
+    color: var(--color-text);
+}
+
+/* Mobile: stack true/false vertically if needed */
+@media (max-width: 400px) {
+    .truefalse-options {
+        flex-direction: column;
+        gap: var(--space-2);
+    }
+}
+
 .assessment-actions {
     margin-top: var(--space-6);
     text-align: center;
@@ -920,11 +1015,13 @@ document.addEventListener('DOMContentLoaded', function() {
             const assessmentId = section.dataset.assessmentId;
             const planId = section.dataset.planId;
             const selects = section.querySelectorAll('.assessment-response');
+            const radioGroups = section.querySelectorAll('.truefalse-options');
 
             // Collect responses (as text values, not numeric)
             const responses = {};
             let allAnswered = true;
 
+            // Collect dropdown responses
             selects.forEach(function(select) {
                 const questionId = select.dataset.questionId;
                 const value = select.value;
@@ -934,6 +1031,24 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else {
                     select.style.borderColor = '';
                     responses[questionId] = value; // Keep as string for reflection
+                }
+            });
+
+            // Collect true/false radio button responses
+            radioGroups.forEach(function(group) {
+                const questionId = group.dataset.questionId;
+                const checkedRadio = group.querySelector('input[type="radio"]:checked');
+                if (!checkedRadio) {
+                    allAnswered = false;
+                    group.closest('.truefalse-question').style.borderColor = 'var(--color-error)';
+                    group.closest('.truefalse-question').style.borderWidth = '2px';
+                    group.closest('.truefalse-question').style.borderStyle = 'solid';
+                    group.closest('.truefalse-question').style.borderRadius = 'var(--radius-md)';
+                    group.closest('.truefalse-question').style.padding = 'var(--space-2)';
+                } else {
+                    group.closest('.truefalse-question').style.border = 'none';
+                    group.closest('.truefalse-question').style.padding = 'var(--space-3) 0';
+                    responses[questionId] = checkedRadio.value;
                 }
             });
 
@@ -977,11 +1092,21 @@ document.addEventListener('DOMContentLoaded', function() {
         if (savedResponsesStr) {
             try {
                 const savedResponses = JSON.parse(savedResponsesStr);
-                // Restore each select value
+                // Restore each response
                 Object.keys(savedResponses).forEach(function(questionId) {
+                    // Try dropdown first
                     const select = section.querySelector(`select[data-question-id="${questionId}"]`);
                     if (select) {
                         select.value = savedResponses[questionId];
+                        return;
+                    }
+                    // Try radio button group (true/false)
+                    const radioGroup = section.querySelector(`.truefalse-options[data-question-id="${questionId}"]`);
+                    if (radioGroup) {
+                        const radio = radioGroup.querySelector(`input[value="${savedResponses[questionId]}"]`);
+                        if (radio) {
+                            radio.checked = true;
+                        }
                     }
                 });
             } catch (e) {

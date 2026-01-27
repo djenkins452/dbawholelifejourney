@@ -547,6 +547,9 @@ class Command(BaseCommand):
         # One-time: Reset blind_spots_week3 loader to reload with fixed assessment questions
         self._reset_blind_spots_week3_assessment(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset blind_spots_week3 loader to reload with True/False radio buttons
+        self._reset_blind_spots_week3_truefalse(DataLoadConfig, force, verbosity)
+
         # Only output summary if something loaded or if verbose
         if verbosity >= 1 and loaded_count > 0:
             self.stdout.write(self.style.SUCCESS(f'Initial data: loaded {loaded_count} items'))
@@ -924,3 +927,36 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset blind spots week3 assessment FAILED: {e}'))
+
+    def _reset_blind_spots_week3_truefalse(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset of blind_spots_week3_reading_plan loader to reload with
+        True/False questions using radio buttons instead of Yes/No dropdowns.
+        Only runs once (tracked via DataLoadConfig).
+        """
+        reset_tracker_name = 'reset_blind_spots_week3_truefalse_2026_01_27'
+
+        # Check if already done (unless force mode)
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return  # Already reset, skip silently
+
+        try:
+            # Reset the fixture loader so it runs again
+            fixture_loader_name = 'blind_spots_week3_reading_plan'
+            try:
+                config = DataLoadConfig.objects.get(loader_name=fixture_loader_name)
+                config.reset()
+                if verbosity >= 1:
+                    self.stdout.write(f'  Reset {fixture_loader_name} loader for True/False radio buttons')
+            except DataLoadConfig.DoesNotExist:
+                pass  # Loader not found, will load fresh
+
+            # Mark this reset operation as complete
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name, 'Reset Blind Spots Week 3 True/False',
+                'command', 'One-time reset to reload fixture with True/False radio buttons'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset blind spots week3 truefalse FAILED: {e}'))

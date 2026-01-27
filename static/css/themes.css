@@ -6,636 +6,1110 @@
  * Purpose: Visual theme definitions with color palette overrides
  *
  * Description:
- *     Defines seven themes that users can select to personalize their
- *     experience. Each theme overrides CSS custom properties to change
- *     colors throughout the application.
+ *     Defines 10 personality-based themes plus a custom theme option.
+ *     Each theme overrides CSS custom properties to change colors
+ *     throughout the application.
  *
  * Available Themes:
- *     1. Minimal - Quiet, clear, intentional (default)
- *     2. Light - Clean, bright, modern
- *     3. Dark - Easy on the eyes, modern dark mode
- *     4. Faith - Peaceful, grounded, spiritually respectful
- *     5. Sports - Goal-driven, disciplined, focused
- *     6. Nature - Warm, calming, emotionally safe
- *     7. Outdoors - Curious, expansive, journey-focused
+ *     1. Scholar - Academic, intellectual, library-inspired
+ *     2. Momentum - Athletic, energetic, competitive (dark)
+ *     3. Wanderer - Adventurous, exploratory, sunset vibes
+ *     4. Creature - Animal lovers, nurturing, earthy
+ *     5. Sanctuary - Spiritual, contemplative, reverent
+ *     6. Zen - Calm, mindful, balanced
+ *     7. Electric - Bold, creative, artistic (dark)
+ *     8. Coastal - Beach vibes, refreshing, laid-back
+ *     9. Ember - Cozy, warm, autumnal comfort
+ *    10. Midnight - Night owl, focused, sophisticated (dark)
+ *    11. Custom - User-defined colors
  *
  * Usage:
  *     Themes are applied via data attribute on <body>:
- *     <body data-theme="faith">
- *
- * Notes:
- *     - Dark-header themes (Faith, Sports, Nature, Outdoors) have special
- *       header styling with white text
- *     - Mobile menu toggle contrast is handled for dark-header themes
+ *     <body data-theme="sanctuary">
  *
  * Copyright:
  *     (c) Whole Life Journey. All rights reserved.
- *     This code is proprietary and may not be copied, modified, or distributed
- *     without explicit permission.
  */
 
 /* ==========================================================================
-   Theme 1: Light
-   Clean, bright, modern
+   Theme 1: Scholar
+   Academic, intellectual, library-inspired
+   Deep navy and warm gold - inspired by classic libraries and academia
    ========================================================================== */
 
-[data-theme="light"],
-.theme-light {
-    --color-primary: #3b82f6;
-    --color-secondary: #ffffff;
-    --color-accent: #3b82f6;
-    --color-text: #1f2937;
-    --color-text-muted: #6b7280;
-    --color-background: #ffffff;
-    --color-surface: #f9fafb;
-    --color-border: #e5e7eb;
+[data-theme="scholar"],
+.theme-scholar {
+    --color-primary: #1e3a5f;
+    --color-secondary: #f5f3ed;
+    --color-accent: #c9a227;
+    --color-text: #2c3e50;
+    --color-text-muted: #5a6577;
+    --color-background: #f5f3ed;
+    --color-surface: #ffffff;
+    --color-border: #d4cfc5;
     --color-success: #10b981;
     --color-warning: #f59e0b;
     --color-error: #ef4444;
 }
 
-.theme-light .site-header {
-    background-color: var(--color-background);
-    border-bottom: 1px solid var(--color-border);
+.theme-scholar .site-header {
+    background-color: #1e3a5f;
+}
+
+.theme-scholar .nav-logo-text,
+.theme-scholar .nav-link,
+.theme-scholar .nav-user-name {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.theme-scholar .nav-link:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: white;
+}
+
+.theme-scholar .nav-link.active {
+    background-color: rgba(201, 162, 39, 0.2);
+    color: #c9a227;
+}
+
+.theme-scholar .nav-user-initial {
+    background-color: #c9a227;
+    color: #1e3a5f;
+}
+
+.theme-scholar .nav-mobile-toggle {
+    color: white;
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.theme-scholar .utility-icon,
+.theme-scholar .desktop-utility-icon {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.theme-scholar .utility-icon:hover,
+.theme-scholar .desktop-utility-icon:hover {
+    color: white;
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.theme-scholar .desktop-utility-icon.active {
+    color: var(--color-accent);
+    background: rgba(201, 162, 39, 0.2);
+}
+
+.theme-scholar .desktop-logo-text {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.theme-scholar .desktop-top-bar {
+    background-color: #1e3a5f;
+    border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+.theme-scholar .card {
+    border-color: #d4cfc5;
+    box-shadow: 0 2px 4px rgba(30, 58, 95, 0.05);
+}
+
+.theme-scholar .encouragement-card {
+    background: linear-gradient(135deg, #f5f3ed 0%, #ebe5d8 100%);
+    border-left: 4px solid #c9a227;
 }
 
 /* ==========================================================================
-   Theme 2: Dark
-   Easy on the eyes, modern dark mode
+   Theme 2: Momentum
+   Athletic, energetic, competitive (DARK MODE)
+   Bold red and charcoal - energetic, competitive, powerful
    ========================================================================== */
 
-[data-theme="dark"],
-.theme-dark {
-    --color-primary: #60a5fa;
-    --color-secondary: #1f2937;
-    --color-accent: #60a5fa;
-    --color-text: #f9fafb;
-    --color-text-muted: #9ca3af;
-    --color-background: #111827;
-    --color-surface: #1f2937;
-    --color-border: #374151;
+[data-theme="momentum"],
+.theme-momentum {
+    --color-primary: #c41e3a;
+    --color-secondary: #1a1a2e;
+    --color-accent: #ff6b35;
+    --color-text: #f8f8f8;
+    --color-text-muted: #a0a0a0;
+    --color-background: #1a1a2e;
+    --color-surface: #252538;
+    --color-border: #3a3a50;
     --color-success: #34d399;
     --color-warning: #fbbf24;
     --color-error: #f87171;
 }
 
-.theme-dark .site-header {
-    background-color: var(--color-surface);
-    border-bottom: 1px solid var(--color-border);
+.theme-momentum .site-header {
+    background-color: #c41e3a;
 }
 
-.theme-dark .nav-logo-text,
-.theme-dark .nav-link,
-.theme-dark .nav-user-name {
-    color: var(--color-text);
+.theme-momentum .nav-logo-text,
+.theme-momentum .nav-link,
+.theme-momentum .nav-user-name {
+    color: rgba(255, 255, 255, 0.95);
 }
 
-.theme-dark .nav-link:hover {
-    background-color: rgba(255, 255, 255, 0.1);
+.theme-momentum .nav-link:hover {
+    background-color: rgba(255, 255, 255, 0.15);
+    color: white;
 }
 
-.theme-dark .nav-link.active {
-    background-color: rgba(96, 165, 250, 0.2);
+.theme-momentum .nav-link.active {
+    background-color: rgba(255, 107, 53, 0.3);
+    color: #ff6b35;
+}
+
+.theme-momentum .nav-user-initial {
+    background-color: #ff6b35;
+    color: white;
+}
+
+.theme-momentum .nav-mobile-toggle {
+    color: white;
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.theme-momentum .utility-icon,
+.theme-momentum .desktop-utility-icon {
+    color: rgba(255, 255, 255, 0.95);
+}
+
+.theme-momentum .utility-icon:hover,
+.theme-momentum .desktop-utility-icon:hover {
+    color: white;
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+.theme-momentum .desktop-utility-icon.active {
     color: var(--color-accent);
+    background: rgba(255, 107, 53, 0.2);
 }
 
-.theme-dark .nav-user-initial {
-    background-color: var(--color-accent);
-    color: #111827;
+.theme-momentum .desktop-logo-text {
+    color: rgba(255, 255, 255, 0.95);
 }
 
-.theme-dark .card {
+.theme-momentum .desktop-top-bar {
+    background-color: #c41e3a;
+    border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+.theme-momentum .card {
     background-color: var(--color-surface);
     border-color: var(--color-border);
 }
 
-.theme-dark .form-input,
-.theme-dark .form-select,
-.theme-dark .form-textarea {
+.theme-momentum .form-input,
+.theme-momentum .form-select,
+.theme-momentum .form-textarea {
     background-color: var(--color-background);
     border-color: var(--color-border);
     color: var(--color-text);
 }
 
-.theme-dark .form-input:focus,
-.theme-dark .form-select:focus,
-.theme-dark .form-textarea:focus {
-    border-color: var(--color-accent);
-}
-
-.theme-dark .btn-secondary {
+.theme-momentum .btn-secondary {
     background-color: var(--color-surface);
     border-color: var(--color-border);
     color: var(--color-text);
 }
 
-.theme-dark .btn-secondary:hover {
-    background-color: var(--color-border);
-}
-
-.theme-dark .btn-ghost {
+.theme-momentum .btn-ghost {
     color: var(--color-text-muted);
 }
 
-.theme-dark .btn-ghost:hover {
+.theme-momentum .btn-ghost:hover {
     background-color: var(--color-surface);
     color: var(--color-text);
 }
 
-.theme-dark .dashboard-tile {
-    background-color: var(--color-surface);
-    border-color: var(--color-border);
-}
-
-.theme-dark .tile-stats {
-    border-color: var(--color-border);
-}
-
-.theme-dark .recent-link:hover {
-    background-color: var(--color-background);
-}
-
-.theme-dark .encouragement-card {
-    background: linear-gradient(135deg, var(--color-surface) 0%, rgba(96, 165, 250, 0.1) 100%);
+.theme-momentum .encouragement-card {
+    background: linear-gradient(135deg, var(--color-surface) 0%, rgba(255, 107, 53, 0.1) 100%);
     border-left: 4px solid var(--color-accent);
 }
 
-.theme-dark .toggle-option {
-    background-color: var(--color-background);
-    border-color: var(--color-border);
-}
-
-.theme-dark .health-metric {
-    background-color: var(--color-background);
-}
-
-.theme-dark .todays-verse {
-    background-color: var(--color-background);
-}
-
-.theme-dark .prompt-card {
+.theme-momentum .site-footer {
     background-color: var(--color-surface);
     border-color: var(--color-border);
 }
 
-.theme-dark .filter-tag {
-    background-color: var(--color-surface);
+/* ==========================================================================
+   Theme 3: Wanderer
+   Adventurous, exploratory, sunset vibes
+   Sunset orange and ocean teal - for explorers and dreamers
+   ========================================================================== */
+
+[data-theme="wanderer"],
+.theme-wanderer {
+    --color-primary: #e07b39;
+    --color-secondary: #faf6f1;
+    --color-accent: #2a9d8f;
+    --color-text: #3d405b;
+    --color-text-muted: #6b6d80;
+    --color-background: #faf6f1;
+    --color-surface: #ffffff;
+    --color-border: #e5ddd3;
+    --color-success: #10b981;
+    --color-warning: #f59e0b;
+    --color-error: #ef4444;
 }
 
-.theme-dark .site-footer {
+.theme-wanderer .site-header {
+    background-color: #e07b39;
+}
+
+.theme-wanderer .nav-logo-text,
+.theme-wanderer .nav-link,
+.theme-wanderer .nav-user-name {
+    color: rgba(255, 255, 255, 0.95);
+}
+
+.theme-wanderer .nav-link:hover {
+    background-color: rgba(255, 255, 255, 0.15);
+    color: white;
+}
+
+.theme-wanderer .nav-link.active {
+    background-color: rgba(42, 157, 143, 0.25);
+    color: #2a9d8f;
+}
+
+.theme-wanderer .nav-user-initial {
+    background-color: #2a9d8f;
+    color: white;
+}
+
+.theme-wanderer .nav-mobile-toggle {
+    color: white;
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.theme-wanderer .utility-icon,
+.theme-wanderer .desktop-utility-icon {
+    color: rgba(255, 255, 255, 0.95);
+}
+
+.theme-wanderer .utility-icon:hover,
+.theme-wanderer .desktop-utility-icon:hover {
+    color: white;
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+.theme-wanderer .desktop-utility-icon.active {
+    color: var(--color-accent);
+    background: rgba(42, 157, 143, 0.2);
+}
+
+.theme-wanderer .desktop-logo-text {
+    color: rgba(255, 255, 255, 0.95);
+}
+
+.theme-wanderer .desktop-top-bar {
+    background-color: #e07b39;
+    border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+.theme-wanderer .card {
+    border-color: #e5ddd3;
+    box-shadow: 0 2px 4px rgba(224, 123, 57, 0.05);
+}
+
+.theme-wanderer .encouragement-card {
+    background: linear-gradient(135deg, #faf6f1 0%, #f5ebe0 100%);
+    border-left: 4px solid #2a9d8f;
+}
+
+/* ==========================================================================
+   Theme 4: Creature
+   Animal lovers, nurturing, earthy
+   Forest green and warm amber - earthy, nurturing, connected to nature
+   ========================================================================== */
+
+[data-theme="creature"],
+.theme-creature {
+    --color-primary: #4a7c59;
+    --color-secondary: #f9f5f0;
+    --color-accent: #d4a373;
+    --color-text: #3c3c3c;
+    --color-text-muted: #666666;
+    --color-background: #f9f5f0;
+    --color-surface: #ffffff;
+    --color-border: #e0d8ce;
+    --color-success: #10b981;
+    --color-warning: #f59e0b;
+    --color-error: #ef4444;
+}
+
+.theme-creature .site-header {
+    background-color: #4a7c59;
+}
+
+.theme-creature .nav-logo-text,
+.theme-creature .nav-link,
+.theme-creature .nav-user-name {
+    color: rgba(255, 255, 255, 0.95);
+}
+
+.theme-creature .nav-link:hover {
+    background-color: rgba(255, 255, 255, 0.15);
+    color: white;
+}
+
+.theme-creature .nav-link.active {
+    background-color: rgba(212, 163, 115, 0.25);
+    color: #d4a373;
+}
+
+.theme-creature .nav-user-initial {
+    background-color: #d4a373;
+    color: #3c3c3c;
+}
+
+.theme-creature .nav-mobile-toggle {
+    color: white;
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.theme-creature .utility-icon,
+.theme-creature .desktop-utility-icon {
+    color: rgba(255, 255, 255, 0.95);
+}
+
+.theme-creature .utility-icon:hover,
+.theme-creature .desktop-utility-icon:hover {
+    color: white;
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+.theme-creature .desktop-utility-icon.active {
+    color: var(--color-accent);
+    background: rgba(212, 163, 115, 0.2);
+}
+
+.theme-creature .desktop-logo-text {
+    color: rgba(255, 255, 255, 0.95);
+}
+
+.theme-creature .desktop-top-bar {
+    background-color: #4a7c59;
+    border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+.theme-creature .card {
+    border-color: #e0d8ce;
+    box-shadow: 0 2px 4px rgba(74, 124, 89, 0.05);
+}
+
+.theme-creature .encouragement-card {
+    background: linear-gradient(135deg, #f9f5f0 0%, #f0e8dc 100%);
+    border-left: 4px solid #d4a373;
+}
+
+/* ==========================================================================
+   Theme 5: Sanctuary
+   Spiritual, contemplative, reverent
+   Deep purple and soft gold - contemplative, reverent, peaceful
+   ========================================================================== */
+
+[data-theme="sanctuary"],
+.theme-sanctuary {
+    --color-primary: #4a3c6d;
+    --color-secondary: #f8f6f9;
+    --color-accent: #e8c872;
+    --color-text: #2d2d3a;
+    --color-text-muted: #5a5a6e;
+    --color-background: #f8f6f9;
+    --color-surface: #ffffff;
+    --color-border: #ddd8e4;
+    --color-success: #10b981;
+    --color-warning: #f59e0b;
+    --color-error: #ef4444;
+}
+
+.theme-sanctuary .site-header {
+    background-color: #4a3c6d;
+}
+
+.theme-sanctuary .nav-logo-text,
+.theme-sanctuary .nav-link,
+.theme-sanctuary .nav-user-name {
+    color: rgba(255, 255, 255, 0.95);
+}
+
+.theme-sanctuary .nav-link:hover {
+    background-color: rgba(255, 255, 255, 0.12);
+    color: white;
+}
+
+.theme-sanctuary .nav-link.active {
+    background-color: rgba(232, 200, 114, 0.2);
+    color: #e8c872;
+}
+
+.theme-sanctuary .nav-user-initial {
+    background-color: #e8c872;
+    color: #4a3c6d;
+}
+
+.theme-sanctuary .nav-mobile-toggle {
+    color: white;
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.theme-sanctuary .utility-icon,
+.theme-sanctuary .desktop-utility-icon {
+    color: rgba(255, 255, 255, 0.95);
+}
+
+.theme-sanctuary .utility-icon:hover,
+.theme-sanctuary .desktop-utility-icon:hover {
+    color: white;
+    background-color: rgba(255, 255, 255, 0.12);
+}
+
+.theme-sanctuary .desktop-utility-icon.active {
+    color: var(--color-accent);
+    background: rgba(232, 200, 114, 0.2);
+}
+
+.theme-sanctuary .desktop-logo-text {
+    color: rgba(255, 255, 255, 0.95);
+}
+
+.theme-sanctuary .desktop-top-bar {
+    background-color: #4a3c6d;
+    border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+.theme-sanctuary .card {
+    border-color: #ddd8e4;
+    box-shadow: 0 2px 4px rgba(74, 60, 109, 0.05);
+}
+
+.theme-sanctuary .encouragement-card {
+    background: linear-gradient(135deg, #f8f6f9 0%, #ede8f5 100%);
+    border-left: 4px solid #e8c872;
+}
+
+/* ==========================================================================
+   Theme 6: Zen
+   Calm, mindful, balanced
+   Sage green and muted rose - tranquil, balanced, soothing
+   ========================================================================== */
+
+[data-theme="zen"],
+.theme-zen {
+    --color-primary: #7d9a8c;
+    --color-secondary: #f7f7f5;
+    --color-accent: #c4a69d;
+    --color-text: #4a4a4a;
+    --color-text-muted: #7a7a7a;
+    --color-background: #f7f7f5;
+    --color-surface: #ffffff;
+    --color-border: #e5e5e0;
+    --color-success: #10b981;
+    --color-warning: #f59e0b;
+    --color-error: #ef4444;
+}
+
+.theme-zen .site-header {
+    background-color: #7d9a8c;
+}
+
+.theme-zen .nav-logo-text,
+.theme-zen .nav-link,
+.theme-zen .nav-user-name {
+    color: rgba(255, 255, 255, 0.95);
+}
+
+.theme-zen .nav-link:hover {
+    background-color: rgba(255, 255, 255, 0.15);
+    color: white;
+}
+
+.theme-zen .nav-link.active {
+    background-color: rgba(196, 166, 157, 0.25);
+    color: #c4a69d;
+}
+
+.theme-zen .nav-user-initial {
+    background-color: #c4a69d;
+    color: #4a4a4a;
+}
+
+.theme-zen .nav-mobile-toggle {
+    color: white;
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.theme-zen .utility-icon,
+.theme-zen .desktop-utility-icon {
+    color: rgba(255, 255, 255, 0.95);
+}
+
+.theme-zen .utility-icon:hover,
+.theme-zen .desktop-utility-icon:hover {
+    color: white;
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+.theme-zen .desktop-utility-icon.active {
+    color: var(--color-accent);
+    background: rgba(196, 166, 157, 0.2);
+}
+
+.theme-zen .desktop-logo-text {
+    color: rgba(255, 255, 255, 0.95);
+}
+
+.theme-zen .desktop-top-bar {
+    background-color: #7d9a8c;
+    border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+.theme-zen .card {
+    border-color: #e5e5e0;
+    box-shadow: 0 2px 4px rgba(125, 154, 140, 0.05);
+}
+
+.theme-zen .encouragement-card {
+    background: linear-gradient(135deg, #f7f7f5 0%, #f0ede8 100%);
+    border-left: 4px solid #c4a69d;
+}
+
+/* ==========================================================================
+   Theme 7: Electric
+   Bold, creative, artistic (DARK MODE)
+   Vivid magenta and electric blue - artistic, expressive, daring
+   ========================================================================== */
+
+[data-theme="electric"],
+.theme-electric {
+    --color-primary: #d63384;
+    --color-secondary: #1a1a2e;
+    --color-accent: #0dcaf0;
+    --color-text: #f0f0f0;
+    --color-text-muted: #a0a0a0;
+    --color-background: #1a1a2e;
+    --color-surface: #252540;
+    --color-border: #3a3a55;
+    --color-success: #34d399;
+    --color-warning: #fbbf24;
+    --color-error: #f87171;
+}
+
+.theme-electric .site-header {
+    background-color: #d63384;
+}
+
+.theme-electric .nav-logo-text,
+.theme-electric .nav-link,
+.theme-electric .nav-user-name {
+    color: rgba(255, 255, 255, 0.95);
+}
+
+.theme-electric .nav-link:hover {
+    background-color: rgba(255, 255, 255, 0.15);
+    color: white;
+}
+
+.theme-electric .nav-link.active {
+    background-color: rgba(13, 202, 240, 0.25);
+    color: #0dcaf0;
+}
+
+.theme-electric .nav-user-initial {
+    background-color: #0dcaf0;
+    color: #1a1a2e;
+}
+
+.theme-electric .nav-mobile-toggle {
+    color: white;
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.theme-electric .utility-icon,
+.theme-electric .desktop-utility-icon {
+    color: rgba(255, 255, 255, 0.95);
+}
+
+.theme-electric .utility-icon:hover,
+.theme-electric .desktop-utility-icon:hover {
+    color: white;
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+.theme-electric .desktop-utility-icon.active {
+    color: var(--color-accent);
+    background: rgba(13, 202, 240, 0.2);
+}
+
+.theme-electric .desktop-logo-text {
+    color: rgba(255, 255, 255, 0.95);
+}
+
+.theme-electric .desktop-top-bar {
+    background-color: #d63384;
+    border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+.theme-electric .card {
     background-color: var(--color-surface);
     border-color: var(--color-border);
 }
 
-/* Dark theme - utility icons need light color for dark header contrast */
-.theme-dark .utility-icon,
-.theme-dark .desktop-utility-icon {
+.theme-electric .form-input,
+.theme-electric .form-select,
+.theme-electric .form-textarea {
+    background-color: var(--color-background);
+    border-color: var(--color-border);
     color: var(--color-text);
 }
 
-.theme-dark .utility-icon:hover,
-.theme-dark .utility-icon:active,
-.theme-dark .desktop-utility-icon:hover {
-    color: var(--color-text);
-    background-color: rgba(255, 255, 255, 0.1);
-}
-
-.theme-dark .desktop-top-bar {
+.theme-electric .btn-secondary {
     background-color: var(--color-surface);
-    border-bottom-color: var(--color-border);
+    border-color: var(--color-border);
+    color: var(--color-text);
+}
+
+.theme-electric .btn-ghost {
+    color: var(--color-text-muted);
+}
+
+.theme-electric .btn-ghost:hover {
+    background-color: var(--color-surface);
+    color: var(--color-text);
+}
+
+.theme-electric .encouragement-card {
+    background: linear-gradient(135deg, var(--color-surface) 0%, rgba(13, 202, 240, 0.1) 100%);
+    border-left: 4px solid var(--color-accent);
+}
+
+.theme-electric .site-footer {
+    background-color: var(--color-surface);
+    border-color: var(--color-border);
 }
 
 /* ==========================================================================
-   Theme 3: Christian Faith
-   Peaceful, grounded, spiritually respectful
+   Theme 8: Coastal
+   Beach vibes, refreshing, laid-back
+   Ocean blue and sandy beige - breezy, refreshing, laid-back
    ========================================================================== */
 
-[data-theme="faith"],
-.theme-faith {
-    --color-primary: #1e3a5f;
-    --color-secondary: #faf8f5;
-    --color-accent: #d4a574;
-    --color-text: #2d3748;
-    --color-text-muted: #5a6577;
-    --color-background: #faf8f5;
-    --color-surface: #f5f1eb;
-    --color-border: #e2dcd2;
+[data-theme="coastal"],
+.theme-coastal {
+    --color-primary: #0077b6;
+    --color-secondary: #f8f9fa;
+    --color-accent: #fca311;
+    --color-text: #14213d;
+    --color-text-muted: #4a5568;
+    --color-background: #f8f9fa;
+    --color-surface: #ffffff;
+    --color-border: #e2e8f0;
     --color-success: #10b981;
     --color-warning: #f59e0b;
     --color-error: #ef4444;
 }
 
-.theme-faith .site-header {
-    background-color: #1e3a5f;
+.theme-coastal .site-header {
+    background-color: #0077b6;
 }
 
-.theme-faith .nav-logo-text,
-.theme-faith .nav-link,
-.theme-faith .nav-user-name {
-    color: rgba(255, 255, 255, 0.9);
+.theme-coastal .nav-logo-text,
+.theme-coastal .nav-link,
+.theme-coastal .nav-user-name {
+    color: rgba(255, 255, 255, 0.95);
 }
 
-.theme-faith .nav-link:hover {
-    background-color: rgba(255, 255, 255, 0.1);
+.theme-coastal .nav-link:hover {
+    background-color: rgba(255, 255, 255, 0.15);
     color: white;
 }
 
-.theme-faith .nav-link.active {
-    background-color: rgba(212, 165, 116, 0.2);
-    color: #d4a574;
+.theme-coastal .nav-link.active {
+    background-color: rgba(252, 163, 17, 0.25);
+    color: #fca311;
 }
 
-.theme-faith .nav-user-initial {
-    background-color: #d4a574;
+.theme-coastal .nav-user-initial {
+    background-color: #fca311;
+    color: #14213d;
 }
 
-.theme-faith .nav-mobile-toggle {
+.theme-coastal .nav-mobile-toggle {
     color: white;
     border-color: rgba(255, 255, 255, 0.3);
 }
 
-.theme-faith .nav-mobile-toggle:hover {
-    background-color: rgba(255, 255, 255, 0.1);
+.theme-coastal .utility-icon,
+.theme-coastal .desktop-utility-icon {
+    color: rgba(255, 255, 255, 0.95);
 }
 
-/* Faith theme - utility icons need white color for dark header contrast */
-.theme-faith .utility-icon,
-.theme-faith .desktop-utility-icon {
-    color: rgba(255, 255, 255, 0.9);
-}
-
-.theme-faith .utility-icon:hover,
-.theme-faith .utility-icon:active,
-.theme-faith .desktop-utility-icon:hover {
+.theme-coastal .utility-icon:hover,
+.theme-coastal .desktop-utility-icon:hover {
     color: white;
-    background-color: rgba(255, 255, 255, 0.1);
+    background-color: rgba(255, 255, 255, 0.15);
 }
 
-.theme-faith .desktop-utility-icon.active {
+.theme-coastal .desktop-utility-icon.active {
     color: var(--color-accent);
-    background: rgba(212, 165, 116, 0.2);
+    background: rgba(252, 163, 17, 0.2);
 }
 
-.theme-faith .desktop-logo-text {
-    color: rgba(255, 255, 255, 0.9);
+.theme-coastal .desktop-logo-text {
+    color: rgba(255, 255, 255, 0.95);
 }
 
-.theme-faith .desktop-logo:hover .desktop-logo-text {
-    color: white;
-}
-
-.theme-faith .desktop-top-bar {
-    background-color: #1e3a5f;
+.theme-coastal .desktop-top-bar {
+    background-color: #0077b6;
     border-bottom-color: rgba(255, 255, 255, 0.1);
 }
 
+.theme-coastal .card {
+    border-color: #e2e8f0;
+    box-shadow: 0 2px 4px rgba(0, 119, 182, 0.05);
+}
+
+.theme-coastal .encouragement-card {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e3f2fd 100%);
+    border-left: 4px solid #fca311;
+}
+
 /* ==========================================================================
-   Theme 4: Sports & Performance
-   Goal-driven, disciplined, focused
+   Theme 9: Ember
+   Cozy, warm, autumnal comfort
+   Burnt orange and deep brown - inviting, comfortable, autumnal
    ========================================================================== */
 
-[data-theme="sports"],
-.theme-sports {
-    --color-primary: #1f2937;
-    --color-secondary: #ffffff;
-    --color-accent: #dc2626;
-    --color-text: #111827;
-    --color-text-muted: #4b5563;
-    --color-background: #ffffff;
-    --color-surface: #f3f4f6;
-    --color-border: #e5e7eb;
+[data-theme="ember"],
+.theme-ember {
+    --color-primary: #bf5b04;
+    --color-secondary: #fdf8f3;
+    --color-accent: #a4303f;
+    --color-text: #3e2723;
+    --color-text-muted: #6d5d58;
+    --color-background: #fdf8f3;
+    --color-surface: #ffffff;
+    --color-border: #e6ddd5;
     --color-success: #10b981;
     --color-warning: #f59e0b;
     --color-error: #ef4444;
 }
 
-.theme-sports .site-header {
-    background-color: #1f2937;
+.theme-ember .site-header {
+    background-color: #bf5b04;
 }
 
-.theme-sports .nav-logo-text,
-.theme-sports .nav-link,
-.theme-sports .nav-user-name {
-    color: rgba(255, 255, 255, 0.9);
+.theme-ember .nav-logo-text,
+.theme-ember .nav-link,
+.theme-ember .nav-user-name {
+    color: rgba(255, 255, 255, 0.95);
 }
 
-.theme-sports .nav-link:hover {
-    background-color: rgba(255, 255, 255, 0.1);
+.theme-ember .nav-link:hover {
+    background-color: rgba(255, 255, 255, 0.15);
     color: white;
 }
 
-.theme-sports .nav-link.active {
-    background-color: rgba(220, 38, 38, 0.2);
-    color: #dc2626;
+.theme-ember .nav-link.active {
+    background-color: rgba(164, 48, 63, 0.25);
+    color: #ffb4a9;
 }
 
-.theme-sports .nav-user-initial {
-    background-color: #dc2626;
-}
-
-.theme-sports .nav-mobile-toggle {
-    color: white;
-    border-color: rgba(255, 255, 255, 0.3);
-}
-
-.theme-sports .nav-mobile-toggle:hover {
-    background-color: rgba(255, 255, 255, 0.1);
-}
-
-/* Sports theme - utility icons need white color for dark header contrast */
-.theme-sports .utility-icon,
-.theme-sports .desktop-utility-icon {
-    color: rgba(255, 255, 255, 0.9);
-}
-
-.theme-sports .utility-icon:hover,
-.theme-sports .utility-icon:active,
-.theme-sports .desktop-utility-icon:hover {
-    color: white;
-    background-color: rgba(255, 255, 255, 0.1);
-}
-
-.theme-sports .desktop-utility-icon.active {
-    color: var(--color-accent);
-    background: rgba(220, 38, 38, 0.2);
-}
-
-.theme-sports .desktop-logo-text {
-    color: rgba(255, 255, 255, 0.9);
-}
-
-.theme-sports .desktop-logo:hover .desktop-logo-text {
+.theme-ember .nav-user-initial {
+    background-color: #a4303f;
     color: white;
 }
 
-.theme-sports .desktop-top-bar {
-    background-color: #1f2937;
-    border-bottom-color: rgba(255, 255, 255, 0.1);
-}
-
-/* ==========================================================================
-   Theme 5: Animals & Nature
-   Warm, calming, emotionally safe
-   ========================================================================== */
-
-[data-theme="nature"],
-.theme-nature {
-    --color-primary: #2d5a27;
-    --color-secondary: #fefce8;
-    --color-accent: #7dd3fc;
-    --color-text: #1a2e05;
-    --color-text-muted: #4a5d3a;
-    --color-background: #fefce8;
-    --color-surface: #f7f9e8;
-    --color-border: #d9e4c3;
-    --color-success: #10b981;
-    --color-warning: #f59e0b;
-    --color-error: #ef4444;
-}
-
-.theme-nature .site-header {
-    background-color: #2d5a27;
-}
-
-.theme-nature .nav-logo-text,
-.theme-nature .nav-link,
-.theme-nature .nav-user-name {
-    color: rgba(255, 255, 255, 0.9);
-}
-
-.theme-nature .nav-link:hover {
-    background-color: rgba(255, 255, 255, 0.1);
-    color: white;
-}
-
-.theme-nature .nav-link.active {
-    background-color: rgba(125, 211, 252, 0.2);
-    color: #7dd3fc;
-}
-
-.theme-nature .nav-user-initial {
-    background-color: #7dd3fc;
-    color: #1a2e05;
-}
-
-.theme-nature .nav-mobile-toggle {
+.theme-ember .nav-mobile-toggle {
     color: white;
     border-color: rgba(255, 255, 255, 0.3);
 }
 
-.theme-nature .nav-mobile-toggle:hover {
-    background-color: rgba(255, 255, 255, 0.1);
+.theme-ember .utility-icon,
+.theme-ember .desktop-utility-icon {
+    color: rgba(255, 255, 255, 0.95);
 }
 
-/* Nature theme - utility icons need white color for dark header contrast */
-.theme-nature .utility-icon,
-.theme-nature .desktop-utility-icon {
-    color: rgba(255, 255, 255, 0.9);
-}
-
-.theme-nature .utility-icon:hover,
-.theme-nature .utility-icon:active,
-.theme-nature .desktop-utility-icon:hover {
+.theme-ember .utility-icon:hover,
+.theme-ember .desktop-utility-icon:hover {
     color: white;
-    background-color: rgba(255, 255, 255, 0.1);
+    background-color: rgba(255, 255, 255, 0.15);
 }
 
-.theme-nature .desktop-utility-icon.active {
-    color: var(--color-accent);
-    background: rgba(125, 211, 252, 0.2);
+.theme-ember .desktop-utility-icon.active {
+    color: #ffb4a9;
+    background: rgba(164, 48, 63, 0.2);
 }
 
-.theme-nature .desktop-logo-text {
-    color: rgba(255, 255, 255, 0.9);
+.theme-ember .desktop-logo-text {
+    color: rgba(255, 255, 255, 0.95);
 }
 
-.theme-nature .desktop-logo:hover .desktop-logo-text {
-    color: white;
-}
-
-.theme-nature .desktop-top-bar {
-    background-color: #2d5a27;
+.theme-ember .desktop-top-bar {
+    background-color: #bf5b04;
     border-bottom-color: rgba(255, 255, 255, 0.1);
 }
 
+.theme-ember .card {
+    border-color: #e6ddd5;
+    box-shadow: 0 2px 4px rgba(191, 91, 4, 0.05);
+}
+
+.theme-ember .encouragement-card {
+    background: linear-gradient(135deg, #fdf8f3 0%, #f9ebe0 100%);
+    border-left: 4px solid #a4303f;
+}
+
 /* ==========================================================================
-   Theme 6: Outdoors & Adventure
-   Curious, expansive, journey-focused
+   Theme 10: Midnight
+   Night owl, focused, sophisticated (DARK MODE)
+   Deep indigo and silver - sophisticated, focused, calm darkness
    ========================================================================== */
 
-[data-theme="outdoors"],
-.theme-outdoors {
-    --color-primary: #475569;
-    --color-secondary: #fffbeb;
-    --color-accent: #f97316;
-    --color-text: #1e293b;
-    --color-text-muted: #64748b;
-    --color-background: #fffbeb;
-    --color-surface: #fef3c7;
-    --color-border: #e2d5b7;
-    --color-success: #10b981;
-    --color-warning: #f59e0b;
-    --color-error: #ef4444;
+[data-theme="midnight"],
+.theme-midnight {
+    --color-primary: #3f4b7b;
+    --color-secondary: #0f0f1a;
+    --color-accent: #a8b2c1;
+    --color-text: #e8e8e8;
+    --color-text-muted: #8888a0;
+    --color-background: #0f0f1a;
+    --color-surface: #1a1a2e;
+    --color-border: #2d2d45;
+    --color-success: #34d399;
+    --color-warning: #fbbf24;
+    --color-error: #f87171;
 }
 
-.theme-outdoors .site-header {
-    background-color: #475569;
+.theme-midnight .site-header {
+    background-color: #3f4b7b;
 }
 
-.theme-outdoors .nav-logo-text,
-.theme-outdoors .nav-link,
-.theme-outdoors .nav-user-name {
+.theme-midnight .nav-logo-text,
+.theme-midnight .nav-link,
+.theme-midnight .nav-user-name {
     color: rgba(255, 255, 255, 0.9);
 }
 
-.theme-outdoors .nav-link:hover {
+.theme-midnight .nav-link:hover {
     background-color: rgba(255, 255, 255, 0.1);
     color: white;
 }
 
-.theme-outdoors .nav-link.active {
-    background-color: rgba(249, 115, 22, 0.2);
-    color: #f97316;
+.theme-midnight .nav-link.active {
+    background-color: rgba(168, 178, 193, 0.2);
+    color: #a8b2c1;
 }
 
-.theme-outdoors .nav-user-initial {
-    background-color: #f97316;
+.theme-midnight .nav-user-initial {
+    background-color: #a8b2c1;
+    color: #0f0f1a;
 }
 
-.theme-outdoors .nav-mobile-toggle {
+.theme-midnight .nav-mobile-toggle {
     color: white;
     border-color: rgba(255, 255, 255, 0.3);
 }
 
-.theme-outdoors .nav-mobile-toggle:hover {
-    background-color: rgba(255, 255, 255, 0.1);
-}
-
-/* Outdoors theme - utility icons need white color for dark header contrast */
-.theme-outdoors .utility-icon,
-.theme-outdoors .desktop-utility-icon {
+.theme-midnight .utility-icon,
+.theme-midnight .desktop-utility-icon {
     color: rgba(255, 255, 255, 0.9);
 }
 
-.theme-outdoors .utility-icon:hover,
-.theme-outdoors .utility-icon:active,
-.theme-outdoors .desktop-utility-icon:hover {
+.theme-midnight .utility-icon:hover,
+.theme-midnight .desktop-utility-icon:hover {
     color: white;
     background-color: rgba(255, 255, 255, 0.1);
 }
 
-.theme-outdoors .desktop-utility-icon.active {
+.theme-midnight .desktop-utility-icon.active {
     color: var(--color-accent);
-    background: rgba(249, 115, 22, 0.2);
+    background: rgba(168, 178, 193, 0.2);
 }
 
-.theme-outdoors .desktop-logo-text {
+.theme-midnight .desktop-logo-text {
     color: rgba(255, 255, 255, 0.9);
 }
 
-.theme-outdoors .desktop-logo:hover .desktop-logo-text {
-    color: white;
-}
-
-.theme-outdoors .desktop-top-bar {
-    background-color: #475569;
+.theme-midnight .desktop-top-bar {
+    background-color: #3f4b7b;
     border-bottom-color: rgba(255, 255, 255, 0.1);
 }
 
-/* ==========================================================================
-   Mobile Menu Text Color Fix for Dark-Header Themes
+.theme-midnight .card {
+    background-color: var(--color-surface);
+    border-color: var(--color-border);
+}
 
-   Themes with dark headers (Faith, Sports, Nature, Outdoors) set nav-link
-   text to white for visibility. But the mobile hamburger menu has a light
-   background, so we need to override the text color to be readable.
-   ========================================================================== */
+.theme-midnight .form-input,
+.theme-midnight .form-select,
+.theme-midnight .form-textarea {
+    background-color: var(--color-background);
+    border-color: var(--color-border);
+    color: var(--color-text);
+}
 
-@media (max-width: 768px) {
-    /* Faith theme - dark blue header, cream background menu */
-    .theme-faith .nav-menu .nav-link,
-    .theme-faith .nav-menu .nav-user-name {
-        color: var(--color-text);
-    }
+.theme-midnight .btn-secondary {
+    background-color: var(--color-surface);
+    border-color: var(--color-border);
+    color: var(--color-text);
+}
 
-    .theme-faith .nav-menu .nav-link:hover {
-        color: var(--color-text);
-        background-color: var(--color-surface);
-    }
+.theme-midnight .btn-ghost {
+    color: var(--color-text-muted);
+}
 
-    .theme-faith .nav-menu .nav-link.active {
-        color: var(--color-accent);
-    }
+.theme-midnight .btn-ghost:hover {
+    background-color: var(--color-surface);
+    color: var(--color-text);
+}
 
-    /* Sports theme - dark gray header, white background menu */
-    .theme-sports .nav-menu .nav-link,
-    .theme-sports .nav-menu .nav-user-name {
-        color: var(--color-text);
-    }
+.theme-midnight .encouragement-card {
+    background: linear-gradient(135deg, var(--color-surface) 0%, rgba(168, 178, 193, 0.1) 100%);
+    border-left: 4px solid var(--color-accent);
+}
 
-    .theme-sports .nav-menu .nav-link:hover {
-        color: var(--color-text);
-        background-color: var(--color-surface);
-    }
-
-    .theme-sports .nav-menu .nav-link.active {
-        color: var(--color-accent);
-    }
-
-    /* Nature theme - dark green header, cream background menu */
-    .theme-nature .nav-menu .nav-link,
-    .theme-nature .nav-menu .nav-user-name {
-        color: var(--color-text);
-    }
-
-    .theme-nature .nav-menu .nav-link:hover {
-        color: var(--color-text);
-        background-color: var(--color-surface);
-    }
-
-    .theme-nature .nav-menu .nav-link.active {
-        color: var(--color-accent);
-    }
-
-    /* Outdoors theme - slate header, cream background menu */
-    .theme-outdoors .nav-menu .nav-link,
-    .theme-outdoors .nav-menu .nav-user-name {
-        color: var(--color-text);
-    }
-
-    .theme-outdoors .nav-menu .nav-link:hover {
-        color: var(--color-text);
-        background-color: var(--color-surface);
-    }
-
-    .theme-outdoors .nav-menu .nav-link.active {
-        color: var(--color-accent);
-    }
+.theme-midnight .site-footer {
+    background-color: var(--color-surface);
+    border-color: var(--color-border);
 }
 
 /* ==========================================================================
-   Theme 7: Minimal / Life Focus (Default)
-   Quiet, clear, intentional
+   Theme 11: Custom
+   User-defined colors - applies CSS variables from inline styles
    ========================================================================== */
 
-[data-theme="minimal"],
-.theme-minimal {
+[data-theme="custom"],
+.theme-custom {
+    /* These will be overridden by inline styles from user preferences */
     --color-primary: #6b7280;
     --color-secondary: #f9fafb;
     --color-accent: #6366f1;
     --color-text: #374151;
     --color-text-muted: #6b7280;
-    --color-background: #ffffff;
-    --color-surface: #f9fafb;
+    --color-background: #f9fafb;
+    --color-surface: #ffffff;
     --color-border: #e5e7eb;
     --color-success: #10b981;
     --color-warning: #f59e0b;
     --color-error: #ef4444;
 }
 
-/* Minimal theme keeps the light header by default */
-.theme-minimal .site-header {
-    background-color: var(--color-background);
-    border-bottom: 1px solid var(--color-border);
+/* Custom theme uses dark header by default, assumes user may pick dark colors */
+.theme-custom .site-header {
+    background-color: var(--color-primary);
+}
+
+.theme-custom .nav-logo-text,
+.theme-custom .nav-link,
+.theme-custom .nav-user-name {
+    color: rgba(255, 255, 255, 0.95);
+}
+
+.theme-custom .nav-link:hover {
+    background-color: rgba(255, 255, 255, 0.12);
+    color: white;
+}
+
+.theme-custom .nav-link.active {
+    background-color: color-mix(in srgb, var(--color-accent) 25%, transparent);
+    color: var(--color-accent);
+}
+
+.theme-custom .nav-user-initial {
+    background-color: var(--color-accent);
+}
+
+.theme-custom .nav-mobile-toggle {
+    color: white;
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.theme-custom .utility-icon,
+.theme-custom .desktop-utility-icon {
+    color: rgba(255, 255, 255, 0.95);
+}
+
+.theme-custom .utility-icon:hover,
+.theme-custom .desktop-utility-icon:hover {
+    color: white;
+    background-color: rgba(255, 255, 255, 0.12);
+}
+
+.theme-custom .desktop-utility-icon.active {
+    color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 20%, transparent);
+}
+
+.theme-custom .desktop-logo-text {
+    color: rgba(255, 255, 255, 0.95);
+}
+
+.theme-custom .desktop-top-bar {
+    background-color: var(--color-primary);
+    border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+/* ==========================================================================
+   Mobile Menu Text Color Fix for Dark-Header Themes
+   All personality themes have dark headers, so mobile menus need readable text
+   ========================================================================== */
+
+@media (max-width: 768px) {
+    .theme-scholar .nav-menu .nav-link,
+    .theme-scholar .nav-menu .nav-user-name,
+    .theme-momentum .nav-menu .nav-link,
+    .theme-momentum .nav-menu .nav-user-name,
+    .theme-wanderer .nav-menu .nav-link,
+    .theme-wanderer .nav-menu .nav-user-name,
+    .theme-creature .nav-menu .nav-link,
+    .theme-creature .nav-menu .nav-user-name,
+    .theme-sanctuary .nav-menu .nav-link,
+    .theme-sanctuary .nav-menu .nav-user-name,
+    .theme-zen .nav-menu .nav-link,
+    .theme-zen .nav-menu .nav-user-name,
+    .theme-electric .nav-menu .nav-link,
+    .theme-electric .nav-menu .nav-user-name,
+    .theme-coastal .nav-menu .nav-link,
+    .theme-coastal .nav-menu .nav-user-name,
+    .theme-ember .nav-menu .nav-link,
+    .theme-ember .nav-menu .nav-user-name,
+    .theme-midnight .nav-menu .nav-link,
+    .theme-midnight .nav-menu .nav-user-name,
+    .theme-custom .nav-menu .nav-link,
+    .theme-custom .nav-menu .nav-user-name {
+        color: var(--color-text);
+    }
+
+    .theme-scholar .nav-menu .nav-link:hover,
+    .theme-momentum .nav-menu .nav-link:hover,
+    .theme-wanderer .nav-menu .nav-link:hover,
+    .theme-creature .nav-menu .nav-link:hover,
+    .theme-sanctuary .nav-menu .nav-link:hover,
+    .theme-zen .nav-menu .nav-link:hover,
+    .theme-electric .nav-menu .nav-link:hover,
+    .theme-coastal .nav-menu .nav-link:hover,
+    .theme-ember .nav-menu .nav-link:hover,
+    .theme-midnight .nav-menu .nav-link:hover,
+    .theme-custom .nav-menu .nav-link:hover {
+        color: var(--color-text);
+        background-color: var(--color-surface);
+    }
+
+    .theme-scholar .nav-menu .nav-link.active,
+    .theme-momentum .nav-menu .nav-link.active,
+    .theme-wanderer .nav-menu .nav-link.active,
+    .theme-creature .nav-menu .nav-link.active,
+    .theme-sanctuary .nav-menu .nav-link.active,
+    .theme-zen .nav-menu .nav-link.active,
+    .theme-electric .nav-menu .nav-link.active,
+    .theme-coastal .nav-menu .nav-link.active,
+    .theme-ember .nav-menu .nav-link.active,
+    .theme-midnight .nav-menu .nav-link.active,
+    .theme-custom .nav-menu .nav-link.active {
+        color: var(--color-accent);
+    }
 }
 
 /* ==========================================================================
@@ -712,67 +1186,15 @@ a:hover {
 }
 
 /* ==========================================================================
-   Theme-Specific Card Styles
-   ========================================================================== */
-
-/* Faith theme cards have a subtle warm glow */
-.theme-faith .card {
-    border-color: #d4c5b5;
-    box-shadow: 0 2px 4px rgba(30, 58, 95, 0.05);
-}
-
-/* Sports theme cards are crisp and bold */
-.theme-sports .card {
-    border-color: #d1d5db;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
-}
-
-/* Nature theme cards feel organic */
-.theme-nature .card {
-    border-color: #c5d6a8;
-    box-shadow: 0 2px 4px rgba(45, 90, 39, 0.05);
-}
-
-/* Outdoors theme cards have earthy warmth */
-.theme-outdoors .card {
-    border-color: #d4c5a0;
-    box-shadow: 0 2px 4px rgba(71, 85, 105, 0.05);
-}
-
-/* ==========================================================================
-   Encouragement / Scripture Styling by Theme
+   Encouragement / Scripture Styling by Theme (default)
    ========================================================================== */
 
 .encouragement-card {
     padding: var(--space-6);
     border-radius: var(--radius-lg);
     margin-bottom: var(--space-6);
-}
-
-.theme-light .encouragement-card,
-.theme-minimal .encouragement-card {
     background: linear-gradient(135deg, var(--color-surface) 0%, color-mix(in srgb, var(--color-accent) 10%, var(--color-surface)) 100%);
     border-left: 4px solid var(--color-accent);
-}
-
-.theme-faith .encouragement-card {
-    background: linear-gradient(135deg, #f5f1eb 0%, #ede5d8 100%);
-    border-left: 4px solid #d4a574;
-}
-
-.theme-sports .encouragement-card {
-    background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
-    border-left: 4px solid #dc2626;
-}
-
-.theme-nature .encouragement-card {
-    background: linear-gradient(135deg, #f7f9e8 0%, #ecf4d6 100%);
-    border-left: 4px solid #2d5a27;
-}
-
-.theme-outdoors .encouragement-card {
-    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-    border-left: 4px solid #f97316;
 }
 
 .scripture-reference {

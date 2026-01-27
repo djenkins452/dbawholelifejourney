@@ -181,13 +181,19 @@ class UserPreferences(models.Model):
     """
 
     THEME_CHOICES = [
-        ("light", "Light"),
-        ("dark", "Dark"),
-        ("faith", "Christian Faith"),
-        ("sports", "Sports & Performance"),
-        ("nature", "Animals & Nature"),
-        ("outdoors", "Outdoors & Adventure"),
-        ("minimal", "Minimal / Life Focus"),
+        # 10 Personality-Based Themes
+        ("scholar", "Scholar"),
+        ("momentum", "Momentum"),
+        ("wanderer", "Wanderer"),
+        ("creature", "Creature"),
+        ("sanctuary", "Sanctuary"),
+        ("zen", "Zen"),
+        ("electric", "Electric"),
+        ("coastal", "Coastal"),
+        ("ember", "Ember"),
+        ("midnight", "Midnight"),
+        # Custom theme (user-defined colors)
+        ("custom", "Custom"),
     ]
 
     GENDER_CHOICES = [
@@ -241,12 +247,43 @@ class UserPreferences(models.Model):
     theme = models.CharField(
         max_length=20,
         choices=THEME_CHOICES,
-        default="minimal",
+        default="sanctuary",
     )
     accent_color = models.CharField(
         max_length=7,
         blank=True,
         help_text="Custom hex color to override theme accent",
+    )
+    # Custom theme colors (used when theme='custom')
+    custom_primary = models.CharField(
+        max_length=7,
+        blank=True,
+        default="",
+        help_text="Custom primary/header color (hex)",
+    )
+    custom_accent = models.CharField(
+        max_length=7,
+        blank=True,
+        default="",
+        help_text="Custom accent color (hex)",
+    )
+    custom_background = models.CharField(
+        max_length=7,
+        blank=True,
+        default="",
+        help_text="Custom background color (hex)",
+    )
+    custom_surface = models.CharField(
+        max_length=7,
+        blank=True,
+        default="",
+        help_text="Custom surface/card color (hex)",
+    )
+    custom_text = models.CharField(
+        max_length=7,
+        blank=True,
+        default="",
+        help_text="Custom text color (hex)",
     )
 
     # Navigation behavior (mobile)

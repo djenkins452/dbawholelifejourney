@@ -69,32 +69,6 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-26 Changes
 
-### Fix Security Admin Filter Tests for Django 5.x Compatibility
-
-**Summary:** Updated security admin filter tests to use tuple params as required by Django 5.0+ multi-value parameter support.
-
-**Changes:**
-- Changed filter test params from plain strings to tuples (e.g., `{'severity': ('high',)}` instead of `{'severity': 'high'}`)
-- Django 5.0+ changed `SimpleListFilter.__init__` to use `value[-1]` instead of storing value directly, requiring params to be sequences
-
-**Files Modified:**
-- `apps/security/tests/test_admin.py` - Updated 6 filter queryset tests with tuple params
-
----
-
-### Add Teaching Destinations for Brain Training Games
-
-**Summary:** Added context-aware help entries for individual brain training games and fixed path descriptions.
-
-**Changes:**
-- Added teaching destinations for Sudoku, KenKen, Nonogram, Word Ladder, and Memory Matrix games
-- Fixed cycle daily log path_description from "Health - Cycle" to "Health - Physical - Cycle"
-
-**Files Modified:**
-- `apps/help/fixtures/teaching_destinations.json` - Added 5 new game destinations (pk 81-85), fixed pk 25
-
----
-
 ### Reading Plans Tile on Faith Home Page
 
 **Summary:** Added Reading Plans tile to Faith home page for easy access.
@@ -300,23 +274,6 @@ All old URLs (e.g., `/health/weight/`, `/health/fitness/`) permanently redirect 
 
 **Migration Created:**
 - `apps/users/migrations/0055_add_allowed_international_email.py`
-
-### Fix MFA Enforcement for Biometric Login
-
-**Summary:** Fixed MFA enforcement not working properly after biometric login or registration.
-
-**Problem:** Users in the `MFA_REQUIRED_EMAILS` list (like `heatherjenkins74@gmail.com`) could bypass MFA enforcement if they:
-1. Logged in via biometric/WebAuthn
-2. Registered a new biometric credential from the MFA required page
-
-The root cause was that biometric login and registration did not set the `mfa_verified` session flag, even though biometric authentication IS a form of MFA verification.
-
-**Solution:** Added `mfa_verified = True` and `mfa_verified_at` timestamp to session in both:
-- `BiometricLoginCompleteView` - after successful biometric login
-- `BiometricRegisterCompleteView` - after registering a new biometric credential
-
-**Files Modified:**
-- `apps/users/views.py` - Added mfa_verified session flag to biometric login and registration flows
 
 ---
 

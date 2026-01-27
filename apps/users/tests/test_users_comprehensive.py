@@ -148,8 +148,8 @@ class UserPreferencesComprehensiveTest(UsersTestMixin, TestCase):
     def test_theme_choices(self):
         """Theme can be set to valid values."""
         prefs = self.user.preferences
-        themes = ['minimal', 'warm', 'forest', 'ocean']
-        
+        themes = ['scholar', 'momentum', 'sanctuary', 'coastal', 'midnight', 'custom']
+
         for theme in themes:
             prefs.theme = theme
             prefs.save()
@@ -344,17 +344,17 @@ class UserDataIsolationTest(UsersTestMixin, TestCase):
     
     def test_preferences_are_user_specific(self):
         """Each user has their own preferences."""
-        self.user_a.preferences.theme = 'dark'
+        self.user_a.preferences.theme = 'midnight'
         self.user_a.preferences.save()
-        
-        self.user_b.preferences.theme = 'minimal'
+
+        self.user_b.preferences.theme = 'scholar'
         self.user_b.preferences.save()
-        
+
         self.user_a.preferences.refresh_from_db()
         self.user_b.preferences.refresh_from_db()
-        
-        self.assertEqual(self.user_a.preferences.theme, 'dark')
-        self.assertEqual(self.user_b.preferences.theme, 'minimal')
+
+        self.assertEqual(self.user_a.preferences.theme, 'midnight')
+        self.assertEqual(self.user_b.preferences.theme, 'scholar')
     
     def test_user_cannot_access_other_profile(self):
         """User cannot view another user's profile directly."""

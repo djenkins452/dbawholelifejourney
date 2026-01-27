@@ -8,9 +8,10 @@
         <h1 class="page-title">Choose Your Theme {% include "components/favorite_toggle.html" with page_title="Choose Your Theme" %}</h1>
         <p class="page-subtitle">Select a visual theme that resonates with your journey</p>
     </div>
-    
+
     <div class="theme-grid">
         {% for key, theme in themes.items %}
+        {% if key != "custom" %}
         <div class="theme-card {% if current_theme == key %}theme-card-active{% endif %}" data-theme="{{ key }}">
             <div class="theme-preview" style="
                 --preview-primary: {{ theme.primary }};
@@ -27,17 +28,17 @@
                     </div>
                 </div>
             </div>
-            
+
             <div class="theme-info">
                 <h3 class="theme-name">{{ theme.name }}</h3>
                 <p class="theme-description">{{ theme.description }}</p>
-                
+
                 <div class="theme-colors">
                     <span class="color-swatch" style="background-color: {{ theme.primary }}"></span>
                     <span class="color-swatch" style="background-color: {{ theme.secondary }}"></span>
                     <span class="color-swatch" style="background-color: {{ theme.accent }}"></span>
                 </div>
-                
+
                 <form method="post" class="theme-form">
                     {% csrf_token %}
                     <input type="hidden" name="theme" value="{{ key }}">
@@ -51,9 +52,176 @@
                 </form>
             </div>
         </div>
+        {% endif %}
         {% endfor %}
     </div>
-    
+
+    <!-- Custom Theme Builder Section -->
+    <div class="custom-theme-section">
+        <h2 class="section-title">Create Your Own Theme</h2>
+        <p class="section-subtitle">Design a personalized color scheme that's uniquely yours</p>
+
+        <div class="custom-builder-card {% if current_theme == 'custom' %}theme-card-active{% endif %}">
+            <div class="custom-preview" id="customPreview">
+                <div class="preview-header"></div>
+                <div class="preview-body">
+                    <div class="preview-card">
+                        <div class="preview-title"></div>
+                        <div class="preview-text"></div>
+                        <div class="preview-button"></div>
+                    </div>
+                </div>
+            </div>
+
+            <form method="post" class="custom-theme-form" id="customThemeForm">
+                {% csrf_token %}
+                <input type="hidden" name="theme" value="custom">
+
+                <div class="color-pickers">
+                    <div class="color-picker-group">
+                        <label class="color-label">Primary Color</label>
+                        <p class="color-hint">Header and navigation background</p>
+                        <div class="color-input-row">
+                            <input type="color"
+                                   name="custom_primary"
+                                   id="customPrimary"
+                                   value="{{ custom_colors.primary }}"
+                                   class="color-picker">
+                            <input type="text"
+                                   id="customPrimaryHex"
+                                   value="{{ custom_colors.primary }}"
+                                   class="hex-input"
+                                   placeholder="#000000"
+                                   maxlength="7"
+                                   pattern="^#[0-9A-Fa-f]{6}$">
+                            <div class="preset-colors" data-target="customPrimary">
+                                <button type="button" class="preset-swatch" style="background:#1e3a5f" data-color="#1e3a5f" title="Navy"></button>
+                                <button type="button" class="preset-swatch" style="background:#166534" data-color="#166534" title="Forest"></button>
+                                <button type="button" class="preset-swatch" style="background:#7c2d12" data-color="#7c2d12" title="Rust"></button>
+                                <button type="button" class="preset-swatch" style="background:#581c87" data-color="#581c87" title="Purple"></button>
+                                <button type="button" class="preset-swatch" style="background:#1f2937" data-color="#1f2937" title="Charcoal"></button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="color-picker-group">
+                        <label class="color-label">Accent Color</label>
+                        <p class="color-hint">Buttons, links, and highlights</p>
+                        <div class="color-input-row">
+                            <input type="color"
+                                   name="custom_accent"
+                                   id="customAccent"
+                                   value="{{ custom_colors.accent }}"
+                                   class="color-picker">
+                            <input type="text"
+                                   id="customAccentHex"
+                                   value="{{ custom_colors.accent }}"
+                                   class="hex-input"
+                                   placeholder="#000000"
+                                   maxlength="7"
+                                   pattern="^#[0-9A-Fa-f]{6}$">
+                            <div class="preset-colors" data-target="customAccent">
+                                <button type="button" class="preset-swatch" style="background:#c9a227" data-color="#c9a227" title="Gold"></button>
+                                <button type="button" class="preset-swatch" style="background:#ef4444" data-color="#ef4444" title="Red"></button>
+                                <button type="button" class="preset-swatch" style="background:#3b82f6" data-color="#3b82f6" title="Blue"></button>
+                                <button type="button" class="preset-swatch" style="background:#10b981" data-color="#10b981" title="Emerald"></button>
+                                <button type="button" class="preset-swatch" style="background:#f59e0b" data-color="#f59e0b" title="Amber"></button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="color-picker-group">
+                        <label class="color-label">Background Color</label>
+                        <p class="color-hint">Main page background</p>
+                        <div class="color-input-row">
+                            <input type="color"
+                                   name="custom_background"
+                                   id="customBackground"
+                                   value="{{ custom_colors.background }}"
+                                   class="color-picker">
+                            <input type="text"
+                                   id="customBackgroundHex"
+                                   value="{{ custom_colors.background }}"
+                                   class="hex-input"
+                                   placeholder="#ffffff"
+                                   maxlength="7"
+                                   pattern="^#[0-9A-Fa-f]{6}$">
+                            <div class="preset-colors" data-target="customBackground">
+                                <button type="button" class="preset-swatch" style="background:#ffffff" data-color="#ffffff" title="White"></button>
+                                <button type="button" class="preset-swatch" style="background:#f5f3ed" data-color="#f5f3ed" title="Cream"></button>
+                                <button type="button" class="preset-swatch" style="background:#f0fdf4" data-color="#f0fdf4" title="Mint"></button>
+                                <button type="button" class="preset-swatch" style="background:#1a1a2e" data-color="#1a1a2e" title="Dark"></button>
+                                <button type="button" class="preset-swatch" style="background:#0f172a" data-color="#0f172a" title="Slate"></button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="color-picker-group">
+                        <label class="color-label">Surface Color</label>
+                        <p class="color-hint">Cards and content areas</p>
+                        <div class="color-input-row">
+                            <input type="color"
+                                   name="custom_surface"
+                                   id="customSurface"
+                                   value="{{ custom_colors.surface }}"
+                                   class="color-picker">
+                            <input type="text"
+                                   id="customSurfaceHex"
+                                   value="{{ custom_colors.surface }}"
+                                   class="hex-input"
+                                   placeholder="#ffffff"
+                                   maxlength="7"
+                                   pattern="^#[0-9A-Fa-f]{6}$">
+                            <div class="preset-colors" data-target="customSurface">
+                                <button type="button" class="preset-swatch" style="background:#ffffff" data-color="#ffffff" title="White"></button>
+                                <button type="button" class="preset-swatch" style="background:#fafaf9" data-color="#fafaf9" title="Stone"></button>
+                                <button type="button" class="preset-swatch" style="background:#f8fafc" data-color="#f8fafc" title="Slate"></button>
+                                <button type="button" class="preset-swatch" style="background:#1e293b" data-color="#1e293b" title="Dark Slate"></button>
+                                <button type="button" class="preset-swatch" style="background:#262626" data-color="#262626" title="Charcoal"></button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="color-picker-group">
+                        <label class="color-label">Text Color</label>
+                        <p class="color-hint">Main text throughout the app</p>
+                        <div class="color-input-row">
+                            <input type="color"
+                                   name="custom_text"
+                                   id="customText"
+                                   value="{{ custom_colors.text }}"
+                                   class="color-picker">
+                            <input type="text"
+                                   id="customTextHex"
+                                   value="{{ custom_colors.text }}"
+                                   class="hex-input"
+                                   placeholder="#000000"
+                                   maxlength="7"
+                                   pattern="^#[0-9A-Fa-f]{6}$">
+                            <div class="preset-colors" data-target="customText">
+                                <button type="button" class="preset-swatch" style="background:#1f2937" data-color="#1f2937" title="Dark Gray"></button>
+                                <button type="button" class="preset-swatch" style="background:#374151" data-color="#374151" title="Gray"></button>
+                                <button type="button" class="preset-swatch" style="background:#0f172a" data-color="#0f172a" title="Slate"></button>
+                                <button type="button" class="preset-swatch" style="background:#f9fafb" data-color="#f9fafb" title="Light"></button>
+                                <button type="button" class="preset-swatch" style="background:#e5e7eb" data-color="#e5e7eb" title="Soft Light"></button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="custom-actions">
+                    <button type="submit" class="btn btn-primary">
+                        {% if current_theme == 'custom' %}
+                            ✓ Update Custom Theme
+                        {% else %}
+                            Apply Custom Theme
+                        {% endif %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div class="mt-8 text-center">
         <a href="{% url 'users:preferences' %}" class="btn btn-ghost">
             ← Back to Preferences
@@ -86,7 +254,7 @@
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 20%, transparent);
 }
 
-.theme-preview {
+.theme-preview, .custom-preview {
     height: 140px;
     background: var(--preview-secondary);
     position: relative;
@@ -103,7 +271,7 @@
 }
 
 .preview-card {
-    background: white;
+    background: var(--preview-surface, white);
     border-radius: 6px;
     padding: 12px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
@@ -179,12 +347,147 @@
     margin: 0;
 }
 
+/* Custom Theme Section */
+.custom-theme-section {
+    margin-top: var(--space-12);
+    padding-top: var(--space-8);
+    border-top: 1px solid var(--color-border);
+}
+
+.section-title {
+    font-size: var(--font-size-2xl);
+    margin-bottom: var(--space-2);
+}
+
+.section-subtitle {
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-6);
+}
+
+.custom-builder-card {
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    background: var(--color-surface);
+    max-width: 600px;
+}
+
+.custom-preview {
+    --preview-primary: {{ custom_colors.primary }};
+    --preview-secondary: {{ custom_colors.background }};
+    --preview-accent: {{ custom_colors.accent }};
+    --preview-text: {{ custom_colors.text }};
+    --preview-surface: {{ custom_colors.surface }};
+}
+
+.custom-theme-form {
+    padding: var(--space-6);
+}
+
+.color-pickers {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+}
+
+.color-picker-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.color-label {
+    font-weight: 600;
+    font-size: var(--font-size-sm);
+}
+
+.color-hint {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+.color-input-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    margin-top: var(--space-2);
+}
+
+.color-picker {
+    width: 50px;
+    height: 40px;
+    padding: 0;
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    background: none;
+}
+
+.color-picker::-webkit-color-swatch-wrapper {
+    padding: 2px;
+}
+
+.color-picker::-webkit-color-swatch {
+    border: none;
+    border-radius: var(--radius-sm);
+}
+
+.hex-input {
+    width: 90px;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-family: monospace;
+    font-size: var(--font-size-sm);
+    text-transform: uppercase;
+}
+
+.hex-input:focus {
+    outline: none;
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 20%, transparent);
+}
+
+.preset-colors {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.preset-swatch {
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-full);
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    box-shadow: 0 0 0 1px var(--color-border);
+}
+
+.preset-swatch:hover {
+    transform: scale(1.1);
+    box-shadow: 0 0 0 2px var(--color-accent);
+}
+
+.custom-actions {
+    margin-top: var(--space-6);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+
+.custom-actions .btn {
+    width: 100%;
+    justify-content: center;
+}
+
+/* Mobile Responsive */
 @media (max-width: 640px) {
     .theme-grid {
         grid-template-columns: 1fr;
     }
 
-    .theme-preview {
+    .theme-preview, .custom-preview {
         height: 120px;
     }
 
@@ -192,6 +495,114 @@
         width: 100%;
         justify-content: center;
     }
+
+    .color-input-row {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .color-picker {
+        width: 100%;
+        height: 44px;
+    }
+
+    .hex-input {
+        width: 100%;
+    }
+
+    .preset-colors {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .preset-swatch {
+        width: 36px;
+        height: 36px;
+    }
 }
 </style>
+
+<script nonce="{{ csp_nonce }}">
+document.addEventListener('DOMContentLoaded', function() {
+    const preview = document.getElementById('customPreview');
+    const colorInputs = {
+        primary: { picker: document.getElementById('customPrimary'), hex: document.getElementById('customPrimaryHex') },
+        accent: { picker: document.getElementById('customAccent'), hex: document.getElementById('customAccentHex') },
+        background: { picker: document.getElementById('customBackground'), hex: document.getElementById('customBackgroundHex') },
+        surface: { picker: document.getElementById('customSurface'), hex: document.getElementById('customSurfaceHex') },
+        text: { picker: document.getElementById('customText'), hex: document.getElementById('customTextHex') }
+    };
+
+    function updatePreview() {
+        preview.style.setProperty('--preview-primary', colorInputs.primary.picker.value);
+        preview.style.setProperty('--preview-accent', colorInputs.accent.picker.value);
+        preview.style.setProperty('--preview-secondary', colorInputs.background.picker.value);
+        preview.style.setProperty('--preview-surface', colorInputs.surface.picker.value);
+        preview.style.setProperty('--preview-text', colorInputs.text.picker.value);
+    }
+
+    function isValidHex(hex) {
+        return /^#[0-9A-Fa-f]{6}$/.test(hex);
+    }
+
+    // Sync color picker and hex input for each color
+    Object.keys(colorInputs).forEach(function(key) {
+        const { picker, hex } = colorInputs[key];
+
+        // Color picker changes update hex input
+        picker.addEventListener('input', function() {
+            hex.value = picker.value.toUpperCase();
+            updatePreview();
+        });
+
+        // Hex input changes update color picker
+        hex.addEventListener('input', function() {
+            let value = hex.value;
+            if (!value.startsWith('#')) {
+                value = '#' + value;
+            }
+            if (isValidHex(value)) {
+                picker.value = value;
+                hex.style.borderColor = '';
+                updatePreview();
+            } else {
+                hex.style.borderColor = '#ef4444';
+            }
+        });
+
+        // Format hex on blur
+        hex.addEventListener('blur', function() {
+            let value = hex.value.toUpperCase();
+            if (!value.startsWith('#')) {
+                value = '#' + value;
+            }
+            if (isValidHex(value)) {
+                hex.value = value;
+                picker.value = value;
+            } else {
+                hex.value = picker.value.toUpperCase();
+            }
+            hex.style.borderColor = '';
+            updatePreview();
+        });
+    });
+
+    // Preset swatch clicks
+    document.querySelectorAll('.preset-swatch').forEach(function(swatch) {
+        swatch.addEventListener('click', function() {
+            const color = swatch.dataset.color;
+            const targetId = swatch.closest('.preset-colors').dataset.target;
+            const targetPicker = document.getElementById(targetId);
+            const targetHex = document.getElementById(targetId + 'Hex');
+
+            targetPicker.value = color;
+            targetHex.value = color.toUpperCase();
+            updatePreview();
+        });
+    });
+
+    // Initial preview update
+    updatePreview();
+});
+</script>
 {% endblock %}

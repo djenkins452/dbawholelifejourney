@@ -106,18 +106,18 @@ class UserPreferencesTest(TestCase):
         prefs = self.user.preferences
         self.assertTrue(prefs.journal_enabled)
         self.assertTrue(prefs.life_enabled)
-        self.assertEqual(prefs.theme, 'minimal')
+        self.assertEqual(prefs.theme, 'sanctuary')
     
     def test_preferences_can_be_updated(self):
         """Preferences can be modified and saved."""
         prefs = self.user.preferences
-        prefs.theme = 'dark'
+        prefs.theme = 'midnight'
         prefs.journal_enabled = False
         prefs.save()
         
         # Reload from database
         prefs.refresh_from_db()
-        self.assertEqual(prefs.theme, 'dark')
+        self.assertEqual(prefs.theme, 'midnight')
         self.assertFalse(prefs.journal_enabled)
 
 
@@ -218,7 +218,7 @@ class PreferencesViewTest(TestCase):
 
         # POST the form data - include all required fields
         response = self.client.post(reverse('users:preferences'), {
-            'theme': 'dark',
+            'theme': 'midnight',
             'accent_color': '',
             'journal_enabled': 'on',
             'faith_enabled': 'on',
@@ -248,6 +248,6 @@ class PreferencesViewTest(TestCase):
         self.user.preferences.refresh_from_db()
         self.assertEqual(
             self.user.preferences.theme,
-            'dark',
-            f"Theme should be 'dark', got '{self.user.preferences.theme}'"
+            'midnight',
+            f"Theme should be 'midnight', got '{self.user.preferences.theme}'"
         )

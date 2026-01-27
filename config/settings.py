@@ -675,7 +675,7 @@ SILENCED_SYSTEM_CHECKS = [
 # Whole Life Journey Custom Settings
 WLJ_SETTINGS = {
     # Default theme for new users
-    "DEFAULT_THEME": "minimal",
+    "DEFAULT_THEME": "sanctuary",
     # Available themes - 10 personality-based themes + custom
     "THEMES": {
         # === Personality-Based Themes ===

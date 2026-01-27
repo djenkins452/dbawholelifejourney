@@ -41,10 +41,16 @@ For active development context, see `CLAUDE.md` (project root).
 - Text
 
 **Files Modified:**
-- `config/settings.py` - New THEMES dictionary with 10 themes + custom
+- `config/settings.py` - New THEMES dictionary with 10 themes + custom, updated DEFAULT_THEME to "sanctuary"
 - `apps/users/models.py` - Updated THEME_CHOICES, added custom theme color fields
-- `apps/users/migrations/0056_add_custom_theme_colors.py` - New migration
+- `apps/users/migrations/0056_add_custom_theme_colors.py` - New migration for custom color fields
+- `apps/users/migrations/0057_update_theme_choices.py` - New migration for theme choices and default
 - `static/css/themes.css` - Complete rewrite with all 10 themes + custom theme support
+- `templates/users/theme_selection.html` - Custom theme builder UI with color pickers and hex input
+- `templates/base.html` - Custom theme CSS injection for user-defined colors
+- `apps/users/views.py` - ThemeSelectionView updated to handle custom theme colors
+- `apps/core/context_processors.py` - Pass custom theme colors to templates
+- Various test files updated to use new theme names
 
 ---
 

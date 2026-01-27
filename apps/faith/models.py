@@ -697,6 +697,12 @@ class ReadingPlanAssessment(models.Model):
         help_text="Maximum score value (e.g., 5)",
     )
 
+    # Reflection-only assessments don't calculate scores
+    is_reflection_only = models.BooleanField(
+        default=False,
+        help_text="If true, just collect answers without scoring",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

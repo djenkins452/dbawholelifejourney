@@ -100,25 +100,21 @@
     "fields": {
       "plan_day": 100031,
       "title": "Self-Centeredness Assessment",
-      "description": "This is a vulnerable evening for us. Be honest with yourself as you answer these questions. Rate yourself on a scale of 1-5. Remember, the goal is to allow the Holy Spirit to search and reveal what's going on in our lives.",
+      "description": "This is a vulnerable evening for us. Be honest with yourself as you answer these questions. Remember, the goal is to allow the Holy Spirit to search and reveal what's going on in our lives.",
       "questions": [
-        {"id": "1", "text": "There's one slice of pizza left at a party and you are hungry. What do you do? Eat it? Give it to your best friend because they're hungry too? Give it to someone else in exchange for a taco? Or leave it?", "min_label": "Leave it", "mid_label": "Offer to share", "max_label": "Eat it"},
-        {"id": "2", "text": "You see someone drop a $5 bill and they don't notice. Do you glide over and sweep it up like a vacuum cleaner? Or do you pick it up and give it back to them?", "min_label": "Return it", "mid_label": "Hesitate", "max_label": "Keep it"},
-        {"id": "3", "text": "I love being first.", "min_label": "Not at all", "mid_label": "Sometimes", "max_label": "Definitely"},
-        {"id": "4", "text": "I love to win.", "min_label": "Not at all", "mid_label": "Sometimes", "max_label": "Definitely"},
-        {"id": "5", "text": "I love getting the last word.", "min_label": "Not at all", "mid_label": "Sometimes", "max_label": "Definitely"},
-        {"id": "6", "text": "I love being right.", "min_label": "Not at all", "mid_label": "Sometimes", "max_label": "Definitely"},
-        {"id": "7", "text": "When our world revolves around us, we become blind to others. How often do you find yourself focused on your own needs above others?", "min_label": "Rarely", "mid_label": "Sometimes", "max_label": "Often"},
-        {"id": "8", "text": "Do you find yourself wanting the best seat, the recognition, or the credit in situations?", "min_label": "Rarely", "mid_label": "Sometimes", "max_label": "Often"}
+        {"id": "1", "text": "There's one slice of pizza left at a party and you are hungry. What do you do?", "type": "choice", "options": [{"label": "Eat it"}, {"label": "Give it to best friend"}, {"label": "Exchange for a taco"}, {"label": "Leave it"}]},
+        {"id": "2", "text": "What would be the reason you were volunteering at a soup kitchen?", "type": "choice", "options": [{"label": "Help the less fortunate"}, {"label": "Friends/family are too"}, {"label": "Get volunteer hours"}, {"label": "I'm not doing it"}]},
+        {"id": "3", "text": "You pay for another person's coffee because...", "type": "choice", "options": [{"label": "I know people like that"}, {"label": "They're my close friend"}, {"label": "Random act of kindness"}, {"label": "They helped me recently"}]},
+        {"id": "4", "text": "You see someone drop a $5 bill and they don't notice. What do you do?", "type": "choice", "options": [{"label": "Glide over and keep it"}, {"label": "Pick up and return it"}]},
+        {"id": "5", "text": "I love being first.", "type": "yesno"},
+        {"id": "6", "text": "I love to win.", "type": "yesno"},
+        {"id": "7", "text": "I love getting the last word.", "type": "yesno"},
+        {"id": "8", "text": "I love being right.", "type": "yesno"}
       ],
-      "score_ranges": [
-        {"min": 32, "max": 40, "label": "Significant Self-Centeredness", "description": "Your honest answers reveal that self-centeredness may be a significant blind spot in your life. This isn't condemnation—it's the beginning of freedom. James and John had this same blind spot, and Jesus lovingly redirected them. Let this week's study help you exchange your understanding of greatness for His."},
-        {"min": 24, "max": 31, "label": "Moderate Self-Centeredness", "description": "You show some tendencies toward self-centeredness that deserve attention. Like the disciples, you may not always see how this blind spot affects your relationships and witness. Use the G-R-E-A-T acrostic this week to begin addressing these areas."},
-        {"min": 16, "max": 23, "label": "Growing Awareness", "description": "You demonstrate good awareness of self-centered tendencies, but there's always room to grow. Pay attention to the specific questions where you scored higher—those may point to areas the Holy Spirit wants to address."},
-        {"min": 8, "max": 15, "label": "Strong Servant Heart", "description": "You scored low, which could indicate a genuine servant heart—or it could be a blind spot in itself. Make sure you answered honestly. Even Jesus' closest disciples struggled with self-centeredness. Ask a trusted friend if they see anything you might be missing."}
-      ],
-      "min_score_per_question": 1,
-      "max_score_per_question": 5,
+      "score_ranges": [],
+      "is_reflection_only": true,
+      "min_score_per_question": 0,
+      "max_score_per_question": 0,
       "created_at": "2026-01-26T00:00:00Z",
       "updated_at": "2026-01-26T00:00:00Z"
     }

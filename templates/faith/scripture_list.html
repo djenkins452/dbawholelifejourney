@@ -609,6 +609,57 @@ const LOOKUP_REFERENCE = '{{ lookup_reference|escapejs }}';
 // Fallback Bible ID (BSB - Berean Standard Bible, YouVersion ID: 3034)
 const FALLBACK_BIBLE_ID = '3034';
 
+// Scripture cache - uses localStorage for permanent persistence
+// Scripture text is immutable, so we cache forever
+const SCRIPTURE_CACHE_PREFIX = 'wlj_scripture_';
+
+function getCachedScripture(bibleId, passageId) {
+    const key = `${SCRIPTURE_CACHE_PREFIX}${bibleId}_${passageId}`;
+    try {
+        const cached = localStorage.getItem(key);
+        if (cached) {
+            console.log('Scripture cache hit:', passageId);
+            return JSON.parse(cached);
+        }
+    } catch (e) {
+        console.warn('Error reading scripture cache:', e);
+    }
+    return null;
+}
+
+function setCachedScripture(bibleId, passageId, data) {
+    const key = `${SCRIPTURE_CACHE_PREFIX}${bibleId}_${passageId}`;
+    try {
+        localStorage.setItem(key, JSON.stringify(data));
+    } catch (e) {
+        // localStorage might be full - clear old scripture entries and retry
+        if (e.name === 'QuotaExceededError') {
+            clearOldScriptureCache();
+            try {
+                localStorage.setItem(key, JSON.stringify(data));
+            } catch (e2) {
+                console.warn('Error caching scripture after cleanup:', e2);
+            }
+        } else {
+            console.warn('Error caching scripture:', e);
+        }
+    }
+}
+
+function clearOldScriptureCache() {
+    // Remove oldest half of scripture cache entries when storage is full
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith(SCRIPTURE_CACHE_PREFIX)) {
+            keys.push(key);
+        }
+    }
+    const toRemove = keys.slice(0, Math.ceil(keys.length / 2));
+    toRemove.forEach(key => localStorage.removeItem(key));
+    console.log(`Cleared ${toRemove.length} old scripture cache entries`);
+}
+
 let currentBibleId = '';
 let currentBookId = '';
 let currentChapterId = '';
@@ -867,15 +918,24 @@ async function lookupScripture() {
         passageId = chapterId;
     }
 
-    // Try primary translation first, fallback to BSB if it fails
+    // Try primary translation first, fallback to BSB if it fails (with caching)
     async function tryFetch(bibleId) {
+        // Check cache first
+        const cached = getCachedScripture(bibleId, passageId);
+        if (cached) {
+            return cached;
+        }
+
         const endpoint = `${API_PROXY_BASE}/bibles/${bibleId}/passages/${passageId}/?${queryParams}`;
         console.log('Fetching via proxy:', endpoint);
         const response = await fetch(endpoint);
         if (!response.ok) {
             throw new Error(`API returned ${response.status}`);
         }
-        return await response.json();
+        const data = await response.json();
+        // Cache successful responses permanently
+        setCachedScripture(bibleId, passageId, data);
+        return data;
     }
 
     try {

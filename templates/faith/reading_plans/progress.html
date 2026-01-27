@@ -100,6 +100,89 @@
                 </div>
 
                 {% comment %}
+                Assessment section - placed before commentary so users complete it first
+                {% endcomment %}
+                {% for item in assessments %}
+                {% load json_filters %}
+                <div class="assessment-section" data-assessment-id="{{ item.assessment.pk }}" data-plan-id="{{ user_plan.pk }}"
+                     {% if item.assessment.is_reflection_only %}data-reflection-only="true"{% endif %}
+                     {% if item.user_response %}data-saved-responses='{{ item.user_response.responses|jsonify }}'{% endif %}>
+                    <h4>{{ item.assessment.title }}</h4>
+                    {% if item.assessment.description %}
+                    <p class="assessment-description">{{ item.assessment.description }}</p>
+                    {% endif %}
+
+                    <div class="assessment-questions">
+                        {% for question in item.assessment.questions %}
+                        <div class="assessment-question">
+                            <label class="question-text">{{ forloop.counter }}. {{ question.text }}</label>
+                            <select class="form-select assessment-response" data-question-id="{{ question.id }}">
+                                <option value="">-- Select --</option>
+                                {% if question.options %}
+                                    {% comment %}Choice-based question with custom options{% endcomment %}
+                                    {% for option in question.options %}
+                                    <option value="{{ option.label }}">{{ option.label }}</option>
+                                    {% endfor %}
+                                {% elif question.type == "yesno" %}
+                                    {% comment %}Yes/No question{% endcomment %}
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                {% else %}
+                                    {% comment %}Scale-based question (1-5){% endcomment %}
+                                    <option value="1">1 - {{ question.min_label|default:"Never" }}</option>
+                                    <option value="2">2</option>
+                                    <option value="3">3 - {{ question.mid_label|default:"Sometimes" }}</option>
+                                    <option value="4">4</option>
+                                    <option value="5">5 - {{ question.max_label|default:"Always" }}</option>
+                                {% endif %}
+                            </select>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    {% if not item.assessment.is_reflection_only %}
+                    <div class="assessment-actions">
+                        <button type="button" class="btn btn-primary calculate-score-btn">Calculate My Score</button>
+                    </div>
+
+                    <div class="assessment-results" style="display: none;">
+                        <div class="score-display">
+                            <span class="score-value">--</span>
+                            <span class="score-max">/ {{ item.assessment.max_possible_score }}</span>
+                        </div>
+                        <div class="score-label"></div>
+                        <div class="score-description"></div>
+                    </div>
+
+                    {% if item.user_response %}
+                    <div class="assessment-saved-results">
+                        <div class="score-display">
+                            <span class="score-value">{{ item.user_response.total_score }}</span>
+                            <span class="score-max">/ {{ item.assessment.max_possible_score }}</span>
+                        </div>
+                        {% if item.user_response.interpretation %}
+                        <div class="score-label">{{ item.user_response.interpretation.label }}</div>
+                        <div class="score-description">{{ item.user_response.interpretation.description }}</div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    {% else %}
+                    <div class="assessment-actions">
+                        <button type="button" class="btn btn-primary save-reflection-btn">Save My Answers</button>
+                    </div>
+                    <div class="reflection-saved-notice" style="display: none;">
+                        <span class="saved-check">&#10003;</span> Your answers have been saved.
+                    </div>
+                    {% if item.user_response %}
+                    <div class="reflection-saved-notice">
+                        <span class="saved-check">&#10003;</span> Your answers have been saved.
+                    </div>
+                    {% endif %}
+                    {% endif %}
+                </div>
+                {% endfor %}
+
+                {% comment %}
                 Show difficulty-specific commentary if available, falling back to devotional_text
                 {% endcomment %}
                 <div class="commentary-section"
@@ -131,59 +214,6 @@
                     <p><em>{{ current_day.reflection_prompt }}</em></p>
                 </div>
                 {% endif %}
-
-                {% for item in assessments %}
-                {% load json_filters %}
-                <div class="assessment-section" data-assessment-id="{{ item.assessment.pk }}" data-plan-id="{{ user_plan.pk }}"
-                     {% if item.user_response %}data-saved-responses='{{ item.user_response.responses|jsonify }}'{% endif %}>
-                    <h4>{{ item.assessment.title }}</h4>
-                    {% if item.assessment.description %}
-                    <p class="assessment-description">{{ item.assessment.description }}</p>
-                    {% endif %}
-
-                    <div class="assessment-questions">
-                        {% for question in item.assessment.questions %}
-                        <div class="assessment-question">
-                            <label class="question-text">{{ forloop.counter }}. {{ question.text }}</label>
-                            <select class="form-select assessment-response" data-question-id="{{ question.id }}">
-                                <option value="">-- Select --</option>
-                                <option value="1">1 - {{ question.min_label|default:"Never" }}</option>
-                                <option value="2">2</option>
-                                <option value="3">3 - {{ question.mid_label|default:"Sometimes" }}</option>
-                                <option value="4">4</option>
-                                <option value="5">5 - {{ question.max_label|default:"Always" }}</option>
-                            </select>
-                        </div>
-                        {% endfor %}
-                    </div>
-
-                    <div class="assessment-actions">
-                        <button type="button" class="btn btn-primary calculate-score-btn">Calculate My Score</button>
-                    </div>
-
-                    <div class="assessment-results" style="display: none;">
-                        <div class="score-display">
-                            <span class="score-value">--</span>
-                            <span class="score-max">/ {{ item.assessment.max_possible_score }}</span>
-                        </div>
-                        <div class="score-label"></div>
-                        <div class="score-description"></div>
-                    </div>
-
-                    {% if item.user_response %}
-                    <div class="assessment-saved-results">
-                        <div class="score-display">
-                            <span class="score-value">{{ item.user_response.total_score }}</span>
-                            <span class="score-max">/ {{ item.assessment.max_possible_score }}</span>
-                        </div>
-                        {% if item.user_response.interpretation %}
-                        <div class="score-label">{{ item.user_response.interpretation.label }}</div>
-                        <div class="score-description">{{ item.user_response.interpretation.description }}</div>
-                        {% endif %}
-                    </div>
-                    {% endif %}
-                </div>
-                {% endfor %}
 
                 {% if not current_progress.is_completed %}
                 <form method="post" action="{% url 'faith:mark_day_complete' pk=user_plan.pk day_pk=current_day.pk %}"
@@ -701,6 +731,24 @@
     margin: 0 auto;
 }
 
+/* Reflection-only assessment saved notice */
+.reflection-saved-notice {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    margin-top: var(--space-4);
+    padding: var(--space-3);
+    background: color-mix(in srgb, var(--color-success) 15%, transparent);
+    color: var(--color-success);
+    border-radius: var(--radius-md);
+    font-weight: 500;
+}
+
+.reflection-saved-notice .saved-check {
+    font-size: var(--font-size-lg);
+}
+
 /* Mobile responsiveness */
 @media (max-width: 480px) {
     .reading-header-row {
@@ -861,6 +909,64 @@ document.addEventListener('DOMContentLoaded', function() {
             .catch(error => {
                 console.error('Error saving assessment:', error);
                 alert('There was an error saving your assessment. Please try again.');
+            });
+        });
+    });
+
+    // Handle reflection-only assessment saving (no scoring)
+    document.querySelectorAll('.save-reflection-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const section = this.closest('.assessment-section');
+            const assessmentId = section.dataset.assessmentId;
+            const planId = section.dataset.planId;
+            const selects = section.querySelectorAll('.assessment-response');
+
+            // Collect responses (as text values, not numeric)
+            const responses = {};
+            let allAnswered = true;
+
+            selects.forEach(function(select) {
+                const questionId = select.dataset.questionId;
+                const value = select.value;
+                if (!value) {
+                    allAnswered = false;
+                    select.style.borderColor = 'var(--color-error)';
+                } else {
+                    select.style.borderColor = '';
+                    responses[questionId] = value; // Keep as string for reflection
+                }
+            });
+
+            if (!allAnswered) {
+                alert('Please answer all questions before saving.');
+                return;
+            }
+
+            // Save to server
+            fetch(`/faith/reading-plans/progress/${planId}/assessment/${assessmentId}/save/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || getCookie('csrftoken')
+                },
+                body: JSON.stringify({ responses: responses, reflection_only: true })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Show saved notice
+                    const savedNotice = section.querySelector('.reflection-saved-notice');
+                    if (savedNotice) {
+                        savedNotice.style.display = 'flex';
+                    }
+                    // Disable button to prevent re-saving
+                    btn.textContent = 'Answers Saved';
+                    btn.disabled = true;
+                }
+            })
+            .catch(error => {
+                console.error('Error saving reflection:', error);
+                alert('There was an error saving your answers. Please try again.');
             });
         });
     });

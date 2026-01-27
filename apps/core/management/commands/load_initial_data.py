@@ -544,6 +544,9 @@ class Command(BaseCommand):
         # One-time: Reset blind_spots_week3 loader to reload with fixed PKs
         self._reset_blind_spots_week3_loader(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset blind_spots_week3 loader to reload with fixed assessment questions
+        self._reset_blind_spots_week3_assessment(DataLoadConfig, force, verbosity)
+
         # Only output summary if something loaded or if verbose
         if verbosity >= 1 and loaded_count > 0:
             self.stdout.write(self.style.SUCCESS(f'Initial data: loaded {loaded_count} items'))
@@ -888,3 +891,36 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset blind spots week3 FAILED: {e}'))
+
+    def _reset_blind_spots_week3_assessment(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset of blind_spots_week3_reading_plan loader to reload with
+        updated assessment questions (reflection-only, custom options).
+        Only runs once (tracked via DataLoadConfig).
+        """
+        reset_tracker_name = 'reset_blind_spots_week3_assessment_2026_01_27'
+
+        # Check if already done (unless force mode)
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return  # Already reset, skip silently
+
+        try:
+            # Reset the fixture loader so it runs again
+            fixture_loader_name = 'blind_spots_week3_reading_plan'
+            try:
+                config = DataLoadConfig.objects.get(loader_name=fixture_loader_name)
+                config.reset()
+                if verbosity >= 1:
+                    self.stdout.write(f'  Reset {fixture_loader_name} loader for assessment update')
+            except DataLoadConfig.DoesNotExist:
+                pass  # Loader not found, will load fresh
+
+            # Mark this reset operation as complete
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name, 'Reset Blind Spots Week 3 Assessment',
+                'command', 'One-time reset to reload fixture with reflection-only assessment'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset blind spots week3 assessment FAILED: {e}'))

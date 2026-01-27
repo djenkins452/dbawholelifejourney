@@ -16,6 +16,32 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-27 Changes
 
+### Self-Centeredness Assessment Update - Reflection-Only Questions
+
+**Summary:** Updated the Blind Spots Week 3 (Self-Centeredness) reading plan assessment to use reflection-only questions based on the actual sermon content, without scoring.
+
+**Changes:**
+1. Updated assessment questions to match pastor's sermon:
+   - Q1: Pizza scenario (Eat it / Give to best friend / Exchange for taco / Leave it)
+   - Q2: Soup kitchen volunteering motivation
+   - Q3: Why you pay for someone's coffee
+   - Q4: $5 bill dropped scenario
+   - Q5-8: Yes/No questions (love being first, winning, last word, being right)
+2. Made this a "reflection-only" assessment - no scoring, just self-reflection
+3. Moved assessment section before Commentary so users complete it first
+4. Added support for choice-based questions with custom options
+5. Added support for Yes/No question type
+6. Added `is_reflection_only` field to ReadingPlanAssessment model
+
+**Files Modified:**
+- `apps/faith/fixtures/blind_spots_week3_reading_plan.json` - Updated questions
+- `apps/faith/models.py` - Added is_reflection_only field
+- `apps/faith/migrations/0017_add_is_reflection_only_to_assessment.py` - New migration
+- `templates/faith/reading_plans/progress.html` - Support for reflection-only and choice questions
+- `apps/core/management/commands/load_initial_data.py` - Reset function for fixture reload
+
+---
+
 ### Scripture Loading Fix and Permanent Caching
 
 **Summary:** Fixed "Scripture not found" error when expanding scripture references in reading plan progress page, and added permanent localStorage caching for scripture text.

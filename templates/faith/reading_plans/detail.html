@@ -16,7 +16,9 @@
         <div class="plan-header">
             <div class="plan-badges mb-3">
                 <span class="badge badge-{{ plan.category }}">{{ plan.get_category_display }}</span>
+                {% if plan.series == "The Four Gospels" %}
                 <span class="badge badge-difficulty-{{ plan.difficulty }}">{{ plan.get_difficulty_display }}</span>
+                {% endif %}
                 {% if plan.is_featured %}
                 <span class="badge badge-accent">Featured</span>
                 {% endif %}

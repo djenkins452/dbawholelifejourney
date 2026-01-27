@@ -106,10 +106,11 @@
         {"id": "2", "text": "What would be the reason you were volunteering at a soup kitchen?", "type": "choice", "options": [{"label": "Help the less fortunate"}, {"label": "Friends/family are too"}, {"label": "Get volunteer hours"}, {"label": "I'm not doing it"}]},
         {"id": "3", "text": "You pay for another person's coffee because...", "type": "choice", "options": [{"label": "I know people like that"}, {"label": "They're my close friend"}, {"label": "Random act of kindness"}, {"label": "They helped me recently"}]},
         {"id": "4", "text": "You see someone drop a $5 bill and they don't notice. What do you do?", "type": "choice", "options": [{"label": "Glide over and keep it"}, {"label": "Pick up and return it"}]},
-        {"id": "5", "text": "I love being first.", "type": "yesno"},
-        {"id": "6", "text": "I love to win.", "type": "yesno"},
-        {"id": "7", "text": "I love getting the last word.", "type": "yesno"},
-        {"id": "8", "text": "I love being right.", "type": "yesno"}
+        {"id": "tf_intro", "text": "These are true/false questions, and you do not answer out loud. I want you to answer these just internally.", "type": "section_header"},
+        {"id": "5", "text": "I love being first.", "type": "truefalse"},
+        {"id": "6", "text": "I love to win.", "type": "truefalse"},
+        {"id": "7", "text": "I love getting the last word.", "type": "truefalse"},
+        {"id": "8", "text": "I love being right.", "type": "truefalse"}
       ],
       "score_ranges": [],
       "is_reflection_only": true,

@@ -16,6 +16,56 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-27 Changes
 
+### Complete Theme Redesign - 10 Personality-Based Themes + Custom
+
+**Summary:** Replaced the original 7 themes with 10 new personality-based themes designed for different user types, plus a custom theme option with user-defined colors.
+
+**New Themes:**
+1. **Scholar** - Deep navy & gold, academic/intellectual
+2. **Momentum** - Bold red & charcoal, athletic/competitive (dark mode)
+3. **Wanderer** - Sunset orange & teal, adventurous/exploratory
+4. **Creature** - Forest green & amber, animal lovers/nurturing
+5. **Sanctuary** - Deep purple & gold, spiritual/contemplative (default)
+6. **Zen** - Sage green & rose, calm/mindful
+7. **Electric** - Magenta & cyan, bold/creative (dark mode)
+8. **Coastal** - Ocean blue & gold, beach vibes/relaxed
+9. **Ember** - Burnt orange & cranberry, cozy/autumnal
+10. **Midnight** - Indigo & silver, night owl/focused (dark mode)
+11. **Custom** - User picks their own colors
+
+**Custom Theme Builder Fields:**
+- Primary (header color)
+- Accent (buttons, links)
+- Background
+- Surface (cards)
+- Text
+
+**Files Modified:**
+- `config/settings.py` - New THEMES dictionary with 10 themes + custom
+- `apps/users/models.py` - Updated THEME_CHOICES, added custom theme color fields
+- `apps/users/migrations/0056_add_custom_theme_colors.py` - New migration
+- `static/css/themes.css` - Complete rewrite with all 10 themes + custom theme support
+
+---
+
+### Self-Centeredness Assessment - True/False Radio Buttons
+
+**Summary:** Updated the assessment to use True/False radio buttons instead of Yes/No dropdowns for questions 5-8, with a section header explaining they are internal questions.
+
+**Changes:**
+1. Changed questions 5-8 from `yesno` dropdowns to `truefalse` radio buttons
+2. Added section header explaining "These are true/false questions, and you do not answer out loud"
+3. Radio buttons displayed side-by-side with "True" and "False" labels
+4. Added CSS styling for radio button questions with visual feedback
+5. Updated JavaScript to handle radio button collection and restoration
+
+**Files Modified:**
+- `apps/faith/fixtures/blind_spots_week3_reading_plan.json` - Changed to truefalse type with section_header
+- `templates/faith/reading_plans/progress.html` - Radio button rendering, CSS, JS handlers
+- `apps/core/management/commands/load_initial_data.py` - Reset function for True/False update
+
+---
+
 ### Self-Centeredness Assessment Update - Reflection-Only Questions
 
 **Summary:** Updated the Blind Spots Week 3 (Self-Centeredness) reading plan assessment to use reflection-only questions based on the actual sermon content, without scoring.
@@ -26,11 +76,11 @@ For active development context, see `CLAUDE.md` (project root).
    - Q2: Soup kitchen volunteering motivation
    - Q3: Why you pay for someone's coffee
    - Q4: $5 bill dropped scenario
-   - Q5-8: Yes/No questions (love being first, winning, last word, being right)
+   - Q5-8: True/False questions (love being first, winning, last word, being right)
 2. Made this a "reflection-only" assessment - no scoring, just self-reflection
 3. Moved assessment section before Commentary so users complete it first
 4. Added support for choice-based questions with custom options
-5. Added support for Yes/No question type
+5. Added support for True/False question type with radio buttons
 6. Added `is_reflection_only` field to ReadingPlanAssessment model
 
 **Files Modified:**

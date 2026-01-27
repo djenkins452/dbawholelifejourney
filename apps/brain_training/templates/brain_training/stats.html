@@ -75,8 +75,8 @@
         letter-spacing: 0.05em;
     }
 
-    /* Game stats cards */
-    .game-stats-section {
+    /* Exercise stats cards */
+    .exercise-stats-section {
         margin-bottom: var(--space-6);
     }
 
@@ -87,26 +87,26 @@
         margin-bottom: var(--space-4);
     }
 
-    .game-stats-grid {
+    .exercise-stats-grid {
         display: grid;
         gap: var(--space-4);
     }
 
-    .game-stat-card {
+    .exercise-stat-card {
         background: var(--color-surface);
         border-radius: var(--radius-lg);
         padding: var(--space-4);
         border: 1px solid var(--color-border);
     }
 
-    .game-stat-header {
+    .exercise-stat-header {
         display: flex;
         align-items: center;
         gap: var(--space-3);
         margin-bottom: var(--space-4);
     }
 
-    .game-stat-icon {
+    .exercise-stat-icon {
         width: 40px;
         height: 40px;
         border-radius: var(--radius-md);
@@ -116,41 +116,41 @@
         flex-shrink: 0;
     }
 
-    .game-stat-icon svg {
+    .exercise-stat-icon svg {
         width: 24px;
         height: 24px;
         color: white;
     }
 
-    .game-stat-name {
+    .exercise-stat-name {
         font-weight: 600;
         color: var(--color-text);
     }
 
-    .game-stat-category {
+    .exercise-stat-category {
         font-size: 0.75rem;
         color: var(--color-text-muted);
         text-transform: uppercase;
     }
 
-    .game-metrics {
+    .exercise-metrics {
         display: grid;
         grid-template-columns: repeat(3, 1fr);
         gap: var(--space-3);
         margin-bottom: var(--space-4);
     }
 
-    .game-metric {
+    .exercise-metric {
         text-align: center;
     }
 
-    .game-metric-value {
+    .exercise-metric-value {
         font-size: 1.25rem;
         font-weight: 600;
         color: var(--color-text);
     }
 
-    .game-metric-label {
+    .exercise-metric-label {
         font-size: 0.7rem;
         color: var(--color-text-muted);
         text-transform: uppercase;
@@ -229,7 +229,7 @@
     }
 
     @media (max-width: 480px) {
-        .game-metrics {
+        .exercise-metrics {
             grid-template-columns: repeat(2, 1fr);
         }
 
@@ -286,19 +286,19 @@
     </div>
     {% endif %}
 
-    <!-- Per-game stats -->
-    <section class="game-stats-section">
-        <h2 class="section-title">By Game</h2>
-        <div class="game-stats-grid">
+    <!-- Per-exercise stats -->
+    <section class="exercise-stats-section">
+        <h2 class="section-title">By Exercise</h2>
+        <div class="exercise-stats-grid">
             {% for item in game_stats %}
-            <div class="game-stat-card">
-                <div class="game-stat-header">
-                    <div class="game-stat-icon" style="background-color: {{ item.game.color_primary }}">
+            <div class="exercise-stat-card">
+                <div class="exercise-stat-header">
+                    <div class="exercise-stat-icon" style="background-color: {{ item.game.color_primary }}">
                         {{ item.game.icon_svg|safe }}
                     </div>
                     <div>
-                        <div class="game-stat-name">{{ item.game.name }}</div>
-                        <div class="game-stat-category">{{ item.game.get_category_display }}</div>
+                        <div class="exercise-stat-name">{{ item.game.name }}</div>
+                        <div class="exercise-stat-category">{{ item.game.get_category_display }}</div>
                     </div>
                     {% if item.improvement %}
                     <div class="improvement-badge {{ item.improvement.trend }}">
@@ -320,23 +320,23 @@
                 </div>
 
                 {% if item.stats %}
-                <div class="game-metrics">
-                    <div class="game-metric">
-                        <div class="game-metric-value">{{ item.stats.total_completed }}</div>
-                        <div class="game-metric-label">Completed</div>
+                <div class="exercise-metrics">
+                    <div class="exercise-metric">
+                        <div class="exercise-metric-value">{{ item.stats.total_completed }}</div>
+                        <div class="exercise-metric-label">Completed</div>
                     </div>
-                    <div class="game-metric">
-                        <div class="game-metric-value">{{ item.stats.best_score }}</div>
-                        <div class="game-metric-label">Best Score</div>
+                    <div class="exercise-metric">
+                        <div class="exercise-metric-value">{{ item.stats.best_score }}</div>
+                        <div class="exercise-metric-label">Best Score</div>
                     </div>
-                    <div class="game-metric">
-                        <div class="game-metric-value">{{ item.stats.current_streak }}</div>
-                        <div class="game-metric-label">Streak</div>
+                    <div class="exercise-metric">
+                        <div class="exercise-metric-value">{{ item.stats.current_streak }}</div>
+                        <div class="exercise-metric-label">Streak</div>
                     </div>
                 </div>
 
                 <!-- Simple progress visualization -->
-                <div class="progress-chart" data-game="{{ item.game.slug }}">
+                <div class="progress-chart" data-exercise="{{ item.game.slug }}">
                     {% comment %}
                     This would be populated by JS with actual daily data
                     For now, show placeholder bars
@@ -346,7 +346,7 @@
                 <div class="no-data" style="padding: var(--space-4);">
                     <p>No sessions yet</p>
                     <a href="{% url 'brain_training:play' game_slug=item.game.slug %}" style="color: var(--color-accent); text-decoration: none;">
-                        Start playing →
+                        Start this exercise →
                     </a>
                 </div>
                 {% endif %}
@@ -359,9 +359,9 @@
 
 {% block extra_js %}
 <script>
-    // Load chart data for games with stats
+    // Load chart data for exercises with stats
     document.querySelectorAll('.progress-chart').forEach(async (chart) => {
-        const gameSlug = chart.dataset.game;
+        const gameSlug = chart.dataset.exercise;
 
         try {
             const response = await fetch(`/health/cognitive/api/stats/${gameSlug}/`);

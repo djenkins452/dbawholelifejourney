@@ -16,6 +16,43 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-27 Changes
 
+### Sudoku NY Times-Style UX Improvements + Terminology Updates
+
+**Summary:** Enhanced Sudoku puzzle with NY Times-style features and replaced "game" terminology with "exercise" across Brain Training.
+
+**Sudoku UX Improvements:**
+1. **Undo functionality** - Full undo stack (Ctrl+Z or button) to freely explore possibilities
+2. **Row/column/box highlighting** - Selected cell highlights its entire row, column, and 3x3 box
+3. **Click given cells** - Can now click pre-filled numbers to highlight all matching numbers
+4. **Auto-remove notes** - When placing a number, automatically removes that number from notes in the same row/column/box
+5. **Number completion indicators** - Number pad shows count badges and dims numbers used 9 times
+6. **Improved controls** - New control bar with Undo, Notes toggle, and Erase buttons with icons
+7. **Better hint** - Now highlights first empty OR incorrect cell
+
+**Terminology Changes (game → exercise):**
+- Updated all CSS class names (`.game-card` → `.exercise-card`, etc.)
+- Changed "Continue Playing" → "Continue Where You Left Off"
+- Changed "played" → "completed" in stats
+- Changed "Start playing →" → "Start this exercise →"
+- Changed "By Game" → "By Exercise" in stats page
+- Updated all button classes from `.btn-game` to `.btn-action`
+
+**Help Content Updates:**
+- Enhanced all Brain Training teaching destinations with cognitive benefits
+- Added rules and instructions for each puzzle type
+- Removed "game" from keywords, added "cognitive exercise" terms
+
+**Files Modified:**
+- `apps/brain_training/templates/brain_training/games/sudoku.html` - NY Times-style UX
+- `apps/brain_training/templates/brain_training/games/base_game.html` - Updated terminology
+- `apps/brain_training/templates/brain_training/hub.html` - Updated terminology
+- `apps/brain_training/templates/brain_training/stats.html` - Updated terminology
+- `apps/help/fixtures/teaching_destinations.json` - Enhanced help content
+
+**Tests:** All 31 brain_training tests pass.
+
+---
+
 ### Complete Theme Redesign - 10 Personality-Based Themes + Custom
 
 **Summary:** Replaced the original 7 themes with 10 new personality-based themes designed for different user types, plus a custom theme option with user-defined colors.

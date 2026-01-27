@@ -61,20 +61,20 @@
         letter-spacing: 0.05em;
     }
 
-    /* Game grid */
-    .games-grid {
+    /* Exercise grid */
+    .exercises-grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
         gap: var(--space-4);
     }
 
     @media (max-width: 480px) {
-        .games-grid {
+        .exercises-grid {
             grid-template-columns: 1fr;
         }
     }
 
-    .game-card {
+    .exercise-card {
         background: var(--color-surface);
         border-radius: var(--radius-lg);
         padding: var(--space-5);
@@ -87,18 +87,18 @@
         border: 1px solid var(--color-border);
     }
 
-    .game-card:hover {
+    .exercise-card:hover {
         transform: translateY(-2px);
         box-shadow: var(--shadow-md);
     }
 
-    .game-card-header {
+    .exercise-card-header {
         display: flex;
         align-items: center;
         gap: var(--space-3);
     }
 
-    .game-icon {
+    .exercise-icon {
         width: 48px;
         height: 48px;
         border-radius: var(--radius-md);
@@ -108,37 +108,37 @@
         flex-shrink: 0;
     }
 
-    .game-icon svg {
+    .exercise-icon svg {
         width: 28px;
         height: 28px;
         color: white;
     }
 
-    .game-info {
+    .exercise-info {
         flex: 1;
     }
 
-    .game-name {
+    .exercise-name {
         font-size: 1.1rem;
         font-weight: 600;
         color: var(--color-text);
         margin-bottom: 0.125rem;
     }
 
-    .game-category {
+    .exercise-category {
         font-size: 0.75rem;
         color: var(--color-text-muted);
         text-transform: uppercase;
         letter-spacing: 0.05em;
     }
 
-    .game-description {
+    .exercise-description {
         font-size: 0.875rem;
         color: var(--color-text-muted);
         line-height: 1.5;
     }
 
-    .game-stats {
+    .exercise-stats {
         display: flex;
         gap: var(--space-4);
         padding-top: var(--space-3);
@@ -147,18 +147,18 @@
         color: var(--color-text-muted);
     }
 
-    .game-stat {
+    .exercise-stat {
         display: flex;
         align-items: center;
         gap: 0.25rem;
     }
 
-    .game-stat-value {
+    .exercise-stat-value {
         font-weight: 600;
         color: var(--color-text);
     }
 
-    .play-indicator {
+    .start-indicator {
         margin-left: auto;
         color: var(--color-accent);
     }
@@ -182,7 +182,7 @@
         text-decoration: underline;
     }
 
-    /* Continue section for in-progress games */
+    /* Continue section for in-progress exercises */
     .continue-section {
         margin-bottom: var(--space-6);
     }
@@ -228,7 +228,7 @@
         box-shadow: var(--shadow-md);
     }
 
-    .continue-game-name {
+    .continue-exercise-name {
         font-weight: 600;
         color: var(--color-text);
     }
@@ -282,42 +282,42 @@
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polygon points="5 3 19 12 5 21 5 3"/>
             </svg>
-            Continue Playing
+            Continue Where You Left Off
         </h2>
         <div class="continue-cards" id="continue-cards">
             <!-- Populated by JS -->
         </div>
     </div>
 
-    <div class="games-grid">
+    <div class="exercises-grid">
         {% for game in games %}
-        <a href="{% url 'brain_training:play' game_slug=game.slug %}" class="game-card">
-            <div class="game-card-header">
-                <div class="game-icon" style="background-color: {{ game.color_primary }}">
+        <a href="{% url 'brain_training:play' game_slug=game.slug %}" class="exercise-card">
+            <div class="exercise-card-header">
+                <div class="exercise-icon" style="background-color: {{ game.color_primary }}">
                     {{ game.icon_svg|safe }}
                 </div>
-                <div class="game-info">
-                    <div class="game-name">{{ game.name }}</div>
-                    <div class="game-category">{{ game.get_category_display }}</div>
+                <div class="exercise-info">
+                    <div class="exercise-name">{{ game.name }}</div>
+                    <div class="exercise-category">{{ game.get_category_display }}</div>
                 </div>
-                <div class="play-indicator">
+                <div class="start-indicator">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M9 18l6-6-6-6"/>
                     </svg>
                 </div>
             </div>
-            <p class="game-description">{{ game.description }}</p>
+            <p class="exercise-description">{{ game.description }}</p>
             {% with stats=game_stats|get_item:game.slug %}
             {% if stats %}
-            <div class="game-stats">
-                <div class="game-stat">
-                    <span class="game-stat-value">{{ stats.total_completed }}</span> played
+            <div class="exercise-stats">
+                <div class="exercise-stat">
+                    <span class="exercise-stat-value">{{ stats.total_completed }}</span> completed
                 </div>
-                <div class="game-stat">
-                    <span class="game-stat-value">{{ stats.current_streak }}</span> day streak
+                <div class="exercise-stat">
+                    <span class="exercise-stat-value">{{ stats.current_streak }}</span> day streak
                 </div>
-                <div class="game-stat">
-                    <span class="game-stat-value">{{ stats.best_score }}</span> best
+                <div class="exercise-stat">
+                    <span class="exercise-stat-value">{{ stats.best_score }}</span> best
                 </div>
             </div>
             {% endif %}
@@ -370,7 +370,7 @@
                         </svg>
                         In Progress
                     </div>
-                    <div class="continue-game-name">${session.game_name}</div>
+                    <div class="continue-exercise-name">${session.game_name}</div>
                     <div class="continue-meta">
                         <span>${session.difficulty}</span>
                         <span>${timeStr}</span>

@@ -56,7 +56,9 @@
                     <p class="card-text">{{ plan.description|truncatewords:25 }}</p>
                     <div class="plan-meta">
                         <span class="meta-item">{{ plan.duration_days }} days</span>
+                        {% if plan.series == "The Four Gospels" %}
                         <span class="meta-item">{{ plan.get_difficulty_display }}</span>
+                        {% endif %}
                     </div>
                     {% if plan.topics %}
                     <div class="topic-tags mt-2">
@@ -108,7 +110,9 @@
                         <p class="card-text">{{ plan.description|truncatewords:20 }}</p>
                         <div class="plan-meta">
                             <span class="meta-item">{{ plan.duration_days }} days</span>
+                            {% if plan.series == "The Four Gospels" %}
                             <span class="meta-item">{{ plan.get_difficulty_display }}</span>
+                            {% endif %}
                         </div>
                         {% if plan.topics %}
                         <div class="topic-tags mt-2">
@@ -166,7 +170,9 @@
                     <p class="card-text">{{ plan.description|truncatewords:20 }}</p>
                     <div class="plan-meta">
                         <span class="meta-item">{{ plan.duration_days }} days</span>
+                        {% if plan.series == "The Four Gospels" %}
                         <span class="meta-item">{{ plan.get_difficulty_display }}</span>
+                        {% endif %}
                     </div>
                     {% if plan.topics %}
                     <div class="topic-tags mt-2">

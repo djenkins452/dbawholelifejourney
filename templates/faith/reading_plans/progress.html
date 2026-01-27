@@ -995,6 +995,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Build passage ID for API
+    // USFM format: BOOK.CHAPTER.VERSE or BOOK.CHAPTER.VERSE_START-VERSE_END
     function buildPassageId(parsed) {
         const base = `${parsed.bookId}.${parsed.chapter}`;
         if (!parsed.verseStart) {
@@ -1003,7 +1004,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!parsed.verseEnd || parsed.verseEnd === parsed.verseStart) {
             return `${base}.${parsed.verseStart}`; // Single verse
         }
-        return `${base}.${parsed.verseStart}-${base}.${parsed.verseEnd}`; // Verse range
+        return `${base}.${parsed.verseStart}-${parsed.verseEnd}`; // Verse range (e.g., MRK.10.32-34)
     }
 
     // Cached Bible ID
@@ -1017,6 +1018,42 @@ document.addEventListener('DOMContentLoaded', function() {
         'NIV': '78a9f6124f344018-01',  // NIV 2011
         'NLT': '65eec8e0b60e656b-01',  // New Living Translation
     };
+
+    // Scripture cache - uses sessionStorage for persistence within session
+    const SCRIPTURE_CACHE_PREFIX = 'wlj_scripture_';
+    const SCRIPTURE_CACHE_TTL = 60 * 60 * 1000; // 1 hour in milliseconds
+
+    function getCachedScripture(bibleId, passageId) {
+        const key = `${SCRIPTURE_CACHE_PREFIX}${bibleId}_${passageId}`;
+        try {
+            const cached = sessionStorage.getItem(key);
+            if (cached) {
+                const parsed = JSON.parse(cached);
+                if (parsed.timestamp && (Date.now() - parsed.timestamp) < SCRIPTURE_CACHE_TTL) {
+                    console.log('Scripture cache hit:', passageId);
+                    return parsed.data;
+                }
+                // Expired, remove it
+                sessionStorage.removeItem(key);
+            }
+        } catch (e) {
+            console.warn('Error reading scripture cache:', e);
+        }
+        return null;
+    }
+
+    function setCachedScripture(bibleId, passageId, data) {
+        const key = `${SCRIPTURE_CACHE_PREFIX}${bibleId}_${passageId}`;
+        try {
+            sessionStorage.setItem(key, JSON.stringify({
+                timestamp: Date.now(),
+                data: data
+            }));
+        } catch (e) {
+            // sessionStorage might be full or disabled
+            console.warn('Error caching scripture:', e);
+        }
+    }
 
     // Get user's Bible translation (or find a default)
     async function getBibleId() {
@@ -1034,8 +1071,14 @@ document.addEventListener('DOMContentLoaded', function() {
         return cachedBibleId;
     }
 
-    // Attempt to fetch scripture with a specific Bible ID
+    // Attempt to fetch scripture with a specific Bible ID (with caching)
     async function tryFetchPassage(bibleId, passageId) {
+        // Check cache first
+        const cached = getCachedScripture(bibleId, passageId);
+        if (cached) {
+            return cached;
+        }
+
         const params = 'content-type=text&include-verse-numbers=true&include-titles=false';
         const response = await fetch(`${API_PROXY_BASE}/bibles/${bibleId}/passages/${passageId}/?${params}`);
 
@@ -1052,7 +1095,10 @@ document.addEventListener('DOMContentLoaded', function() {
             throw new Error(errorMessage);
         }
 
-        return await response.json();
+        const data = await response.json();
+        // Cache successful responses
+        setCachedScripture(bibleId, passageId, data);
+        return data;
     }
 
     // Fetch and display scripture with fallback support

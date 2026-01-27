@@ -1507,42 +1507,54 @@ class SaveAssessmentResponseView(LoginRequiredMixin, FaithRequiredMixin, View):
     """
 
     def post(self, request, plan_pk, assessment_pk):
-        user_plan = get_object_or_404(
-            UserReadingPlan.objects.filter(user=request.user),
-            pk=plan_pk
-        )
-        assessment = get_object_or_404(
-            ReadingPlanAssessment,
-            pk=assessment_pk
-        )
-
         try:
-            data = json.loads(request.body)
-            responses = data.get("responses", {})
-        except json.JSONDecodeError:
-            return JsonResponse({"error": "Invalid JSON"}, status=400)
+            # Validate user has this reading plan
+            try:
+                user_plan = UserReadingPlan.objects.get(
+                    user=request.user,
+                    pk=plan_pk
+                )
+            except UserReadingPlan.DoesNotExist:
+                return JsonResponse({"error": "Reading plan not found"}, status=404)
 
-        # Get or create the response object
-        user_response, created = UserAssessmentResponse.objects.get_or_create(
-            user=request.user,
-            assessment=assessment,
-            user_plan=user_plan,
-            defaults={"responses": responses}
-        )
+            # Validate assessment exists
+            try:
+                assessment = ReadingPlanAssessment.objects.get(pk=assessment_pk)
+            except ReadingPlanAssessment.DoesNotExist:
+                return JsonResponse({"error": "Assessment not found"}, status=404)
 
-        if not created:
-            user_response.responses = responses
-            user_response.save()
+            try:
+                data = json.loads(request.body)
+                responses = data.get("responses", {})
+            except json.JSONDecodeError:
+                return JsonResponse({"error": "Invalid JSON"}, status=400)
 
-        # Get interpretation
-        interpretation = user_response.interpretation
+            # Get or create the response object
+            user_response, created = UserAssessmentResponse.objects.get_or_create(
+                user=request.user,
+                assessment=assessment,
+                user_plan=user_plan,
+                defaults={"responses": responses}
+            )
 
-        return JsonResponse({
-            "success": True,
-            "total_score": user_response.total_score,
-            "max_score": assessment.max_possible_score,
-            "interpretation": interpretation,
-        })
+            if not created:
+                user_response.responses = responses
+                user_response.save()
+
+            # Get interpretation
+            interpretation = user_response.interpretation
+
+            return JsonResponse({
+                "success": True,
+                "total_score": user_response.total_score,
+                "max_score": assessment.max_possible_score,
+                "interpretation": interpretation,
+            })
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.exception("Error saving assessment response")
+            return JsonResponse({"error": str(e)}, status=500)
 
 
 # =============================================================================

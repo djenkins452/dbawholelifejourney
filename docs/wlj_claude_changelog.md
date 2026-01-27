@@ -16,6 +16,23 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-27 Changes
 
+### Fix Reading Plan Assessment Save Error
+
+**Summary:** Fixed error when saving True/False assessment answers in reading plans. Improved error handling to provide better diagnostics.
+
+**Changes:**
+1. **Better fetch error handling** - JavaScript now checks `response.ok` before parsing JSON, logs server errors to console
+2. **View error handling** - SaveAssessmentResponseView now catches exceptions and returns JSON errors instead of HTML 404/500 pages
+3. **User feedback** - Error messages now include the actual error when available
+
+**Files Modified:**
+- `templates/faith/reading_plans/progress.html` - Improved fetch error handling
+- `apps/faith/views.py` - Wrapped view in try/except, return JSON errors
+
+**Tests:** All 137 faith tests pass.
+
+---
+
 ### Sudoku NY Times-Style UX Improvements + Terminology Updates
 
 **Summary:** Enhanced Sudoku puzzle with NY Times-style features and replaced "game" terminology with "exercise" across Brain Training.

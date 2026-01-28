@@ -123,8 +123,8 @@ FIXTURE_LOADERS = [
     },
     {
         'name': 'games',
-        'display': 'Brain Training Games',
-        'description': 'Game catalog for Brain Training module',
+        'display': 'Brain Training Exercises',
+        'description': 'Exercise catalog for Brain Training module',
         'app': 'brain_training',
     },
     {

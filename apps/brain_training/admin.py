@@ -20,7 +20,7 @@ from .models import (
 
 @admin.register(Game)
 class GameAdmin(admin.ModelAdmin):
-    """Admin for Brain Training Games."""
+    """Admin for Brain Training Exercises."""
 
     list_display = [
         'name',

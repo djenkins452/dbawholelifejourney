@@ -100,8 +100,8 @@ class Game(TimeStampedModel):
 
     class Meta:
         ordering = ['sort_order', 'name']
-        verbose_name = "Brain Training Game"
-        verbose_name_plural = "Brain Training Games"
+        verbose_name = "Brain Training Exercise"
+        verbose_name_plural = "Brain Training Exercises"
 
     def __str__(self):
         return self.name

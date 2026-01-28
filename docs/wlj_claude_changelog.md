@@ -16,6 +16,26 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-28 Changes
 
+### Complete Removal of "Game" Terminology from Brain Training
+
+**Summary:** Removed remaining "game" terminology from user-facing text in Brain Training module. The word "game" now only appears in internal code (model names, variables) not visible to users.
+
+**Changes:**
+1. Health landing page: "Brain Training Games" → "Brain Training Exercises"
+2. Model verbose_name: "Brain Training Game/Games" → "Brain Training Exercise/Exercises"
+3. Load initial data: Updated display text and description
+4. Admin docstring: Updated comment
+
+**Files Modified:**
+- `templates/health/landing.html` - Fixed user-visible text
+- `apps/brain_training/models.py` - Fixed verbose_name in Game model Meta
+- `apps/brain_training/admin.py` - Fixed docstring
+- `apps/core/management/commands/load_initial_data.py` - Fixed display/description
+
+**Tests:** All 31 brain_training tests pass.
+
+---
+
 ### Fix Mobile Health Icon Navigation
 
 **Summary:** Fixed the mobile bottom menu Health icon to navigate to `/health/` (the Health landing page) instead of `/health/physical/`.

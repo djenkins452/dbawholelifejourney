@@ -290,15 +290,15 @@
     </div>
 
     <div class="exercises-grid">
-        {% for game in games %}
-        <a href="{% url 'brain_training:play' game_slug=game.slug %}" class="exercise-card">
+        {% for exercise in exercises %}
+        <a href="{% url 'brain_training:play' game_slug=exercise.slug %}" class="exercise-card">
             <div class="exercise-card-header">
-                <div class="exercise-icon" style="background-color: {{ game.color_primary }}">
-                    {{ game.icon_svg|safe }}
+                <div class="exercise-icon" style="background-color: {{ exercise.color_primary }}">
+                    {{ exercise.icon_svg|safe }}
                 </div>
                 <div class="exercise-info">
-                    <div class="exercise-name">{{ game.name }}</div>
-                    <div class="exercise-category">{{ game.get_category_display }}</div>
+                    <div class="exercise-name">{{ exercise.name }}</div>
+                    <div class="exercise-category">{{ exercise.get_category_display }}</div>
                 </div>
                 <div class="start-indicator">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -306,8 +306,8 @@
                     </svg>
                 </div>
             </div>
-            <p class="exercise-description">{{ game.description }}</p>
-            {% with stats=game_stats|get_item:game.slug %}
+            <p class="exercise-description">{{ exercise.description }}</p>
+            {% with stats=exercise_stats|get_item:exercise.slug %}
             {% if stats %}
             <div class="exercise-stats">
                 <div class="exercise-stat">
@@ -355,7 +355,7 @@
 
             sessions.forEach(session => {
                 const card = document.createElement('a');
-                card.href = `/health/cognitive/${session.game_slug}/play/?resume=${session.session_id}`;
+                card.href = `/health/cognitive/${session.exercise_slug}/play/?resume=${session.session_id}`;
                 card.className = 'continue-card';
 
                 const mins = Math.floor(session.time_spent / 60);
@@ -370,7 +370,7 @@
                         </svg>
                         In Progress
                     </div>
-                    <div class="continue-exercise-name">${session.game_name}</div>
+                    <div class="continue-exercise-name">${session.exercise_name}</div>
                     <div class="continue-meta">
                         <span>${session.difficulty}</span>
                         <span>${timeStr}</span>

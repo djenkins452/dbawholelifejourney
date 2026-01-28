@@ -290,15 +290,15 @@
     <section class="exercise-stats-section">
         <h2 class="section-title">By Exercise</h2>
         <div class="exercise-stats-grid">
-            {% for item in game_stats %}
+            {% for item in exercise_stats %}
             <div class="exercise-stat-card">
                 <div class="exercise-stat-header">
-                    <div class="exercise-stat-icon" style="background-color: {{ item.game.color_primary }}">
-                        {{ item.game.icon_svg|safe }}
+                    <div class="exercise-stat-icon" style="background-color: {{ item.exercise.color_primary }}">
+                        {{ item.exercise.icon_svg|safe }}
                     </div>
                     <div>
-                        <div class="exercise-stat-name">{{ item.game.name }}</div>
-                        <div class="exercise-stat-category">{{ item.game.get_category_display }}</div>
+                        <div class="exercise-stat-name">{{ item.exercise.name }}</div>
+                        <div class="exercise-stat-category">{{ item.exercise.get_category_display }}</div>
                     </div>
                     {% if item.improvement %}
                     <div class="improvement-badge {{ item.improvement.trend }}">
@@ -336,7 +336,7 @@
                 </div>
 
                 <!-- Simple progress visualization -->
-                <div class="progress-chart" data-exercise="{{ item.game.slug }}">
+                <div class="progress-chart" data-exercise="{{ item.exercise.slug }}">
                     {% comment %}
                     This would be populated by JS with actual daily data
                     For now, show placeholder bars
@@ -345,7 +345,7 @@
                 {% else %}
                 <div class="no-data" style="padding: var(--space-4);">
                     <p>No sessions yet</p>
-                    <a href="{% url 'brain_training:play' game_slug=item.game.slug %}" style="color: var(--color-accent); text-decoration: none;">
+                    <a href="{% url 'brain_training:play' game_slug=item.exercise.slug %}" style="color: var(--color-accent); text-decoration: none;">
                         Start this exercise →
                     </a>
                 </div>
@@ -361,10 +361,10 @@
 <script>
     // Load chart data for exercises with stats
     document.querySelectorAll('.progress-chart').forEach(async (chart) => {
-        const gameSlug = chart.dataset.exercise;
+        const exerciseSlug = chart.dataset.exercise;
 
         try {
-            const response = await fetch(`/health/cognitive/api/stats/${gameSlug}/`);
+            const response = await fetch(`/health/cognitive/api/stats/${exerciseSlug}/`);
             const data = await response.json();
 
             if (data.daily && data.daily.length > 0) {

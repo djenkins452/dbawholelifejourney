@@ -46,13 +46,19 @@ For active development context, see `CLAUDE.md` (project root).
 6. **Improved controls** - New control bar with Undo, Notes toggle, and Erase buttons with icons
 7. **Better hint** - Now highlights first empty OR incorrect cell
 
-**Terminology Changes (game → exercise):**
+**Terminology Changes (game → exercise) - Complete:**
 - Updated all CSS class names (`.game-card` → `.exercise-card`, etc.)
 - Changed "Continue Playing" → "Continue Where You Left Off"
 - Changed "played" → "completed" in stats
 - Changed "Start playing →" → "Start this exercise →"
 - Changed "By Game" → "By Exercise" in stats page
 - Updated all button classes from `.btn-game` to `.btn-action`
+- Renamed JavaScript objects: `BrainGame` → `BrainExercise`, `SudokuGame` → `SudokuExercise`, etc.
+- Renamed JavaScript variables: `gameSlug` → `exerciseSlug`
+- Renamed element IDs: `game-area` → `exercise-area`
+- Renamed template blocks: `game_css` → `exercise_css`, `game_area` → `exercise_area`, `game_js` → `exercise_js`
+- Updated context variables in views.py: `game` → `exercise`, `games` → `exercises`, `game_stats` → `exercise_stats`
+- Updated API response fields: `game_slug` → `exercise_slug`, `game_name` → `exercise_name`
 
 **Help Content Updates:**
 - Enhanced all Brain Training teaching destinations with cognitive benefits
@@ -62,8 +68,13 @@ For active development context, see `CLAUDE.md` (project root).
 **Files Modified:**
 - `apps/brain_training/templates/brain_training/games/sudoku.html` - NY Times-style UX
 - `apps/brain_training/templates/brain_training/games/base_game.html` - Updated terminology
+- `apps/brain_training/templates/brain_training/games/kenken.html` - Updated terminology
+- `apps/brain_training/templates/brain_training/games/memory_matrix.html` - Updated terminology
+- `apps/brain_training/templates/brain_training/games/nonogram.html` - Updated terminology
+- `apps/brain_training/templates/brain_training/games/word_ladder.html` - Updated terminology
 - `apps/brain_training/templates/brain_training/hub.html` - Updated terminology
 - `apps/brain_training/templates/brain_training/stats.html` - Updated terminology
+- `apps/brain_training/views.py` - Updated context variable names
 - `apps/help/fixtures/teaching_destinations.json` - Enhanced help content
 
 **Tests:** All 31 brain_training tests pass.

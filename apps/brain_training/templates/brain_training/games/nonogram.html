@@ -1,6 +1,6 @@
 {% extends "brain_training/games/base_game.html" %}
 
-{% block game_css %}
+{% block exercise_css %}
 <style>
     .nonogram-container {
         display: flex;
@@ -119,7 +119,7 @@
 </style>
 {% endblock %}
 
-{% block game_area %}
+{% block exercise_area %}
 <div class="nonogram-container" id="nonogram-container">
     <p>Loading...</p>
 </div>
@@ -129,9 +129,9 @@
 </div>
 {% endblock %}
 
-{% block game_js %}
+{% block exercise_js %}
 <script>
-    const NonogramGame = Object.assign(Object.create(BrainGame), {
+    const NonogramExercise = Object.assign(Object.create(BrainExercise), {
         gridSize: 5,
         rowClues: [],
         colClues: [],
@@ -141,7 +141,7 @@
         dragValue: null,
 
         init() {
-            BrainGame.init.call(this);
+            BrainExercise.init.call(this);
             this.bindNonogramEvents();
         },
 
@@ -358,10 +358,10 @@
         },
 
         useHint() {
-            BrainGame.useHint.call(this);
+            BrainExercise.useHint.call(this);
         }
     });
 
-    document.addEventListener('DOMContentLoaded', () => NonogramGame.init());
+    document.addEventListener('DOMContentLoaded', () => NonogramExercise.init());
 </script>
 {% endblock %}

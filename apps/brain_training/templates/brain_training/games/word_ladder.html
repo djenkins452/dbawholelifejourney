@@ -1,6 +1,6 @@
 {% extends "brain_training/games/base_game.html" %}
 
-{% block game_css %}
+{% block exercise_css %}
 <style>
     .word-ladder-container {
         display: flex;
@@ -133,7 +133,7 @@
 </style>
 {% endblock %}
 
-{% block game_area %}
+{% block exercise_area %}
 <div class="word-ladder-container" id="word-ladder-container">
     <div class="word-display start" id="start-word">----</div>
     <div class="arrow-down">
@@ -188,9 +188,9 @@
 </div>
 {% endblock %}
 
-{% block game_js %}
+{% block exercise_js %}
 <script>
-    const WordLadderGame = Object.assign(Object.create(BrainGame), {
+    const WordLadderExercise = Object.assign(Object.create(BrainExercise), {
         startWord: '',
         endWord: '',
         wordLength: 4,
@@ -199,7 +199,7 @@
         focusedChar: 0,
 
         init() {
-            BrainGame.init.call(this);
+            BrainExercise.init.call(this);
             this.bindWordLadderEvents();
         },
 
@@ -376,7 +376,7 @@
         },
 
         useHint() {
-            BrainGame.useHint.call(this);
+            BrainExercise.useHint.call(this);
             // Focus on first empty step
             for (let s = 0; s < this.steps.length; s++) {
                 for (let c = 0; c < this.wordLength; c++) {
@@ -389,6 +389,6 @@
         }
     });
 
-    document.addEventListener('DOMContentLoaded', () => WordLadderGame.init());
+    document.addEventListener('DOMContentLoaded', () => WordLadderExercise.init());
 </script>
 {% endblock %}

@@ -41,25 +41,25 @@ def check_subscription(user):
 @login_required
 def hub(request):
     """
-    Brain Training hub page showing all available games.
+    Brain Training hub page showing all available exercises.
     """
     if not check_subscription(request.user):
         return redirect('billing:select_plan')
 
-    games = Game.objects.filter(is_active=True).order_by('sort_order')
+    exercises = Game.objects.filter(is_active=True).order_by('sort_order')
 
-    # Get user's stats for each game
-    game_stats = {}
-    for game in games:
+    # Get user's stats for each exercise
+    exercise_stats = {}
+    for exercise in exercises:
         try:
-            stats = UserGameStats.objects.get(user=request.user, game=game)
-            game_stats[game.slug] = {
+            stats = UserGameStats.objects.get(user=request.user, game=exercise)
+            exercise_stats[exercise.slug] = {
                 'total_completed': stats.total_completed,
                 'current_streak': stats.current_streak,
                 'best_score': stats.best_score,
             }
         except UserGameStats.DoesNotExist:
-            game_stats[game.slug] = None
+            exercise_stats[exercise.slug] = None
 
     # Get overall stats
     try:
@@ -68,8 +68,8 @@ def hub(request):
         overall = None
 
     context = {
-        'games': games,
-        'game_stats': game_stats,
+        'exercises': exercises,
+        'exercise_stats': exercise_stats,
         'overall': overall,
     }
     return render(request, 'brain_training/hub.html', context)
@@ -78,24 +78,24 @@ def hub(request):
 @login_required
 def play(request, game_slug):
     """
-    Game play page for a specific game.
+    Exercise play page for a specific brain training exercise.
     """
     if not check_subscription(request.user):
         return redirect('billing:select_plan')
 
-    game = get_object_or_404(Game, slug=game_slug, is_active=True)
+    exercise = get_object_or_404(Game, slug=game_slug, is_active=True)
 
     # Get user's preferred difficulty
     try:
-        user_stats = UserGameStats.objects.get(user=request.user, game=game)
+        user_stats = UserGameStats.objects.get(user=request.user, game=exercise)
         preferred_difficulty = user_stats.preferred_difficulty
     except UserGameStats.DoesNotExist:
-        preferred_difficulty = game.default_difficulty
+        preferred_difficulty = exercise.default_difficulty
 
     context = {
-        'game': game,
+        'exercise': exercise,
         'preferred_difficulty': preferred_difficulty,
-        'difficulty_levels': game.difficulty_levels or ['easy', 'medium', 'hard', 'expert'],
+        'difficulty_levels': exercise.difficulty_levels or ['easy', 'medium', 'hard', 'expert'],
     }
     return render(request, f'brain_training/games/{game_slug}.html', context)
 
@@ -524,8 +524,8 @@ def api_in_progress_sessions(request):
     for session in sessions:
         data.append({
             'session_id': session.id,
-            'game_slug': session.challenge.game.slug,
-            'game_name': session.challenge.game.name,
+            'exercise_slug': session.challenge.game.slug,
+            'exercise_name': session.challenge.game.name,
             'challenge_id': session.challenge.challenge_id,
             'difficulty': session.challenge.difficulty,
             'time_spent': session.time_spent_seconds,
@@ -621,7 +621,7 @@ def stats_dashboard(request):
     if not check_subscription(request.user):
         return redirect('billing:select_plan')
 
-    games = Game.objects.filter(is_active=True)
+    exercises = Game.objects.filter(is_active=True)
 
     # Get overall stats
     try:
@@ -629,26 +629,26 @@ def stats_dashboard(request):
     except UserOverallStats.DoesNotExist:
         overall = None
 
-    # Get per-game stats
-    game_stats = []
-    for game in games:
+    # Get per-exercise stats
+    exercise_stats = []
+    for exercise in exercises:
         try:
-            stats = UserGameStats.objects.get(user=request.user, game=game)
-            improvement = get_improvement_stats(request.user, game)
-            game_stats.append({
-                'game': game,
+            stats = UserGameStats.objects.get(user=request.user, game=exercise)
+            improvement = get_improvement_stats(request.user, exercise)
+            exercise_stats.append({
+                'exercise': exercise,
                 'stats': stats,
                 'improvement': improvement,
             })
         except UserGameStats.DoesNotExist:
-            game_stats.append({
-                'game': game,
+            exercise_stats.append({
+                'exercise': exercise,
                 'stats': None,
                 'improvement': None,
             })
 
     context = {
         'overall': overall,
-        'game_stats': game_stats,
+        'exercise_stats': exercise_stats,
     }
     return render(request, 'brain_training/stats.html', context)

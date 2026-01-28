@@ -1,6 +1,6 @@
 {% extends "brain_training/games/base_game.html" %}
 
-{% block game_css %}
+{% block exercise_css %}
 <style>
     .memory-container {
         display: flex;
@@ -114,7 +114,7 @@
 </style>
 {% endblock %}
 
-{% block game_area %}
+{% block exercise_area %}
 <div class="memory-container" id="memory-container">
     <div class="phase-indicator" id="phase-indicator">
         <div class="phase-title">Get Ready</div>
@@ -128,9 +128,9 @@
 </div>
 {% endblock %}
 
-{% block game_js %}
+{% block exercise_js %}
 <script>
-    const MemoryMatrixGame = Object.assign(Object.create(BrainGame), {
+    const MemoryMatrixExercise = Object.assign(Object.create(BrainExercise), {
         gridSize: 3,
         highlightedCells: [],
         selectedCells: [],
@@ -138,7 +138,7 @@
         phase: 'ready', // ready, view, recall, result
 
         init() {
-            BrainGame.init.call(this);
+            BrainExercise.init.call(this);
             this.bindMemoryEvents();
         },
 
@@ -341,7 +341,7 @@
         },
 
         useHint() {
-            BrainGame.useHint.call(this);
+            BrainExercise.useHint.call(this);
             // Flash highlighted cells briefly
             if (this.phase === 'recall') {
                 document.querySelectorAll('.memory-cell').forEach(cell => {
@@ -359,6 +359,6 @@
         }
     });
 
-    document.addEventListener('DOMContentLoaded', () => MemoryMatrixGame.init());
+    document.addEventListener('DOMContentLoaded', () => MemoryMatrixExercise.init());
 </script>
 {% endblock %}

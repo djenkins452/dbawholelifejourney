@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}{{ game.name }} - Brain Training{% endblock %}
+{% block title %}{{ exercise.name }} - Brain Training{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -182,7 +182,7 @@
         color: var(--color-text);
     }
 </style>
-{% block game_css %}{% endblock %}
+{% block exercise_css %}{% endblock %}
 {% endblock %}
 
 {% block content %}
@@ -195,7 +195,7 @@
     </a>
 
     <header class="exercise-header">
-        <h1 class="exercise-title">{{ game.name }}</h1>
+        <h1 class="exercise-title">{{ exercise.name }}</h1>
         <div class="exercise-controls">
             <select class="difficulty-select" id="difficulty">
                 {% for level in difficulty_levels %}
@@ -208,8 +208,8 @@
         </div>
     </header>
 
-    <div class="exercise-area" id="game-area">
-        {% block game_area %}
+    <div class="exercise-area" id="exercise-area">
+        {% block exercise_area %}
         <p>Loading challenge...</p>
         {% endblock %}
     </div>
@@ -259,9 +259,9 @@
 
 {% block extra_js %}
 <script>
-    // Common game functionality
-    const BrainGame = {
-        gameSlug: '{{ game.slug }}',
+    // Common exercise functionality
+    const BrainExercise = {
+        exerciseSlug: '{{ exercise.slug }}',
         sessionId: null,
         challengeId: null,
         startTime: null,
@@ -273,7 +273,7 @@
         resumeSessionId: null, // Set via URL param to resume a session
         elapsedOffset: 0, // For resumed sessions, previously elapsed time
 
-        // Initialize the game
+        // Initialize the exercise
         init() {
             this.bindEvents();
             this.checkForResume();
@@ -374,7 +374,7 @@
         async loadChallenges(autoStart = true) {
             try {
                 const response = await fetch(
-                    `/health/cognitive/api/${this.gameSlug}/batch/?difficulty=${this.currentDifficulty}&count=10`
+                    `/health/cognitive/api/${this.exerciseSlug}/batch/?difficulty=${this.currentDifficulty}&count=10`
                 );
                 const data = await response.json();
                 this.challengeQueue = data.challenges || [];
@@ -418,7 +418,7 @@
         async refillQueue() {
             try {
                 const response = await fetch(
-                    `/health/cognitive/api/${this.gameSlug}/batch/?difficulty=${this.currentDifficulty}&count=10`
+                    `/health/cognitive/api/${this.exerciseSlug}/batch/?difficulty=${this.currentDifficulty}&count=10`
                 );
                 const data = await response.json();
                 this.challengeQueue = this.challengeQueue.concat(data.challenges || []);
@@ -588,7 +588,7 @@
             return 'web';
         },
 
-        // Methods to be overridden by specific games
+        // Methods to be overridden by specific exercises
         renderPuzzle(puzzleData) {
             console.log('renderPuzzle should be overridden', puzzleData);
         },
@@ -603,12 +603,12 @@
         },
 
         showIncorrect() {
-            // Flash the game area red briefly
-            const area = document.getElementById('game-area');
+            // Flash the exercise area red briefly
+            const area = document.getElementById('exercise-area');
             area.style.animation = 'shake 0.5s';
             setTimeout(() => { area.style.animation = ''; }, 500);
         }
     };
 </script>
-{% block game_js %}{% endblock %}
+{% block exercise_js %}{% endblock %}
 {% endblock %}

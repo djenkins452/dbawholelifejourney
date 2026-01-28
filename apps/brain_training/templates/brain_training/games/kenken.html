@@ -1,6 +1,6 @@
 {% extends "brain_training/games/base_game.html" %}
 
-{% block game_css %}
+{% block exercise_css %}
 <style>
     .kenken-board {
         display: grid;
@@ -83,21 +83,21 @@
 </style>
 {% endblock %}
 
-{% block game_area %}
+{% block exercise_area %}
 <div class="kenken-board size-4" id="kenken-board"></div>
 <div class="number-pad size-4" id="number-pad"></div>
 {% endblock %}
 
-{% block game_js %}
+{% block exercise_js %}
 <script>
-    const KenKenGame = Object.assign(Object.create(BrainGame), {
+    const KenKenExercise = Object.assign(Object.create(BrainExercise), {
         gridSize: 4,
         cages: [],
         userGrid: [],
         selectedCell: null,
 
         init() {
-            BrainGame.init.call(this);
+            BrainExercise.init.call(this);
             this.bindKenKenEvents();
         },
 
@@ -223,7 +223,7 @@
         },
 
         useHint() {
-            BrainGame.useHint.call(this);
+            BrainExercise.useHint.call(this);
             // Highlight first empty cell
             for (let r = 0; r < this.gridSize; r++) {
                 for (let c = 0; c < this.gridSize; c++) {
@@ -236,6 +236,6 @@
         }
     });
 
-    document.addEventListener('DOMContentLoaded', () => KenKenGame.init());
+    document.addEventListener('DOMContentLoaded', () => KenKenExercise.init());
 </script>
 {% endblock %}

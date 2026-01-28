@@ -323,7 +323,7 @@ def navigation_modules_context(request):
         # Mapping of slug -> correct route name (fallback if DB has bad data)
         CORRECT_ROUTES = {
             'journal': 'journal:home',
-            'health': 'health:home',
+            'health': 'health:landing',  # Landing page at /health/, not /health/physical/
             'faith': 'faith:home',
             'life': 'life:home',
             'purpose': 'purpose:home',

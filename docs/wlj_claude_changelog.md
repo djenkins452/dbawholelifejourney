@@ -14,6 +14,26 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+## 2026-01-28 Changes
+
+### Fix Mobile Health Icon Navigation
+
+**Summary:** Fixed the mobile bottom menu Health icon to navigate to `/health/` (the Health landing page) instead of `/health/physical/`.
+
+**Root Cause:** The health module `route_name` was set to `health:home` which mapped to `/health/physical/` (Physical Health dashboard). The correct route is `health:landing` which maps to `/health/` (the landing page showing Physical vs Cognitive choice).
+
+**Changes:**
+1. Updated `CORRECT_ROUTES` in `apps/core/context_processors.py` to use `health:landing`
+2. Updated migration `0052_fix_module_route_names.py` for future deployments
+3. Created migration `0058_fix_health_route_to_landing.py` to fix existing data
+
+**Files Modified:**
+- `apps/core/context_processors.py` - Fixed CORRECT_ROUTES mapping
+- `apps/users/migrations/0052_fix_module_route_names.py` - Fixed health route
+- `apps/users/migrations/0058_fix_health_route_to_landing.py` - New migration for prod fix
+
+---
+
 ## 2026-01-27 Changes
 
 ### Fix Reading Plan Assessment Save Error

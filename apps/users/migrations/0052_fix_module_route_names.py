@@ -11,7 +11,7 @@ def fix_route_names(apps, schema_editor):
     # Mapping of slug -> correct route_name
     correct_routes = {
         'journal': 'journal:home',
-        'health': 'health:home',
+        'health': 'health:landing',  # Landing page at /health/, not /health/physical/
         'faith': 'faith:home',
         'life': 'life:home',
         'purpose': 'purpose:home',

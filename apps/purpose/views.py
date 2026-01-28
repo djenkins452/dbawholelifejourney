@@ -191,7 +191,7 @@ class DirectionCreateView(PurposeAccessMixin, CreateView):
         'theme', 'theme_description',
         'anchor_text', 'anchor_source', 'is_current'
     ]
-    
+
     def get_initial(self):
         initial = super().get_initial()
         # Default to next year if creating in Q4, else current year
@@ -201,10 +201,25 @@ class DirectionCreateView(PurposeAccessMixin, CreateView):
         else:
             initial['year'] = today.year
         return initial
-    
+
     def form_valid(self, form):
         form.instance.user = self.request.user
-        messages.success(self.request, f"Direction for {form.instance.year} created.")
+        year = form.cleaned_data['year']
+
+        # Check if user already has a direction for this year
+        existing = AnnualDirection.objects.filter(
+            user=self.request.user,
+            year=year
+        ).first()
+
+        if existing:
+            messages.info(
+                self.request,
+                f"You already have a direction for {year}. Redirecting to edit it."
+            )
+            return redirect('purpose:direction_update', pk=existing.pk)
+
+        messages.success(self.request, f"Direction for {year} created.")
         return super().form_valid(form)
 
 

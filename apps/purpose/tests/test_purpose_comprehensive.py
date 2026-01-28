@@ -446,6 +446,38 @@ class PurposeEdgeCaseTest(PurposeTestMixin, TestCase):
         goal = self.create_goal(self.user, target_date=past)
         self.assertEqual(goal.target_date, past)
 
+    def test_direction_create_duplicate_year_redirects(self):
+        """Creating direction for year that already exists redirects to edit."""
+        # Create existing direction for 2026
+        existing = self.create_direction(self.user, word='Focus', year=2026)
+
+        # Try to create another direction for the same year
+        response = self.client.post(
+            reverse('purpose:direction_create'),
+            {
+                'year': 2026,
+                'word_of_year': 'Balance',
+                'word_explanation': 'Test',
+                'theme': '',
+                'theme_description': '',
+                'anchor_text': '',
+                'anchor_source': '',
+                'is_current': False,
+            }
+        )
+
+        # Should redirect to edit the existing direction
+        self.assertRedirects(
+            response,
+            reverse('purpose:direction_update', kwargs={'pk': existing.pk})
+        )
+
+        # Should still only have one direction for this year
+        self.assertEqual(
+            AnnualDirection.objects.filter(user=self.user, year=2026).count(),
+            1
+        )
+
 
 # =============================================================================
 # 8. BUSINESS LOGIC TESTS

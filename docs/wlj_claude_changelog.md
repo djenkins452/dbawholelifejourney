@@ -16,6 +16,24 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-28 Changes
 
+### Fix IntegrityError on Duplicate Annual Direction Year
+
+**Summary:** Fixed a bug where users trying to create an Annual Direction for a year they already had one would get an IntegrityError (500 error).
+
+**Root Cause:** The `DirectionCreateView` didn't check if the user already had a direction for the selected year before attempting to save. The database unique constraint (`user_id`, `year`) would fail at the database level with an unhelpful error.
+
+**Fix:** Added validation in `form_valid()` to check for existing directions. If one exists, redirect the user to edit the existing direction with an informative message instead of creating a duplicate.
+
+**Files Modified:**
+- `apps/purpose/views.py:185-218` - Added duplicate year check in DirectionCreateView.form_valid()
+- `apps/purpose/tests/test_purpose_comprehensive.py` - Added test case for duplicate year scenario
+
+**Tests:** All 102 purpose tests pass.
+
+**Task:** Email Intake #397
+
+---
+
 ### Complete Removal of "Game" Terminology from Brain Training
 
 **Summary:** Removed remaining "game" terminology from user-facing text in Brain Training module. The word "game" now only appears in internal code (model names, variables) not visible to users.

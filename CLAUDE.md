@@ -291,7 +291,6 @@ Use `/next` slash command or say "What's Next?"
 **Roadmap:** `docs/reading_plans_roadmap.md`
 
 An ongoing project to create comprehensive Bible reading plans across multiple categories. Each plan includes:
-- Three difficulty levels (Beginner, Intermediate, Advanced)
 - Context summaries for each day
 - Commentary appropriate to each level
 - Reflection prompts
@@ -375,4 +374,4 @@ See `docs/ios-app-store-submission.md` for complete guide including:
 
 ---
 
-*Last updated: 2026-01-24*
+*Last updated: 2026-01-27*

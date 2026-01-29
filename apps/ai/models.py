@@ -293,6 +293,7 @@ class AIPromptConfig(models.Model):
         ('health_home', 'Health Home Insight'),
         ('life_home', 'Life Home Insight'),
         ('purpose_home', 'Purpose Home Insight'),
+        ('capture_summarization', 'Capture Recording Summarization'),
     ]
 
     REFRESH_FREQUENCY_CHOICES = [

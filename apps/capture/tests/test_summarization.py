@@ -6,7 +6,7 @@ from django.test import TestCase, override_settings
 
 from apps.capture.models import CaptureEntry
 from apps.capture.services.summarization import (
-    BLUF_SYSTEM_PROMPT,
+    DEFAULT_BLUF_SYSTEM_PROMPT,
     SummarizationError,
     SummarizationService,
 )
@@ -345,9 +345,9 @@ class BLUFPromptTests(TestCase):
         ]
 
         for section in required_sections:
-            self.assertIn(section, BLUF_SYSTEM_PROMPT, f"Missing section: {section}")
+            self.assertIn(section, DEFAULT_BLUF_SYSTEM_PROMPT, f"Missing section: {section}")
 
     def test_bluf_system_prompt_has_guidelines(self):
         """Test that BLUF system prompt includes summarization guidelines."""
-        self.assertIn('Guidelines', BLUF_SYSTEM_PROMPT)
-        self.assertIn('concise', BLUF_SYSTEM_PROMPT.lower())
+        self.assertIn('Guidelines', DEFAULT_BLUF_SYSTEM_PROMPT)
+        self.assertIn('thorough', DEFAULT_BLUF_SYSTEM_PROMPT.lower())

@@ -16,6 +16,35 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-28 Changes
 
+### Admin-Configurable Capture Summarization Prompt
+
+**Summary:** Made the Capture recording summarization prompt configurable via Admin Console, and updated the default prompt to be more detailed.
+
+**Changes:**
+1. Added `capture_summarization` prompt type to `AIPromptConfig.PROMPT_TYPES`
+2. Updated `SummarizationService` to fetch prompt from database with fallback to default
+3. Created migration to populate default prompt config
+4. Updated default prompt to:
+   - Include more detailed key points (4-7 bullets with reasoning)
+   - Emphasize points the speaker drives home repeatedly
+   - Write out full NIV scripture text instead of just references
+   - Expand detailed notes section (4-6 paragraphs)
+
+**Admin Configuration:**
+- Navigate to: Admin Console → AI → AI Prompt Configs → "Capture Recording Summarization"
+- Edit `system_instructions` field to customize the prompt
+- Changes take effect immediately on next recording
+
+**Files Modified:**
+- `apps/ai/models.py` - Added `capture_summarization` to PROMPT_TYPES
+- `apps/capture/services/summarization.py` - Added `_get_system_prompt()` method, renamed constant
+- `apps/ai/migrations/0019_add_capture_summarization_prompt.py` - Populates default prompt
+- `apps/capture/tests/test_summarization.py` - Updated to use new constant name
+
+**Tests:** All 18 summarization tests pass.
+
+---
+
 ### Fix IntegrityError on Duplicate Annual Direction Year
 
 **Summary:** Fixed a bug where users trying to create an Annual Direction for a year they already had one would get an IntegrityError (500 error).

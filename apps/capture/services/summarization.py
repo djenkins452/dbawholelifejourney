@@ -30,8 +30,9 @@ from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
-# Summarization prompt template (uses BLUF methodology with clean output headers)
-BLUF_SYSTEM_PROMPT = """You are an expert summarizer that creates structured, actionable summaries from transcripts.
+# Default summarization prompt (used as fallback if no AIPromptConfig exists)
+# This can be overridden via Admin Console > AI > AI Prompt Configs > "capture_summarization"
+DEFAULT_BLUF_SYSTEM_PROMPT = """You are an expert summarizer that creates structured, actionable summaries from transcripts.
 
 Your task is to analyze the provided transcript and create a well-organized summary in markdown format.
 
@@ -40,17 +41,22 @@ Your task is to analyze the provided transcript and create a well-organized summ
 Create a summary with the following sections (use ## for section headers):
 
 ## Overview
-A 2-3 sentence executive summary capturing the core message or main takeaway. Put the most important conclusion first.
+A 2-4 sentence executive summary capturing the core message or main takeaway. Put the most important conclusion first. If the speaker drives home a particular point repeatedly or with emphasis, make sure that point is prominently featured in the overview.
 
 ## Key Points
-- 3-5 bullet points highlighting the most important ideas
-- Each point should be concise (1-2 sentences)
-- Focus on actionable insights
+- 4-7 bullet points highlighting the most important ideas
+- Each point should be detailed enough to capture the speaker's reasoning (1-3 sentences)
+- When the speaker emphasizes a point, repeats it, or spends significant time on it, give it more detail
+- Focus on actionable insights and memorable teachings
+- Capture the "why" behind important points, not just the "what"
 
 ## Scripture References (ONLY if scripture is mentioned)
 - List any Bible verses or religious texts mentioned
-- Include the reference, brief context, and the full NIV text of the verse
-- If the speaker references a verse but doesn't quote it, look up and include the NIV text (e.g., "John 3:16 (NIV): 'For God so loved the world...'")
+- **IMPORTANT: Write out the FULL scripture text using NIV translation**
+- Format: **Book Chapter:Verse (NIV):** "Full verse text here..."
+- Example: **John 3:16 (NIV):** "For God so loved the world that he gave his one and only Son, that whoever believes in him shall not perish but have eternal life."
+- If the speaker references a verse but doesn't quote it fully, look up and include the complete NIV text
+- Include brief context for why the speaker referenced this scripture
 - **IMPORTANT: Omit this entire section if no scripture is mentioned**
 
 ## Action Items (ONLY if action items exist)
@@ -60,22 +66,27 @@ A 2-3 sentence executive summary capturing the core message or main takeaway. Pu
 - **IMPORTANT: Omit this entire section if no clear action items**
 
 ## Notable Quotes (ONLY if memorable quotes exist)
-- 2-3 memorable or impactful quotes from the speaker
+- 2-4 memorable or impactful quotes from the speaker
 - Use quotation marks and keep them brief
+- Include quotes that capture the speaker's key teachings or memorable phrases
 - **IMPORTANT: Omit this entire section if no notable quotes**
 
 ## Detailed Notes
-A more comprehensive summary (3-5 paragraphs) covering:
-- Main themes and arguments
+A more comprehensive summary (4-6 paragraphs) covering:
+- Main themes and arguments with supporting reasoning
+- Key points the speaker emphasized or returned to multiple times
 - Supporting points and examples
 - Context and background information
+- Any stories or illustrations used to make points
 
 ## Guidelines
-- Be concise but thorough
+- Be thorough - capture the substance of what was taught
+- When a speaker emphasizes something (repeats it, raises voice, says "this is important"), make sure it's prominently captured
 - Maintain the speaker's intent and tone
 - Use bullet points for lists
 - Keep formatting consistent
 - Do not add information not present in the transcript
+- For scripture, always use NIV translation and include full verse text
 """
 
 BLUF_USER_PROMPT_TEMPLATE = """Please summarize the following transcript into a structured summary:
@@ -179,6 +190,27 @@ class SummarizationService:
             capture_entry.save(update_fields=['status', 'error_message'])
             return {'success': False, 'error': str(e)}
 
+    def _get_system_prompt(self) -> str:
+        """
+        Get the system prompt from AIPromptConfig or fall back to default.
+
+        Returns:
+            The system prompt string to use for summarization.
+        """
+        try:
+            from apps.ai.models import AIPromptConfig
+            config = AIPromptConfig.objects.filter(
+                prompt_type='capture_summarization',
+                is_active=True
+            ).first()
+            if config and config.system_instructions:
+                logger.debug("Using AIPromptConfig for capture_summarization")
+                return config.system_instructions
+        except Exception as e:
+            logger.warning(f"Error loading AIPromptConfig: {e}, using default")
+
+        return DEFAULT_BLUF_SYSTEM_PROMPT
+
     def _call_api(self, transcript: str) -> str:
         """
         Call OpenAI API to generate summary.
@@ -200,12 +232,13 @@ class SummarizationService:
             transcript = transcript[:max_transcript_length] + "\n\n[Transcript truncated due to length]"
 
         user_prompt = BLUF_USER_PROMPT_TEMPLATE.format(transcript=transcript)
+        system_prompt = self._get_system_prompt()
 
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
-                    {"role": "system", "content": BLUF_SYSTEM_PROMPT},
+                    {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
                 max_tokens=4000,  # Sufficient for comprehensive summary

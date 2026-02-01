@@ -5,16 +5,13 @@ Tests the full improvement task lifecycle with mocked dependencies.
 """
 
 import uuid
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 from django.test import TestCase
 
 from assistant.executor import (
     ImprovementExecutor,
     AutonomousExecutor,
-    ExecutionResult,
-    ALLOWED_FILES,
-    DANGEROUS_PATTERNS,
     RATE_LIMIT_CACHE_KEY,
 )
 from assistant.file_modifier import ModificationResult

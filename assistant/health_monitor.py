@@ -18,14 +18,14 @@ import logging
 from dataclasses import dataclass
 from datetime import timedelta
 from enum import Enum
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, Any
 
 from django.core.cache import cache
 from django.utils import timezone
 
 from .models import ImprovementTaskModel
 from .notifications import AdminNotificationService, TaskInfo
-from .safety_limits import SafetyLimitService, CACHE_KEY_SYSTEM_PAUSED
+from .safety_limits import SafetyLimitService
 
 
 # Configure logging

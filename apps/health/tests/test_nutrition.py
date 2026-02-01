@@ -15,7 +15,7 @@ This test file covers:
 Location: apps/health/tests/test_nutrition.py
 """
 
-from datetime import date, datetime, timedelta
+from datetime import timedelta
 from decimal import Decimal
 from django.test import TestCase, Client
 from django.urls import reverse
@@ -33,7 +33,6 @@ from apps.health.forms import (
     FoodEntryForm,
     QuickAddFoodForm,
     CustomFoodForm,
-    NutritionGoalsForm,
 )
 
 User = get_user_model()
@@ -367,8 +366,8 @@ class FoodEntryModelTest(NutritionTestMixin, TestCase):
         yesterday = timezone.now().date() - timedelta(days=1)
         today = timezone.now().date()
 
-        entry1 = self.create_food_entry(self.user, logged_date=yesterday, food_name='Yesterday')
-        entry2 = self.create_food_entry(self.user, logged_date=today, food_name='Today')
+        self.create_food_entry(self.user, logged_date=yesterday, food_name='Yesterday')
+        self.create_food_entry(self.user, logged_date=today, food_name='Today')
 
         entries = list(FoodEntry.objects.filter(user=self.user))
         self.assertEqual(entries[0].food_name, 'Today')

@@ -12,7 +12,6 @@ Location: apps/faith/tests/test_reading_plans.py
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.contrib.auth import get_user_model
-from django.utils import timezone
 
 from apps.faith.models import (
     ReadingPlanTemplate,
@@ -553,7 +552,7 @@ class UserAssessmentResponseModelTest(ReadingPlanTestMixin, TestCase):
     """Tests for UserAssessmentResponse model."""
 
     def setUp(self):
-        from apps.faith.models import ReadingPlanAssessment, UserAssessmentResponse
+        from apps.faith.models import ReadingPlanAssessment
 
         self.user = self.create_user()
         self.template = self.create_reading_plan_template(duration_days=3)
@@ -603,7 +602,6 @@ class SaveAssessmentResponseViewTest(ReadingPlanTestMixin, TestCase):
     """Tests for saving assessment responses via AJAX."""
 
     def setUp(self):
-        import json
         from apps.faith.models import ReadingPlanAssessment
 
         self.client = Client()

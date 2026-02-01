@@ -221,7 +221,7 @@ class Command(BaseCommand):
 
             # Create tasks
             if verbosity >= 2:
-                self.stdout.write(f"\nCreating tasks...")
+                self.stdout.write("\nCreating tasks...")
             created_count = 0
             skipped_count = 0
 

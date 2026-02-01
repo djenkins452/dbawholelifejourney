@@ -29,7 +29,6 @@ Schedule:
 import logging
 
 from django.core.management.base import BaseCommand
-from django.utils import timezone
 
 from apps.core.utils import user_log_id
 
@@ -100,11 +99,11 @@ class Command(BaseCommand):
                     if success:
                         sent_count += 1
                         if verbosity >= 2:
-                            self.stdout.write(self.style.SUCCESS(f'    Sent digest'))
+                            self.stdout.write(self.style.SUCCESS('    Sent digest'))
                     else:
                         error_count += 1
                         if verbosity >= 2:
-                            self.stdout.write(self.style.WARNING(f'    No digest sent (empty or error)'))
+                            self.stdout.write(self.style.WARNING('    No digest sent (empty or error)'))
                 except Exception as e:
                     error_count += 1
                     logger.error(f'Failed to send digest to {user_log_id(user)}: {e}')

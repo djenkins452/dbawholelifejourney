@@ -13,7 +13,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 from .models import PaymentAuditLog
-from .services import StripeService, get_stripe
+from .services import StripeService
 
 logger = logging.getLogger(__name__)
 

@@ -5,7 +5,6 @@ Admin interfaces for managing brain training games, challenges, and viewing stat
 """
 
 from django.contrib import admin
-from django.utils.html import format_html
 
 from .models import (
     Game,

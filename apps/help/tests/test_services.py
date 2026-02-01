@@ -94,7 +94,7 @@ class HelpChatServiceTest(TestCase):
         service = HelpChatService(self.user)
 
         # Search without module priority
-        results_no_module = service.search_articles("tracking")
+        service.search_articles("tracking")
 
         # Search with journal module priority
         results_with_module = service.search_articles("tracking", module="health")

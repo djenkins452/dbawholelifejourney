@@ -20,11 +20,9 @@ API endpoints for:
 
 import json
 import logging
-from datetime import timedelta
 
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import JsonResponse
-from django.utils import timezone
 from django.views import View
 from django.views.generic import TemplateView
 
@@ -32,10 +30,10 @@ from apps.help.mixins import HelpContextMixin
 
 from .models import (
     AssistantConversation, AssistantMessage, DailyPriority,
-    TrendAnalysis, ReflectionPromptQueue, UserStateSnapshot
+    ReflectionPromptQueue
 )
-from .personal_assistant import PersonalAssistant, get_personal_assistant
-from .trend_tracking import TrendTracker, get_trend_tracker
+from .personal_assistant import get_personal_assistant
+from .trend_tracking import get_trend_tracker
 from .services import AIService
 
 logger = logging.getLogger(__name__)

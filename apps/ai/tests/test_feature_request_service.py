@@ -11,8 +11,7 @@ Tests for Feature Request Detection Service
 Tests pattern detection, rate limiting, and email notification functionality.
 """
 
-from datetime import timedelta
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from django.test import TestCase, override_settings
 from django.core import mail
@@ -23,7 +22,6 @@ from apps.ai.feature_request_service import (
     FeatureRequestService,
     FeatureRequestInfo,
     feature_request_service,
-    COMPILED_PATTERNS,
 )
 
 User = get_user_model()

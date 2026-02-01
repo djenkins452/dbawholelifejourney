@@ -14,8 +14,8 @@ the app's design, rather than using Django's default admin.
 """
 
 from django.contrib import messages
-from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.mixins import UserPassesTestMixin
+from django.db import models
 from django.http import HttpResponseRedirect, JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse_lazy
@@ -23,7 +23,6 @@ from django.utils.decorators import method_decorator
 from django.views.generic import (
     CreateView,
     DeleteView,
-    FormView,
     ListView,
     TemplateView,
     UpdateView,
@@ -591,7 +590,6 @@ class ChoiceOptionDeleteView(AdminRequiredMixin, DeleteView):
         return context
     
     def form_valid(self, form):
-        category_pk = self.object.category.pk
         messages.success(self.request, f"Option '{self.object.label}' deleted.")
         return super().form_valid(form)
     
@@ -699,7 +697,7 @@ class RunTestsView(AdminRequiredMixin, View):
             if result.returncode == 0:
                 messages.success(request, "Tests completed successfully! Results have been recorded.")
             else:
-                messages.warning(request, f"Tests completed with failures. Check the results below.")
+                messages.warning(request, "Tests completed with failures. Check the results below.")
 
         except subprocess.TimeoutExpired:
             messages.error(request, "Test execution timed out after 5 minutes.")
@@ -1132,8 +1130,7 @@ class TaskIntakeView(HelpContextMixin, AdminRequiredMixin, TemplateView):
         from apps.admin_console.models import (
             AdminProject, AdminProjectPhase, AdminTask,
             AdminTaskStatusConfig, AdminTaskPriorityConfig,
-            AdminTaskCategoryConfig, AdminTaskEffortConfig,
-            ExecutableTaskValidationError
+            AdminTaskCategoryConfig, AdminTaskEffortConfig
         )
         from .services import get_or_create_default_project
 
@@ -2621,7 +2618,7 @@ class AdminProjectDetailView(HelpContextMixin, AdminRequiredMixin, TemplateView)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        from apps.admin_console.models import AdminProject, AdminTask, AdminProjectPhase
+        from apps.admin_console.models import AdminProject, AdminTask
         from django.db.models import Count, Q
         from collections import defaultdict
 
@@ -3312,7 +3309,6 @@ class ReadyTasksAPIView(APIRateLimitMixin, View):
 
 
 from django.views.decorators.csrf import csrf_exempt
-from django.utils.decorators import method_decorator
 
 
 @method_decorator(csrf_exempt, name='dispatch')
@@ -4308,7 +4304,6 @@ class TestPhaseDeleteView(AdminRequiredMixin, DeleteView):
 
     def form_valid(self, form):
         phase_name = self.object.name
-        cycle_pk = self.object.cycle.pk
         response = super().form_valid(form)
         messages.success(self.request, f"Phase '{phase_name}' deleted.")
         return response

@@ -72,7 +72,7 @@ class Command(BaseCommand):
 
                 if not latest_workout:
                     if verbosity >= 2:
-                        self.stdout.write(f"    No matching workout found")
+                        self.stdout.write("    No matching workout found")
                     continue
 
                 if verbosity >= 2:

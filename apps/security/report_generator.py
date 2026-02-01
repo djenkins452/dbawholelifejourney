@@ -16,7 +16,6 @@ Generates comprehensive security reports including:
 - Remediation prompt (copy-paste for Claude)
 """
 
-from datetime import datetime
 from typing import List
 
 
@@ -41,7 +40,7 @@ class ReportGenerator:
     def generate_executive_summary(self) -> str:
         """Generate executive summary (1 page max)."""
         passed = sum(1 for t in self.test_results if t.result == 'pass')
-        failed = sum(1 for t in self.test_results if t.result == 'fail')
+        sum(1 for t in self.test_results if t.result == 'fail')
         total = len(self.test_results)
 
         # Determine overall posture
@@ -88,7 +87,7 @@ TOP 5 RISKS:
         for i, risk in enumerate(top_risks, 1):
             summary += f"{i}. [{risk.severity.upper()}] {risk.title} (CVSS {risk.cvss_score})\n"
 
-        summary += f"""
+        summary += """
 TOP 5 RECOMMENDED ACTIONS:
 """
         actions = quick_wins[:5] if quick_wins else top_risks[:5]

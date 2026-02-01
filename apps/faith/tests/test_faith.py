@@ -6,11 +6,10 @@ Tests for prayer requests, scripture verses, and faith milestones.
 Location: apps/faith/tests/test_faith.py
 """
 
-from datetime import date, timedelta
+from datetime import date
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.contrib.auth import get_user_model
-from django.utils import timezone
 
 from apps.faith.models import PrayerRequest, FaithMilestone, ScriptureVerse
 
@@ -184,7 +183,7 @@ class FaithViewTest(TestCase):
         self.client.login(email='test@example.com', password='testpass123')
         
         # Create directly to test model
-        prayer = PrayerRequest.objects.create(
+        PrayerRequest.objects.create(
             user=self.user,
             title='New Prayer',
             description='Please help with this',

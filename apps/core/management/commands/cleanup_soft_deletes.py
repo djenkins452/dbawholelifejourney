@@ -31,7 +31,6 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.core.management.base import BaseCommand
-from django.db import models
 from django.utils import timezone
 
 from apps.core.security_logging import log_command_error
@@ -75,7 +74,6 @@ class Command(BaseCommand):
         )
 
         # Collect all models that inherit from SoftDeleteModel
-        from apps.core.models import SoftDeleteModel
         soft_delete_models = self._get_soft_delete_models()
 
         total_deleted = 0

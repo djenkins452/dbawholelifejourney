@@ -2,8 +2,6 @@
 
 import json
 from datetime import timedelta
-from io import BytesIO
-from unittest.mock import MagicMock, patch
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -582,7 +580,7 @@ class CaptureTitleEdgeCaseTests(TestCase):
 
     def test_title_with_special_html_characters(self):
         """Test title with HTML special characters is escaped properly."""
-        entry = CaptureEntry.objects.create(
+        CaptureEntry.objects.create(
             user=self.user,
             title='<script>alert("xss")</script>',
             status=CaptureEntry.STATUS_READY

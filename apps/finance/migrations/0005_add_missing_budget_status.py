@@ -16,7 +16,7 @@ This migration adds the field if missing.
 NOTE: This migration is conditional - it only adds the field if it doesn't exist.
 """
 
-from django.db import connection, migrations, models
+from django.db import connection, migrations
 
 
 def add_status_if_missing(apps, schema_editor):

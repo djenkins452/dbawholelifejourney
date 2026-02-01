@@ -1,8 +1,8 @@
 """Tests for capture background tasks."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-from django.test import TestCase, override_settings
+from django.test import TestCase
 
 from apps.capture.models import CaptureEntry
 from apps.capture.tasks import (
@@ -195,12 +195,12 @@ class ProcessPendingCapturesTests(TestCase):
     def test_processes_pending_entries(self, mock_process):
         """Test that pending entries are processed."""
         # Create entries in transcribing status
-        entry1 = CaptureEntry.objects.create(
+        CaptureEntry.objects.create(
             user=self.user,
             status=CaptureEntry.STATUS_TRANSCRIBING,
             audio_file_url='https://s3.example.com/audio1.mp3'
         )
-        entry2 = CaptureEntry.objects.create(
+        CaptureEntry.objects.create(
             user=self.user,
             status=CaptureEntry.STATUS_TRANSCRIBING,
             audio_file_url='https://s3.example.com/audio2.mp3'

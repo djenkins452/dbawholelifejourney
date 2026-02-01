@@ -5,7 +5,6 @@ import logging
 from django.conf import settings
 from django.core.mail import EmailMessage
 from django.template.loader import render_to_string
-from django.urls import reverse
 from django.utils.html import strip_tags
 
 from apps.core.utils import user_log_id
@@ -61,7 +60,7 @@ def send_expiration_reminder_email(capture_entry):
 
     # Render email content
     html_content = render_to_string('capture/email/expiration_reminder.html', context)
-    text_content = strip_tags(html_content)
+    strip_tags(html_content)
 
     # Build subject
     subject = f"Audio Expiring Soon: {title}"

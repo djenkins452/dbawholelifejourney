@@ -22,7 +22,6 @@ Usage:
 import io
 import logging
 import tempfile
-from typing import Optional
 
 import requests
 from django.conf import settings

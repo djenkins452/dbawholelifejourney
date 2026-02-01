@@ -5,9 +5,8 @@ Handles processing and generation of recurring transactions.
 Uses the Life module's RecurrencePattern for consistent pattern handling.
 """
 
-from datetime import date, timedelta
+from datetime import timedelta
 from decimal import Decimal
-from typing import List, Optional, Dict, Any
 
 from django.db import transaction as db_transaction
 from django.utils import timezone

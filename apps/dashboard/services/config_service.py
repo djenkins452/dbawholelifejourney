@@ -413,7 +413,7 @@ class DashboardConfigService:
         config_fields = {'id', 'visible', 'size', 'order'}
         cleaned_tiles = []
 
-        available_tiles = {t['id']: t for t in self.get_available_tiles()}
+        {t['id']: t for t in self.get_available_tiles()}
 
         for tile_config in new_config.get('tiles', []):
             # Only keep config fields

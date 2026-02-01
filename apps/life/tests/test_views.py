@@ -6,7 +6,7 @@ Tests for Life module views: Calendar, Tasks, Events, etc.
 Location: apps/life/tests/test_views.py
 """
 
-from datetime import date, timedelta
+from datetime import date
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.contrib.auth import get_user_model
@@ -157,7 +157,7 @@ class EventViewTest(TestCase):
             start_date=date.today()
         )
         
-        response = self.client.post(
+        self.client.post(
             reverse('life:event_update', kwargs={'pk': event.pk}),
             {
                 'title': 'Updated Title',
@@ -178,7 +178,7 @@ class EventViewTest(TestCase):
             start_date=date.today()
         )
         
-        response = self.client.post(
+        self.client.post(
             reverse('life:event_delete', kwargs={'pk': event.pk})
         )
         
@@ -232,7 +232,7 @@ class TaskViewTest(TestCase):
     
     def test_task_can_be_created(self):
         """User can create a task."""
-        response = self.client.post(reverse('life:task_create'), {
+        self.client.post(reverse('life:task_create'), {
             'title': 'New Task',
             'priority': 'soon',
         })
@@ -245,7 +245,7 @@ class TaskViewTest(TestCase):
         """Toggling an incomplete task marks it complete."""
         task = Task.objects.create(user=self.user, title='Toggle Test', is_completed=False)
 
-        response = self.client.post(reverse('life:task_toggle', kwargs={'pk': task.pk}))
+        self.client.post(reverse('life:task_toggle', kwargs={'pk': task.pk}))
 
         task.refresh_from_db()
         self.assertTrue(task.is_completed)
@@ -255,7 +255,7 @@ class TaskViewTest(TestCase):
         """Toggling a completed task marks it incomplete (undo)."""
         task = Task.objects.create(user=self.user, title='Undo Test', is_completed=True)
 
-        response = self.client.post(reverse('life:task_toggle', kwargs={'pk': task.pk}))
+        self.client.post(reverse('life:task_toggle', kwargs={'pk': task.pk}))
 
         task.refresh_from_db()
         self.assertFalse(task.is_completed)
@@ -273,7 +273,7 @@ class TaskViewTest(TestCase):
 
     def test_incomplete_task_no_undo_link(self):
         """Incomplete tasks do not display an Undo link."""
-        task = Task.objects.create(user=self.user, title='Active Task', is_completed=False)
+        Task.objects.create(user=self.user, title='Active Task', is_completed=False)
 
         response = self.client.get(reverse('life:task_list'))
         content = response.content.decode()
@@ -404,12 +404,12 @@ class TaskViewTest(TestCase):
 
     def test_task_search_with_filters(self):
         """Search works together with other filters."""
-        task_active = Task.objects.create(
+        Task.objects.create(
             user=self.user,
             title='Active meeting task',
             is_completed=False
         )
-        task_completed = Task.objects.create(
+        Task.objects.create(
             user=self.user,
             title='Completed meeting task',
             is_completed=True
@@ -681,8 +681,7 @@ class InventoryCreateFromScanTest(TestCase):
 
     def test_inventory_create_with_scan_image_key_attaches_photo(self):
         """Creating inventory item with scan_image_key attaches the scanned image."""
-        from apps.life.models import InventoryItem, InventoryPhoto
-        import base64
+        from apps.life.models import InventoryItem
 
         # Create a small test image (1x1 red pixel JPEG)
         # This is a minimal valid JPEG
@@ -704,7 +703,7 @@ class InventoryCreateFromScanTest(TestCase):
         session.save()
 
         # Create inventory item with scan parameters
-        response = self.client.post(
+        self.client.post(
             reverse('life:inventory_create') + f'?source=ai_camera&name=Test+Mouse&category=Electronics&scan_image_key={scan_image_key}',
             {
                 'name': 'Test Mouse',
@@ -731,7 +730,7 @@ class InventoryCreateFromScanTest(TestCase):
         """Creating inventory item without scan_image_key works without photo attachment."""
         from apps.life.models import InventoryItem
 
-        response = self.client.post(
+        self.client.post(
             reverse('life:inventory_create') + '?source=ai_camera&name=Test+Keyboard&category=Electronics',
             {
                 'name': 'Test Keyboard',
@@ -751,7 +750,7 @@ class InventoryCreateFromScanTest(TestCase):
         """Creating inventory item with invalid/missing scan_image_key still creates the item."""
         from apps.life.models import InventoryItem
 
-        response = self.client.post(
+        self.client.post(
             reverse('life:inventory_create') + '?source=ai_camera&name=Test+Monitor&category=Electronics&scan_image_key=nonexistent_key',
             {
                 'name': 'Test Monitor',

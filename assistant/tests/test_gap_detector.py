@@ -9,7 +9,6 @@ and categorization of knowledge gaps.
 
 import unittest
 from datetime import datetime
-from unittest.mock import patch
 
 from assistant.gap_detector import (
     BIBLE_BOOKS,

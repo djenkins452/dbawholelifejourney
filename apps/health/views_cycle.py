@@ -12,7 +12,6 @@ from decimal import Decimal
 from statistics import mean, stdev
 
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db.models import Avg, Count, Max, Min
 from django.http import JsonResponse
 from django.utils import timezone
 from django.utils.decorators import method_decorator

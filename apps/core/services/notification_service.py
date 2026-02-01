@@ -32,14 +32,15 @@ Usage:
 """
 
 import logging
-from datetime import datetime, time, timedelta
-from typing import Optional, List, Any
+from datetime import datetime
+from typing import Optional, Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from apps.core.models import Notification
 
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.mail import send_mail
-from django.template import Template, Context
-from django.template.loader import render_to_string
 from django.utils import timezone
 from django.utils.html import strip_tags
 

@@ -26,9 +26,7 @@ Each test produces:
 - Findings with CVSS scores
 """
 
-import hashlib
 import logging
-import os
 import re
 import subprocess
 import time
@@ -38,7 +36,6 @@ from pathlib import Path
 from typing import Optional
 
 from django.conf import settings
-from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
@@ -575,12 +572,6 @@ class SecurityScanner:
         test_id = "SEC-T004"
 
         # Pattern for potential API keys (hex strings, base64, etc.)
-        api_key_patterns = [
-            r'[a-f0-9]{32,}',  # Hex strings
-            r'[A-Za-z0-9+/=]{32,}',  # Base64-ish
-            r'sk_live_[A-Za-z0-9]+',  # Stripe live keys
-            r'pk_live_[A-Za-z0-9]+',  # Stripe public keys
-        ]
 
         evidence = {'files_checked': 0, 'potential_keys': []}
 
@@ -1853,7 +1844,7 @@ class SecurityScanner:
             except Exception:
                 return False
 
-        legitimate_exempts = [f for f in evidence['csrf_exempt_usage'] if is_legitimate_csrf_exempt(f)]
+        [f for f in evidence['csrf_exempt_usage'] if is_legitimate_csrf_exempt(f)]
         suspicious_exempts = [f for f in evidence['csrf_exempt_usage'] if not is_legitimate_csrf_exempt(f)]
 
         result = 'pass' if evidence['csrf_middleware'] and len(suspicious_exempts) == 0 else 'fail'
@@ -3537,7 +3528,7 @@ class SecurityScanner:
         for py_file in models_path.rglob('models.py'):
             try:
                 content = py_file.read_text()
-                content_lower = content.lower()
+                content.lower()
 
                 # First check if file contains any exclude patterns
                 # If a line matches exclude, skip checking that line
@@ -3635,7 +3626,7 @@ class SecurityScanner:
                 content = py_file.read_text()
                 if 'stripe' in content.lower() and 'webhook' in content.lower():
                     evidence['webhook_found'] = True
-                    rel_path = str(py_file.relative_to(self.base_path))
+                    str(py_file.relative_to(self.base_path))
 
                     # Check for signature verification
                     if 'construct_event' in content or 'verify_header' in content:
@@ -4461,7 +4452,6 @@ class SecurityScanner:
             'optional_fields': False,
             'purpose_documented': False,
         }
-        findings = []
 
         # Check health forms
         for py_file in (self.base_path / 'apps' / 'health').rglob('forms.py'):
@@ -4856,7 +4846,6 @@ class SecurityScanner:
             'access_controls_separate': False,
             'audit_for_provider_access': False,
         }
-        findings = []
 
         for py_file in self.base_path.rglob('*.py'):
             try:
@@ -5874,7 +5863,6 @@ class SecurityScanner:
             'encryption_mentioned': False,
             'cloud_backup': False,
         }
-        findings = []
 
         # Check for backup scripts
         for file in self.base_path.rglob('*backup*'):
@@ -5923,7 +5911,6 @@ class SecurityScanner:
             'slow_query_logging': False,
             'sensitive_query_redaction': False,
         }
-        findings = []
 
         settings_file = self.base_path / 'config' / 'settings.py'
         if settings_file.exists():
@@ -5987,7 +5974,6 @@ class SecurityScanner:
         }
 
         # First pass: Find actual webhook handler files (views.py, webhooks.py, etc.)
-        webhook_handler_patterns = ['webhook', 'views.py']
         providers_used = set()
 
         for py_file in self.base_path.rglob('*.py'):
@@ -6238,7 +6224,6 @@ class SecurityScanner:
             'pii_to_vendors': [],
             'data_processing_agreement': False,
         }
-        findings = []
 
         pii_patterns = ['email', 'phone', 'address', 'ssn', 'dob', 'date_of_birth']
 
@@ -6350,7 +6335,6 @@ class SecurityScanner:
             'retry_logic': False,
             'graceful_degradation': False,
         }
-        findings = []
 
         for py_file in self.base_path.rglob('*.py'):
             try:
@@ -6754,7 +6738,6 @@ class SecurityScanner:
             'recovery_procedure': False,
             'backup_encryption': False,
         }
-        findings = []
 
         # Check for backup references
         for file in self.base_path.rglob('*'):
@@ -6858,7 +6841,6 @@ class SecurityScanner:
             'centralized_logging': False,
             'log_retention': False,
         }
-        findings = []
 
         settings_file = self.base_path / 'config' / 'settings.py'
         if settings_file.exists():

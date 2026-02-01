@@ -6,7 +6,7 @@ correctly with actual database operations, soft delete behavior, and
 date filtering.
 """
 
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
@@ -94,7 +94,7 @@ class WeightDataIntegrationTest(CacheClearingTestCase):
             unit="lb",
             recorded_at=timezone.now() - timedelta(days=2)
         )
-        latest = WeightEntry.objects.create(
+        WeightEntry.objects.create(
             user=self.user,
             value=Decimal("175.5"),
             unit="lb",
@@ -241,7 +241,7 @@ class JournalDataIntegrationTest(CacheClearingTestCase):
     def test_get_journal_data_excludes_soft_deleted(self):
         """Test that soft-deleted entries are excluded from results."""
         # Create active entry
-        active_entry = JournalEntry.objects.create(
+        JournalEntry.objects.create(
             user=self.user,
             title="Active",
             body="Active content",
@@ -365,7 +365,7 @@ class MedicationDataIntegrationTest(CacheClearingTestCase):
 
     def test_get_medication_data_excludes_soft_deleted(self):
         """Test that soft-deleted medication logs are excluded."""
-        active_log = MedicineLog.objects.create(
+        MedicineLog.objects.create(
             user=self.user,
             medicine=self.medicine,
             scheduled_date=date.today(),
@@ -582,7 +582,7 @@ class MoodDataIntegrationTest(CacheClearingTestCase):
 
     def test_get_mood_data_excludes_soft_deleted(self):
         """Test that soft-deleted entries with mood are excluded."""
-        active = JournalEntry.objects.create(
+        JournalEntry.objects.create(
             user=self.user,
             title="Active",
             body="content",
@@ -615,7 +615,7 @@ class SoftDeleteBehaviorIntegrationTest(CacheClearingTestCase):
 
     def test_soft_deleted_journal_entries_excluded(self):
         """Test that soft-deleted journal entries are not returned."""
-        active = JournalEntry.objects.create(
+        JournalEntry.objects.create(
             user=self.user,
             title="Active",
             body="Content"
@@ -638,7 +638,7 @@ class SoftDeleteBehaviorIntegrationTest(CacheClearingTestCase):
             dose="100mg",
             start_date=date.today()
         )
-        active = MedicineLog.objects.create(
+        MedicineLog.objects.create(
             user=self.user,
             medicine=medicine,
             scheduled_date=date.today()
@@ -660,7 +660,7 @@ class SoftDeleteBehaviorIntegrationTest(CacheClearingTestCase):
         by default. Users who want archived entries can use .include_archived()
         but PersonalDataService correctly uses the default manager behavior.
         """
-        active = JournalEntry.objects.create(
+        JournalEntry.objects.create(
             user=self.user,
             title="Active",
             body="Content"
@@ -902,13 +902,13 @@ class DateFilteringIntegrationTest(CacheClearingTestCase):
 
     def test_weight_date_filtering_with_datetime(self):
         """Test weight filtering with datetime object."""
-        old = WeightEntry.objects.create(
+        WeightEntry.objects.create(
             user=self.user,
             value=Decimal("180.0"),
             unit="lb",
             recorded_at=timezone.now() - timedelta(days=15)
         )
-        recent = WeightEntry.objects.create(
+        WeightEntry.objects.create(
             user=self.user,
             value=Decimal("175.0"),
             unit="lb",
@@ -923,13 +923,13 @@ class DateFilteringIntegrationTest(CacheClearingTestCase):
 
     def test_journal_date_filtering_with_date(self):
         """Test journal filtering with date object."""
-        old = JournalEntry.objects.create(
+        JournalEntry.objects.create(
             user=self.user,
             title="Old",
             body="Content",
             entry_date=date.today() - timedelta(days=15)
         )
-        recent = JournalEntry.objects.create(
+        JournalEntry.objects.create(
             user=self.user,
             title="Recent",
             body="Content",
@@ -943,7 +943,7 @@ class DateFilteringIntegrationTest(CacheClearingTestCase):
 
     def test_food_date_filtering(self):
         """Test food entry date filtering."""
-        old = FoodEntry.objects.create(
+        FoodEntry.objects.create(
             user=self.user,
             food_name="Old Food",
             quantity=Decimal("1.0"),
@@ -952,7 +952,7 @@ class DateFilteringIntegrationTest(CacheClearingTestCase):
             total_calories=Decimal("500"),
             logged_date=date.today() - timedelta(days=15)
         )
-        recent = FoodEntry.objects.create(
+        FoodEntry.objects.create(
             user=self.user,
             food_name="Recent Food",
             quantity=Decimal("1.0"),
@@ -970,14 +970,14 @@ class DateFilteringIntegrationTest(CacheClearingTestCase):
 
     def test_mood_date_filtering(self):
         """Test mood data date filtering."""
-        old = JournalEntry.objects.create(
+        JournalEntry.objects.create(
             user=self.user,
             title="Old",
             body="Content",
             mood="low",
             entry_date=date.today() - timedelta(days=15)
         )
-        recent = JournalEntry.objects.create(
+        JournalEntry.objects.create(
             user=self.user,
             title="Recent",
             body="Content",
@@ -1010,21 +1010,16 @@ These tests verify the complete lifecycle of the self-improvement workflow:
 8. Token expiration for approval links
 """
 
-import uuid
-from datetime import timedelta
 from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
-from django.core.cache import cache
-from django.test import TestCase, override_settings
-from django.utils import timezone
+from django.test import TestCase
 
-from assistant.executor import AutonomousExecutor, ImprovementExecutor, ExecutionResult
+from assistant.executor import AutonomousExecutor, ImprovementExecutor
 from assistant.file_modifier import ModificationResult
 from assistant.git_service import GitResult
 from assistant.health_monitor import HealthMonitor, SystemStatus
 from assistant.models import ImprovementTaskModel, APPROVAL_TOKEN_EXPIRY_HOURS
-from assistant.notifications import AdminNotificationService, TaskInfo
 from assistant.safety_limits import SafetyLimitService
 from assistant.test_runner import TestResult
 

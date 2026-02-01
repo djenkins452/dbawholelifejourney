@@ -13,7 +13,6 @@ Covers:
 - Improvement metrics calculation
 """
 
-from decimal import Decimal
 from datetime import timedelta
 
 from django.test import TestCase

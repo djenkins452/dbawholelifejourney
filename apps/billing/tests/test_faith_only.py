@@ -11,7 +11,6 @@ Tests cover:
 
 import json
 from datetime import date, timedelta
-from unittest.mock import patch
 
 from django.conf import settings as django_settings
 from django.contrib.auth import get_user_model
@@ -66,7 +65,7 @@ class FaithOnlySelectionTest(TestCase):
 
     def test_select_faith_only_sets_correct_tier(self):
         """Selecting Faith Only should set TIER_FAITH_ONLY."""
-        response = self.client.post(reverse('billing:select_faith_only'))
+        self.client.post(reverse('billing:select_faith_only'))
 
         self.user.billing_profile.refresh_from_db()
         self.assertEqual(
@@ -76,7 +75,7 @@ class FaithOnlySelectionTest(TestCase):
 
     def test_select_faith_only_sets_correct_status(self):
         """Selecting Faith Only should set STATUS_FAITH_ONLY."""
-        response = self.client.post(reverse('billing:select_faith_only'))
+        self.client.post(reverse('billing:select_faith_only'))
 
         self.user.billing_profile.refresh_from_db()
         self.assertEqual(
@@ -87,7 +86,7 @@ class FaithOnlySelectionTest(TestCase):
     def test_select_faith_only_records_selection_date(self):
         """Selecting Faith Only should record faith_only_selected_at."""
         before = timezone.now()
-        response = self.client.post(reverse('billing:select_faith_only'))
+        self.client.post(reverse('billing:select_faith_only'))
         after = timezone.now()
 
         self.user.preferences.refresh_from_db()

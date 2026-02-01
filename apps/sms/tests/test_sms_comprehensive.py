@@ -19,8 +19,7 @@ Tests for:
 """
 
 import json
-from datetime import date, time, timedelta
-from unittest.mock import MagicMock, patch
+from datetime import date, timedelta
 
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase, override_settings
@@ -30,7 +29,7 @@ from django.utils import timezone
 from apps.sms.models import SMSNotification, SMSResponse
 from apps.sms.scheduler import SMSScheduler
 from apps.sms.services import SMSNotificationService, TwilioService
-from apps.users.models import TermsAcceptance, UserPreferences
+from apps.users.models import TermsAcceptance
 
 User = get_user_model()
 
@@ -786,9 +785,8 @@ class RealTimeSignalTests(SMSTestMixin, TestCase):
         """Saving a medicine schedule should trigger SMS scheduling for today."""
         from apps.health.models import Medicine, MedicineSchedule
         from apps.core.utils import get_user_today
-        from datetime import time
 
-        today = get_user_today(self.user)
+        get_user_today(self.user)
 
         # Create medicine
         medicine = Medicine.objects.create(
@@ -811,7 +809,7 @@ class RealTimeSignalTests(SMSTestMixin, TestCase):
         now_local = timezone.now().astimezone(user_tz)
         future_time = (now_local + timedelta(hours=2)).time()
 
-        schedule = MedicineSchedule.objects.create(
+        MedicineSchedule.objects.create(
             medicine=medicine,
             scheduled_time=future_time,
             is_active=True,
@@ -838,7 +836,7 @@ class RealTimeSignalTests(SMSTestMixin, TestCase):
         ).count()
 
         # Create task due today (Task model doesn't have due_time field)
-        task = Task.objects.create(
+        Task.objects.create(
             user=self.user,
             title='Test Task',
             due_date=today,

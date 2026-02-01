@@ -7,7 +7,6 @@
 # Last Updated: 2026-01-01
 # ==============================================================================
 
-from django.contrib import admin
 
 # Admin console customizations can be added here
 # Currently no custom admin registrations

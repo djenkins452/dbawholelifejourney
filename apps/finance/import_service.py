@@ -26,7 +26,6 @@ from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from typing import Optional
 
-from django.utils import timezone
 
 
 @dataclass

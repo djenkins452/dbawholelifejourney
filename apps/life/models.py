@@ -262,16 +262,6 @@ class Task(UserOwnedModel):
     def __str__(self):
         return self.title
 
-    def save(self, *args, **kwargs):
-        """
-        Override save to auto-set due_date for recurring tasks.
-        For recurring tasks, due_date is generated from start_date on first save.
-        """
-        # For new recurring tasks, set due_date from start_date if not already set
-        if self.is_recurring and self.start_date and not self.due_date:
-            self.due_date = self.start_date
-        super().save(*args, **kwargs)
-
     def get_absolute_url(self):
         return reverse('life:task_detail', kwargs={'pk': self.pk})
 
@@ -335,7 +325,15 @@ class Task(UserOwnedModel):
             return 'someday'
 
     def save(self, *args, **kwargs):
-        """Override save to auto-calculate priority based on due date."""
+        """
+        Override save to:
+        1. Auto-set due_date for recurring tasks from start_date
+        2. Auto-calculate priority based on due date
+        """
+        # For new recurring tasks, set due_date from start_date if not already set
+        if self.is_recurring and self.start_date and not self.due_date:
+            self.due_date = self.start_date
+
         # Auto-calculate priority unless we're only updating specific fields
         update_fields = kwargs.get('update_fields')
         if update_fields is None or 'due_date' in update_fields:

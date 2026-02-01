@@ -89,22 +89,6 @@ def check_dependencies(requirements_path, auto_install=False):
     installed = get_installed_packages()
 
     # Map common package name differences
-    name_mappings = {
-        'pillow': 'pillow',
-        'psycopg2-binary': 'psycopg2-binary',
-        'django-environ': 'django-environ',
-        'django-allauth': 'django-allauth',
-        'django-crispy-forms': 'django-crispy-forms',
-        'crispy-tailwind': 'crispy-tailwind',
-        'django-cloudinary-storage': 'django-cloudinary-storage',
-        'django-htmx': 'django-htmx',
-        'python-dateutil': 'python-dateutil',
-        'google-auth': 'google-auth',
-        'google-auth-oauthlib': 'google-auth-oauthlib',
-        'google-api-python-client': 'google-api-python-client',
-        'django-debug-toolbar': 'django-debug-toolbar',
-        'django-extensions': 'django-extensions',
-    }
 
     missing = []
     found = []
@@ -146,7 +130,7 @@ def check_dependencies(requirements_path, auto_install=False):
                     print(f"    ERROR: Failed to install {pkg}")
                     print(f"    {result.stderr}")
                 else:
-                    print(f"    OK")
+                    print("    OK")
             print()
             print("Re-running dependency check...")
             return check_dependencies(requirements_path, auto_install=False)

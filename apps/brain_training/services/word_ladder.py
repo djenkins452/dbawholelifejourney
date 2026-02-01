@@ -7,7 +7,6 @@ by changing one letter at a time, with each step being a valid word.
 
 import random
 from collections import deque
-from pathlib import Path
 
 
 class WordLadderGenerator:

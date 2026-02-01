@@ -18,7 +18,6 @@ Run via scheduler or manually:
 """
 
 from django.core.management.base import BaseCommand
-from django.db.models import F
 
 from apps.life.models import Task
 from apps.core.utils import get_user_today

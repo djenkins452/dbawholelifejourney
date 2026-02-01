@@ -39,7 +39,7 @@ from django.views.generic import (
     View,
 )
 
-from apps.core.utils import get_user_today, get_user_now
+from apps.core.utils import get_user_today
 from apps.help.mixins import HelpContextMixin
 
 from .models import (
@@ -487,7 +487,7 @@ class CalendarView(LifeAccessMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         from apps.core.utils import get_user_today
         import calendar as cal_module
-        from datetime import date, timedelta
+        from datetime import date
 
         # Get month/year from query params or use current
         today = get_user_today(self.request.user)

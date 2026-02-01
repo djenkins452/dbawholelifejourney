@@ -41,7 +41,6 @@ import logging
 from django.apps import apps
 from django.conf import settings
 from django.contrib.auth import login
-from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import connection
 from django.http import JsonResponse
@@ -49,7 +48,6 @@ from django.shortcuts import redirect, render
 from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_POST
 from django.views.generic import ListView, TemplateView
 
 from django.contrib import messages
@@ -550,7 +548,6 @@ class DevelopmentNoticeCheckView(LoginRequiredMixin, View):
     """
 
     def get(self, request, *args, **kwargs):
-        from datetime import timedelta
         from django.utils import timezone
         from apps.users.models import UserPreferences
 

@@ -1,6 +1,5 @@
 """Tests for capture transcription service."""
 
-import io
 from unittest.mock import MagicMock, patch
 
 from django.test import TestCase, override_settings

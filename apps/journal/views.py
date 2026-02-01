@@ -42,11 +42,8 @@ from django.db import models
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
-from django.utils import timezone
-from django.views.decorators.http import require_POST
 from django.views.generic import (
     CreateView,
-    DeleteView,
     DetailView,
     ListView,
     TemplateView,
@@ -61,7 +58,6 @@ from apps.help.mixins import HelpContextMixin
 from .forms import JournalEntryForm, TagForm
 from .models import JournalEntry, JournalPrompt
 from django.db.models import Count
-from django.views.generic import TemplateView
 
 
 

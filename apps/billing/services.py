@@ -6,7 +6,6 @@ This module provides the core Stripe integration and billing logic.
 
 import logging
 from datetime import date, timedelta
-from decimal import Decimal
 
 import stripe
 from django.conf import settings
@@ -15,9 +14,7 @@ from django.utils import timezone
 from apps.core.utils import user_log_id
 from .models import (
     BillingProfile,
-    CreditTransaction,
     PaymentAuditLog,
-    PromoCodeUsage,
     ReferralQualification,
     ReferralReward,
 )
@@ -332,7 +329,6 @@ class StripeService:
         Args:
             invoice: Stripe Invoice object
         """
-        from apps.users.models import User
 
         customer_id = invoice.customer
         if not customer_id:

@@ -39,14 +39,15 @@ Copyright:
     without explicit permission.
 """
 import json
+import logging
 import random
 from datetime import timedelta
 from django.db import models
-from django.db.models import Count, Avg
+from django.db.models import Count
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.utils import timezone
 from django.views.generic import TemplateView, View
-from django.http import HttpResponse, JsonResponse
+from django.http import JsonResponse
 from django.conf import settings
 
 from django.shortcuts import redirect
@@ -55,6 +56,8 @@ from .models import DailyEncouragement
 from .services import DashboardConfigService
 from apps.core.utils import user_log_id
 from apps.help.mixins import HelpContextMixin
+
+logger = logging.getLogger(__name__)
 
 
 class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
@@ -310,11 +313,9 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         """Get health-related data."""
         from apps.health.models import (
             WeightEntry, FastingWindow, GlucoseEntry,
-            Medicine, MedicineLog, MedicineSchedule,
-            WorkoutSession, PersonalRecord,
+            Medicine, MedicineLog, WorkoutSession, PersonalRecord,
             CycleSettings, Cycle, CycleDailyLog
         )
-        from datetime import datetime, timedelta as dt_timedelta
 
         # Weight
         weights = WeightEntry.objects.filter(user=user)
@@ -563,7 +564,6 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         ).exclude(action_taken='').order_by('-created_at')[:5]
 
         # Items logged via scan (entries created via AI camera this week)
-        from apps.core.models import UserOwnedModel
         from apps.journal.models import JournalEntry
         from apps.health.models import Medicine, WorkoutSession
 
@@ -696,7 +696,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         self._sync_google_calendar_if_needed(user)
 
         week_ahead = today + timedelta(days=7)
-        month_ahead = today + timedelta(days=30)
+        today + timedelta(days=30)
 
         # Projects
         projects = Project.objects.filter(user=user)
@@ -1241,7 +1241,6 @@ class DashboardDebugView(LoginRequiredMixin, View):
 
     def get(self, request, *args, **kwargs):
         import traceback
-        from django.conf import settings
 
         # Restrict to staff users only
         if not request.user.is_staff:
@@ -1487,7 +1486,6 @@ class DismissQuarterlyReviewView(LoginRequiredMixin, View):
     """API endpoint to dismiss the quarterly review tile."""
 
     def post(self, request, *args, **kwargs):
-        import json
 
         try:
             data = json.loads(request.body)
@@ -1536,7 +1534,6 @@ class DashboardConfigAPIView(LoginRequiredMixin, View):
 
     def post(self, request, *args, **kwargs):
         """Update full dashboard configuration."""
-        import json
 
         try:
             data = json.loads(request.body)
@@ -1567,7 +1564,6 @@ class DashboardReorderAPIView(LoginRequiredMixin, View):
 
     def post(self, request, *args, **kwargs):
         """Reorder tiles based on provided list."""
-        import json
 
         try:
             data = json.loads(request.body)
@@ -1591,7 +1587,6 @@ class DashboardTileConfigAPIView(LoginRequiredMixin, View):
 
     def post(self, request, tile_id, *args, **kwargs):
         """Update a single tile."""
-        import json
 
         try:
             data = json.loads(request.body)

@@ -160,7 +160,7 @@ class Command(BaseCommand):
 
             if dry_run:
                 self.stdout.write(
-                    self.style.WARNING(f"DRY RUN complete. No records deleted.")
+                    self.style.WARNING("DRY RUN complete. No records deleted.")
                 )
             else:
                 logger.info(
@@ -169,7 +169,7 @@ class Command(BaseCommand):
                     f"Remaining: {remaining_count} ({anomaly_remaining} anomalies)"
                 )
                 self.stdout.write(
-                    self.style.SUCCESS(f"Cleanup complete.")
+                    self.style.SUCCESS("Cleanup complete.")
                 )
 
             self.stdout.write(

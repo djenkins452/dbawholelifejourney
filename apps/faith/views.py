@@ -14,7 +14,6 @@ Faith Views - Scripture, prayers, reading plans, and spiritual growth.
 import json
 import logging
 import random
-from datetime import date
 from urllib.parse import quote
 
 import requests
@@ -24,11 +23,9 @@ from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.core.cache import cache
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect
-from django.urls import reverse, reverse_lazy
-from django.utils import timezone
+from django.urls import reverse_lazy
 from django.views.generic import (
     CreateView,
-    DeleteView,
     DetailView,
     ListView,
     TemplateView,
@@ -47,9 +44,7 @@ from .forms import (
     BibleStudyNoteForm,
     FaithMilestoneForm,
     PrayerRequestForm,
-    ReadingProgressForm,
     SavedVerseForm,
-    StartReadingPlanForm,
 )
 from .models import (
     BibleBookmark,

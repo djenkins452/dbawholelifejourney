@@ -2,7 +2,6 @@
 Tests for billing webhooks.
 """
 
-import json
 from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model

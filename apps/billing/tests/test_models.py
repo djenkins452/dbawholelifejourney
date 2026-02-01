@@ -13,10 +13,7 @@ from apps.billing.models import (
     BillingProfile,
     CreditTransaction,
     FeatureSuggestion,
-    FoundingMemberPayout,
     PaymentAuditLog,
-    PromoCodeUsage,
-    ReferralQualification,
     ReferralReward,
 )
 

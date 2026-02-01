@@ -77,5 +77,5 @@ class Command(BaseCommand):
             self.stdout.write(self.style.SUCCESS(f'\nDeleted {count} tasks'))
         else:
             self.stdout.write(self.style.WARNING(
-                f'\nDry run - no tasks deleted. Use --delete to actually delete.'
+                '\nDry run - no tasks deleted. Use --delete to actually delete.'
             ))

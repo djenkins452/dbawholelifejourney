@@ -11,16 +11,13 @@ run_improvement_scheduler management command.
 """
 
 import logging
-import signal
 from contextlib import contextmanager
 from datetime import timedelta
-from typing import Optional
 
-from django.db import transaction
 from django.utils import timezone
 
 from .executor import AutonomousExecutor, ImprovementExecutor
-from .health_monitor import HealthMonitor, run_health_check as _run_health_check
+from .health_monitor import run_health_check as _run_health_check
 from .models import ImprovementTaskModel
 from .notifications import AdminNotificationService, TaskInfo
 

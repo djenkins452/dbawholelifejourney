@@ -12,7 +12,7 @@ Journal Forms
 
 from django import forms
 
-from apps.core.models import Category, Tag
+from apps.core.models import Tag
 from apps.core.utils import get_user_today
 
 from .models import Emotion, JournalEntry

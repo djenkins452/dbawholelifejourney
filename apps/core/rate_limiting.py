@@ -31,7 +31,6 @@ Security:
 import functools
 import hmac
 import logging
-from typing import Optional
 
 from django.core.cache import cache
 from django.http import JsonResponse

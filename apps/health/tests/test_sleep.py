@@ -7,8 +7,7 @@ Location: apps/health/tests/test_sleep.py
 """
 
 import json
-from datetime import date, datetime, timedelta
-from decimal import Decimal
+from datetime import date, timedelta
 
 from django.conf import settings
 from django.test import TestCase, Client
@@ -139,7 +138,7 @@ class SleepEntryModelTest(TestCase):
 
     def test_entry_ordering(self):
         """Entries are ordered by most recent sleep_date first."""
-        entry1 = SleepEntry.objects.create(
+        SleepEntry.objects.create(
             user=self.user,
             sleep_date=date.today() - timedelta(days=2),
             bedtime=self.bedtime - timedelta(days=1),

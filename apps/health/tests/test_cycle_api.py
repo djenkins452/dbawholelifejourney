@@ -19,7 +19,6 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
 from django.urls import reverse
-from django.utils import timezone
 
 from apps.health.models import (
     Cycle,
@@ -959,7 +958,7 @@ class SettingsViewSetTests(CycleAPITestBase):
 
     def test_get_settings_success(self):
         """Get settings returns settings when opted in."""
-        settings = self._enable_cycle_tracking()
+        self._enable_cycle_tracking()
 
         response = self.client.get(reverse("health:cycle_settings_api"))
         self.assertEqual(response.status_code, 200)

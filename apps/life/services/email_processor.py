@@ -9,7 +9,6 @@ import logging
 from typing import Optional
 
 from django.db import transaction
-from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 

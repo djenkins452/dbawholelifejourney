@@ -5,12 +5,10 @@ Tests the VIPPromoCode and VIPPromoCodeUsage models, service functions,
 and onboarding integration.
 """
 
-from datetime import date, timedelta
-from decimal import Decimal
+from datetime import timedelta
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase, Client, override_settings
-from django.urls import reverse
+from django.test import TestCase
 from django.utils import timezone
 
 from apps.billing.models import (

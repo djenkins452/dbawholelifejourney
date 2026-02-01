@@ -10,14 +10,14 @@ from collections import Counter
 from datetime import timedelta
 
 from django.contrib.admin.views.decorators import staff_member_required
-from django.db.models import Avg, Count, F
+from django.db.models import Count
 from django.db.models.functions import TruncDate
-from django.http import HttpResponse, JsonResponse
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
-from .health_monitor import HealthMonitor, get_status_report
+from .health_monitor import get_status_report
 from .models import ImprovementTaskModel
 
 

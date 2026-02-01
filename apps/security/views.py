@@ -21,16 +21,15 @@ Access Control (Tier-0):
 """
 
 import json
-import threading
 import time
 
 from django.contrib.admin.views.decorators import staff_member_required
 from django.http import JsonResponse
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import get_object_or_404, redirect
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views import View
-from django.views.generic import DetailView, ListView, TemplateView
+from django.views.generic import DetailView, TemplateView
 
 from .models import (
     SecurityAuditLog,

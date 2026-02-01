@@ -136,7 +136,7 @@ class Command(BaseCommand):
                 entries_to_create.append(entry)
                 existing_timestamps.add(recorded_at)  # Track to avoid duplicates within file
 
-            except (ValueError, KeyError) as e:
+            except (ValueError, KeyError):
                 skipped_invalid += 1
                 continue
 

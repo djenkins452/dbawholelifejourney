@@ -24,9 +24,7 @@ Usage:
 """
 
 import logging
-from typing import Optional
 
-from django.db import transaction
 
 logger = logging.getLogger(__name__)
 
@@ -403,7 +401,6 @@ def get_processing_queue_status() -> dict:
     Returns:
         dict with queue statistics
     """
-    from datetime import timedelta
 
     from django.utils import timezone
 

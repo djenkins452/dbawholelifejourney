@@ -23,7 +23,6 @@ from .models import (
     FaithMilestone,
     PrayerRequest,
     SavedVerse,
-    UserReadingPlan,
     UserReadingProgress,
 )
 

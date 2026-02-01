@@ -14,8 +14,7 @@ This test file covers:
 Location: apps/health/tests/test_medicine.py
 """
 
-from datetime import date, datetime, time, timedelta
-from decimal import Decimal
+from datetime import datetime, time, timedelta
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.contrib.auth import get_user_model
@@ -304,7 +303,6 @@ class MedicineLogModelTest(MedicineTestMixin, TestCase):
 
     def test_log_mark_taken(self):
         """Log can be marked as taken."""
-        from datetime import datetime
         log = MedicineLog.objects.create(
             user=self.user,
             medicine=self.medicine,
@@ -1068,7 +1066,7 @@ class MedicineSupplyTest(MedicineTestMixin, TestCase):
 
     def test_low_supply_shown_on_home(self):
         """Low supply warning appears on medicine home."""
-        medicine = self.create_medicine(
+        self.create_medicine(
             self.user,
             current_supply=5,
             refill_threshold=7
@@ -1119,7 +1117,7 @@ class MedicineEdgeCaseTest(MedicineTestMixin, TestCase):
 
     def test_history_with_date_filter(self):
         """History can be filtered by date."""
-        medicine = self.create_medicine(self.user)
+        self.create_medicine(self.user)
         start_date = (timezone.now().date() - timedelta(days=7)).isoformat()
         end_date = timezone.now().date().isoformat()
 

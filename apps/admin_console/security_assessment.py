@@ -24,9 +24,7 @@ analysis of the current security posture.
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional
 
-from django.conf import settings
 from django.utils import timezone
 
 

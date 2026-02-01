@@ -6,7 +6,6 @@ Tests for goals, annual direction, and reflections.
 Location: apps/purpose/tests/test_purpose.py
 """
 
-from datetime import date, timedelta
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.contrib.auth import get_user_model

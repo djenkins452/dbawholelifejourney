@@ -155,7 +155,7 @@ class GitProtectionService:
 
         return GitResult(
             success=True,
-            message=f"Changes committed successfully",
+            message="Changes committed successfully",
             commit_hash=new_hash,
             output=result.stdout
         )

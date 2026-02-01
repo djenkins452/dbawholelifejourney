@@ -349,7 +349,6 @@ class APIRequestLoggingMiddleware:
     def _log_request(self, request, response, response_time_ms, wlj_settings):
         """Log the API request and check for anomalies."""
         from apps.core.models import APIRequestLog
-        from apps.core.security_logging import log_security_event
 
         # Extract error message if present
         error_message = ""

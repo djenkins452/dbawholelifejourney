@@ -102,7 +102,7 @@ def moderate_ai_profile(content: str) -> ProfileModerationResult:
     content_lower = content.lower()
     for pattern in INJECTION_PATTERNS:
         if re.search(pattern, content_lower, re.IGNORECASE):
-            logger.warning(f"Prompt injection attempt detected in AI profile")
+            logger.warning("Prompt injection attempt detected in AI profile")
             return ProfileModerationResult(
                 is_safe=False,
                 sanitized_content='',
@@ -112,7 +112,7 @@ def moderate_ai_profile(content: str) -> ProfileModerationResult:
     # Check for harmful content
     for pattern in HARMFUL_PATTERNS:
         if re.search(pattern, content_lower, re.IGNORECASE):
-            logger.warning(f"Harmful content detected in AI profile")
+            logger.warning("Harmful content detected in AI profile")
             return ProfileModerationResult(
                 is_safe=False,
                 sanitized_content='',

@@ -17,9 +17,9 @@ batch job.
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import timedelta
 
-from django.db.models.signals import post_save, post_delete
+from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils import timezone
 

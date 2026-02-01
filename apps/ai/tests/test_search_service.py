@@ -7,11 +7,9 @@ across all WLJ modules.
 
 from datetime import date, timedelta
 from decimal import Decimal
-from unittest.mock import patch, MagicMock
 
 from django.test import TestCase
 from django.contrib.auth import get_user_model
-from django.utils import timezone
 
 from apps.ai.search_service import SearchService
 

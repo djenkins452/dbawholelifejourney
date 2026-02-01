@@ -6,7 +6,7 @@ Tests for weight tracking, fasting, glucose, and heart rate.
 Location: apps/health/tests/test_health.py
 """
 
-from datetime import date, timedelta
+from datetime import timedelta
 from decimal import Decimal
 from django.test import TestCase, Client
 from django.urls import reverse
@@ -48,7 +48,7 @@ class WeightEntryModelTest(TestCase):
     
     def test_weight_entry_ordering(self):
         """Weight entries are ordered by most recent first."""
-        entry1 = WeightEntry.objects.create(
+        WeightEntry.objects.create(
             user=self.user,
             value=Decimal('185.0'),
             unit='lb'
@@ -190,7 +190,7 @@ class HealthViewTest(TestCase):
     def test_weight_can_be_logged(self):
         """User can log a weight entry via form."""
         # Create entry directly to test model works
-        entry = WeightEntry.objects.create(
+        WeightEntry.objects.create(
             user=self.user,
             value=Decimal('185.5'),
             unit='lb'
@@ -204,7 +204,7 @@ class HealthViewTest(TestCase):
     
     def test_fasting_can_be_created(self):
         """Fasting window can be created."""
-        fast = FastingWindow.objects.create(
+        FastingWindow.objects.create(
             user=self.user,
             started_at=timezone.now()
         )

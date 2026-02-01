@@ -1,6 +1,5 @@
 """Tests for capture storage utilities."""
 
-import sys
 from datetime import timedelta
 from unittest.mock import MagicMock, patch
 
@@ -8,7 +7,6 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from apps.capture.storage import (
-    CaptureStorageError,
     CaptureStorageNotConfiguredError,
     _get_extension_from_content_type,
     is_storage_configured,

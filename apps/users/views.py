@@ -64,7 +64,7 @@ from apps.core.utils import hash_pii
 from apps.help.mixins import HelpContextMixin
 
 from .forms import CustomSignupForm, ProfileForm, PreferencesForm
-from .models import TermsAcceptance, UserPreferences
+from .models import TermsAcceptance
 
 logger = logging.getLogger(__name__)
 
@@ -258,7 +258,7 @@ class PreferencesView(HelpContextMixin, LoginRequiredMixin, UpdateView):
         ]) if ai_personal_context else 0
 
         # Module navigation order for drag-and-drop reordering
-        from apps.users.models import ModuleDefinition, UserModulePreference
+        from apps.users.models import UserModulePreference
         UserModulePreference.initialize_for_user(self.request.user)
         nav_module_prefs = UserModulePreference.objects.filter(
             user=self.request.user
@@ -941,7 +941,6 @@ class SubFeaturesBulkView(LoginRequiredMixin, View):
 
     def post(self, request, *args, **kwargs):
         import json
-        from apps.users.models import UserPreferences
 
         try:
             data = json.loads(request.body)
@@ -1164,14 +1163,9 @@ class AIProfileBuilderView(LoginRequiredMixin, View):
 import base64
 import hashlib
 import json
-import os
 import secrets
 import logging
 
-from django.contrib.auth import login
-from django.utils import timezone
-from django.views.decorators.csrf import csrf_exempt
-from django.utils.decorators import method_decorator
 
 from .models import WebAuthnCredential
 
@@ -1943,7 +1937,7 @@ class ModuleOrderView(LoginRequiredMixin, View):
     """
 
     def get(self, request, *args, **kwargs):
-        from .models import ModuleDefinition, UserModulePreference
+        from .models import UserModulePreference
 
         # Initialize preferences if needed
         UserModulePreference.initialize_for_user(request.user)
@@ -1967,7 +1961,7 @@ class ModuleOrderView(LoginRequiredMixin, View):
 
     def post(self, request, *args, **kwargs):
         import json
-        from .models import ModuleDefinition, UserModulePreference
+        from .models import UserModulePreference
 
         try:
             data = json.loads(request.body)
@@ -2275,7 +2269,7 @@ class ExportAccountDataView(LoginRequiredMixin, View):
         try:
             from apps.health.models import (
                 WeightEntry, StepsEntry, WaterEntry, SleepEntry,
-                FastingWindow, Medicine, MedicineLog, WorkoutSession,
+                FastingWindow, Medicine, WorkoutSession,
                 GlucoseEntry, BloodPressureEntry, FoodEntry
             )
 

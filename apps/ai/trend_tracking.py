@@ -22,13 +22,12 @@ from datetime import timedelta
 from typing import Dict, List, Optional, Any
 
 from django.db import models
-from django.db.models import Count, Avg, Sum, F
+from django.db.models import Count, Avg, Sum
 from django.utils import timezone
 
 from .services import ai_service, AIService
 from .models import (
-    UserStateSnapshot, TrendAnalysis, DailyPriority,
-    AIInsight
+    UserStateSnapshot, TrendAnalysis
 )
 
 logger = logging.getLogger(__name__)

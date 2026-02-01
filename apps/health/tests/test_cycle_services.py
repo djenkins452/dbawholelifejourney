@@ -11,11 +11,9 @@ Location: apps/health/tests/test_cycle_services.py
 
 from datetime import date, timedelta
 from decimal import Decimal
-from unittest.mock import patch
 
 from django.test import TestCase
 from django.contrib.auth import get_user_model
-from django.utils import timezone
 
 from apps.health.models import (
     CycleSettings,
@@ -133,7 +131,7 @@ class CycleDetectionServiceTest(CycleServiceTestBase):
         service = CycleDetectionService(self.user)
 
         # Create ongoing cycle starting 5 days ago
-        cycle = Cycle.objects.create(
+        Cycle.objects.create(
             user=self.user,
             start_date=date.today() - timedelta(days=5),
         )

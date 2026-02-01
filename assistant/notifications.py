@@ -7,7 +7,6 @@ errors, and approval requests.
 """
 
 from dataclasses import dataclass
-from datetime import datetime
 from typing import Dict, List, Optional
 
 from django.conf import settings

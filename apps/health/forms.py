@@ -20,10 +20,8 @@ from .models import (
     BloodOxygenEntry,
     BloodPressureEntry,
     CustomFood,
-    DailyNutritionSummary,
     FastingWindow,
     FoodEntry,
-    FoodItem,
     GlucoseEntry,
     HeartRateEntry,
     MedicalProvider,
@@ -737,7 +735,6 @@ class MedicineLogEditForm(forms.ModelForm):
         # Recalculate the status based on the new taken_at time
         if instance.taken_at and instance.scheduled_time:
             from datetime import datetime, timedelta
-            import pytz
 
             user_tz = get_user_timezone(self.user)
 

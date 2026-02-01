@@ -89,7 +89,7 @@ class Command(BaseCommand):
 
         if confirm_delete:
             # Hard delete
-            deleted_result = recurring_tasks.delete()
+            recurring_tasks.delete()
             self.stdout.write('')
             self.stdout.write(self.style.SUCCESS('=' * 70))
             self.stdout.write(self.style.SUCCESS(f'DELETED {count} recurring tasks for {email}'))

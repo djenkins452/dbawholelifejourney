@@ -16,6 +16,33 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-02-01 Changes
 
+### Comprehensive Lint Fixes - 871 Errors Resolved
+
+**Summary:** Fixed lint errors detected by ruff, reducing from 938 to 67 (remaining are intentional E402 for Django scripts).
+
+**Critical Bug Fixes:**
+- `apps/dashboard/views.py` - Added missing `logger` (was causing runtime errors)
+- `apps/purpose/views.py` - Added missing `json` import
+- `apps/admin_console/views.py` - Added missing `models` import
+- `apps/core/services/notification_service.py` - Added TYPE_CHECKING for forward reference
+- `apps/life/models.py` - Merged duplicate `save()` methods (second was shadowing first)
+- `apps/faith/management/commands/load_gospel_plans.py` - Removed duplicate dict keys (data was being lost)
+- `apps/health/serializers.py` - Fixed bare except clauses with proper exception types
+- `apps/finance/services/plaid_service.py` - Removed unused imports in client init
+
+**Auto-fixed by ruff:**
+- 452 unused imports (F401)
+- 316 unused variables (F841)
+- 41 empty f-strings (F541)
+- 24 redefined variables (F811)
+
+**Style fixes:**
+- `apps/security/tests/test_admin.py` - Renamed ambiguous `l` loop variable to `item`
+
+**Tests:** All 1395 tests passing
+
+---
+
 ### Full System Testing - Test Fixes
 
 **Summary:** Fixed 7 failing tests across security admin filters and capture navigation tests.

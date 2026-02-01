@@ -19,11 +19,8 @@ See docs/wlj_bank_integration_architecture.md for architecture details.
 """
 
 import logging
-from datetime import date
 from decimal import Decimal
-from typing import Optional
 
-from django.db import transaction
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)

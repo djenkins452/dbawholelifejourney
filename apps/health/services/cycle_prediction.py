@@ -23,7 +23,6 @@ from decimal import Decimal
 from statistics import stdev
 from typing import Optional
 
-from django.utils import timezone
 
 from ..models import Cycle, CyclePrediction, CycleSettings
 

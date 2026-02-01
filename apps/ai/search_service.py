@@ -21,11 +21,10 @@ Each search method returns:
 }
 """
 
-from datetime import date, datetime, timedelta
-from typing import Dict, List, Optional, Tuple, Any
+from datetime import date
+from typing import Dict, List, Optional, Tuple
 from django.db.models import Q
 from django.urls import reverse
-from django.utils import timezone
 
 
 class SearchService:
@@ -471,7 +470,7 @@ class SearchService:
         Returns:
             Standardized search results dict
         """
-        from apps.purpose.models import LifeGoal, GoalMilestone
+        from apps.purpose.models import LifeGoal
 
         # Search goals
         goals = LifeGoal.objects.filter(user=self.user)

@@ -1,6 +1,5 @@
 """Tests for PDF generation service and view."""
 
-import json
 from unittest.mock import MagicMock, patch
 
 from django.conf import settings
@@ -110,7 +109,7 @@ class PDFGenerationServiceTests(TestCase):
 
     def test_generate_pdf_raises_import_error_without_weasyprint(self):
         """generate_pdf raises ImportError if WeasyPrint not installed."""
-        entry = CaptureEntry.objects.create(
+        CaptureEntry.objects.create(
             user=self.user,
             title='Test Entry',
             status=CaptureEntry.STATUS_READY,
@@ -146,8 +145,6 @@ class PDFGenerationServiceTests(TestCase):
 
         # Patch the weasyprint import inside the function
         with patch.dict('sys.modules', {'weasyprint': mock_weasyprint}):
-            from importlib import reload
-            import apps.capture.services.pdf as pdf_module
             # Force re-import to pick up mocked weasyprint
             # Actually, we need to call generate_pdf directly with the mock in place
 

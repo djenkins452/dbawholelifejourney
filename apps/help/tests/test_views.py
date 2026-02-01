@@ -11,7 +11,7 @@ from django.contrib.auth import get_user_model
 
 from apps.help.models import (
     HelpTopic, AdminHelpTopic,
-    HelpCategory, HelpArticle, HelpConversation, HelpMessage
+    HelpCategory, HelpArticle, HelpConversation
 )
 
 User = get_user_model()

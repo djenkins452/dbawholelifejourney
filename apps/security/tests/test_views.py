@@ -477,7 +477,7 @@ class FindingTrendAPIViewTest(SecurityTestMixin, TestCase):
 
     def test_finding_trend_api(self):
         """Test finding trend API."""
-        run = SecurityRun.objects.create(
+        SecurityRun.objects.create(
             status=SecurityRun.STATUS_COMPLETED,
             new_findings=5,
             recurring_findings=3,

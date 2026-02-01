@@ -332,7 +332,6 @@ class WeatherService:
 
         # Check for severe weather codes (today and next 2 days)
         codes = daily.get("weather_code", [])[:3]
-        days = ["Today", "Tomorrow", "Day after tomorrow"]
 
         for i, code in enumerate(codes):
             if code in SEVERE_WEATHER_CODES:

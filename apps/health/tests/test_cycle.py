@@ -22,10 +22,7 @@ from apps.health.models import (
     CycleDailyLog,
     Cycle,
     CyclePrediction,
-    CYCLE_SYMPTOM_CHOICES,
-    CYCLE_MOOD_CHOICES,
     FLOW_LEVEL_CHOICES,
-    CERVICAL_MUCUS_CHOICES,
 )
 from apps.users.models import TermsAcceptance
 
@@ -591,7 +588,7 @@ class CyclePredictionModelTest(CycleModelTestBase):
     def test_get_active_prediction_returns_latest_unverified(self):
         """Test get_active_prediction returns latest unverified prediction."""
         # Create older prediction (verified)
-        old_prediction = CyclePrediction.objects.create(
+        CyclePrediction.objects.create(
             user=self.user,
             predicted_period_start=date.today() - timedelta(days=14),
             predicted_period_end=date.today() - timedelta(days=10),
@@ -718,8 +715,6 @@ class CyclePredictionModelTest(CycleModelTestBase):
 
     def test_ordering_by_generated_at_desc(self):
         """Test predictions are ordered by generated_at descending."""
-        from django.utils import timezone
-        from datetime import datetime
 
         # Create predictions with different generated_at times
         pred1 = CyclePrediction.objects.create(

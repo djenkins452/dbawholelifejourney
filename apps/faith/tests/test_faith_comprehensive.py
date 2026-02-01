@@ -14,11 +14,10 @@ This test file covers:
 Location: apps/faith/tests/test_faith_comprehensive.py
 """
 
-from datetime import date, timedelta
+from datetime import date
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.contrib.auth import get_user_model
-from django.utils import timezone
 
 from apps.faith.models import PrayerRequest, FaithMilestone, ScriptureVerse
 
@@ -127,7 +126,7 @@ class ScriptureVerseModelTest(FaithTestMixin, TestCase):
     
     def test_verse_ordering(self):
         """Verses are ordered by book order, chapter, verse."""
-        verse_later = self.create_verse(
+        self.create_verse(
             reference='Romans 8:28',
             book_name='Romans',
             book_order=45,
@@ -147,19 +146,19 @@ class ScriptureVerseModelTest(FaithTestMixin, TestCase):
     
     def test_filter_active_verses(self):
         """Can filter to only active verses."""
-        active = self.create_verse(reference='Active', is_active=True)
-        inactive = self.create_verse(reference='Inactive', is_active=False)
+        self.create_verse(reference='Active', is_active=True)
+        self.create_verse(reference='Inactive', is_active=False)
         
         active_verses = ScriptureVerse.objects.filter(is_active=True)
         self.assertEqual(active_verses.count(), 1)
     
     def test_filter_by_theme(self):
         """Can filter verses by theme (using Python filtering for SQLite compatibility)."""
-        peace_verse = self.create_verse(
+        self.create_verse(
             reference='Peace Verse',
             themes=['peace', 'comfort']
         )
-        strength_verse = self.create_verse(
+        self.create_verse(
             reference='Strength Verse',
             themes=['strength', 'courage']
         )
@@ -248,7 +247,7 @@ class PrayerRequestModelTest(FaithTestMixin, TestCase):
     
     def test_ordering_by_created_at(self):
         """Prayers are ordered by most recent first."""
-        old_prayer = self.create_prayer(self.user, title='Old')
+        self.create_prayer(self.user, title='Old')
         new_prayer = self.create_prayer(self.user, title='New')
         
         prayers = PrayerRequest.objects.filter(user=self.user)
@@ -304,7 +303,7 @@ class FaithMilestoneModelTest(FaithTestMixin, TestCase):
     
     def test_ordering_by_date(self):
         """Milestones are ordered by date descending."""
-        old = self.create_milestone(
+        self.create_milestone(
             self.user,
             title='Old',
             date=date(2020, 1, 1)
@@ -394,7 +393,7 @@ class FaithFormTest(FaithTestMixin, TestCase):
     
     def test_create_prayer_with_valid_data(self):
         """Prayer can be created with valid data."""
-        response = self.client.post(reverse('faith:prayer_create'), {
+        self.client.post(reverse('faith:prayer_create'), {
             'title': 'New Prayer Request',
             'description': 'Please help with this situation',
             'priority': 'normal',
@@ -407,7 +406,7 @@ class FaithFormTest(FaithTestMixin, TestCase):
     
     def test_create_milestone_with_valid_data(self):
         """Milestone can be created with valid data."""
-        response = self.client.post(reverse('faith:milestone_create'), {
+        self.client.post(reverse('faith:milestone_create'), {
             'title': 'My Baptism',
             'milestone_type': 'baptism',
             'date': '2020-06-15',
@@ -422,7 +421,7 @@ class FaithFormTest(FaithTestMixin, TestCase):
         """Prayer can be updated."""
         prayer = self.create_prayer(self.user, title='Original')
         
-        response = self.client.post(
+        self.client.post(
             reverse('faith:prayer_update', kwargs={'pk': prayer.pk}),
             {
                 'title': 'Updated Prayer',
@@ -496,7 +495,7 @@ class FaithBusinessLogicTest(FaithTestMixin, TestCase):
     
     def test_filter_answered_prayers(self):
         """Can filter answered prayers."""
-        unanswered = self.create_prayer(self.user, title='Unanswered')
+        self.create_prayer(self.user, title='Unanswered')
         answered = self.create_prayer(self.user, title='Answered')
         answered.mark_answered()
         
@@ -508,8 +507,8 @@ class FaithBusinessLogicTest(FaithTestMixin, TestCase):
     
     def test_filter_urgent_prayers(self):
         """Can filter urgent prayers."""
-        normal = self.create_prayer(self.user, priority='normal')
-        urgent = self.create_prayer(self.user, priority='urgent')
+        self.create_prayer(self.user, priority='normal')
+        self.create_prayer(self.user, priority='urgent')
         
         urgent_prayers = PrayerRequest.objects.filter(
             user=self.user, priority='urgent'
@@ -518,8 +517,8 @@ class FaithBusinessLogicTest(FaithTestMixin, TestCase):
     
     def test_filter_daily_reminder_prayers(self):
         """Can filter prayers with daily reminders."""
-        regular = self.create_prayer(self.user, remind_daily=False)
-        daily = self.create_prayer(self.user, remind_daily=True)
+        self.create_prayer(self.user, remind_daily=False)
+        self.create_prayer(self.user, remind_daily=True)
         
         daily_prayers = PrayerRequest.objects.filter(
             user=self.user, remind_daily=True
@@ -528,10 +527,10 @@ class FaithBusinessLogicTest(FaithTestMixin, TestCase):
     
     def test_milestones_by_type(self):
         """Can filter milestones by type."""
-        baptism = self.create_milestone(
+        self.create_milestone(
             self.user, title='Baptism', milestone_type='baptism'
         )
-        salvation = self.create_milestone(
+        self.create_milestone(
             self.user, title='Salvation', milestone_type='salvation'
         )
         

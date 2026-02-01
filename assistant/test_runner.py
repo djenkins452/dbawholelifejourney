@@ -5,7 +5,6 @@ This module provides automated test generation and execution to validate
 improvements to the intent detector and data service before deployment.
 """
 
-import os
 import re
 import shutil
 import subprocess

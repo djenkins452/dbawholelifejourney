@@ -22,7 +22,6 @@ Security Notes:
 - Timeout protection
 """
 
-import base64
 import json
 import logging
 import time

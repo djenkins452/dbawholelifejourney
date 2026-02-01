@@ -245,12 +245,12 @@ class FeatureSuggestionAdmin(admin.ModelAdmin):
     def mark_implemented(self, request, queryset):
         for suggestion in queryset.filter(status__in=['submitted', 'reviewing', 'planned']):
             suggestion.mark_implemented()
-        self.message_user(request, f'Marked as implemented and rewards given.')
+        self.message_user(request, 'Marked as implemented and rewards given.')
 
     @admin.action(description='Mark as declined')
     def mark_declined(self, request, queryset):
         queryset.update(status='declined')
-        self.message_user(request, f'Marked as declined.')
+        self.message_user(request, 'Marked as declined.')
 
 
 @admin.register(CreditTransaction)

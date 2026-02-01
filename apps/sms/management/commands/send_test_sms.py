@@ -47,7 +47,7 @@ class Command(BaseCommand):
         # Check Twilio configuration
         twilio = TwilioService()
 
-        self.stdout.write(f"\nTwilio Configuration:")
+        self.stdout.write("\nTwilio Configuration:")
         self.stdout.write(f"  Account SID: {'Set' if twilio.account_sid else 'NOT SET'}")
         self.stdout.write(f"  Auth Token: {'Set' if twilio.auth_token else 'NOT SET'}")
         self.stdout.write(f"  Phone Number: {twilio.phone_number or 'NOT SET'}")
@@ -64,7 +64,7 @@ class Command(BaseCommand):
             return
 
         # Send the test SMS
-        self.stdout.write(f"\nSending SMS...")
+        self.stdout.write("\nSending SMS...")
         result = twilio.send_sms(phone_number, message)
 
         if result['success']:

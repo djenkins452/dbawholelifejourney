@@ -207,7 +207,7 @@ class TestProcessAutonomousTasks(TransactionTestCase):
     def test_skip_unsafe_autonomous_tasks(self, mock_executor_class):
         """Test that unsafe tasks are skipped."""
         # Create autonomous task
-        task = ImprovementTaskModel.objects.create(
+        ImprovementTaskModel.objects.create(
             title="Unsafe Task",
             gap_type=ImprovementTaskModel.GAP_TYPE_MISSING_KEYWORDS,
             severity=ImprovementTaskModel.SEVERITY_LOW,
@@ -333,7 +333,7 @@ class TestGetQueueStatus(TransactionTestCase):
             suggested_fix="Fix",
             status=ImprovementTaskModel.STATUS_IN_PROGRESS,
         )
-        completed = ImprovementTaskModel.objects.create(
+        ImprovementTaskModel.objects.create(
             title="Completed Task",
             gap_type=ImprovementTaskModel.GAP_TYPE_MISSING_KEYWORDS,
             severity=ImprovementTaskModel.SEVERITY_LOW,
@@ -342,7 +342,7 @@ class TestGetQueueStatus(TransactionTestCase):
             status=ImprovementTaskModel.STATUS_COMPLETED,
             completed_at=timezone.now(),
         )
-        error = ImprovementTaskModel.objects.create(
+        ImprovementTaskModel.objects.create(
             title="Error Task",
             gap_type=ImprovementTaskModel.GAP_TYPE_MISSING_KEYWORDS,
             severity=ImprovementTaskModel.SEVERITY_MEDIUM,

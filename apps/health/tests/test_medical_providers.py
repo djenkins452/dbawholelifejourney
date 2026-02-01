@@ -221,7 +221,7 @@ class MedicalProviderViewTests(MedicalProviderTestMixin, TestCase):
 
     def test_provider_list_view(self):
         """Test provider list view."""
-        provider = self.create_provider(self.user, name='Dr. Test')
+        self.create_provider(self.user, name='Dr. Test')
 
         response = self.client.get(reverse('health:provider_list'))
 
@@ -407,8 +407,8 @@ class UserIsolationTests(MedicalProviderTestMixin, TestCase):
 
     def test_provider_list_isolation(self):
         """Test that users only see their own providers in list."""
-        provider1 = self.create_provider(self.user1, name='User1 Provider')
-        provider2 = self.create_provider(self.user2, name='User2 Provider')
+        self.create_provider(self.user1, name='User1 Provider')
+        self.create_provider(self.user2, name='User2 Provider')
 
         # Login as user1
         self.client.login(email='user1@example.com', password='testpass123')

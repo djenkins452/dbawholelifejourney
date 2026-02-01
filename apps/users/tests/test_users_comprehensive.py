@@ -310,7 +310,7 @@ class AuthenticationFlowTest(UsersTestMixin, TestCase):
     
     def test_login_redirect_after_success(self):
         """Successful login redirects to dashboard."""
-        user = self.create_user_with_terms()
+        self.create_user_with_terms()
         
         response = self.client.post(reverse('account_login'), {
             'login': 'test@example.com',
@@ -322,7 +322,7 @@ class AuthenticationFlowTest(UsersTestMixin, TestCase):
     
     def test_logout_redirect(self):
         """Logout redirects to appropriate page."""
-        user = self.create_user_with_terms()
+        self.create_user_with_terms()
         self.login_user()
         
         response = self.client.get(reverse('account_logout'))

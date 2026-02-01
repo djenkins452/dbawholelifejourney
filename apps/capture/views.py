@@ -6,7 +6,6 @@ import os
 import tempfile
 import uuid
 
-from django.conf import settings
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Q
 from django.http import JsonResponse
@@ -579,7 +578,7 @@ class CaptureSubmitView(LoginRequiredMixin, View):
         filename = data.get('filename', '')
         title = data.get('title', '')
         duration_seconds = data.get('duration_seconds')
-        content_type = data.get('content_type', 'audio/webm')
+        data.get('content_type', 'audio/webm')
 
         # Determine title
         if title:
@@ -1400,7 +1399,7 @@ class CaptureFileUploadView(LoginRequiredMixin, View):
         content_type = audio_file.content_type
         if content_type not in self.ACCEPTED_MIME_TYPES:
             return JsonResponse({
-                'error': f'Invalid file type. Accepted types: mp3, m4a, wav, webm, ogg'
+                'error': 'Invalid file type. Accepted types: mp3, m4a, wav, webm, ogg'
             }, status=400)
 
         # Generate a client_id for tracking

@@ -15,7 +15,7 @@ Usage:
 """
 
 import logging
-from datetime import date, timedelta
+from datetime import timedelta
 
 from django.core.management.base import BaseCommand
 from django.db import transaction
@@ -57,7 +57,7 @@ class Command(BaseCommand):
         """
         Send preview emails to students turning 23 in 30 days.
         """
-        target_date = today + timedelta(days=30)
+        today + timedelta(days=30)
 
         # Find students whose 23rd birthday is in 30 days
         profiles = self._get_students_with_birthday_in_days(30)

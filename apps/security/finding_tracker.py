@@ -19,9 +19,7 @@ Uses finding_key for stable identification across runs.
 
 import hashlib
 import logging
-from typing import Optional
 
-from django.db.models import Q
 
 logger = logging.getLogger(__name__)
 
@@ -184,7 +182,7 @@ def get_improvement_metrics(days: int = 30) -> dict:
     """
     from django.utils import timezone
     from datetime import timedelta
-    from apps.security.models import SecurityRun, SecurityScore
+    from apps.security.models import SecurityRun
 
     cutoff = timezone.now() - timedelta(days=days)
 

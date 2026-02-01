@@ -11,8 +11,6 @@ Tests cover:
 
 import base64
 import json
-import uuid
-from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
@@ -336,7 +334,7 @@ class NoImageStorageTests(ScanTestMixin, TestCase):
 
     def test_scan_log_does_not_store_image(self):
         """Test that ScanLog doesn't have image storage field."""
-        log = ScanLog.objects.create(
+        ScanLog.objects.create(
             user=self.user,
             status=ScanLog.STATUS_SUCCESS,
             category='food',

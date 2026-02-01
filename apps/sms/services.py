@@ -21,7 +21,6 @@ import re
 from base64 import b64encode
 from datetime import timedelta
 from typing import Optional
-from urllib.parse import urlencode
 
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
@@ -633,7 +632,6 @@ class SMSNotificationService:
             response.mark_processed("No notification to respond to")
             return "No matching notification found"
 
-        category = notification.category
         action = response.parsed_action
 
         try:
@@ -675,7 +673,7 @@ class SMSNotificationService:
         new_time = timezone.now() + timedelta(minutes=minutes)
 
         # Create a new notification
-        new_notification = SMSNotification.objects.create(
+        SMSNotification.objects.create(
             user=notification.user,
             category=notification.category,
             message=notification.message,

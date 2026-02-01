@@ -1,6 +1,5 @@
 """Tests for error handling and retry functionality in Capture feature."""
 
-from datetime import timedelta
 from unittest.mock import MagicMock, patch
 
 from django.conf import settings

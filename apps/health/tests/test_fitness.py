@@ -138,8 +138,8 @@ class ExerciseModelTest(FitnessTestMixin, TestCase):
 
     def test_exercise_ordering(self):
         """Exercises are ordered by category and name."""
-        cardio = self.create_exercise(name='Cycling', category='cardio', muscle_group='')
-        resistance = self.create_exercise(name='Bicep Curl', category='resistance', muscle_group='Arms')
+        self.create_exercise(name='Cycling', category='cardio', muscle_group='')
+        self.create_exercise(name='Bicep Curl', category='resistance', muscle_group='Arms')
 
         exercises = Exercise.objects.all()
         # Cardio should come after resistance alphabetically
@@ -225,7 +225,7 @@ class WorkoutSessionModelTest(FitnessTestMixin, TestCase):
 
     def test_workout_ordering(self):
         """Workouts are ordered by date (most recent first)."""
-        old_workout = self.create_workout(
+        self.create_workout(
             self.user,
             name='Old Workout',
             workout_date=date.today() - timedelta(days=7)
@@ -305,7 +305,7 @@ class WorkoutCRUDViewTest(FitnessTestMixin, TestCase):
 
     def test_workout_list_shows_workouts(self):
         """Workout list shows user's workouts."""
-        workout = self.create_workout(self.user, name='My Workout')
+        self.create_workout(self.user, name='My Workout')
 
         response = self.client.get(reverse('health:workout_list'))
 
@@ -407,7 +407,7 @@ class TemplateCRUDViewTest(FitnessTestMixin, TestCase):
 
     def test_template_list_shows_templates(self):
         """Template list shows user's templates."""
-        template = self.create_template(self.user, name='Push Day')
+        self.create_template(self.user, name='Push Day')
 
         response = self.client.get(reverse('health:template_list'))
 
@@ -648,7 +648,7 @@ class FitnessHomeViewTest(FitnessTestMixin, TestCase):
 
     def test_fitness_home_shows_recent_workouts(self):
         """Fitness home shows recent workouts."""
-        workout = self.create_workout(self.user, name='Recent Workout')
+        self.create_workout(self.user, name='Recent Workout')
 
         response = self.client.get(reverse('health:fitness_home'))
 
@@ -656,7 +656,7 @@ class FitnessHomeViewTest(FitnessTestMixin, TestCase):
 
     def test_fitness_home_shows_templates(self):
         """Fitness home shows user's templates."""
-        template = self.create_template(self.user, name='My Template')
+        self.create_template(self.user, name='My Template')
 
         response = self.client.get(reverse('health:fitness_home'))
 

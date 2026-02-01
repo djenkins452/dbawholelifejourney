@@ -503,7 +503,6 @@ class AssistantConversation(models.Model):
     @classmethod
     def get_or_create_active(cls, user):
         """Get or create an active conversation for today."""
-        from django.utils import timezone
         from apps.core.utils import get_user_today
 
         today = get_user_today(user)

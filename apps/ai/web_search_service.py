@@ -21,7 +21,6 @@ import logging
 import re
 import requests
 from typing import Optional, Dict, Any
-from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
@@ -133,10 +132,10 @@ def get_weather(query: str, user_location: str = None) -> Optional[str]:
 
     except requests.RequestException as e:
         logger.error(f"Weather API request failed: {e}")
-        return f"I'm having trouble getting weather data right now. Please try again in a moment."
+        return "I'm having trouble getting weather data right now. Please try again in a moment."
     except Exception as e:
         logger.error(f"Weather processing error: {e}")
-        return f"Something went wrong getting the weather. Please try again."
+        return "Something went wrong getting the weather. Please try again."
 
 
 def _geocode_location(location: str) -> Optional[tuple]:

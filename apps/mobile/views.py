@@ -23,15 +23,13 @@ endpoints, providing the appropriate authentication mechanism for API clients.
 
 import json
 import logging
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.http import JsonResponse
 from django.utils import timezone
-from django.utils.decorators import method_decorator
-from django.views import View
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
@@ -48,7 +46,7 @@ from apps.health.models import (
 )
 
 from apps.core.utils import hash_pii
-from .middleware import get_client_ip, require_auth, require_mobile_auth
+from .middleware import get_client_ip, require_mobile_auth
 from .models import (
     HealthIngestionRun,
     MobileAPIToken,

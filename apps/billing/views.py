@@ -123,7 +123,7 @@ def checkout_success(request):
     if session_id:
         try:
             stripe_client = get_stripe()
-            session = stripe_client.checkout.Session.retrieve(session_id)
+            stripe_client.checkout.Session.retrieve(session_id)
             # Session data can be used to show confirmation details
         except Exception:
             pass

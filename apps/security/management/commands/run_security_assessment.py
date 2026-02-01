@@ -24,7 +24,6 @@ Options:
 import json
 import time
 from datetime import datetime
-from decimal import Decimal
 
 from django.core.management.base import BaseCommand
 from django.utils import timezone
@@ -255,7 +254,7 @@ class Command(BaseCommand):
 
             self.stdout.write('')
             self.stdout.write(self.style.SUCCESS(
-                f'View dashboard at: /security/dashboard/'
+                'View dashboard at: /security/dashboard/'
             ))
 
         except Exception as e:

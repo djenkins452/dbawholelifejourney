@@ -417,7 +417,7 @@ class SignalCacheInvalidationTest(TestCase):
         Note: Uses cache versioning.
         """
         # Create entries and cache
-        entry1 = WeightEntry.objects.create(
+        WeightEntry.objects.create(
             user=self.user,
             value=Decimal("175.0"),
             unit="lb"
@@ -494,7 +494,7 @@ class SignalCacheInvalidationTest(TestCase):
 
         Note: Uses cache versioning.
         """
-        entry1 = JournalEntry.objects.create(
+        JournalEntry.objects.create(
             user=self.user,
             title="Entry 1",
             body="Content"
@@ -555,7 +555,7 @@ class SignalCacheInvalidationTest(TestCase):
             dose="100mg",
             start_date=date.today()
         )
-        log1 = MedicineLog.objects.create(
+        MedicineLog.objects.create(
             user=self.user,
             medicine=medicine,
             scheduled_date=date.today()
@@ -611,7 +611,7 @@ class SignalCacheInvalidationTest(TestCase):
 
         Note: Uses cache versioning.
         """
-        entry1 = FoodEntry.objects.create(
+        FoodEntry.objects.create(
             user=self.user,
             food_name="Test Food",
             quantity=Decimal("1.0"),
@@ -720,7 +720,7 @@ class QueryByIntentCacheTest(TestCase):
 
     def test_query_by_intent_caches_each_type(self):
         """Test that query_by_intent caches each requested data type."""
-        result = self.service.query_by_intent(data_types=['weight', 'journal'])
+        self.service.query_by_intent(data_types=['weight', 'journal'])
 
         # Both should be cached
         weight_key = _generate_cache_key(self.user.id, 'weight')

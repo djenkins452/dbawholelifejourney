@@ -20,7 +20,6 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
-from django.utils import timezone
 
 from apps.health.models import (
     Cycle,
@@ -487,7 +486,7 @@ class CycleHTMXPartialResponseTests(CycleViewTestBase):
 
     def test_day_modal_shows_existing_data(self):
         """Day modal shows existing log data."""
-        log = CycleDailyLog.objects.create(
+        CycleDailyLog.objects.create(
             user=self.user,
             log_date=date.today() - timedelta(days=1),
             flow_level="heavy",

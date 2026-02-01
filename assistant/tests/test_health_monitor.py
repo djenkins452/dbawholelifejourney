@@ -5,12 +5,9 @@ Tests health check functionality, rate calculations, status determination,
 and automatic actions based on health status.
 """
 
-import uuid
-from datetime import timedelta
 from unittest.mock import MagicMock, patch
 
 from django.test import TestCase
-from django.utils import timezone
 
 from assistant.health_monitor import (
     HealthMonitor,

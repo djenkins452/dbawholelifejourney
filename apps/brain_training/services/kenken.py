@@ -7,7 +7,6 @@ Each cage has an operation (+, -, *, /) and target value.
 
 import random
 from copy import deepcopy
-from itertools import permutations
 
 
 class KenKenGenerator:

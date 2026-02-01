@@ -203,7 +203,7 @@ def load_prompts(apps, schema_editor):
         else:
             updated_count += 1
 
-    print(f"\nJournal Prompts Migration:")
+    print("\nJournal Prompts Migration:")
     print(f"  Created: {created_count}")
     print(f"  Updated: {updated_count}")
 

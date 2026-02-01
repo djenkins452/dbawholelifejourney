@@ -15,7 +15,6 @@ from datetime import date, timedelta
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.contrib.auth import get_user_model
-from django.utils import timezone
 
 from apps.core.models import Tag, SiteConfiguration
 from apps.journal.models import JournalEntry  # Uses SoftDeleteModel
@@ -108,13 +107,13 @@ class SoftDeleteModelTest(CoreTestMixin, TestCase):
     
     def test_default_manager_excludes_deleted(self):
         """Default manager excludes deleted records."""
-        active = JournalEntry.objects.create(
+        JournalEntry.objects.create(
             user=self.user,
             title='Active',
             body='Content',
             entry_date=date.today()
         )
-        deleted = JournalEntry.objects.create(
+        JournalEntry.objects.create(
             user=self.user,
             title='Deleted',
             body='Content',
@@ -129,13 +128,13 @@ class SoftDeleteModelTest(CoreTestMixin, TestCase):
     
     def test_all_objects_includes_deleted(self):
         """all_objects manager includes deleted records."""
-        active = JournalEntry.objects.create(
+        JournalEntry.objects.create(
             user=self.user,
             title='Active',
             body='Content',
             entry_date=date.today()
         )
-        deleted = JournalEntry.objects.create(
+        JournalEntry.objects.create(
             user=self.user,
             title='Deleted',
             body='Content',
@@ -255,13 +254,13 @@ class UserOwnedModelTest(CoreTestMixin, TestCase):
     
     def test_filter_by_user(self):
         """Can filter records by user."""
-        entry_a = JournalEntry.objects.create(
+        JournalEntry.objects.create(
             user=self.user_a,
             title='User A',
             body='Content',
             entry_date=date.today()
         )
-        entry_b = JournalEntry.objects.create(
+        JournalEntry.objects.create(
             user=self.user_b,
             title='User B',
             body='Content',
@@ -333,9 +332,9 @@ class TagModelTest(CoreTestMixin, TestCase):
     
     def test_tag_ordering(self):
         """Tags are ordered alphabetically or by creation."""
-        tag_c = self.create_tag(self.user, name='Charlie')
-        tag_a = self.create_tag(self.user, name='Alpha')
-        tag_b = self.create_tag(self.user, name='Beta')
+        self.create_tag(self.user, name='Charlie')
+        self.create_tag(self.user, name='Alpha')
+        self.create_tag(self.user, name='Beta')
         
         tags = Tag.objects.filter(user=self.user)
         # Just verify we get all 3
@@ -400,14 +399,14 @@ class SoftDeleteManagerTest(CoreTestMixin, TestCase):
     
     def test_objects_manager_filters_active(self):
         """Default objects manager returns only active records."""
-        active = JournalEntry.objects.create(
+        JournalEntry.objects.create(
             user=self.user, title='Active', body='x', entry_date=date.today()
         )
-        archived = JournalEntry.objects.create(
+        JournalEntry.objects.create(
             user=self.user, title='Archived', body='x', 
             entry_date=date.today(), status='archived'
         )
-        deleted = JournalEntry.objects.create(
+        JournalEntry.objects.create(
             user=self.user, title='Deleted', body='x', 
             entry_date=date.today(), status='deleted'
         )
@@ -428,10 +427,10 @@ class SoftDeleteManagerTest(CoreTestMixin, TestCase):
     
     def test_filter_archived_only(self):
         """Can filter to get only archived records."""
-        active = JournalEntry.objects.create(
+        JournalEntry.objects.create(
             user=self.user, title='Active', body='x', entry_date=date.today()
         )
-        archived = JournalEntry.objects.create(
+        JournalEntry.objects.create(
             user=self.user, title='Archived', body='x',
             entry_date=date.today(), status='archived'
         )
@@ -444,10 +443,10 @@ class SoftDeleteManagerTest(CoreTestMixin, TestCase):
     
     def test_filter_deleted_only(self):
         """Can filter to get only deleted records."""
-        active = JournalEntry.objects.create(
+        JournalEntry.objects.create(
             user=self.user, title='Active', body='x', entry_date=date.today()
         )
-        deleted = JournalEntry.objects.create(
+        JournalEntry.objects.create(
             user=self.user, title='Deleted', body='x',
             entry_date=date.today(), status='deleted'
         )
@@ -1100,7 +1099,7 @@ class WhatsNewPreferenceTest(CoreTestMixin, TestCase):
 
     def test_can_disable_whats_new(self):
         """User can disable What's New popup via preferences."""
-        response = self.client.post(reverse('users:preferences'), {
+        self.client.post(reverse('users:preferences'), {
             'theme': 'sanctuary',
             'timezone': 'US/Eastern',
             'ai_coaching_style': 'supportive',
@@ -1122,7 +1121,7 @@ class WhatsNewPreferenceTest(CoreTestMixin, TestCase):
         self.user.preferences.show_whats_new = False
         self.user.preferences.save()
 
-        response = self.client.post(reverse('users:preferences'), {
+        self.client.post(reverse('users:preferences'), {
             'theme': 'sanctuary',
             'timezone': 'US/Eastern',
             'ai_coaching_style': 'supportive',

@@ -172,7 +172,7 @@ class CoachingStyle(models.Model):
                 category_map[cat].append(style)
 
             # Build ordered list with display names
-            category_display = dict(cls.CATEGORY_CHOICES)
+            dict(cls.CATEGORY_CHOICES)
             grouped = []
 
             # General (empty) category first

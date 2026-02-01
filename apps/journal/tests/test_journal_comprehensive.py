@@ -143,7 +143,7 @@ class JournalEntryModelTest(JournalTestMixin, TestCase):
     
     def test_entries_ordered_by_date_descending(self):
         """Entries are ordered by most recent first."""
-        old_entry = self.create_entry(
+        self.create_entry(
             self.user, 
             title='Old', 
             entry_date=date.today() - timedelta(days=5)
@@ -327,7 +327,7 @@ class JournalFormTest(JournalTestMixin, TestCase):
     
     def test_create_entry_with_valid_data(self):
         """Entry can be created with valid form data."""
-        response = self.client.post(reverse('journal:entry_create'), {
+        self.client.post(reverse('journal:entry_create'), {
             'title': 'New Entry',
             'body': 'This is my journal content.',
             'entry_date': date.today().isoformat(),
@@ -351,7 +351,7 @@ class JournalFormTest(JournalTestMixin, TestCase):
         """Entry can be created with emotions (mood field is not exposed in form)."""
         # Note: The mood field exists on JournalEntry model but is not exposed
         # via the form. This test verifies basic entry creation works.
-        response = self.client.post(reverse('journal:entry_create'), {
+        self.client.post(reverse('journal:entry_create'), {
             'title': 'Mood Entry',
             'body': 'Feeling good today.',
             'entry_date': date.today().isoformat(),
@@ -365,7 +365,7 @@ class JournalFormTest(JournalTestMixin, TestCase):
         """Entry can be updated."""
         entry = self.create_entry(self.user, title='Original')
         
-        response = self.client.post(
+        self.client.post(
             reverse('journal:entry_update', kwargs={'pk': entry.pk}),
             {
                 'title': 'Updated Title',
@@ -447,7 +447,7 @@ class JournalArchiveTest(JournalTestMixin, TestCase):
         """Entry can be archived via view."""
         entry = self.create_entry(self.user)
         
-        response = self.client.post(
+        self.client.post(
             reverse('journal:entry_archive', kwargs={'pk': entry.pk})
         )
         
@@ -460,7 +460,7 @@ class JournalArchiveTest(JournalTestMixin, TestCase):
         entry.status = 'archived'
         entry.save()
         
-        response = self.client.post(
+        self.client.post(
             reverse('journal:entry_restore', kwargs={'pk': entry.pk})
         )
         
@@ -469,7 +469,7 @@ class JournalArchiveTest(JournalTestMixin, TestCase):
     
     def test_archived_entries_not_in_main_list(self):
         """Archived entries don't appear in main entry list."""
-        active_entry = self.create_entry(self.user, title='UniqueActiveTitle123')
+        self.create_entry(self.user, title='UniqueActiveTitle123')
         archived_entry = self.create_entry(self.user, title='UniqueArchivedTitle456')
         archived_entry.status = 'archived'
         archived_entry.save()
@@ -505,7 +505,7 @@ class JournalDeleteTest(JournalTestMixin, TestCase):
         entry = self.create_entry(self.user)
         entry_pk = entry.pk
         
-        response = self.client.post(
+        self.client.post(
             reverse('journal:entry_delete', kwargs={'pk': entry.pk})
         )
         
@@ -525,7 +525,7 @@ class JournalDeleteTest(JournalTestMixin, TestCase):
     
     def test_deleted_entries_not_in_main_list(self):
         """Deleted entries don't appear in main list."""
-        active_entry = self.create_entry(self.user, title='Active')
+        self.create_entry(self.user, title='Active')
         deleted_entry = self.create_entry(self.user, title='Deleted')
         deleted_entry.status = 'deleted'
         deleted_entry.save()
@@ -658,7 +658,7 @@ class JournalTagTest(JournalTestMixin, TestCase):
     
     def test_create_tag(self):
         """User can create a tag."""
-        response = self.client.post(reverse('journal:tag_create'), {
+        self.client.post(reverse('journal:tag_create'), {
             'name': 'Personal',
             'color': '#FF5733',
         })

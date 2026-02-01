@@ -4,7 +4,6 @@ Django settings for Whole Life Journey.
 A personal life operating system built with calm, clarity, and intention.
 """
 
-import os
 from pathlib import Path
 
 import environ

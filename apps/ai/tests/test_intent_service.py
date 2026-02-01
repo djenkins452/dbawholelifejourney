@@ -16,9 +16,8 @@ Tests cover:
 """
 
 from decimal import Decimal
-from unittest.mock import MagicMock, patch
-from datetime import date, datetime, time
-import json
+from unittest.mock import patch
+from datetime import date
 
 from django.test import TestCase
 from django.utils import timezone
@@ -494,7 +493,6 @@ class ActionHandlerTests(TestCase):
         """Test taking medicine with single match."""
         from apps.ai.action_handlers import ActionHandler
         from apps.health.models import Medicine, MedicineLog
-        from datetime import date
 
         # Create a medicine
         medicine = Medicine.objects.create(
@@ -521,7 +519,6 @@ class ActionHandlerTests(TestCase):
         """Test taking medicine with multiple matches."""
         from apps.ai.action_handlers import ActionHandler
         from apps.health.models import Medicine
-        from datetime import date
 
         # Create multiple matching medicines
         Medicine.objects.create(

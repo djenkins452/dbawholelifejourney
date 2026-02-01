@@ -31,7 +31,6 @@ Usage:
 import logging
 import re
 from dataclasses import dataclass
-from datetime import timedelta
 from typing import Optional, Tuple
 
 from django.conf import settings

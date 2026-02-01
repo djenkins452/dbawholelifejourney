@@ -49,7 +49,6 @@ class Command(BaseCommand):
             RecurringTransactionService,
             process_recurring_transactions,
         )
-        from apps.finance.models import RecurringTransaction
         from apps.users.models import User
 
         dry_run = options['dry_run']

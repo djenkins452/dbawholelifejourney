@@ -19,7 +19,7 @@ Tests for:
 5. PII hash functions (hash_email, hash_ip, hash_fingerprint)
 """
 
-from django.test import TestCase, Client, override_settings
+from django.test import TestCase, Client
 from django.urls import reverse
 from django.contrib.auth import get_user_model
 from django.core import mail
@@ -38,13 +38,13 @@ class EmailVerificationFlowTest(TestCase):
 
     def test_signup_requires_email_verification(self):
         """New signup should create user that requires email verification."""
-        from datetime import date, timedelta
+        from datetime import date
 
         # Calculate DOB for someone 25 years old
         dob = date.today().replace(year=date.today().year - 25)
 
         # Sign up a new user
-        response = self.client.post(self.signup_url, {
+        self.client.post(self.signup_url, {
             'email': 'newuser@example.com',
             'password1': 'SecurePass123!',
             'password2': 'SecurePass123!',
@@ -104,7 +104,7 @@ class EmailVerificationFlowTest(TestCase):
 
         # Visit confirmation URL
         confirm_url = reverse('account_confirm_email', args=[key])
-        response = self.client.post(confirm_url)
+        self.client.post(confirm_url)
 
         # Email should now be verified
         email_address.refresh_from_db()
@@ -142,7 +142,7 @@ class EmailVerificationFlowTest(TestCase):
         # Calculate DOB for someone 25 years old
         dob = date.today().replace(year=date.today().year - 25)
 
-        response = self.client.post(self.signup_url, {
+        self.client.post(self.signup_url, {
             'email': 'brandtest@example.com',
             'password1': 'SecurePass123!',
             'password2': 'SecurePass123!',
@@ -371,10 +371,10 @@ class HoneypotValidationTest(TestCase):
         """Signup with honeypot field filled should be blocked."""
         from apps.users.models import SignupAttempt
 
-        initial_count = SignupAttempt.objects.count()
+        SignupAttempt.objects.count()
 
         # Submit signup with honeypot field filled (simulating a bot)
-        response = self.client.post(self.signup_url, {
+        self.client.post(self.signup_url, {
             'email': 'bot@example.com',
             'password1': 'SecurePass123!',
             'password2': 'SecurePass123!',
@@ -396,7 +396,7 @@ class HoneypotValidationTest(TestCase):
     def test_empty_honeypot_allows_signup(self):
         """Signup without honeypot field filled should proceed normally."""
         # Submit signup with honeypot field empty (normal human behavior)
-        response = self.client.post(self.signup_url, {
+        self.client.post(self.signup_url, {
             'email': 'human@example.com',
             'password1': 'SecurePass123!',
             'password2': 'SecurePass123!',
@@ -420,7 +420,7 @@ class HoneypotValidationTest(TestCase):
     def test_honeypot_not_in_request_allows_signup(self):
         """Signup without honeypot field in request should proceed normally."""
         # Submit signup without honeypot field at all
-        response = self.client.post(self.signup_url, {
+        self.client.post(self.signup_url, {
             'email': 'nofield@example.com',
             'password1': 'SecurePass123!',
             'password2': 'SecurePass123!',

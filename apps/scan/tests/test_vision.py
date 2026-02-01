@@ -15,7 +15,7 @@ from unittest.mock import MagicMock, patch
 
 from django.test import TestCase, override_settings
 
-from apps.scan.services.vision import VisionService, vision_service, ScanResult
+from apps.scan.services.vision import VisionService, ScanResult
 
 
 class VisionServiceTests(TestCase):

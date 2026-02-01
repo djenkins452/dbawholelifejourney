@@ -10,9 +10,7 @@ to provide context-aware responses about user's wellness data.
 import logging
 import re
 from django.db.models import Q
-from django.core.cache import cache
 
-from apps.ai.models import CoachingStyle
 from assistant import process_assistant_message
 from .models import HelpArticle, HelpCategory
 

@@ -20,10 +20,8 @@ Caching Optimizations (2025-12-31):
 - Coaching style prompts cached (1 hour)
 - AIPromptConfig cached (1 hour)
 """
-import hashlib
 import logging
 from typing import Optional
-from datetime import timedelta
 from django.conf import settings
 from django.core.cache import cache
 from django.utils import timezone
@@ -500,7 +498,7 @@ Match your response to your coaching style."""
             for goal in user_data['goals_list'][:2]:
                 domain = goal.get('domain__name', '')
                 title = goal.get('title', '')
-                why = goal.get('why_it_matters', '')[:50]
+                goal.get('why_it_matters', '')[:50]
                 if domain:
                     context_parts.append(f"Goal ({domain}): {title}")
                 else:
@@ -576,7 +574,7 @@ Match your response to your coaching style."""
 
         if user_data.get('weight_goal') and user_data.get('weight_remaining'):
             remaining = abs(user_data['weight_remaining'])
-            direction = user_data.get('weight_direction', 'lose')
+            user_data.get('weight_direction', 'lose')
             if remaining > 0:
                 context_parts.append(f"{remaining} lbs to go to reach weight goal")
 

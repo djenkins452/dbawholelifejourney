@@ -18,17 +18,15 @@ import logging
 import re
 import time
 from dataclasses import dataclass
-from datetime import timedelta
 from typing import List, Optional
 
 from django.core.cache import cache
-from django.utils import timezone
 
 from .file_modifier import SafeFileModifier, ModificationType
 from .git_service import GitProtectionService
 from .models import ImprovementTaskModel
 from .notifications import AdminNotificationService, TaskInfo
-from .safety_limits import SafetyLimitService, check_rate_limits, check_file_modification_limit, is_system_healthy
+from .safety_limits import SafetyLimitService
 from .test_runner import MockTestRunner
 
 
@@ -432,7 +430,7 @@ class ImprovementExecutor:
         self.notification_service.notify_task_completed(
             task=task_info,
             execution_time=execution_time,
-            summary=f"Task completed successfully. Tests passed."
+            summary="Task completed successfully. Tests passed."
         )
         logger.info(f"Admin notified of task {task.id} completion")
 

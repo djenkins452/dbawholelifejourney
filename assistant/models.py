@@ -281,7 +281,6 @@ class ImprovementTaskModel(models.Model):
                 f"Allowed transitions: {allowed}"
             )
 
-        old_status = self.status
         self.status = new_status
 
         # Handle special status transitions

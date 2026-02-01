@@ -17,7 +17,6 @@ from datetime import date, datetime, timedelta
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.contrib.auth import get_user_model
-from django.utils import timezone
 
 from apps.life.models import Project, Task, LifeEvent
 
@@ -165,14 +164,14 @@ class ProjectModelTest(LifeTestMixin, TestCase):
     def test_project_progress_percentage(self):
         """Project calculates progress percentage."""
         project = self.create_project(self.user)
-        task1 = self.create_task(self.user, project=project, is_completed=True)
-        task2 = self.create_task(self.user, project=project, is_completed=False)
+        self.create_task(self.user, project=project, is_completed=True)
+        self.create_task(self.user, project=project, is_completed=False)
         
         self.assertEqual(project.progress_percentage, 50)
     
     def test_project_ordering(self):
         """Projects are ordered by most recent first."""
-        old = self.create_project(self.user, title='Old')
+        self.create_project(self.user, title='Old')
         new = self.create_project(self.user, title='New')
         
         projects = Project.objects.filter(user=self.user)
@@ -404,14 +403,14 @@ class LifeFormTest(LifeTestMixin, TestCase):
     
     def test_create_project_via_model(self):
         """Project can be created via model."""
-        project = self.create_project(self.user, title='New Project')
+        self.create_project(self.user, title='New Project')
         self.assertTrue(
             Project.objects.filter(user=self.user, title='New Project').exists()
         )
     
     def test_create_task_via_model(self):
         """Task can be created via model."""
-        task = self.create_task(self.user, title='New Task')
+        self.create_task(self.user, title='New Task')
         self.assertTrue(
             Task.objects.filter(user=self.user, title='New Task').exists()
         )
@@ -489,16 +488,16 @@ class LifeBusinessLogicTest(LifeTestMixin, TestCase):
     
     def test_filter_active_projects(self):
         """Can filter active projects."""
-        active = self.create_project(self.user, status='active')
-        completed = self.create_project(self.user, status='completed')
+        self.create_project(self.user, status='active')
+        self.create_project(self.user, status='completed')
         
         active_projects = Project.objects.filter(user=self.user, status='active')
         self.assertEqual(active_projects.count(), 1)
     
     def test_filter_incomplete_tasks(self):
         """Can filter incomplete tasks."""
-        complete = self.create_task(self.user, is_completed=True)
-        incomplete = self.create_task(self.user, is_completed=False)
+        self.create_task(self.user, is_completed=True)
+        self.create_task(self.user, is_completed=False)
         
         incomplete_tasks = Task.objects.filter(
             user=self.user, is_completed=False
@@ -508,9 +507,9 @@ class LifeBusinessLogicTest(LifeTestMixin, TestCase):
     def test_filter_tasks_by_priority(self):
         """Can filter tasks by priority (priority is auto-calculated from due date)."""
         # Now = due today or overdue
-        now_task = self.create_task(self.user, due_date=date.today())
+        self.create_task(self.user, due_date=date.today())
         # Someday = no due date or > 7 days away
-        someday_task = self.create_task(self.user)  # No due date = someday
+        self.create_task(self.user)  # No due date = someday
 
         now_tasks = Task.objects.filter(user=self.user, priority='now')
         self.assertEqual(now_tasks.count(), 1)
@@ -519,11 +518,11 @@ class LifeBusinessLogicTest(LifeTestMixin, TestCase):
     
     def test_filter_overdue_tasks(self):
         """Can filter overdue tasks."""
-        overdue = self.create_task(
+        self.create_task(
             self.user, 
             due_date=date.today() - timedelta(days=5)
         )
-        future = self.create_task(
+        self.create_task(
             self.user, 
             due_date=date.today() + timedelta(days=5)
         )

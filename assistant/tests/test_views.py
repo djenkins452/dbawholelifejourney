@@ -264,7 +264,7 @@ class TestProcessAssistantMessageDateExtraction(unittest.TestCase):
         user = MagicMock()
         message = "What was my weight since December 1st?"
 
-        result = process_assistant_message(user, message)
+        process_assistant_message(user, message)
 
         # Verify extract_date_from_message was called
         mock_extract.assert_called_once_with(message)
@@ -297,7 +297,7 @@ class TestProcessAssistantMessageDateExtraction(unittest.TestCase):
         # Message without date context (no 'last', 'since', etc.)
         message = "What is my weight?"
 
-        result = process_assistant_message(user, message)
+        process_assistant_message(user, message)
 
         # Verify query was called with None for since_date
         call_kwargs = mock_service.query_by_intent.call_args[1]
@@ -560,7 +560,7 @@ class TestGapDetectionTaskRouting(unittest.TestCase):
         user = MagicMock()
         message = "What was my workout today?"
 
-        result = process_assistant_message(user, message)
+        process_assistant_message(user, message)
 
         # Verify autonomous executor was checked
         mock_executor.is_safe_for_autonomous.assert_called_once_with(mock_model)
@@ -624,7 +624,7 @@ class TestGapDetectionTaskRouting(unittest.TestCase):
         user = MagicMock()
         message = "What was my sleep last night?"
 
-        result = process_assistant_message(user, message)
+        process_assistant_message(user, message)
 
         # Verify notification was sent to admin
         mock_notification.notify_approval_required.assert_called_once()

@@ -16,12 +16,12 @@ import datetime
 from unittest.mock import patch
 
 from django.conf import settings
-from django.test import TestCase, Client, override_settings
+from django.test import TestCase, Client
 from django.urls import reverse
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 
-from apps.users.models import UserPreferences, TermsAcceptance, MFAEmailCode
+from apps.users.models import TermsAcceptance, MFAEmailCode
 
 User = get_user_model()
 

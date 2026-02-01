@@ -116,10 +116,10 @@ class Command(BaseCommand):
         self._create_sample_tasks(user)
         self._create_sample_prayers(user)
 
-        self.stdout.write(self.style.SUCCESS(f"\nApp Review account ready!"))
+        self.stdout.write(self.style.SUCCESS("\nApp Review account ready!"))
         self.stdout.write(f"  Email: {email}")
         self.stdout.write(f"  Password: {password}")
-        self.stdout.write(f"  URL: https://wholelifejourney.com/app-review/")
+        self.stdout.write("  URL: https://wholelifejourney.com/app-review/")
 
     def _create_sample_journal_entries(self, user):
         """Create sample journal entries."""

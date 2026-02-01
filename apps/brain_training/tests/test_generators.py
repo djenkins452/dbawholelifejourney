@@ -7,11 +7,11 @@ with correct difficulty scaling.
 
 from django.test import TestCase
 
-from apps.brain_training.services.sudoku import SudokuGenerator, generate_sudoku, verify_sudoku_solution
-from apps.brain_training.services.kenken import KenKenGenerator, generate_kenken, verify_kenken_solution
-from apps.brain_training.services.nonogram import NonogramGenerator, generate_nonogram
-from apps.brain_training.services.word_ladder import WordLadderGenerator, generate_word_ladder, verify_word_ladder_solution
-from apps.brain_training.services.memory_matrix import MemoryMatrixGenerator, generate_memory_matrix, verify_memory_matrix_solution
+from apps.brain_training.services.sudoku import generate_sudoku, verify_sudoku_solution
+from apps.brain_training.services.kenken import generate_kenken, verify_kenken_solution
+from apps.brain_training.services.nonogram import generate_nonogram
+from apps.brain_training.services.word_ladder import generate_word_ladder, verify_word_ladder_solution
+from apps.brain_training.services.memory_matrix import generate_memory_matrix, verify_memory_matrix_solution
 
 
 class SudokuGeneratorTests(TestCase):

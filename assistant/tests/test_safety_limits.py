@@ -7,7 +7,7 @@ and admin override capabilities.
 
 import uuid
 from datetime import timedelta
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 from django.test import TestCase
 from django.utils import timezone
@@ -26,9 +26,7 @@ from assistant.safety_limits import (
     MAX_FILE_MODIFICATIONS_PER_FILE_PER_DAY,
     ERROR_RATE_THRESHOLD,
     ERROR_RATE_SAMPLE_SIZE,
-    CACHE_KEY_HOURLY_COUNT,
     CACHE_KEY_SYSTEM_PAUSED,
-    CACHE_KEY_FILE_MODIFICATIONS,
 )
 from assistant.models import ImprovementTaskModel
 
@@ -727,7 +725,6 @@ CODE:
     @patch('assistant.executor.cache')
     def test_executor_records_file_modification_on_success(self, mock_cache):
         """Test that executor records file modification after success."""
-        from assistant.executor import ExecutionResult
         from assistant.git_service import GitResult
         from assistant.test_runner import TestResult
 

@@ -19,11 +19,10 @@ Usage:
 """
 
 from collections import Counter
-from datetime import date, timedelta
+from datetime import timedelta
 from statistics import mean, stdev
 from typing import Optional
 
-from django.db.models import Count
 from django.utils import timezone
 
 from ..models import (

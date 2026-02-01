@@ -217,7 +217,7 @@ class PreferencesViewTest(TestCase):
                 self.skipTest("Terms acceptance required - test needs terms fixture")
 
         # POST the form data - include all required fields
-        response = self.client.post(reverse('users:preferences'), {
+        self.client.post(reverse('users:preferences'), {
             'theme': 'midnight',
             'accent_color': '',
             'journal_enabled': 'on',

@@ -19,7 +19,6 @@ The Faith module provides:
 - Bible study tools (highlights, bookmarks, notes)
 """
 
-from django.conf import settings
 from django.db import models
 from django.utils import timezone
 

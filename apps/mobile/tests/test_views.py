@@ -5,11 +5,10 @@ Tests token exchange, health ingestion, and device management endpoints.
 """
 
 import json
-from datetime import date, timedelta
+from datetime import timedelta
 from decimal import Decimal
 
 from django.test import Client, TestCase
-from django.urls import reverse
 from django.utils import timezone
 
 from apps.health.models import GlucoseEntry, SleepEntry, StepsEntry, WeightEntry

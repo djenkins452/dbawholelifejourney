@@ -9,7 +9,6 @@ improvement tasks are created with appropriate templates.
 
 import unittest
 from datetime import datetime
-from unittest.mock import patch
 
 from assistant.gap_detector import GapSeverity, GapType
 from assistant.task_generator import (

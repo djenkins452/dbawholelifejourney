@@ -155,7 +155,7 @@ class AnnualDirectionModelTest(PurposeTestMixin, TestCase):
     
     def test_direction_ordering(self):
         """Directions are ordered by year descending."""
-        old = self.create_direction(self.user, year=2023)
+        self.create_direction(self.user, year=2023)
         new = self.create_direction(self.user, year=2025)
         
         directions = AnnualDirection.objects.filter(user=self.user)
@@ -386,14 +386,14 @@ class PurposeFormTest(PurposeTestMixin, TestCase):
     
     def test_create_goal_via_model(self):
         """Goal can be created via model."""
-        goal = self.create_goal(self.user, title='New Goal')
+        self.create_goal(self.user, title='New Goal')
         self.assertTrue(
             LifeGoal.objects.filter(user=self.user, title='New Goal').exists()
         )
     
     def test_create_direction_via_model(self):
         """Direction can be created via model."""
-        direction = self.create_direction(self.user, word='Clarity')
+        self.create_direction(self.user, word='Clarity')
         self.assertTrue(
             AnnualDirection.objects.filter(
                 user=self.user, word_of_year='Clarity'
@@ -493,16 +493,16 @@ class PurposeBusinessLogicTest(PurposeTestMixin, TestCase):
     
     def test_filter_active_goals(self):
         """Can filter active goals."""
-        active = self.create_goal(self.user, status='active')
-        completed = self.create_goal(self.user, status='completed')
+        self.create_goal(self.user, status='active')
+        self.create_goal(self.user, status='completed')
         
         active_goals = LifeGoal.objects.filter(user=self.user, status='active')
         self.assertEqual(active_goals.count(), 1)
     
     def test_filter_goals_by_timeframe(self):
         """Can filter goals by timeframe."""
-        year1 = self.create_goal(self.user, timeframe='year_1')
-        ongoing = self.create_goal(self.user, timeframe='ongoing')
+        self.create_goal(self.user, timeframe='year_1')
+        self.create_goal(self.user, timeframe='ongoing')
         
         year1_goals = LifeGoal.objects.filter(
             user=self.user, timeframe='year_1'
@@ -512,15 +512,15 @@ class PurposeBusinessLogicTest(PurposeTestMixin, TestCase):
     def test_filter_goals_by_domain(self):
         """Can filter goals by domain."""
         domain = self.create_domain(name='Health')
-        health_goal = self.create_goal(self.user, domain=domain)
-        other_goal = self.create_goal(self.user)
+        self.create_goal(self.user, domain=domain)
+        self.create_goal(self.user)
         
         health_goals = LifeGoal.objects.filter(user=self.user, domain=domain)
         self.assertEqual(health_goals.count(), 1)
     
     def test_get_current_direction(self):
         """Can get current year's direction."""
-        past = self.create_direction(self.user, year=2023)
+        self.create_direction(self.user, year=2023)
         current = self.create_direction(self.user, year=2025, is_current=True)
         
         current_dir = AnnualDirection.objects.filter(

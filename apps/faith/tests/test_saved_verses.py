@@ -11,7 +11,7 @@ from django.test import TestCase, Client
 from django.urls import reverse
 from django.contrib.auth import get_user_model
 
-from apps.faith.models import SavedVerse, ScriptureVerse
+from apps.faith.models import SavedVerse
 from apps.users.models import TermsAcceptance
 
 User = get_user_model()
@@ -682,7 +682,7 @@ class MemoryVerseOnDashboardTest(TestCase):
 
     def test_dashboard_shows_memory_verse_when_set(self):
         """Dashboard displays memory verse when one is set."""
-        verse = SavedVerse.objects.create(
+        SavedVerse.objects.create(
             user=self.user,
             reference='Romans 8:28',
             text='And we know that in all things God works for the good...',

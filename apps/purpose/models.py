@@ -19,7 +19,6 @@ Also includes HabitGoal for shorter-term habit tracking with visual matrix displ
 """
 
 import math
-from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.urls import reverse
@@ -948,7 +947,6 @@ class HabitGoal(UserOwnedModel):
         }
 
         matrix = []
-        current_date = self.start_date
 
         for box_num in range(1, self.total_boxes + 1):
             if box_num <= self.total_days:

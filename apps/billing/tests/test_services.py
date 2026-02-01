@@ -2,8 +2,7 @@
 Tests for billing services.
 """
 
-from datetime import date, timedelta
-from decimal import Decimal
+from datetime import date
 from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
@@ -164,7 +163,7 @@ class StripeServiceTest(TestCase):
         mock_customer.get.return_value = False  # Not deleted
         mock_stripe.Customer.retrieve.return_value = mock_customer
 
-        customer = StripeService.get_or_create_customer(self.user)
+        StripeService.get_or_create_customer(self.user)
 
         mock_stripe.Customer.retrieve.assert_called_once_with('cus_existing123')
         mock_stripe.Customer.create.assert_not_called()
@@ -180,7 +179,7 @@ class StripeServiceTest(TestCase):
         mock_subscription.cancel_at_period_end = True
         mock_stripe.Subscription.modify.return_value = mock_subscription
 
-        result = StripeService.cancel_subscription(self.user, at_period_end=True)
+        StripeService.cancel_subscription(self.user, at_period_end=True)
 
         mock_stripe.Subscription.modify.assert_called_once()
         self.profile.refresh_from_db()

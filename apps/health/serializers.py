@@ -16,9 +16,8 @@ Usage:
 """
 
 from datetime import date
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
-from django import forms
 from django.core.exceptions import ValidationError
 
 from .models import (
@@ -320,7 +319,7 @@ class CycleDailyLogSerializer(BaseSerializer):
         if not isinstance(value, (int, float, Decimal)):
             try:
                 value = Decimal(str(value))
-            except:
+            except (ValueError, TypeError, InvalidOperation):
                 raise ValidationError("Basal temperature must be a number")
         if value < 95 or value > 105:
             raise ValidationError(
@@ -471,7 +470,7 @@ class CyclePredictionSerializer(BaseSerializer):
         if not isinstance(value, (int, float, Decimal)):
             try:
                 value = Decimal(str(value))
-            except:
+            except (ValueError, TypeError, InvalidOperation):
                 raise ValidationError("Confidence must be a number")
         if value < 0 or value > 1:
             raise ValidationError("Confidence must be between 0 and 1")
@@ -679,7 +678,7 @@ class SleepEntrySerializer(BaseSerializer):
         if not isinstance(value, (int, float, Decimal)):
             try:
                 value = Decimal(str(value))
-            except:
+            except (ValueError, TypeError, InvalidOperation):
                 raise ValidationError("Sleep efficiency must be a number")
         if value < 0 or value > 100:
             raise ValidationError("Sleep efficiency must be between 0 and 100")

@@ -6,7 +6,7 @@ Provides improvement calculations and trend analysis for brain training progress
 
 from datetime import timedelta
 
-from django.db.models import Avg, Count, Sum
+from django.db.models import Avg, Count
 from django.utils import timezone
 
 from ..models import DailyStats, GameSession

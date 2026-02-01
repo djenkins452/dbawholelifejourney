@@ -2,11 +2,8 @@
 
 import uuid
 from datetime import timedelta
-from unittest.mock import patch
 
-from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.db import IntegrityError
 from django.test import TestCase
 from django.utils import timezone
 
@@ -331,9 +328,9 @@ class CaptureEntryUserRelationshipTests(TestCase):
 
     def test_user_can_have_multiple_entries(self):
         """Test that a user can have multiple entries."""
-        entry1 = CaptureEntry.objects.create(user=self.user1, title='Entry 1')
-        entry2 = CaptureEntry.objects.create(user=self.user1, title='Entry 2')
-        entry3 = CaptureEntry.objects.create(user=self.user1, title='Entry 3')
+        CaptureEntry.objects.create(user=self.user1, title='Entry 1')
+        CaptureEntry.objects.create(user=self.user1, title='Entry 2')
+        CaptureEntry.objects.create(user=self.user1, title='Entry 3')
 
         user_entries = CaptureEntry.objects.filter(user=self.user1)
         self.assertEqual(user_entries.count(), 3)

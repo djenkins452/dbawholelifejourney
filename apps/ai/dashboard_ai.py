@@ -25,7 +25,6 @@ Gathers comprehensive user data including:
 """
 import logging
 from datetime import timedelta
-from django.db import models
 from django.utils import timezone
 from django.db.models import Count, F
 
@@ -433,7 +432,6 @@ class DashboardAI:
 
             # Health - Nutrition Tracking
             try:
-                from apps.health.models import DailyNutritionSummary
 
                 # Today's nutrition progress
                 nutrition_progress = self.prefs.get_nutrition_progress(today)

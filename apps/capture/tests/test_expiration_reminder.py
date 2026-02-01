@@ -150,7 +150,7 @@ class SendExpirationRemindersJobTests(TestCase):
     @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
     def test_does_not_send_reminder_twice(self):
         """Test that reminders are not sent if already sent."""
-        entry = CaptureEntry.objects.create(
+        CaptureEntry.objects.create(
             user=self.user,
             title='Already Reminded',
             status=CaptureEntry.STATUS_READY,

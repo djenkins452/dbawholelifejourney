@@ -12,8 +12,7 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 
 from apps.life.models import (
-    Project, Task, LifeEvent, InventoryItem, 
-    MaintenanceLog, Pet, Recipe, Document
+    Project, Task, LifeEvent, Pet, Recipe
 )
 
 User = get_user_model()

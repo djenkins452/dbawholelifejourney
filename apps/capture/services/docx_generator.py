@@ -5,9 +5,8 @@ import re
 from io import BytesIO
 
 from docx import Document
-from docx.shared import Inches, Pt, RGBColor
+from docx.shared import Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.enum.style import WD_STYLE_TYPE
 
 logger = logging.getLogger(__name__)
 
@@ -179,7 +178,7 @@ def generate_docx(capture_entry):
 
     # Transcript section
     if capture_entry.transcript:
-        transcript_heading = document.add_heading('Full Transcript', level=2)
+        document.add_heading('Full Transcript', level=2)
 
         transcript_para = document.add_paragraph(capture_entry.transcript)
         transcript_para.style.font.size = Pt(10)
@@ -188,7 +187,7 @@ def generate_docx(capture_entry):
     # Footer
     document.add_paragraph()
     footer = document.add_paragraph()
-    footer_run = footer.add_run(f'Generated from wholelifejourney.com')
+    footer_run = footer.add_run('Generated from wholelifejourney.com')
     footer_run.font.size = Pt(9)
     footer_run.font.color.rgb = RGBColor(107, 114, 128)
     footer.alignment = WD_ALIGN_PARAGRAPH.CENTER

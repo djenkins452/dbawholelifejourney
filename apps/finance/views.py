@@ -13,7 +13,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Sum, Q
-from django.http import JsonResponse, HttpResponseBadRequest
+from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 import json
@@ -810,7 +810,7 @@ def refresh_metrics(request):
     user = request.user
     today = get_user_today(user)
 
-    snapshot = FinancialMetricSnapshot.create_snapshot(user, today)
+    FinancialMetricSnapshot.create_snapshot(user, today)
     messages.success(request, 'Financial metrics refreshed.')
 
     return redirect('finance:metrics')

@@ -26,7 +26,7 @@ from django.conf import settings
 from django.core.cache import cache
 from django.utils import timezone
 
-from .intents import ALL_INTENT_TOOLS, INTENT_HANDLERS
+from .intents import ALL_INTENT_TOOLS
 from .intents.health_intents import HEALTH_VALIDATION_RANGES
 
 logger = logging.getLogger(__name__)

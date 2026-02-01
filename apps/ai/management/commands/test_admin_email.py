@@ -166,7 +166,7 @@ To test with a different recipient:
 
         except Exception as e:
             self.stdout.write(
-                self.style.ERROR(f"\n FAILED: Could not send email")
+                self.style.ERROR("\n FAILED: Could not send email")
             )
             self.stdout.write(f"Error: {e}")
             self.stdout.write("\nTroubleshooting tips:")

@@ -24,7 +24,6 @@ Quick wins are typically:
 import logging
 import re
 from decimal import Decimal
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 

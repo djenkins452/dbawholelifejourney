@@ -20,10 +20,8 @@ This module provides functions to schedule SMS notifications for:
 
 import logging
 from datetime import datetime, time, timedelta
-from typing import List, Optional
 
 from django.contrib.auth import get_user_model
-from django.db.models import Q
 from django.utils import timezone
 
 from .models import SMSNotification
@@ -152,7 +150,7 @@ class SMSScheduler:
         Returns:
             Number of notifications scheduled
         """
-        from apps.health.models import Medicine, MedicineSchedule
+        from apps.health.models import Medicine
 
         count = 0
 

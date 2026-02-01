@@ -10,7 +10,7 @@ deleted via S3 lifecycle policy.
 
 import logging
 import uuid
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Optional
 
 from django.conf import settings

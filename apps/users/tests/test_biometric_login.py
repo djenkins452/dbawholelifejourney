@@ -16,13 +16,12 @@ Location: apps/users/tests/test_biometric_login.py
 import base64
 import json
 import secrets
-from unittest.mock import patch, MagicMock
 
-from django.test import TestCase, Client
+from django.test import TestCase
 from django.urls import reverse
 from django.contrib.auth import get_user_model
 
-from apps.users.models import UserPreferences, TermsAcceptance, WebAuthnCredential
+from apps.users.models import TermsAcceptance, WebAuthnCredential
 
 User = get_user_model()
 
@@ -92,8 +91,8 @@ class WebAuthnCredentialModelTest(BiometricTestMixin, TestCase):
     def test_user_can_have_multiple_credentials(self):
         """User can register multiple biometric devices."""
         user = self.create_user()
-        cred1 = self.create_credential(user, device_name='iPhone')
-        cred2 = self.create_credential(user, device_name='iPad')
+        self.create_credential(user, device_name='iPhone')
+        self.create_credential(user, device_name='iPad')
 
         self.assertEqual(user.webauthn_credentials.count(), 2)
 
@@ -185,7 +184,7 @@ class BiometricCredentialsViewTest(BiometricTestMixin, TestCase):
 
     def test_returns_empty_list_for_new_user(self):
         """Returns empty list for user with no credentials."""
-        user = self.create_user()
+        self.create_user()
         self.client.login(email='test@example.com', password='testpass123')
 
         response = self.client.get(reverse('users:biometric_credentials'))
@@ -197,7 +196,7 @@ class BiometricCredentialsViewTest(BiometricTestMixin, TestCase):
     def test_returns_user_credentials(self):
         """Returns user's credentials."""
         user = self.create_user()
-        cred = self.create_credential(user, device_name='My iPhone')
+        self.create_credential(user, device_name='My iPhone')
         self.client.login(email='test@example.com', password='testpass123')
 
         response = self.client.get(reverse('users:biometric_credentials'))
@@ -241,7 +240,7 @@ class BiometricRegisterBeginViewTest(BiometricTestMixin, TestCase):
 
     def test_returns_registration_options(self):
         """Returns WebAuthn registration options."""
-        user = self.create_user()
+        self.create_user()
         self.client.login(email='test@example.com', password='testpass123')
 
         response = self.client.post(
@@ -266,10 +265,10 @@ class BiometricRegisterBeginViewTest(BiometricTestMixin, TestCase):
 
     def test_stores_challenge_in_session(self):
         """Stores challenge in session for verification."""
-        user = self.create_user()
+        self.create_user()
         self.client.login(email='test@example.com', password='testpass123')
 
-        response = self.client.post(
+        self.client.post(
             reverse('users:biometric_register_begin'),
             content_type='application/json'
         )
@@ -359,7 +358,7 @@ class BiometricLoginBeginViewTest(BiometricTestMixin, TestCase):
     def test_returns_authentication_options(self):
         """Returns WebAuthn authentication options."""
         user = self.create_user()
-        cred = self.create_credential(user)
+        self.create_credential(user)
 
         response = self.client.post(
             reverse('users:biometric_login_begin'),
@@ -396,7 +395,7 @@ class BiometricLoginBeginViewTest(BiometricTestMixin, TestCase):
         user = self.create_user()
         self.create_credential(user)
 
-        response = self.client.post(
+        self.client.post(
             reverse('users:biometric_login_begin'),
             content_type='application/json'
         )
@@ -489,7 +488,7 @@ class BiometricDeleteCredentialViewTest(BiometricTestMixin, TestCase):
     def test_cannot_delete_other_users_credential(self):
         """Cannot delete another user's credential."""
         user1 = self.create_user(email='user1@example.com')
-        user2 = self.create_user(email='user2@example.com')
+        self.create_user(email='user2@example.com')
         cred = self.create_credential(user1)
 
         self.client.login(email='user2@example.com', password='testpass123')
@@ -510,7 +509,7 @@ class BiometricDeleteCredentialViewTest(BiometricTestMixin, TestCase):
 
         self.client.login(email='test@example.com', password='testpass123')
 
-        response = self.client.post(
+        self.client.post(
             reverse('users:biometric_delete', kwargs={'credential_id': cred.id})
         )
 
@@ -521,13 +520,13 @@ class BiometricDeleteCredentialViewTest(BiometricTestMixin, TestCase):
         """Keeps biometric enabled if user has other credentials."""
         user = self.create_user()
         cred1 = self.create_credential(user, device_name='iPhone')
-        cred2 = self.create_credential(user, device_name='iPad')
+        self.create_credential(user, device_name='iPad')
         user.preferences.biometric_login_enabled = True
         user.preferences.save()
 
         self.client.login(email='test@example.com', password='testpass123')
 
-        response = self.client.post(
+        self.client.post(
             reverse('users:biometric_delete', kwargs={'credential_id': cred1.id})
         )
 

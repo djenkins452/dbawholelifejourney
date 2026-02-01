@@ -82,7 +82,6 @@ class Command(BaseCommand):
             if dry_run:
                 # Count potential reminders
                 from django.contrib.auth import get_user_model
-                from apps.faith.models import PrayerRequest
                 User = get_user_model()
 
                 users_with_prayers = User.objects.filter(
@@ -108,7 +107,6 @@ class Command(BaseCommand):
             if dry_run:
                 # Count potential reminders
                 from django.contrib.auth import get_user_model
-                from apps.faith.models import UserReadingPlan
                 User = get_user_model()
 
                 now = timezone.now()

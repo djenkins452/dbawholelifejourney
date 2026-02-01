@@ -28,9 +28,8 @@ from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_POST
 
-from .models import SMSNotification, SMSResponse
+from .models import SMSNotification
 from .services import SMSNotificationService, TwilioService
 
 logger = logging.getLogger(__name__)

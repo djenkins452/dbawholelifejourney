@@ -8,7 +8,6 @@ when the assistant cannot answer a user's personal data question.
 It captures context for improvement and helps prioritize enhancement tasks.
 """
 
-from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 

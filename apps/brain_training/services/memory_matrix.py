@@ -105,7 +105,7 @@ class MemoryMatrixGenerator:
                 - false_positives: int (cells wrongly marked)
                 - false_negatives: int (cells missed)
         """
-        grid_size = puzzle_data.get('grid_size', 3)
+        puzzle_data.get('grid_size', 3)
         expected_cells = set(tuple(c) for c in puzzle_data.get('highlighted_cells', []))
 
         # Handle both grid format and cell list format

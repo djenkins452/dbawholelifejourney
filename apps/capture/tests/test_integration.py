@@ -2,7 +2,6 @@
 
 import json
 from datetime import timedelta
-from unittest.mock import MagicMock, patch
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -196,7 +195,7 @@ class CaptureUploadToProcessFlowTests(TestCase):
     def test_ready_entry_appears_in_list(self):
         """Test that ready entries appear in the list view."""
         # Create a ready entry
-        entry = CaptureEntry.objects.create(
+        CaptureEntry.objects.create(
             user=self.user,
             title='Ready Recording',
             status=CaptureEntry.STATUS_READY,

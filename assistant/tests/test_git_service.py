@@ -2,8 +2,6 @@
 Tests for the Git Protection Service.
 """
 
-import subprocess
-from pathlib import Path
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
@@ -235,7 +233,7 @@ class TestGitProtectionService(TestCase):
             stdout='diff --git staged changes'
         )
 
-        result = self.service.get_file_diff(staged=True)
+        self.service.get_file_diff(staged=True)
 
         mock_run.assert_called_once_with('diff', '--cached')
 

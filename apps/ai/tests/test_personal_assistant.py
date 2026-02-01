@@ -20,22 +20,20 @@ This test file covers:
 8. Reflection prompt tests
 """
 
-from datetime import date, timedelta
-from decimal import Decimal
-from unittest.mock import patch, MagicMock, PropertyMock
+from datetime import timedelta
+from unittest.mock import patch
 import json
 
-from django.test import TestCase, Client, override_settings
-from django.urls import reverse
+from django.test import TestCase, Client
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 
 from apps.ai.models import (
     AssistantConversation, AssistantMessage, UserStateSnapshot,
-    DailyPriority, TrendAnalysis, ReflectionPromptQueue
+    DailyPriority, ReflectionPromptQueue
 )
 from apps.ai.personal_assistant import PersonalAssistant, get_personal_assistant
-from apps.ai.trend_tracking import TrendTracker, get_trend_tracker
+from apps.ai.trend_tracking import get_trend_tracker
 
 User = get_user_model()
 
@@ -469,7 +467,7 @@ class ReflectionPromptTest(AssistantTestMixin, TestCase):
 
     def test_reflection_prompt_queued(self):
         """Reflection prompts are saved to queue."""
-        prompt = self.assistant.generate_reflection_prompt('evening')
+        self.assistant.generate_reflection_prompt('evening')
 
         queued = ReflectionPromptQueue.objects.filter(
             user=self.user,
@@ -954,7 +952,7 @@ class PersonalDataQueryIntegrationTests(TestCase, AssistantTestMixin):
         conversation = assistant.get_or_create_conversation()
 
         # Call _generate_response directly
-        response = assistant._generate_response("What was my average weight last week?", conversation)
+        assistant._generate_response("What was my average weight last week?", conversation)
 
         # Verify process_assistant_message was called
         mock_process.assert_called_once()
@@ -981,7 +979,7 @@ class PersonalDataQueryIntegrationTests(TestCase, AssistantTestMixin):
         conversation = assistant.get_or_create_conversation()
 
         # Call _generate_response with a non-personal query
-        response = assistant._generate_response("What should I focus on today?", conversation)
+        assistant._generate_response("What should I focus on today?", conversation)
 
         # Verify process_assistant_message was called but returned no personal data
         mock_process.assert_called_once()
@@ -1004,7 +1002,7 @@ class PersonalDataQueryIntegrationTests(TestCase, AssistantTestMixin):
         assistant = PersonalAssistant(self.user)
         conversation = assistant.get_or_create_conversation()
 
-        response = assistant._generate_response("What was my weight?", conversation)
+        assistant._generate_response("What was my weight?", conversation)
 
         # Verify process_assistant_message was called
         mock_process.assert_called_once()
@@ -1027,7 +1025,7 @@ class PersonalDataQueryIntegrationTests(TestCase, AssistantTestMixin):
         assistant = PersonalAssistant(self.user)
         conversation = assistant.get_or_create_conversation()
 
-        response = assistant._generate_response(
+        assistant._generate_response(
             "How has my mood been based on my journal entries?",
             conversation
         )
@@ -1060,7 +1058,7 @@ class PersonalDataQueryIntegrationTests(TestCase, AssistantTestMixin):
 
         conversation = assistant.get_or_create_conversation()
         # Using a message that won't trigger is_asking_about_tasks detection
-        response = assistant._generate_response("Hello, how are you?", conversation)
+        assistant._generate_response("Hello, how are you?", conversation)
 
         # Verify AI service was called for the response
         mock_ai._call_api.assert_called_once()

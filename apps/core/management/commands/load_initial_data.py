@@ -583,7 +583,7 @@ class Command(BaseCommand):
 
         try:
             if verbosity >= 2:
-                self.stdout.write(f'  Sending SMTP test email...', ending='')
+                self.stdout.write('  Sending SMTP test email...', ending='')
 
             recipient = 'admin@wholelifejourney.com'
             from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'admin@wholelifejourney.com')
@@ -667,7 +667,7 @@ This test email is sent once on first deploy after SMTP is configured.
                 tasks_to_delete.delete()
 
                 if verbosity >= 1:
-                    self.stdout.write(self.style.SUCCESS(f' DONE'))
+                    self.stdout.write(self.style.SUCCESS(' DONE'))
 
             # Mark as complete so it doesn't run again
             self._mark_loader_complete(

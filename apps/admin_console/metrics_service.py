@@ -18,11 +18,10 @@ Supports two modes:
 """
 
 import logging
-import os
 import subprocess
 from collections import Counter
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -30,7 +29,6 @@ import pytz
 import requests
 from django.conf import settings
 from django.core.cache import cache
-from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
@@ -476,7 +474,7 @@ class MetricsService:
         if req_file.exists():
             try:
                 with open(req_file) as f:
-                    lines = [l.strip() for l in f if l.strip() and not l.startswith('#')]
+                    lines = [line.strip() for line in f if line.strip() and not line.startswith('#')]
                     metrics.dependencies = len(lines)
             except IOError:
                 metrics.dependencies = 0

@@ -18,7 +18,7 @@ from django.utils.decorators import method_decorator
 from django.views import View
 from django.contrib.auth.decorators import login_required
 
-from .models import HelpTopic, AdminHelpTopic, HelpArticle, HelpCategory, HelpConversation, HelpMessage, TeachingDestination
+from .models import HelpTopic, AdminHelpTopic, HelpArticle, HelpCategory, HelpConversation, HelpMessage
 from .services import HelpChatService, TeachingToolService
 
 

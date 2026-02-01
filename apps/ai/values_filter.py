@@ -25,7 +25,6 @@ import re
 import logging
 from dataclasses import dataclass
 from enum import Enum
-from typing import List, Optional
 
 from apps.core.utils import user_log_id
 

@@ -8,7 +8,6 @@ Or run it as a Django management command.
 """
 
 import os
-import sys
 import django
 
 # Setup Django

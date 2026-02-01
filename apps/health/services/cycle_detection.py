@@ -22,9 +22,8 @@ Usage:
 """
 
 from datetime import date, timedelta
-from typing import Optional, Tuple
+from typing import Optional
 
-from django.db.models import Q
 
 from ..models import Cycle, CycleDailyLog
 

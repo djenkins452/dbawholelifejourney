@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 from dateutil import parser as dateutil_parser
-from dateutil.relativedelta import relativedelta, MO, SU
+from dateutil.relativedelta import relativedelta
 from django.utils import timezone
 
 

@@ -14,14 +14,12 @@ Handlers validate data and return ActionResult with success status and created o
 
 import logging
 import re
-from datetime import datetime, timedelta
+from datetime import timedelta
 from decimal import Decimal
-from typing import Optional
 
 import requests
 from django.conf import settings
 from django.db.models import Q
-from django.utils import timezone
 
 from .intent_service import ActionResult
 
@@ -564,7 +562,7 @@ class ActionHandler:
             dose_label: Optional dose label (morning, evening, etc.)
             notes: Optional notes
         """
-        from apps.health.models import Medicine, MedicineLog, MedicineSchedule
+        from apps.health.models import Medicine
 
         try:
             # Search for matching active medicines
@@ -1644,7 +1642,7 @@ class ActionHandler:
             reminder_minutes: Minutes before for reminder
         """
         from apps.life.models import LifeEvent
-        from datetime import datetime as dt, time
+        from datetime import datetime as dt
 
         try:
             # Parse date

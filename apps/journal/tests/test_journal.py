@@ -58,7 +58,7 @@ class JournalEntryModelTest(TestCase):
     
     def test_entry_ordering(self):
         """Entries are ordered by most recent first."""
-        entry1 = JournalEntry.objects.create(
+        JournalEntry.objects.create(
             user=self.user,
             title='First Entry',
             body='Content 1',
@@ -154,7 +154,7 @@ class JournalEntryViewTest(TestCase):
     
     def test_entry_can_be_created(self):
         """User can create a journal entry."""
-        response = self.client.post(reverse('journal:entry_create'), {
+        self.client.post(reverse('journal:entry_create'), {
             'title': 'New Entry',
             'body': 'This is my journal entry content.',
             'entry_date': date.today().isoformat(),
@@ -187,7 +187,7 @@ class JournalEntryViewTest(TestCase):
             entry_date=date.today()
         )
         
-        response = self.client.post(
+        self.client.post(
             reverse('journal:entry_update', kwargs={'pk': entry.pk}),
             {
                 'title': 'Updated Title',
@@ -208,7 +208,7 @@ class JournalEntryViewTest(TestCase):
             entry_date=date.today()
         )
         
-        response = self.client.post(
+        self.client.post(
             reverse('journal:entry_delete', kwargs={'pk': entry.pk})
         )
         

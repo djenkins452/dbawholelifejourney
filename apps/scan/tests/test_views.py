@@ -12,7 +12,7 @@ Tests cover:
 import base64
 import json
 import uuid
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
@@ -20,7 +20,6 @@ from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
 from apps.scan.models import ScanConsent, ScanLog
-from apps.scan.services.barcode import barcode_service
 from apps.users.models import TermsAcceptance
 
 User = get_user_model()
@@ -385,7 +384,7 @@ class ScanAnalyzeViewTests(ScanTestMixin, TestCase):
         vision_service.client = None
 
         try:
-            response = self.client.post(
+            self.client.post(
                 self.url,
                 data=json.dumps({'image': self.get_valid_jpeg_base64()}),
                 content_type='application/json'
@@ -571,7 +570,7 @@ class BarcodeLookupViewTests(ScanTestMixin, TestCase):
         from apps.health.models import FoodItem
 
         # Create a FoodItem with a barcode
-        food_item = FoodItem.objects.create(
+        FoodItem.objects.create(
             name='Test Protein Bar',
             brand='Test Brand',
             barcode='012345678901',
@@ -656,7 +655,7 @@ class BarcodeLookupViewTests(ScanTestMixin, TestCase):
         self.client.login(email='test@example.com', password='testpass123')
 
         # Use a barcode that doesn't exist
-        response = self.client.post(
+        self.client.post(
             self.url,
             data=json.dumps({'barcode': '000000000000'}),
             content_type='application/json'

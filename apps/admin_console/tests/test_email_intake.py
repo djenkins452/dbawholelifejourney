@@ -25,7 +25,6 @@ from apps.admin_console.email_intake import (
     ParsedEmail,
     create_task_from_email,
     decode_mime_header,
-    extract_email_body,
     get_email_settings,
     parse_email_message,
     should_skip_confirmation,

@@ -159,7 +159,7 @@ class SafeFileModifier:
             backup_path.unlink()  # Remove backup after restore
             return ModificationResult(
                 success=True,
-                message=f"File restored from backup"
+                message="File restored from backup"
             )
         except Exception as e:
             return ModificationResult(
@@ -473,7 +473,7 @@ class SafeFileModifier:
 
             return ModificationResult(
                 success=True,
-                message=f"File modified successfully",
+                message="File modified successfully",
                 backup_path=backup_result.backup_path,
                 modified_content=modified_content
             )

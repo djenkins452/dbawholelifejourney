@@ -26,12 +26,8 @@ Environment Variables:
 """
 
 import logging
-from datetime import date, timedelta
-from decimal import Decimal
-from typing import Optional
 
 from django.conf import settings
-from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
@@ -84,8 +80,6 @@ class PlaidService:
             try:
                 import plaid
                 from plaid.api import plaid_api
-                from plaid.model.products import Products
-                from plaid.model.country_code import CountryCode
 
                 # Map environment string to Plaid environment
                 env_map = {

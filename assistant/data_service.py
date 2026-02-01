@@ -46,12 +46,10 @@ The data cache key format is: personal_data:{user_id}:{data_type}:v{version}:{da
 """
 
 from datetime import date, datetime
-from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
-from django.conf import settings
 from django.core.cache import cache
-from django.db.models import Avg, Count, QuerySet, Sum
+from django.db.models import Avg, Count, Sum
 from django.utils import timezone
 
 

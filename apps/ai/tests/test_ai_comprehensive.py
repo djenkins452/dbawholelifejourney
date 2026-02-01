@@ -10,13 +10,11 @@ This test file covers:
 6. Edge cases and error handling
 """
 
-from datetime import date, timedelta
+from datetime import timedelta
 from decimal import Decimal
-from unittest.mock import patch, MagicMock, PropertyMock
-import json
+from unittest.mock import patch, MagicMock
 
-from django.test import TestCase, Client, override_settings
-from django.urls import reverse
+from django.test import TestCase, Client
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 
@@ -149,7 +147,7 @@ class AIInsightModelTest(AITestMixin, TestCase):
     def test_ordering_by_created_at(self):
         """Insights are ordered by created_at descending."""
         insight1 = self.create_ai_insight(self.user, content='First')
-        insight2 = self.create_ai_insight(self.user, content='Second')
+        self.create_ai_insight(self.user, content='Second')
         insight3 = self.create_ai_insight(self.user, content='Third')
 
         insights = AIInsight.objects.filter(user=self.user)
@@ -430,7 +428,7 @@ class AIServiceTest(AITestMixin, TestCase):
             'active_goals': 2
         }
 
-        result = self.service.generate_daily_insight(
+        self.service.generate_daily_insight(
             user_data,
             faith_enabled=False,
             coaching_style='supportive'
@@ -454,7 +452,7 @@ class AIServiceTest(AITestMixin, TestCase):
             'item_name': 'Daily Journal'
         }
 
-        result = self.service.generate_accountability_nudge(gap_data)
+        self.service.generate_accountability_nudge(gap_data)
 
         mock_api.assert_called_once()
         call_args = mock_api.call_args
@@ -517,7 +515,7 @@ class DashboardAITest(AITestMixin, TestCase):
 
     def test_get_daily_insight_returns_cached(self):
         """get_daily_insight returns cached insight if valid."""
-        cached_insight = self.create_ai_insight(
+        self.create_ai_insight(
             self.user,
             insight_type='daily',
             content='Cached daily insight',
@@ -531,7 +529,7 @@ class DashboardAITest(AITestMixin, TestCase):
 
     def test_get_daily_insight_ignores_expired_cache(self):
         """get_daily_insight ignores expired cached insight."""
-        expired_insight = self.create_ai_insight(
+        self.create_ai_insight(
             self.user,
             insight_type='daily',
             content='Old insight',
@@ -553,7 +551,7 @@ class DashboardAITest(AITestMixin, TestCase):
 
     def test_get_daily_insight_force_refresh(self):
         """get_daily_insight ignores cache when force_refresh=True."""
-        cached_insight = self.create_ai_insight(
+        self.create_ai_insight(
             self.user,
             insight_type='daily',
             content='Cached insight',
@@ -568,7 +566,7 @@ class DashboardAITest(AITestMixin, TestCase):
             original_client = ai_service.client
             ai_service.client = MagicMock()
             try:
-                result = dashboard_ai.get_daily_insight(force_refresh=True)
+                dashboard_ai.get_daily_insight(force_refresh=True)
             finally:
                 ai_service.client = original_client
 
@@ -577,7 +575,7 @@ class DashboardAITest(AITestMixin, TestCase):
 
     def test_get_weekly_summary_returns_cached(self):
         """get_weekly_summary returns recently cached summary."""
-        cached = AIInsight.objects.create(
+        AIInsight.objects.create(
             user=self.user,
             insight_type='weekly_summary',
             content='Cached weekly summary'
@@ -592,7 +590,7 @@ class DashboardAITest(AITestMixin, TestCase):
         """get_weekly_summary returns None when no journal entries."""
         dashboard_ai = DashboardAI(self.user)
 
-        with patch.object(ai_service, 'generate_journal_summary') as mock_gen:
+        with patch.object(ai_service, 'generate_journal_summary'):
             result = dashboard_ai.get_weekly_summary(force_refresh=True)
 
         # Should return None since no entries
@@ -630,7 +628,7 @@ class DashboardAITest(AITestMixin, TestCase):
         mock_nudge.return_value = 'Time to journal!'
 
         dashboard_ai = DashboardAI(self.user)
-        result = dashboard_ai.get_nudge_message('journal', {'days': 5})
+        dashboard_ai.get_nudge_message('journal', {'days': 5})
 
         mock_nudge.assert_called_once()
         call_kwargs = mock_nudge.call_args
@@ -644,7 +642,7 @@ class DashboardAITest(AITestMixin, TestCase):
         mock_celebration.return_value = 'Great job!'
 
         dashboard_ai = DashboardAI(self.user)
-        result = dashboard_ai.get_celebration_message('streak', '7 day streak')
+        dashboard_ai.get_celebration_message('streak', '7 day streak')
 
         mock_celebration.assert_called_once()
         call_kwargs = mock_celebration.call_args
@@ -923,7 +921,7 @@ class AIIntegrationTest(AITestMixin, TestCase):
         """_get_journal_entries returns properly formatted entry data."""
         from apps.journal.models import JournalEntry
 
-        entry = JournalEntry.objects.create(
+        JournalEntry.objects.create(
             user=self.user,
             title='Test Entry',
             body='This is the body of the entry',
@@ -1051,11 +1049,11 @@ class CoachingStyleModelTest(AITestMixin, TestCase):
 
     def test_get_active_styles(self):
         """get_active_styles returns only active styles."""
-        active = self.CoachingStyle.objects.create(
+        self.CoachingStyle.objects.create(
             key='active', name='Active', description='Active',
             prompt_instructions='Active', is_active=True
         )
-        inactive = self.CoachingStyle.objects.create(
+        self.CoachingStyle.objects.create(
             key='inactive', name='Inactive', description='Inactive',
             prompt_instructions='Inactive', is_active=False
         )
@@ -1070,7 +1068,7 @@ class CoachingStyleModelTest(AITestMixin, TestCase):
 
     def test_get_by_key_returns_style(self):
         """get_by_key returns the correct style."""
-        style = self.CoachingStyle.objects.create(
+        self.CoachingStyle.objects.create(
             key='findme', name='Find Me', description='Findable',
             prompt_instructions='Found', is_active=True
         )
@@ -1084,7 +1082,7 @@ class CoachingStyleModelTest(AITestMixin, TestCase):
 
     def test_get_by_key_falls_back_to_default(self):
         """get_by_key falls back to default style if key not found."""
-        default_style = self.CoachingStyle.objects.create(
+        self.CoachingStyle.objects.create(
             key='the_default', name='Default', description='Default style',
             prompt_instructions='Default', is_active=True, is_default=True
         )
@@ -1098,7 +1096,7 @@ class CoachingStyleModelTest(AITestMixin, TestCase):
 
     def test_get_by_key_falls_back_to_any_active(self):
         """get_by_key falls back to any active style if no default."""
-        any_style = self.CoachingStyle.objects.create(
+        self.CoachingStyle.objects.create(
             key='any_active', name='Any Active', description='Any',
             prompt_instructions='Any', is_active=True, is_default=False
         )

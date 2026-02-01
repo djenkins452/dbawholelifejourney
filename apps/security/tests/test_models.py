@@ -612,7 +612,7 @@ class SecurityAuditLogModelTest(TestCase):
 
     def test_audit_log_ordering(self):
         """Test logs are ordered by timestamp descending."""
-        log1 = SecurityAuditLog.objects.create(action='view_dashboard')
+        SecurityAuditLog.objects.create(action='view_dashboard')
         log2 = SecurityAuditLog.objects.create(action='view_run')
 
         logs = list(SecurityAuditLog.objects.all())

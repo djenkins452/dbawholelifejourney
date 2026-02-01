@@ -568,7 +568,6 @@ without modifying code.
 """
 
 from django.db import models
-from django.core.cache import cache
 
 
 class ChoiceCategory(models.Model):
@@ -1576,7 +1575,7 @@ class APIRequestLog(models.Model):
         - avg_response_time: Average response time in ms
         - unique_endpoints: Number of unique endpoints accessed
         """
-        from django.db.models import Avg, Count
+        from django.db.models import Avg
 
         cutoff = timezone.now() - timezone.timedelta(hours=hours)
         qs = cls.objects.filter(ip_address=ip_address, created_at__gte=cutoff)

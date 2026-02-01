@@ -2,7 +2,6 @@
 Scan Models Tests - Tests for scan models.
 """
 
-import uuid
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase

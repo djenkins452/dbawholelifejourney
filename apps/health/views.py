@@ -9,7 +9,6 @@ from decimal import Decimal
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db import models
 from django.db.models import Avg, Max, Min, Sum, F
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
@@ -41,7 +40,6 @@ from .forms import (
     HeartRateEntryForm,
     MedicineForm,
     MedicineLogEditForm,
-    MedicineLogForm,
     MedicineScheduleForm,
     PRNDoseForm,
     QuickSleepForm,
@@ -178,7 +176,6 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
 
                 # Average sleep quality (for entries that have it)
                 quality_map = {'excellent': 5, 'good': 4, 'fair': 3, 'poor': 2, 'terrible': 1}
-                quality_labels = {'excellent': 'Excellent', 'good': 'Good', 'fair': 'Fair', 'poor': 'Poor', 'terrible': 'Terrible'}
                 entries_with_quality = [e for e in week_sleep if e.quality_rating]
                 if entries_with_quality:
                     avg_score = sum(quality_map.get(e.quality_rating, 3) for e in entries_with_quality) / len(entries_with_quality)
@@ -3177,7 +3174,7 @@ class PRNLogView(LoginRequiredMixin, TemplateView):
             today = get_user_today(request.user)
 
             # Create the log
-            log = MedicineLog.objects.create(
+            MedicineLog.objects.create(
                 user=request.user,
                 medicine=medicine,
                 scheduled_date=today,
@@ -3599,7 +3596,7 @@ class FoodEntryCreateView(HelpContextMixin, SaveAddAnotherMixin, LoginRequiredMi
         # Handle different submit buttons
         if 'save_and_scan' in self.request.POST:
             # Save the form first
-            response = super().form_valid(form)
+            super().form_valid(form)
             messages.success(self.request, "Food logged. Scan another!")
             # Redirect to scan page with barcode mode
             scan_url = reverse('scan:home') + '?mode=barcode'
@@ -3788,7 +3785,7 @@ class NutritionStatsView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         )
 
         # Daily aggregates
-        from django.db.models import Sum, Avg
+        from django.db.models import Sum
         daily_stats = []
         current = start_date
         while current <= today:
@@ -4380,7 +4377,6 @@ class ProviderAILookupView(LoginRequiredMixin, View):
     def post(self, request):
         import json
         from django.conf import settings
-        from .models import MedicalProvider
 
         provider_name = request.POST.get('name', '').strip()
         city = request.POST.get('city', '').strip()
@@ -5271,7 +5267,6 @@ class SleepListView(HelpContextMixin, LoginRequiredMixin, ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         entries = self.get_queryset()
-        user = self.request.user
 
         if entries.exists():
             context["latest"] = entries.first()

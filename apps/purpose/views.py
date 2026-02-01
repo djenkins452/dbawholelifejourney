@@ -4,11 +4,11 @@ Purpose Module Views
 The strategic and spiritual compass for WLJ.
 Visited seasonally, not daily.
 """
+import json
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.core.exceptions import ValidationError
-from django.db.models import Count, Max, Q
+from django.db.models import Max
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy, reverse
@@ -870,10 +870,10 @@ class HabitLogDateView(PurposeAccessMixin, View):
 
             from datetime import datetime
             selected_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-        except (json.JSONDecodeError, ValueError) as e:
+        except (json.JSONDecodeError, ValueError):
             return JsonResponse({
                 'success': False,
-                'error': f'Invalid date format. Use YYYY-MM-DD.'
+                'error': 'Invalid date format. Use YYYY-MM-DD.'
             }, status=400)
 
         # Validate goal has habit tracking
@@ -1000,7 +1000,7 @@ class MilestoneToggleView(PurposeAccessMixin, View):
                 request.session['goal_ready_to_complete'] = milestone.goal.pk
                 messages.info(
                     request,
-                    f"All milestones complete! Consider marking the goal as complete."
+                    "All milestones complete! Consider marking the goal as complete."
                 )
 
         return redirect('purpose:goal_detail', pk=milestone.goal.pk)

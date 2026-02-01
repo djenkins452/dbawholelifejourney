@@ -142,7 +142,7 @@ def import_chatgpt_entries(apps, schema_editor):
         print(f"  Created: {title} ({len(categories_to_add)} categories)")
         created_count += 1
 
-    print(f"\nChatGPT Journal Import Complete:")
+    print("\nChatGPT Journal Import Complete:")
     print(f"  Created: {created_count}")
     print(f"  Skipped: {skipped_count}")
 

@@ -30,7 +30,7 @@ from decimal import Decimal
 from typing import Optional, Dict, List, Any
 
 from django.core.cache import cache
-from django.db.models import Sum, Count, Avg, Q
+from django.db.models import Sum, Count, Avg
 from django.utils import timezone
 
 from apps.ai.services import AIService
@@ -228,7 +228,7 @@ class FinanceAIService:
 
         # Previous month (same day range)
         prev_month_start = (month_start - timedelta(days=1)).replace(day=1)
-        prev_month_end = month_start - timedelta(days=1)
+        month_start - timedelta(days=1)
         # Adjust to same relative day
         days_into_month = (today - month_start).days
         prev_compare_end = prev_month_start + timedelta(days=days_into_month)

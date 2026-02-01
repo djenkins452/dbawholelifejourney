@@ -14,7 +14,7 @@ This test file covers:
 Location: apps/health/tests/test_health_comprehensive.py
 """
 
-from datetime import date, datetime, timedelta
+from datetime import timedelta
 from decimal import Decimal
 from django.test import TestCase, Client
 from django.urls import reverse
@@ -116,7 +116,7 @@ class WeightEntryModelTest(HealthTestMixin, TestCase):
     
     def test_weight_ordering(self):
         """Weight entries are ordered by most recent first."""
-        old = self.create_weight(self.user, value=Decimal('190.0'))
+        self.create_weight(self.user, value=Decimal('190.0'))
         new = self.create_weight(self.user, value=Decimal('185.0'))
         
         entries = WeightEntry.objects.filter(user=self.user)
@@ -141,8 +141,8 @@ class WeightEntryModelTest(HealthTestMixin, TestCase):
     
     def test_multiple_weights_same_day(self):
         """Multiple weights can be logged on same day."""
-        entry1 = self.create_weight(self.user, value=Decimal('181.0'))
-        entry2 = self.create_weight(self.user, value=Decimal('180.5'))
+        self.create_weight(self.user, value=Decimal('181.0'))
+        self.create_weight(self.user, value=Decimal('180.5'))
         
         count = WeightEntry.objects.filter(user=self.user).count()
         self.assertEqual(count, 2)
@@ -252,7 +252,7 @@ class GlucoseEntryModelTest(HealthTestMixin, TestCase):
     
     def test_glucose_ordering(self):
         """Glucose entries are ordered by most recent first."""
-        old = self.create_glucose(self.user, value=95)
+        self.create_glucose(self.user, value=95)
         new = self.create_glucose(self.user, value=100)
         
         entries = GlucoseEntry.objects.filter(user=self.user)
@@ -345,21 +345,21 @@ class HealthFormTest(HealthTestMixin, TestCase):
     
     def test_create_weight_via_model(self):
         """Weight can be created via model."""
-        entry = self.create_weight(self.user, value=Decimal('185.5'))
+        self.create_weight(self.user, value=Decimal('185.5'))
         self.assertTrue(
             WeightEntry.objects.filter(user=self.user).exists()
         )
     
     def test_create_glucose_via_model(self):
         """Glucose can be created via model."""
-        entry = self.create_glucose(self.user, value=95)
+        self.create_glucose(self.user, value=95)
         self.assertTrue(
             GlucoseEntry.objects.filter(user=self.user).exists()
         )
     
     def test_start_fasting_via_model(self):
         """Fasting can be started via model."""
-        fast = FastingWindow.objects.create(
+        FastingWindow.objects.create(
             user=self.user,
             started_at=timezone.now()
         )
@@ -454,8 +454,8 @@ class HealthBusinessLogicTest(HealthTestMixin, TestCase):
     
     def test_filter_completed_fasts(self):
         """Can filter completed fasts."""
-        active = self.create_fasting(self.user, hours_ago=8)
-        completed = self.create_fasting(self.user, hours_ago=24, duration_hours=16)
+        self.create_fasting(self.user, hours_ago=8)
+        self.create_fasting(self.user, hours_ago=24, duration_hours=16)
         
         completed_fasts = FastingWindow.objects.filter(
             user=self.user, ended_at__isnull=False
@@ -464,8 +464,8 @@ class HealthBusinessLogicTest(HealthTestMixin, TestCase):
     
     def test_filter_active_fasts(self):
         """Can filter active fasts."""
-        active = self.create_fasting(self.user, hours_ago=8)
-        completed = self.create_fasting(self.user, hours_ago=24, duration_hours=16)
+        self.create_fasting(self.user, hours_ago=8)
+        self.create_fasting(self.user, hours_ago=24, duration_hours=16)
         
         active_fasts = FastingWindow.objects.filter(
             user=self.user, ended_at__isnull=True
@@ -581,13 +581,13 @@ class HealthContextTest(HealthTestMixin, TestCase):
     def test_weight_list_has_weight_loss_calculation(self):
         """Weight list shows total weight change from first to last entry."""
         # Create entries with different dates
-        first_entry = WeightEntry.objects.create(
+        WeightEntry.objects.create(
             user=self.user,
             value=Decimal('200.0'),
             unit='lb',
             recorded_at=timezone.now() - timedelta(days=30)
         )
-        latest_entry = WeightEntry.objects.create(
+        WeightEntry.objects.create(
             user=self.user,
             value=Decimal('190.0'),
             unit='lb',
@@ -674,7 +674,7 @@ class HealthAPITest(HealthTestMixin, TestCase):
     def test_fasting_toggle_api(self):
         """Fasting can be created via model."""
         # Create a fast directly 
-        fast = FastingWindow.objects.create(
+        FastingWindow.objects.create(
             user=self.user,
             started_at=timezone.now()
         )
@@ -823,7 +823,7 @@ class BloodPressureModelTest(HealthTestMixin, TestCase):
 
     def test_blood_pressure_ordering(self):
         """Blood pressure entries are ordered by most recent first."""
-        old = self.create_blood_pressure(self.user, systolic=130, diastolic=85)
+        self.create_blood_pressure(self.user, systolic=130, diastolic=85)
         new = self.create_blood_pressure(self.user, systolic=125, diastolic=82)
 
         entries = BloodPressureEntry.objects.filter(user=self.user)
@@ -891,7 +891,7 @@ class BloodOxygenModelTest(HealthTestMixin, TestCase):
 
     def test_blood_oxygen_ordering(self):
         """Blood oxygen entries are ordered by most recent first."""
-        old = self.create_blood_oxygen(self.user, spo2=96)
+        self.create_blood_oxygen(self.user, spo2=96)
         new = self.create_blood_oxygen(self.user, spo2=98)
 
         entries = BloodOxygenEntry.objects.filter(user=self.user)

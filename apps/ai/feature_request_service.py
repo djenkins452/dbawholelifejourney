@@ -31,8 +31,7 @@ Usage:
 import logging
 import re
 from dataclasses import dataclass
-from datetime import timedelta
-from typing import Optional, List, Tuple
+from typing import Optional, Tuple
 
 from django.conf import settings
 from django.core.cache import cache
@@ -233,10 +232,10 @@ class FeatureRequestService:
             data_type = self._identify_data_type(user_request)
             objective = f"Add {data_type} export functionality"
             actions = [
-                f"Add export view in the appropriate app (health/journal/etc.) that generates CSV",
-                f"Include date range filtering (default: last 7 days)",
+                "Add export view in the appropriate app (health/journal/etc.) that generates CSV",
+                "Include date range filtering (default: last 7 days)",
                 f"Add 'Export' button to the {data_type} list/dashboard page",
-                f"Include relevant fields: date, value, notes, source",
+                "Include relevant fields: date, value, notes, source",
                 "Test the export with sample data",
                 "Update the AI Assistant to inform users about the new export feature",
             ]
@@ -246,7 +245,7 @@ class FeatureRequestService:
             data_type = self._identify_data_type(user_request)
             objective = f"Add {data_type} import functionality"
             actions = [
-                f"Create import view that accepts CSV files",
+                "Create import view that accepts CSV files",
                 f"Add file upload form to the {data_type} page",
                 "Validate CSV format and handle errors gracefully",
                 "Preview data before import confirmation",
@@ -645,7 +644,7 @@ class FeatureRequestService:
             "- The user expressed a need that the assistant couldn't fulfill",
             "",
             "---",
-            f"Automated notification from WLJ Personal Assistant",
+            "Automated notification from WLJ Personal Assistant",
         ])
 
         return "\n".join(lines)

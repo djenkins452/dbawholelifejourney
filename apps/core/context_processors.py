@@ -36,7 +36,6 @@ Copyright:
 """
 
 from django.conf import settings
-from django.utils import timezone
 
 
 def site_context(request):
@@ -295,7 +294,7 @@ def navigation_modules_context(request):
 
     try:
         from django.core.cache import cache
-        from apps.users.models import UserModulePreference, ModuleDefinition
+        from apps.users.models import UserModulePreference
 
         # Cache key specific to this user
         cache_key = f'nav_modules_user_{request.user.id}'

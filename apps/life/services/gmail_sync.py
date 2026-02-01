@@ -7,7 +7,6 @@ Called by views (manual scan) and cron endpoint (scheduled scan).
 
 import logging
 
-from django.utils import timezone
 
 from apps.core.utils import user_log_id
 

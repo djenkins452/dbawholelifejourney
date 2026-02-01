@@ -13,7 +13,6 @@ and delivery to admin@wholelifejourney.com.
 """
 
 from datetime import datetime
-from unittest.mock import patch, MagicMock
 
 from django.test import TestCase, override_settings
 from django.core import mail

@@ -11,11 +11,9 @@ Core data models for the Brain Training module:
 
 import hashlib
 import json
-from decimal import Decimal
 
 from django.conf import settings
 from django.db import models
-from django.db.models import Avg, Count, Sum
 from django.utils import timezone
 
 from apps.core.models import TimeStampedModel

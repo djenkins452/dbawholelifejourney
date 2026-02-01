@@ -10,12 +10,10 @@ following patterns similar to DRF ViewSets.
 
 import json
 from datetime import date, datetime, timedelta
-from decimal import Decimal
 
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db.models import Avg, Count, Sum
+from django.db.models import Avg, Count
 from django.http import JsonResponse
-from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.decorators.csrf import csrf_exempt

@@ -5,10 +5,8 @@ from .models import (
     Task,
     LifeEvent,
     InventoryItem,
-    InventoryPhoto,
     MaintenanceLog,
     Pet,
-    PetRecord,
     Recipe,
     SignificantEvent,
 )

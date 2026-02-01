@@ -556,7 +556,7 @@ class SafetyLimitService:
         logger.warning(f"Safety limit reached: {limit_name} ({current_value}/{limit_value})")
 
         # Create a task info for notification
-        task_info = TaskInfo(
+        TaskInfo(
             task_id=0,
             title=f"Safety Limit Reached: {limit_name}",
             description=reason,

@@ -3,13 +3,13 @@ Example: How to integrate AI insights into the dashboard view.
 
 Add this to your existing DashboardView.get_context_data() method.
 """
+from django.conf import settings
 
 # In apps/dashboard/views.py, add to get_context_data():
 
 def get_context_data(self, **kwargs):
     context = super().get_context_data(**kwargs)
     user = self.request.user
-    prefs = user.preferences
     
     # ... existing code ...
     
@@ -18,7 +18,7 @@ def get_context_data(self, **kwargs):
         try:
             from apps.ai.dashboard_ai import get_dashboard_insight
             context['ai_insights'] = get_dashboard_insight(user)
-        except Exception as e:
+        except Exception:
             # Gracefully handle AI failures
             context['ai_insights'] = {'available': False}
     else:

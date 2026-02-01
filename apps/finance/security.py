@@ -27,8 +27,6 @@ import logging
 from decimal import Decimal
 from typing import Optional
 
-from django.conf import settings
-from django.contrib.auth.decorators import login_required
 from django.core.cache import cache
 from django.http import JsonResponse
 from django.utils import timezone

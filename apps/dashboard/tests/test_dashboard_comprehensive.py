@@ -16,13 +16,11 @@ Location: apps/dashboard/tests/test_dashboard.py
 
 from datetime import date, timedelta
 from decimal import Decimal
-from unittest.mock import patch, MagicMock
 import json
 
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.contrib.auth import get_user_model
-from django.utils import timezone
 
 from apps.dashboard.models import DailyEncouragement
 
@@ -321,7 +319,7 @@ class DashboardEdgeCaseTest(DashboardTestMixin, TestCase):
     
     def test_dashboard_with_new_user(self):
         """Dashboard works for brand new user with no history."""
-        new_user = self.create_user(email='newuser@example.com')
+        self.create_user(email='newuser@example.com')
         self.client.login(email='newuser@example.com', password='testpass123')
         response = self.client.get(reverse('dashboard:home'))
         self.assertEqual(response.status_code, 200)
@@ -551,7 +549,7 @@ class DashboardPermissionTest(DashboardTestMixin, TestCase):
         self.client.login(email='usera@example.com', password='testpass123')
 
         # Post tile configuration change via API
-        response = self.client.post(
+        self.client.post(
             reverse('dashboard:tile_config_api', kwargs={'tile_id': 'weather'}),
             data=json.dumps({'visible': False}),
             content_type='application/json'

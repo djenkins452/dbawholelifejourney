@@ -9,7 +9,6 @@ Usage:
 """
 
 import logging
-from datetime import date, timedelta
 from decimal import Decimal
 
 from django.core.management.base import BaseCommand

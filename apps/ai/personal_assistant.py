@@ -24,14 +24,14 @@ from datetime import timedelta
 from decimal import Decimal
 from typing import Optional, Dict, List, Any
 
-from django.db import models, transaction
-from django.db.models import Count, Avg, F
+from django.db import transaction
+from django.db.models import Count
 from django.utils import timezone
 
 from .services import ai_service, AIService
 from .models import (
-    AIInsight, AssistantConversation, AssistantMessage,
-    UserStateSnapshot, DailyPriority, TrendAnalysis, ReflectionPromptQueue
+    AssistantConversation, AssistantMessage,
+    UserStateSnapshot, DailyPriority, ReflectionPromptQueue
 )
 from assistant.views import process_assistant_message
 
@@ -452,7 +452,6 @@ class PersonalAssistant:
         Calculates hours remaining in day and appropriate urgency level
         based on user's timezone. Assumes typical bedtime of 10pm.
         """
-        import pytz
         from apps.core.utils import get_user_now
 
         user_now = get_user_now(self.user)
@@ -533,7 +532,7 @@ class PersonalAssistant:
         from apps.core.utils import get_user_today, get_user_now
 
         today = get_user_today(self.user)
-        now = get_user_now(self.user)
+        get_user_now(self.user)
 
         # Always gather fresh task data (changes frequently)
         fresh_task_data = self._get_task_state(today, today - timedelta(days=7)) if self.prefs.life_enabled else {}
@@ -635,7 +634,7 @@ class PersonalAssistant:
         """Gather all user data for state assessment."""
         from apps.core.utils import get_user_today, get_user_now
 
-        now = get_user_now(self.user)
+        get_user_now(self.user)
         today = get_user_today(self.user)
         week_ago = today - timedelta(days=7)
         month_ago = today - timedelta(days=30)
@@ -725,7 +724,7 @@ class PersonalAssistant:
     def _get_purpose_state(self, today, month_ago) -> Dict:
         """Get purpose/goals-related metrics including habit goals."""
         from apps.purpose.models import (
-            AnnualDirection, LifeGoal, ChangeIntention, HabitGoal
+            AnnualDirection, LifeGoal, ChangeIntention
         )
 
         current_year = today.year
@@ -852,7 +851,6 @@ class PersonalAssistant:
         - longest_recovery: Longest streak after a gap
         - typical_recovery: Average streak length after gaps
         """
-        from apps.purpose.models import HabitEntry
         from datetime import timedelta
 
         entries = goal.habit_entries.filter(completed=True).order_by('date')
@@ -930,7 +928,7 @@ class PersonalAssistant:
         """Get health-related metrics."""
         from apps.health.models import (
             WeightEntry, FastingWindow, WorkoutSession,
-            Medicine, MedicineLog
+            MedicineLog
         )
 
         data = {}
@@ -1307,7 +1305,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
     def _generate_faith_priority(self, state: Dict, context: Dict) -> Optional[Dict]:
         """Generate faith-related priority if appropriate."""
         # Check if user has been spiritually quiet
-        journal_data = state.get('journal', {})
+        state.get('journal', {})
         faith_data = state.get('faith', {})
 
         # Suggest Bible study if no recent spiritual activity
@@ -1759,7 +1757,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             image_expires_at = timezone.now() + timedelta(hours=72)
 
         # Save user message (with optional image)
-        user_msg = AssistantMessage.objects.create(
+        AssistantMessage.objects.create(
             conversation=conversation,
             role='user',
             content=message,
@@ -1883,7 +1881,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
 
         # Save assistant response
         msg_type = 'action' if actions_taken else 'text'
-        assistant_msg = AssistantMessage.objects.create(
+        AssistantMessage.objects.create(
             conversation=conversation,
             role='assistant',
             content=response,
@@ -2285,7 +2283,7 @@ USER IS ASKING ABOUT THEIR TASKS/PRIORITIES - provide this information:
 
         # Add page context if provided - helps assistant give context-aware responses
         if page_context:
-            page_url = page_context.get('url', '')
+            page_context.get('url', '')
             page_module = page_context.get('module', '')
             page_title = page_context.get('page_title', '')
             page_content = page_context.get('page_content')
@@ -2550,7 +2548,6 @@ Respond as the Dashboard AI Personal Assistant. Answer ONLY what was asked - do 
 
     def _get_greeting(self) -> str:
         """Get time-appropriate greeting with urgency when needed."""
-        import pytz
         from apps.core.utils import get_user_now
 
         user_now = get_user_now(self.user)
@@ -2573,9 +2570,9 @@ Respond as the Dashboard AI Personal Assistant. Answer ONLY what was asked - do 
                 if self.coaching_style == 'direct':
                     greeting += f". {time_context['hours_remaining']} hours left today."
                 elif self.coaching_style == 'gentle':
-                    greeting += f". The evening is here."
+                    greeting += ". The evening is here."
                 else:  # supportive
-                    greeting += f". Let's make the most of the evening."
+                    greeting += ". Let's make the most of the evening."
 
         return greeting
 

@@ -42,13 +42,20 @@
 .dashboard-tiles {
     display: grid;
     grid-template-columns: repeat(6, 1fr);
-    gap: 1rem;
+    grid-auto-rows: min-content;
+    gap: 0.75rem;
+    align-items: start;
 }
 
 /* Tile wrapper for edit mode */
 .tile-wrapper {
     position: relative;
-    min-height: 100px;
+    /* Removed fixed min-height to eliminate empty space */
+}
+
+/* Only apply min-height in edit mode so drag targets are usable */
+body.edit-mode .tile-wrapper {
+    min-height: 80px;
 }
 
 /* Size-based grid spans */

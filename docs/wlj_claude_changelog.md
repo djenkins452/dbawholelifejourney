@@ -16,6 +16,42 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-02-01 Changes
 
+### Dashboard Tile Spacing Cleanup
+
+**Summary:** Removed excessive empty space between dashboard tiles by eliminating redundant margins and optimizing the CSS grid layout.
+
+**Problem:** The configurable dashboard had significant empty vertical space between tiles, making the layout feel sparse and wasting screen real estate.
+
+**Root Causes Fixed:**
+1. **Redundant margin-bottom** - Each tile section had `margin-bottom: var(--space-6)` (24px) even though the grid already used `gap: 1rem` (16px), resulting in double spacing
+2. **Fixed min-height** - `.tile-wrapper` had `min-height: 100px` forcing empty space for small tiles
+3. **Grid row stretching** - Rows were stretching to fill available space rather than fitting content
+
+**Changes Made:**
+1. Removed `margin-bottom` from 16 section classes in `dashboard.css`:
+   - `.memory-verse-section`, `.ai-insight-hero`, `.celebrations-section`, `.nudges-section`
+   - `.weekly-summary-section`, `.encouragement-card`, `.current-fast-section`
+   - `.quick-actions-section`, `.modules-section`, `.upcoming-section`
+   - `.medicine-schedule-section`, `.recent-workouts-section`, `.nutrition-progress-section`
+   - `.cycle-tracking-section`, `.weather-section`, `.goal-progress-section`, `.quarterly-review-section`
+
+2. Updated `.dashboard-tiles` grid in `home.html`:
+   - Added `grid-auto-rows: min-content` to prevent row stretching
+   - Added `align-items: start` to align tiles to top
+   - Reduced gap from `1rem` to `0.75rem` for tighter layout
+
+3. Updated `.tile-wrapper` in `home.html`:
+   - Removed fixed `min-height: 100px`
+   - Added `min-height: 80px` only in edit mode (for usable drag targets)
+
+**Files Modified:**
+- `templates/dashboard/home.html` - Grid CSS updates
+- `static/css/dashboard.css` - Removed redundant margins
+
+**Testing:** All 58 dashboard tests pass.
+
+---
+
 ### Production Test Plan System
 
 **Summary:** Added a comprehensive test plan tracking system to the Admin Console for production readiness testing. This allows tracking testing progress across releases with phases, individual test items, and inline status updates.

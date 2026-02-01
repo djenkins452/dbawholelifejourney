@@ -114,7 +114,7 @@
    ============================================================================= */
 
 .memory-verse-section {
-    margin-bottom: var(--space-6);
+    /* margin-bottom removed - grid gap handles spacing when inside dashboard tiles */
 }
 
 .memory-verse-card {
@@ -184,14 +184,14 @@
    ============================================================================= */
 
 .ai-insight-hero {
-    background: linear-gradient(135deg, 
-        color-mix(in srgb, var(--color-accent) 8%, var(--color-background)) 0%, 
+    background: linear-gradient(135deg,
+        color-mix(in srgb, var(--color-accent) 8%, var(--color-background)) 0%,
         var(--color-surface) 100%);
     border: 1px solid var(--color-border);
     border-left: 4px solid var(--color-accent);
     border-radius: var(--radius-lg);
     padding: var(--space-6);
-    margin-bottom: var(--space-6);
+    /* margin-bottom removed - grid gap handles spacing */
 }
 
 .ai-badge {
@@ -217,7 +217,7 @@
    ============================================================================= */
 
 .celebrations-section {
-    margin-bottom: var(--space-6);
+    /* margin-bottom removed - grid gap handles spacing */
 }
 
 .celebrations-grid {
@@ -294,7 +294,7 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
-    margin-bottom: var(--space-6);
+    /* margin-bottom removed - grid gap handles spacing */
 }
 
 .nudge-card {
@@ -343,7 +343,7 @@
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
     padding: var(--space-5);
-    margin-bottom: var(--space-6);
+    /* margin-bottom removed - grid gap handles spacing */
 }
 
 .summary-header {
@@ -375,7 +375,7 @@
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
     padding: var(--space-6);
-    margin-bottom: var(--space-6);
+    /* margin-bottom removed - grid gap handles spacing */
     text-align: center;
 }
 
@@ -397,7 +397,7 @@
    ============================================================================= */
 
 .current-fast-section {
-    margin-bottom: var(--space-6);
+    /* margin-bottom removed - grid gap handles spacing */
 }
 
 .fast-card {
@@ -598,7 +598,7 @@
    ============================================================================= */
 
 .quick-actions-section {
-    margin-bottom: var(--space-6);
+    /* margin-bottom removed - grid gap handles spacing */
 }
 
 .quick-actions-grid {
@@ -648,7 +648,7 @@
    ============================================================================= */
 
 .modules-section {
-    margin-bottom: var(--space-6);
+    /* margin-bottom removed - grid gap handles spacing */
 }
 
 .modules-grid {
@@ -717,7 +717,7 @@
    ============================================================================= */
 
 .upcoming-section {
-    margin-bottom: var(--space-6);
+    /* margin-bottom removed - grid gap handles spacing */
 }
 
 .upcoming-list {
@@ -889,7 +889,7 @@
    ============================================================================= */
 
 .medicine-schedule-section {
-    margin-bottom: var(--space-6);
+    /* margin-bottom removed - grid gap handles spacing */
 }
 
 .medicine-schedule-list {
@@ -986,7 +986,7 @@
    ============================================================================= */
 
 .recent-workouts-section {
-    margin-bottom: var(--space-6);
+    /* margin-bottom removed - grid gap handles spacing */
 }
 
 .workouts-list {
@@ -1166,7 +1166,7 @@
 
 /* Nutrition progress section on dashboard */
 .nutrition-progress-section {
-    margin-bottom: var(--space-6);
+    /* margin-bottom removed - grid gap handles spacing */
 }
 
 .nutrition-progress-card {
@@ -1298,10 +1298,6 @@
 /* =============================================================================
    UPCOMING CELEBRATIONS (Significant Events)
    ============================================================================= */
-
-.celebrations-section {
-    margin-bottom: var(--space-6);
-}
 
 .section-header-with-link {
     display: flex;
@@ -1444,7 +1440,7 @@
    ============================================================================= */
 
 .cycle-tracking-section {
-    margin-bottom: var(--space-6);
+    /* margin-bottom removed - grid gap handles spacing */
 }
 
 .cycle-card {
@@ -1598,7 +1594,7 @@
    ============================================================================= */
 
 .weather-section {
-    margin-bottom: var(--space-4);
+    /* margin-bottom removed - grid gap handles spacing */
 }
 
 /* Normal Weather Card */
@@ -1804,7 +1800,7 @@
    ============================================ */
 
 .goal-progress-section {
-    margin-bottom: var(--space-6);
+    /* margin-bottom removed - grid gap handles spacing */
 }
 
 .goals-progress-list {
@@ -1930,7 +1926,7 @@
    ============================================ */
 
 .quarterly-review-section {
-    margin-bottom: var(--space-6);
+    /* margin-bottom removed - grid gap handles spacing */
 }
 
 .quarterly-review-card {

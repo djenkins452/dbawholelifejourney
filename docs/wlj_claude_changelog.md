@@ -16,6 +16,15 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-02-01 Changes
 
+### Remove "More" from Desktop Left Rail Navigation
+
+**Change:** Removed the "More" menu item from the desktop left rail navigation. Profile, Preferences, What's New, and Sign Out are already accessible from the user avatar dropdown in the header.
+
+**Files Modified:**
+- `templates/components/desktop_left_rail.html` - Removed "More" link, keeping only Admin Console for staff
+
+---
+
 ### Fix AI Profile Deep Link Not Opening Accordion
 
 **Issue:** Dashboard onboarding checklist link to "Set Your AI Profile" (`/user/preferences/#ai-profile`) wasn't opening the AI section expanded with cursor in textarea.

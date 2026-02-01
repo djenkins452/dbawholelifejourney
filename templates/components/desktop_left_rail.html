@@ -69,19 +69,8 @@
     {% endif %}
     {% endfor %}
 
-    <div class="rail-divider"></div>
-
-    <!-- More - Always last -->
-    <a href="{% url 'core:more' %}" class="rail-item{% if request.resolver_match.url_name == 'more' %} active{% endif %}" data-tooltip="More">
-        <svg class="rail-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="1"/>
-            <circle cx="12" cy="5" r="1"/>
-            <circle cx="12" cy="19" r="1"/>
-        </svg>
-        <span class="rail-label">More</span>
-    </a>
-
     {% if user.is_staff %}
+    <div class="rail-divider"></div>
     <!-- Admin Console - Staff only -->
     <a href="{% url 'admin_console:dashboard' %}" class="rail-item{% if request.resolver_match.app_name == 'admin_console' %} active{% endif %}" data-tooltip="Admin" data-module="admin">
         <svg class="rail-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

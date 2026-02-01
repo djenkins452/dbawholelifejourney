@@ -16,6 +16,23 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-02-01 Changes
 
+### Test Plan Phase Stats Not Updating on Status Change
+
+**Issue:** When changing a test item's status (e.g., to "Passed"), the phase-level stats (passed/failed/blocked counts) and the phase progress percentage were not updating in the UI. Only the overall cycle stats updated.
+
+**Root Cause:** The `updateStats()` JavaScript function in `cycle_detail.html` only updated the cycle-level stats, not the phase-level stats.
+
+**Fix:**
+- Modified `updateStats()` to accept a `phaseId` parameter
+- Added logic to update phase mini-stats (passed/failed/blocked/total)
+- Added logic to update phase progress percentage
+- Added logic to update phase status badge
+- Modified `updateItemStatus()` to extract phaseId from the DOM and pass it to `updateStats()`
+
+**File:** `templates/admin_console/test_plans/cycle_detail.html`
+
+---
+
 ### Fix Onboarding Gender Selection Not Working
 
 **Problem:** On the onboarding wizard "A Little About You" step, clicking the Male/Female/Prefer not to say options did not select them visually or functionally.

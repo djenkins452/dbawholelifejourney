@@ -608,7 +608,10 @@ function toggleItem(itemId) {
 }
 
 async function updateItemStatus(itemId, status) {
-    const select = document.querySelector(`[data-item-id="${itemId}"] .status-select`);
+    const itemEl = document.querySelector(`[data-item-id="${itemId}"]`);
+    const select = itemEl.querySelector('.status-select');
+    const phaseCard = itemEl.closest('.phase-card');
+    const phaseId = phaseCard ? phaseCard.dataset.phaseId : null;
 
     // Update visual immediately
     select.className = `status-select status-${status}`;
@@ -625,7 +628,7 @@ async function updateItemStatus(itemId, status) {
 
         if (response.ok) {
             const data = await response.json();
-            updateStats(data);
+            updateStats(data, phaseId);
             showSavedIndicator(select);
         }
     } catch (error) {
@@ -684,7 +687,7 @@ function showErrorIndicator(element) {
     setTimeout(() => indicator.remove(), 3000);
 }
 
-function updateStats(data) {
+function updateStats(data, phaseId) {
     // Update cycle stats
     document.getElementById('stat-passed').textContent = data.cycle_stats.passed;
     document.getElementById('stat-failed').textContent = data.cycle_stats.failed;
@@ -697,6 +700,31 @@ function updateStats(data) {
     const progressText = document.querySelector('.progress-text');
     progressFill.style.width = `${data.cycle_progress}%`;
     progressText.textContent = `${data.cycle_progress}% Complete`;
+
+    // Update phase stats if phaseId provided
+    if (phaseId && data.phase_stats) {
+        const phaseCard = document.querySelector(`[data-phase-id="${phaseId}"]`);
+        if (phaseCard) {
+            const miniStats = phaseCard.querySelectorAll('.mini-stat');
+            if (miniStats.length >= 4) {
+                miniStats[0].textContent = data.phase_stats.passed;
+                miniStats[1].textContent = data.phase_stats.failed;
+                miniStats[2].textContent = data.phase_stats.blocked;
+                miniStats[3].textContent = data.phase_stats.total;
+            }
+            // Update phase progress
+            const phaseProgress = phaseCard.querySelector('.phase-progress');
+            if (phaseProgress) {
+                phaseProgress.textContent = `${data.phase_progress}%`;
+            }
+            // Update phase status badge
+            const statusBadge = phaseCard.querySelector('.phase-status-badge');
+            if (statusBadge && data.phase_status) {
+                statusBadge.className = `phase-status-badge phase-status-${data.phase_status}`;
+                statusBadge.textContent = data.phase_status.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+            }
+        }
+    }
 }
 
 function getCookie(name) {

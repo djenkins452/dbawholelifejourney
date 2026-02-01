@@ -16,6 +16,23 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-02-01 Changes
 
+### Onboarding: AI Features Default to ON
+
+**Change:** The AI consent toggle on the onboarding wizard now defaults to ON for new users, showing the coaching styles and Personal Assistant options immediately.
+
+**Rationale:** Most users will want AI features, so opt-out is better UX than opt-in during onboarding.
+
+**Implementation:**
+- Added `ai_data_consent_explicit` context variable that checks if user has a consent date (meaning they've explicitly made a choice before)
+- Template logic: If no explicit choice yet, default to checked/enabled
+- Coaching styles section visible by default for new users
+
+**Files Modified:**
+- `templates/users/onboarding_wizard.html` - Default checkbox to checked for new users
+- `apps/users/views.py` - Added `ai_data_consent_explicit` context
+
+---
+
 ### Test Plan Phase Stats Not Updating on Status Change
 
 **Issue:** When changing a test item's status (e.g., to "Passed"), the phase-level stats (passed/failed/blocked counts) and the phase progress percentage were not updating in the UI. Only the overall cycle stats updated.

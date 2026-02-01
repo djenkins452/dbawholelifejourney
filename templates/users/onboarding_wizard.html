@@ -223,9 +223,9 @@
                     <p class="step-subtitle">If you'd like, the app can offer gentle insights and encouragement based on what you write.</p>
                 </div>
 
-                <!-- Single AI Consent Toggle -->
+                <!-- Single AI Consent Toggle - Default to ON during onboarding -->
                 <div class="ai-toggle-section">
-                    <label class="ai-toggle-card consent-card {% if ai_data_consent %}enabled{% endif %}">
+                    <label class="ai-toggle-card consent-card {% if ai_data_consent or not ai_data_consent_explicit %}enabled{% endif %}">
                         <div class="ai-toggle-content">
                             <div class="ai-icon">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="32" height="32">
@@ -239,7 +239,7 @@
                                 <p>I consent to AI processing my journal entries, tasks, goals, health data, and other information to provide personalized insights, coaching, and the Personal Assistant.</p>
                             </div>
                             <div class="ai-switch">
-                                <input type="checkbox" name="ai_data_consent" id="ai_data_consent" {% if ai_data_consent %}checked{% endif %}>
+                                <input type="checkbox" name="ai_data_consent" id="ai_data_consent" {% if ai_data_consent or not ai_data_consent_explicit %}checked{% endif %}>
                                 <label for="ai_data_consent" class="toggle-switch">
                                     <span class="toggle-slider"></span>
                                 </label>
@@ -248,8 +248,8 @@
                     </label>
                 </div>
 
-                <!-- Coaching styles (shown when AI consent given) -->
-                <div class="coaching-styles-section {% if not ai_data_consent %}hidden{% endif %}" id="coaching-styles">
+                <!-- Coaching styles (shown when AI consent given - default visible for new users) -->
+                <div class="coaching-styles-section {% if not ai_data_consent and ai_data_consent_explicit %}hidden{% endif %}" id="coaching-styles">
                     <h2>Choose Your Coaching Voice</h2>
                     <p class="section-subtitle">Each voice has a different personality. Pick the one that feels most supportive to you.</p>
 
@@ -284,8 +284,8 @@
                     {% endfor %}
                 </div>
 
-                <!-- Personal Assistant Section (shown when AI consent given) -->
-                <div class="personal-assistant-section {% if not ai_data_consent %}hidden{% endif %}" id="personal-assistant-section">
+                <!-- Personal Assistant Section (shown when AI consent given - default visible for new users) -->
+                <div class="personal-assistant-section {% if not ai_data_consent and ai_data_consent_explicit %}hidden{% endif %}" id="personal-assistant-section">
                     <h2>Personal Assistant</h2>
                     <p class="section-subtitle">Your AI-powered daily coach that helps you live the life you said you want to live.</p>
 

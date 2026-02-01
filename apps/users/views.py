@@ -530,6 +530,9 @@ class OnboardingWizardView(LoginRequiredMixin, TemplateView):
         elif current_step["id"] == "ai":
             context["ai_enabled"] = prefs.ai_enabled
             context["ai_data_consent"] = prefs.ai_data_consent
+            # Track if user has explicitly set AI consent (has a consent date)
+            # New users without explicit choice should see AI ON by default
+            context["ai_data_consent_explicit"] = prefs.ai_data_consent_date is not None
             context["current_coaching_style"] = prefs.ai_coaching_style
             # Personal Assistant settings
             context["personal_assistant_enabled"] = prefs.personal_assistant_enabled

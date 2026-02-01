@@ -727,6 +727,7 @@
     background: var(--color-surface);
     transition: all 0.2s ease;
     min-height: 72px; /* 44px+ touch target with padding */
+    position: relative; /* For absolutely positioned input */
 }
 
 .gender-card:hover {
@@ -1470,6 +1471,18 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             if (this.checked) {
                 this.closest('.coaching-card').classList.add('selected');
+            }
+        });
+    });
+
+    // Gender card selection
+    document.querySelectorAll('.gender-card input').forEach(input => {
+        input.addEventListener('change', function() {
+            document.querySelectorAll('.gender-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            if (this.checked) {
+                this.closest('.gender-card').classList.add('selected');
             }
         });
     });

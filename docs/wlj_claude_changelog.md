@@ -16,6 +16,24 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-02-01 Changes
 
+### Fix Onboarding Gender Selection Not Working
+
+**Problem:** On the onboarding wizard "A Little About You" step, clicking the Male/Female/Prefer not to say options did not select them visually or functionally.
+
+**Root Causes:**
+1. **Missing JavaScript event handler** - The gender card selection had no JS to update the `.selected` class when clicked (unlike theme cards, coaching cards, and module cards which all had handlers)
+2. **Missing position:relative** - The `.gender-card` CSS was missing `position: relative` which is needed for the absolutely-positioned hidden radio input to stay properly contained
+
+**Fixes Applied:**
+1. Added JavaScript event listener for `.gender-card input` elements to toggle the `selected` class
+2. Added `position: relative` to `.gender-card` CSS
+
+**File Modified:** `templates/users/onboarding_wizard.html`
+
+**Testing:** All 30 onboarding wizard tests pass.
+
+---
+
 ### Complete Documentation & Help Review
 
 **Summary:** Comprehensive review and expansion of user documentation, context-aware help, and teaching destinations.

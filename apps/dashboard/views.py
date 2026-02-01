@@ -891,7 +891,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                     "number": 1,
                     "title": "Set Your AI Profile",
                     "description": "Tell the AI about yourself, your values, and what motivates you. This helps personalize all your insights.",
-                    "link": "/users/preferences/",
+                    "link": "/user/preferences/",
                     "link_text": "Go to Preferences",
                     "icon": "user-circle",
                     "completed": has_ai_profile

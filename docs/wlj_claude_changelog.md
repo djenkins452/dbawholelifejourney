@@ -16,6 +16,24 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-02-01 Changes
 
+### Disable SMS Feature (Pending Push Notifications)
+
+**Change:** SMS/Twilio feature disabled app-wide. Will be replaced by push notifications for iOS/Android apps.
+
+**Implementation:**
+- Added `SMS_FEATURE_ENABLED` setting (defaults to False)
+- Hidden SMS section in Preferences page via feature flag
+- TwilioService.is_configured now checks feature flag
+- Code preserved for potential future re-enablement
+
+**Files Modified:**
+- `config/settings.py` - Added SMS_FEATURE_ENABLED flag
+- `apps/users/views.py` - Pass flag to template context
+- `apps/sms/services.py` - Check feature flag in is_configured
+- `templates/users/preferences.html` - Wrap SMS section in feature flag check
+
+---
+
 ### Bug Fixes from Email Intake (Tasks 413-422)
 
 **Fixed 4 code bugs identified from error emails:**

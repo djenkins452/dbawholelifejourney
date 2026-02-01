@@ -16,6 +16,29 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-02-01 Changes
 
+### Full System Testing - Test Fixes
+
+**Summary:** Fixed 7 failing tests across security admin filters and capture navigation tests.
+
+**Security Admin Filter Tests (6 fixes):**
+- Fixed `SeverityFilter`, `QuickWinFilter`, `AcknowledgedFilter`, and `FindingStatusFilter` tests
+- Removed incorrect tuple wrapping in filter params - Django SimpleListFilter expects string values, not tuples
+- Files: `apps/security/tests/test_admin.py`
+
+**Capture Navigation Tests (1 fix):**
+- Fixed `test_capture_not_in_navigation_when_disabled` and `test_capture_quick_action_not_when_disabled`
+- Root cause: Navigation context processor caches module enabled flags for 5 minutes
+- Fix: Call `invalidate_navigation_cache(user.id)` after changing `capture_enabled` preference
+- Files: `apps/capture/tests/test_views.py`
+
+**Terms of Service Update:**
+- Removed faith features bullet point from Terms of Service acceptance page
+- Files: `templates/users/accept_terms.html`
+
+**Test Results:** All 3955 tests pass (3 skipped).
+
+---
+
 ### Dashboard Tile Spacing Cleanup
 
 **Summary:** Removed excessive empty space between dashboard tiles by eliminating redundant margins and optimizing the CSS grid layout.

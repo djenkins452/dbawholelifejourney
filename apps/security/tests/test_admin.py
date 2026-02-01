@@ -157,7 +157,7 @@ class SecurityRunAdminTest(TestCase):
 
     def test_inlines_configured(self):
         """Test inlines are configured."""
-        inline_classes = [inline.__class__ for inline in self.admin.inlines]
+        [inline.__class__ for inline in self.admin.inlines]
         # Check by name since they're class references
         inline_names = [inline.__name__ for inline in self.admin.inlines]
         self.assertIn('SecurityScoreInline', inline_names)
@@ -576,7 +576,7 @@ class FilterTest(TestCase):
         request = self.factory.get('/')
         severity_filter = SeverityFilter(request, {}, SecurityFinding, self.admin)
         lookups = severity_filter.lookups(request, self.admin)
-        lookup_values = [l[0] for l in lookups]
+        lookup_values = [item[0] for item in lookups]
         self.assertIn('critical', lookup_values)
         self.assertIn('high', lookup_values)
         self.assertIn('medium', lookup_values)
@@ -585,8 +585,7 @@ class FilterTest(TestCase):
     def test_severity_filter_queryset(self):
         """Test severity filter filters correctly."""
         request = self.factory.get('/', {'severity': 'high'})
-        # Django 5.0+ expects params values to be tuples/lists for multi-value support
-        severity_filter = SeverityFilter(request, {'severity': ('high',)}, SecurityFinding, self.admin)
+        severity_filter = SeverityFilter(request, {'severity': 'high'}, SecurityFinding, self.admin)
         # Filter by our run to isolate from other tests
         base_queryset = SecurityFinding.objects.filter(run=self.run)
         queryset = severity_filter.queryset(request, base_queryset)
@@ -598,15 +597,14 @@ class FilterTest(TestCase):
         request = self.factory.get('/')
         qw_filter = QuickWinFilter(request, {}, SecurityFinding, self.admin)
         lookups = qw_filter.lookups(request, self.admin)
-        lookup_values = [l[0] for l in lookups]
+        lookup_values = [item[0] for item in lookups]
         self.assertIn('yes', lookup_values)
         self.assertIn('no', lookup_values)
 
     def test_quick_win_filter_queryset_yes(self):
         """Test quick win filter for yes."""
         request = self.factory.get('/', {'quick_win': 'yes'})
-        # Django 5.0+ expects params values to be tuples/lists for multi-value support
-        qw_filter = QuickWinFilter(request, {'quick_win': ('yes',)}, SecurityFinding, self.admin)
+        qw_filter = QuickWinFilter(request, {'quick_win': 'yes'}, SecurityFinding, self.admin)
         base_queryset = SecurityFinding.objects.filter(run=self.run)
         queryset = qw_filter.queryset(request, base_queryset)
         self.assertEqual(queryset.count(), 1)
@@ -615,8 +613,7 @@ class FilterTest(TestCase):
     def test_quick_win_filter_queryset_no(self):
         """Test quick win filter for no."""
         request = self.factory.get('/', {'quick_win': 'no'})
-        # Django 5.0+ expects params values to be tuples/lists for multi-value support
-        qw_filter = QuickWinFilter(request, {'quick_win': ('no',)}, SecurityFinding, self.admin)
+        qw_filter = QuickWinFilter(request, {'quick_win': 'no'}, SecurityFinding, self.admin)
         base_queryset = SecurityFinding.objects.filter(run=self.run)
         queryset = qw_filter.queryset(request, base_queryset)
         self.assertEqual(queryset.count(), 3)
@@ -628,15 +625,14 @@ class FilterTest(TestCase):
         request = self.factory.get('/')
         ack_filter = AcknowledgedFilter(request, {}, SecurityFinding, self.admin)
         lookups = ack_filter.lookups(request, self.admin)
-        lookup_values = [l[0] for l in lookups]
+        lookup_values = [item[0] for item in lookups]
         self.assertIn('yes', lookup_values)
         self.assertIn('no', lookup_values)
 
     def test_acknowledged_filter_queryset_yes(self):
         """Test acknowledged filter for yes."""
         request = self.factory.get('/', {'acknowledged': 'yes'})
-        # Django 5.0+ expects params values to be tuples/lists for multi-value support
-        ack_filter = AcknowledgedFilter(request, {'acknowledged': ('yes',)}, SecurityFinding, self.admin)
+        ack_filter = AcknowledgedFilter(request, {'acknowledged': 'yes'}, SecurityFinding, self.admin)
         base_queryset = SecurityFinding.objects.filter(run=self.run)
         queryset = ack_filter.queryset(request, base_queryset)
         self.assertEqual(queryset.count(), 1)
@@ -645,8 +641,7 @@ class FilterTest(TestCase):
     def test_acknowledged_filter_queryset_no(self):
         """Test acknowledged filter for no."""
         request = self.factory.get('/', {'acknowledged': 'no'})
-        # Django 5.0+ expects params values to be tuples/lists for multi-value support
-        ack_filter = AcknowledgedFilter(request, {'acknowledged': ('no',)}, SecurityFinding, self.admin)
+        ack_filter = AcknowledgedFilter(request, {'acknowledged': 'no'}, SecurityFinding, self.admin)
         base_queryset = SecurityFinding.objects.filter(run=self.run)
         queryset = ack_filter.queryset(request, base_queryset)
         self.assertEqual(queryset.count(), 3)
@@ -658,7 +653,7 @@ class FilterTest(TestCase):
         request = self.factory.get('/')
         status_filter = FindingStatusFilter(request, {}, SecurityFinding, self.admin)
         lookups = status_filter.lookups(request, self.admin)
-        lookup_values = [l[0] for l in lookups]
+        lookup_values = [item[0] for item in lookups]
         self.assertIn('new', lookup_values)
         self.assertIn('recurring', lookup_values)
         self.assertIn('fixed', lookup_values)
@@ -667,8 +662,7 @@ class FilterTest(TestCase):
     def test_finding_status_filter_queryset(self):
         """Test finding status filter filters correctly."""
         request = self.factory.get('/', {'status': 'new'})
-        # Django 5.0+ expects params values to be tuples/lists for multi-value support
-        status_filter = FindingStatusFilter(request, {'status': ('new',)}, SecurityFinding, self.admin)
+        status_filter = FindingStatusFilter(request, {'status': 'new'}, SecurityFinding, self.admin)
         base_queryset = SecurityFinding.objects.filter(run=self.run)
         queryset = status_filter.queryset(request, base_queryset)
         self.assertEqual(queryset.count(), 2)  # critical and high are 'new'
@@ -690,7 +684,7 @@ class InlineAdminTest(TestCase):
 
     def test_security_score_inline_fields(self):
         """Test SecurityScoreInline has correct configuration."""
-        parent_admin = SecurityRunAdmin(SecurityRun, self.site)
+        SecurityRunAdmin(SecurityRun, self.site)
         inline = SecurityScoreInline(SecurityRun, self.site)
 
         self.assertEqual(inline.model, SecurityScore)

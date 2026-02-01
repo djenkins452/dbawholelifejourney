@@ -68,7 +68,7 @@ class CaptureListViewTests(TestCase):
 
     def test_list_view_shows_user_entries(self):
         """List view shows the user's entries."""
-        entry = CaptureEntry.objects.create(
+        CaptureEntry.objects.create(
             user=self.user,
             title='My Recording',
             status=CaptureEntry.STATUS_READY,
@@ -176,7 +176,7 @@ class CaptureListViewTests(TestCase):
             category=CaptureEntry.CATEGORY_FAITH,
             status=CaptureEntry.STATUS_READY,
         )
-        organize_entry = CaptureEntry.objects.create(
+        CaptureEntry.objects.create(
             user=self.user,
             title='Organize Recording',
             category=CaptureEntry.CATEGORY_ORGANIZE,
@@ -199,7 +199,7 @@ class CaptureListViewTests(TestCase):
             subcategory=CaptureEntry.SUBCATEGORY_SERMON,
             status=CaptureEntry.STATUS_READY,
         )
-        devotional_entry = CaptureEntry.objects.create(
+        CaptureEntry.objects.create(
             user=self.user,
             title='Devotional Recording',
             category=CaptureEntry.CATEGORY_FAITH,
@@ -223,14 +223,14 @@ class CaptureListViewTests(TestCase):
             subcategory=CaptureEntry.SUBCATEGORY_SERMON,
             status=CaptureEntry.STATUS_READY,
         )
-        faith_devotional = CaptureEntry.objects.create(
+        CaptureEntry.objects.create(
             user=self.user,
             title='Faith Devotional',
             category=CaptureEntry.CATEGORY_FAITH,
             subcategory=CaptureEntry.SUBCATEGORY_DEVOTIONAL,
             status=CaptureEntry.STATUS_READY,
         )
-        organize_meeting = CaptureEntry.objects.create(
+        CaptureEntry.objects.create(
             user=self.user,
             title='Organize Meeting',
             category=CaptureEntry.CATEGORY_ORGANIZE,
@@ -252,7 +252,7 @@ class CaptureListViewTests(TestCase):
             title='Sunday Morning Sermon',
             status=CaptureEntry.STATUS_READY,
         )
-        entry2 = CaptureEntry.objects.create(
+        CaptureEntry.objects.create(
             user=self.user,
             title='Team Meeting Notes',
             status=CaptureEntry.STATUS_READY,
@@ -273,7 +273,7 @@ class CaptureListViewTests(TestCase):
             summary='Sermon about faith and perseverance',
             status=CaptureEntry.STATUS_READY,
         )
-        entry2 = CaptureEntry.objects.create(
+        CaptureEntry.objects.create(
             user=self.user,
             title='Recording 2',
             summary='Team quarterly planning discussion',
@@ -289,7 +289,7 @@ class CaptureListViewTests(TestCase):
 
     def test_search_case_insensitive(self):
         """List view search is case-insensitive."""
-        entry = CaptureEntry.objects.create(
+        CaptureEntry.objects.create(
             user=self.user,
             title='Sunday SERMON',
             status=CaptureEntry.STATUS_READY,
@@ -313,13 +313,13 @@ class CaptureListViewTests(TestCase):
             category=CaptureEntry.CATEGORY_FAITH,
             status=CaptureEntry.STATUS_READY,
         )
-        faith_sermon_other = CaptureEntry.objects.create(
+        CaptureEntry.objects.create(
             user=self.user,
             title='Christmas Sermon',
             category=CaptureEntry.CATEGORY_FAITH,
             status=CaptureEntry.STATUS_READY,
         )
-        organize_entry = CaptureEntry.objects.create(
+        CaptureEntry.objects.create(
             user=self.user,
             title='Easter Planning Meeting',
             category=CaptureEntry.CATEGORY_ORGANIZE,
@@ -335,12 +335,12 @@ class CaptureListViewTests(TestCase):
 
     def test_empty_search_returns_all(self):
         """Empty search query returns all entries."""
-        entry1 = CaptureEntry.objects.create(
+        CaptureEntry.objects.create(
             user=self.user,
             title='Entry 1',
             status=CaptureEntry.STATUS_READY,
         )
-        entry2 = CaptureEntry.objects.create(
+        CaptureEntry.objects.create(
             user=self.user,
             title='Entry 2',
             status=CaptureEntry.STATUS_READY,
@@ -587,7 +587,6 @@ class CaptureUploadViewTests(TestCase):
 
     def test_upload_rejects_invalid_file_type(self):
         """Upload rejects non-audio file types."""
-        from io import BytesIO
         from django.core.files.uploadedfile import SimpleUploadedFile
 
         fake_file = SimpleUploadedFile(
@@ -604,7 +603,7 @@ class CaptureUploadViewTests(TestCase):
 
     def test_upload_rejects_oversized_file(self):
         """Upload rejects files over 60MB."""
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import patch
         from django.core.files.uploadedfile import SimpleUploadedFile
 
         fake_file = SimpleUploadedFile(
@@ -820,6 +819,9 @@ class CaptureNavigationTests(TestCase):
         """Capture link not in navigation when capture is disabled."""
         self.user.preferences.capture_enabled = False
         self.user.preferences.save()
+        # Invalidate navigation cache since it caches module enabled flags
+        from apps.core.context_processors import invalidate_navigation_cache
+        invalidate_navigation_cache(self.user.id)
 
         response = self.client.get(reverse('dashboard:home'))
         self.assertNotContains(response, reverse('capture:list'))
@@ -837,6 +839,9 @@ class CaptureNavigationTests(TestCase):
         """Record Audio quick action not shown when capture is disabled."""
         self.user.preferences.capture_enabled = False
         self.user.preferences.save()
+        # Invalidate navigation cache since it caches module enabled flags
+        from apps.core.context_processors import invalidate_navigation_cache
+        invalidate_navigation_cache(self.user.id)
 
         response = self.client.get(reverse('dashboard:home'))
         self.assertNotContains(response, reverse('capture:record'))
@@ -1334,7 +1339,6 @@ class CaptureDetailViewTests(TestCase):
 
     def test_detail_view_requires_login(self):
         """Detail view requires authentication."""
-        import uuid
         self.client.logout()
         entry = CaptureEntry.objects.create(
             user=self.user,
@@ -1991,7 +1995,7 @@ class CaptureExpiredAudioTests(TestCase):
         from django.utils import timezone
         from datetime import timedelta
 
-        entry = CaptureEntry.objects.create(
+        CaptureEntry.objects.create(
             user=self.user,
             title='Expired Audio Entry',
             status=CaptureEntry.STATUS_READY,
@@ -2006,7 +2010,7 @@ class CaptureExpiredAudioTests(TestCase):
 
     def test_list_view_no_expired_indicator_when_audio_exists(self):
         """List view does not show 'Audio expired' when audio URL exists."""
-        entry = CaptureEntry.objects.create(
+        CaptureEntry.objects.create(
             user=self.user,
             title='Active Audio Entry',
             status=CaptureEntry.STATUS_READY,

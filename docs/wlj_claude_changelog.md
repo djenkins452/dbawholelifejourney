@@ -16,6 +16,19 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-02-01 Changes
 
+### Fix AI Profile Deep Link Not Opening Accordion
+
+**Issue:** Dashboard onboarding checklist link to "Set Your AI Profile" (`/user/preferences/#ai-profile`) wasn't opening the AI section expanded with cursor in textarea.
+
+**Root Cause:** The hash handler opened the nested `personal-profile` accordion inside `ai-subsections`, but failed to first open the parent `ai` accordion in the main `preferences` accordion.
+
+**Fix:** Added `WLJAccordion.open('preferences', 'ai')` before opening the nested accordion.
+
+**Files Modified:**
+- `templates/users/preferences.html` - Fixed hash handler to open parent accordion first
+
+---
+
 ### Disable SMS Feature (Pending Push Notifications)
 
 **Change:** SMS/Twilio feature disabled app-wide. Will be replaced by push notifications for iOS/Android apps.

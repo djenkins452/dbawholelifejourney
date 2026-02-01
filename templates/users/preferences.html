@@ -4084,6 +4084,11 @@ document.addEventListener('DOMContentLoaded', function() {
     if (hash === '#ai-profile') {
         // Small delay to ensure accordion.js has initialized
         setTimeout(function() {
+            // First, open the parent AI accordion in the main preferences accordion
+            if (window.WLJAccordion) {
+                WLJAccordion.open('preferences', 'ai');
+            }
+
             // Make sure the AI subsections container is visible
             const aiSubsections = document.getElementById('ai-subsections-container');
             if (aiSubsections) {
@@ -4096,7 +4101,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 aiProfileAccordion.style.display = 'block';
             }
 
-            // Use the WLJAccordion API to open the accordion properly
+            // Open the nested personal-profile accordion
             if (window.WLJAccordion) {
                 WLJAccordion.open('ai-subsections', 'personal-profile');
             }

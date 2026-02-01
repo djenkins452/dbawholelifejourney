@@ -4075,6 +4075,38 @@ if (clearAIContextBtn) {
         }
     });
 }
+
+// Handle URL hash to auto-open specific accordion sections
+document.addEventListener('DOMContentLoaded', function() {
+    const hash = window.location.hash;
+    if (hash === '#ai-profile') {
+        // Find the AI Profile accordion and open it
+        const aiProfileAccordion = document.getElementById('ai-profile-accordion');
+        if (aiProfileAccordion) {
+            // Make sure the accordion is visible (AI consent might hide it)
+            aiProfileAccordion.style.display = 'block';
+
+            // Open the accordion
+            const header = aiProfileAccordion.querySelector('.accordion-header');
+            const content = aiProfileAccordion.querySelector('.accordion-content');
+            if (header && content) {
+                header.classList.add('active');
+                content.classList.add('active');
+                content.style.display = 'block';
+            }
+
+            // Scroll to it with a slight delay to ensure layout is complete
+            setTimeout(function() {
+                aiProfileAccordion.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                // Focus the textarea for immediate editing
+                const textarea = document.getElementById('id_ai_profile');
+                if (textarea) {
+                    textarea.focus();
+                }
+            }, 100);
+        }
+    }
+});
 </script>
 <script src="{% static 'js/biometric.js' %}"></script>
 {% endblock %}

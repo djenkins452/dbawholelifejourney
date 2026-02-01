@@ -1,0 +1,820 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign In - Whole Life Journey (Preview 3)</title>
+    <link rel="icon" type="image/png" href="{% static 'images/wlj-logo.png' %}">
+    <style>
+        /* ==========================================================================
+           WLJ Login Preview 3 - Lighthouse Journey Theme
+           A calm, guided journey feel with lighthouse, ocean, sunset, boat + wake
+           ========================================================================== */
+
+        *, *::before, *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            /* Color palette - ocean sunset */
+            --color-sky-top: #1a1a2e;
+            --color-sky-mid: #16213e;
+            --color-sky-bottom: #0f3460;
+            --color-sunset-1: #e94560;
+            --color-sunset-2: #ff6b35;
+            --color-sunset-3: #f7b267;
+            --color-sun: #fff3b0;
+            --color-water-dark: #0a1628;
+            --color-water-mid: #162447;
+            --color-water-light: #1f4068;
+            --color-lighthouse-body: #f5f5f5;
+            --color-lighthouse-stripe: #e94560;
+            --color-beam: rgba(255, 243, 176, 0.15);
+            --color-boat: #2d3436;
+            --color-wake: rgba(255, 255, 255, 0.3);
+
+            /* Form colors */
+            --color-form-bg: #ffffff;
+            --color-form-text: #1a1a2e;
+            --color-form-muted: #64748b;
+            --color-form-border: #e2e8f0;
+            --color-form-focus: #e94560;
+            --color-form-button: linear-gradient(135deg, #e94560 0%, #ff6b35 100%);
+
+            /* Spacing */
+            --space-1: 0.25rem;
+            --space-2: 0.5rem;
+            --space-3: 0.75rem;
+            --space-4: 1rem;
+            --space-5: 1.25rem;
+            --space-6: 1.5rem;
+            --space-8: 2rem;
+
+            /* Typography */
+            --font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            --font-size-sm: 0.875rem;
+            --font-size-base: 1rem;
+            --font-size-lg: 1.125rem;
+            --font-size-xl: 1.25rem;
+            --font-size-2xl: 1.5rem;
+            --font-size-3xl: 1.875rem;
+
+            /* Border radius */
+            --radius-sm: 0.25rem;
+            --radius-md: 0.5rem;
+            --radius-lg: 0.75rem;
+        }
+
+        body {
+            font-family: var(--font-family);
+            min-height: 100vh;
+            background: var(--color-sky-top);
+            color: var(--color-form-text);
+            line-height: 1.5;
+        }
+
+        /* ==========================================================================
+           Page Layout
+           ========================================================================== */
+
+        .auth-page {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* ==========================================================================
+           Hero Section (Left) - Ocean Scene
+           ========================================================================== */
+
+        .auth-hero {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            padding: var(--space-8);
+            min-height: 100vh;
+        }
+
+        /* Sky gradient background */
+        .hero-sky {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(
+                180deg,
+                var(--color-sky-top) 0%,
+                var(--color-sky-mid) 30%,
+                var(--color-sky-bottom) 50%,
+                var(--color-sunset-1) 70%,
+                var(--color-sunset-2) 85%,
+                var(--color-sunset-3) 100%
+            );
+        }
+
+        /* Ocean/water layer */
+        .hero-water {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 45%;
+            background: linear-gradient(
+                180deg,
+                var(--color-water-light) 0%,
+                var(--color-water-mid) 40%,
+                var(--color-water-dark) 100%
+            );
+        }
+
+        /* Water shimmer effect */
+        .hero-water::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: repeating-linear-gradient(
+                90deg,
+                transparent 0%,
+                rgba(255, 255, 255, 0.03) 10%,
+                transparent 20%
+            );
+            animation: shimmer 8s ease-in-out infinite;
+        }
+
+        @keyframes shimmer {
+            0%, 100% { transform: translateX(-5%); opacity: 0.5; }
+            50% { transform: translateX(5%); opacity: 0.8; }
+        }
+
+        /* Respect reduced motion preference */
+        @media (prefers-reduced-motion: reduce) {
+            .hero-water::before,
+            .lighthouse-beam,
+            .boat {
+                animation: none;
+            }
+        }
+
+        /* Sun on horizon */
+        .hero-sun {
+            position: absolute;
+            bottom: 42%;
+            right: 20%;
+            width: 120px;
+            height: 120px;
+            background: radial-gradient(
+                circle,
+                var(--color-sun) 0%,
+                var(--color-sunset-3) 40%,
+                var(--color-sunset-2) 60%,
+                transparent 70%
+            );
+            border-radius: 50%;
+            filter: blur(2px);
+        }
+
+        /* Sun glow */
+        .hero-sun::before {
+            content: '';
+            position: absolute;
+            inset: -50%;
+            background: radial-gradient(
+                circle,
+                rgba(255, 243, 176, 0.3) 0%,
+                rgba(247, 178, 103, 0.1) 50%,
+                transparent 70%
+            );
+            border-radius: 50%;
+        }
+
+        /* Sun reflection on water */
+        .sun-reflection {
+            position: absolute;
+            bottom: 10%;
+            right: 18%;
+            width: 80px;
+            height: 120px;
+            background: linear-gradient(
+                180deg,
+                rgba(255, 243, 176, 0.4) 0%,
+                rgba(247, 178, 103, 0.2) 30%,
+                rgba(255, 107, 53, 0.1) 60%,
+                transparent 100%
+            );
+            filter: blur(8px);
+            transform: scaleY(1.5);
+        }
+
+        /* ==========================================================================
+           Lighthouse
+           ========================================================================== */
+
+        .lighthouse {
+            position: absolute;
+            bottom: 35%;
+            left: 8%;
+            z-index: 10;
+        }
+
+        .lighthouse svg {
+            width: 80px;
+            height: auto;
+            filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
+        }
+
+        /* Lighthouse beam */
+        .lighthouse-beam {
+            position: absolute;
+            top: 12px;
+            left: 45px;
+            width: 800px;
+            height: 300px;
+            background: linear-gradient(
+                90deg,
+                var(--color-beam) 0%,
+                rgba(255, 243, 176, 0.08) 30%,
+                rgba(255, 243, 176, 0.02) 60%,
+                transparent 100%
+            );
+            clip-path: polygon(0 40%, 100% 0%, 100% 100%, 0 60%);
+            transform-origin: left center;
+            animation: beam-sweep 6s ease-in-out infinite;
+            pointer-events: none;
+        }
+
+        @keyframes beam-sweep {
+            0%, 100% { transform: rotate(-5deg); opacity: 0.6; }
+            50% { transform: rotate(10deg); opacity: 0.9; }
+        }
+
+        /* ==========================================================================
+           Boat and Wake Path
+           ========================================================================== */
+
+        .boat-scene {
+            position: absolute;
+            bottom: 15%;
+            left: 15%;
+            right: 10%;
+            height: 200px;
+            z-index: 5;
+        }
+
+        .boat-scene svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* ==========================================================================
+           Hero Content
+           ========================================================================== */
+
+        .hero-content {
+            position: relative;
+            z-index: 20;
+            max-width: 500px;
+            padding-bottom: var(--space-8);
+        }
+
+        .hero-quote {
+            font-size: var(--font-size-xl);
+            font-weight: 300;
+            color: rgba(255, 255, 255, 0.95);
+            line-height: 1.6;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+            font-style: italic;
+        }
+
+        .hero-quote::before {
+            content: '"';
+            font-size: 2em;
+            line-height: 0;
+            vertical-align: -0.3em;
+            margin-right: 0.1em;
+            opacity: 0.5;
+        }
+
+        .hero-quote::after {
+            content: '"';
+            font-size: 2em;
+            line-height: 0;
+            vertical-align: -0.3em;
+            margin-left: 0.1em;
+            opacity: 0.5;
+        }
+
+        /* ==========================================================================
+           Form Section (Right)
+           ========================================================================== */
+
+        .auth-form-section {
+            width: 100%;
+            max-width: 480px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: var(--space-8);
+            background: var(--color-form-bg);
+            box-shadow: -10px 0 40px rgba(0, 0, 0, 0.2);
+        }
+
+        .auth-form-container {
+            width: 100%;
+            max-width: 360px;
+            margin: 0 auto;
+        }
+
+        /* Logo/Brand */
+        .auth-logo {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+            margin-bottom: var(--space-8);
+        }
+
+        .auth-logo img {
+            width: 48px;
+            height: 48px;
+        }
+
+        .auth-logo-text {
+            font-size: var(--font-size-xl);
+            font-weight: 600;
+            color: var(--color-form-text);
+        }
+
+        /* Form header */
+        .auth-form-header h2 {
+            font-size: var(--font-size-2xl);
+            font-weight: 700;
+            color: var(--color-form-text);
+            margin-bottom: var(--space-2);
+        }
+
+        .auth-form-header p {
+            color: var(--color-form-muted);
+            margin-bottom: var(--space-6);
+        }
+
+        /* Form fields */
+        .form-group {
+            margin-bottom: var(--space-5);
+        }
+
+        .form-label {
+            display: block;
+            font-size: var(--font-size-sm);
+            font-weight: 500;
+            color: var(--color-form-text);
+            margin-bottom: var(--space-2);
+        }
+
+        .form-input {
+            width: 100%;
+            padding: var(--space-3) var(--space-4);
+            font-size: var(--font-size-base);
+            font-family: inherit;
+            color: var(--color-form-text);
+            background: var(--color-form-bg);
+            border: 2px solid var(--color-form-border);
+            border-radius: var(--radius-md);
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .form-input::placeholder {
+            color: var(--color-form-muted);
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--color-form-focus);
+            box-shadow: 0 0 0 3px rgba(233, 69, 96, 0.15);
+        }
+
+        /* Form row for checkbox + forgot link */
+        .form-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--space-6);
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+            font-size: var(--font-size-sm);
+            color: var(--color-form-text);
+            cursor: pointer;
+        }
+
+        .form-checkbox {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--color-form-focus);
+            cursor: pointer;
+        }
+
+        .forgot-link {
+            font-size: var(--font-size-sm);
+            color: var(--color-form-focus);
+            text-decoration: none;
+            transition: opacity 0.2s ease;
+        }
+
+        .forgot-link:hover {
+            opacity: 0.8;
+            text-decoration: underline;
+        }
+
+        .forgot-link:focus {
+            outline: 2px solid var(--color-form-focus);
+            outline-offset: 2px;
+            border-radius: var(--radius-sm);
+        }
+
+        /* Submit button */
+        .btn-submit {
+            width: 100%;
+            padding: var(--space-4) var(--space-6);
+            font-size: var(--font-size-base);
+            font-weight: 600;
+            font-family: inherit;
+            color: white;
+            background: var(--color-form-button);
+            border: none;
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .btn-submit:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(233, 69, 96, 0.4);
+        }
+
+        .btn-submit:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(233, 69, 96, 0.3), 0 4px 12px rgba(233, 69, 96, 0.4);
+        }
+
+        .btn-submit:active {
+            transform: translateY(0);
+        }
+
+        /* Sign up link */
+        .auth-link {
+            text-align: center;
+            margin-top: var(--space-6);
+            font-size: var(--font-size-sm);
+            color: var(--color-form-muted);
+        }
+
+        .auth-link a {
+            color: var(--color-form-focus);
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .auth-link a:hover {
+            text-decoration: underline;
+        }
+
+        .auth-link a:focus {
+            outline: 2px solid var(--color-form-focus);
+            outline-offset: 2px;
+            border-radius: var(--radius-sm);
+        }
+
+        /* Footer */
+        .auth-footer {
+            margin-top: auto;
+            padding-top: var(--space-8);
+            text-align: center;
+            font-size: 0.75rem;
+            color: var(--color-form-muted);
+        }
+
+        /* ==========================================================================
+           Responsive Design
+           ========================================================================== */
+
+        @media (max-width: 900px) {
+            .auth-page {
+                flex-direction: column;
+            }
+
+            .auth-hero {
+                min-height: 50vh;
+                padding: var(--space-6);
+            }
+
+            .lighthouse svg {
+                width: 60px;
+            }
+
+            .lighthouse-beam {
+                width: 500px;
+                height: 200px;
+            }
+
+            .hero-sun {
+                width: 80px;
+                height: 80px;
+                right: 15%;
+            }
+
+            .hero-quote {
+                font-size: var(--font-size-lg);
+            }
+
+            .auth-form-section {
+                max-width: none;
+                box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.2);
+            }
+        }
+
+        @media (max-width: 480px) {
+            .auth-hero {
+                min-height: 40vh;
+                padding: var(--space-4);
+            }
+
+            .lighthouse {
+                left: 5%;
+                bottom: 30%;
+            }
+
+            .lighthouse svg {
+                width: 50px;
+            }
+
+            .lighthouse-beam {
+                width: 300px;
+                height: 150px;
+            }
+
+            .hero-sun {
+                width: 60px;
+                height: 60px;
+                right: 10%;
+                bottom: 38%;
+            }
+
+            .boat-scene {
+                bottom: 10%;
+                height: 120px;
+            }
+
+            .hero-quote {
+                font-size: var(--font-size-base);
+            }
+
+            .auth-form-section {
+                padding: var(--space-6);
+            }
+
+            .auth-form-header h2 {
+                font-size: var(--font-size-xl);
+            }
+        }
+
+        /* ==========================================================================
+           Stars (decorative)
+           ========================================================================== */
+
+        .stars {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 50%;
+            pointer-events: none;
+        }
+
+        .star {
+            position: absolute;
+            width: 2px;
+            height: 2px;
+            background: white;
+            border-radius: 50%;
+            opacity: 0.6;
+        }
+
+        .star:nth-child(1) { top: 8%; left: 15%; opacity: 0.4; }
+        .star:nth-child(2) { top: 12%; left: 45%; opacity: 0.6; }
+        .star:nth-child(3) { top: 5%; left: 70%; opacity: 0.3; }
+        .star:nth-child(4) { top: 18%; left: 25%; opacity: 0.5; }
+        .star:nth-child(5) { top: 10%; left: 85%; opacity: 0.4; }
+        .star:nth-child(6) { top: 22%; left: 55%; opacity: 0.3; }
+        .star:nth-child(7) { top: 15%; left: 35%; opacity: 0.5; }
+        .star:nth-child(8) { top: 6%; left: 60%; opacity: 0.4; }
+    </style>
+</head>
+<body>
+    <div class="auth-page">
+        <!-- Hero Section - Ocean Scene -->
+        <div class="auth-hero" aria-hidden="true">
+            <!-- Sky background -->
+            <div class="hero-sky"></div>
+
+            <!-- Stars -->
+            <div class="stars">
+                <div class="star"></div>
+                <div class="star"></div>
+                <div class="star"></div>
+                <div class="star"></div>
+                <div class="star"></div>
+                <div class="star"></div>
+                <div class="star"></div>
+                <div class="star"></div>
+            </div>
+
+            <!-- Sun on horizon -->
+            <div class="hero-sun"></div>
+
+            <!-- Water -->
+            <div class="hero-water"></div>
+
+            <!-- Sun reflection -->
+            <div class="sun-reflection"></div>
+
+            <!-- Lighthouse -->
+            <div class="lighthouse">
+                <!-- Lighthouse beam -->
+                <div class="lighthouse-beam"></div>
+
+                <!-- Lighthouse SVG -->
+                <svg viewBox="0 0 60 140" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Lighthouse">
+                    <!-- Base/rocks -->
+                    <ellipse cx="30" cy="135" rx="28" ry="5" fill="#2d3436"/>
+                    <path d="M5 130 Q15 125 30 128 Q45 125 55 130 L55 135 Q45 138 30 135 Q15 138 5 135 Z" fill="#636e72"/>
+
+                    <!-- Lighthouse body -->
+                    <path d="M18 130 L22 50 L38 50 L42 130 Z" fill="var(--color-lighthouse-body)"/>
+
+                    <!-- Red stripes -->
+                    <path d="M20.5 110 L21.5 90 L38.5 90 L39.5 110 Z" fill="var(--color-lighthouse-stripe)"/>
+                    <path d="M22.5 70 L23 55 L37 55 L37.5 70 Z" fill="var(--color-lighthouse-stripe)"/>
+
+                    <!-- Lighthouse top/lamp room -->
+                    <rect x="20" y="40" width="20" height="12" rx="1" fill="#2d3436"/>
+                    <rect x="22" y="42" width="16" height="8" rx="1" fill="#fff3b0"/>
+
+                    <!-- Lamp glow -->
+                    <circle cx="30" cy="46" r="4" fill="#fff3b0" opacity="0.8"/>
+
+                    <!-- Roof -->
+                    <path d="M18 40 L30 28 L42 40 Z" fill="#2d3436"/>
+
+                    <!-- Top ornament -->
+                    <circle cx="30" cy="26" r="3" fill="#2d3436"/>
+
+                    <!-- Railing -->
+                    <rect x="17" y="38" width="26" height="2" fill="#2d3436"/>
+                    <rect x="17" y="38" width="1" height="6" fill="#2d3436"/>
+                    <rect x="42" y="38" width="1" height="6" fill="#2d3436"/>
+
+                    <!-- Window -->
+                    <ellipse cx="30" cy="100" rx="4" ry="6" fill="#162447"/>
+
+                    <!-- Door -->
+                    <rect x="26" y="118" width="8" height="12" rx="1" fill="#2d3436"/>
+                </svg>
+            </div>
+
+            <!-- Boat and Wake with Module Icons -->
+            <div class="boat-scene">
+                <svg viewBox="0 0 800 200" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Boat sailing toward sunset with journey milestones">
+                    <!-- Wake path (curved trail) -->
+                    <path d="M50 140 Q150 150 250 130 Q350 110 450 100 Q550 90 650 85 Q700 82 750 80"
+                          stroke="rgba(255,255,255,0.2)"
+                          stroke-width="30"
+                          stroke-linecap="round"
+                          fill="none"/>
+                    <path d="M50 140 Q150 150 250 130 Q350 110 450 100 Q550 90 650 85 Q700 82 750 80"
+                          stroke="rgba(255,255,255,0.1)"
+                          stroke-width="50"
+                          stroke-linecap="round"
+                          fill="none"/>
+
+                    <!-- Module icons along the wake (milestones) -->
+
+                    <!-- Faith icon (cross) - closest/largest -->
+                    <g transform="translate(120, 135)" aria-label="Faith milestone">
+                        <circle cx="0" cy="0" r="22" fill="rgba(167, 139, 250, 0.3)" stroke="rgba(167, 139, 250, 0.6)" stroke-width="2"/>
+                        <path d="M0 -10 L0 10 M-7 -3 L7 -3" stroke="#a78bfa" stroke-width="3" stroke-linecap="round"/>
+                    </g>
+
+                    <!-- Journal icon (pen) - second -->
+                    <g transform="translate(280, 120) scale(0.85)" aria-label="Journal milestone">
+                        <circle cx="0" cy="0" r="22" fill="rgba(96, 165, 250, 0.3)" stroke="rgba(96, 165, 250, 0.6)" stroke-width="2"/>
+                        <path d="M-6 8 L6 -4 M6 -4 L8 -6 M6 -4 L4 -2 M-8 10 L-6 8 L-4 10 Z" stroke="#60a5fa" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                    </g>
+
+                    <!-- Health icon (heart) - third -->
+                    <g transform="translate(450, 95) scale(0.7)" aria-label="Health milestone">
+                        <circle cx="0" cy="0" r="22" fill="rgba(248, 113, 113, 0.3)" stroke="rgba(248, 113, 113, 0.6)" stroke-width="2"/>
+                        <path d="M0 8 C-12 -2 -12 -10 -6 -10 C-2 -10 0 -6 0 -6 C0 -6 2 -10 6 -10 C12 -10 12 -2 0 8 Z" fill="#f87171"/>
+                    </g>
+
+                    <!-- Goals icon (target) - farthest/smallest -->
+                    <g transform="translate(600, 82) scale(0.55)" aria-label="Goals milestone">
+                        <circle cx="0" cy="0" r="22" fill="rgba(52, 211, 153, 0.3)" stroke="rgba(52, 211, 153, 0.6)" stroke-width="2"/>
+                        <circle cx="0" cy="0" r="10" stroke="#34d399" stroke-width="2.5" fill="none"/>
+                        <circle cx="0" cy="0" r="5" stroke="#34d399" stroke-width="2.5" fill="none"/>
+                        <circle cx="0" cy="0" r="2" fill="#34d399"/>
+                    </g>
+
+                    <!-- Boat (sailboat silhouette heading toward sunset) -->
+                    <g transform="translate(720, 65)" aria-label="Boat sailing toward horizon">
+                        <!-- Hull -->
+                        <path d="M-20 8 Q-15 15 0 15 Q15 15 20 8 L15 8 L-15 8 Z" fill="#2d3436"/>
+                        <!-- Mast -->
+                        <rect x="-1" y="-25" width="2" height="33" fill="#2d3436"/>
+                        <!-- Sail -->
+                        <path d="M2 -22 L2 5 L18 5 Z" fill="rgba(255,255,255,0.9)"/>
+                        <path d="M-2 -18 L-2 5 L-12 5 Z" fill="rgba(255,255,255,0.7)"/>
+                    </g>
+                </svg>
+            </div>
+
+            <!-- Hero content with quote -->
+            <div class="hero-content">
+                <p class="hero-quote">A personal space to reflect, grow, and track the things that matter most.</p>
+            </div>
+        </div>
+
+        <!-- Form Section -->
+        <section class="auth-form-section" aria-label="Sign in form">
+            <div class="auth-form-container">
+                <!-- Logo -->
+                <div class="auth-logo">
+                    <img src="{% if site_logo_url %}{{ site_logo_url }}{% else %}{% static 'images/wlj-logo.png' %}{% endif %}" alt="Whole Life Journey logo">
+                    <span class="auth-logo-text">Whole Life Journey</span>
+                </div>
+
+                <!-- Form header -->
+                <div class="auth-form-header">
+                    <h2>Welcome back</h2>
+                    <p>Sign in to continue your journey</p>
+                </div>
+
+                <!-- Login form -->
+                <form method="post" action="#" aria-label="Sign in">
+                    <div class="form-group">
+                        <label for="id_email" class="form-label">Email</label>
+                        <input
+                            type="email"
+                            name="email"
+                            id="id_email"
+                            class="form-input"
+                            placeholder="you@example.com"
+                            autocomplete="email"
+                            required
+                            aria-required="true"
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <label for="id_password" class="form-label">Password</label>
+                        <input
+                            type="password"
+                            name="password"
+                            id="id_password"
+                            class="form-input"
+                            placeholder="Your password"
+                            autocomplete="current-password"
+                            required
+                            aria-required="true"
+                        >
+                    </div>
+
+                    <div class="form-row">
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="remember" class="form-checkbox" aria-label="Remember me">
+                            <span>Remember me</span>
+                        </label>
+                        <a href="#" class="forgot-link">Forgot password?</a>
+                    </div>
+
+                    <button type="submit" class="btn-submit">
+                        Sign In
+                    </button>
+                </form>
+
+                <p class="auth-link">
+                    Don't have an account? <a href="#">Create one</a>
+                </p>
+
+                <div class="auth-footer">
+                    <p>© 2026 Beacon Innovations LLC</p>
+                </div>
+            </div>
+        </section>
+    </div>
+</body>
+</html>

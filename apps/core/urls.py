@@ -41,6 +41,7 @@ urlpatterns = [
     path("ux-design/", views.UXDesignView.as_view(), name="ux_design"),
     path("login-preview/", views.LoginPreviewView.as_view(), name="login_preview"),
     path("login-preview2/", views.LoginPreview2View.as_view(), name="login_preview2"),
+    path("login-preview3/", views.LoginPreview3View.as_view(), name="login_preview3"),
 
     # More (mobile nav overflow)
     path("more/", views.MoreView.as_view(), name="more"),

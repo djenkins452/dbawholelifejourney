@@ -69,20 +69,6 @@
     {% endif %}
     {% endfor %}
 
-    {% if user.is_staff %}
-    <div class="rail-divider"></div>
-    <!-- Admin Console - Staff only -->
-    <a href="{% url 'admin_console:dashboard' %}" class="rail-item{% if request.resolver_match.app_name == 'admin_console' %} active{% endif %}" data-tooltip="Admin" data-module="admin">
-        <svg class="rail-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="3" width="7" height="7"/>
-            <rect x="14" y="3" width="7" height="7"/>
-            <rect x="14" y="14" width="7" height="7"/>
-            <rect x="3" y="14" width="7" height="7"/>
-        </svg>
-        <span class="rail-label">Admin</span>
-    </a>
-    {% endif %}
-
     <!-- Collapse/Expand Toggle at bottom -->
     <button type="button" class="rail-collapse-toggle rail-collapse-bottom" onclick="toggleDesktopRail()" aria-label="Toggle navigation width" data-tooltip="{% if desktop_nav_collapsed %}Expand{% else %}Collapse{% endif %}">
         <svg class="rail-icon rail-icon-collapse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

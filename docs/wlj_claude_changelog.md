@@ -16,6 +16,26 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-02-01 Changes
 
+### Login Preview 5 - New England Coastal Scene
+
+**Change:** Created login-preview5 with photorealistic New England coastal aesthetic:
+- Classic lighthouse on rugged rocky coastline (Maine/Massachusetts feel)
+- Motor yacht (no sails) with realistic hull, cabin, flybridge, radar
+- Natural V-shaped wake behind yacht (not a literal path)
+- Atmospheric twilight sky with horizon haze and distant land
+- Birds silhouettes for realism
+- Subtle sun reflection on water
+- Milestone icons positioned as floating UI elements, not on the wake
+- Only lighthouse beam animates (slow, subtle sweep)
+- Warm sunset color palette with muted coastal tones
+
+**Files Modified:**
+- `templates/account/login_preview5.html` - New preview file
+- `apps/core/views.py` - Added LoginPreview5View
+- `apps/core/urls.py` - Added login-preview5 URL route
+
+---
+
 ### Login Preview 4 - Enhanced Lighthouse Theme
 
 **Change:** Created login-preview4 with enhanced visuals based on user feedback:

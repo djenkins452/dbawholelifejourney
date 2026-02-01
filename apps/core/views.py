@@ -396,6 +396,17 @@ class LoginPreview4View(TemplateView):
     template_name = "account/login_preview4.html"
 
 
+class LoginPreview5View(TemplateView):
+    """
+    Preview of new login page design - Version 5 (New England coastal scene).
+    Features: photorealistic lighthouse on rocky coast, motor yacht (no sails),
+    natural wake, atmospheric twilight sky, minimal animation.
+    URL: /login-preview5/
+    """
+
+    template_name = "account/login_preview5.html"
+
+
 class MoreView(LoginRequiredMixin, TemplateView):
     """
     More screen - shows all enabled modules as tiles plus quick links.

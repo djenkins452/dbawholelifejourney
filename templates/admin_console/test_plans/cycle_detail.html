@@ -86,10 +86,10 @@
                     <span class="phase-progress">{{ phase.progress }}%</span>
                 </div>
                 <div class="phase-stats">
-                    <span class="mini-stat passed">{{ phase.stats.passed }}</span>
-                    <span class="mini-stat failed">{{ phase.stats.failed }}</span>
-                    <span class="mini-stat blocked">{{ phase.stats.blocked }}</span>
-                    <span class="mini-stat total">{{ phase.stats.total }}</span>
+                    <span class="mini-stat passed" title="Passed">{{ phase.stats.passed }}</span>
+                    <span class="mini-stat failed" title="Failed">{{ phase.stats.failed }}</span>
+                    <span class="mini-stat blocked" title="Blocked">{{ phase.stats.blocked }}</span>
+                    <span class="mini-stat total" title="Total">{{ phase.stats.total }}</span>
                 </div>
                 <div class="phase-actions" onclick="event.stopPropagation()">
                     <a href="{% url 'admin_console:test_item_create' phase.pk %}" class="btn btn-ghost btn-xs">+ Item</a>

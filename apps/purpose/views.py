@@ -203,6 +203,8 @@ class DirectionCreateView(PurposeAccessMixin, CreateView):
         return initial
 
     def form_valid(self, form):
+        from django.db import IntegrityError
+
         form.instance.user = self.request.user
         year = form.cleaned_data['year']
 
@@ -219,8 +221,23 @@ class DirectionCreateView(PurposeAccessMixin, CreateView):
             )
             return redirect('purpose:direction_update', pk=existing.pk)
 
-        messages.success(self.request, f"Direction for {year} created.")
-        return super().form_valid(form)
+        # Try to save, handle race condition if duplicate created between check and save
+        try:
+            messages.success(self.request, f"Direction for {year} created.")
+            return super().form_valid(form)
+        except IntegrityError:
+            # Race condition - another request created the record
+            existing = AnnualDirection.objects.filter(
+                user=self.request.user,
+                year=year
+            ).first()
+            if existing:
+                messages.info(
+                    self.request,
+                    f"You already have a direction for {year}. Redirecting to edit it."
+                )
+                return redirect('purpose:direction_update', pk=existing.pk)
+            raise  # Re-raise if it's a different IntegrityError
 
 
 class DirectionUpdateView(PurposeAccessMixin, UpdateView):

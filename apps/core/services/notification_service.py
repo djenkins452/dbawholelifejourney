@@ -106,6 +106,60 @@ class NotificationService:
         'system': None,
     }
 
+    @classmethod
+    def send(
+        cls,
+        user,
+        category: str,
+        title: str,
+        message: str,
+        context: dict = None,
+        **kwargs
+    ) -> dict:
+        """
+        Class method to send a notification (both in-app and email if enabled).
+
+        This is a convenience method that creates an instance and calls create_notification.
+        Returns a dict with 'inapp' and 'email' keys indicating what was sent.
+
+        Args:
+            user: The user to notify
+            category: Notification category (capture, task, etc.)
+            title: Short notification title
+            message: Notification message body
+            context: Optional dict with action_url, action_label, etc.
+            **kwargs: Additional args passed to create_notification
+
+        Returns:
+            dict with 'inapp' (bool/Notification) and 'email' (bool) keys
+        """
+        service = notification_service  # Use the singleton instance
+
+        result = {'inapp': None, 'email': False}
+
+        # Extract action_url from context if provided
+        action_url = ''
+        if context:
+            action_url = context.get('action_url', '')
+
+        # Create the notification
+        notification = service.create_notification(
+            user=user,
+            category=category,
+            title=title,
+            message=message,
+            action_url=action_url,
+            **kwargs
+        )
+
+        if notification:
+            result['inapp'] = notification
+            # Email is sent automatically by create_notification if immediate is set
+            # Check if email was enabled for this category
+            result['email'] = service.is_email_enabled(user, category)
+
+        return result
+
     def is_module_enabled(self, user, category: str) -> bool:
         """Check if the module for this category is enabled for the user."""
         module_field = self.CATEGORY_MODULE_MAP.get(category)

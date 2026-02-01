@@ -767,15 +767,44 @@ class UserAssessmentResponse(UserOwnedModel):
     def __str__(self):
         return f"{self.user.email}: {self.assessment.title} - Score: {self.total_score}"
 
+    def _parse_response_value(self, value):
+        """
+        Parse a response value to an integer score.
+        Handles: integers, numeric strings, True/False, and text choices.
+        """
+        # Already an int
+        if isinstance(value, int):
+            return value
+
+        # Try parsing as integer string
+        if isinstance(value, str):
+            # Handle True/False strings (from radio buttons)
+            if value.lower() == 'true':
+                return 1
+            elif value.lower() == 'false':
+                return 0
+
+            # Try numeric conversion
+            try:
+                return int(value)
+            except ValueError:
+                pass
+
+            # Non-numeric text responses (like "Leave it", "Confront them")
+            # These are choice-based questions - score is 0 (or could look up from options)
+            return 0
+
+        return 0
+
     def calculate_score(self):
         """Calculate and save the total score from responses."""
-        self.total_score = sum(self.responses.values())
+        self.total_score = sum(self._parse_response_value(v) for v in self.responses.values())
         return self.total_score
 
     def save(self, *args, **kwargs):
         # Auto-calculate score on save
         if self.responses:
-            self.total_score = sum(int(v) for v in self.responses.values())
+            self.total_score = sum(self._parse_response_value(v) for v in self.responses.values())
         super().save(*args, **kwargs)
 
     @property

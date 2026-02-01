@@ -20,8 +20,9 @@ from django.core.cache import cache
 logger = logging.getLogger(__name__)
 
 # Cache settings
-WEATHER_CACHE_TTL = 1800  # 30 minutes
+WEATHER_CACHE_TTL = 3600  # 1 hour (reduced API calls)
 GEOCODE_CACHE_TTL = 86400  # 24 hours (locations don't change)
+RATE_LIMIT_BACKOFF_TTL = 300  # 5 minutes backoff on rate limit
 
 # Extreme weather thresholds
 EXTREME_HEAT_THRESHOLD = 100  # Fahrenheit
@@ -148,6 +149,11 @@ class WeatherService:
         if not city:
             return None
 
+        # Check if we're rate limited (backoff mode)
+        if cache.get("weather_rate_limited"):
+            logger.debug("Weather API in backoff mode, skipping request")
+            return None
+
         # Check cache first
         cache_key = f"dashboard_weather_{city.lower().replace(' ', '_')}"
         cached = cache.get(cache_key)
@@ -190,6 +196,14 @@ class WeatherService:
 
             return weather_data
 
+        except requests.exceptions.HTTPError as e:
+            if e.response is not None and e.response.status_code == 429:
+                # Rate limited - set a backoff cache to prevent hammering
+                logger.warning("Weather API rate limited (429). Backing off.")
+                cache.set("weather_rate_limited", True, RATE_LIMIT_BACKOFF_TTL)
+            else:
+                logger.error(f"Weather API HTTP error: {e}")
+            return None
         except requests.RequestException as e:
             logger.error(f"Weather API request failed: {e}")
             return None

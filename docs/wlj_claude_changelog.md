@@ -16,6 +16,41 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-02-01 Changes
 
+### Bug Fixes from Email Intake (Tasks 413-422)
+
+**Fixed 4 code bugs identified from error emails:**
+
+1. **Assessment Save ValueError** (Tasks 419-421)
+   - Issue: `ValueError: invalid literal for int() with base 10: 'Leave it'`
+   - Cause: Assessment responses included text values (True/False, choice labels) but model tried to `int()` all values
+   - Fix: Added `_parse_response_value()` method to handle integers, numeric strings, True/False, and text choices
+   - File: `apps/faith/models.py`
+
+2. **NotificationService Missing 'send' Attribute** (Task 414)
+   - Issue: `type object 'NotificationService' has no attribute 'send'`
+   - Cause: Code called `NotificationService.send()` as classmethod but only instance methods existed
+   - Fix: Added `send()` classmethod that wraps `create_notification()`
+   - File: `apps/core/services/notification_service.py`
+
+3. **Annual Direction Duplicate Key** (Task 417)
+   - Issue: `IntegrityError: duplicate key value violates unique constraint`
+   - Cause: Race condition between check and save when creating annual direction
+   - Fix: Added try/except IntegrityError with redirect fallback
+   - File: `apps/purpose/views.py`
+
+4. **Weather API 429 Rate Limiting** (Task 418)
+   - Issue: `429 Client Error: Too Many Requests` from Open-Meteo
+   - Fix: Increased cache TTL to 1 hour, added 5-minute backoff on rate limit
+   - File: `apps/dashboard/services/weather.py`
+
+**Configuration issues (not code bugs):**
+- Task 413: SMS Twilio 401 - Needs API key refresh in Railway
+- Tasks 415, 416, 422: YouVersion API 403/500 - API key or translation access issue
+
+**Testing:** All 379 tests pass.
+
+---
+
 ### Getting Started Tile for New Users
 
 **Issue:** Brand new users who complete onboarding see a dashboard with no guidance on what to do next. The AI insight tile doesn't show if AI isn't enabled.

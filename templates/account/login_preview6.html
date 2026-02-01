@@ -1,0 +1,1112 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign In - Whole Life Journey (Preview 6)</title>
+    <link rel="icon" type="image/png" href="{% static 'images/wlj-logo.png' %}">
+    <style>
+        /* ==========================================================================
+           WLJ Login Preview 6 - Portland Head Light Inspired
+           Classic New England lighthouse scene at sunset
+           ========================================================================== */
+
+        *, *::before, *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            /* Sky colors - warm sunset */
+            --color-sky-top: #2d4a6d;
+            --color-sky-upper: #5a7a9a;
+            --color-sky-mid: #c49a6c;
+            --color-sky-lower: #e8a862;
+            --color-horizon: #f4c076;
+            --color-sun-glow: #ffcc66;
+
+            /* Water colors */
+            --color-water-surface: #3a5a7a;
+            --color-water-mid: #2a4a6a;
+            --color-water-deep: #1a3a5a;
+            --color-water-reflection: rgba(244, 192, 118, 0.3);
+
+            /* Rocky coast */
+            --color-rock-dark: #3d3530;
+            --color-rock-mid: #5a524a;
+            --color-rock-light: #7a7068;
+            --color-rock-highlight: #9a8a7a;
+
+            /* Lighthouse */
+            --color-lighthouse-white: #f0ece8;
+            --color-lighthouse-shadow: #d0ccc8;
+            --color-lantern-dark: #2a2a2a;
+            --color-light-beam: rgba(255, 240, 180, 0.12);
+            --color-light-glow: #fff8e0;
+
+            /* Buildings */
+            --color-house-white: #e8e4e0;
+            --color-roof-dark: #3a3632;
+            --color-brick: #8a5a4a;
+
+            /* Vegetation */
+            --color-shrub-dark: #3a5a30;
+            --color-shrub-mid: #5a7a48;
+            --color-shrub-light: #7a9a60;
+
+            /* Form colors */
+            --color-form-bg: #f8f9fa;
+            --color-form-text: #2a3a4a;
+            --color-form-muted: #6a7a8a;
+            --color-form-border: #e0e4e8;
+            --color-form-focus: #c49a6c;
+            --color-form-button: linear-gradient(135deg, #c49a6c 0%, #e8a862 100%);
+
+            /* Spacing */
+            --space-2: 0.5rem;
+            --space-3: 0.75rem;
+            --space-4: 1rem;
+            --space-5: 1.25rem;
+            --space-6: 1.5rem;
+            --space-8: 2rem;
+
+            /* Typography */
+            --font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            --font-size-sm: 0.875rem;
+            --font-size-base: 1rem;
+            --font-size-lg: 1.125rem;
+            --font-size-xl: 1.25rem;
+            --font-size-2xl: 1.5rem;
+
+            /* Border radius */
+            --radius-sm: 0.25rem;
+            --radius-md: 0.5rem;
+            --radius-lg: 0.75rem;
+        }
+
+        body {
+            font-family: var(--font-family);
+            min-height: 100vh;
+            background: var(--color-sky-top);
+            color: var(--color-form-text);
+            line-height: 1.5;
+        }
+
+        .auth-page {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* ==========================================================================
+           Hero Section - Coastal Scene
+           ========================================================================== */
+
+        .auth-hero {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            padding: var(--space-8);
+            min-height: 100vh;
+        }
+
+        /* Sky gradient */
+        .sky {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(
+                180deg,
+                var(--color-sky-top) 0%,
+                var(--color-sky-upper) 30%,
+                var(--color-sky-mid) 55%,
+                var(--color-sky-lower) 70%,
+                var(--color-horizon) 85%,
+                var(--color-sun-glow) 100%
+            );
+        }
+
+        /* Wispy clouds */
+        .clouds {
+            position: absolute;
+            top: 10%;
+            left: 0;
+            right: 0;
+            height: 40%;
+            pointer-events: none;
+            opacity: 0.4;
+        }
+
+        .cloud {
+            position: absolute;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            height: 2px;
+            border-radius: 50%;
+            filter: blur(3px);
+        }
+
+        .cloud:nth-child(1) { top: 20%; left: 30%; width: 200px; transform: rotate(-5deg); }
+        .cloud:nth-child(2) { top: 25%; left: 45%; width: 150px; transform: rotate(8deg); }
+        .cloud:nth-child(3) { top: 15%; left: 55%; width: 180px; transform: rotate(-3deg); }
+        .cloud:nth-child(4) { top: 35%; left: 40%; width: 120px; transform: rotate(5deg); }
+        .cloud:nth-child(5) { top: 30%; left: 60%; width: 160px; transform: rotate(-8deg); }
+
+        /* Distant islands on horizon */
+        .distant-islands {
+            position: absolute;
+            bottom: 52%;
+            left: 40%;
+            right: 0;
+            height: 15px;
+        }
+
+        .distant-islands svg {
+            width: 100%;
+            height: 100%;
+            opacity: 0.5;
+        }
+
+        /* Sun - subtle, not overpowering */
+        .sun {
+            position: absolute;
+            bottom: 48%;
+            right: 20%;
+            width: 60px;
+            height: 60px;
+            background: radial-gradient(
+                circle,
+                rgba(255, 220, 150, 0.7) 0%,
+                rgba(255, 200, 100, 0.4) 40%,
+                rgba(244, 192, 118, 0.2) 60%,
+                transparent 70%
+            );
+            border-radius: 50%;
+            filter: blur(3px);
+        }
+
+        /* ==========================================================================
+           Ocean - More space for boat
+           ========================================================================== */
+
+        .ocean {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 52%;
+            background: linear-gradient(
+                180deg,
+                var(--color-water-surface) 0%,
+                var(--color-water-mid) 40%,
+                var(--color-water-deep) 100%
+            );
+        }
+
+        /* Sun reflection path on water */
+        .sun-reflection {
+            position: absolute;
+            bottom: 15%;
+            right: 15%;
+            width: 100px;
+            height: 38%;
+            background: linear-gradient(
+                180deg,
+                rgba(255, 220, 150, 0.25) 0%,
+                rgba(244, 192, 118, 0.15) 30%,
+                rgba(200, 160, 100, 0.08) 60%,
+                transparent 100%
+            );
+            filter: blur(12px);
+            transform: scaleX(0.4);
+        }
+
+        /* Subtle wave texture */
+        .wave-texture {
+            position: absolute;
+            inset: 0;
+            background:
+                repeating-linear-gradient(
+                    180deg,
+                    transparent 0px,
+                    rgba(255, 255, 255, 0.015) 1px,
+                    transparent 2px,
+                    transparent 25px
+                );
+        }
+
+        /* ==========================================================================
+           Lighthouse Beam - Main Light Source
+           ========================================================================== */
+
+        .lighthouse-beam {
+            position: absolute;
+            bottom: 42%;
+            left: 18%;
+            width: 75%;
+            height: 300px;
+            background: linear-gradient(
+                90deg,
+                rgba(255, 248, 220, 0.18) 0%,
+                rgba(255, 240, 200, 0.08) 25%,
+                rgba(255, 240, 200, 0.03) 50%,
+                transparent 80%
+            );
+            clip-path: polygon(0 42%, 100% 15%, 100% 85%, 0 58%);
+            transform-origin: left center;
+            animation: beam-sweep 7s ease-in-out infinite;
+            pointer-events: none;
+            z-index: 15;
+        }
+
+        @keyframes beam-sweep {
+            0%, 100% { transform: rotate(-12deg); opacity: 0.8; }
+            50% { transform: rotate(12deg); opacity: 1; }
+        }
+
+        /* ==========================================================================
+           Rocky Coastline with Lighthouse Complex
+           ========================================================================== */
+
+        .coastline {
+            position: absolute;
+            bottom: 20%;
+            left: 0;
+            width: 42%;
+            height: 40%;
+            z-index: 10;
+        }
+
+        .coastline svg {
+            width: 100%;
+            height: 100%;
+            filter: drop-shadow(2px 4px 6px rgba(0, 0, 0, 0.3));
+        }
+
+        /* ==========================================================================
+           Foreground Vegetation
+           ========================================================================== */
+
+        .vegetation {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 35%;
+            height: 25%;
+            z-index: 25;
+        }
+
+        .vegetation svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* ==========================================================================
+           Motor Yacht
+           ========================================================================== */
+
+        .yacht {
+            position: absolute;
+            bottom: 28%;
+            right: 25%;
+            width: 120px;
+            height: 70px;
+            z-index: 12;
+        }
+
+        .yacht svg {
+            width: 100%;
+            height: 100%;
+            filter: drop-shadow(1px 2px 3px rgba(0, 0, 0, 0.25));
+        }
+
+        /* Wake behind yacht */
+        .yacht-wake {
+            position: absolute;
+            bottom: 30%;
+            right: 32%;
+            width: 200px;
+            height: 30px;
+            z-index: 11;
+        }
+
+        .yacht-wake svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* ==========================================================================
+           Milestone Icons
+           ========================================================================== */
+
+        .milestones {
+            position: absolute;
+            bottom: 12%;
+            left: 38%;
+            right: 15%;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            z-index: 30;
+        }
+
+        .milestone {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .milestone-icon {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(8px);
+            border: 1.5px solid rgba(255, 255, 255, 0.25);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .milestone-icon svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        .milestone-label {
+            font-size: 10px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.9);
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+            letter-spacing: 0.3px;
+        }
+
+        .milestone.faith .milestone-icon { background: rgba(167, 139, 250, 0.4); }
+        .milestone.journal .milestone-icon { background: rgba(96, 165, 250, 0.4); }
+        .milestone.health .milestone-icon { background: rgba(248, 113, 113, 0.4); }
+        .milestone.goals .milestone-icon { background: rgba(52, 211, 153, 0.4); }
+
+        /* ==========================================================================
+           Hero Content
+           ========================================================================== */
+
+        .hero-content {
+            position: relative;
+            z-index: 35;
+            max-width: 400px;
+            padding-bottom: var(--space-6);
+        }
+
+        .hero-quote {
+            font-size: var(--font-size-lg);
+            font-weight: 300;
+            color: rgba(255, 255, 255, 0.92);
+            line-height: 1.7;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+            font-style: italic;
+        }
+
+        .hero-quote::before {
+            content: '"';
+            font-size: 1.8em;
+            line-height: 0;
+            vertical-align: -0.25em;
+            margin-right: 0.05em;
+            opacity: 0.5;
+        }
+
+        .hero-quote::after {
+            content: '"';
+            font-size: 1.8em;
+            line-height: 0;
+            vertical-align: -0.25em;
+            margin-left: 0.05em;
+            opacity: 0.5;
+        }
+
+        /* ==========================================================================
+           Form Section
+           ========================================================================== */
+
+        .auth-form-section {
+            width: 100%;
+            max-width: 480px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: var(--space-8);
+            background: var(--color-form-bg);
+            box-shadow: -10px 0 40px rgba(0, 0, 0, 0.15);
+        }
+
+        .auth-form-container {
+            width: 100%;
+            max-width: 360px;
+            margin: 0 auto;
+        }
+
+        .auth-logo {
+            display: flex;
+            align-items: center;
+            gap: var(--space-4);
+            margin-bottom: var(--space-8);
+        }
+
+        .auth-logo img {
+            width: 72px;
+            height: 72px;
+        }
+
+        .auth-logo-text {
+            font-size: var(--font-size-2xl);
+            font-weight: 600;
+            color: var(--color-form-text);
+        }
+
+        .auth-form-header h2 {
+            font-size: var(--font-size-2xl);
+            font-weight: 700;
+            color: var(--color-form-text);
+            margin-bottom: var(--space-2);
+        }
+
+        .auth-form-header p {
+            color: var(--color-form-muted);
+            margin-bottom: var(--space-6);
+        }
+
+        .form-group {
+            margin-bottom: var(--space-5);
+        }
+
+        .form-label {
+            display: block;
+            font-size: var(--font-size-sm);
+            font-weight: 500;
+            color: var(--color-form-text);
+            margin-bottom: var(--space-2);
+        }
+
+        .form-input {
+            width: 100%;
+            padding: var(--space-3) var(--space-4);
+            font-size: var(--font-size-base);
+            font-family: inherit;
+            color: var(--color-form-text);
+            background: var(--color-form-bg);
+            border: 2px solid var(--color-form-border);
+            border-radius: var(--radius-md);
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .form-input::placeholder {
+            color: var(--color-form-muted);
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--color-form-focus);
+            box-shadow: 0 0 0 3px rgba(196, 154, 108, 0.15);
+        }
+
+        .form-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--space-6);
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+            font-size: var(--font-size-sm);
+            color: var(--color-form-text);
+            cursor: pointer;
+        }
+
+        .form-checkbox {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--color-form-focus);
+            cursor: pointer;
+        }
+
+        .forgot-link {
+            font-size: var(--font-size-sm);
+            color: var(--color-form-focus);
+            text-decoration: none;
+            transition: opacity 0.2s ease;
+        }
+
+        .forgot-link:hover {
+            opacity: 0.8;
+            text-decoration: underline;
+        }
+
+        .forgot-link:focus {
+            outline: 2px solid var(--color-form-focus);
+            outline-offset: 2px;
+            border-radius: var(--radius-sm);
+        }
+
+        .btn-submit {
+            width: 100%;
+            padding: var(--space-4) var(--space-6);
+            font-size: var(--font-size-base);
+            font-weight: 600;
+            font-family: inherit;
+            color: white;
+            background: var(--color-form-button);
+            border: none;
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .btn-submit:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(196, 154, 108, 0.4);
+        }
+
+        .btn-submit:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(196, 154, 108, 0.3), 0 4px 12px rgba(196, 154, 108, 0.4);
+        }
+
+        .btn-submit:active {
+            transform: translateY(0);
+        }
+
+        .auth-link {
+            text-align: center;
+            margin-top: var(--space-6);
+            font-size: var(--font-size-sm);
+            color: var(--color-form-muted);
+        }
+
+        .auth-link a {
+            color: var(--color-form-focus);
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .auth-link a:hover {
+            text-decoration: underline;
+        }
+
+        .auth-link a:focus {
+            outline: 2px solid var(--color-form-focus);
+            outline-offset: 2px;
+            border-radius: var(--radius-sm);
+        }
+
+        .auth-footer {
+            margin-top: auto;
+            padding-top: var(--space-8);
+            text-align: center;
+            font-size: 0.75rem;
+            color: var(--color-form-muted);
+        }
+
+        /* ==========================================================================
+           Reduced Motion
+           ========================================================================== */
+
+        @media (prefers-reduced-motion: reduce) {
+            .lighthouse-beam {
+                animation: none;
+                opacity: 0.9;
+            }
+        }
+
+        /* ==========================================================================
+           Responsive
+           ========================================================================== */
+
+        @media (max-width: 900px) {
+            .auth-page {
+                flex-direction: column;
+            }
+
+            .auth-hero {
+                min-height: 55vh;
+                padding: var(--space-6);
+            }
+
+            .coastline {
+                width: 50%;
+            }
+
+            .yacht {
+                width: 100px;
+                right: 20%;
+            }
+
+            .yacht-wake {
+                width: 160px;
+            }
+
+            .milestones {
+                left: 45%;
+                right: 10%;
+            }
+
+            .vegetation {
+                width: 40%;
+            }
+
+            .hero-quote {
+                font-size: var(--font-size-base);
+            }
+
+            .auth-form-section {
+                max-width: none;
+                box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.15);
+            }
+        }
+
+        @media (max-width: 480px) {
+            .auth-hero {
+                min-height: 45vh;
+                padding: var(--space-4);
+            }
+
+            .coastline {
+                width: 55%;
+                bottom: 18%;
+            }
+
+            .lighthouse-beam {
+                display: none;
+            }
+
+            .yacht {
+                width: 70px;
+                bottom: 25%;
+                right: 15%;
+            }
+
+            .yacht-wake {
+                width: 100px;
+                right: 22%;
+            }
+
+            .milestones {
+                left: 5%;
+                right: 5%;
+                bottom: 8%;
+            }
+
+            .milestone-icon {
+                width: 32px;
+                height: 32px;
+            }
+
+            .milestone-icon svg {
+                width: 15px;
+                height: 15px;
+            }
+
+            .milestone-label {
+                font-size: 9px;
+            }
+
+            .vegetation {
+                display: none;
+            }
+
+            .hero-quote {
+                font-size: var(--font-size-sm);
+            }
+
+            .auth-form-section {
+                padding: var(--space-6);
+            }
+
+            .auth-form-header h2 {
+                font-size: var(--font-size-xl);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="auth-page">
+        <!-- Hero Section -->
+        <div class="auth-hero" aria-hidden="true">
+            <!-- Sky -->
+            <div class="sky"></div>
+
+            <!-- Wispy clouds -->
+            <div class="clouds">
+                <div class="cloud"></div>
+                <div class="cloud"></div>
+                <div class="cloud"></div>
+                <div class="cloud"></div>
+                <div class="cloud"></div>
+            </div>
+
+            <!-- Distant islands -->
+            <div class="distant-islands">
+                <svg viewBox="0 0 400 15" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+                    <path d="M0 15 Q20 8 50 10 Q80 5 120 8 Q150 12 180 10 Q200 6 220 9 L220 15 Z" fill="#4a5a6a"/>
+                    <path d="M280 15 Q300 10 330 12 Q360 8 400 10 L400 15 Z" fill="#3a4a5a"/>
+                </svg>
+            </div>
+
+            <!-- Sun (subtle) -->
+            <div class="sun"></div>
+
+            <!-- Ocean -->
+            <div class="ocean">
+                <div class="wave-texture"></div>
+            </div>
+
+            <!-- Sun reflection on water -->
+            <div class="sun-reflection"></div>
+
+            <!-- Lighthouse beam -->
+            <div class="lighthouse-beam"></div>
+
+            <!-- Rocky Coastline with Lighthouse Complex -->
+            <div class="coastline">
+                <svg viewBox="0 0 450 350" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMinYMax meet">
+                    <!-- Back rock layer -->
+                    <path d="M0 350 L0 180
+                             Q20 160 50 170
+                             Q80 150 120 160
+                             Q160 140 200 155
+                             Q240 145 280 160
+                             Q320 170 360 180
+                             Q400 190 450 200
+                             L450 350 Z"
+                          fill="var(--color-rock-dark)"/>
+
+                    <!-- Mid rock layer -->
+                    <path d="M0 350 L0 200
+                             Q30 185 70 195
+                             Q110 175 160 190
+                             Q200 170 250 185
+                             Q300 195 350 205
+                             Q400 215 450 225
+                             L450 350 Z"
+                          fill="var(--color-rock-mid)"/>
+
+                    <!-- Front rock details -->
+                    <path d="M50 220 Q80 205 110 215 Q95 212 50 220" fill="var(--color-rock-light)"/>
+                    <path d="M150 200 Q190 185 230 195 Q200 192 150 200" fill="var(--color-rock-light)"/>
+                    <path d="M280 210 Q320 200 360 212 Q335 205 280 210" fill="var(--color-rock-highlight)" opacity="0.6"/>
+
+                    <!-- Water-level rocks -->
+                    <ellipse cx="380" cy="280" rx="30" ry="12" fill="var(--color-rock-dark)"/>
+                    <ellipse cx="420" cy="295" rx="25" ry="10" fill="var(--color-rock-mid)"/>
+                    <ellipse cx="350" cy="300" rx="18" ry="7" fill="var(--color-rock-dark)"/>
+
+                    <!-- Foam on rocks -->
+                    <ellipse cx="365" cy="278" rx="10" ry="3" fill="rgba(255,255,255,0.25)"/>
+                    <ellipse cx="400" cy="288" rx="12" ry="4" fill="rgba(255,255,255,0.2)"/>
+                    <ellipse cx="340" cy="298" rx="8" ry="2" fill="rgba(255,255,255,0.15)"/>
+
+                    <!-- ========== KEEPER'S HOUSE ========== -->
+                    <g transform="translate(80, 120)">
+                        <!-- House body -->
+                        <rect x="0" y="30" width="70" height="50" fill="var(--color-house-white)"/>
+                        <rect x="55" y="30" width="15" height="50" fill="var(--color-lighthouse-shadow)"/>
+
+                        <!-- Roof -->
+                        <path d="M-5 30 L35 5 L75 30 Z" fill="var(--color-roof-dark)"/>
+
+                        <!-- Chimney -->
+                        <rect x="50" y="10" width="10" height="20" fill="var(--color-brick)"/>
+
+                        <!-- Windows -->
+                        <rect x="10" y="40" width="12" height="15" fill="#2a3a4a"/>
+                        <rect x="30" y="40" width="12" height="15" fill="#2a3a4a"/>
+                        <rect x="50" y="40" width="10" height="15" fill="#1a2a3a"/>
+
+                        <!-- Door -->
+                        <rect x="18" y="60" width="14" height="20" fill="var(--color-roof-dark)"/>
+                    </g>
+
+                    <!-- ========== SMALL OUTBUILDING (brick) ========== -->
+                    <g transform="translate(160, 140)">
+                        <rect x="0" y="20" width="40" height="35" fill="var(--color-brick)"/>
+                        <path d="M-3 20 L20 5 L43 20 Z" fill="var(--color-roof-dark)"/>
+                        <rect x="12" y="30" width="16" height="12" fill="#2a3a4a"/>
+                    </g>
+
+                    <!-- ========== LIGHTHOUSE ========== -->
+                    <g transform="translate(230, 40)">
+                        <!-- Foundation -->
+                        <rect x="-20" y="140" width="40" height="10" fill="var(--color-rock-mid)"/>
+
+                        <!-- Main tower - tapered -->
+                        <path d="M-12 140 L-8 35 L8 35 L12 140 Z" fill="var(--color-lighthouse-white)"/>
+
+                        <!-- Tower shadow -->
+                        <path d="M4 140 L6 35 L8 35 L12 140 Z" fill="var(--color-lighthouse-shadow)"/>
+
+                        <!-- Black band near top -->
+                        <path d="M-9 50 L-8.5 40 L8.5 40 L9 50 Z" fill="var(--color-lantern-dark)"/>
+
+                        <!-- Gallery deck -->
+                        <rect x="-15" y="30" width="30" height="5" fill="var(--color-lantern-dark)"/>
+
+                        <!-- Gallery railing -->
+                        <rect x="-13" y="26" width="26" height="4" fill="none" stroke="var(--color-lantern-dark)" stroke-width="0.8"/>
+                        <line x1="-11" y1="26" x2="-11" y2="30" stroke="var(--color-lantern-dark)" stroke-width="0.8"/>
+                        <line x1="-5" y1="26" x2="-5" y2="30" stroke="var(--color-lantern-dark)" stroke-width="0.8"/>
+                        <line x1="0" y1="26" x2="0" y2="30" stroke="var(--color-lantern-dark)" stroke-width="0.8"/>
+                        <line x1="5" y1="26" x2="5" y2="30" stroke="var(--color-lantern-dark)" stroke-width="0.8"/>
+                        <line x1="11" y1="26" x2="11" y2="30" stroke="var(--color-lantern-dark)" stroke-width="0.8"/>
+
+                        <!-- Lantern room -->
+                        <rect x="-8" y="12" width="16" height="18" fill="var(--color-lantern-dark)"/>
+
+                        <!-- Lantern glass - THE LIGHT SOURCE -->
+                        <rect x="-6" y="14" width="5" height="14" fill="var(--color-light-glow)"/>
+                        <rect x="-0.5" y="14" width="5" height="14" fill="var(--color-light-glow)" opacity="0.9"/>
+                        <rect x="4" y="14" width="3" height="14" fill="var(--color-light-glow)" opacity="0.7"/>
+
+                        <!-- Lantern glow effect -->
+                        <ellipse cx="0" cy="21" rx="18" ry="14" fill="rgba(255, 248, 220, 0.2)"/>
+                        <ellipse cx="0" cy="21" rx="10" ry="8" fill="rgba(255, 248, 220, 0.15)"/>
+
+                        <!-- Roof -->
+                        <path d="M-10 12 L0 0 L10 12 Z" fill="var(--color-lantern-dark)"/>
+
+                        <!-- Ventilator ball -->
+                        <circle cx="0" cy="-2" r="2.5" fill="var(--color-lantern-dark)"/>
+
+                        <!-- Lightning rod -->
+                        <line x1="0" y1="-4" x2="0" y2="-12" stroke="var(--color-lantern-dark)" stroke-width="1"/>
+
+                        <!-- Window -->
+                        <ellipse cx="0" cy="90" rx="4" ry="6" fill="#1a2a3a"/>
+                    </g>
+                </svg>
+            </div>
+
+            <!-- Foreground vegetation -->
+            <div class="vegetation">
+                <svg viewBox="0 0 350 200" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMinYMax meet">
+                    <!-- Back layer shrubs -->
+                    <ellipse cx="80" cy="120" rx="60" ry="35" fill="var(--color-shrub-dark)"/>
+                    <ellipse cx="180" cy="130" rx="70" ry="40" fill="var(--color-shrub-dark)"/>
+                    <ellipse cx="300" cy="140" rx="50" ry="30" fill="var(--color-shrub-dark)"/>
+
+                    <!-- Mid layer -->
+                    <ellipse cx="50" cy="140" rx="50" ry="30" fill="var(--color-shrub-mid)"/>
+                    <ellipse cx="140" cy="150" rx="60" ry="35" fill="var(--color-shrub-mid)"/>
+                    <ellipse cx="250" cy="155" rx="55" ry="32" fill="var(--color-shrub-mid)"/>
+
+                    <!-- Front/highlight layer -->
+                    <ellipse cx="30" cy="165" rx="40" ry="25" fill="var(--color-shrub-light)"/>
+                    <ellipse cx="100" cy="175" rx="50" ry="28" fill="var(--color-shrub-light)"/>
+                    <ellipse cx="200" cy="180" rx="45" ry="22" fill="var(--color-shrub-light)"/>
+
+                    <!-- Ground cover extending to bottom -->
+                    <rect x="0" y="170" width="350" height="30" fill="var(--color-shrub-dark)"/>
+                </svg>
+            </div>
+
+            <!-- Yacht wake -->
+            <div class="yacht-wake">
+                <svg viewBox="0 0 200 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <!-- V-wake pattern -->
+                    <path d="M200 15 L140 12 Q100 10 60 12 Q30 14 0 16"
+                          stroke="rgba(255,255,255,0.12)"
+                          stroke-width="15"
+                          fill="none"
+                          stroke-linecap="round"/>
+                    <path d="M200 15 L150 13 Q110 12 70 14 Q35 15 0 17"
+                          stroke="rgba(255,255,255,0.2)"
+                          stroke-width="6"
+                          fill="none"
+                          stroke-linecap="round"/>
+                    <path d="M200 15 L160 14 Q120 13 80 15 Q40 16 0 17"
+                          stroke="rgba(255,255,255,0.3)"
+                          stroke-width="2"
+                          fill="none"
+                          stroke-linecap="round"/>
+                </svg>
+            </div>
+
+            <!-- Motor Yacht -->
+            <div class="yacht">
+                <svg viewBox="0 0 120 70" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <!-- Hull shadow -->
+                    <ellipse cx="60" cy="52" rx="40" ry="5" fill="rgba(0,0,0,0.15)"/>
+
+                    <!-- Hull -->
+                    <path d="M8 42 Q5 38 12 35 L40 33 L95 33 Q110 33 115 38 L112 44 Q105 48 90 48 L30 48 Q12 48 8 42 Z"
+                          fill="#1a2530"/>
+
+                    <!-- Hull accent line -->
+                    <path d="M15 40 Q12 38 18 36 L40 34 L95 34 Q105 34 110 37"
+                          stroke="#2a3540"
+                          stroke-width="1.5"
+                          fill="none"/>
+
+                    <!-- Deck -->
+                    <path d="M25 33 L95 33 Q102 33 105 35 L105 36 L25 36 Q22 36 22 35 Z"
+                          fill="#2a3540"/>
+
+                    <!-- Main cabin -->
+                    <rect x="38" y="22" width="45" height="11" rx="2" fill="#1a2530"/>
+
+                    <!-- Cabin windows -->
+                    <rect x="42" y="25" width="8" height="6" rx="1" fill="rgba(255, 220, 150, 0.25)"/>
+                    <rect x="52" y="25" width="8" height="6" rx="1" fill="rgba(255, 220, 150, 0.2)"/>
+                    <rect x="62" y="25" width="8" height="6" rx="1" fill="rgba(255, 220, 150, 0.15)"/>
+                    <rect x="72" y="25" width="6" height="6" rx="1" fill="rgba(255, 220, 150, 0.1)"/>
+
+                    <!-- Flybridge -->
+                    <rect x="42" y="14" width="32" height="8" rx="1.5" fill="#2a3540"/>
+
+                    <!-- Flybridge windows -->
+                    <rect x="46" y="16" width="6" height="4" rx="0.5" fill="rgba(255, 220, 150, 0.2)"/>
+                    <rect x="54" y="16" width="6" height="4" rx="0.5" fill="rgba(255, 220, 150, 0.15)"/>
+                    <rect x="62" y="16" width="6" height="4" rx="0.5" fill="rgba(255, 220, 150, 0.1)"/>
+
+                    <!-- Radar arch -->
+                    <path d="M52 14 Q58 9 64 14" stroke="#3a4550" stroke-width="1.5" fill="none"/>
+
+                    <!-- Radar -->
+                    <ellipse cx="58" cy="10" rx="3" ry="1.5" fill="#3a4550"/>
+
+                    <!-- Antenna -->
+                    <line x1="62" y1="9" x2="62" y2="4" stroke="#3a4550" stroke-width="0.8"/>
+
+                    <!-- Bow rail -->
+                    <path d="M20 35 L12 36 L10 35" stroke="#3a4550" stroke-width="1" fill="none"/>
+
+                    <!-- Stern platform -->
+                    <rect x="95" y="38" width="10" height="6" rx="0.5" fill="#2a3540"/>
+
+                    <!-- Nav lights -->
+                    <circle cx="14" cy="35" r="1" fill="#4ade80" opacity="0.7"/>
+                    <circle cx="108" cy="36" r="1" fill="#f87171" opacity="0.7"/>
+                </svg>
+            </div>
+
+            <!-- Milestone Icons -->
+            <div class="milestones">
+                <div class="milestone faith">
+                    <div class="milestone-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2.5" stroke-linecap="round">
+                            <path d="M12 4 L12 20 M6 9 L18 9"/>
+                        </svg>
+                    </div>
+                    <span class="milestone-label">Faith</span>
+                </div>
+
+                <div class="milestone journal">
+                    <div class="milestone-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linecap="round">
+                            <rect x="4" y="3" width="16" height="18" rx="2" fill="rgba(96,165,250,0.2)"/>
+                            <line x1="8" y1="8" x2="16" y2="8"/>
+                            <line x1="8" y1="12" x2="14" y2="12"/>
+                            <line x1="8" y1="16" x2="12" y2="16"/>
+                        </svg>
+                    </div>
+                    <span class="milestone-label">Journal</span>
+                </div>
+
+                <div class="milestone health">
+                    <div class="milestone-icon">
+                        <svg viewBox="0 0 24 24" fill="#f87171">
+                            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                        </svg>
+                    </div>
+                    <span class="milestone-label">Health</span>
+                </div>
+
+                <div class="milestone goals">
+                    <div class="milestone-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2">
+                            <circle cx="12" cy="12" r="9"/>
+                            <circle cx="12" cy="12" r="5"/>
+                            <circle cx="12" cy="12" r="1" fill="#34d399"/>
+                        </svg>
+                    </div>
+                    <span class="milestone-label">Goals</span>
+                </div>
+            </div>
+
+            <!-- Quote -->
+            <div class="hero-content">
+                <p class="hero-quote">A personal space to reflect, grow, and track the things that matter most.</p>
+            </div>
+        </div>
+
+        <!-- Form Section -->
+        <section class="auth-form-section" aria-label="Sign in form">
+            <div class="auth-form-container">
+                <div class="auth-logo">
+                    <img src="{% if site_logo_url %}{{ site_logo_url }}{% else %}{% static 'images/wlj-logo.png' %}{% endif %}" alt="Whole Life Journey logo">
+                    <span class="auth-logo-text">Whole Life Journey</span>
+                </div>
+
+                <div class="auth-form-header">
+                    <h2>Welcome back</h2>
+                    <p>Sign in to continue your journey</p>
+                </div>
+
+                <form method="post" action="#" aria-label="Sign in">
+                    <div class="form-group">
+                        <label for="id_email" class="form-label">Email</label>
+                        <input
+                            type="email"
+                            name="email"
+                            id="id_email"
+                            class="form-input"
+                            placeholder="you@example.com"
+                            autocomplete="email"
+                            required
+                            aria-required="true"
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <label for="id_password" class="form-label">Password</label>
+                        <input
+                            type="password"
+                            name="password"
+                            id="id_password"
+                            class="form-input"
+                            placeholder="Your password"
+                            autocomplete="current-password"
+                            required
+                            aria-required="true"
+                        >
+                    </div>
+
+                    <div class="form-row">
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="remember" class="form-checkbox" aria-label="Remember me">
+                            <span>Remember me</span>
+                        </label>
+                        <a href="#" class="forgot-link">Forgot password?</a>
+                    </div>
+
+                    <button type="submit" class="btn-submit">
+                        Sign In
+                    </button>
+                </form>
+
+                <p class="auth-link">
+                    Don't have an account? <a href="#">Create one</a>
+                </p>
+
+                <div class="auth-footer">
+                    <p>© 2026 Beacon Innovations LLC</p>
+                </div>
+            </div>
+        </section>
+    </div>
+</body>
+</html>

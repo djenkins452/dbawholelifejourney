@@ -16,6 +16,29 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-02-01 Changes
 
+### Login Preview 6 - Portland Head Light Inspired
+
+**Change:** Created login-preview6 based on Portland Head Light reference image:
+- Classic white lighthouse with black lantern room (main light source)
+- Keeper's house and brick outbuilding next to lighthouse
+- Rugged, layered rocky coastline with water-level rocks and foam
+- Wispy clouds in warm sunset sky
+- Sun is subtle (not overpowering) - lighthouse beam is the star
+- Foreground coastal vegetation (shrubs)
+- Motor yacht with natural V-wake
+- Sweeping lighthouse beam animation
+- More water space for the boat (less land)
+- Light gray form background (#f8f9fa) instead of white
+- Larger logo (72px) on the form side
+- Distant islands on horizon
+
+**Files Modified:**
+- `templates/account/login_preview6.html` - New preview file
+- `apps/core/views.py` - Added LoginPreview6View
+- `apps/core/urls.py` - Added login-preview6 URL route
+
+---
+
 ### Login Preview 5 - New England Coastal Scene
 
 **Change:** Created login-preview5 with photorealistic New England coastal aesthetic:

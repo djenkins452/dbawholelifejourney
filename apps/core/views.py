@@ -407,6 +407,17 @@ class LoginPreview5View(TemplateView):
     template_name = "account/login_preview5.html"
 
 
+class LoginPreview6View(TemplateView):
+    """
+    Preview of new login page design - Version 6 (Portland Head Light inspired).
+    Features: Classic New England lighthouse with keeper's house, rugged rocky coast,
+    wispy clouds, motor yacht, foreground vegetation, sweeping light beam.
+    URL: /login-preview6/
+    """
+
+    template_name = "account/login_preview6.html"
+
+
 class MoreView(LoginRequiredMixin, TemplateView):
     """
     More screen - shows all enabled modules as tiles plus quick links.

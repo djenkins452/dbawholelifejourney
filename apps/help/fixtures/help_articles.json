@@ -321,5 +321,73 @@
             "created_at": "2026-01-15T12:00:00Z",
             "updated_at": "2026-01-15T12:00:00Z"
         }
+    },
+    {
+        "model": "help.helparticle",
+        "pk": 20,
+        "fields": {
+            "title": "Using the AI Assistant",
+            "slug": "ai-assistant",
+            "summary": "Chat with your AI assistant to search your data, get insights, and receive personalized guidance.",
+            "content": "## What is the AI Assistant?\n\nThe AI Assistant is your personal guide within WLJ. Unlike generic chatbots, it knows YOUR data—your journal entries, health patterns, goals, and progress. This context makes its advice genuinely personal.\n\n## What You Can Do\n\n### Search Your Data\nAsk natural language questions about your own information:\n- \"What was my weight last month?\"\n- \"Show me my journal entries about work stress\"\n- \"When did I last log a workout?\"\n- \"What are my active goals?\"\n\n### Get Insights\nAsk for analysis of your patterns:\n- \"How has my mood changed this week?\"\n- \"What trends do you see in my sleep?\"\n- \"Am I making progress on my goals?\"\n\n### Receive Guidance\nAsk for personalized advice based on your situation:\n- \"What should I focus on today?\"\n- \"Help me understand my eating patterns\"\n- \"What's one thing I could improve?\"\n\n### Task Assistance\nGet help with specific actions:\n- \"Help me write a journal entry\"\n- \"Suggest a workout for today\"\n- \"What prayers should I prioritize?\"\n\n## How to Access\n\n1. Click **Assistant** in the navigation\n2. Type your question in the chat box\n3. Press Enter or click Send\n4. View the AI's response\n\n## Enabling AI Features\n\nThe Assistant requires AI to be enabled:\n\n1. Go to **Preferences > AI Settings**\n2. Enable **AI Features**\n3. Review and accept the data consent\n\n## Choosing Your Coaching Style\n\nThe AI adapts to your preferred communication style:\n- **Supportive Partner** - Warm, encouraging\n- **Direct Coach** - Brief, action-oriented\n- **Gentle Guide** - Patient, calm\n- **Wise Mentor** - Thoughtful, philosophical\n- **Cheerful Friend** - Upbeat, positive\n- **Calm Companion** - Steady, grounding\n- **Accountability Partner** - Focused, motivating\n\nChange your style in Preferences anytime.\n\n## What the AI Can See\n\nWith your consent, the AI accesses:\n- Journal entries and moods\n- Health data (weight, nutrition, medicine adherence)\n- Task completion and productivity\n- Goals and progress\n- Prayer requests (if Faith enabled)\n\n**This is why consent is required.** The AI needs data context to be useful.\n\n## Tips for Better Responses\n\n1. **Be specific** - \"How was my mood last week?\" beats \"Tell me about my mood\"\n2. **Ask follow-ups** - Drill deeper into interesting insights\n3. **Use for planning** - \"What should I prioritize today?\"\n4. **Review regularly** - Weekly check-ins yield great insights\n\n## Privacy Notes\n\n- Conversations are private to your account\n- Data is processed securely\n- You can delete conversation history\n- AI doesn't share your data externally",
+            "category": 2,
+            "module": "ai",
+            "keywords": "ai assistant, chat, search data, ask questions, coaching, personal assistant, guidance, insights",
+            "is_active": true,
+            "sort_order": 13,
+            "created_at": "2026-02-01T12:00:00Z",
+            "updated_at": "2026-02-01T12:00:00Z"
+        }
+    },
+    {
+        "model": "help.helparticle",
+        "pk": 21,
+        "fields": {
+            "title": "Capture: Voice Recording & Transcription",
+            "slug": "capture-module",
+            "summary": "Record voice memos and have them automatically transcribed, summarized, and saved for reference.",
+            "content": "## What is Capture?\n\nCapture lets you speak your thoughts instead of typing them. Record a voice memo, and WLJ will:\n\n1. **Transcribe** it to text automatically\n2. **Summarize** the key points\n3. **Save** it for future reference\n4. **Expire** after 30 days (to keep storage manageable)\n\n## Why Use Voice?\n\n- **Faster than typing** - Speak 150 words/minute vs. type 40\n- **Capture in the moment** - While driving, walking, or multitasking\n- **More natural** - Some thoughts flow better when spoken\n- **Lower friction** - No keyboard needed\n\n## How to Record\n\n### Method 1: In-App Recording\n1. Click **Capture** in navigation\n2. Click **Record Audio**\n3. Grant microphone permission (first time)\n4. Speak your memo\n5. Click **Stop** when finished\n6. Add a title (optional)\n7. Wait for transcription (usually 10-30 seconds)\n\n### Method 2: Upload Audio File\n1. Click **Capture > Upload**\n2. Select an audio file (MP3, WAV, M4A, etc.)\n3. Processing happens automatically\n\n## What Happens After Recording\n\n1. **Upload** - Audio securely uploaded\n2. **Transcription** - AI converts speech to text\n3. **Summarization** - Key points extracted\n4. **Save** - Entry appears in your Capture list\n\nProcessing typically takes 10-60 seconds depending on length.\n\n## Managing Your Captures\n\n### View Captures\n- Go to **Capture** to see all recordings\n- Click any entry to see full transcription\n- Search by keyword or date\n\n### Edit Titles\nClick the title to rename for easier finding later.\n\n### Categories\nOrganize captures into categories for filtering.\n\n### Delete\nRemove captures you no longer need.\n\n## Auto-Expiration\n\n**By default, captures expire after 30 days.** This keeps your storage manageable and encourages timely review.\n\n- You'll receive a reminder email before expiration\n- Important captures can be saved permanently\n- Expired content is deleted automatically\n\n## SMS Notifications\n\nEnable notifications to receive:\n- Processing complete alerts\n- Expiration reminders\n- Failed processing alerts\n\n## Tips for Better Transcriptions\n\n1. **Speak clearly** - Natural pace, enunciate\n2. **Quiet environment** - Reduces background noise errors\n3. **State context** - \"This is about my meeting with John...\"\n4. **Keep under 10 minutes** - Shorter = faster processing\n5. **Review and edit** - AI isn't perfect\n\n## Use Cases\n\n- **Daily reflections** - Speak instead of journaling\n- **Meeting notes** - Capture key points\n- **Ideas** - Record thoughts before they escape\n- **To-do lists** - Speak tasks to transcribe\n- **Voice memos** - General note-taking",
+            "category": 2,
+            "module": "capture",
+            "keywords": "capture, voice, recording, transcription, audio, memo, speak, record, dictate, speech to text",
+            "is_active": true,
+            "sort_order": 14,
+            "created_at": "2026-02-01T12:00:00Z",
+            "updated_at": "2026-02-01T12:00:00Z"
+        }
+    },
+    {
+        "model": "help.helparticle",
+        "pk": 22,
+        "fields": {
+            "title": "Finance Module Overview",
+            "slug": "finance-module",
+            "summary": "Track budgets, recurring transactions, and financial goals to understand your money patterns.",
+            "content": "## What is the Finance Module?\n\nThe Finance module helps you understand where your money goes. Track income, expenses, budgets, and recurring transactions to gain clarity on your financial habits.\n\n## Key Features\n\n### Budget Tracking\nSet monthly budgets by category and track spending against them:\n- **Groceries** - Food and household supplies\n- **Dining** - Restaurants and takeout\n- **Transportation** - Gas, transit, parking\n- **Entertainment** - Movies, subscriptions, hobbies\n- **Custom categories** - Create your own\n\n### Recurring Transactions\nTrack regular income and expenses:\n- **Bills** - Rent, utilities, subscriptions\n- **Income** - Salary, freelance, dividends\n- **Subscriptions** - Monthly services\n\nSee upcoming transactions and never miss a bill.\n\n### Financial Goals\nSet savings targets with deadlines:\n- Emergency fund\n- Vacation savings\n- Major purchases\n- Debt payoff\n\nTrack progress with visual indicators.\n\n### Transaction Logging\nRecord individual transactions:\n- Amount and date\n- Category assignment\n- Notes for context\n- Recurring flag\n\n## How to Get Started\n\n### 1. Enable Finance Module\nGo to **Preferences** and enable the Finance module.\n\n### 2. Set Up Categories\nCustomize budget categories to match your spending patterns.\n\n### 3. Add Recurring Items\nEnter your regular bills and income sources.\n\n### 4. Set Budgets\nCreate monthly spending limits per category.\n\n### 5. Log Transactions\nRecord spending as it happens (or batch weekly).\n\n## The Dashboard Connection\n\nYour finance data integrates with your Dashboard:\n- **Budget status** - Progress toward monthly limits\n- **Upcoming bills** - Due date reminders\n- **Spending nudges** - When you're over budget\n\n## Tips for Financial Awareness\n\n1. **Log consistently** - Even estimates beat nothing\n2. **Review weekly** - Catch overspending early\n3. **Start with big categories** - Perfect tracking isn't required\n4. **Link to goals** - Saving feels better with purpose\n5. **Use recurring transactions** - Automates predictable items\n\n## Privacy\n\nYour financial data is:\n- Stored securely and encrypted\n- Never shared with third parties\n- Only visible to you\n- Exportable or deletable anytime",
+            "category": 2,
+            "module": "finance",
+            "keywords": "finance, money, budget, spending, expenses, income, bills, transactions, financial, savings, goals",
+            "is_active": true,
+            "sort_order": 15,
+            "created_at": "2026-02-01T12:00:00Z",
+            "updated_at": "2026-02-01T12:00:00Z"
+        }
+    },
+    {
+        "model": "help.helparticle",
+        "pk": 23,
+        "fields": {
+            "title": "Searching Your Data with AI",
+            "slug": "ai-search",
+            "summary": "Use natural language to find information across all your WLJ data—journal entries, health records, tasks, and more.",
+            "content": "## Natural Language Data Search\n\nOne of the most powerful features of the AI Assistant is searching your own data using plain English. No filters to configure—just ask.\n\n## What You Can Search\n\n### Journal Entries\n- \"Show me journal entries about anxiety\"\n- \"When did I write about my promotion?\"\n- \"Find entries where I mentioned my mom\"\n- \"What did I journal about last week?\"\n\n### Health Data\n- \"What was my weight on January 15th?\"\n- \"Show my blood pressure readings from last month\"\n- \"Did I take my medicine yesterday?\"\n- \"How many workouts did I do this week?\"\n\n### Tasks & Projects\n- \"What tasks are due this week?\"\n- \"Show me completed tasks from last month\"\n- \"What projects am I working on?\"\n- \"List my overdue tasks\"\n\n### Goals & Progress\n- \"What are my active goals?\"\n- \"Am I on track with my annual direction?\"\n- \"Show my goal progress\"\n\n### Faith (if enabled)\n- \"What prayers have been answered?\"\n- \"Show my active prayer requests\"\n- \"When did I pray about my job?\"\n\n### Nutrition & Food\n- \"What did I eat yesterday?\"\n- \"How many calories have I had today?\"\n- \"Show my nutrition for last week\"\n\n## How It Works\n\n1. **You ask** in natural language\n2. **AI interprets** your intent\n3. **AI searches** the relevant data type\n4. **Results displayed** with context\n\n## Tips for Effective Searches\n\n### Be Specific About Time\n- ✅ \"Last week\" / \"January 2026\" / \"Yesterday\"\n- ❌ \"Recently\" (too vague)\n\n### Name the Data Type\n- ✅ \"Journal entries about...\" / \"Weight readings from...\"\n- ❌ \"Show me stuff about...\" (unclear)\n\n### Use Keywords from Your Entries\nThe AI searches your actual text. Use words you'd have used when logging.\n\n### Ask Follow-Up Questions\nAfter seeing results, drill deeper:\n- \"Tell me more about that entry\"\n- \"What was my mood that day?\"\n- \"Show similar entries\"\n\n## Privacy & Security\n\n- Searches only your own data\n- Results never shared externally\n- AI processing is secure\n- You control what the AI can access via consent settings\n\n## When Search Works Best\n\n- **Consistent logging** - More data = better results\n- **Descriptive entries** - Detail helps matching\n- **Regular use** - AI learns your patterns",
+            "category": 2,
+            "module": "ai",
+            "keywords": "search, find, query, lookup, ask, natural language, data search, journal search, health search",
+            "is_active": true,
+            "sort_order": 16,
+            "created_at": "2026-02-01T12:00:00Z",
+            "updated_at": "2026-02-01T12:00:00Z"
+        }
     }
 ]

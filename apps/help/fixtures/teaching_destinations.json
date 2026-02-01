@@ -1443,5 +1443,192 @@
             "created_at": "2026-01-26T00:00:00Z",
             "updated_at": "2026-01-26T00:00:00Z"
         }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 86,
+        "fields": {
+            "destination_id": "ai-data-search",
+            "name": "Search My Data",
+            "path_description": "Assistant - Data Search",
+            "explanation": "Use natural language to search across all your WLJ data. Ask questions like 'What did I journal about last week?' or 'Show my weight from January' and get instant answers.",
+            "url": "/assistant/",
+            "keywords": "search data, find entries, lookup, query my data, search journal, search health, natural language search, ask about my data",
+            "module": "ai",
+            "sort_order": 86,
+            "is_active": true,
+            "created_at": "2026-02-01T00:00:00Z",
+            "updated_at": "2026-02-01T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 87,
+        "fields": {
+            "destination_id": "ai-insights",
+            "name": "AI Insights",
+            "path_description": "Assistant - Insights",
+            "explanation": "Get AI-powered analysis of your patterns and trends. Ask about mood patterns, health trends, productivity, and receive personalized observations based on your data.",
+            "url": "/assistant/",
+            "keywords": "ai insights, patterns, trends, analysis, mood patterns, health trends, ai analysis, personalized insights",
+            "module": "ai",
+            "sort_order": 87,
+            "is_active": true,
+            "created_at": "2026-02-01T00:00:00Z",
+            "updated_at": "2026-02-01T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 88,
+        "fields": {
+            "destination_id": "ai-coaching",
+            "name": "AI Coaching",
+            "path_description": "Assistant - Coaching",
+            "explanation": "Receive personalized guidance and recommendations from your AI coach. Get help with goal setting, habit building, and daily priorities based on your actual data and preferences.",
+            "url": "/assistant/",
+            "keywords": "ai coaching, personal coach, guidance, advice, recommendations, help me, what should I do, priorities",
+            "module": "ai",
+            "sort_order": 88,
+            "is_active": true,
+            "created_at": "2026-02-01T00:00:00Z",
+            "updated_at": "2026-02-01T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 89,
+        "fields": {
+            "destination_id": "ai-settings",
+            "name": "AI Settings",
+            "path_description": "Preferences - AI Settings",
+            "explanation": "Configure your AI experience including enabling AI features, choosing your coaching style, and managing data consent for personalized insights.",
+            "url": "/preferences/#ai",
+            "keywords": "ai settings, enable ai, coaching style, ai preferences, ai consent, configure ai",
+            "module": "ai",
+            "sort_order": 89,
+            "is_active": true,
+            "created_at": "2026-02-01T00:00:00Z",
+            "updated_at": "2026-02-01T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 90,
+        "fields": {
+            "destination_id": "finance-budgets",
+            "name": "Budget Tracking",
+            "path_description": "Finance - Budgets",
+            "explanation": "Set monthly spending limits by category and track your progress. See how much you've spent versus your budget in real-time.",
+            "url": "/finance/budgets/",
+            "keywords": "budget, spending limit, monthly budget, track spending, budget categories, money management",
+            "module": "finance",
+            "sort_order": 90,
+            "is_active": true,
+            "created_at": "2026-02-01T00:00:00Z",
+            "updated_at": "2026-02-01T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 91,
+        "fields": {
+            "destination_id": "finance-transactions",
+            "name": "Log Transaction",
+            "path_description": "Finance - Transactions",
+            "explanation": "Record income and expenses to track where your money goes. Categorize transactions for budget tracking and financial insights.",
+            "url": "/finance/transactions/",
+            "keywords": "transaction, expense, income, log money, record spending, financial entry, add transaction",
+            "module": "finance",
+            "sort_order": 91,
+            "is_active": true,
+            "created_at": "2026-02-01T00:00:00Z",
+            "updated_at": "2026-02-01T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 92,
+        "fields": {
+            "destination_id": "finance-savings-goals",
+            "name": "Savings Goals",
+            "path_description": "Finance - Savings Goals",
+            "explanation": "Set savings targets with deadlines and track your progress. Great for emergency funds, vacation savings, or major purchases.",
+            "url": "/finance/goals/",
+            "keywords": "savings, savings goal, save money, financial goal, emergency fund, vacation fund, target savings",
+            "module": "finance",
+            "sort_order": 92,
+            "is_active": true,
+            "created_at": "2026-02-01T00:00:00Z",
+            "updated_at": "2026-02-01T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 93,
+        "fields": {
+            "destination_id": "capture-transcriptions",
+            "name": "View Transcriptions",
+            "path_description": "Capture - My Recordings",
+            "explanation": "View all your voice recordings with their transcriptions and AI-generated summaries. Search, edit, and organize your audio captures.",
+            "url": "/capture/",
+            "keywords": "transcriptions, voice recordings, audio, my captures, view recordings, transcribed audio",
+            "module": "capture",
+            "sort_order": 93,
+            "is_active": true,
+            "created_at": "2026-02-01T00:00:00Z",
+            "updated_at": "2026-02-01T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 94,
+        "fields": {
+            "destination_id": "scan-food",
+            "name": "Scan Food",
+            "path_description": "Scan - Food Recognition",
+            "explanation": "Take a photo of your meal and let AI identify the food and estimate nutrition. Much faster than manual entry for logging what you eat.",
+            "url": "/scan/",
+            "keywords": "scan food, food photo, food recognition, nutrition scan, photograph meal, ai food, calorie scan",
+            "module": "scan",
+            "sort_order": 94,
+            "is_active": true,
+            "created_at": "2026-02-01T00:00:00Z",
+            "updated_at": "2026-02-01T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 95,
+        "fields": {
+            "destination_id": "scan-medicine",
+            "name": "Scan Medicine",
+            "path_description": "Scan - Medicine Recognition",
+            "explanation": "Photograph a medicine bottle or package to automatically add it to your medicine tracker. AI extracts the name, dosage, and pharmacy information.",
+            "url": "/scan/",
+            "keywords": "scan medicine, medicine photo, pill bottle, prescription scan, add medicine, ai medicine",
+            "module": "scan",
+            "sort_order": 95,
+            "is_active": true,
+            "created_at": "2026-02-01T00:00:00Z",
+            "updated_at": "2026-02-01T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 96,
+        "fields": {
+            "destination_id": "data-export",
+            "name": "Export My Data",
+            "path_description": "Preferences - Data Export",
+            "explanation": "Download a complete copy of all your WLJ data in JSON or CSV format. Your data belongs to you and you can take it anywhere.",
+            "url": "/preferences/#data",
+            "keywords": "export data, download data, backup, my data, data portability, export json, export csv",
+            "module": "users",
+            "sort_order": 96,
+            "is_active": true,
+            "created_at": "2026-02-01T00:00:00Z",
+            "updated_at": "2026-02-01T00:00:00Z"
+        }
     }
 ]

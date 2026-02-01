@@ -16,6 +16,42 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-02-01 Changes
 
+### Complete Documentation & Help Review
+
+**Summary:** Comprehensive review and expansion of user documentation, context-aware help, and teaching destinations.
+
+**Help Articles Added (4 new articles):**
+1. **Using the AI Assistant** (pk 20) - Full guide to AI chat, data search, insights, and coaching
+2. **Capture: Voice Recording & Transcription** (pk 21) - Complete Capture module documentation
+3. **Finance Module Overview** (pk 22) - Budget tracking, transactions, savings goals
+4. **Searching Your Data with AI** (pk 23) - Natural language data search guide
+
+**Teaching Destinations Added (11 new destinations):**
+- AI module: Data Search, AI Insights, AI Coaching, AI Settings (4 new)
+- Finance module: Budget Tracking, Log Transaction, Savings Goals (3 new)
+- Capture module: View Transcriptions (1 new)
+- Scan module: Scan Food, Scan Medicine (2 new)
+- Users module: Export My Data (1 new)
+
+**Coverage Improvement:**
+- Help articles: 19 → 23 (+4)
+- Teaching destinations: 85 → 96 (+11)
+- AI module destinations: 1 → 5 (comprehensive coverage now)
+- Finance module coverage: Articles added where only destinations existed
+
+**Quality Assessment:**
+- All existing help content uses BLUF (Bottom Line Up Front) format ✓
+- Context-aware help topics: 28 covering all major pages ✓
+- Help articles: Comprehensive with tables, examples, tips ✓
+
+**Files Modified:**
+- `apps/help/fixtures/help_articles.json` - Added 4 articles
+- `apps/help/fixtures/teaching_destinations.json` - Added 11 destinations
+
+**Testing:** All 103 help tests pass.
+
+---
+
 ### Comprehensive Lint Fixes - 871 Errors Resolved
 
 **Summary:** Fixed lint errors detected by ruff, reducing from 938 to 67 (remaining are intentional E402 for Django scripts).

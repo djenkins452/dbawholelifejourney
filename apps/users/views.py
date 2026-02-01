@@ -537,6 +537,9 @@ class OnboardingWizardView(LoginRequiredMixin, TemplateView):
             # Personal Assistant settings
             context["personal_assistant_enabled"] = prefs.personal_assistant_enabled
             context["personal_assistant_consent"] = prefs.personal_assistant_consent
+            # Track if user has explicitly set Personal Assistant (has a consent date)
+            # New users without explicit choice should see it ON by default
+            context["personal_assistant_explicit"] = prefs.personal_assistant_consent_date is not None
             try:
                 from apps.ai.models import CoachingStyle
                 context["coaching_styles"] = CoachingStyle.get_active_styles()

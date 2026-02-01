@@ -289,7 +289,7 @@
                     <h2>Personal Assistant</h2>
                     <p class="section-subtitle">Your AI-powered daily coach that helps you live the life you said you want to live.</p>
 
-                    <label class="ai-toggle-card {% if personal_assistant_enabled %}enabled{% endif %}" id="personal-assistant-card">
+                    <label class="ai-toggle-card {% if personal_assistant_enabled or not personal_assistant_explicit %}enabled{% endif %}" id="personal-assistant-card">
                         <div class="ai-toggle-content">
                             <div class="ai-icon">🎯</div>
                             <div class="ai-text">
@@ -297,7 +297,7 @@
                                 <p>Get daily priorities, celebrate wins, and receive gentle accountability based on your complete journey.</p>
                             </div>
                             <div class="ai-switch">
-                                <input type="checkbox" name="personal_assistant_enabled" id="personal_assistant_enabled" {% if personal_assistant_enabled %}checked{% endif %}>
+                                <input type="checkbox" name="personal_assistant_enabled" id="personal_assistant_enabled" {% if personal_assistant_enabled or not personal_assistant_explicit %}checked{% endif %}>
                                 <label for="personal_assistant_enabled" class="toggle-switch">
                                     <span class="toggle-slider"></span>
                                 </label>

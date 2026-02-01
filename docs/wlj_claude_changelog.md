@@ -16,16 +16,17 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-02-01 Changes
 
-### Onboarding: AI Features Default to ON
+### Onboarding: AI Features and Personal Assistant Default to ON
 
-**Change:** The AI consent toggle on the onboarding wizard now defaults to ON for new users, showing the coaching styles and Personal Assistant options immediately.
+**Change:** Both the AI consent toggle AND the Personal Assistant toggle on the onboarding wizard now default to ON for new users.
 
-**Rationale:** Most users will want AI features, so opt-out is better UX than opt-in during onboarding.
+**Rationale:** Most users will want these features, so opt-out is better UX than opt-in during onboarding.
 
 **Implementation:**
-- Added `ai_data_consent_explicit` context variable that checks if user has a consent date (meaning they've explicitly made a choice before)
-- Template logic: If no explicit choice yet, default to checked/enabled
-- Coaching styles section visible by default for new users
+- Added `ai_data_consent_explicit` context variable that checks if user has an AI consent date
+- Added `personal_assistant_explicit` context variable that checks if user has a PA consent date
+- Template logic: If no explicit choice yet, default both toggles to checked/enabled
+- Coaching styles section and Personal Assistant section visible by default for new users
 
 **Files Modified:**
 - `templates/users/onboarding_wizard.html` - Default checkbox to checked for new users

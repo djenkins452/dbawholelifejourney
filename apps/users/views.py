@@ -265,6 +265,9 @@ class PreferencesView(HelpContextMixin, LoginRequiredMixin, UpdateView):
         ).select_related('module').order_by('sort_order')
         context['nav_module_prefs'] = nav_module_prefs
 
+        # SMS feature flag (disabled - will be replaced by push notifications)
+        context['SMS_FEATURE_ENABLED'] = getattr(settings, 'SMS_FEATURE_ENABLED', False)
+
         return context
 
     def form_valid(self, form):
@@ -622,8 +625,8 @@ class OnboardingWizardView(LoginRequiredMixin, TemplateView):
             # Save preferred name (what to call them)
             preferred_name = request.POST.get("preferred_name", "").strip()
             if preferred_name:
-                user.first_name = preferred_name
-                user.save(update_fields=["first_name"])
+                request.user.first_name = preferred_name
+                request.user.save(update_fields=["first_name"])
 
             # Save gender
             gender = request.POST.get("gender")

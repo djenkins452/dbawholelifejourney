@@ -1084,7 +1084,7 @@ The AI will remember these to respond more thoughtfully in the future."
                         <span class="accordion-icon">🔔</span>
                         <div class="accordion-title-group">
                             <h2 class="accordion-title">Notifications & Communication</h2>
-                            <p class="accordion-subtitle">In-app notifications and SMS settings</p>
+                            <p class="accordion-subtitle">In-app and email notification settings</p>
                         </div>
                     </div>
                     <div class="accordion-header-right">
@@ -1507,7 +1507,8 @@ The AI will remember these to respond more thoughtfully in the future."
                             </div>
                         </div>
 
-                        <!-- SMS Notifications -->
+                        <!-- SMS Notifications (disabled - will be replaced by push notifications) -->
+                        {% if SMS_FEATURE_ENABLED %}
                         <div class="accordion-group" data-accordion-key="sms">
                             <button type="button" class="accordion-header">
                                 <div class="accordion-header-content">
@@ -1773,6 +1774,7 @@ The AI will remember these to respond more thoughtfully in the future."
                     </div>
                 </div>
             </div>
+                        {% endif %}
 
             <!-- ═══════════════════════════════════════════════════════════════════
                  SECURITY & PRIVACY

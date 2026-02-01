@@ -893,6 +893,10 @@ else:
 # Get your credentials at: https://www.twilio.com/console
 # Twilio Verify requires a Verify Service - create one in the Twilio Console
 
+# SMS Feature Flag - Set to True to enable SMS functionality
+# Currently disabled - will be replaced by push notifications for iOS/Android apps
+SMS_FEATURE_ENABLED = env.bool('SMS_FEATURE_ENABLED', default=False)
+
 TWILIO_ACCOUNT_SID = env('TWILIO_ACCOUNT_SID', default='')
 TWILIO_AUTH_TOKEN = env('TWILIO_AUTH_TOKEN', default='')
 TWILIO_PHONE_NUMBER = env('TWILIO_PHONE_NUMBER', default='')  # E.164 format: +1XXXXXXXXXX

@@ -95,9 +95,15 @@ class TwilioService:
         return ''
 
     @property
+    def is_feature_enabled(self):
+        """Check if SMS feature is enabled globally."""
+        return getattr(settings, 'SMS_FEATURE_ENABLED', False)
+
+    @property
     def is_configured(self):
-        """Check if Twilio is properly configured."""
+        """Check if Twilio is properly configured and feature is enabled."""
         return bool(
+            self.is_feature_enabled and
             self.account_sid and
             self.auth_token and
             self.phone_number

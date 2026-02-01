@@ -386,6 +386,16 @@ class LoginPreview3View(TemplateView):
     template_name = "account/login_preview3.html"
 
 
+class LoginPreview4View(TemplateView):
+    """
+    Preview of new login page design - Version 4 (enhanced lighthouse theme).
+    Features: realistic yacht, waves crashing on rocks, labeled milestones.
+    URL: /login-preview4/
+    """
+
+    template_name = "account/login_preview4.html"
+
+
 class MoreView(LoginRequiredMixin, TemplateView):
     """
     More screen - shows all enabled modules as tiles plus quick links.

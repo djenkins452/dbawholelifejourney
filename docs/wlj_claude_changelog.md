@@ -16,6 +16,25 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-02-01 Changes
 
+### Login Preview 4 - Enhanced Lighthouse Theme
+
+**Change:** Created login-preview4 with enhanced visuals based on user feedback:
+- Realistic yacht with hull, cabin, multiple sails, rigging, and flag
+- Lighthouse on rocky base with detailed rock formations
+- Animated waves crashing against rocks with foam spray
+- Multiple wave layers moving at different speeds for realistic ocean effect
+- Labels under each milestone icon (Faith, Journal, Health, Goals)
+- Updated Journal icon to open book with pen writing on it
+- Preserved all animations (lighthouse beam sweep, wave motion, water shimmer)
+- Full accessibility and prefers-reduced-motion support
+
+**Files Modified:**
+- `templates/account/login_preview4.html` - New preview file
+- `apps/core/views.py` - Added LoginPreview4View
+- `apps/core/urls.py` - Added login-preview4 URL route
+
+---
+
 ### Add Desktop Profile Dropdown Menu
 
 **Change:** Added a dropdown menu to the desktop profile icon in the top bar with Profile, Preferences, What's New, Admin Console (staff only), and Sign Out links. Previously the profile icon was just a link to the profile page.

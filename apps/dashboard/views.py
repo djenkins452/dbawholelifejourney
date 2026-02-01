@@ -794,22 +794,34 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
     def _get_ai_insights(self, user, prefs, user_data):
         """Get AI-generated insights."""
         try:
+            # Check if user is truly new (no meaningful data yet)
+            # If so, show onboarding guidance instead of AI-generated insight
+            onboarding_insight = self._get_new_user_onboarding_insight(user, prefs, user_data)
+            if onboarding_insight:
+                return {
+                    "daily_insight": onboarding_insight,
+                    "weekly_summary": None,
+                    "celebrations": [],
+                    "nudges": [],
+                    "is_onboarding": True,
+                }
+
             from apps.ai.dashboard_ai import DashboardAI
-            
+
             dashboard_ai = DashboardAI(user)
-            
+
             # Get or generate daily insight
             daily_insight = dashboard_ai.get_daily_insight()
-            
+
             # Get weekly summary if it's been generated
             weekly_summary = dashboard_ai.get_weekly_summary()
-            
+
             # Check for things to celebrate (respects module enabled flags)
             celebrations = self._check_for_celebrations(user_data, prefs)
 
             # Check for accountability nudges (respects module enabled flags)
             nudges = self._check_for_nudges(user_data, prefs)
-            
+
             return {
                 "daily_insight": daily_insight,
                 "weekly_summary": weekly_summary,
@@ -820,6 +832,56 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             import logging
             logging.error(f"AI insights error: {e}")
             return None
+
+    def _get_new_user_onboarding_insight(self, user, prefs, user_data):
+        """
+        Check if user is brand new and return onboarding guidance if so.
+
+        A user is considered "new" if they have:
+        - No journal entries
+        - No goals set
+        - No word of the year
+        - No AI profile filled out
+
+        Returns None if user has started using the app, otherwise returns
+        an onboarding insight string.
+        """
+        # Check for journal entries
+        journal_count = user_data.get("journal_total", 0)
+        if journal_count > 0:
+            return None
+
+        # Check for goals
+        goals_count = user_data.get("active_goals", 0)
+        if goals_count > 0:
+            return None
+
+        # Check for word of the year / annual direction
+        word_of_year = user_data.get("word_of_year")
+        if word_of_year:
+            return None
+
+        # Check for AI profile
+        ai_profile = prefs.ai_profile or ""
+        if len(ai_profile.strip()) >= 50:
+            return None
+
+        # User is new - return onboarding guidance (HTML formatted)
+        user_name = user.first_name or user.display_name or "there"
+
+        return f"""<p>Welcome to Whole Life Journey, {user_name}! 🎉</p>
+
+<p>Here's how to get started and make this app work for you:</p>
+
+<p><strong>1. Set Your AI Profile</strong> — Tell the AI about yourself, your values, and what motivates you. This helps personalize all your insights. Go to <strong>Preferences → AI Settings</strong>.</p>
+
+<p><strong>2. Choose Your Word of the Year</strong> — This single word becomes your guiding theme. The AI will reference it in your daily insights. Go to <strong>Goals → Annual Direction</strong>.</p>
+
+<p><strong>3. Set 1-3 Goals</strong> — What do you want to accomplish? Goals anchor everything and help the AI give you relevant guidance. Go to <strong>Goals → My Goals</strong>.</p>
+
+<p><strong>4. Write Your First Journal Entry</strong> — Even a few sentences helps the AI learn your voice and patterns. Go to <strong>Journal → New Entry</strong>.</p>
+
+<p>Once you've done these, your daily insights will become deeply personal and actionable. The more you share, the smarter your AI coach becomes!</p>"""
     
     def _check_for_celebrations(self, user_data, prefs):
         """Check for things worth celebrating. Only includes celebrations for enabled modules."""

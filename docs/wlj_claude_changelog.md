@@ -16,6 +16,26 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-02-01 Changes
 
+### Dashboard Customize Button Dark Theme Fix & Spacing Improvements
+
+**Issues:**
+1. Customize button barely visible on dark theme - low contrast with background
+2. Excessive spacing between header elements and tiles
+
+**Fixes:**
+- `btn-customize`: Added explicit `color: var(--color-text)`, thicker 2px border, `font-weight: 500`
+- Hover state: Changed to use `var(--color-surface)` background and accent color text
+- Added SVG stroke color rules for hover and active states
+- Reduced `dashboard-edit-bar` margin from `1rem` to `0.75rem`, removed padding
+- Reduced `dashboard-header` margin-bottom from `var(--space-6)` to `var(--space-2)`
+- Reduced header gap from `var(--space-4)` to `var(--space-2)`
+
+**Files Modified:**
+- `templates/dashboard/home.html` - Button CSS styles
+- `static/css/dashboard.css` - Header spacing
+
+---
+
 ### Onboarding: AI Features and Personal Assistant Default to ON
 
 **Change:** Both the AI consent toggle AND the Personal Assistant toggle on the onboarding wizard now default to ON for new users.

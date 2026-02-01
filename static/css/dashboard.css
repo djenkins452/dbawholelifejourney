@@ -37,9 +37,9 @@
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    margin-bottom: var(--space-6);
+    margin-bottom: var(--space-2);
     flex-wrap: wrap;
-    gap: var(--space-4);
+    gap: var(--space-2);
 }
 
 .greeting h1 {
@@ -210,6 +210,28 @@
     line-height: var(--line-height-relaxed);
     margin: 0;
     color: var(--color-text);
+}
+
+/* Onboarding insight styling for new users */
+.ai-insight-hero.onboarding-insight {
+    border-left-color: #10b981; /* Green accent for getting started */
+}
+
+.ai-insight-hero.onboarding-insight .ai-badge {
+    color: #10b981;
+}
+
+.onboarding-content {
+    font-size: var(--font-size-base);
+    line-height: var(--line-height-relaxed);
+}
+
+.onboarding-content p {
+    margin-bottom: var(--space-4);
+}
+
+.onboarding-content p:last-child {
+    margin-bottom: 0;
 }
 
 /* =============================================================================

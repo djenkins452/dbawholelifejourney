@@ -10,8 +10,7 @@
 .dashboard-edit-bar {
     display: flex;
     justify-content: flex-end;
-    padding: 0.5rem 0;
-    margin-bottom: 1rem;
+    margin-bottom: 0.75rem;
 }
 
 .btn-customize {
@@ -19,23 +18,34 @@
     align-items: center;
     gap: 0.5rem;
     padding: 0.5rem 1rem;
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
+    background: var(--color-background);
+    border: 2px solid var(--color-border);
     border-radius: 8px;
     font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--color-text);
     cursor: pointer;
     transition: all 0.15s;
 }
 
 .btn-customize:hover {
     border-color: var(--color-accent);
-    background: var(--color-accent-light, #e0f2fe);
+    background: var(--color-surface);
+    color: var(--color-accent);
+}
+
+.btn-customize:hover svg {
+    stroke: var(--color-accent);
 }
 
 .btn-customize.active {
     background: var(--color-accent);
     color: white;
     border-color: var(--color-accent);
+}
+
+.btn-customize.active svg {
+    stroke: white;
 }
 
 /* Tile container - CSS Grid for flexible layouts */

@@ -4080,31 +4080,36 @@ if (clearAIContextBtn) {
 document.addEventListener('DOMContentLoaded', function() {
     const hash = window.location.hash;
     if (hash === '#ai-profile') {
-        // Find the AI Profile accordion and open it
-        const aiProfileAccordion = document.getElementById('ai-profile-accordion');
-        if (aiProfileAccordion) {
-            // Make sure the accordion is visible (AI consent might hide it)
-            aiProfileAccordion.style.display = 'block';
-
-            // Open the accordion
-            const header = aiProfileAccordion.querySelector('.accordion-header');
-            const content = aiProfileAccordion.querySelector('.accordion-content');
-            if (header && content) {
-                header.classList.add('active');
-                content.classList.add('active');
-                content.style.display = 'block';
+        // Small delay to ensure accordion.js has initialized
+        setTimeout(function() {
+            // Make sure the AI subsections container is visible
+            const aiSubsections = document.getElementById('ai-subsections-container');
+            if (aiSubsections) {
+                aiSubsections.style.display = 'block';
             }
 
-            // Scroll to it with a slight delay to ensure layout is complete
+            // Make sure the AI Profile accordion group is visible
+            const aiProfileAccordion = document.getElementById('ai-profile-accordion');
+            if (aiProfileAccordion) {
+                aiProfileAccordion.style.display = 'block';
+            }
+
+            // Use the WLJAccordion API to open the accordion properly
+            if (window.WLJAccordion) {
+                WLJAccordion.open('ai-subsections', 'personal-profile');
+            }
+
+            // Scroll to it and focus textarea
             setTimeout(function() {
-                aiProfileAccordion.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                // Focus the textarea for immediate editing
+                if (aiProfileAccordion) {
+                    aiProfileAccordion.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
                 const textarea = document.getElementById('id_ai_profile');
                 if (textarea) {
                     textarea.focus();
                 }
-            }, 100);
-        }
+            }, 150);
+        }, 100);
     }
 });
 </script>

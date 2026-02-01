@@ -308,6 +308,11 @@ body.edit-mode .tile-name-label {
         </button>
     </div>
 
+    <!-- Getting Started Tile (New Users Only) -->
+    {% if is_new_user %}
+    {% include "dashboard/tiles/getting_started.html" %}
+    {% endif %}
+
     <!-- Dynamic Tiles Container -->
     <div class="dashboard-tiles" id="dashboard-tiles">
         {% for tile in dashboard_tiles %}

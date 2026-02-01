@@ -16,25 +16,54 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-02-01 Changes
 
-### New User Onboarding Insight for Dashboard
+### Getting Started Tile for New Users
 
-**Issue:** Brand new users who complete onboarding see a confusing AI insight on the dashboard that doesn't guide them on what to do first.
+**Issue:** Brand new users who complete onboarding see a dashboard with no guidance on what to do next. The AI insight tile doesn't show if AI isn't enabled.
 
-**Solution:** Added special onboarding guidance for truly new users (no journal entries, no goals, no word of year, no AI profile).
+**Solution:** Added a dedicated "Getting Started" tile that shows for all users until they complete 4 key onboarding steps. The tile shows checkmarks for completed steps and links directly to remaining actions.
+
+**Features:**
+- Shows until ALL 4 steps are complete (AI Profile, Word of Year, Goals, Journal Entry)
+- Each step shows a checkmark when completed, greyed out with strikethrough
+- Incomplete steps show a numbered indicator and description
+- Each step is a clickable link to the relevant page
+- Green accent styling with rocket icon
+- Disappears automatically once all steps are complete
 
 **Implementation:**
-- Added `_get_new_user_onboarding_insight()` method to `DashboardView` that detects new users
-- Checks for: journal_total, active_goals, word_of_year, and ai_profile content
-- Returns HTML-formatted guidance with 4 steps: AI Profile, Word of Year, Goals, Journal
-- Modified `_get_ai_insights()` to check for new users first before generating regular insights
-- Added `is_onboarding` flag to insight dict to trigger special template rendering
+- Added `_is_new_user()` and `_get_getting_started_content()` methods to `DashboardView`
+- New tile definition in `config_service.py` with `new_user_only` flag
+- Created `templates/dashboard/tiles/getting_started.html`
+- Getting Started tile renders ABOVE the main dashboard tiles grid for prominence
 
 **Files Modified:**
-- `apps/dashboard/views.py` - New user detection and onboarding insight logic
-- `templates/dashboard/tiles/ai_insights.html` - Handle onboarding display with |safe filter
-- `static/css/dashboard.css` - Green accent styling for onboarding insight
+- `apps/dashboard/views.py` - New user detection and getting started content
+- `apps/dashboard/services/config_service.py` - Added getting_started tile definition
+- `templates/dashboard/home.html` - Added getting started tile include
+- `templates/dashboard/tiles/getting_started.html` - New template with step completion UI
+- `static/css/dashboard.css` - Styling for getting started tile and completed steps
 
 **Testing:** All 58 dashboard tests pass.
+
+---
+
+### Onboarding: Ask for User's Preferred Name
+
+**Issue:** New users were addressed by their email handle (e.g., "beaconinnovation1") because no name was collected during onboarding.
+
+**Solution:** Added a "What should we call you?" input field to the "A Little About You" onboarding step.
+
+**Implementation:**
+- Added `preferred_name` text input field before the gender selection
+- Saves to `User.first_name` field
+- Added `current_name` context variable to pre-populate existing name
+- Styled with clear label, placeholder, and hint text
+
+**Files Modified:**
+- `apps/users/views.py` - Added POST handling for preferred_name, added current_name context
+- `templates/users/onboarding_wizard.html` - Added name input field and CSS styles
+
+**Testing:** All 30 onboarding wizard tests pass.
 
 ---
 

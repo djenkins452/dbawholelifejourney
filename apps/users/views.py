@@ -503,6 +503,8 @@ class OnboardingWizardView(LoginRequiredMixin, TemplateView):
             from apps.users.models import UserPreferences
             context["gender_choices"] = UserPreferences.GENDER_CHOICES
             context["current_gender"] = prefs.gender
+            # Current name (for "What should we call you?" field)
+            context["current_name"] = self.request.user.first_name
 
         elif current_step["id"] == "theme":
             context["themes"] = settings.WLJ_SETTINGS["THEMES"]
@@ -616,6 +618,14 @@ class OnboardingWizardView(LoginRequiredMixin, TemplateView):
         # Process step-specific data
         if current_step["id"] == "gender":
             from apps.users.models import UserPreferences
+
+            # Save preferred name (what to call them)
+            preferred_name = request.POST.get("preferred_name", "").strip()
+            if preferred_name:
+                user.first_name = preferred_name
+                user.save(update_fields=["first_name"])
+
+            # Save gender
             gender = request.POST.get("gender")
             # Validate gender is a valid choice or empty (skip)
             valid_genders = [choice[0] for choice in UserPreferences.GENDER_CHOICES]

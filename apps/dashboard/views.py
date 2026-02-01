@@ -138,6 +138,13 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             # Finance module flag
             context["finances_enabled"] = prefs.finances_enabled
 
+            # New user detection for getting started tile
+            # Show tile if user hasn't completed ALL onboarding steps
+            getting_started = self._get_getting_started_content(user, user_data, prefs)
+            all_steps_completed = all(step["completed"] for step in getting_started["steps"])
+            context["is_new_user"] = not all_steps_completed
+            context["getting_started_content"] = getting_started
+
             return context
         except Exception as e:
             logger.error(f"Dashboard error for {user_log_id(self.request.user)}: {e}", exc_info=True)
@@ -833,6 +840,93 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             logging.error(f"AI insights error: {e}")
             return None
 
+    def _is_new_user(self, user_data, prefs):
+        """
+        Check if user is brand new (hasn't started using the app yet).
+
+        A user is considered "new" if they have:
+        - No journal entries
+        - No goals set
+        - No word of the year
+        - No AI profile filled out (or very minimal)
+        """
+        # Check for journal entries
+        if user_data.get("journal_total", 0) > 0:
+            return False
+
+        # Check for goals
+        if user_data.get("active_goals", 0) > 0:
+            return False
+
+        # Check for word of the year / annual direction
+        if user_data.get("word_of_year"):
+            return False
+
+        # Check for AI profile
+        ai_profile = prefs.ai_profile or ""
+        if len(ai_profile.strip()) >= 50:
+            return False
+
+        return True
+
+    def _get_getting_started_content(self, user, user_data, prefs):
+        """
+        Generate the getting started content for new users.
+        Returns a dict with title and steps for the getting started tile.
+        Each step shows completion status based on user data.
+        """
+        user_name = user.first_name or user.get_short_name() or "there"
+
+        # Check completion status for each step
+        has_ai_profile = len((prefs.ai_profile or "").strip()) >= 50
+        has_word_of_year = bool(user_data.get("word_of_year"))
+        has_goals = user_data.get("active_goals", 0) > 0
+        has_journal = user_data.get("journal_total", 0) > 0
+
+        return {
+            "title": f"Welcome, {user_name}!",
+            "subtitle": "Here's how to get started and make this app work for you:",
+            "steps": [
+                {
+                    "number": 1,
+                    "title": "Set Your AI Profile",
+                    "description": "Tell the AI about yourself, your values, and what motivates you. This helps personalize all your insights.",
+                    "link": "/users/preferences/#ai-settings",
+                    "link_text": "Go to AI Settings",
+                    "icon": "user-circle",
+                    "completed": has_ai_profile
+                },
+                {
+                    "number": 2,
+                    "title": "Choose Your Word of the Year",
+                    "description": "This single word becomes your guiding theme. The AI will reference it in your daily insights.",
+                    "link": "/purpose/annual-direction/",
+                    "link_text": "Set Your Word",
+                    "icon": "compass",
+                    "completed": has_word_of_year
+                },
+                {
+                    "number": 3,
+                    "title": "Set 1-3 Goals",
+                    "description": "What do you want to accomplish? Goals anchor everything and help the AI give you relevant guidance.",
+                    "link": "/purpose/goals/",
+                    "link_text": "Create a Goal",
+                    "icon": "target",
+                    "completed": has_goals
+                },
+                {
+                    "number": 4,
+                    "title": "Write Your First Journal Entry",
+                    "description": "Even a few sentences helps the AI learn your voice and patterns.",
+                    "link": "/journal/entry/new/",
+                    "link_text": "Start Journaling",
+                    "icon": "pencil",
+                    "completed": has_journal
+                }
+            ],
+            "closing": "Once you've done these, your daily insights will become deeply personal and actionable!"
+        }
+
     def _get_new_user_onboarding_insight(self, user, prefs, user_data):
         """
         Check if user is brand new and return onboarding guidance if so.
@@ -846,24 +940,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         Returns None if user has started using the app, otherwise returns
         an onboarding insight string.
         """
-        # Check for journal entries
-        journal_count = user_data.get("journal_total", 0)
-        if journal_count > 0:
-            return None
-
-        # Check for goals
-        goals_count = user_data.get("active_goals", 0)
-        if goals_count > 0:
-            return None
-
-        # Check for word of the year / annual direction
-        word_of_year = user_data.get("word_of_year")
-        if word_of_year:
-            return None
-
-        # Check for AI profile
-        ai_profile = prefs.ai_profile or ""
-        if len(ai_profile.strip()) >= 50:
+        if not self._is_new_user(user_data, prefs):
             return None
 
         # User is new - return onboarding guidance (HTML formatted)

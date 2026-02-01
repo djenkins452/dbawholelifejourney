@@ -101,7 +101,21 @@
             <div class="step-panel" data-step="gender">
                 <div class="step-header">
                     <h1>A Little About You</h1>
-                    <p class="step-subtitle">This helps us personalize your health features. You can always change this later or skip this step entirely.</p>
+                    <p class="step-subtitle">This helps us personalize your experience. You can always change this later.</p>
+                </div>
+
+                <!-- Name Input -->
+                <div class="name-input-section">
+                    <label for="preferred_name" class="name-label">What should we call you?</label>
+                    <input type="text"
+                           id="preferred_name"
+                           name="preferred_name"
+                           value="{{ current_name }}"
+                           placeholder="Your first name or nickname"
+                           class="name-input"
+                           autocomplete="given-name"
+                           maxlength="50">
+                    <p class="name-hint">This is how we'll greet you throughout the app.</p>
                 </div>
 
                 <div class="gender-selection">
@@ -685,6 +699,47 @@
 
 .vip-badge-icon {
     font-size: 1.25rem;
+}
+
+/* Name Input Section */
+.name-input-section {
+    max-width: 500px;
+    margin: 0 auto var(--space-8);
+}
+
+.name-label {
+    display: block;
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--color-text);
+    margin-bottom: var(--space-2);
+}
+
+.name-input {
+    width: 100%;
+    padding: var(--space-4);
+    font-size: var(--font-size-lg);
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+    color: var(--color-text);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.name-input:focus {
+    outline: none;
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 20%, transparent);
+}
+
+.name-input::placeholder {
+    color: var(--color-text-muted);
+}
+
+.name-hint {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-top: var(--space-2);
 }
 
 /* Gender Step */

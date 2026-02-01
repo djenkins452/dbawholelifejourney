@@ -234,6 +234,18 @@ TILE_DEFINITIONS = {
         'mandatory': False,
         'default_order': 19,
     },
+    'getting_started': {
+        'id': 'getting_started',
+        'name': 'Getting Started',
+        'description': 'Welcome guide for new users with steps to get the most out of Whole Life Journey.',
+        'icon': 'rocket',
+        'module_dependency': None,  # Always available for new users
+        'default_visible': True,
+        'default_size': 'large',
+        'mandatory': False,
+        'default_order': 0,  # Show first
+        'new_user_only': True,  # Special flag - only show for new users
+    },
 }
 
 

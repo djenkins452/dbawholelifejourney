@@ -900,7 +900,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                     "number": 2,
                     "title": "Choose Your Word of the Year",
                     "description": "This single word becomes your guiding theme. The AI will reference it in your daily insights.",
-                    "link": "/purpose/annual-direction/",
+                    "link": "/purpose/direction/",
                     "link_text": "Set Your Word",
                     "icon": "compass",
                     "completed": has_word_of_year
@@ -918,7 +918,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                     "number": 4,
                     "title": "Write Your First Journal Entry",
                     "description": "Even a few sentences helps the AI learn your voice and patterns.",
-                    "link": "/journal/entry/new/",
+                    "link": "/journal/new/",
                     "link_text": "Start Journaling",
                     "icon": "pencil",
                     "completed": has_journal

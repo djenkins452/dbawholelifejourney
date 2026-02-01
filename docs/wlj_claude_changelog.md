@@ -16,6 +16,28 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-02-01 Changes
 
+### New User Onboarding Insight for Dashboard
+
+**Issue:** Brand new users who complete onboarding see a confusing AI insight on the dashboard that doesn't guide them on what to do first.
+
+**Solution:** Added special onboarding guidance for truly new users (no journal entries, no goals, no word of year, no AI profile).
+
+**Implementation:**
+- Added `_get_new_user_onboarding_insight()` method to `DashboardView` that detects new users
+- Checks for: journal_total, active_goals, word_of_year, and ai_profile content
+- Returns HTML-formatted guidance with 4 steps: AI Profile, Word of Year, Goals, Journal
+- Modified `_get_ai_insights()` to check for new users first before generating regular insights
+- Added `is_onboarding` flag to insight dict to trigger special template rendering
+
+**Files Modified:**
+- `apps/dashboard/views.py` - New user detection and onboarding insight logic
+- `templates/dashboard/tiles/ai_insights.html` - Handle onboarding display with |safe filter
+- `static/css/dashboard.css` - Green accent styling for onboarding insight
+
+**Testing:** All 58 dashboard tests pass.
+
+---
+
 ### Dashboard Customize Button Dark Theme Fix & Spacing Improvements
 
 **Issues:**

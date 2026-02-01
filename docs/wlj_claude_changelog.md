@@ -16,9 +16,19 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-02-01 Changes
 
+### Add Desktop Profile Dropdown Menu
+
+**Change:** Added a dropdown menu to the desktop profile icon in the top bar with Profile, Preferences, What's New, Admin Console (staff only), and Sign Out links. Previously the profile icon was just a link to the profile page.
+
+**Files Modified:**
+- `templates/components/desktop_top_bar.html` - Added profile dropdown with menu items and JS toggle
+- `static/css/desktop-nav.css` - Added dropdown styling
+
+---
+
 ### Remove "More" from Desktop Left Rail Navigation
 
-**Change:** Removed the "More" menu item from the desktop left rail navigation. Profile, Preferences, What's New, and Sign Out are already accessible from the user avatar dropdown in the header.
+**Change:** Removed the "More" menu item from the desktop left rail navigation. Profile, Preferences, What's New, and Sign Out are now accessible from the user avatar dropdown in the desktop top bar.
 
 **Files Modified:**
 - `templates/components/desktop_left_rail.html` - Removed "More" link, keeping only Admin Console for staff

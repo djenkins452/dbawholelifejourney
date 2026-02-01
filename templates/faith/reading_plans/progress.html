@@ -946,11 +946,13 @@ document.addEventListener('DOMContentLoaded', function() {
             const assessmentId = section.dataset.assessmentId;
             const planId = section.dataset.planId;
             const selects = section.querySelectorAll('.assessment-response');
+            const trueFalseGroups = section.querySelectorAll('.truefalse-options');
 
             // Collect responses
             const responses = {};
             let allAnswered = true;
 
+            // Collect dropdown/select responses
             selects.forEach(function(select) {
                 const questionId = select.dataset.questionId;
                 const value = select.value;
@@ -959,7 +961,22 @@ document.addEventListener('DOMContentLoaded', function() {
                     select.style.borderColor = 'var(--color-error)';
                 } else {
                     select.style.borderColor = '';
-                    responses[questionId] = parseInt(value);
+                    responses[questionId] = parseInt(value) || value;
+                }
+            });
+
+            // Collect True/False radio button responses
+            trueFalseGroups.forEach(function(group) {
+                const questionId = group.dataset.questionId;
+                const selected = group.querySelector('input[type="radio"]:checked');
+                if (!selected) {
+                    allAnswered = false;
+                    group.style.outline = '2px solid var(--color-error)';
+                    group.style.borderRadius = 'var(--radius-md)';
+                } else {
+                    group.style.outline = '';
+                    // Store as string "True" or "False"
+                    responses[questionId] = selected.value;
                 }
             });
 

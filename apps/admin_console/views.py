@@ -4118,3 +4118,373 @@ class SystemAnnouncementDismissAPIView(APIRateLimitMixin, View):
         )
 
         return JsonResponse({'success': True})
+
+
+# ==============================================================================
+# Test Plan Views
+# ==============================================================================
+
+
+class TestCycleListView(HelpContextMixin, AdminRequiredMixin, ListView):
+    """List all test cycles."""
+    template_name = "admin_console/test_plans/cycle_list.html"
+    context_object_name = 'cycles'
+    help_context_id = "ADMIN_CONSOLE_TEST_PLANS"
+
+    def get_queryset(self):
+        from .models import TestCycle
+        return TestCycle.objects.all().order_by('-created_at')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        from .models import TestCycle
+        # Add summary stats
+        cycles = self.get_queryset()
+        context['total_cycles'] = cycles.count()
+        context['active_cycles'] = cycles.filter(status=TestCycle.STATUS_IN_PROGRESS).count()
+        context['completed_cycles'] = cycles.filter(status=TestCycle.STATUS_COMPLETED).count()
+        return context
+
+
+class TestCycleCreateView(AdminRequiredMixin, CreateView):
+    """Create a new test cycle (optionally from template)."""
+    template_name = "admin_console/test_plans/cycle_form.html"
+    success_url = reverse_lazy('admin_console:test_cycle_list')
+
+    def get_form_class(self):
+        from django import forms
+        from .models import TestCycle
+
+        class TestCycleForm(forms.ModelForm):
+            from_template = forms.BooleanField(
+                required=False,
+                initial=True,
+                help_text="Populate with comprehensive WLJ test items"
+            )
+
+            class Meta:
+                model = TestCycle
+                fields = ['name', 'version', 'description']
+
+        return TestCycleForm
+
+    def form_valid(self, form):
+        form.instance.created_by = self.request.user
+        response = super().form_valid(form)
+
+        # If from_template, populate with test items
+        if form.cleaned_data.get('from_template', True):
+            from .services import populate_test_cycle_from_template
+            count = populate_test_cycle_from_template(self.object)
+            messages.success(
+                self.request,
+                f"Test cycle '{self.object.name}' created with {count} test items."
+            )
+        else:
+            messages.success(
+                self.request,
+                f"Test cycle '{self.object.name}' created."
+            )
+
+        return response
+
+
+class TestCycleDetailView(HelpContextMixin, AdminRequiredMixin, TemplateView):
+    """View and manage a test cycle with all phases and items."""
+    template_name = "admin_console/test_plans/cycle_detail.html"
+    help_context_id = "ADMIN_CONSOLE_TEST_PLANS"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        from .models import TestCycle, TestItem
+
+        cycle_id = self.kwargs.get('pk')
+        cycle = TestCycle.objects.prefetch_related(
+            'phases__items'
+        ).get(pk=cycle_id)
+
+        context['cycle'] = cycle
+        context['phases'] = cycle.phases.all().order_by('order')
+        context['stats'] = cycle.stats
+        context['status_choices'] = TestItem.STATUS_CHOICES
+        context['priority_choices'] = TestItem.PRIORITY_CHOICES
+
+        return context
+
+
+class TestCycleDeleteView(AdminRequiredMixin, DeleteView):
+    """Delete a test cycle."""
+    template_name = "admin_console/test_plans/cycle_confirm_delete.html"
+    success_url = reverse_lazy('admin_console:test_cycle_list')
+    context_object_name = 'cycle'
+
+    def get_queryset(self):
+        from .models import TestCycle
+        return TestCycle.objects.all()
+
+    def form_valid(self, form):
+        cycle_name = self.object.name
+        response = super().form_valid(form)
+        messages.success(self.request, f"Test cycle '{cycle_name}' deleted.")
+        return response
+
+
+class TestCycleStartView(AdminRequiredMixin, View):
+    """Start a test cycle (change status to in_progress)."""
+
+    def post(self, request, pk):
+        from .models import TestCycle
+
+        try:
+            cycle = TestCycle.objects.get(pk=pk)
+            cycle.start()
+            messages.success(request, f"Test cycle '{cycle.name}' started.")
+        except TestCycle.DoesNotExist:
+            messages.error(request, "Test cycle not found.")
+
+        return redirect('admin_console:test_cycle_detail', pk=pk)
+
+
+class TestCycleCompleteView(AdminRequiredMixin, View):
+    """Complete a test cycle."""
+
+    def post(self, request, pk):
+        from .models import TestCycle
+
+        try:
+            cycle = TestCycle.objects.get(pk=pk)
+            cycle.complete()
+            messages.success(request, f"Test cycle '{cycle.name}' marked as completed.")
+        except TestCycle.DoesNotExist:
+            messages.error(request, "Test cycle not found.")
+
+        return redirect('admin_console:test_cycle_detail', pk=pk)
+
+
+class TestPhaseCreateView(AdminRequiredMixin, CreateView):
+    """Create a new test phase within a cycle."""
+    template_name = "admin_console/test_plans/phase_form.html"
+
+    def get_form_class(self):
+        from django import forms
+        from .models import TestPhase
+
+        class TestPhaseForm(forms.ModelForm):
+            class Meta:
+                model = TestPhase
+                fields = ['name', 'description', 'order']
+
+        return TestPhaseForm
+
+    def form_valid(self, form):
+        from .models import TestCycle
+        cycle = TestCycle.objects.get(pk=self.kwargs['cycle_pk'])
+        form.instance.cycle = cycle
+        response = super().form_valid(form)
+        messages.success(self.request, f"Phase '{self.object.name}' created.")
+        return response
+
+    def get_success_url(self):
+        return reverse_lazy('admin_console:test_cycle_detail', kwargs={'pk': self.kwargs['cycle_pk']})
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        from .models import TestCycle
+        context['cycle'] = TestCycle.objects.get(pk=self.kwargs['cycle_pk'])
+        return context
+
+
+class TestPhaseDeleteView(AdminRequiredMixin, DeleteView):
+    """Delete a test phase."""
+    template_name = "admin_console/test_plans/phase_confirm_delete.html"
+    context_object_name = 'phase'
+
+    def get_queryset(self):
+        from .models import TestPhase
+        return TestPhase.objects.all()
+
+    def get_success_url(self):
+        return reverse_lazy('admin_console:test_cycle_detail', kwargs={'pk': self.object.cycle.pk})
+
+    def form_valid(self, form):
+        phase_name = self.object.name
+        cycle_pk = self.object.cycle.pk
+        response = super().form_valid(form)
+        messages.success(self.request, f"Phase '{phase_name}' deleted.")
+        return response
+
+
+class TestItemCreateView(AdminRequiredMixin, CreateView):
+    """Create a new test item within a phase."""
+    template_name = "admin_console/test_plans/item_form.html"
+
+    def get_form_class(self):
+        from django import forms
+        from .models import TestItem
+
+        class TestItemForm(forms.ModelForm):
+            class Meta:
+                model = TestItem
+                fields = ['name', 'description', 'expected_result', 'url', 'priority', 'order']
+
+        return TestItemForm
+
+    def form_valid(self, form):
+        from .models import TestPhase
+        phase = TestPhase.objects.select_related('cycle').get(pk=self.kwargs['phase_pk'])
+        form.instance.phase = phase
+        form.instance.cycle = phase.cycle
+        response = super().form_valid(form)
+        messages.success(self.request, f"Test item '{self.object.name}' created.")
+        return response
+
+    def get_success_url(self):
+        return reverse_lazy('admin_console:test_cycle_detail', kwargs={'pk': self.object.cycle.pk})
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        from .models import TestPhase
+        phase = TestPhase.objects.select_related('cycle').get(pk=self.kwargs['phase_pk'])
+        context['phase'] = phase
+        context['cycle'] = phase.cycle
+        return context
+
+
+class TestItemDeleteView(AdminRequiredMixin, DeleteView):
+    """Delete a test item."""
+    template_name = "admin_console/test_plans/item_confirm_delete.html"
+    context_object_name = 'item'
+
+    def get_queryset(self):
+        from .models import TestItem
+        return TestItem.objects.all()
+
+    def get_success_url(self):
+        return reverse_lazy('admin_console:test_cycle_detail', kwargs={'pk': self.object.cycle.pk})
+
+    def form_valid(self, form):
+        item_name = self.object.name
+        response = super().form_valid(form)
+        messages.success(self.request, f"Test item '{item_name}' deleted.")
+        return response
+
+
+class TestItemUpdateAPIView(AdminRequiredMixin, View):
+    """
+    API endpoint for inline test item updates.
+
+    POST /admin-console/test-plans/api/item/<pk>/update/
+
+    Accepts JSON body with any of:
+    - status: string
+    - actual_result: string
+    - notes: string
+    - priority: string
+    """
+
+    def post(self, request, pk):
+        import json
+        from .models import TestItem
+
+        try:
+            item = TestItem.objects.select_related('phase', 'cycle').get(pk=pk)
+        except TestItem.DoesNotExist:
+            return JsonResponse({'error': 'Test item not found'}, status=404)
+
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        # Update allowed fields
+        updated_fields = []
+        if 'status' in data:
+            old_status = item.status
+            item.status = data['status']
+            updated_fields.append('status')
+            # Set tester on status change
+            if data['status'] != old_status:
+                item.tester = request.user
+
+        if 'actual_result' in data:
+            item.actual_result = data['actual_result']
+            updated_fields.append('actual_result')
+
+        if 'notes' in data:
+            item.notes = data['notes']
+            updated_fields.append('notes')
+
+        if 'priority' in data:
+            item.priority = data['priority']
+            updated_fields.append('priority')
+
+        if updated_fields:
+            item.save()
+
+        # Return updated stats
+        phase_stats = item.phase.stats
+        cycle_stats = item.cycle.stats
+
+        return JsonResponse({
+            'success': True,
+            'item': {
+                'id': item.pk,
+                'status': item.status,
+                'status_display': item.get_status_display(),
+                'actual_result': item.actual_result,
+                'notes': item.notes,
+                'priority': item.priority,
+                'priority_display': item.get_priority_display(),
+                'tested_at': item.tested_at.isoformat() if item.tested_at else None,
+                'tester': item.tester.email if item.tester else None,
+            },
+            'phase_stats': phase_stats,
+            'phase_status': item.phase.status,
+            'phase_progress': item.phase.progress,
+            'cycle_stats': cycle_stats,
+            'cycle_progress': item.cycle.progress,
+        })
+
+
+class TestItemBulkUpdateAPIView(AdminRequiredMixin, View):
+    """
+    API endpoint for bulk test item status updates.
+
+    POST /admin-console/test-plans/api/bulk-update/
+
+    Accepts JSON body with:
+    - item_ids: list of item IDs
+    - status: string
+    """
+
+    def post(self, request):
+        import json
+        from .models import TestItem
+
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        item_ids = data.get('item_ids', [])
+        new_status = data.get('status')
+
+        if not item_ids or not new_status:
+            return JsonResponse({'error': 'item_ids and status required'}, status=400)
+
+        # Update items
+        from django.utils import timezone
+        updated_count = TestItem.objects.filter(pk__in=item_ids).update(
+            status=new_status,
+            tester=request.user,
+            tested_at=timezone.now() if new_status in [
+                TestItem.STATUS_PASSED,
+                TestItem.STATUS_FAILED,
+                TestItem.STATUS_BLOCKED,
+            ] else None
+        )
+
+        return JsonResponse({
+            'success': True,
+            'updated_count': updated_count,
+        })

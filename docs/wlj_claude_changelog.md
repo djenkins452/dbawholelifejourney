@@ -14,6 +14,65 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+## 2026-02-01 Changes
+
+### Production Test Plan System
+
+**Summary:** Added a comprehensive test plan tracking system to the Admin Console for production readiness testing. This allows tracking testing progress across releases with phases, individual test items, and inline status updates.
+
+**Features:**
+1. **Test Cycles** - Reusable test cycles for each release (e.g., "v1.0 Production Release")
+2. **Test Phases** - Grouped categories of tests (e.g., "Authentication", "Journal Module", "Health Tracking")
+3. **Test Items** - Individual test steps with:
+   - Status tracking (Not Started, In Progress, Passed, Failed, Blocked)
+   - Priority levels (Critical, High, Medium, Low)
+   - Expected result (pre-populated)
+   - Actual result (filled during testing)
+   - Notes field for bug references
+   - Tester tracking with timestamp
+4. **Inline Editing** - Click to expand test items and update status/notes without page refresh
+5. **Progress Tracking** - Visual progress bars for phases and overall cycle
+6. **Auto-Population** - New cycles can be populated with 200+ comprehensive test items covering all WLJ features
+
+**URL:** `/admin-console/test-plans/`
+
+**Models Added:**
+- `TestCycle` - Test cycle container with status (draft/in_progress/completed)
+- `TestPhase` - Groups test items, computes status from child items
+- `TestItem` - Individual test with status, priority, expected/actual results, notes
+
+**Files Modified:**
+- `apps/admin_console/models.py` - Added TestCycle, TestPhase, TestItem models
+- `apps/admin_console/views.py` - Added 12 views for CRUD and API endpoints
+- `apps/admin_console/urls.py` - Added 14 URL patterns for test plan management
+- `apps/admin_console/services.py` - Added `populate_test_cycle_from_template()` function
+- `templates/admin_console/test_plans/` - Added 7 templates (list, detail, forms, delete confirmations)
+- `templates/admin_console/dashboard.html` - Added Test Plans card to admin dashboard
+- `apps/admin_console/migrations/0026_add_test_plan_models.py` - Database migration
+
+**Test Coverage:** 200+ pre-populated test items covering:
+- Authentication & Account Management
+- User Preferences & Settings
+- Onboarding Flow
+- Dashboard
+- Journal Module (all CRUD operations)
+- Health Module (weight, sleep, steps, vitals, glucose, fasting, water, medicine, fitness, nutrition)
+- Faith Module (scripture, prayers, milestones, reading plans, study tools)
+- Purpose Module (directions, goals, habits, intentions)
+- Life Module (projects, tasks, calendar, inventory, recipes)
+- AI Personal Assistant
+- Scan (AI Camera)
+- Capture (Audio Transcription)
+- Help & Teaching Tools
+- Notifications
+- Billing & Subscriptions
+- Mobile App (iOS HealthKit sync)
+- Admin Console
+- Responsive Design checks
+- Error Handling
+
+---
+
 ## 2026-01-28 Changes
 
 ### Admin-Configurable Capture Summarization Prompt

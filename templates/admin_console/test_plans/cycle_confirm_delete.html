@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block title %}Delete Test Cycle - Admin Console{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <nav class="breadcrumb">
+                <a href="{% url 'admin_console:dashboard' %}">Admin Console</a>
+                <span>/</span>
+                <a href="{% url 'admin_console:test_cycle_list' %}">Test Plans</a>
+                <span>/</span>
+                <span>Delete Cycle</span>
+            </nav>
+            <h1 class="page-title">Delete Test Cycle</h1>
+        </div>
+    </div>
+
+    <div class="confirm-card">
+        <div class="warning-icon">
+            <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+            </svg>
+        </div>
+
+        <h2>Are you sure you want to delete this test cycle?</h2>
+
+        <div class="cycle-info">
+            <strong>{{ cycle.name }}</strong>
+            {% if cycle.version %}<span class="version">v{{ cycle.version }}</span>{% endif %}
+        </div>
+
+        <p class="warning-text">
+            This will permanently delete the test cycle along with all {{ cycle.phases.count }} phases
+            and {{ cycle.items.count }} test items. This action cannot be undone.
+        </p>
+
+        <form method="post" class="confirm-form">
+            {% csrf_token %}
+            <div class="form-actions">
+                <a href="{% url 'admin_console:test_cycle_detail' cycle.pk %}" class="btn btn-ghost">Cancel</a>
+                <button type="submit" class="btn btn-danger">Delete Cycle</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-2);
+}
+
+.breadcrumb a { color: var(--color-accent); }
+
+.page-header { margin-bottom: var(--space-6); }
+
+.confirm-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-8);
+    max-width: 500px;
+    text-align: center;
+}
+
+.warning-icon {
+    color: #f59e0b;
+    margin-bottom: var(--space-4);
+}
+
+.confirm-card h2 {
+    font-size: var(--font-size-lg);
+    margin-bottom: var(--space-4);
+}
+
+.cycle-info {
+    background: var(--color-surface);
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-4);
+}
+
+.cycle-info .version {
+    color: var(--color-text-muted);
+    margin-left: var(--space-2);
+}
+
+.warning-text {
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-6);
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+    justify-content: center;
+}
+
+.btn-danger {
+    background: var(--color-error);
+    color: white;
+}
+
+.btn-danger:hover {
+    background: #b91c1c;
+}
+</style>
+{% endblock %}

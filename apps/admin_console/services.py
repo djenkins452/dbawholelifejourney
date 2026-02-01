@@ -1143,3 +1143,314 @@ def get_or_create_default_project():
         }
     )
     return project
+
+
+def populate_test_cycle_from_template(cycle):
+    """
+    Populate a test cycle with comprehensive WLJ test items.
+
+    Creates phases and test items covering all major functionality.
+
+    Args:
+        cycle: TestCycle instance to populate
+
+    Returns:
+        int: Number of test items created
+    """
+    from .models import TestPhase, TestItem
+
+    # Define test plan template structure
+    # Format: {phase_name: [(item_name, expected_result, url, priority), ...]}
+    TEST_TEMPLATE = {
+        "Authentication & Account Management": [
+            ("Sign up with email and password", "Account created, user redirected to onboarding", "/accounts/signup/", "critical"),
+            ("Login with valid credentials", "User logged in, redirected to dashboard", "/accounts/login/", "critical"),
+            ("Logout functionality", "User logged out, session cleared", "/accounts/logout/", "critical"),
+            ("Password reset request", "Reset email sent to user", "/accounts/password/reset/", "critical"),
+            ("Password reset completion", "Password updated successfully", "/accounts/password/reset/done/", "critical"),
+            ("View user profile", "Profile page displays user info", "/user/profile/", "high"),
+            ("Edit profile information", "Profile updates saved", "/user/profile/edit/", "high"),
+            ("Change password via profile", "Password updated, session maintained", "/user/preferences/", "high"),
+            ("Delete account (GDPR)", "Account deleted, data removed", "/user/delete-account/", "high"),
+            ("Export account data (GDPR)", "Data export downloaded as JSON", "/user/export-data/", "high"),
+        ],
+        "User Preferences & Settings": [
+            ("View preferences page", "Preferences page loads with current settings", "/user/preferences/", "high"),
+            ("Change theme (light/dark/auto)", "Theme changes immediately", "/user/preferences/theme/", "medium"),
+            ("Toggle notification settings", "Settings saved and respected", "/user/preferences/", "medium"),
+            ("Module ordering preferences", "Dashboard modules reorder correctly", "/user/api/module-order/", "medium"),
+        ],
+        "Onboarding Flow": [
+            ("New user onboarding wizard start", "Wizard begins at step 1", "/user/onboarding/start/", "critical"),
+            ("Complete onboarding steps", "Each step saves progress", "/user/onboarding/step/", "critical"),
+            ("Finish onboarding", "User redirected to dashboard", "/user/onboarding/complete/", "critical"),
+            ("Accept terms of service", "Terms acceptance recorded", "/user/accept-terms/", "critical"),
+        ],
+        "Dashboard": [
+            ("View main dashboard", "Dashboard loads with tiles", "/dashboard/", "critical"),
+            ("Configure dashboard tiles", "Tile configuration saved", "/dashboard/configure/", "medium"),
+            ("Reorder dashboard tiles", "New order persists", "/dashboard/api/config/reorder/", "medium"),
+            ("Weight chart data loads", "Chart displays weight history", "/dashboard/api/weight-data/", "medium"),
+            ("Encouragement tile displays", "Daily encouragement shows", "/dashboard/tiles/encouragement/", "low"),
+        ],
+        "Journal Module": [
+            ("View journal home/mini-dashboard", "Journal hub loads with stats", "/journal/", "high"),
+            ("Browse all journal entries", "Entry list displays correctly", "/journal/entries/", "high"),
+            ("Create new journal entry", "Entry created and saved", "/journal/new/", "critical"),
+            ("View journal entry detail", "Entry content displays", "/journal/<id>/", "high"),
+            ("Edit existing journal entry", "Changes saved successfully", "/journal/<id>/edit/", "high"),
+            ("Delete journal entry (soft)", "Entry moved to deleted", "/journal/<id>/delete/", "high"),
+            ("View deleted entries", "Deleted entries accessible", "/journal/deleted/", "medium"),
+            ("Restore deleted entry", "Entry restored to active", "/journal/<id>/restore/", "medium"),
+            ("Permanently delete entry", "Entry hard deleted", "/journal/<id>/permanent-delete/", "medium"),
+            ("Archive journal entry", "Entry archived successfully", "/journal/<id>/archive/", "medium"),
+            ("View archived entries", "Archive list displays", "/journal/archived/", "medium"),
+            ("Calendar view of entries", "Calendar shows entry dates", "/journal/calendar/", "medium"),
+            ("View writing prompts", "Prompts list displays", "/journal/prompts/", "medium"),
+            ("Get random prompt", "Random prompt returned", "/journal/prompts/random/", "low"),
+            ("View and manage tags", "Tags list with create/delete", "/journal/tags/", "medium"),
+            ("Bulk delete entries", "Multiple entries deleted", "/journal/bulk/delete/", "medium"),
+        ],
+        "Health - Weight Tracking": [
+            ("View weight entries list", "Weight history displays", "/health/physical/weight/", "high"),
+            ("Log new weight entry", "Weight entry saved", "/health/physical/weight/log/", "critical"),
+            ("Edit weight entry", "Changes saved", "/health/physical/weight/<id>/edit/", "high"),
+            ("Delete weight entry", "Entry removed", "/health/physical/weight/<id>/delete/", "medium"),
+            ("Bulk delete weight entries", "Multiple entries deleted", "/health/physical/weight/bulk/delete/", "medium"),
+        ],
+        "Health - Sleep Tracking": [
+            ("View sleep log", "Sleep history displays", "/health/physical/sleep/", "high"),
+            ("Log sleep entry", "Sleep data saved", "/health/physical/sleep/log/", "critical"),
+            ("Quick sleep log", "Fast entry created", "/health/physical/sleep/quick/", "medium"),
+            ("Edit sleep entry", "Changes saved", "/health/physical/sleep/<id>/edit/", "high"),
+            ("Delete sleep entry", "Entry removed", "/health/physical/sleep/<id>/delete/", "medium"),
+        ],
+        "Health - Steps & Activity": [
+            ("View steps list", "Steps history displays", "/health/physical/steps/", "high"),
+            ("Log steps entry", "Steps saved", "/health/physical/steps/log/", "high"),
+            ("Activity dashboard", "Activity metrics display", "/health/physical/activity/dashboard/", "medium"),
+        ],
+        "Health - Heart & Vitals": [
+            ("Heart rate dashboard", "HR metrics display", "/health/physical/heart-rate/dashboard/", "medium"),
+            ("Log heart rate", "HR entry saved", "/health/physical/heart-rate/log/", "medium"),
+            ("Blood pressure list", "BP history displays", "/health/physical/blood-pressure/", "medium"),
+            ("Log blood pressure", "BP entry saved", "/health/physical/blood-pressure/log/", "medium"),
+            ("Blood oxygen dashboard", "SpO2 metrics display", "/health/physical/blood-oxygen/dashboard/", "medium"),
+        ],
+        "Health - Glucose & CGM": [
+            ("Glucose dashboard", "Glucose trends display", "/health/physical/glucose/", "high"),
+            ("Log glucose reading", "Reading saved", "/health/physical/glucose/log/", "high"),
+            ("Dexcom connect (OAuth)", "OAuth flow initiates", "/health/physical/glucose/dexcom/connect/", "medium"),
+            ("Dexcom sync data", "Data imports correctly", "/health/physical/glucose/dexcom/sync/", "medium"),
+            ("Dexcom disconnect", "Connection removed", "/health/physical/glucose/dexcom/disconnect/", "medium"),
+        ],
+        "Health - Fasting": [
+            ("View fasting log", "Fasting history displays", "/health/physical/fasting/", "medium"),
+            ("Start new fast", "Fast timer begins", "/health/physical/fasting/start/", "medium"),
+            ("End current fast", "Fast completed, duration recorded", "/health/physical/fasting/<id>/end/", "medium"),
+        ],
+        "Health - Water/Hydration": [
+            ("View water log", "Water history displays", "/health/physical/water/", "medium"),
+            ("Log water intake", "Entry saved", "/health/physical/water/log/", "medium"),
+            ("Quick water log", "Fast entry created", "/health/physical/water/quick/", "low"),
+        ],
+        "Health - Medicine Tracker": [
+            ("Medicine hub/dashboard", "Medicine overview displays", "/health/physical/medicine/", "high"),
+            ("Add new medicine", "Medicine created", "/health/physical/medicine/add/", "high"),
+            ("View medicine detail", "Medicine info displays", "/health/physical/medicine/<id>/", "high"),
+            ("Take scheduled dose", "Dose logged", "/health/physical/medicine/<id>/take/", "critical"),
+            ("Skip scheduled dose", "Skip recorded", "/health/physical/medicine/<id>/skip/", "medium"),
+            ("Bulk take (all morning meds)", "Multiple doses logged", "/health/physical/medicine/bulk-take/", "medium"),
+            ("PRN (as-needed) log", "PRN dose recorded", "/health/physical/medicine/prn/", "medium"),
+            ("Medicine adherence report", "Adherence stats display", "/health/physical/medicine/adherence/", "medium"),
+            ("Request refill", "Refill reminder set", "/health/physical/medicine/<id>/request-refill/", "medium"),
+            ("Pause/resume medicine", "Status changes correctly", "/health/physical/medicine/<id>/pause/", "medium"),
+        ],
+        "Health - Fitness & Workouts": [
+            ("Fitness hub", "Fitness overview displays", "/health/physical/fitness/", "high"),
+            ("View workouts list", "Workout history displays", "/health/physical/fitness/workouts/", "high"),
+            ("Create new workout", "Workout session starts", "/health/physical/fitness/workout/new/", "high"),
+            ("Complete workout", "Workout saved with exercises", "/health/physical/fitness/api/complete-workout/", "high"),
+            ("View workout templates", "Templates list displays", "/health/physical/fitness/templates/", "medium"),
+            ("Create workout template", "Template saved", "/health/physical/fitness/templates/new/", "medium"),
+            ("Personal records page", "PRs display correctly", "/health/physical/fitness/prs/", "medium"),
+        ],
+        "Health - Nutrition": [
+            ("Nutrition hub", "Nutrition dashboard displays", "/health/physical/nutrition/", "high"),
+            ("Add food entry", "Food logged", "/health/physical/nutrition/add/", "high"),
+            ("Food search API", "Search returns results", "/health/physical/nutrition/api/search/", "high"),
+            ("Custom foods list", "User foods display", "/health/physical/nutrition/foods/", "medium"),
+            ("Nutrition stats", "Daily/weekly stats show", "/health/physical/nutrition/stats/", "medium"),
+        ],
+        "Health - Medical Providers": [
+            ("Providers list", "Providers display", "/health/physical/providers/", "medium"),
+            ("Add provider", "Provider created", "/health/physical/providers/add/", "medium"),
+            ("Provider detail", "Info displays correctly", "/health/physical/providers/<id>/", "medium"),
+        ],
+        "Health - Menstrual Cycle": [
+            ("Cycle dashboard", "Cycle info displays", "/health/physical/cycle/", "medium"),
+            ("Cycle opt-in", "Tracking enabled", "/health/physical/cycle/opt-in/", "medium"),
+            ("Toggle period day", "Period logged", "/health/physical/cycle/api/period-toggle/", "medium"),
+            ("View predictions", "Predictions display", "/health/physical/cycle/api/predictions/", "medium"),
+        ],
+        "Brain Training (Cognitive)": [
+            ("Brain training hub", "Games list displays", "/health/cognitive/", "medium"),
+            ("Play cognitive game", "Game loads and plays", "/health/cognitive/<game>/play/", "medium"),
+            ("View stats dashboard", "Performance stats display", "/health/cognitive/stats/", "medium"),
+            ("Complete game session", "Session saved with score", "/health/cognitive/api/session/complete/", "medium"),
+        ],
+        "Faith Module": [
+            ("Faith home/hub", "Faith overview displays", "/faith/", "high"),
+            ("Today's verse", "Daily verse displays", "/faith/verse/", "high"),
+            ("View saved scriptures", "Scripture list displays", "/faith/scripture/", "high"),
+            ("Save new scripture", "Scripture saved", "/faith/scripture/save/", "high"),
+            ("Prayer list", "Prayers display", "/faith/prayers/", "high"),
+            ("Create new prayer", "Prayer saved", "/faith/prayers/new/", "high"),
+            ("Mark prayer answered", "Status updated", "/faith/prayers/<id>/answered/", "medium"),
+            ("View answered prayers", "Answered list displays", "/faith/prayers/answered/", "medium"),
+            ("Faith milestones list", "Milestones display", "/faith/milestones/", "medium"),
+            ("Create milestone", "Milestone saved", "/faith/milestones/new/", "medium"),
+        ],
+        "Faith - Reading Plans": [
+            ("View available reading plans", "Plans list displays", "/faith/reading-plans/", "high"),
+            ("View reading plan detail", "Plan info displays", "/faith/reading-plans/<slug>/", "high"),
+            ("Start reading plan", "Progress tracking begins", "/faith/reading-plans/<slug>/start/", "high"),
+            ("Mark day complete", "Day completion recorded", "/faith/reading-plans/progress/<id>/day/<day_id>/complete/", "high"),
+            ("Pause/resume plan", "Status changes correctly", "/faith/reading-plans/progress/<id>/pause/", "medium"),
+        ],
+        "Faith - Study Tools": [
+            ("Study tools home", "Tools overview displays", "/faith/study-tools/", "medium"),
+            ("View highlights", "Highlights list displays", "/faith/study-tools/highlights/", "medium"),
+            ("Create highlight", "Highlight saved", "/faith/study-tools/highlights/new/", "medium"),
+            ("View bookmarks", "Bookmarks display", "/faith/study-tools/bookmarks/", "medium"),
+            ("View study notes", "Notes display", "/faith/study-tools/notes/", "medium"),
+        ],
+        "Purpose Module": [
+            ("Purpose home/hub", "Purpose overview displays", "/purpose/", "high"),
+            ("Annual direction list", "Directions display", "/purpose/direction/", "high"),
+            ("Create annual direction", "Direction saved", "/purpose/direction/new/", "high"),
+            ("Goals list", "Goals display", "/purpose/goals/", "high"),
+            ("Create new goal", "Goal saved", "/purpose/goals/new/", "high"),
+            ("Toggle goal status", "Status changes", "/purpose/goals/<id>/status/", "medium"),
+            ("Goal milestones", "Milestones display", "/purpose/goals/<id>/milestones/", "medium"),
+            ("Intentions list", "Intentions display", "/purpose/intentions/", "medium"),
+            ("Purpose reflections", "Reflections display", "/purpose/reflections/", "medium"),
+            ("Habits list", "Habits display", "/purpose/habits/", "medium"),
+            ("Log habit completion", "Habit logged", "/purpose/habits/<id>/log-today/", "medium"),
+        ],
+        "Life Module - Projects & Tasks": [
+            ("Life home/hub", "Life overview displays", "/life/", "high"),
+            ("Projects list", "Projects display", "/life/projects/", "high"),
+            ("Create project", "Project saved", "/life/projects/new/", "medium"),
+            ("Tasks list", "Tasks display", "/life/tasks/", "high"),
+            ("Create task", "Task saved", "/life/tasks/new/", "high"),
+            ("Toggle task completion", "Task status changes", "/life/tasks/<id>/toggle/", "high"),
+        ],
+        "Life Module - Calendar & Events": [
+            ("Calendar view", "Calendar displays", "/life/calendar/", "high"),
+            ("Create calendar event", "Event saved", "/life/events/new/", "medium"),
+            ("Significant events list", "Events display", "/life/significant-events/", "medium"),
+            ("Google Calendar connect", "OAuth flow starts", "/life/calendar/google/connect/", "medium"),
+            ("Sync Google Calendar", "Events import", "/life/calendar/google/sync/", "medium"),
+        ],
+        "Life Module - Other Features": [
+            ("Inventory list", "Items display", "/life/inventory/", "medium"),
+            ("Pets list", "Pets display", "/life/pets/", "medium"),
+            ("Recipes list", "Recipes display", "/life/recipes/", "medium"),
+            ("Maintenance logs", "Logs display", "/life/maintenance/", "medium"),
+            ("Documents list", "Documents display", "/life/documents/", "medium"),
+        ],
+        "AI Personal Assistant": [
+            ("AI Assistant dashboard", "Assistant loads", "/assistant/", "high"),
+            ("Get opening message/check-in", "Daily message displays", "/assistant/api/opening/", "high"),
+            ("Send chat message", "AI responds appropriately", "/assistant/api/chat/", "critical"),
+            ("View conversation history", "History displays", "/assistant/api/history/", "medium"),
+            ("Clear conversation", "History cleared", "/assistant/api/clear/", "medium"),
+            ("Get daily priorities", "Priorities display", "/assistant/api/priorities/", "medium"),
+            ("Get weekly analysis", "Analysis generates", "/assistant/api/analysis/weekly/", "medium"),
+        ],
+        "Scan (AI Camera)": [
+            ("Scan home", "Scan interface loads", "/scan/", "medium"),
+            ("Analyze image", "AI analyzes correctly", "/scan/analyze/", "medium"),
+            ("Barcode lookup", "Product info returns", "/scan/barcode/", "medium"),
+            ("Scan history", "History displays", "/scan/history/", "low"),
+        ],
+        "Capture (Audio Transcription)": [
+            ("Captures list", "Captures display", "/capture/", "medium"),
+            ("Record new audio", "Recording interface works", "/capture/record/", "medium"),
+            ("Upload audio file", "File uploads successfully", "/capture/upload/", "medium"),
+            ("View capture detail", "Transcription displays", "/capture/<id>/", "medium"),
+            ("Download as PDF", "PDF generates", "/capture/<id>/pdf/", "low"),
+        ],
+        "Help & Teaching Tools": [
+            ("Help center", "Help articles display", "/help/", "medium"),
+            ("Teaching tool search", "Results return", "/help/api/teaching/search/", "medium"),
+            ("Help chat assistant", "Chat responds", "/help/api/chat/message/", "medium"),
+        ],
+        "Notifications": [
+            ("Notification center", "Notifications display", "/notifications/", "high"),
+            ("Mark notification read", "Status updates", "/api/notifications/<id>/read/", "medium"),
+            ("Mark all read", "All marked read", "/api/notifications/mark-all-read/", "medium"),
+        ],
+        "Billing & Subscriptions": [
+            ("Select plan page", "Plans display", "/billing/plans/", "high"),
+            ("Checkout flow", "Stripe session creates", "/billing/checkout/", "critical"),
+            ("Customer portal", "Portal loads", "/billing/portal/", "high"),
+            ("Billing settings", "Settings display", "/billing/settings/", "medium"),
+        ],
+        "Mobile App (iOS)": [
+            ("Token exchange flow", "API token issued", "/api/mobile/token/exchange/", "critical"),
+            ("HealthKit data ingest", "Data saves correctly", "/api/mobile/health/ingest/", "critical"),
+            ("Sync status check", "Status returns", "/api/mobile/health/sync-status/", "high"),
+            ("Device management", "Devices list displays", "/api/mobile/devices/", "medium"),
+        ],
+        "Admin Console": [
+            ("Admin dashboard", "Dashboard loads", "/admin-console/", "high"),
+            ("Site configuration", "Config page loads", "/admin-console/config/", "medium"),
+            ("User list", "Users display", "/admin-console/users/", "medium"),
+            ("Run test suite", "Tests execute", "/admin-console/tests/run/", "medium"),
+            ("System announcements", "Announcements display", "/admin-console/announcements/", "medium"),
+        ],
+        "Responsive Design": [
+            ("All pages at 375px (mobile)", "No horizontal scroll, readable text", "", "critical"),
+            ("All pages at 768px (tablet)", "Layout adapts correctly", "", "high"),
+            ("Form inputs 16px font size", "No iOS auto-zoom on focus", "", "high"),
+            ("Touch targets 44x44px", "Buttons easily tappable", "", "high"),
+            ("Modal dialogs on mobile", "Don't overflow viewport", "", "high"),
+        ],
+        "Error Handling": [
+            ("404 page displays", "Friendly error page shown", "/nonexistent-page/", "medium"),
+            ("Form validation errors", "Errors display clearly", "", "high"),
+            ("Unauthorized access redirect", "Redirects to login", "", "high"),
+        ],
+    }
+
+    total_items = 0
+    phase_order = 0
+
+    for phase_name, items in TEST_TEMPLATE.items():
+        # Create phase
+        phase = TestPhase.objects.create(
+            cycle=cycle,
+            name=phase_name,
+            order=phase_order
+        )
+        phase_order += 1
+
+        # Create items in this phase
+        item_order = 0
+        for item_data in items:
+            name, expected_result, url, priority = item_data
+            TestItem.objects.create(
+                cycle=cycle,
+                phase=phase,
+                name=name,
+                expected_result=expected_result,
+                url=url,
+                priority=priority,
+                order=item_order
+            )
+            item_order += 1
+            total_items += 1
+
+    return total_items

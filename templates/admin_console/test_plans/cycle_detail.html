@@ -1,0 +1,652 @@
+{% extends "base.html" %}
+
+{% block title %}{{ cycle.name }} - Test Plans{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <nav class="breadcrumb">
+                <a href="{% url 'admin_console:dashboard' %}">Admin Console</a>
+                <span>/</span>
+                <a href="{% url 'admin_console:test_cycle_list' %}">Test Plans</a>
+                <span>/</span>
+                <span>{{ cycle.name }}</span>
+            </nav>
+            <h1 class="page-title">{{ cycle.name }}{% include "components/favorite_toggle.html" with page_title=cycle.name %}</h1>
+            {% if cycle.version %}<p class="page-subtitle">Version {{ cycle.version }}</p>{% endif %}
+        </div>
+        <div class="header-actions">
+            {% if cycle.status == 'draft' %}
+            <form method="post" action="{% url 'admin_console:test_cycle_start' cycle.pk %}" class="inline-form">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-primary">Start Testing</button>
+            </form>
+            {% elif cycle.status == 'in_progress' %}
+            <form method="post" action="{% url 'admin_console:test_cycle_complete' cycle.pk %}" class="inline-form">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-success">Mark Complete</button>
+            </form>
+            {% endif %}
+            <a href="{% url 'admin_console:test_phase_create' cycle.pk %}" class="btn btn-secondary">Add Phase</a>
+            <a href="{% url 'admin_console:test_cycle_delete' cycle.pk %}" class="btn btn-ghost text-error">Delete</a>
+        </div>
+    </div>
+
+    <!-- Status and Progress -->
+    <div class="cycle-status-card">
+        <div class="status-header">
+            <span class="status-badge status-{{ cycle.status }}">{{ cycle.get_status_display }}</span>
+            <span class="progress-text">{{ cycle.progress }}% Complete</span>
+        </div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: {{ cycle.progress }}%"></div>
+        </div>
+        <div class="stats-row">
+            <div class="stat">
+                <span class="stat-value passed" id="stat-passed">{{ stats.passed }}</span>
+                <span class="stat-label">Passed</span>
+            </div>
+            <div class="stat">
+                <span class="stat-value failed" id="stat-failed">{{ stats.failed }}</span>
+                <span class="stat-label">Failed</span>
+            </div>
+            <div class="stat">
+                <span class="stat-value blocked" id="stat-blocked">{{ stats.blocked }}</span>
+                <span class="stat-label">Blocked</span>
+            </div>
+            <div class="stat">
+                <span class="stat-value in-progress" id="stat-in-progress">{{ stats.in_progress }}</span>
+                <span class="stat-label">In Progress</span>
+            </div>
+            <div class="stat">
+                <span class="stat-value pending" id="stat-pending">{{ stats.not_started }}</span>
+                <span class="stat-label">Pending</span>
+            </div>
+            <div class="stat">
+                <span class="stat-value total" id="stat-total">{{ stats.total }}</span>
+                <span class="stat-label">Total</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Phases and Items -->
+    <div class="phases-container">
+        {% for phase in phases %}
+        <div class="phase-card" data-phase-id="{{ phase.pk }}">
+            <div class="phase-header" onclick="togglePhase({{ phase.pk }})">
+                <div class="phase-info">
+                    <span class="phase-expand-icon">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="6 9 12 15 18 9"/>
+                        </svg>
+                    </span>
+                    <h3 class="phase-name">{{ phase.name }}</h3>
+                    <span class="phase-status-badge phase-status-{{ phase.status }}">{{ phase.status|title }}</span>
+                    <span class="phase-progress">{{ phase.progress }}%</span>
+                </div>
+                <div class="phase-stats">
+                    <span class="mini-stat passed">{{ phase.stats.passed }}</span>
+                    <span class="mini-stat failed">{{ phase.stats.failed }}</span>
+                    <span class="mini-stat blocked">{{ phase.stats.blocked }}</span>
+                    <span class="mini-stat total">{{ phase.stats.total }}</span>
+                </div>
+                <div class="phase-actions" onclick="event.stopPropagation()">
+                    <a href="{% url 'admin_console:test_item_create' phase.pk %}" class="btn btn-ghost btn-xs">+ Item</a>
+                    <a href="{% url 'admin_console:test_phase_delete' phase.pk %}" class="btn btn-ghost btn-xs text-error">Delete</a>
+                </div>
+            </div>
+            <div class="phase-items" id="phase-items-{{ phase.pk }}">
+                {% for item in phase.items.all %}
+                <div class="test-item" data-item-id="{{ item.pk }}">
+                    <div class="item-row" onclick="toggleItem({{ item.pk }})">
+                        <div class="item-status">
+                            <select class="status-select status-{{ item.status }}"
+                                    onchange="updateItemStatus({{ item.pk }}, this.value); event.stopPropagation();"
+                                    onclick="event.stopPropagation();">
+                                {% for status_value, status_label in status_choices %}
+                                <option value="{{ status_value }}" {% if item.status == status_value %}selected{% endif %}>
+                                    {{ status_label }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="item-info">
+                            <span class="item-name">{{ item.name }}</span>
+                            {% if item.url %}<span class="item-url">{{ item.url }}</span>{% endif %}
+                        </div>
+                        <div class="item-priority">
+                            <span class="priority-badge priority-{{ item.priority }}">{{ item.get_priority_display }}</span>
+                        </div>
+                        <div class="item-expand-icon">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="6 9 12 15 18 9"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="item-details" id="item-details-{{ item.pk }}">
+                        <div class="details-grid">
+                            <div class="detail-field">
+                                <label>Expected Result</label>
+                                <div class="detail-value">{{ item.expected_result|default:"Not specified"|linebreaksbr }}</div>
+                            </div>
+                            <div class="detail-field">
+                                <label>Actual Result</label>
+                                <textarea class="detail-input"
+                                          placeholder="Enter actual result..."
+                                          onchange="updateItemField({{ item.pk }}, 'actual_result', this.value)">{{ item.actual_result }}</textarea>
+                            </div>
+                            <div class="detail-field">
+                                <label>Notes</label>
+                                <textarea class="detail-input"
+                                          placeholder="Additional notes, bug references..."
+                                          onchange="updateItemField({{ item.pk }}, 'notes', this.value)">{{ item.notes }}</textarea>
+                            </div>
+                            <div class="detail-field">
+                                <label>Priority</label>
+                                <select class="detail-select"
+                                        onchange="updateItemField({{ item.pk }}, 'priority', this.value)">
+                                    {% for priority_value, priority_label in priority_choices %}
+                                    <option value="{{ priority_value }}" {% if item.priority == priority_value %}selected{% endif %}>
+                                        {{ priority_label }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="detail-meta">
+                            {% if item.tester %}
+                            <span>Tested by {{ item.tester.email }}</span>
+                            {% endif %}
+                            {% if item.tested_at %}
+                            <span>{{ item.tested_at|date:"M j, Y g:i A" }}</span>
+                            {% endif %}
+                        </div>
+                        <div class="detail-actions">
+                            <a href="{% url 'admin_console:test_item_delete' item.pk %}" class="btn btn-ghost btn-sm text-error">Delete Item</a>
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="empty-phase">
+                    <p>No test items in this phase.</p>
+                    <a href="{% url 'admin_console:test_item_create' phase.pk %}" class="btn btn-secondary btn-sm">Add Test Item</a>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% empty %}
+        <div class="empty-state">
+            <h3>No test phases yet</h3>
+            <p>Add phases to organize your test items.</p>
+            <a href="{% url 'admin_console:test_phase_create' cycle.pk %}" class="btn btn-primary">Add Phase</a>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-2);
+}
+
+.breadcrumb a { color: var(--color-accent); }
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--space-6);
+    flex-wrap: wrap;
+    gap: var(--space-4);
+}
+
+.header-actions {
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.inline-form { display: inline; }
+
+.cycle-status-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    margin-bottom: var(--space-6);
+}
+
+.status-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-3);
+}
+
+.status-badge {
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.status-draft { background: #f3f4f6; color: #6b7280; }
+.status-in_progress { background: #dbeafe; color: #1e40af; }
+.status-completed { background: #dcfce7; color: #166534; }
+
+.progress-text {
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.progress-bar {
+    height: 8px;
+    background: var(--color-surface);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+    margin-bottom: var(--space-4);
+}
+
+.progress-fill {
+    height: 100%;
+    background: #22c55e;
+    border-radius: var(--radius-full);
+    transition: width 0.3s ease;
+}
+
+.stats-row {
+    display: flex;
+    justify-content: space-around;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+}
+
+.stat {
+    text-align: center;
+}
+
+.stat-value {
+    display: block;
+    font-size: var(--font-size-xl);
+    font-weight: 700;
+}
+
+.stat-value.passed { color: #22c55e; }
+.stat-value.failed { color: #ef4444; }
+.stat-value.blocked { color: #f59e0b; }
+.stat-value.in-progress { color: #3b82f6; }
+.stat-value.pending { color: var(--color-text-muted); }
+.stat-value.total { color: var(--color-text); }
+
+.stat-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+}
+
+/* Phases */
+.phases-container {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.phase-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.phase-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-surface);
+    cursor: pointer;
+    user-select: none;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.phase-header:hover {
+    background: var(--color-border);
+}
+
+.phase-info {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.phase-expand-icon {
+    transition: transform 0.2s;
+}
+
+.phase-card.expanded .phase-expand-icon {
+    transform: rotate(180deg);
+}
+
+.phase-name {
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    margin: 0;
+}
+
+.phase-status-badge {
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+}
+
+.phase-status-not_started { background: #f3f4f6; color: #6b7280; }
+.phase-status-in_progress { background: #dbeafe; color: #1e40af; }
+.phase-status-completed { background: #dcfce7; color: #166534; }
+.phase-status-failed { background: #fee2e2; color: #991b1b; }
+.phase-status-blocked { background: #fef3c7; color: #92400e; }
+
+.phase-progress {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.phase-stats {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.mini-stat {
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+}
+
+.mini-stat.passed { background: #dcfce7; color: #166534; }
+.mini-stat.failed { background: #fee2e2; color: #991b1b; }
+.mini-stat.blocked { background: #fef3c7; color: #92400e; }
+.mini-stat.total { background: var(--color-surface); color: var(--color-text); }
+
+.phase-actions {
+    display: flex;
+    gap: var(--space-1);
+}
+
+.phase-items {
+    display: none;
+    border-top: 1px solid var(--color-border);
+}
+
+.phase-card.expanded .phase-items {
+    display: block;
+}
+
+/* Test Items */
+.test-item {
+    border-bottom: 1px solid var(--color-border);
+}
+
+.test-item:last-child {
+    border-bottom: none;
+}
+
+.item-row {
+    display: flex;
+    align-items: center;
+    padding: var(--space-3) var(--space-4);
+    gap: var(--space-3);
+    cursor: pointer;
+}
+
+.item-row:hover {
+    background: var(--color-surface);
+}
+
+.item-status {
+    flex-shrink: 0;
+}
+
+.status-select {
+    padding: var(--space-1) var(--space-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+    cursor: pointer;
+    background: var(--color-background);
+}
+
+.status-select.status-not_started { background: #f3f4f6; }
+.status-select.status-in_progress { background: #dbeafe; }
+.status-select.status-passed { background: #dcfce7; }
+.status-select.status-failed { background: #fee2e2; }
+.status-select.status-blocked { background: #fef3c7; }
+
+.item-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.item-name {
+    display: block;
+    font-weight: 500;
+}
+
+.item-url {
+    display: block;
+    font-size: var(--font-size-xs);
+    color: var(--color-accent);
+}
+
+.priority-badge {
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+}
+
+.priority-critical { background: #fee2e2; color: #991b1b; }
+.priority-high { background: #fef3c7; color: #92400e; }
+.priority-medium { background: #dbeafe; color: #1e40af; }
+.priority-low { background: #f3f4f6; color: #6b7280; }
+
+.item-expand-icon {
+    color: var(--color-text-muted);
+    transition: transform 0.2s;
+}
+
+.test-item.expanded .item-expand-icon {
+    transform: rotate(180deg);
+}
+
+/* Item Details */
+.item-details {
+    display: none;
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border-top: 1px solid var(--color-border);
+}
+
+.test-item.expanded .item-details {
+    display: block;
+}
+
+.details-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-4);
+    margin-bottom: var(--space-4);
+}
+
+@media (max-width: 768px) {
+    .details-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.detail-field label {
+    display: block;
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-1);
+}
+
+.detail-value {
+    font-size: var(--font-size-sm);
+    color: var(--color-text);
+}
+
+.detail-input,
+.detail-select {
+    width: 100%;
+    padding: var(--space-2);
+    font-size: 16px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-background);
+    color: var(--color-text);
+}
+
+.detail-input {
+    min-height: 80px;
+    resize: vertical;
+}
+
+.detail-meta {
+    display: flex;
+    gap: var(--space-4);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-3);
+}
+
+.detail-actions {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.empty-phase {
+    padding: var(--space-6);
+    text-align: center;
+    color: var(--color-text-muted);
+}
+
+.empty-state {
+    text-align: center;
+    padding: var(--space-8);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+}
+
+.text-error { color: var(--color-error); }
+.btn-success { background: #22c55e; color: white; }
+.btn-success:hover { background: #16a34a; }
+.btn-xs { padding: var(--space-1) var(--space-2); font-size: var(--font-size-xs); }
+</style>
+
+<script nonce="{{ csp_nonce }}">
+function togglePhase(phaseId) {
+    const card = document.querySelector(`[data-phase-id="${phaseId}"]`);
+    card.classList.toggle('expanded');
+}
+
+function toggleItem(itemId) {
+    const item = document.querySelector(`[data-item-id="${itemId}"]`);
+    item.classList.toggle('expanded');
+}
+
+async function updateItemStatus(itemId, status) {
+    const select = document.querySelector(`[data-item-id="${itemId}"] .status-select`);
+
+    // Update visual immediately
+    select.className = `status-select status-${status}`;
+
+    try {
+        const response = await fetch(`/admin-console/test-plans/api/item/${itemId}/update/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({ status })
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            updateStats(data);
+        }
+    } catch (error) {
+        console.error('Error updating status:', error);
+    }
+}
+
+async function updateItemField(itemId, field, value) {
+    try {
+        const response = await fetch(`/admin-console/test-plans/api/item/${itemId}/update/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({ [field]: value })
+        });
+
+        if (!response.ok) {
+            console.error('Error updating field');
+        }
+    } catch (error) {
+        console.error('Error updating field:', error);
+    }
+}
+
+function updateStats(data) {
+    // Update cycle stats
+    document.getElementById('stat-passed').textContent = data.cycle_stats.passed;
+    document.getElementById('stat-failed').textContent = data.cycle_stats.failed;
+    document.getElementById('stat-blocked').textContent = data.cycle_stats.blocked;
+    document.getElementById('stat-in-progress').textContent = data.cycle_stats.in_progress;
+    document.getElementById('stat-pending').textContent = data.cycle_stats.not_started;
+
+    // Update progress bar
+    const progressFill = document.querySelector('.progress-fill');
+    const progressText = document.querySelector('.progress-text');
+    progressFill.style.width = `${data.cycle_progress}%`;
+    progressText.textContent = `${data.cycle_progress}% Complete`;
+}
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// Expand first phase by default
+document.addEventListener('DOMContentLoaded', function() {
+    const firstPhase = document.querySelector('.phase-card');
+    if (firstPhase) {
+        firstPhase.classList.add('expanded');
+    }
+});
+</script>
+{% endblock %}

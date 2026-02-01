@@ -1111,3 +1111,332 @@ class SystemAnnouncementDismissal(models.Model):
 
     def __str__(self):
         return f"{self.user} dismissed {self.announcement}"
+
+
+# ==============================================================================
+# Production Test Plan Models
+# ==============================================================================
+
+
+class TestCycle(models.Model):
+    """
+    A test cycle represents a complete testing run for a release.
+
+    Each cycle contains phases (groups of related tests) and items
+    (individual test steps). Cycles can be created from templates
+    and reused across releases.
+    """
+
+    STATUS_DRAFT = 'draft'
+    STATUS_IN_PROGRESS = 'in_progress'
+    STATUS_COMPLETED = 'completed'
+    STATUS_CHOICES = [
+        (STATUS_DRAFT, 'Draft'),
+        (STATUS_IN_PROGRESS, 'In Progress'),
+        (STATUS_COMPLETED, 'Completed'),
+    ]
+
+    name = models.CharField(
+        max_length=200,
+        help_text="Name of this test cycle (e.g., 'v1.0 Production Release')"
+    )
+    version = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Version being tested (e.g., '1.0.0')"
+    )
+    description = models.TextField(
+        blank=True,
+        help_text="Description or notes about this test cycle"
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_DRAFT
+    )
+
+    # Tracking
+    created_by = models.ForeignKey(
+        'users.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='created_test_cycles'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    started_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When testing started"
+    )
+    completed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When all tests were completed"
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Test Cycle'
+        verbose_name_plural = 'Test Cycles'
+
+    def __str__(self):
+        return f"{self.name} ({self.get_status_display()})"
+
+    @property
+    def progress(self):
+        """Calculate overall progress as percentage."""
+        total = self.items.count()
+        if total == 0:
+            return 0
+        passed = self.items.filter(status=TestItem.STATUS_PASSED).count()
+        return int((passed / total) * 100)
+
+    @property
+    def stats(self):
+        """Get test statistics for this cycle."""
+        items = self.items.all()
+        return {
+            'total': items.count(),
+            'not_started': items.filter(status=TestItem.STATUS_NOT_STARTED).count(),
+            'in_progress': items.filter(status=TestItem.STATUS_IN_PROGRESS).count(),
+            'passed': items.filter(status=TestItem.STATUS_PASSED).count(),
+            'failed': items.filter(status=TestItem.STATUS_FAILED).count(),
+            'blocked': items.filter(status=TestItem.STATUS_BLOCKED).count(),
+        }
+
+    def start(self):
+        """Mark this cycle as in progress."""
+        from django.utils import timezone
+        if self.status == self.STATUS_DRAFT:
+            self.status = self.STATUS_IN_PROGRESS
+            self.started_at = timezone.now()
+            self.save()
+
+    def complete(self):
+        """Mark this cycle as completed."""
+        from django.utils import timezone
+        self.status = self.STATUS_COMPLETED
+        self.completed_at = timezone.now()
+        self.save()
+
+
+class TestPhase(models.Model):
+    """
+    A phase groups related test items together.
+
+    Phases represent functional areas (e.g., 'Authentication',
+    'Journal Module', 'Health Tracking').
+    """
+
+    cycle = models.ForeignKey(
+        TestCycle,
+        on_delete=models.CASCADE,
+        related_name='phases'
+    )
+    name = models.CharField(
+        max_length=200,
+        help_text="Phase name (e.g., 'User Authentication')"
+    )
+    description = models.TextField(
+        blank=True,
+        help_text="Description of what this phase tests"
+    )
+    order = models.PositiveIntegerField(
+        default=0,
+        help_text="Display order within the cycle"
+    )
+
+    class Meta:
+        ordering = ['order', 'name']
+        verbose_name = 'Test Phase'
+        verbose_name_plural = 'Test Phases'
+
+    def __str__(self):
+        return f"{self.cycle.name} - {self.name}"
+
+    @property
+    def status(self):
+        """Compute phase status from items."""
+        items = self.items.all()
+        if not items.exists():
+            return 'empty'
+
+        statuses = set(items.values_list('status', flat=True))
+
+        # All passed = completed
+        if statuses == {TestItem.STATUS_PASSED}:
+            return 'completed'
+
+        # Any failed = failed
+        if TestItem.STATUS_FAILED in statuses:
+            return 'failed'
+
+        # Any blocked = blocked
+        if TestItem.STATUS_BLOCKED in statuses:
+            return 'blocked'
+
+        # Any in progress or mix of started/not started = in progress
+        if TestItem.STATUS_IN_PROGRESS in statuses:
+            return 'in_progress'
+
+        # Some passed, some not started = in progress
+        if TestItem.STATUS_PASSED in statuses:
+            return 'in_progress'
+
+        # All not started = not started
+        return 'not_started'
+
+    @property
+    def progress(self):
+        """Calculate phase progress as percentage."""
+        total = self.items.count()
+        if total == 0:
+            return 0
+        passed = self.items.filter(status=TestItem.STATUS_PASSED).count()
+        return int((passed / total) * 100)
+
+    @property
+    def stats(self):
+        """Get test statistics for this phase."""
+        items = self.items.all()
+        return {
+            'total': items.count(),
+            'not_started': items.filter(status=TestItem.STATUS_NOT_STARTED).count(),
+            'in_progress': items.filter(status=TestItem.STATUS_IN_PROGRESS).count(),
+            'passed': items.filter(status=TestItem.STATUS_PASSED).count(),
+            'failed': items.filter(status=TestItem.STATUS_FAILED).count(),
+            'blocked': items.filter(status=TestItem.STATUS_BLOCKED).count(),
+        }
+
+
+class TestItem(models.Model):
+    """
+    An individual test step within a phase.
+
+    Each item has an expected result (pre-populated) and fields
+    for recording actual results during testing.
+    """
+
+    STATUS_NOT_STARTED = 'not_started'
+    STATUS_IN_PROGRESS = 'in_progress'
+    STATUS_PASSED = 'passed'
+    STATUS_FAILED = 'failed'
+    STATUS_BLOCKED = 'blocked'
+    STATUS_CHOICES = [
+        (STATUS_NOT_STARTED, 'Not Started'),
+        (STATUS_IN_PROGRESS, 'In Progress'),
+        (STATUS_PASSED, 'Passed'),
+        (STATUS_FAILED, 'Failed'),
+        (STATUS_BLOCKED, 'Blocked'),
+    ]
+
+    PRIORITY_CRITICAL = 'critical'
+    PRIORITY_HIGH = 'high'
+    PRIORITY_MEDIUM = 'medium'
+    PRIORITY_LOW = 'low'
+    PRIORITY_CHOICES = [
+        (PRIORITY_CRITICAL, 'Critical'),
+        (PRIORITY_HIGH, 'High'),
+        (PRIORITY_MEDIUM, 'Medium'),
+        (PRIORITY_LOW, 'Low'),
+    ]
+
+    # Relationships
+    phase = models.ForeignKey(
+        TestPhase,
+        on_delete=models.CASCADE,
+        related_name='items'
+    )
+    cycle = models.ForeignKey(
+        TestCycle,
+        on_delete=models.CASCADE,
+        related_name='items'
+    )
+
+    # Test definition
+    name = models.CharField(
+        max_length=300,
+        help_text="Test name/action (e.g., 'Create new journal entry with image')"
+    )
+    description = models.TextField(
+        blank=True,
+        help_text="Detailed description or steps to perform"
+    )
+    expected_result = models.TextField(
+        blank=True,
+        help_text="What should happen when test passes"
+    )
+    url = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text="URL path to test (e.g., '/journal/new/')"
+    )
+
+    # Test execution
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_NOT_STARTED
+    )
+    priority = models.CharField(
+        max_length=20,
+        choices=PRIORITY_CHOICES,
+        default=PRIORITY_MEDIUM
+    )
+    actual_result = models.TextField(
+        blank=True,
+        help_text="What actually happened during testing"
+    )
+    notes = models.TextField(
+        blank=True,
+        help_text="Additional notes, bug references, etc."
+    )
+
+    # Tester tracking
+    tester = models.ForeignKey(
+        'users.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='tested_items'
+    )
+    tested_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the test was last executed"
+    )
+
+    # Ordering
+    order = models.PositiveIntegerField(
+        default=0,
+        help_text="Display order within the phase"
+    )
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['order', 'name']
+        verbose_name = 'Test Item'
+        verbose_name_plural = 'Test Items'
+
+    def __str__(self):
+        return f"{self.name} ({self.get_status_display()})"
+
+    def save(self, *args, **kwargs):
+        # Auto-set tested_at when status changes to passed/failed
+        if self.pk:
+            try:
+                old = TestItem.objects.get(pk=self.pk)
+                if old.status != self.status and self.status in [
+                    self.STATUS_PASSED,
+                    self.STATUS_FAILED,
+                    self.STATUS_BLOCKED,
+                ]:
+                    from django.utils import timezone
+                    self.tested_at = timezone.now()
+            except TestItem.DoesNotExist:
+                pass
+        super().save(*args, **kwargs)

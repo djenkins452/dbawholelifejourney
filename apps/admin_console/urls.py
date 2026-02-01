@@ -155,4 +155,24 @@ urlpatterns = [
     path("announcements/<int:pk>/edit/", views.SystemAnnouncementUpdateView.as_view(), name="system_announcement_update"),
     path("announcements/<int:pk>/delete/", views.SystemAnnouncementDeleteView.as_view(), name="system_announcement_delete"),
     path("api/announcements/<int:pk>/dismiss/", views.SystemAnnouncementDismissAPIView.as_view(), name="api_announcement_dismiss"),
+
+    # Production Test Plans
+    path("test-plans/", views.TestCycleListView.as_view(), name="test_cycle_list"),
+    path("test-plans/new/", views.TestCycleCreateView.as_view(), name="test_cycle_create"),
+    path("test-plans/<int:pk>/", views.TestCycleDetailView.as_view(), name="test_cycle_detail"),
+    path("test-plans/<int:pk>/delete/", views.TestCycleDeleteView.as_view(), name="test_cycle_delete"),
+    path("test-plans/<int:pk>/start/", views.TestCycleStartView.as_view(), name="test_cycle_start"),
+    path("test-plans/<int:pk>/complete/", views.TestCycleCompleteView.as_view(), name="test_cycle_complete"),
+
+    # Test Phases
+    path("test-plans/<int:cycle_pk>/phases/new/", views.TestPhaseCreateView.as_view(), name="test_phase_create"),
+    path("test-plans/phases/<int:pk>/delete/", views.TestPhaseDeleteView.as_view(), name="test_phase_delete"),
+
+    # Test Items
+    path("test-plans/phases/<int:phase_pk>/items/new/", views.TestItemCreateView.as_view(), name="test_item_create"),
+    path("test-plans/items/<int:pk>/delete/", views.TestItemDeleteView.as_view(), name="test_item_delete"),
+
+    # Test Plan API Endpoints
+    path("test-plans/api/item/<int:pk>/update/", views.TestItemUpdateAPIView.as_view(), name="api_test_item_update"),
+    path("test-plans/api/bulk-update/", views.TestItemBulkUpdateAPIView.as_view(), name="api_test_item_bulk_update"),
 ]

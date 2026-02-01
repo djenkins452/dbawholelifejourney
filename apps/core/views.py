@@ -359,6 +359,15 @@ class UXDesignView(TemplateView):
     template_name = "core/ux_design.html"
 
 
+class LoginPreviewView(TemplateView):
+    """
+    Preview of new login page design.
+    URL: /login-preview/
+    """
+
+    template_name = "account/login_preview.html"
+
+
 class MoreView(LoginRequiredMixin, TemplateView):
     """
     More screen - shows all enabled modules as tiles plus quick links.

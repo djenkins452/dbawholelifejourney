@@ -368,6 +368,15 @@ class LoginPreviewView(TemplateView):
     template_name = "account/login_preview.html"
 
 
+class LoginPreview2View(TemplateView):
+    """
+    Preview of new login page design - Version 2 (animated feature showcase).
+    URL: /login-preview2/
+    """
+
+    template_name = "account/login_preview2.html"
+
+
 class MoreView(LoginRequiredMixin, TemplateView):
     """
     More screen - shows all enabled modules as tiles plus quick links.

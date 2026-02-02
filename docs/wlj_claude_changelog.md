@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-01 (AI Assistant fitness intent recognition + cache fix)
+# Last Updated: 2026-02-01 (Notification badge, health form date auto-fill, AI Assistant fixes)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,55 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-02-01 Changes
+
+### Notification Badge Count Display
+
+**Change:** Added unread notification count badge to the bell icon in both mobile and desktop navigation bars.
+
+**Features:**
+- Shows actual count up to 10
+- Displays "10+" for counts over 10 (per user request)
+- Server-rendered on page load via new context processor
+- JavaScript updates every 60 seconds for real-time sync
+- Cache invalidated when notifications are created or read
+
+**Files Modified:**
+- `apps/core/context_processors.py` - Added `notifications_context` and `invalidate_notification_count_cache`
+- `config/settings.py` - Registered notifications_context processor
+- `templates/components/top_utility_icons.html` - Added badge element with ID
+- `templates/components/desktop_top_bar.html` - Added badge element with ID
+- `static/js/notifications.js` - Updated to sync all badge instances with 10+ cap
+- `apps/core/models.py` - Added cache invalidation on mark_read/mark_all_read
+- `apps/core/services/notification_service.py` - Added cache invalidation on create
+
+---
+
+### Auto-Populate Date/Time on Health Log Forms
+
+**Change:** When creating new health entries, the date/time field now auto-fills with the current time based on the user's browser timezone.
+
+**Forms Updated:**
+- Weight log
+- Blood glucose log
+- Heart rate log
+- Blood pressure log
+- Blood oxygen log
+- Fasting start
+
+**Behavior:**
+- Only applies to new entries (not when editing existing)
+- Uses JavaScript `new Date()` which respects user's local timezone
+- Does not override if a value is already present
+
+**Files Modified:**
+- `templates/health/weight_form.html`
+- `templates/health/glucose_form.html`
+- `templates/health/heartrate_form.html`
+- `templates/health/blood_pressure_form.html`
+- `templates/health/blood_oxygen_form.html`
+- `templates/health/fasting_form.html`
+
+---
 
 ### AI Assistant - Enhanced Fitness Intent Recognition
 

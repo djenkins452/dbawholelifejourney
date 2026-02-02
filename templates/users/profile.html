@@ -156,7 +156,8 @@
 
 .detail-row {
     display: flex;
-    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--space-3);
     padding: var(--space-3) 0;
     border-bottom: 1px solid var(--color-border);
 }
@@ -168,6 +169,11 @@
 .detail-label {
     color: var(--color-text-muted);
     font-size: var(--font-size-sm);
+    min-width: 100px;
+}
+
+.detail-label::after {
+    content: ":";
 }
 
 .detail-value {

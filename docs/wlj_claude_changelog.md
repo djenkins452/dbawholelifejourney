@@ -16,6 +16,28 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-02-01 Changes
 
+### Login/Signup Page Redesign - Preview 7 Applied
+
+**Change:** Applied Preview 7 design to production login/signup pages:
+- Dark purple gradient hero section with decorative background glows
+- "Your Whole Life Journey" title in warm beige (#c9c0b0)
+- Description text in muted slate blue (#7a9cba)
+- Feature pills with icons: Faith, Journal, Health, Goals (in that order)
+- White form section with large centered logo
+- Form elements (button, links) in slate blue (#6b8a9e)
+- Login page: "Welcome back" heading for returning users
+- Signup page: "Welcome" heading for new users
+- Fully responsive with breakpoints at 900px, 700px, and 480px
+- Created backups of original templates
+
+**Files Modified:**
+- `templates/account/login.html` - Redesigned with Preview 7 style
+- `templates/account/signup.html` - Redesigned with Preview 7 style
+- `templates/account/login_backup.html` - Backup of original login
+- `templates/account/signup_backup.html` - Backup of original signup
+
+---
+
 ### Login Preview 7 - Based on Preview 1 with Adjustments
 
 **Change:** Created login-preview7 as a variant of Preview 1:

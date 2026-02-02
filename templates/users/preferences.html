@@ -28,11 +28,11 @@
         {% csrf_token %}
 
         {% if form.errors %}
-        <div class="alert alert-danger" style="background: #fee; border: 1px solid #fcc; padding: 1rem; margin-bottom: 1rem; border-radius: 8px;">
-            <strong>Form errors:</strong>
-            <ul>
+        <div class="card mb-6" style="border: 2px solid #ef4444; background: #fef2f2; padding: var(--space-4);">
+            <h3 style="color: #dc2626; margin-bottom: var(--space-3);">Could not save - please fix the following:</h3>
+            <ul style="margin: 0; padding-left: var(--space-4); color: #dc2626;">
             {% for field, errors in form.errors.items %}
-                <li>{{ field }}: {{ errors|join:", " }}</li>
+                <li><strong>{{ field }}:</strong> {{ errors|join:", " }}</li>
             {% endfor %}
             </ul>
         </div>

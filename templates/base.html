@@ -152,7 +152,7 @@
     </style>
     {% endif %}
 </head>
-<body class="theme-{{ current_theme }}{% if user.is_authenticated %} has-desktop-nav{% endif %}">
+<body class="theme-{{ current_theme }}{% if user.is_authenticated %} has-desktop-nav{% if desktop_nav_collapsed %} nav-collapsed{% endif %}{% endif %}">
     {% block body %}
     <!-- Page load progress bar -->
     <div id="page-progress" class="page-progress" aria-hidden="true">

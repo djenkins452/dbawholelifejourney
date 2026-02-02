@@ -39,6 +39,9 @@ function toggleDesktopRail() {
 
     var isCollapsed = rail.classList.toggle('collapsed');
 
+    // Toggle body class for main area margin adjustment
+    document.body.classList.toggle('nav-collapsed', isCollapsed);
+
     // Update tooltip and label on ALL toggle buttons (top and bottom)
     var toggleBtns = rail.querySelectorAll('.rail-collapse-toggle');
     toggleBtns.forEach(function(toggleBtn) {

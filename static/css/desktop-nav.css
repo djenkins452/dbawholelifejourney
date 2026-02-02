@@ -59,6 +59,8 @@
         overflow-y: auto;
         display: flex;
         flex-direction: column;
+        margin-left: 200px; /* Account for fixed sidebar */
+        transition: margin-left 0.2s ease;
     }
 
     body.has-desktop-nav .main-content {
@@ -201,25 +203,29 @@
     .desktop-left-rail {
         flex-direction: column;
         width: 200px;
-        min-width: 200px;
         background: var(--color-surface);
         border-right: 1px solid var(--color-border);
         padding: var(--space-3) var(--space-2);
         gap: var(--space-1);
         overflow-y: auto;
         overflow-x: hidden;
-        transition: width 0.2s ease, min-width 0.2s ease;
-        /* Sticky positioning - stays visible while scrolling */
-        position: sticky;
-        top: 0;
-        align-self: flex-start;
-        height: 100vh;
+        transition: width 0.2s ease;
+        /* Fixed positioning - always visible while scrolling */
+        position: fixed;
+        top: 56px; /* Below the top bar */
+        left: 0;
+        height: calc(100vh - 56px);
+        z-index: 90;
     }
 
     /* Collapsed state */
     .desktop-left-rail.collapsed {
         width: 56px;
-        min-width: 56px;
+    }
+
+    /* Adjust main area margin when sidebar is collapsed */
+    body.has-desktop-nav.nav-collapsed .desktop-main-area {
+        margin-left: 56px;
     }
 
     /* Rail items */

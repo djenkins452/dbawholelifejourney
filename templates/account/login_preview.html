@@ -112,21 +112,13 @@
 
         .auth-logo {
             display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 1rem;
+            justify-content: center;
             margin-bottom: 2.5rem;
         }
 
         .auth-logo img {
-            width: 100px;
-            height: 100px;
-        }
-
-        .auth-logo span {
-            font-size: 1.5rem;
-            font-weight: 600;
-            color: #1e293b;
+            width: 160px;
+            height: 160px;
         }
 
         .auth-form-container h2 {
@@ -271,8 +263,8 @@
             }
 
             .auth-logo img {
-                width: 80px;
-                height: 80px;
+                width: 130px;
+                height: 130px;
             }
 
             .auth-form-section {
@@ -312,12 +304,8 @@
             }
 
             .auth-logo img {
-                width: 70px;
-                height: 70px;
-            }
-
-            .auth-logo span {
-                font-size: 1.25rem;
+                width: 110px;
+                height: 110px;
             }
 
             .auth-form-section {
@@ -411,8 +399,7 @@
         <div class="auth-form-section">
             <div class="auth-form-container">
                 <div class="auth-logo">
-                    <img src="{% if site_logo_url %}{{ site_logo_url }}{% else %}{% static 'images/wlj-logo.png' %}{% endif %}" alt="WLJ">
-                    <span>Whole Life Journey</span>
+                    <img src="{% if site_logo_url %}{{ site_logo_url }}{% else %}{% static 'images/wlj-logo.png' %}{% endif %}" alt="Whole Life Journey">
                 </div>
 
                 <h2>Welcome back</h2>

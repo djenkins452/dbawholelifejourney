@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-01 (Desktop nav, AI Assistant, form improvements)
+# Last Updated: 2026-02-01 (AI Assistant fitness intent recognition + cache fix)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,58 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-02-01 Changes
+
+### AI Assistant - Enhanced Fitness Intent Recognition
+
+**Change:** Massively expanded the AI Assistant's ability to understand natural human language for logging workouts, exercises, and cardio activities.
+
+**Problem:** When users said "I did 10 pushups, 10 crunches, and 10 squats", the assistant didn't recognize it as a workout to log. It only understood formal phrases like "completed my workout".
+
+**Solution:** Updated intent descriptions with comprehensive phrase patterns:
+
+**log_workout now recognizes:**
+- Exercise lists: "I did 10 pushups", "did 20 squats", "10 pushups, 10 situps, 10 squats"
+- Past tense: "did my pushups", "finished my squats", "got in some lunges"
+- Workout completion: "just finished my workout", "done at the gym", "hit the gym"
+- Casual: "worked out this morning", "got my sweat on", "crushed my workout"
+- Specific types: "did leg day", "finished upper body", "did HIIT"
+
+**log_exercise_set now recognizes:**
+- Weight formats: "185 lbs", "225#", "100 kg", just numbers
+- Rep formats: "for 8 reps", "x8", "225x5"
+- PR mentions: "new personal record", "hit a new max", "lifetime PR"
+
+**log_cardio now recognizes:**
+- Running: "went for a run", "ran 3 miles", "did a 5k", "treadmill run"
+- Walking: "took a walk", "got my steps in", "power walked"
+- Cycling: "bike ride", "spin class", "Peloton ride"
+- Other: "elliptical", "rowing", "jump rope", "hiking", "swimming"
+- Intensity: "easy run", "pushed it", "recovery pace"
+
+**Files Modified:**
+- `apps/ai/intents/fitness_intents.py` - Expanded all three fitness intent descriptions with 50+ phrase patterns each
+
+---
+
+### AI Assistant - Workout Cache Invalidation Fix
+
+**Change:** Fixed bug where the AI Assistant couldn't find workouts that were just logged.
+
+**Problem:** User asks "did I work out today?" → Assistant says "no workouts found" → User logs workout manually → User asks again → Still says "no workouts" (cached stale response)
+
+**Root Cause:** The `WorkoutSession`, `ExerciseSet`, and `StepsEntry` models were missing Django signal handlers to invalidate the personal data cache when records are created/updated/deleted. Other models (weight, glucose, journal, etc.) had these signals, but fitness was missed.
+
+**Solution:** Added signal handlers for:
+- `WorkoutSession` - post_save and post_delete
+- `ExerciseSet` - post_save and post_delete
+- `StepsEntry` - post_save and post_delete
+
+Now when a workout is logged (via assistant, manually, or HealthKit sync), the cache is immediately invalidated and the assistant will return fresh data.
+
+**Files Modified:**
+- `apps/ai/signals.py` - Added WORKOUT/FITNESS SIGNALS section with 6 new signal handlers
+
+---
 
 ### Desktop Nav - Move Capture and Assistant Below Divider
 

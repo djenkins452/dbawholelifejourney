@@ -292,3 +292,58 @@ def invalidate_cache_on_water_entry_delete(sender, instance, **kwargs):
     # Also invalidate health insights
     insight_types = ['daily_insight', 'health_home', 'health_encouragement']
     invalidate_user_insights(instance.user, insight_types)
+
+
+# =============================================================================
+# WORKOUT/FITNESS SIGNALS
+# =============================================================================
+
+@receiver(post_save, sender='health.WorkoutSession')
+def invalidate_cache_on_workout_save(sender, instance, created, **kwargs):
+    """Invalidate personal data cache when a workout session is saved."""
+    invalidate_personal_data_cache(instance.user, 'workout')
+    # Also invalidate health insights
+    insight_types = ['daily_insight', 'health_home', 'health_encouragement']
+    invalidate_user_insights(instance.user, insight_types)
+
+
+@receiver(post_delete, sender='health.WorkoutSession')
+def invalidate_cache_on_workout_delete(sender, instance, **kwargs):
+    """Invalidate personal data cache when a workout session is deleted."""
+    invalidate_personal_data_cache(instance.user, 'workout')
+    # Also invalidate health insights
+    insight_types = ['daily_insight', 'health_home', 'health_encouragement']
+    invalidate_user_insights(instance.user, insight_types)
+
+
+@receiver(post_save, sender='health.ExerciseSet')
+def invalidate_cache_on_exercise_set_save(sender, instance, created, **kwargs):
+    """Invalidate personal data cache when an exercise set is saved."""
+    # ExerciseSet is linked to WorkoutSession, get user from there
+    if instance.workout_session and instance.workout_session.user:
+        invalidate_personal_data_cache(instance.workout_session.user, 'workout')
+
+
+@receiver(post_delete, sender='health.ExerciseSet')
+def invalidate_cache_on_exercise_set_delete(sender, instance, **kwargs):
+    """Invalidate personal data cache when an exercise set is deleted."""
+    if instance.workout_session and instance.workout_session.user:
+        invalidate_personal_data_cache(instance.workout_session.user, 'workout')
+
+
+@receiver(post_save, sender='health.StepsEntry')
+def invalidate_cache_on_steps_save(sender, instance, created, **kwargs):
+    """Invalidate personal data cache when steps are saved."""
+    invalidate_personal_data_cache(instance.user, 'workout')
+    # Also invalidate health insights
+    insight_types = ['daily_insight', 'health_home', 'health_encouragement']
+    invalidate_user_insights(instance.user, insight_types)
+
+
+@receiver(post_delete, sender='health.StepsEntry')
+def invalidate_cache_on_steps_delete(sender, instance, **kwargs):
+    """Invalidate personal data cache when steps are deleted."""
+    invalidate_personal_data_cache(instance.user, 'workout')
+    # Also invalidate health insights
+    insight_types = ['daily_insight', 'health_home', 'health_encouragement']
+    invalidate_user_insights(instance.user, insight_types)

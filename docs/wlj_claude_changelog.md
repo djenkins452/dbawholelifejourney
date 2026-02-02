@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-12 (CISO Security Review - Comprehensive Security Hardening)
+# Last Updated: 2026-02-01 (Desktop nav, AI Assistant, form improvements)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,79 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-02-01 Changes
+
+### Desktop Nav - Move Capture and Assistant Below Divider
+
+**Change:** Moved the Capture and AI Assistant menu items below the divider in the desktop left rail navigation to group them with secondary features.
+
+**Files Modified:**
+- `templates/components/desktop_left_rail.html` - Reordered navigation items
+
+---
+
+### AI Profile - 50 Character Minimum Indicator
+
+**Change:** Added a character counter showing "X / 50 characters minimum" below the AI profile textarea to help users meet the minimum requirement.
+
+**Files Modified:**
+- `templates/users/preferences.html` - Added character counter with live update
+
+---
+
+### Fix SMS Quiet Hours Validation Error
+
+**Change:** Fixed "sms_quiet_start/sms_quiet_end required" error when saving preferences without SMS notifications enabled. Made these fields truly optional in the form validation.
+
+**Files Modified:**
+- `apps/users/forms.py` - Made sms_quiet_start/end fields not required
+
+---
+
+### Fix Chat Input Dark Mode Contrast
+
+**Change:** Fixed low contrast text in the AI Assistant chat input field when using dark mode.
+
+**Files Modified:**
+- `templates/ai/assistant.html` - Added explicit text color for dark mode input
+
+---
+
+### AI Assistant Navigation
+
+**Change:** Added AI Assistant link to both desktop and mobile navigation menus.
+
+**Files Modified:**
+- `templates/components/desktop_left_rail.html` - Added AI Assistant link with chat icon
+- `templates/components/bottom_nav.html` - Added AI Assistant to mobile nav
+
+---
+
+### Improve Form Error Visibility
+
+**Change:** Enhanced error message styling on the preferences page to make validation errors more visible with red background, border, and icon.
+
+**Files Modified:**
+- `templates/users/preferences.html` - Added error alert styling
+
+---
+
+### Left-Align Profile Detail Values
+
+**Change:** Changed profile detail values from right-aligned to left-aligned for better readability.
+
+**Files Modified:**
+- `templates/users/profile.html` - Updated CSS for value alignment
+
+---
+
+### Profile Edit Form Error Display
+
+**Change:** Added error message display to the profile edit form so validation errors are shown to users.
+
+**Files Modified:**
+- `templates/users/profile_edit.html` - Added form error display block
+
+---
 
 ### Password Reset Page Redesign
 

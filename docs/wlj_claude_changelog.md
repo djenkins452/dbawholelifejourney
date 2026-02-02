@@ -16,7 +16,24 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-02-01 Changes
 
-### Login Preview 1 - Layout Adjustments
+### Login Preview 7 - Based on Preview 1 with Adjustments
+
+**Change:** Created login-preview7 as a variant of Preview 1:
+- Removed logo from hero (left) side entirely
+- Big centered logo on form side (180px) - no "Whole Life Journey" text since it's on the logo
+- Spread out hero content - larger title (3.5rem), bigger line-height (2), more margins
+- Bigger feature pill icons (32px instead of 16px)
+- Centered form header text
+- Responsive scaling for tablet (140px logo) and mobile (120px logo)
+
+**Files Modified:**
+- `templates/account/login_preview7.html` - New preview file
+- `apps/core/views.py` - Added LoginPreview7View
+- `apps/core/urls.py` - Added login-preview7 URL route
+
+---
+
+### Login Preview 1 - Layout Adjustments (REVERTED)
 
 **Change:** Updated login-preview based on user feedback:
 - Removed logo from hero (left) side

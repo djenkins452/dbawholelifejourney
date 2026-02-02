@@ -418,6 +418,17 @@ class LoginPreview6View(TemplateView):
     template_name = "account/login_preview6.html"
 
 
+class LoginPreview7View(TemplateView):
+    """
+    Preview of new login page design - Version 7 (based on Preview 1 with adjustments).
+    Features: No logo on hero side, big centered logo (180px) on form side,
+    spread out text, bigger feature icons (32px).
+    URL: /login-preview7/
+    """
+
+    template_name = "account/login_preview7.html"
+
+
 class MoreView(LoginRequiredMixin, TemplateView):
     """
     More screen - shows all enabled modules as tiles plus quick links.

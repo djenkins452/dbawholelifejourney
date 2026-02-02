@@ -16,6 +16,20 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-02-01 Changes
 
+### Login Preview 1 - Layout Adjustments
+
+**Change:** Updated login-preview based on user feedback:
+- Removed logo from hero (left) side
+- Made logo much bigger on sign-in side (100px, centered above app name)
+- Spread out hero content (larger title, more line-height, more spacing)
+- Made feature pill icons bigger (28px) with larger padding
+- Updated mobile responsive styles to match
+
+**Files Modified:**
+- `templates/account/login_preview.html`
+
+---
+
 ### Login Preview 6 - Portland Head Light Inspired
 
 **Change:** Created login-preview6 based on Portland Head Light reference image:

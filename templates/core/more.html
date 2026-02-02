@@ -24,6 +24,17 @@
 
         <h2 class="section-title">Quick Links</h2>
         <div class="tile-grid">
+            {% if ai_enabled and personal_assistant_enabled %}
+            <a href="{% url 'ai:dashboard' %}" class="tile tile-assistant">
+                <div class="tile-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                    </svg>
+                </div>
+                <span class="tile-label">AI Assistant</span>
+            </a>
+            {% endif %}
+
             <a href="/profile/" class="tile">
                 <div class="tile-icon">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -155,6 +166,7 @@
 .tile[data-module="purpose"] .tile-icon { color: #14b8a6; }
 .tile[data-module="finance"] .tile-icon { color: #22c55e; }
 .tile[data-module="capture"] .tile-icon { color: #ec4899; }
+.tile-assistant .tile-icon { color: #6366f1; }
 
 .tile-icon svg {
     width: 100%;

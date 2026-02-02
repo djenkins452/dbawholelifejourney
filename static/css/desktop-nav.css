@@ -411,6 +411,11 @@
         color: #f97316;
     }
 
+    /* AI Assistant - Indigo (intelligent/tech) */
+    .rail-item-assistant .rail-icon {
+        color: #6366f1;
+    }
+
     /* Home icon - accent color */
     .rail-item[data-tooltip="Home"] .rail-icon {
         color: var(--color-accent);

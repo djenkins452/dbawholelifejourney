@@ -69,6 +69,17 @@
     {% endif %}
     {% endfor %}
 
+    <!-- AI Assistant (if enabled) -->
+    {% if ai_enabled and personal_assistant_enabled %}
+    <div class="rail-divider"></div>
+    <a href="{% url 'ai:dashboard' %}" class="rail-item rail-item-assistant{% if request.resolver_match.app_name == 'ai' %} active{% endif %}" data-tooltip="AI Assistant">
+        <svg class="rail-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+        <span class="rail-label">Assistant</span>
+    </a>
+    {% endif %}
+
     <!-- Collapse/Expand Toggle at bottom -->
     <button type="button" class="rail-collapse-toggle rail-collapse-bottom" onclick="toggleDesktopRail()" aria-label="Toggle navigation width" data-tooltip="{% if desktop_nav_collapsed %}Expand{% else %}Collapse{% endif %}">
         <svg class="rail-icon rail-icon-collapse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

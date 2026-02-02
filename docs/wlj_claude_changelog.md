@@ -16,12 +16,23 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-02-01 Changes
 
-### Desktop Sidebar Sticky Positioning
+### Password Reset Page Redesign
 
-**Change:** Made the desktop left navigation rail sticky so it remains visible while scrolling down long pages.
+**Change:** Updated the "Set New Password" page to match the new login/signup design with dark hero section and white form panel.
 
 **Files Modified:**
-- `static/css/desktop-nav.css` - Added `position: sticky`, `top: 0`, `align-self: flex-start`, `height: 100vh` to `.desktop-left-rail`
+- `templates/account/password_reset_from_key.html` - Standalone template with hero + form layout matching login page
+
+---
+
+### Desktop Sidebar Fixed Positioning
+
+**Change:** Made the desktop left navigation rail fixed so it remains visible while scrolling down long pages.
+
+**Files Modified:**
+- `static/css/desktop-nav.css` - Changed to `position: fixed` with `top: 56px`, added `margin-left` to main content area
+- `static/js/main.js` - Toggle `nav-collapsed` class on body for margin adjustment
+- `templates/base.html` - Add `nav-collapsed` class to body when sidebar is collapsed
 
 ---
 

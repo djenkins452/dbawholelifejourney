@@ -338,7 +338,8 @@
       "Bash(curl -s -H \"X-Claude-API-Key: $WLJ_CLAUDE_API_KEY\" \"https://wholelifejourney.com/admin-console/api/claude/ready-tasks/?limit=5\")",
       "Bash(curl -s -X POST -H \"X-Claude-API-Key: $WLJ_CLAUDE_API_KEY\" -H \"Content-Type: application/json\" -d '{\"\"status\"\": \"\"done\"\"}' \"https://wholelifejourney.com/admin-console/api/claude/tasks/397/status/\")",
       "Bash(curl -s -X POST -H \"X-Claude-API-Key: $WLJ_CLAUDE_API_KEY\" -H \"Content-Type: application/json\" -d '{\"\"status\"\": \"\"in_progress\"\"}' \"https://wholelifejourney.com/admin-console/api/claude/tasks/397/status/\")",
-      "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd CISO Security Project master prompt documentation\n\nCreated comprehensive documentation for recreating the WLJ security\ninfrastructure in other projects. Includes all models, scanner logic,\nscoring algorithms, admin interfaces, and Claude prompts.\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd CISO Security Project master prompt documentation\n\nCreated comprehensive documentation for recreating the WLJ security\ninfrastructure in other projects. Includes all models, scanner logic,\nscoring algorithms, admin interfaces, and Claude prompts.\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "WebFetch(domain:wholelifejourney.com)"
     ]
   }
 }

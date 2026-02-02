@@ -361,69 +361,9 @@ class UXDesignView(TemplateView):
 
 class LoginPreviewView(TemplateView):
     """
-    Preview of new login page design.
+    Preview of approved login page design (Preview 7).
+    Features: Dark gradient hero with feature pills, large centered logo on form side.
     URL: /login-preview/
-    """
-
-    template_name = "account/login_preview.html"
-
-
-class LoginPreview2View(TemplateView):
-    """
-    Preview of new login page design - Version 2 (animated feature showcase).
-    URL: /login-preview2/
-    """
-
-    template_name = "account/login_preview2.html"
-
-
-class LoginPreview3View(TemplateView):
-    """
-    Preview of new login page design - Version 3 (lighthouse/ocean/boat journey theme).
-    URL: /login-preview3/
-    """
-
-    template_name = "account/login_preview3.html"
-
-
-class LoginPreview4View(TemplateView):
-    """
-    Preview of new login page design - Version 4 (enhanced lighthouse theme).
-    Features: realistic yacht, waves crashing on rocks, labeled milestones.
-    URL: /login-preview4/
-    """
-
-    template_name = "account/login_preview4.html"
-
-
-class LoginPreview5View(TemplateView):
-    """
-    Preview of new login page design - Version 5 (New England coastal scene).
-    Features: photorealistic lighthouse on rocky coast, motor yacht (no sails),
-    natural wake, atmospheric twilight sky, minimal animation.
-    URL: /login-preview5/
-    """
-
-    template_name = "account/login_preview5.html"
-
-
-class LoginPreview6View(TemplateView):
-    """
-    Preview of new login page design - Version 6 (Portland Head Light inspired).
-    Features: Classic New England lighthouse with keeper's house, rugged rocky coast,
-    wispy clouds, motor yacht, foreground vegetation, sweeping light beam.
-    URL: /login-preview6/
-    """
-
-    template_name = "account/login_preview6.html"
-
-
-class LoginPreview7View(TemplateView):
-    """
-    Preview of new login page design - Version 7 (based on Preview 1 with adjustments).
-    Features: No logo on hero side, big centered logo (180px) on form side,
-    spread out text, bigger feature icons (32px).
-    URL: /login-preview7/
     """
 
     template_name = "account/login_preview7.html"

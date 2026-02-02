@@ -40,12 +40,6 @@ urlpatterns = [
     path("app-review/login/", views.AppReviewLoginView.as_view(), name="app_review_login"),
     path("ux-design/", views.UXDesignView.as_view(), name="ux_design"),
     path("login-preview/", views.LoginPreviewView.as_view(), name="login_preview"),
-    path("login-preview2/", views.LoginPreview2View.as_view(), name="login_preview2"),
-    path("login-preview3/", views.LoginPreview3View.as_view(), name="login_preview3"),
-    path("login-preview4/", views.LoginPreview4View.as_view(), name="login_preview4"),
-    path("login-preview5/", views.LoginPreview5View.as_view(), name="login_preview5"),
-    path("login-preview6/", views.LoginPreview6View.as_view(), name="login_preview6"),
-    path("login-preview7/", views.LoginPreview7View.as_view(), name="login_preview7"),
 
     # More (mobile nav overflow)
     path("more/", views.MoreView.as_view(), name="more"),

@@ -419,10 +419,36 @@ class PreferencesForm(forms.ModelForm):
         widget=forms.TimeInput(attrs={"class": "form-input", "type": "time"}),
     )
 
+    # SMS quiet hours - not required in form, will use model defaults
+    sms_quiet_start = forms.TimeField(
+        required=False,
+        widget=forms.TimeInput(attrs={"class": "form-input", "type": "time"}),
+    )
+    sms_quiet_end = forms.TimeField(
+        required=False,
+        widget=forms.TimeInput(attrs={"class": "form-input", "type": "time"}),
+    )
+
     def clean_notification_reminder_time(self):
         """Provide default if empty (model requires non-null)."""
         import datetime
         value = self.cleaned_data.get('notification_reminder_time')
+        if value is None:
+            return datetime.time(7, 0)  # Default to 7:00 AM
+        return value
+
+    def clean_sms_quiet_start(self):
+        """Provide default if empty (model requires non-null)."""
+        import datetime
+        value = self.cleaned_data.get('sms_quiet_start')
+        if value is None:
+            return datetime.time(22, 0)  # Default to 10:00 PM
+        return value
+
+    def clean_sms_quiet_end(self):
+        """Provide default if empty (model requires non-null)."""
+        import datetime
+        value = self.cleaned_data.get('sms_quiet_end')
         if value is None:
             return datetime.time(7, 0)  # Default to 7:00 AM
         return value

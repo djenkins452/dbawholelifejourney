@@ -274,6 +274,10 @@ class NotificationService:
         # Create the notification
         notification = Notification.objects.create(**notification_kwargs)
 
+        # Invalidate the notification count cache
+        from apps.core.context_processors import invalidate_notification_count_cache
+        invalidate_notification_count_cache(user.id)
+
         logger.info(
             f"Created notification for {user_log_id(user)}: "
             f"category={category}, title={title}"

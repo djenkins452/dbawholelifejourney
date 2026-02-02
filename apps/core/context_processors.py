@@ -475,3 +475,66 @@ def system_announcements_context(request):
         pass
 
     return context
+
+
+def notifications_context(request):
+    """
+    Add unread notification count to template context for the notification badge.
+
+    Provides:
+    - unread_notification_count: Number of unread notifications (capped display)
+    - unread_notification_count_display: String for badge (e.g., "5" or "10+")
+
+    Performance: Cached per-user for 60 seconds to minimize database queries.
+    The notifications.js also updates this via API every 60 seconds for real-time updates.
+    """
+    context = {
+        'unread_notification_count': 0,
+        'unread_notification_count_display': '',
+    }
+
+    if not request.user.is_authenticated:
+        return context
+
+    # Skip for API, static, admin paths
+    path = request.path
+    if any(path.startswith(p) for p in ['/api/', '/static/', '/media/', '/admin/']):
+        return context
+
+    try:
+        from django.core.cache import cache
+        from apps.core.models import Notification
+
+        # Cache the count for 60 seconds
+        cache_key = f'notification_count_user_{request.user.id}'
+        cached_count = cache.get(cache_key)
+
+        if cached_count is not None:
+            count = cached_count
+        else:
+            count = Notification.get_unread_count(request.user)
+            cache.set(cache_key, count, 60)
+
+        context['unread_notification_count'] = count
+        # Display "10+" for counts over 10
+        if count > 10:
+            context['unread_notification_count_display'] = '10+'
+        elif count > 0:
+            context['unread_notification_count_display'] = str(count)
+        else:
+            context['unread_notification_count_display'] = ''
+
+    except Exception:
+        pass
+
+    return context
+
+
+def invalidate_notification_count_cache(user_id):
+    """
+    Invalidate notification count cache for a specific user.
+
+    Call this when notifications are created, read, or deleted.
+    """
+    from django.core.cache import cache
+    cache.delete(f'notification_count_user_{user_id}')

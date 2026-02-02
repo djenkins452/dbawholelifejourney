@@ -211,14 +211,33 @@
      */
     function updateBadge(count) {
         const badge = getBadge();
-        if (!badge) return;
+        // Display text: show actual count up to 10, then "10+"
+        const displayText = count > 10 ? '10+' : (count > 0 ? count.toString() : '');
 
-        if (count > 0) {
-            badge.textContent = count > 99 ? '99+' : count;
-            badge.hidden = false;
-        } else {
-            badge.hidden = true;
+        // Update the notification bell dropdown badge
+        if (badge) {
+            if (count > 0) {
+                badge.textContent = displayText;
+                badge.hidden = false;
+            } else {
+                badge.hidden = true;
+            }
         }
+
+        // Also update the mobile and desktop utility icon badges
+        const mobileBadge = document.getElementById('mobile-notification-badge');
+        const desktopBadge = document.getElementById('desktop-notification-badge');
+
+        [mobileBadge, desktopBadge].forEach(b => {
+            if (b) {
+                if (count > 0) {
+                    b.textContent = displayText;
+                    b.style.display = '';
+                } else {
+                    b.style.display = 'none';
+                }
+            }
+        });
     }
 
     /**

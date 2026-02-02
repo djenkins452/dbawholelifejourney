@@ -1863,6 +1863,9 @@ class Notification(TimeStampedModel):
             self.is_read = True
             self.read_at = timezone.now()
             self.save(update_fields=['is_read', 'read_at', 'updated_at'])
+            # Invalidate the notification count cache
+            from apps.core.context_processors import invalidate_notification_count_cache
+            invalidate_notification_count_cache(self.user_id)
 
     def mark_email_sent(self):
         """Mark that an email was sent for this notification."""
@@ -1900,10 +1903,15 @@ class Notification(TimeStampedModel):
     def mark_all_read(cls, user):
         """Mark all notifications as read for a user."""
         now = timezone.now()
-        return cls.objects.filter(
+        count = cls.objects.filter(
             user=user,
             is_read=False
         ).update(is_read=True, read_at=now, updated_at=now)
+        # Invalidate the notification count cache
+        if count > 0:
+            from apps.core.context_processors import invalidate_notification_count_cache
+            invalidate_notification_count_cache(user.id)
+        return count
 
     @classmethod
     def get_pending_email_notifications(cls, user):

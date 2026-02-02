@@ -2105,6 +2105,24 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         # Check if query looks like a navigation question
         query_lower = message.lower().strip()
 
+        # Check if the query references something we just created
+        # If so, respond with that info directly instead of generic navigation
+        if conversation:
+            reference_words = ['that', 'those', 'the task', 'the tasks', 'it', 'them']
+            if any(word in query_lower for word in reference_words):
+                # Check recent assistant messages for creation actions
+                recent_assistant_messages = conversation.messages.filter(
+                    role='assistant'
+                ).order_by('-created_at')[:3]
+
+                for msg in recent_assistant_messages:
+                    msg_lower = msg.content.lower()
+                    # Check if assistant recently created a task
+                    if '✓ created task:' in msg_lower:
+                        # Return a helpful response pointing to where the task is
+                        return "You can find the task I just created in [Organize → Tasks](/life/tasks/). [Click here](/life/tasks/) to view your tasks."
+                    # Could add similar checks for other created items here
+
         # First, check if the query is about the CURRENT PAGE content
         # These queries should NOT be handled as navigation - they want the AI
         # to explain/show content that's already on the page

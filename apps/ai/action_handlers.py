@@ -1536,16 +1536,21 @@ class ActionHandler:
             due_str = f" (due {parsed_due.strftime('%b %d')})" if parsed_due else ""
             project_str = f" in {project.title}" if project else ""
 
+            # Include a helpful link to where they can find the task
+            task_url = "/life/tasks/"
+            location_hint = f" You can find it in [Organize → Tasks]({task_url})."
+
             return ActionResult(
                 success=True,
-                message=f"✓ Created task: {title}{due_str}{project_str}",
+                message=f"✓ Created task: {title}{due_str}{project_str}.{location_hint}",
                 created_object={
                     'model': 'Task',
                     'id': task.id,
                     'title': task.title,
                     'due_date': task.due_date.isoformat() if task.due_date else None,
                     'priority': task.priority,
-                    'project_id': project.id if project else None
+                    'project_id': project.id if project else None,
+                    'url': task_url
                 },
                 action_type='create_task'
             )

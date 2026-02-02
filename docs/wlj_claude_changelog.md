@@ -16,6 +16,24 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-02-02 Changes
 
+### AI Assistant: Task Creation Response & Context Awareness
+
+**Issue:** When the assistant created a task, it would:
+1. Only say "Created task: X" without telling the user WHERE to find it
+2. When asked "where can I find those tasks", it would return irrelevant results (e.g., Health instead of Tasks)
+3. Not remember what it had just created when the user asked follow-up questions
+
+**Fix:**
+1. Task creation now includes a link: "✓ Created task: X. You can find it in [Organize → Tasks](/life/tasks/)."
+2. Navigation queries that reference "that", "those", "the task", etc. now check recent assistant messages for creation actions and respond with the appropriate location
+3. The `created_object` now includes the URL for easier reference
+
+**Files Modified:**
+- `apps/ai/action_handlers.py` - Added location hint and URL to task creation response
+- `apps/ai/personal_assistant.py` - Added context check for recently created items in navigation handler
+
+---
+
 ### Security: Remove Hardcoded App Review Credentials (SEC-001)
 
 **Issue:** Security scanner flagged hardcoded email and password in `setup_app_review_account.py` management command.

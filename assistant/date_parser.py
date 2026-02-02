@@ -14,6 +14,13 @@ from dateutil.relativedelta import relativedelta
 from django.utils import timezone
 
 
+def _make_aware(dt: datetime, reference: datetime) -> datetime:
+    """Make a datetime timezone-aware if the reference is aware."""
+    if timezone.is_aware(reference) and timezone.is_naive(dt):
+        return timezone.make_aware(dt, timezone.get_current_timezone())
+    return dt
+
+
 def extract_date_from_message(message: str, reference_date: Optional[datetime] = None) -> Optional[datetime]:
     """
     Extract a date reference from a natural language message.
@@ -220,7 +227,7 @@ def _extract_standalone_date(message: str, today: datetime) -> Optional[datetime
                 else:
                     year = _default_year(month, day, today)
                 try:
-                    return datetime(year, month, day)
+                    return _make_aware(datetime(year, month, day), today)
                 except ValueError:
                     pass
             elif i == 3:  # ISO format
@@ -228,7 +235,7 @@ def _extract_standalone_date(message: str, today: datetime) -> Optional[datetime
                 month = int(match.group(2))
                 day = int(match.group(3))
                 try:
-                    return datetime(year, month, day)
+                    return _make_aware(datetime(year, month, day), today)
                 except ValueError:
                     pass
             elif i == 4:  # Just month name
@@ -312,7 +319,7 @@ def _build_date_from_month_day(month_str: str, day: int, today: datetime) -> Opt
     year = _default_year(month, day, today)
 
     try:
-        return datetime(year, month, day)
+        return _make_aware(datetime(year, month, day), today)
     except ValueError:
         return None
 
@@ -336,7 +343,7 @@ def _default_year(month: int, day: int, today: datetime) -> int:
 
     try:
         # Try to create a date this year
-        candidate = datetime(current_year, month, day)
+        candidate = _make_aware(datetime(current_year, month, day), today)
         # If the date is more than a week in the future, assume last year
         if candidate > today + timedelta(days=7):
             return current_year - 1

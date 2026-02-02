@@ -16,6 +16,15 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-02-01 Changes
 
+### Desktop Sidebar Sticky Positioning
+
+**Change:** Made the desktop left navigation rail sticky so it remains visible while scrolling down long pages.
+
+**Files Modified:**
+- `static/css/desktop-nav.css` - Added `position: sticky`, `top: 0`, `align-self: flex-start`, `height: 100vh` to `.desktop-left-rail`
+
+---
+
 ### Login Preview Cleanup
 
 **Change:** Removed unused preview iterations:

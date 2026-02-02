@@ -209,6 +209,11 @@
         overflow-y: auto;
         overflow-x: hidden;
         transition: width 0.2s ease, min-width 0.2s ease;
+        /* Sticky positioning - stays visible while scrolling */
+        position: sticky;
+        top: 0;
+        align-self: flex-start;
+        height: 100vh;
     }
 
     /* Collapsed state */

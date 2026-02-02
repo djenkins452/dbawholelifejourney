@@ -319,16 +319,21 @@ def invalidate_cache_on_workout_delete(sender, instance, **kwargs):
 @receiver(post_save, sender='health.ExerciseSet')
 def invalidate_cache_on_exercise_set_save(sender, instance, created, **kwargs):
     """Invalidate personal data cache when an exercise set is saved."""
-    # ExerciseSet is linked to WorkoutSession, get user from there
-    if instance.workout_session and instance.workout_session.user:
-        invalidate_personal_data_cache(instance.workout_session.user, 'workout')
+    # ExerciseSet -> workout_exercise -> session -> user
+    if instance.workout_exercise and instance.workout_exercise.session:
+        user = instance.workout_exercise.session.user
+        if user:
+            invalidate_personal_data_cache(user, 'workout')
 
 
 @receiver(post_delete, sender='health.ExerciseSet')
 def invalidate_cache_on_exercise_set_delete(sender, instance, **kwargs):
     """Invalidate personal data cache when an exercise set is deleted."""
-    if instance.workout_session and instance.workout_session.user:
-        invalidate_personal_data_cache(instance.workout_session.user, 'workout')
+    # ExerciseSet -> workout_exercise -> session -> user
+    if instance.workout_exercise and instance.workout_exercise.session:
+        user = instance.workout_exercise.session.user
+        if user:
+            invalidate_personal_data_cache(user, 'workout')
 
 
 @receiver(post_save, sender='health.StepsEntry')

@@ -114,6 +114,23 @@ When a question is outside wellness, just answer it directly and helpfully. Don'
 - Connect information back to THEIR goals when relevant
 - Admit clearly when you genuinely don't have information (but only when true)
 - Match their energy - casual if they're casual, detailed if they want detail
+- **ALWAYS acknowledge personal sharing** - when a user shares something meaningful about their life, feelings, or journey, respond with genuine engagement. NEVER leave personal sharing unacknowledged or go silent
+
+## HANDLING PERSONAL SHARING
+
+When users share personal reflections, feelings, or life updates (like "I feel like my life has improved" or "I've been struggling"):
+
+1. **ALWAYS respond meaningfully** - Never stay silent or return empty
+2. **Acknowledge what they shared** - Show you heard them and it matters
+3. **Be genuine, not generic** - Connect to what they specifically said, not boilerplate responses
+4. **Match the emotional tone** - If they're sharing something positive, honor that. If challenging, be supportive.
+5. **Keep it concise** - A meaningful 1-2 sentence acknowledgment is better than a lecture
+
+Examples:
+- User: "Since December I feel like my life has improved with journaling"
+- GOOD: "That's meaningful progress - finding a practice that makes a real difference. Journaling helps you see your own growth more clearly."
+- BAD: (silence/empty response)
+- BAD: "What tasks do you need to work on today?"
 
 ## HANDLING DATA QUESTIONS
 
@@ -2456,6 +2473,10 @@ Respond as the Dashboard AI Personal Assistant. Answer ONLY what was asked - do 
         """Get fallback response when AI is unavailable, matching coaching style."""
         import random
 
+        # Check if the message is a personal reflection/sharing (emotional content)
+        if self._is_personal_reflection(message):
+            return self._get_reflection_response(message)
+
         # Fallbacks vary by coaching style
         fallbacks = {
             'direct': [
@@ -2480,6 +2501,132 @@ Respond as the Dashboard AI Personal Assistant. Answer ONLY what was asked - do 
 
         style_fallbacks = fallbacks.get(self.coaching_style, fallbacks['supportive'])
         return random.choice(style_fallbacks)
+
+    def _is_personal_reflection(self, message: str) -> bool:
+        """Check if the message is a personal reflection or emotional sharing."""
+        msg_lower = message.lower()
+
+        # Indicators of personal reflection/emotional sharing
+        reflection_indicators = [
+            'i feel', 'i felt', 'i\'m feeling', 'feeling',
+            'i\'ve been', 'i have been', 'i was',
+            'my life', 'my mood', 'my journey',
+            'improved', 'better', 'worse', 'struggling',
+            'grateful', 'thankful', 'blessed',
+            'closer to god', 'faith', 'spiritual',
+            'accomplishing', 'accomplished', 'achieving',
+            'journaling', 'reflecting', 'meditation',
+            'happy', 'sad', 'anxious', 'excited', 'proud',
+            'since', 'lately', 'recently',
+        ]
+
+        # Check for multiple indicators (more confident detection)
+        indicator_count = sum(1 for ind in reflection_indicators if ind in msg_lower)
+
+        # Also check for first-person sharing patterns
+        first_person_sharing = (
+            msg_lower.startswith('i ') or
+            msg_lower.startswith('i\'') or
+            ' i ' in msg_lower or
+            'my ' in msg_lower
+        )
+
+        # Consider it a reflection if there are 2+ indicators or if first-person + 1 indicator
+        return indicator_count >= 2 or (first_person_sharing and indicator_count >= 1)
+
+    def _get_reflection_response(self, message: str) -> str:
+        """Generate a meaningful response to personal reflections."""
+        import random
+        msg_lower = message.lower()
+
+        # Detect positive vs challenging reflections
+        positive_words = ['improved', 'better', 'good', 'great', 'happy', 'grateful',
+                         'thankful', 'blessed', 'accomplishing', 'closer', 'proud']
+        challenging_words = ['struggling', 'hard', 'difficult', 'worse', 'sad',
+                            'anxious', 'worried', 'stressed', 'tired', 'overwhelmed']
+
+        is_positive = any(word in msg_lower for word in positive_words)
+        is_challenging = any(word in msg_lower for word in challenging_words)
+
+        # Check for specific themes
+        is_faith_related = any(word in msg_lower for word in ['god', 'faith', 'spiritual', 'prayer', 'church'])
+        is_journaling_related = 'journal' in msg_lower
+        is_health_related = any(word in msg_lower for word in ['health', 'workout', 'exercise', 'sleep', 'eating'])
+
+        # Build contextual responses
+        if is_positive:
+            positive_responses = {
+                'direct': [
+                    "That's real progress. Keep doing what's working.",
+                    "Solid growth. You've put in the work.",
+                    "That momentum is yours. You earned it.",
+                ],
+                'gentle': [
+                    "That's wonderful to hear. It sounds like your efforts are making a real difference.",
+                    "What you're describing takes real commitment. That growth is meaningful.",
+                    "Thank you for sharing that. It's clear you've been putting in genuine effort.",
+                ],
+                'supportive': [
+                    "That's meaningful progress. It sounds like you've found something that works for you.",
+                    "It takes dedication to see that kind of change. You should feel good about where you're heading.",
+                    "That kind of growth doesn't happen by accident. Your consistency is paying off.",
+                ],
+            }
+            base_responses = positive_responses.get(self.coaching_style, positive_responses['supportive'])
+
+            # Add theme-specific additions
+            if is_faith_related:
+                faith_additions = [
+                    " Your spiritual growth shines through.",
+                    " That connection you're nurturing is powerful.",
+                ]
+                return random.choice(base_responses) + random.choice(faith_additions)
+            elif is_journaling_related:
+                journal_additions = [
+                    " Journaling helps us see our own growth more clearly.",
+                    " Writing it down makes the progress real.",
+                ]
+                return random.choice(base_responses) + random.choice(journal_additions)
+
+            return random.choice(base_responses)
+
+        elif is_challenging:
+            challenging_responses = {
+                'direct': [
+                    "That's honest. What would help most right now?",
+                    "Acknowledging it is the first step. What do you need?",
+                    "Real talk. What's one small thing that could help today?",
+                ],
+                'gentle': [
+                    "Thank you for sharing that with me. Those feelings are valid, and I'm here with you.",
+                    "It takes courage to name what's hard. What would feel supportive right now?",
+                    "I hear you. Sometimes just saying it out loud can help lighten the load.",
+                ],
+                'supportive': [
+                    "I appreciate you sharing that. We all have those stretches. What feels manageable right now?",
+                    "That kind of honesty takes strength. Is there something specific I can help with?",
+                    "Thank you for trusting me with that. What would help you feel a bit better today?",
+                ],
+            }
+            return random.choice(challenging_responses.get(self.coaching_style, challenging_responses['supportive']))
+
+        else:
+            # Neutral reflection - just acknowledge and engage
+            neutral_responses = {
+                'direct': [
+                    "Thanks for sharing. What stands out most to you about that?",
+                    "Good reflection. What does that mean for what's next?",
+                ],
+                'gentle': [
+                    "Thank you for sharing that with me. It sounds like you've been doing some good reflecting.",
+                    "I appreciate you opening up. What feels most important about what you shared?",
+                ],
+                'supportive': [
+                    "Thanks for sharing that reflection. It's valuable to pause and notice where we are.",
+                    "I appreciate you sharing. Moments of reflection like this matter. What feels most significant?",
+                ],
+            }
+            return random.choice(neutral_responses.get(self.coaching_style, neutral_responses['supportive']))
 
     # =========================================================================
     # OPENING MESSAGE (DAILY CHECK-IN)

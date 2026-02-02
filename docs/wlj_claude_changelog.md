@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-01 (Notification badge, health form date auto-fill, AI Assistant fixes)
+# Last Updated: 2026-02-01 (AI Assistant personal reflection handling)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,31 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-02-01 Changes
+
+### AI Assistant: Personal Reflection Response Handling
+
+**Issue:** When users shared meaningful personal reflections (like "I feel like my life has improved since I started journaling"), the assistant would sometimes return no response, leaving the user feeling ignored.
+
+**Root Cause:** The fallback response system was entirely task-focused and didn't handle emotional/personal sharing. When OpenAI returned empty, the generic fallbacks were inappropriate.
+
+**Fix:**
+1. Added `_is_personal_reflection()` method to detect when users share personal feelings, reflections, or life updates
+2. Added `_get_reflection_response()` method to generate meaningful, empathetic responses that:
+   - Detect positive vs challenging reflections
+   - Account for faith-related or journaling-related themes
+   - Match the user's coaching style preference (direct/gentle/supportive)
+3. Updated fallback system to check for personal reflections first before using generic task-focused responses
+4. Updated system prompt with explicit "HANDLING PERSONAL SHARING" section telling the AI to never leave personal sharing unacknowledged
+
+**Example:**
+- User: "Since December I feel like my life has improved with journaling and I'm closer to God"
+- Old: (silence or "What tasks do you need to work on?")
+- New: "It takes dedication to see that kind of change. You should feel good about where you're heading. That connection you're nurturing is powerful."
+
+**Files Modified:**
+- `apps/ai/personal_assistant.py` - Added reflection detection and response methods, updated system prompt
+
+---
 
 ### Notification Badge Count Display
 

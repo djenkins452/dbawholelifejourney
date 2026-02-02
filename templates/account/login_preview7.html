@@ -62,12 +62,21 @@
             margin-bottom: 3.5rem;
         }
 
-        /* Feature pills */
+        /* Feature pills - use grid for proper centering when wrapping */
         .feature-pills {
-            display: flex;
-            flex-wrap: wrap;
+            display: grid;
+            grid-template-columns: repeat(4, auto);
             gap: 1.5rem;
             justify-content: center;
+            justify-items: center;
+        }
+
+        /* 2x2 grid on smaller screens */
+        @media (max-width: 700px) {
+            .feature-pills {
+                grid-template-columns: repeat(2, auto);
+                gap: 1rem;
+            }
         }
 
         .feature-pill {

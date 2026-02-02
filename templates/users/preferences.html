@@ -834,6 +834,9 @@ Examples:
                                         <p class="form-help">This information is used only to personalize AI responses. It is never shared externally.</p>
                                         <span class="char-counter" id="ai-profile-counter">
                                             <span id="ai-profile-length">{{ form.ai_profile.value|length|default:0 }}</span>/2000
+                                            <span id="ai-profile-min" class="char-min {% if form.ai_profile.value|length >= 50 %}char-min-met{% endif %}">
+                                                (min 50)
+                                            </span>
                                         </span>
                                     </div>
                                 </div>
@@ -2796,6 +2799,19 @@ The AI will remember these to respond more thoughtfully in the future."
     white-space: nowrap;
 }
 
+.char-min {
+    color: #f59e0b;
+    margin-left: var(--space-2);
+}
+
+.char-min-met {
+    color: #22c55e;
+}
+
+.char-min-met::before {
+    content: "✓ ";
+}
+
 .ai-profile-tips {
     margin-top: var(--space-4);
     padding: var(--space-4);
@@ -3435,9 +3451,19 @@ if (personalAssistantToggle) {
 // Character counter for AI profile
 const aiProfileTextarea = document.getElementById('id_ai_profile');
 const aiProfileLengthSpan = document.getElementById('ai-profile-length');
+const aiProfileMinSpan = document.getElementById('ai-profile-min');
 if (aiProfileTextarea && aiProfileLengthSpan) {
     aiProfileTextarea.addEventListener('input', function() {
-        aiProfileLengthSpan.textContent = this.value.length;
+        const len = this.value.length;
+        aiProfileLengthSpan.textContent = len;
+        // Update min indicator
+        if (aiProfileMinSpan) {
+            if (len >= 50) {
+                aiProfileMinSpan.classList.add('char-min-met');
+            } else {
+                aiProfileMinSpan.classList.remove('char-min-met');
+            }
+        }
     });
 }
 

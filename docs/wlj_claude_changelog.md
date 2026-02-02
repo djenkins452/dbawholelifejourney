@@ -14,6 +14,23 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+## 2026-02-02 Changes
+
+### Security: Remove Hardcoded App Review Credentials (SEC-001)
+
+**Issue:** Security scanner flagged hardcoded email and password in `setup_app_review_account.py` management command.
+
+**Fix:** Moved App Review account credentials to environment variables:
+- `APP_REVIEW_EMAIL` - Email for the review account
+- `APP_REVIEW_PASSWORD` - Password for the review account
+
+The command now validates these env vars are set before proceeding and no longer logs the password to stdout.
+
+**Files Modified:**
+- `apps/users/management/commands/setup_app_review_account.py`
+
+---
+
 ## 2026-02-01 Changes
 
 ### AI Assistant: Personal Reflection Response Handling

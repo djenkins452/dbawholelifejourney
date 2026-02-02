@@ -7,15 +7,18 @@ It bypasses MFA and other security measures to allow reviewers to test freely.
 Usage:
     python manage.py setup_app_review_account
 
+Environment variables required:
+    APP_REVIEW_EMAIL - Email for the review account
+    APP_REVIEW_PASSWORD - Password for the review account
+
 The account will be created with:
-- Email: appreview@wholelifejourney.com
-- Password: AppReview2026!
 - All modules enabled
 - AI features enabled
 - Sample data populated
 - MFA and security checks bypassed
 """
 
+import os
 import random
 from datetime import date, datetime, timedelta
 from decimal import Decimal
@@ -32,8 +35,18 @@ class Command(BaseCommand):
     help = "Create or update the Apple App Review demo account with sample data"
 
     def handle(self, *args, **options):
-        email = "appreview@wholelifejourney.com"
-        password = "AppReview2026!"
+        email = os.environ.get("APP_REVIEW_EMAIL")
+        password = os.environ.get("APP_REVIEW_PASSWORD")
+
+        if not email or not password:
+            self.stderr.write(
+                self.style.ERROR(
+                    "Missing required environment variables:\n"
+                    "  APP_REVIEW_EMAIL - Email for the review account\n"
+                    "  APP_REVIEW_PASSWORD - Password for the review account"
+                )
+            )
+            return
 
         # Create or get the user
         user, created = User.objects.get_or_create(
@@ -60,7 +73,7 @@ class Command(BaseCommand):
         # Set password
         user.set_password(password)
         user.save()
-        self.stdout.write(f"Password set to: {password}")
+        self.stdout.write("Password set from APP_REVIEW_PASSWORD environment variable")
 
         # Create verified email address via allauth
         email_addr, email_created = EmailAddress.objects.get_or_create(
@@ -118,7 +131,7 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS("\nApp Review account ready!"))
         self.stdout.write(f"  Email: {email}")
-        self.stdout.write(f"  Password: {password}")
+        self.stdout.write("  Password: (from APP_REVIEW_PASSWORD env var)")
         self.stdout.write("  URL: https://wholelifejourney.com/app-review/")
 
     def _create_sample_journal_entries(self, user):

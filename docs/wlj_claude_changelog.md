@@ -16,6 +16,20 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-02-01 Changes
 
+### Login Preview Cleanup
+
+**Change:** Removed unused preview iterations:
+- Deleted login_preview.html through login_preview6.html
+- Kept login_preview7.html as shareable preview at /login-preview/
+- Cleaned up corresponding view classes and URL routes
+
+**Files Modified:**
+- `templates/account/login_preview*.html` (1-6) - Deleted
+- `apps/core/views.py` - Removed LoginPreview2-7View classes
+- `apps/core/urls.py` - Removed preview 2-7 URL routes
+
+---
+
 ### Login/Signup Page Redesign - Preview 7 Applied
 
 **Change:** Applied Preview 7 design to production login/signup pages:

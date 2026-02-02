@@ -19,7 +19,23 @@
     
     <form method="post" enctype="multipart/form-data" class="profile-form">
         {% csrf_token %}
-        
+
+        {% if form.errors %}
+        <div class="card mb-6" style="border-color: var(--color-error); background: color-mix(in srgb, var(--color-error) 5%, var(--color-background));">
+            <h2 class="card-title" style="color: var(--color-error);">Please fix the following errors:</h2>
+            <ul style="margin: 0; padding-left: var(--space-4); color: var(--color-error);">
+                {% for field in form %}
+                    {% for error in field.errors %}
+                        <li><strong>{{ field.label }}:</strong> {{ error }}</li>
+                    {% endfor %}
+                {% endfor %}
+                {% for error in form.non_field_errors %}
+                    <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
         <!-- Avatar Section -->
         <div class="card mb-6">
             <h2 class="card-title">Profile Photo</h2>

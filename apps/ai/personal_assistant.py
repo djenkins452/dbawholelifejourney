@@ -1764,6 +1764,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         from .intent_service import intent_service
         from .feature_request_service import feature_request_service
         from .bug_report_service import bug_report_service
+        from .confirmation_detector import handle_proactive_confirmation
 
         if not conversation:
             conversation = self.get_or_create_conversation()
@@ -1791,8 +1792,19 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         if not ai_service.is_available or not AIService.check_user_consent(self.user):
             response = self._get_fallback_response(message)
         else:
-            # First, check for pending data visibility confirmation
-            if self._handle_data_visibility_confirmation(message, conversation):
+            # First, check for proactive check-in responses (e.g., "yes" to "Did you take your medicine?")
+            proactive_result = handle_proactive_confirmation(self.user, message)
+            if proactive_result and proactive_result.get('handled'):
+                response = proactive_result['response']
+                if proactive_result.get('action_result', {}).get('success'):
+                    action_result = proactive_result.get('action_result', {})
+                    actions_taken.append({
+                        'type': 'proactive_response',
+                        'success': True,
+                        'created': action_result.get('data'),
+                    })
+            # Then check for pending data visibility confirmation
+            elif self._handle_data_visibility_confirmation(message, conversation):
                 response = self._data_visibility_response
                 self._data_visibility_response = None  # Clear after use
             # Then check for pending action confirmation

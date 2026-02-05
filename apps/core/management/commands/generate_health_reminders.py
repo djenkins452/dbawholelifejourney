@@ -71,6 +71,11 @@ class Command(BaseCommand):
             default='all',
             help='Which time period to generate reminders for',
         )
+        parser.add_argument(
+            '--include-chat',
+            action='store_true',
+            help='Also create interactive check-ins in assistant chat (with quick replies)',
+        )
 
     def handle(self, *args, **options):
         dry_run = options['dry_run']
@@ -78,12 +83,14 @@ class Command(BaseCommand):
         workout_only = options['workout_only']
         journal_only = options['journal_only']
         time_period = options['time_period']
+        include_chat = options['include_chat']
         verbosity = options['verbosity']
 
         if dry_run:
             self.stdout.write(self.style.WARNING('DRY RUN MODE - No notifications will be created'))
 
         total_created = 0
+        chat_created = 0
         generate_all = not (medicine_only or workout_only or journal_only)
 
         # Generate medicine reminders
@@ -128,12 +135,24 @@ class Command(BaseCommand):
                 if verbosity >= 1:
                     self.stdout.write(self.style.SUCCESS(f'  Created {count} journal reminder(s)'))
 
+        # Generate assistant chat check-ins (with quick reply buttons)
+        if include_chat and not dry_run:
+            if verbosity >= 1:
+                self.stdout.write('Generating assistant chat check-ins...')
+            chat_created = self._create_chat_checkins(
+                generate_all, medicine_only, workout_only, journal_only, time_period
+            )
+            if verbosity >= 1:
+                self.stdout.write(self.style.SUCCESS(f'  Created {chat_created} chat check-in(s)'))
+
         # Summary
         self.stdout.write('')
         if dry_run:
             self.stdout.write('DRY RUN complete - no changes made')
         else:
             self.stdout.write(self.style.SUCCESS(f'Total notifications created: {total_created}'))
+            if include_chat:
+                self.stdout.write(self.style.SUCCESS(f'Total chat check-ins created: {chat_created}'))
 
     def _count_medicine_reminders(self) -> int:
         """Count users who would get medicine reminders."""
@@ -358,4 +377,60 @@ class Command(BaseCommand):
                 logger.warning(f"Failed to create journal reminder for user {user.id}: {e}")
 
         logger.info(f"Created {count} journal reminder notifications")
+        return count
+
+    def _create_chat_checkins(
+        self,
+        generate_all: bool,
+        medicine_only: bool,
+        workout_only: bool,
+        journal_only: bool,
+        time_period: str
+    ) -> int:
+        """
+        Create interactive check-in messages in the assistant chat.
+
+        These messages include quick reply buttons so users can respond
+        with a single tap (e.g., "Yes, I took my medicine").
+        """
+        from django.contrib.auth import get_user_model
+        from apps.ai.proactive_checkins import (
+            generate_medicine_check_ins_for_user,
+            generate_daily_check_ins_for_user,
+        )
+
+        User = get_user_model()
+        count = 0
+
+        # Get users with Personal Assistant enabled
+        users = User.objects.filter(
+            preferences__personal_assistant_enabled=True,
+            preferences__personal_assistant_consent=True,
+            preferences__ai_enabled=True,
+            preferences__ai_data_consent=True,
+        ).select_related('preferences')
+
+        for user in users:
+            try:
+                # Medicine check-ins
+                if generate_all or medicine_only:
+                    if user.preferences.health_enabled:
+                        generate_medicine_check_ins_for_user(user)
+                        count += 1
+
+                # Workout check-ins (evening only)
+                if (generate_all or workout_only) and time_period in ['evening', 'all']:
+                    if user.preferences.health_enabled:
+                        generate_daily_check_ins_for_user(user, 'workout')
+                        count += 1
+
+                # Journal check-ins (evening only)
+                if (generate_all or journal_only) and time_period in ['evening', 'all']:
+                    if user.preferences.journal_enabled:
+                        generate_daily_check_ins_for_user(user, 'journal')
+                        count += 1
+
+            except Exception as e:
+                logger.warning(f"Failed to create chat check-ins for user {user.id}: {e}")
+
         return count

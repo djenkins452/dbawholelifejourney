@@ -622,6 +622,83 @@
 .completion-feedback .feedback-message {
     font-weight: 500;
 }
+
+/* Quick Reply Buttons */
+.quick-replies {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.quick-reply-btn {
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    color: var(--color-text);
+}
+
+.quick-reply-btn:hover {
+    background: var(--color-accent);
+    color: white;
+    border-color: var(--color-accent);
+}
+
+.quick-reply-btn.primary {
+    background: var(--color-accent);
+    color: white;
+    border-color: var(--color-accent);
+}
+
+.quick-reply-btn.primary:hover {
+    background: #4f46e5;
+    border-color: #4f46e5;
+}
+
+.quick-reply-btn.secondary {
+    background: transparent;
+    color: var(--color-text);
+    border-color: var(--color-border);
+}
+
+.quick-reply-btn.secondary:hover {
+    background: var(--color-surface);
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+}
+
+.quick-reply-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.quick-reply-btn.used {
+    opacity: 0.6;
+    cursor: default;
+    background: var(--color-surface);
+    border-color: var(--color-border);
+    color: var(--color-text-muted);
+}
+
+/* Proactive message indicator */
+.chat-message.proactive {
+    border-left: 3px solid var(--color-accent);
+    padding-left: 11px;
+}
+
+.proactive-label {
+    font-size: 11px;
+    color: var(--color-accent);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+}
 </style>
 {% endblock %}
 
@@ -1190,13 +1267,58 @@
         }
     });
 
-    function addChatMessage(content, isUser, scroll = true, imageDataUrl = null) {
+    function addChatMessage(content, isUser, scroll = true, imageDataUrl = null, msgData = null) {
         const msg = document.createElement('div');
         msg.className = `chat-message ${isUser ? 'user' : 'assistant'}`;
 
+        // Add proactive class if this is a proactive message
+        if (msgData && msgData.is_proactive) {
+            msg.classList.add('proactive');
+        }
+
+        // Set message ID for quick reply handling
+        if (msgData && msgData.id) {
+            msg.dataset.messageId = msgData.id;
+        }
+
         if (!isUser) {
+            // Proactive label for system-initiated messages
+            if (msgData && msgData.is_proactive) {
+                const label = document.createElement('div');
+                label.className = 'proactive-label';
+                label.textContent = 'Check-in';
+                msg.appendChild(label);
+            }
+
             // Format assistant messages with markdown-like parsing
-            msg.innerHTML = formatAssistantMessage(content);
+            const contentDiv = document.createElement('div');
+            contentDiv.innerHTML = formatAssistantMessage(content);
+            msg.appendChild(contentDiv);
+
+            // Add quick reply buttons if present and not used
+            if (msgData && msgData.quick_replies && msgData.quick_replies.length > 0) {
+                const buttonsDiv = document.createElement('div');
+                buttonsDiv.className = 'quick-replies';
+
+                msgData.quick_replies.forEach(reply => {
+                    const btn = document.createElement('button');
+                    btn.className = `quick-reply-btn ${reply.style || 'secondary'}`;
+                    btn.textContent = reply.label;
+                    btn.dataset.replyId = reply.id;
+                    btn.dataset.action = reply.action;
+                    btn.dataset.params = JSON.stringify(reply.params || {});
+                    btn.onclick = () => handleQuickReply(btn, msgData.id, reply);
+                    buttonsDiv.appendChild(btn);
+                });
+
+                msg.appendChild(buttonsDiv);
+            } else if (msgData && msgData.quick_reply_used) {
+                // Show which reply was used
+                const usedDiv = document.createElement('div');
+                usedDiv.className = 'quick-replies';
+                usedDiv.innerHTML = `<span class="quick-reply-btn used">Responded</span>`;
+                msg.appendChild(usedDiv);
+            }
         } else {
             // User message - may include image
             if (imageDataUrl) {
@@ -1223,6 +1345,55 @@
 
         hasMessages = true;
         clearChatBtn.style.display = 'block';
+    }
+
+    // Handle quick reply button click
+    async function handleQuickReply(button, messageId, reply) {
+        // Disable all buttons in this message
+        const buttonsDiv = button.parentElement;
+        const allButtons = buttonsDiv.querySelectorAll('.quick-reply-btn');
+        allButtons.forEach(btn => btn.disabled = true);
+
+        // Show loading state
+        button.textContent = 'Processing...';
+
+        try {
+            const response = await fetch('/assistant/api/quick-reply/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()
+                },
+                body: JSON.stringify({
+                    message_id: messageId,
+                    reply_id: reply.id,
+                    action: reply.action,
+                    params: reply.params || {}
+                })
+            });
+
+            const data = await response.json();
+
+            // Replace buttons with "Responded" indicator
+            buttonsDiv.innerHTML = `<span class="quick-reply-btn used">Responded</span>`;
+
+            // Add the assistant's response
+            if (data.message) {
+                addChatMessage(data.message, false);
+            }
+
+            // Handle navigation if specified
+            if (data.data && data.data.action === 'navigate' && data.data.url) {
+                window.location.href = data.data.url;
+            }
+
+        } catch (error) {
+            console.error('Quick reply error:', error);
+            // Re-enable buttons on error
+            allButtons.forEach(btn => btn.disabled = false);
+            button.textContent = reply.label;
+            addChatMessage('Sorry, something went wrong. Please try again.', false);
+        }
     }
 
     // Format assistant message with proper markdown-like parsing
@@ -1315,7 +1486,8 @@
                 data.messages.forEach(msg => {
                     const isUser = msg.role === 'user';
                     const imageDataUrl = msg.image_data_url || null;
-                    addChatMessage(msg.content, isUser, false, imageDataUrl);
+                    // Pass full message data to support quick replies
+                    addChatMessage(msg.content, isUser, false, imageDataUrl, msg);
                 });
                 // Scroll to bottom after loading all messages
                 chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -1390,7 +1562,8 @@
                         data.messages.forEach(msg => {
                             const isUser = msg.role === 'user';
                             const imageDataUrl = msg.image_data_url || null;
-                            addChatMessage(msg.content, isUser, false, imageDataUrl);
+                            // Pass full message data to support quick replies
+                            addChatMessage(msg.content, isUser, false, imageDataUrl, msg);
                         });
                         chatMessages.scrollTop = chatMessages.scrollHeight;
                     } else {

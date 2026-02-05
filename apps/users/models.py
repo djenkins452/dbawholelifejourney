@@ -668,6 +668,32 @@ class UserPreferences(models.Model):
         help_text="Require confirmation before AI assistant logs health data (default: log immediately)",
     )
 
+    # ===================
+    # PROACTIVE CHECK-INS
+    # ===================
+    # These control whether the assistant proactively sends interactive check-in messages
+    # in the chat (e.g., "Did you take your 9:00am medicine yet?")
+    assistant_proactive_checkins = models.BooleanField(
+        default=True,
+        help_text="Enable proactive check-in messages in assistant chat",
+    )
+    assistant_medicine_checkins = models.BooleanField(
+        default=True,
+        help_text="Proactive medicine dose reminders in chat (requires proactive checkins)",
+    )
+    assistant_workout_checkins = models.BooleanField(
+        default=True,
+        help_text="Proactive workout reminders in chat (requires proactive checkins)",
+    )
+    assistant_journal_checkins = models.BooleanField(
+        default=True,
+        help_text="Proactive journal reminders in chat (requires proactive checkins)",
+    )
+    assistant_mood_checkins = models.BooleanField(
+        default=True,
+        help_text="Proactive mood check-ins after difficult days (requires proactive checkins)",
+    )
+
     # Location for weather (manual entry)
     location_city = models.CharField(max_length=100, blank=True)
     location_country = models.CharField(max_length=100, blank=True)

@@ -307,10 +307,11 @@ class ConversationHistoryView(LoginRequiredMixin, AssistantMixin, View):
 
             messages = conversation.messages.order_by('created_at').values(
                 'id', 'role', 'content', 'message_type', 'created_at', 'was_helpful',
-                'image_data', 'image_mime_type'
+                'image_data', 'image_mime_type', 'quick_replies', 'quick_reply_used',
+                'is_proactive'
             )
 
-            # Process messages to include image data URLs
+            # Process messages to include image data URLs and quick replies
             messages_list = []
             for msg in messages:
                 msg_data = {
@@ -320,10 +321,16 @@ class ConversationHistoryView(LoginRequiredMixin, AssistantMixin, View):
                     'message_type': msg['message_type'],
                     'created_at': msg['created_at'],
                     'was_helpful': msg['was_helpful'],
+                    'is_proactive': msg.get('is_proactive', False),
                 }
                 # Add image data URL if present
                 if msg.get('image_data') and msg.get('image_mime_type'):
                     msg_data['image_data_url'] = f"data:{msg['image_mime_type']};base64,{msg['image_data']}"
+                # Add quick replies if present and not already used
+                if msg.get('quick_replies') and not msg.get('quick_reply_used'):
+                    msg_data['quick_replies'] = msg['quick_replies']
+                elif msg.get('quick_reply_used'):
+                    msg_data['quick_reply_used'] = msg['quick_reply_used']
                 messages_list.append(msg_data)
 
             return JsonResponse({
@@ -817,6 +824,85 @@ class ReflectionPromptUsedView(LoginRequiredMixin, View):
             return JsonResponse({
                 'success': False,
                 'error': 'Failed to mark prompt',
+            }, status=500)
+
+
+# =============================================================================
+# QUICK REPLY HANDLING
+# =============================================================================
+
+class QuickReplyView(LoginRequiredMixin, AssistantMixin, View):
+    """
+    Handle quick reply button clicks from the assistant chat.
+
+    Quick replies allow users to respond to proactive check-ins
+    with a single tap (e.g., "Yes, I took my medicine").
+    """
+
+    def post(self, request, *args, **kwargs):
+        enabled, error = self.check_personal_assistant_enabled()
+
+        if not enabled:
+            return JsonResponse({
+                'success': False,
+                'error': error,
+            }, status=200)
+
+        try:
+            data = json.loads(request.body)
+            message_id = data.get('message_id')
+            reply_id = data.get('reply_id')
+            action = data.get('action')
+            params = data.get('params', {})
+
+            if not action:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Action is required',
+                }, status=400)
+
+            # Handle the quick reply action
+            from .quick_reply_handlers import handle_quick_reply
+            result = handle_quick_reply(request.user, action, params)
+
+            # Mark the quick reply as used on the message
+            if message_id and reply_id:
+                try:
+                    message = AssistantMessage.objects.get(
+                        id=message_id,
+                        conversation__user=request.user
+                    )
+                    message.quick_reply_used = reply_id
+                    message.save(update_fields=['quick_reply_used'])
+                except AssistantMessage.DoesNotExist:
+                    pass  # Message not found, but action was handled
+
+            # Add assistant response message to conversation
+            if result.get('success') and result.get('message'):
+                conversation = AssistantConversation.get_or_create_active(request.user)
+                AssistantMessage.objects.create(
+                    conversation=conversation,
+                    role='assistant',
+                    content=result['message'],
+                    message_type='text',
+                )
+
+            return JsonResponse({
+                'success': result.get('success', False),
+                'message': result.get('message', ''),
+                'data': result.get('data', {}),
+            })
+
+        except json.JSONDecodeError:
+            return JsonResponse({
+                'success': False,
+                'error': 'Invalid JSON',
+            }, status=400)
+        except Exception as e:
+            logger.error(f"Quick reply error: {e}", exc_info=True)
+            return JsonResponse({
+                'success': False,
+                'error': 'Failed to process quick reply',
             }, status=500)
 
 

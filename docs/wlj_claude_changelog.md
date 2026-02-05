@@ -16,6 +16,46 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-02-05 Changes
 
+### Interactive Assistant Check-ins with Quick Replies
+
+**Feature:** Added a comprehensive proactive check-in system to the assistant chat. The assistant now actively checks in with users about their daily activities (medicines, workouts, journal) and allows one-tap responses via quick reply buttons.
+
+**What's New:**
+1. **Pet Birthday Reminders** - Pets with birth dates now automatically create SignificantEvent records, enabling birthday and memorial notifications
+2. **Quick Reply Buttons** - Assistant messages can now include interactive buttons (e.g., "Yes, I took it", "Skip this dose", "Remind me later")
+3. **Proactive Check-ins** - The assistant can send system-initiated check-in messages asking about medicines, workouts, and journal entries
+4. **Natural Language Responses** - Users can respond to check-ins with natural language ("yes", "done", "not yet") instead of clicking buttons
+5. **User Preferences** - Added granular controls for proactive check-ins (can enable/disable medicine, workout, journal, and mood check-ins separately)
+
+**New Files:**
+- `apps/ai/quick_reply_handlers.py` - Handlers for quick reply button actions
+- `apps/ai/proactive_checkins.py` - Service for generating proactive check-in messages
+- `apps/ai/confirmation_detector.py` - Natural language yes/no detection for check-in responses
+
+**New Migrations:**
+- `apps/ai/migrations/0021_add_quick_replies_to_assistant_message.py` - Add quick_replies, is_proactive, quick_reply_used to AssistantMessage
+- `apps/users/migrations/0059_add_proactive_checkin_preferences.py` - Add proactive check-in preference fields
+
+**Files Modified:**
+- `apps/ai/models.py` - Added quick_replies JSONField, is_proactive, quick_reply_used to AssistantMessage
+- `apps/ai/views.py` - Added QuickReplyView API endpoint
+- `apps/ai/urls.py` - Added /api/quick-reply/ route
+- `apps/ai/personal_assistant.py` - Integrated confirmation detector for natural language responses
+- `apps/life/models.py` - Added create_or_update_birthday_event() to Pet model
+- `apps/life/signals.py` - New signal handlers for pet save/delete to manage birthday events
+- `apps/life/apps.py` - Import signals on app ready
+- `apps/users/models.py` - Added 5 new preference fields for proactive check-ins
+- `apps/core/management/commands/generate_health_reminders.py` - Added --include-chat flag for creating chat check-ins
+- `apps/core/management/commands/generate_birthday_reminders.py` - New command for birthday notifications
+- `apps/core/jobs.py` - Added generate_birthday_reminders job
+- `config/wsgi.py` - Scheduled birthday reminders (now 12 total jobs)
+- `templates/ai/assistant_dashboard.html` - Added quick reply button CSS and JavaScript
+
+**API Changes:**
+- `POST /assistant/api/quick-reply/` - New endpoint for handling quick reply button clicks
+
+---
+
 ### Daily Health Reminders: Medicine, Workout, and Journal Notifications
 
 **Issue:** The notification system existed but had no scheduled jobs to create daily reminders for medicines, workouts, or journal entries. Users with notifications enabled weren't receiving the reminders they expected.

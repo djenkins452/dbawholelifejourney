@@ -198,10 +198,16 @@ class DashboardAI:
         entries_this_week = entries.filter(created_at__gte=week_ago)
         last_entry = entries.order_by('-entry_date').first()
 
+        # TODAY's journal status
+        journaled_today = entries.filter(entry_date=today).exists()
+
         data = {
             'today': today,
+            'current_time': now,
+            'hour_of_day': now.hour,  # 0-23, for time-aware messaging
             'journal_count_week': entries_this_week.count(),
             'last_journal_date': last_entry.entry_date if last_entry else None,
+            'journal_done_today': journaled_today,
         }
 
         # Calculate streak
@@ -447,13 +453,41 @@ class DashboardAI:
 
             # Health - Medicine Tracking
             try:
-                from apps.health.models import Medicine, MedicineLog
+                from apps.health.models import Medicine, MedicineLog, MedicineSchedule
 
                 active_medicines = Medicine.objects.filter(
                     user=self.user,
                     medicine_status=Medicine.STATUS_ACTIVE
                 )
                 data['active_medicines_count'] = active_medicines.count()
+
+                # TODAY'S medicine status - what's expected vs what's done
+                day_of_week = today.weekday()  # 0=Mon, 6=Sun
+                expected_doses_today = 0
+                taken_doses_today = 0
+                pending_doses_today = 0
+
+                for medicine in active_medicines.prefetch_related('schedules'):
+                    for schedule in medicine.schedules.filter(is_active=True):
+                        if schedule.applies_to_day(day_of_week):
+                            expected_doses_today += 1
+                            # Check if this dose was taken
+                            log = MedicineLog.objects.filter(
+                                user=self.user,
+                                medicine=medicine,
+                                schedule=schedule,
+                                scheduled_date=today
+                            ).first()
+                            if log and log.log_status in ['taken', 'late']:
+                                taken_doses_today += 1
+                            elif not log or log.log_status == 'pending':
+                                pending_doses_today += 1
+
+                if expected_doses_today > 0:
+                    data['medicines_expected_today'] = expected_doses_today
+                    data['medicines_taken_today'] = taken_doses_today
+                    data['medicines_pending_today'] = pending_doses_today
+                    data['medicines_done_today'] = pending_doses_today == 0
 
                 # Medicine adherence this week
                 medicine_logs = MedicineLog.objects.filter(
@@ -482,6 +516,13 @@ class DashboardAI:
             # Health - Workout Tracking
             try:
                 from apps.health.models import WorkoutSession, PersonalRecord
+
+                # TODAY's workout status
+                workout_today = WorkoutSession.objects.filter(
+                    user=self.user,
+                    date=today
+                ).exists()
+                data['workout_done_today'] = workout_today
 
                 # Workouts this week
                 workouts_week = WorkoutSession.objects.filter(

@@ -16,6 +16,29 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-02-05 Changes
 
+### Dashboard Assistant Summary: Accountability Focus & Plain Formatting
+
+**Issue:** The Assistant summary at the top of the dashboard had several problems:
+1. Output looked like ChatGPT with markdown formatting (bold text, bullet points)
+2. Didn't check or remind about daily habits (medicines, workout, journal)
+3. Gave generic encouragement instead of actionable accountability
+
+**Fix:** Completely rewrote the daily insight generation to be an accountability assistant:
+- Added today's specific status for medicines (expected vs taken vs pending)
+- Added today's workout status (logged or not)
+- Added today's journal status (written or not)
+- Added time-of-day awareness for appropriate urgency
+- Updated prompt to forbid all markdown formatting
+- Changed tone from "cheerleader" to "accountability partner"
+- Assistant now focuses on what's NOT done and needs attention
+
+**Files Modified:**
+- `apps/ai/dashboard_ai.py` - Added `journal_done_today`, `workout_done_today`, `medicines_expected_today`, `medicines_taken_today`, `medicines_pending_today`, `hour_of_day` to `_gather_user_data()`
+- `apps/ai/services.py` - Updated `generate_daily_insight()` prompt with time-aware habits status and accountability-focused instructions
+- `apps/ai/fixtures/ai_prompt_configs.json` - Updated `daily_insight` config with new system instructions forbidding markdown and emphasizing accountability over praise
+
+---
+
 ### Medicine History: Show All Scheduled Doses with Retroactive Logging
 
 **Issue:** The Medicine History page only showed doses that had already been logged (taken/skipped). Users couldn't see or mark doses they forgot to log from previous days - those doses simply didn't appear.

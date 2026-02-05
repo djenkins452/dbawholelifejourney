@@ -479,6 +479,49 @@ Match your response to your coaching style."""
         context_parts = []
 
         # ===================
+        # TIME CONTEXT (for time-aware messaging)
+        # ===================
+        hour = user_data.get('hour_of_day', 12)
+        if hour < 12:
+            time_of_day = "morning"
+        elif hour < 17:
+            time_of_day = "afternoon"
+        elif hour < 21:
+            time_of_day = "evening"
+        else:
+            time_of_day = "night"
+        context_parts.append(f"TIME OF DAY: {time_of_day} (hour {hour})")
+
+        # ===================
+        # TODAY'S DAILY HABITS STATUS (PRIORITY)
+        # ===================
+        habits_status = []
+
+        # Journal status today
+        if user_data.get('journal_done_today'):
+            habits_status.append("Journal: DONE today")
+        else:
+            habits_status.append("Journal: NOT done today")
+
+        # Workout status today
+        if user_data.get('workout_done_today'):
+            habits_status.append("Workout: DONE today")
+        else:
+            habits_status.append("Workout: NOT done today")
+
+        # Medicine status today
+        if user_data.get('medicines_expected_today', 0) > 0:
+            pending = user_data.get('medicines_pending_today', 0)
+            taken = user_data.get('medicines_taken_today', 0)
+            total = user_data.get('medicines_expected_today', 0)
+            if pending == 0:
+                habits_status.append(f"Medicines: ALL DONE ({taken}/{total} taken)")
+            else:
+                habits_status.append(f"Medicines: {pending} PENDING ({taken}/{total} taken)")
+
+        context_parts.append("TODAY'S DAILY HABITS: " + ", ".join(habits_status))
+
+        # ===================
         # ANNUAL DIRECTION & PURPOSE
         # ===================
         if user_data.get('word_of_year'):
@@ -507,20 +550,10 @@ Match your response to your coaching style."""
             context_parts.append(f"Working on {user_data['active_goals']} life goals")
 
         # ===================
-        # JOURNAL ACTIVITY
+        # JOURNAL ACTIVITY (weekly context)
         # ===================
         if user_data.get('journal_count_week', 0) > 0:
             context_parts.append(f"Journaled {user_data['journal_count_week']} times this week")
-
-        if user_data.get('last_journal_date'):
-            today = user_data.get('today', timezone.now().date())
-            days_ago = (today - user_data['last_journal_date']).days
-            if days_ago == 0:
-                context_parts.append("Wrote in journal today")
-            elif days_ago == 1:
-                context_parts.append("Last journaled yesterday")
-            elif days_ago > 3:
-                context_parts.append(f"Haven't journaled in {days_ago} days")
 
         if user_data.get('current_streak', 0) > 1:
             context_parts.append(f"On a {user_data['current_streak']}-day journal streak")
@@ -563,7 +596,7 @@ Match your response to your coaching style."""
                 context_parts.append(f"Recently studied: {refs}")
 
         # ===================
-        # HEALTH STATUS
+        # HEALTH STATUS (weekly context)
         # ===================
         if user_data.get('weight_trend'):
             trend = user_data['weight_trend']
@@ -593,8 +626,6 @@ Match your response to your coaching style."""
 
         if user_data.get('workouts_this_week', 0) > 0:
             context_parts.append(f"{user_data['workouts_this_week']} workouts this week")
-        elif user_data.get('days_since_workout') is not None and user_data['days_since_workout'] > 3:
-            context_parts.append(f"No workout in {user_data['days_since_workout']} days")
 
         if user_data.get('recent_prs_count', 0) > 0:
             context_parts.append(f"Set {user_data['recent_prs_count']} personal records this month")
@@ -612,13 +643,21 @@ Match your response to your coaching style."""
         if not context_parts:
             context_parts.append("Just getting started with their journey")
 
-        prompt = f"""Based on this user's comprehensive life data:
+        prompt = f"""User's current status:
 {chr(10).join('- ' + p for p in context_parts)}
 
-Generate a personalized, meaningful message for their dashboard.
-Consider their Word of the Year, goals, and current progress.
-Be specific to their situation. Match your coaching style perfectly.
-Keep it concise but personal - 2-3 sentences max."""
+YOUR ROLE: You're their accountability assistant. Help them stay on track today.
+
+RULES:
+1. Focus on INCOMPLETE daily habits (medicines, workout, journal)—tell them what needs to happen
+2. Be more urgent in the evening than the morning
+3. DON'T congratulate or give kudos—just acknowledge what's done and move to what's not
+4. If everything is done, briefly say so and suggest they relax or take a break
+5. Plain conversational prose only—NO markdown, NO lists, NO bullet points
+6. 2-3 natural sentences maximum
+7. Be direct and helpful, like a friend keeping them accountable
+
+Generate the message now."""
 
         return self._call_api(system, prompt, max_tokens=max_tokens)
     

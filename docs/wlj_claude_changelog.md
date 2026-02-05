@@ -14,6 +14,31 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+## 2026-02-05 Changes
+
+### Medicine History: Show All Scheduled Doses with Retroactive Logging
+
+**Issue:** The Medicine History page only showed doses that had already been logged (taken/skipped). Users couldn't see or mark doses they forgot to log from previous days - those doses simply didn't appear.
+
+**Fix:** Rewrote the Medicine History view to generate a complete list of all scheduled doses for the date range, combining:
+- Actual logged doses (from MedicineLog)
+- Expected but unlogged doses (from MedicineSchedule)
+
+Users can now:
+1. See ALL scheduled doses in history, including those never logged
+2. Mark past missed doses as "Taken" (at scheduled time or specify a custom time)
+3. Mark past missed doses as "Skipped"
+4. Edit existing logged doses (as before)
+
+Pending doses show with a dashed border and warning-colored "Pending" badge.
+
+**Files Modified:**
+- `apps/health/views.py` - Rewrote `MedicineHistoryView` to generate expected doses; added `MedicineHistoryTakeView` and `MedicineHistorySkipView` for retroactive logging
+- `apps/health/urls.py` - Added routes for `medicine_history_take` and `medicine_history_skip`
+- `templates/health/medicine/history.html` - Updated to display pending doses with Take/Skip actions and time picker modal
+
+---
+
 ## 2026-02-02 Changes
 
 ### AI Assistant: Task Creation Response & Context Awareness

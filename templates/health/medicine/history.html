@@ -34,11 +34,11 @@
             </div>
             <div class="filter-group">
                 <label for="start">Start Date</label>
-                <input type="date" name="start" id="start" value="{{ request.GET.start }}" class="form-input">
+                <input type="date" name="start" id="start" value="{{ start_date|date:'Y-m-d' }}" class="form-input">
             </div>
             <div class="filter-group">
                 <label for="end">End Date</label>
-                <input type="date" name="end" id="end" value="{{ request.GET.end }}" class="form-input">
+                <input type="date" name="end" id="end" value="{{ end_date|date:'Y-m-d' }}" class="form-input">
             </div>
             <div class="filter-actions">
                 <button type="submit" class="btn btn-primary btn-sm">Filter</button>
@@ -47,44 +47,74 @@
         </div>
     </form>
 
-    {% if logs %}
+    {% if doses_by_date %}
     <div class="history-list">
-        {% regroup logs by scheduled_date as logs_by_date %}
-        {% for date_group in logs_by_date %}
+        {% for date, doses in doses_by_date.items %}
         <div class="date-group">
-            <h2 class="date-header">{{ date_group.grouper|date:"l, F j, Y" }}</h2>
+            <h2 class="date-header">{{ date|date:"l, F j, Y" }}</h2>
             <div class="log-items">
-                {% for log in date_group.list %}
-                <div class="log-item log-{{ log.log_status }}">
+                {% for dose in doses %}
+                <div class="log-item log-{{ dose.log_status }}">
                     <div class="log-medicine">
-                        <a href="{% url 'health:medicine_detail' pk=log.medicine.pk %}">{{ log.medicine.name }}</a>
-                        <span class="log-dose">{{ log.medicine.dose }}</span>
+                        <a href="{% url 'health:medicine_detail' pk=dose.medicine.pk %}">{{ dose.medicine.name }}</a>
+                        <span class="log-dose">{{ dose.medicine.dose }}</span>
                     </div>
                     <div class="log-time">
-                        {% if log.scheduled_time %}
-                        {{ log.scheduled_time|time:"g:i A" }}
-                        {% elif log.is_prn_dose %}
+                        {% if dose.scheduled_time %}
+                        {{ dose.scheduled_time|time:"g:i A" }}
+                        {% elif dose.is_prn_dose %}
                         PRN
                         {% endif %}
                     </div>
                     <div class="log-status-badge">
-                        {{ log.get_log_status_display }}
-                    </div>
-                    {% if log.taken_at %}
-                    <div class="log-taken">
-                        Taken at {% timezone user_timezone %}{{ log.taken_at|time:"g:i A" }}{% endtimezone %}
-                    </div>
-                    {% endif %}
-                    <div class="log-actions">
-                        {% if log.taken_at %}
-                        <a href="{% url 'health:medicine_log_edit' pk=log.pk %}?next={{ request.get_full_path|urlencode }}" class="btn btn-text btn-sm" title="Edit taken time">Edit</a>
+                        {% if dose.log_status == "pending" %}
+                        Pending
+                        {% elif dose.log_status == "taken" %}
+                        Taken
+                        {% elif dose.log_status == "late" %}
+                        Taken Late
+                        {% elif dose.log_status == "skipped" %}
+                        Skipped
+                        {% elif dose.log_status == "missed" %}
+                        Missed
                         {% endif %}
                     </div>
-                    {% if log.prn_reason %}
-                    <div class="log-reason">{{ log.prn_reason }}</div>
+                    {% if dose.taken_at %}
+                    <div class="log-taken">
+                        Taken at {% timezone user_timezone %}{{ dose.taken_at|time:"g:i A" }}{% endtimezone %}
+                    </div>
+                    {% else %}
+                    <div class="log-taken"></div>
                     {% endif %}
-                    {% if log.notes %}
-                    <div class="log-notes">{{ log.notes }}</div>
+                    <div class="log-actions">
+                        {% if dose.log_status == "pending" and dose.schedule %}
+                        <!-- Pending dose - show take/skip actions -->
+                        <div class="dose-actions">
+                            <form method="post" action="{% url 'health:medicine_history_take' pk=dose.medicine.pk schedule_pk=dose.schedule.pk %}" class="inline-form">
+                                {% csrf_token %}
+                                <input type="hidden" name="date" value="{{ dose.scheduled_date|date:'Y-m-d' }}">
+                                <input type="hidden" name="taken_at_scheduled" value="1">
+                                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                <button type="submit" class="btn btn-text btn-sm btn-success-text" title="Mark as taken at scheduled time">Taken</button>
+                            </form>
+                            <button type="button" class="btn btn-text btn-sm" onclick="showTakeTimeModal('{{ dose.medicine.pk }}', '{{ dose.schedule.pk }}', '{{ dose.scheduled_date|date:'Y-m-d' }}', '{{ dose.medicine.name }}')" title="Specify taken time">at...</button>
+                            <form method="post" action="{% url 'health:medicine_history_skip' pk=dose.medicine.pk schedule_pk=dose.schedule.pk %}" class="inline-form">
+                                {% csrf_token %}
+                                <input type="hidden" name="date" value="{{ dose.scheduled_date|date:'Y-m-d' }}">
+                                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                <button type="submit" class="btn btn-text btn-sm" title="Mark as skipped">Skip</button>
+                            </form>
+                        </div>
+                        {% elif dose.log and dose.taken_at %}
+                        <!-- Has a log with taken_at - show edit -->
+                        <a href="{% url 'health:medicine_log_edit' pk=dose.log.pk %}?next={{ request.get_full_path|urlencode }}" class="btn btn-text btn-sm" title="Edit taken time">Edit</a>
+                        {% endif %}
+                    </div>
+                    {% if dose.is_prn_dose and dose.prn_reason %}
+                    <div class="log-reason">{{ dose.prn_reason }}</div>
+                    {% endif %}
+                    {% if dose.notes %}
+                    <div class="log-notes">{{ dose.notes }}</div>
                     {% endif %}
                 </div>
                 {% endfor %}
@@ -92,24 +122,38 @@
         </div>
         {% endfor %}
     </div>
-
-    {% if page_obj.has_other_pages %}
-    <nav class="pagination mt-6">
-        {% if page_obj.has_previous %}
-        <a href="?page={{ page_obj.previous_page_number }}{% if selected_medicine %}&medicine={{ selected_medicine }}{% endif %}{% if request.GET.start %}&start={{ request.GET.start }}{% endif %}{% if request.GET.end %}&end={{ request.GET.end }}{% endif %}" class="btn btn-secondary btn-sm">Previous</a>
-        {% endif %}
-        <span class="page-info">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
-        {% if page_obj.has_next %}
-        <a href="?page={{ page_obj.next_page_number }}{% if selected_medicine %}&medicine={{ selected_medicine }}{% endif %}{% if request.GET.start %}&start={{ request.GET.start }}{% endif %}{% if request.GET.end %}&end={{ request.GET.end }}{% endif %}" class="btn btn-secondary btn-sm">Next</a>
-        {% endif %}
-    </nav>
-    {% endif %}
-
     {% else %}
     <div class="empty-state">
-        <p class="text-muted">No medicine logs found{% if selected_medicine or request.GET.start or request.GET.end %} matching your filters{% endif %}.</p>
+        <p class="text-muted">No scheduled doses found{% if selected_medicine or request.GET.start or request.GET.end %} matching your filters{% endif %}.</p>
     </div>
     {% endif %}
+</div>
+
+<!-- Take Time Modal -->
+<div id="takeTimeModal" class="modal" style="display: none;">
+    <div class="modal-backdrop" onclick="closeTakeTimeModal()"></div>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="modal-title">Mark as Taken</h3>
+            <button type="button" class="modal-close" onclick="closeTakeTimeModal()">&times;</button>
+        </div>
+        <form id="takeTimeForm" method="post" action="">
+            {% csrf_token %}
+            <input type="hidden" name="date" id="modalDate" value="">
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <div class="modal-body">
+                <p id="modalMedicineName" class="mb-4"></p>
+                <div class="form-group">
+                    <label for="taken_at_time">Time taken:</label>
+                    <input type="time" name="taken_at_time" id="taken_at_time" class="form-input" required>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeTakeTimeModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save</button>
+            </div>
+        </form>
+    </div>
 </div>
 
 <style nonce="{{ csp_nonce }}">
@@ -197,6 +241,11 @@
     background: var(--color-surface);
 }
 
+.log-item.log-pending {
+    background: color-mix(in srgb, var(--color-warning, #f59e0b) 5%, transparent);
+    border: 1px dashed var(--color-border);
+}
+
 .log-medicine {
     display: flex;
     flex-direction: column;
@@ -240,6 +289,10 @@
     color: var(--color-text-muted);
 }
 
+.log-pending .log-status-badge {
+    color: var(--color-warning, #f59e0b);
+}
+
 .log-taken-info {
     font-size: var(--font-size-sm);
     color: var(--color-text-muted);
@@ -264,6 +317,20 @@
     text-decoration: underline;
 }
 
+.log-actions .btn-success-text {
+    color: var(--color-success, #10b981);
+}
+
+.dose-actions {
+    display: flex;
+    gap: var(--space-1);
+    align-items: center;
+}
+
+.inline-form {
+    display: inline;
+}
+
 .log-reason,
 .log-notes {
     grid-column: 1 / -1;
@@ -273,16 +340,71 @@
     border-top: 1px solid var(--color-border);
 }
 
-.pagination {
+/* Modal styles */
+.modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
     display: flex;
-    justify-content: center;
     align-items: center;
-    gap: var(--space-4);
+    justify-content: center;
 }
 
-.page-info {
-    font-size: var(--font-size-sm);
+.modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.modal-content {
+    position: relative;
+    background: var(--color-background);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    max-width: 400px;
+    width: 90%;
+    max-height: 90vh;
+    overflow: auto;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.modal-title {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    margin: 0;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
     color: var(--color-text-muted);
+    padding: 0;
+    line-height: 1;
+}
+
+.modal-close:hover {
+    color: var(--color-text);
+}
+
+.modal-body {
+    padding: var(--space-4);
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    padding: var(--space-4);
+    border-top: 1px solid var(--color-border);
 }
 
 @media (max-width: 640px) {
@@ -295,6 +417,37 @@
         grid-template-columns: 1fr;
         gap: var(--space-2);
     }
+
+    .dose-actions {
+        flex-wrap: wrap;
+    }
 }
 </style>
+
+<script nonce="{{ csp_nonce }}">
+function showTakeTimeModal(medicineId, scheduleId, date, medicineName) {
+    const modal = document.getElementById('takeTimeModal');
+    const form = document.getElementById('takeTimeForm');
+    const dateInput = document.getElementById('modalDate');
+    const nameEl = document.getElementById('modalMedicineName');
+
+    form.action = '/health/physical/medicine/' + medicineId + '/history-take/' + scheduleId + '/';
+    dateInput.value = date;
+    nameEl.textContent = medicineName + ' - ' + date;
+
+    modal.style.display = 'flex';
+}
+
+function closeTakeTimeModal() {
+    const modal = document.getElementById('takeTimeModal');
+    modal.style.display = 'none';
+}
+
+// Close modal on escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeTakeTimeModal();
+    }
+});
+</script>
 {% endblock %}

@@ -4,7 +4,7 @@ Health Views - Physical wellness tracking.
 
 import json
 import pytz
-from datetime import timedelta
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 from django.contrib import messages
@@ -3198,44 +3198,164 @@ class PRNLogView(LoginRequiredMixin, TemplateView):
         return self.render_to_response(context)
 
 
-class MedicineHistoryView(LoginRequiredMixin, ListView):
+class MedicineHistoryView(LoginRequiredMixin, TemplateView):
     """
-    View medicine log history.
+    View medicine history including all scheduled doses (logged and unlogged).
+
+    Shows complete history of scheduled doses with ability to retroactively
+    mark missed doses as taken or skipped.
     """
 
-    model = MedicineLog
     template_name = "health/medicine/history.html"
-    context_object_name = "logs"
-    paginate_by = 50
-
-    def get_queryset(self):
-        queryset = MedicineLog.objects.filter(user=self.request.user)
-
-        # Filter by medicine if specified
-        medicine_id = self.request.GET.get("medicine")
-        if medicine_id:
-            queryset = queryset.filter(medicine_id=medicine_id)
-
-        # Filter by date range
-        start_date = self.request.GET.get("start")
-        end_date = self.request.GET.get("end")
-        if start_date:
-            queryset = queryset.filter(scheduled_date__gte=start_date)
-        if end_date:
-            queryset = queryset.filter(scheduled_date__lte=end_date)
-
-        return queryset.select_related("medicine", "schedule")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["medicines"] = Medicine.objects.filter(user=self.request.user)
-        context["selected_medicine"] = self.request.GET.get("medicine")
-        # Add user timezone for template display (use timezone_iana for legacy format support)
+        user = self.request.user
+        today = get_user_today(user)
+
+        # Get filter parameters
+        medicine_id = self.request.GET.get("medicine")
+        start_date_str = self.request.GET.get("start")
+        end_date_str = self.request.GET.get("end")
+
+        # Parse dates with defaults
+        if start_date_str:
+            try:
+                start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+            except ValueError:
+                start_date = today - timedelta(days=30)
+        else:
+            # Default to last 30 days
+            start_date = today - timedelta(days=30)
+
+        if end_date_str:
+            try:
+                end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
+            except ValueError:
+                end_date = today
+        else:
+            end_date = today
+
+        # Build list of all expected doses in date range
+        all_doses = self._get_all_doses_for_range(user, start_date, end_date, medicine_id)
+
+        # Group doses by date (most recent first)
+        from collections import OrderedDict
+        doses_by_date = OrderedDict()
+        for dose in all_doses:
+            date = dose["scheduled_date"]
+            if date not in doses_by_date:
+                doses_by_date[date] = []
+            doses_by_date[date].append(dose)
+
+        context["doses_by_date"] = doses_by_date
+        context["medicines"] = Medicine.objects.filter(user=user)
+        context["selected_medicine"] = medicine_id
+        context["start_date"] = start_date
+        context["end_date"] = end_date
+
+        # Add user timezone for template display
         try:
-            context["user_timezone"] = self.request.user.preferences.timezone_iana
+            context["user_timezone"] = user.preferences.timezone_iana
         except AttributeError:
             context["user_timezone"] = "UTC"
+
         return context
+
+    def _get_all_doses_for_range(self, user, start_date, end_date, medicine_id=None):
+        """
+        Generate list of all expected doses in date range, combining:
+        - Actual logged doses (from MedicineLog)
+        - Expected but unlogged doses (from MedicineSchedule)
+        """
+        from datetime import timedelta
+
+        # Get medicines to process
+        medicines_qs = Medicine.objects.filter(user=user)
+        if medicine_id:
+            medicines_qs = medicines_qs.filter(pk=medicine_id)
+
+        # Get all logs in range
+        logs_qs = MedicineLog.objects.filter(
+            user=user,
+            scheduled_date__gte=start_date,
+            scheduled_date__lte=end_date,
+        ).select_related("medicine", "schedule")
+
+        if medicine_id:
+            logs_qs = logs_qs.filter(medicine_id=medicine_id)
+
+        # Index logs by (medicine_id, schedule_id, date) for quick lookup
+        logged_doses = {}
+        for log in logs_qs:
+            key = (log.medicine_id, log.schedule_id, log.scheduled_date)
+            logged_doses[key] = log
+
+        all_doses = []
+
+        # Iterate through each day in range
+        current_date = end_date
+        while current_date >= start_date:
+            day_of_week = current_date.weekday()
+
+            # Check each medicine's schedules
+            for medicine in medicines_qs.prefetch_related("schedules"):
+                # Skip PRN-only medicines
+                if medicine.is_prn:
+                    continue
+
+                # Check if medicine was active on this date
+                if medicine.start_date and current_date < medicine.start_date:
+                    continue
+                if medicine.end_date and current_date > medicine.end_date:
+                    continue
+
+                for schedule in medicine.schedules.filter(is_active=True):
+                    # Check if schedule applies to this day of week
+                    if not schedule.applies_to_day(day_of_week):
+                        continue
+
+                    key = (medicine.pk, schedule.pk, current_date)
+                    log = logged_doses.get(key)
+
+                    dose_info = {
+                        "scheduled_date": current_date,
+                        "scheduled_time": schedule.scheduled_time,
+                        "medicine": medicine,
+                        "schedule": schedule,
+                        "log": log,
+                        "log_status": log.log_status if log else "pending",
+                        "taken_at": log.taken_at if log else None,
+                        "is_prn_dose": False,
+                        "notes": log.notes if log else "",
+                    }
+                    all_doses.append(dose_info)
+
+            # Also include PRN doses for this date (they have logs)
+            for log in logs_qs.filter(scheduled_date=current_date, is_prn_dose=True):
+                dose_info = {
+                    "scheduled_date": current_date,
+                    "scheduled_time": log.scheduled_time,
+                    "medicine": log.medicine,
+                    "schedule": log.schedule,
+                    "log": log,
+                    "log_status": log.log_status,
+                    "taken_at": log.taken_at,
+                    "is_prn_dose": True,
+                    "prn_reason": log.prn_reason,
+                    "notes": log.notes,
+                }
+                all_doses.append(dose_info)
+
+            current_date -= timedelta(days=1)
+
+        # Sort by date desc, then time
+        all_doses.sort(key=lambda x: (
+            -x["scheduled_date"].toordinal(),
+            x["scheduled_time"] or datetime.min.time()
+        ))
+
+        return all_doses
 
 
 class MedicineLogEditView(LoginRequiredMixin, UpdateView):
@@ -3279,6 +3399,133 @@ class MedicineLogEditView(LoginRequiredMixin, UpdateView):
             f"Updated taken time for {self.object.medicine.name}."
         )
         return super().form_valid(form)
+
+
+class MedicineHistoryTakeView(LoginRequiredMixin, View):
+    """
+    Mark a past scheduled dose as taken from the history page.
+
+    Allows retroactive logging of doses that were taken but not recorded.
+    """
+
+    def post(self, request, pk, schedule_pk):
+        import pytz
+
+        medicine = get_object_or_404(
+            Medicine.objects.filter(user=request.user),
+            pk=pk,
+        )
+        schedule = get_object_or_404(
+            medicine.schedules.all(),
+            pk=schedule_pk,
+        )
+
+        # Get the date from POST (required for history)
+        date_str = request.POST.get("date")
+        if not date_str:
+            messages.error(request, "Date is required.")
+            return redirect(request.POST.get("next", reverse_lazy("health:medicine_history")))
+
+        try:
+            dose_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+        except ValueError:
+            messages.error(request, "Invalid date format.")
+            return redirect(request.POST.get("next", reverse_lazy("health:medicine_history")))
+
+        # Get or create the log entry for this specific date
+        log, created = MedicineLog.objects.get_or_create(
+            user=request.user,
+            medicine=medicine,
+            schedule=schedule,
+            scheduled_date=dose_date,
+            defaults={
+                "scheduled_time": schedule.scheduled_time,
+                "is_prn_dose": False,
+            }
+        )
+
+        # Determine taken_at time
+        taken_at = None
+        if request.POST.get("taken_at_scheduled"):
+            # Use the scheduled time on that date
+            user_tz = pytz.timezone(request.user.preferences.timezone_iana)
+            scheduled_dt = datetime.combine(dose_date, schedule.scheduled_time)
+            taken_at = user_tz.localize(scheduled_dt)
+        elif request.POST.get("taken_at_time"):
+            # Use specific time provided
+            time_str = request.POST.get("taken_at_time")
+            try:
+                taken_time = datetime.strptime(time_str, "%H:%M").time()
+                user_tz = pytz.timezone(request.user.preferences.timezone_iana)
+                taken_dt = datetime.combine(dose_date, taken_time)
+                taken_at = user_tz.localize(taken_dt)
+            except ValueError:
+                pass  # Fall back to current time
+
+        # Mark as taken
+        log.mark_taken(taken_at=taken_at)
+
+        # Decrease supply if tracked (only if newly created)
+        if created and medicine.current_supply is not None and medicine.current_supply > 0:
+            medicine.current_supply -= 1
+            medicine.save(update_fields=["current_supply", "updated_at"])
+
+        messages.success(request, f"Marked {medicine.name} as taken for {dose_date.strftime('%b %d')}.")
+
+        next_url = request.POST.get("next", reverse_lazy("health:medicine_history"))
+        return redirect(next_url)
+
+
+class MedicineHistorySkipView(LoginRequiredMixin, View):
+    """
+    Mark a past scheduled dose as skipped from the history page.
+
+    Allows retroactive marking of doses that were intentionally skipped.
+    """
+
+    def post(self, request, pk, schedule_pk):
+        medicine = get_object_or_404(
+            Medicine.objects.filter(user=request.user),
+            pk=pk,
+        )
+        schedule = get_object_or_404(
+            medicine.schedules.all(),
+            pk=schedule_pk,
+        )
+
+        # Get the date from POST (required for history)
+        date_str = request.POST.get("date")
+        if not date_str:
+            messages.error(request, "Date is required.")
+            return redirect(request.POST.get("next", reverse_lazy("health:medicine_history")))
+
+        try:
+            dose_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+        except ValueError:
+            messages.error(request, "Invalid date format.")
+            return redirect(request.POST.get("next", reverse_lazy("health:medicine_history")))
+
+        reason = request.POST.get("reason", "")
+
+        # Get or create the log entry for this specific date
+        log, created = MedicineLog.objects.get_or_create(
+            user=request.user,
+            medicine=medicine,
+            schedule=schedule,
+            scheduled_date=dose_date,
+            defaults={
+                "scheduled_time": schedule.scheduled_time,
+                "is_prn_dose": False,
+            }
+        )
+
+        # Mark as skipped
+        log.mark_skipped(reason)
+
+        messages.info(request, f"Marked {medicine.name} as skipped for {dose_date.strftime('%b %d')}.")
+
+        next_url = request.POST.get("next", reverse_lazy("health:medicine_history"))
+        return redirect(next_url)
 
 
 class MedicineAdherenceView(LoginRequiredMixin, TemplateView):

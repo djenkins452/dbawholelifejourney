@@ -54,6 +54,10 @@ BOOK_ABBREVIATIONS = {
 # Users can set their preference via default_bible_translation
 DEFAULT_YOUVERSION_BIBLE_ID = "111"
 
+# Fallback Bible ID (BSB - Berean Standard Bible)
+# Used when primary translation fails (403/404 errors)
+FALLBACK_YOUVERSION_BIBLE_ID = "3034"
+
 
 class ActionHandler:
     """
@@ -112,24 +116,34 @@ class ActionHandler:
         else:
             passage_id = f"{book_abbrev}.{chapter}.{verse_start}"
 
-        try:
-            url = f"{BIBLE_API_BASE}/bibles/{bible_id}/passages/{passage_id}"
+        def try_fetch(bid):
+            """Try to fetch verse with given Bible ID."""
+            url = f"{BIBLE_API_BASE}/bibles/{bid}/passages/{passage_id}"
             headers = {"X-YVP-App-Key": api_key}
-
             response = requests.get(url, headers=headers, timeout=10)
             response.raise_for_status()
             data = response.json()
-
-            # Extract the verse text from the response
-            # YouVersion returns: {"id": "...", "content": "...", "reference": "..."}
             if data.get('content'):
                 text = data['content'].strip()
-                # Clean up any extra whitespace
-                text = ' '.join(text.split())
-                return text
-
+                return ' '.join(text.split())
             return ""
 
+        try:
+            return try_fetch(bible_id)
+        except requests.exceptions.HTTPError as e:
+            # If we get a 403/404 and aren't already using fallback, try fallback
+            if e.response.status_code in (403, 404) and bible_id != FALLBACK_YOUVERSION_BIBLE_ID:
+                logger.warning(
+                    f"YouVersion API {e.response.status_code} for bible {bible_id}, "
+                    f"trying fallback {FALLBACK_YOUVERSION_BIBLE_ID}"
+                )
+                try:
+                    return try_fetch(FALLBACK_YOUVERSION_BIBLE_ID)
+                except requests.exceptions.RequestException as fallback_e:
+                    logger.error(f"Fallback also failed: {fallback_e}")
+                    return ""
+            logger.error(f"Error fetching verse from YouVersion API: {e}")
+            return ""
         except requests.exceptions.RequestException as e:
             logger.error(f"Error fetching verse from YouVersion API: {e}")
             return ""

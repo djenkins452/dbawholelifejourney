@@ -16,6 +16,25 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-02-05 Changes
 
+### Fix YouVersion Bible API 403 Errors
+
+**Problem:** Users receiving 403 errors when fetching Bible verses (John 3:16). Errors caused by:
+1. Old API.Bible IDs saved in user preferences (UUID format like "de4e12af7f28f599-02")
+2. No fallback when primary translation fails (licensing restrictions on some translations)
+
+**Solution:**
+1. Added fallback to BSB (3034) when verse lookup fails with 403/404
+2. Created data migration to clean up invalid Bible IDs from user preferences
+3. Improved error handling and logging
+
+**Files Modified:**
+- `apps/ai/action_handlers.py` - Added `FALLBACK_YOUVERSION_BIBLE_ID` constant and fallback logic in `_fetch_verse_text()`
+
+**New Migration:**
+- `apps/users/migrations/0060_cleanup_invalid_bible_ids.py` - Clears non-numeric Bible IDs from user preferences
+
+---
+
 ### Enhanced Assistant Intelligence Layer (Master Prompt Integration)
 
 **Feature:** Completely redesigned the proactive check-in system based on the "Master Prompt" philosophy. The assistant now behaves like a highly attentive, human-like right-hand assistant - calm, observant, factual, and efficient.

@@ -16,6 +16,47 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-02-05 Changes
 
+### Enhanced Assistant Intelligence Layer (Master Prompt Integration)
+
+**Feature:** Completely redesigned the proactive check-in system based on the "Master Prompt" philosophy. The assistant now behaves like a highly attentive, human-like right-hand assistant - calm, observant, factual, and efficient.
+
+**Core Philosophy:**
+- NOT a cheerleader, NOT a therapist, NOT a medical advisor
+- Awareness + alignment, not advice
+- Short messages (1-2 sentences max)
+- Primary question: "Is this helpful right now?" - if not, don't interrupt
+
+**What's New:**
+1. **Intelligent Throttling** - Max 3 proactive messages per hour, no repeats within 4 hours, max 1 of each type per day (prevents spam)
+2. **Pattern Recognition** - Detects factual correlations in user data:
+   - Food-glucose correlations (what foods spike readings)
+   - Workout-mood correlations (exercise improves mood)
+   - Sleep-energy correlations (sleep quality affects energy)
+3. **Coaching Style Templates** - Messages adapt to user's selected style:
+   - Default (professional, efficient)
+   - Southern Belle (warm, encouraging)
+   - New Yorker (direct, no-nonsense)
+   - California (casual, relaxed)
+4. **Health Context Reminders** - Medicine reminders include relevant health info (e.g., "Your last labs showed elevated cholesterol")
+5. **Busy Day Detection** - Alerts when tomorrow has 5+ items scheduled
+6. **Overdue Task Check-ins** - Brief prompts about overdue tasks
+7. **Streak Recognition** - Brief acknowledgment (not celebration) of streaks
+
+**New Files:**
+- `apps/ai/assistant_intelligence.py` - Core intelligence layer with throttling, pattern analysis, and style templates
+
+**Files Modified:**
+- `apps/ai/proactive_checkins.py` - Completely rewritten to use intelligence layer
+
+**Key Classes:**
+- `InteractionThrottler` - Prevents message spam
+- `PatternAnalyzer` - Finds factual correlations in data
+- `ScheduleAnalyzer` - Detects busy days
+- `IntelligentCheckInService` - Orchestrates all intelligence features
+- `ProactiveCheckInService` - Generates styled check-in messages
+
+---
+
 ### Interactive Assistant Check-ins with Quick Replies
 
 **Feature:** Added a comprehensive proactive check-in system to the assistant chat. The assistant now actively checks in with users about their daily activities (medicines, workouts, journal) and allows one-tap responses via quick reply buttons.

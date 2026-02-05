@@ -123,3 +123,24 @@ def send_notification_digest():
     except Exception as e:
         logger.exception(f"Notification digest job failed: {e}")
         raise
+
+
+def generate_birthday_reminders():
+    """
+    Generate birthday and memorial reminder notifications.
+
+    Creates notifications for:
+    - Pet birthdays (living pets)
+    - Pet memorials (passed pets)
+    - People birthdays and anniversaries (via SignificantEvent)
+
+    Scheduled: Daily at 12:00 PM UTC (7:00 AM EST)
+    """
+    logger.info("Starting birthday reminders job...")
+
+    try:
+        call_command('generate_birthday_reminders')
+        logger.info("Birthday reminders job completed successfully")
+    except Exception as e:
+        logger.exception(f"Birthday reminders job failed: {e}")
+        raise

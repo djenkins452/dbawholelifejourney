@@ -710,6 +710,73 @@ class Pet(UserOwnedModel):
             return years
         return None
 
+    def create_or_update_birthday_event(self):
+        """
+        Create or update a SignificantEvent for this pet's birthday.
+
+        - Living pets get a 'birthday' event
+        - Passed pets get a 'memorial' event (remembering them)
+        - If pet has no birth_date, any existing event is deleted
+
+        Returns:
+            SignificantEvent or None
+        """
+        if not self.birth_date:
+            # Remove any existing birthday event for this pet
+            SignificantEvent.objects.filter(
+                user=self.user,
+                title__icontains=f"{self.name}'s Birthday",
+                event_type__in=['birthday', 'memorial'],
+            ).delete()
+            return None
+
+        # Determine event type based on pet status
+        if self.is_active:
+            event_type = 'birthday'
+            title = f"{self.name}'s Birthday"
+            description = f"🎂 Celebrate {self.name}'s birthday!"
+        else:
+            event_type = 'memorial'
+            title = f"Remembering {self.name}"
+            if self.passed_date:
+                description = f"🌈 In loving memory of {self.name}, who passed on {self.passed_date.strftime('%B %d, %Y')}."
+            else:
+                description = f"🌈 In loving memory of {self.name}."
+
+        # Try to find existing event for this pet
+        # Match by title pattern (case-insensitive contains name)
+        existing = SignificantEvent.objects.filter(
+            user=self.user,
+            event_date__month=self.birth_date.month,
+            event_date__day=self.birth_date.day,
+        ).filter(
+            models.Q(title__icontains=self.name) |
+            models.Q(person_name__iexact=self.name)
+        ).first()
+
+        if existing:
+            # Update existing event
+            existing.title = title
+            existing.description = description
+            existing.event_type = event_type
+            existing.person_name = self.name
+            existing.original_year = self.birth_date.year
+            existing.save()
+            return existing
+        else:
+            # Create new event
+            event = SignificantEvent.objects.create(
+                user=self.user,
+                title=title,
+                description=description,
+                event_type=event_type,
+                event_date=self.birth_date,
+                original_year=self.birth_date.year,
+                person_name=self.name,
+                reminder_days=[7, 1, 0],  # Remind 1 week, 1 day, and day-of
+            )
+            return event
+
 
 class PetRecord(models.Model):
     """

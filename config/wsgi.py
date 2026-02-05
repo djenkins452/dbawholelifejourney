@@ -177,6 +177,16 @@ def start_scheduler():
             replace_existing=True,
         )
 
+        # Job 12: Generate birthday/anniversary reminders at 12:00 PM UTC (7:00 AM EST)
+        # Notifies users about birthdays, memorials, and anniversaries
+        scheduler.add_job(
+            'apps.core.jobs:generate_birthday_reminders',
+            trigger=CronTrigger(hour=12, minute=0),
+            id="generate_birthday_reminders",
+            max_instances=1,
+            replace_existing=True,
+        )
+
         # =====================================================================
         # Capture Jobs
         # =====================================================================
@@ -203,7 +213,7 @@ def start_scheduler():
 
         scheduler.start()
         logger.info("=" * 60)
-        logger.info("APScheduler STARTED successfully with 11 jobs:")
+        logger.info("APScheduler STARTED successfully with 12 jobs:")
         logger.info("  - SMS: schedule_daily_sms_reminders (daily at 00:00 UTC) [on hold]")
         logger.info("  - SMS: send_pending_sms (every 5 minutes) [on hold]")
         logger.info("  - Life: recalculate_task_priorities (daily at 06:00 UTC / 01:00 EST)")
@@ -212,6 +222,7 @@ def start_scheduler():
         logger.info("  - Core: generate_faith_reminders (daily at 06:00 UTC / 01:00 EST)")
         logger.info("  - Core: generate_health_reminders_morning (daily at 12:00 UTC / 07:00 EST)")
         logger.info("  - Core: generate_health_reminders_evening (daily at 00:00 UTC / 07:00 PM EST)")
+        logger.info("  - Core: generate_birthday_reminders (daily at 12:00 UTC / 07:00 EST)")
         logger.info("  - Core: send_notification_digest (daily at 09:45 UTC / 04:45 EST)")
         logger.info("  - Capture: send_expiration_reminders (daily at 08:00 UTC / 03:00 EST)")
         logger.info("  - Capture: send_pending_capture_reminders (hourly)")

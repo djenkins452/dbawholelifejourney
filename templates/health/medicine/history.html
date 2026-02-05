@@ -425,6 +425,25 @@
 </style>
 
 <script nonce="{{ csp_nonce }}">
+// Save scroll position before form submission, restore after page load
+(function() {
+    const SCROLL_KEY = 'medicine_history_scroll';
+
+    // Restore scroll position on page load
+    const savedScroll = sessionStorage.getItem(SCROLL_KEY);
+    if (savedScroll) {
+        window.scrollTo(0, parseInt(savedScroll, 10));
+        sessionStorage.removeItem(SCROLL_KEY);
+    }
+
+    // Save scroll position before any form submission
+    document.querySelectorAll('form.inline-form, #takeTimeForm').forEach(function(form) {
+        form.addEventListener('submit', function() {
+            sessionStorage.setItem(SCROLL_KEY, window.scrollY.toString());
+        });
+    });
+})();
+
 function showTakeTimeModal(medicineId, scheduleId, date, medicineName) {
     const modal = document.getElementById('takeTimeModal');
     const form = document.getElementById('takeTimeForm');

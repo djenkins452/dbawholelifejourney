@@ -16,6 +16,29 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-02-05 Changes
 
+### Daily Health Reminders: Medicine, Workout, and Journal Notifications
+
+**Issue:** The notification system existed but had no scheduled jobs to create daily reminders for medicines, workouts, or journal entries. Users with notifications enabled weren't receiving the reminders they expected.
+
+**Fix:** Added a comprehensive health reminders system with:
+- Morning medicine reminders (7:00 AM EST) - counts pending doses and notifies
+- Evening reminders (7:00 PM EST) - checks medicines, workout, and journal
+- Daily digest emails (4:45 AM EST) - sends email summary of all pending notifications
+
+**New Scheduled Jobs:**
+- `generate_health_reminders_morning` - 12:00 PM UTC (7:00 AM EST)
+- `generate_health_reminders_evening` - 12:00 AM UTC (7:00 PM EST)
+- `send_notification_digest` - 9:45 AM UTC (4:45 AM EST)
+
+**Files Created:**
+- `apps/core/management/commands/generate_health_reminders.py` - Management command for medicine, workout, and journal reminders
+
+**Files Modified:**
+- `apps/core/jobs.py` - Added `generate_health_reminders_morning`, `generate_health_reminders_evening`, `send_notification_digest` functions
+- `config/wsgi.py` - Scheduled the 3 new jobs (now 11 total scheduled jobs)
+
+---
+
 ### Dashboard Assistant Summary: Accountability Focus & Plain Formatting
 
 **Issue:** The Assistant summary at the top of the dashboard had several problems:

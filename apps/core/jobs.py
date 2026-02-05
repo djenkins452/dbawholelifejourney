@@ -64,3 +64,62 @@ def generate_faith_reminders():
     except Exception as e:
         logger.exception(f"Faith reminders job failed: {e}")
         raise
+
+
+def generate_health_reminders_morning():
+    """
+    Generate morning health reminders (medicine only).
+
+    Creates notifications for:
+    - Medicine doses scheduled for today that haven't been taken
+
+    Scheduled: Daily at 12:00 PM UTC (7:00 AM EST)
+    """
+    logger.info("Starting morning health reminders job...")
+
+    try:
+        call_command('generate_health_reminders', '--medicine-only', '--time-period=morning')
+        logger.info("Morning health reminders job completed successfully")
+    except Exception as e:
+        logger.exception(f"Morning health reminders job failed: {e}")
+        raise
+
+
+def generate_health_reminders_evening():
+    """
+    Generate evening health reminders (medicine, workout, journal).
+
+    Creates notifications for:
+    - Medicine doses scheduled for today that haven't been taken
+    - Users who haven't logged a workout today
+    - Users who haven't journaled today
+
+    Scheduled: Daily at 12:00 AM UTC (7:00 PM EST)
+    """
+    logger.info("Starting evening health reminders job...")
+
+    try:
+        call_command('generate_health_reminders', '--time-period=evening')
+        logger.info("Evening health reminders job completed successfully")
+    except Exception as e:
+        logger.exception(f"Evening health reminders job failed: {e}")
+        raise
+
+
+def send_notification_digest():
+    """
+    Send daily email digest of pending notifications to users.
+
+    Sends a single email summarizing all pending notifications for users
+    who have 'daily_digest' email frequency selected.
+
+    Scheduled: Daily at 9:45 AM UTC (4:45 AM EST)
+    """
+    logger.info("Starting notification digest job...")
+
+    try:
+        call_command('send_notification_digest')
+        logger.info("Notification digest job completed successfully")
+    except Exception as e:
+        logger.exception(f"Notification digest job failed: {e}")
+        raise

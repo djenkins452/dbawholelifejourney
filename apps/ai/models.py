@@ -237,6 +237,14 @@ class AIInsight(models.Model):
         default='supportive',
         help_text="Coaching style used when generating this insight"
     )
+
+    # Time period for cache segmentation (morning/afternoon/evening insights differ)
+    time_period = models.CharField(
+        max_length=20,
+        blank=True,
+        default='',
+        help_text="Time period when insight was generated (early_morning, morning, afternoon, evening)"
+    )
     
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)

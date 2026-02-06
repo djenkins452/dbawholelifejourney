@@ -53,19 +53,57 @@ class DashboardAI:
         # AI-learned personal context for empathetic responses
         self.personal_context = getattr(self.prefs, 'ai_personal_context', '') or ''
     
+    def _get_time_period(self) -> str:
+        """Get current time period for cache segmentation."""
+        from apps.core.utils import get_user_now
+        now = get_user_now(self.user)
+        hour = now.hour
+        if hour < 8:
+            return 'early_morning'
+        elif hour < 12:
+            return 'morning'
+        elif hour < 17:
+            return 'afternoon'
+        else:
+            return 'evening'
+
+    def _get_period_end(self) -> 'datetime':
+        """Get the end time for the current time period."""
+        from apps.core.utils import get_user_now
+        now = get_user_now(self.user)
+        hour = now.hour
+        # Cache expires at the next time-period boundary
+        if hour < 8:
+            boundary_hour = 8
+        elif hour < 12:
+            boundary_hour = 12
+        elif hour < 17:
+            boundary_hour = 17
+        else:
+            # Evening: cache until end of day
+            boundary_hour = 23
+            return now.replace(hour=23, minute=59, second=59)
+        return now.replace(hour=boundary_hour, minute=0, second=0)
+
     def get_daily_insight(self, force_refresh: bool = False) -> str:
         """
         Get or generate the daily AI insight for the dashboard.
 
-        Returns cached insight if available and valid, otherwise generates new one.
-        Cache is invalidated when coaching style changes.
+        Returns cached insight if available and valid for the current time period,
+        otherwise generates new one. Cache is invalidated when:
+        - Time period changes (morning → afternoon → evening)
+        - Coaching style changes
+        - Key activities happen (via invalidate_daily_insight signal)
         """
-        # Check for cached valid insight with matching coaching style
+        time_period = self._get_time_period()
+
+        # Check for cached valid insight matching current time period and style
         if not force_refresh:
             cached = AIInsight.objects.filter(
                 user=self.user,
                 insight_type='daily',
-                coaching_style=self.coaching_style,  # Must match current style
+                coaching_style=self.coaching_style,
+                time_period=time_period,
                 valid_until__gt=timezone.now()
             ).first()
 
@@ -82,19 +120,33 @@ class DashboardAI:
         )
 
         if content:
-            # Cache until end of day
-            end_of_day = timezone.now().replace(hour=23, minute=59, second=59)
+            period_end = self._get_period_end()
             AIInsight.objects.create(
                 user=self.user,
                 insight_type='daily',
                 content=content,
                 context_summary=str(user_data)[:500],
-                coaching_style=self.coaching_style,  # Store the style used
-                valid_until=end_of_day
+                coaching_style=self.coaching_style,
+                time_period=time_period,
+                valid_until=period_end
             )
 
         return content or self._get_fallback_insight()
-    
+
+    @classmethod
+    def invalidate_daily_insight(cls, user):
+        """
+        Invalidate cached daily insights for a user.
+
+        Call this when key activities change (workout logged, medicine taken,
+        journal entry created) so the next dashboard load gets a fresh insight.
+        """
+        AIInsight.objects.filter(
+            user=user,
+            insight_type='daily',
+            valid_until__gt=timezone.now()
+        ).update(valid_until=timezone.now())
+
     def get_weekly_summary(self, force_refresh: bool = False) -> str:
         """
         Get or generate weekly journal summary.

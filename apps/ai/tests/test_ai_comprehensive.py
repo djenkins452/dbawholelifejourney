@@ -53,15 +53,21 @@ class AITestMixin:
         user.preferences.save()
 
     def create_ai_insight(self, user, insight_type='daily', content='Test insight',
-                          valid_until=None):
+                          valid_until=None, time_period=None):
         """Create an AI insight for testing."""
         if valid_until is None:
             valid_until = timezone.now() + timedelta(hours=12)
+        if time_period is None and insight_type == 'daily':
+            # Auto-detect current time period to match DashboardAI lookup
+            from apps.ai.dashboard_ai import DashboardAI
+            dai = DashboardAI(user)
+            time_period = dai._get_time_period()
         return AIInsight.objects.create(
             user=user,
             insight_type=insight_type,
             content=content,
-            valid_until=valid_until
+            valid_until=valid_until,
+            time_period=time_period or ''
         )
 
     def create_usage_log(self, user, endpoint='test_endpoint',

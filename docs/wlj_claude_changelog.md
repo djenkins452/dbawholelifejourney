@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-06 (Bible API error email fix)
+# Last Updated: 2026-02-06 (Dashboard insight time-awareness + activity refresh)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,30 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-02-06 Changes
+
+### Dashboard Insight: Remove Greeting, Time-Period Caching, Activity Refresh
+
+**Problems:**
+1. Insight said "Good morning" when the page greeting said "Good evening" — double greeting with wrong time
+2. Insight was cached until end of day, so a morning insight persisted all evening
+3. Insight didn't update when user completed activities (workout, medicine, journal)
+
+**Fixes:**
+- **No greeting in insight**: Added rule to AI prompt: "Do NOT start with a greeting—the page already shows one"
+- **Acknowledge completed activities**: New prompt rule to acknowledge what's been done before mentioning what's pending
+- **Time-period caching**: Insight now cached per time period (early_morning/morning/afternoon/evening) instead of all day. When the period changes, a fresh insight is generated with correct time context
+- **Activity-based invalidation**: When key activities are logged (workout, medicine, journal entry), the daily insight cache is immediately invalidated so the next dashboard load gets a fresh, relevant insight
+
+**New field:** `AIInsight.time_period` — tracks which time period the insight was generated for
+
+**Migration:** `apps/ai/migrations/0022_add_time_period_to_aiinsight.py`
+
+**Files modified:**
+- `apps/ai/services.py` — Updated prompt rules (no greeting, acknowledge completions)
+- `apps/ai/dashboard_ai.py` — Time-period cache logic, `invalidate_daily_insight()` class method
+- `apps/ai/models.py` — Added `time_period` field to `AIInsight`
+- `apps/ai/signals.py` — Added `invalidate_daily_insight_cache()` calls for journal, workout, medicine
+- `apps/ai/tests/test_ai_comprehensive.py` — Updated test helper for time_period
 
 ### Fix Favorites Star Not Recognizing Current Page + Increase Max to 16
 

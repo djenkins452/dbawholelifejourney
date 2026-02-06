@@ -28,6 +28,12 @@ from django.dispatch import receiver
 logger = logging.getLogger(__name__)
 
 
+def invalidate_daily_insight_cache(user):
+    """Directly invalidate the daily dashboard insight so it regenerates on next load."""
+    from .dashboard_ai import DashboardAI
+    DashboardAI.invalidate_daily_insight(user)
+
+
 def invalidate_user_insights(user, insight_types=None):
     """
     Invalidate cached AI insights for a user.
@@ -85,6 +91,8 @@ def invalidate_insights_on_journal_save(sender, instance, created, **kwargs):
     """Invalidate relevant insights when a journal entry is saved."""
     insight_types = ['daily_insight', 'weekly_summary', 'journal_home', 'journal_reflection']
     invalidate_user_insights(instance.user, insight_types)
+    # Also directly invalidate the daily insight cache
+    invalidate_daily_insight_cache(instance.user)
     # Also invalidate personal data cache for journal and mood
     invalidate_personal_data_cache(instance.user, 'journal')
     if instance.mood:
@@ -248,6 +256,7 @@ def invalidate_cache_on_reading_plan_delete(sender, instance, **kwargs):
 def invalidate_cache_on_medicine_log_save(sender, instance, created, **kwargs):
     """Invalidate personal data cache when a medicine log is saved."""
     invalidate_personal_data_cache(instance.user, 'medication')
+    invalidate_daily_insight_cache(instance.user)
 
 
 @receiver(post_delete, sender='health.MedicineLog')
@@ -302,6 +311,7 @@ def invalidate_cache_on_water_entry_delete(sender, instance, **kwargs):
 def invalidate_cache_on_workout_save(sender, instance, created, **kwargs):
     """Invalidate personal data cache when a workout session is saved."""
     invalidate_personal_data_cache(instance.user, 'workout')
+    invalidate_daily_insight_cache(instance.user)
     # Also invalidate health insights
     insight_types = ['daily_insight', 'health_home', 'health_encouragement']
     invalidate_user_insights(instance.user, insight_types)

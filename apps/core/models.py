@@ -1952,3 +1952,214 @@ class Notification(TimeStampedModel):
             self.CATEGORY_SYSTEM: '🔔',
         }
         return self.icon or icons.get(self.category, '🔔')
+
+
+class UserDailyActivity(models.Model):
+    """
+    Tracks the first and last interaction time per user per day.
+
+    Updated by PageViewTrackingMiddleware on every page view.
+    Used to compute UserActivityPattern (typical day start/end times).
+    One row per user per calendar day — lightweight and bounded.
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='daily_activities',
+    )
+    date = models.DateField(
+        help_text="The calendar date of activity (in user's timezone)",
+    )
+    first_seen = models.TimeField(
+        help_text="Earliest interaction time on this date",
+    )
+    last_seen = models.TimeField(
+        help_text="Latest interaction time on this date",
+    )
+    interaction_count = models.PositiveIntegerField(
+        default=1,
+        help_text="Number of page views on this date",
+    )
+
+    class Meta:
+        unique_together = ['user', 'date']
+        ordering = ['-date']
+        verbose_name = "User Daily Activity"
+        verbose_name_plural = "User Daily Activities"
+
+    def __str__(self):
+        return f"{self.user.email} on {self.date}: {self.first_seen}-{self.last_seen}"
+
+    @classmethod
+    def record_activity(cls, user, current_time):
+        """
+        Record a user interaction. Creates or updates the daily record.
+
+        Args:
+            user: The authenticated user
+            current_time: Timezone-aware datetime of the interaction
+        """
+        from django.db.models import F
+
+        activity_date = current_time.date()
+        time_of_day = current_time.time()
+
+        obj, created = cls.objects.get_or_create(
+            user=user,
+            date=activity_date,
+            defaults={
+                'first_seen': time_of_day,
+                'last_seen': time_of_day,
+                'interaction_count': 1,
+            }
+        )
+        if not created:
+            update_fields = ['interaction_count']
+            obj.interaction_count = F('interaction_count') + 1
+
+            if time_of_day < obj.first_seen:
+                obj.first_seen = time_of_day
+                update_fields.append('first_seen')
+            if time_of_day > obj.last_seen:
+                obj.last_seen = time_of_day
+                update_fields.append('last_seen')
+
+            obj.save(update_fields=update_fields)
+
+    @classmethod
+    def cleanup_old_records(cls, days_to_keep=90):
+        """Remove activity records older than retention period."""
+        from datetime import timedelta
+        from django.utils import timezone
+        cutoff = timezone.now().date() - timedelta(days=days_to_keep)
+        deleted_count, _ = cls.objects.filter(date__lt=cutoff).delete()
+        return deleted_count
+
+
+class UserActivityPattern(models.Model):
+    """
+    Computed behavioral pattern for a user based on their daily activity.
+
+    Recalculated periodically (e.g., nightly) from UserDailyActivity records.
+    Used by the AI insight system to personalize time-of-day messaging.
+    """
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='activity_pattern',
+    )
+    typical_start_hour = models.FloatField(
+        default=8.0,
+        help_text="Average hour the user starts their day (e.g., 6.5 = 6:30am)",
+    )
+    typical_end_hour = models.FloatField(
+        default=22.0,
+        help_text="Average hour the user ends their day (e.g., 22.5 = 10:30pm)",
+    )
+    earliest_start_hour = models.FloatField(
+        default=8.0,
+        help_text="Earliest recorded day start (10th percentile)",
+    )
+    sample_days = models.PositiveIntegerField(
+        default=0,
+        help_text="Number of days of data used to compute this pattern",
+    )
+    last_computed = models.DateTimeField(
+        auto_now=True,
+        help_text="When this pattern was last recalculated",
+    )
+
+    # Minimum days of data before we trust the pattern
+    MIN_SAMPLE_DAYS = 7
+
+    class Meta:
+        verbose_name = "User Activity Pattern"
+        verbose_name_plural = "User Activity Patterns"
+
+    def __str__(self):
+        return (
+            f"{self.user.email}: typically "
+            f"{self._format_hour(self.typical_start_hour)}-"
+            f"{self._format_hour(self.typical_end_hour)} "
+            f"({self.sample_days} days)"
+        )
+
+    @staticmethod
+    def _format_hour(hour_float):
+        """Convert float hour (e.g., 6.5) to readable string (e.g., '6:30am')."""
+        h = int(hour_float)
+        m = int((hour_float - h) * 60)
+        period = 'am' if h < 12 else 'pm'
+        display_h = h if h <= 12 else h - 12
+        if display_h == 0:
+            display_h = 12
+        if m == 0:
+            return f"{display_h}{period}"
+        return f"{display_h}:{m:02d}{period}"
+
+    @property
+    def is_reliable(self):
+        """Whether we have enough data to trust this pattern."""
+        return self.sample_days >= self.MIN_SAMPLE_DAYS
+
+    def get_early_morning_threshold(self):
+        """
+        Return the hour before which the user's day hasn't really started.
+
+        If we have reliable data, use 1 hour before their typical start.
+        Otherwise fall back to the static 8am default.
+        """
+        if not self.is_reliable:
+            return 8.0
+        # Their "early morning" is before their typical start time
+        # Use the earlier of: 1 hour before typical OR their earliest recorded
+        return min(self.typical_start_hour, self.earliest_start_hour)
+
+    @classmethod
+    def compute_for_user(cls, user, lookback_days=30):
+        """
+        Compute or update the activity pattern for a user.
+
+        Uses UserDailyActivity records from the past `lookback_days` days.
+        """
+        from datetime import timedelta
+        from django.utils import timezone
+
+        cutoff = timezone.now().date() - timedelta(days=lookback_days)
+        activities = UserDailyActivity.objects.filter(
+            user=user,
+            date__gte=cutoff,
+        ).values_list('first_seen', 'last_seen')
+
+        if not activities:
+            return None
+
+        start_hours = []
+        end_hours = []
+        for first_seen, last_seen in activities:
+            start_hours.append(first_seen.hour + first_seen.minute / 60.0)
+            end_hours.append(last_seen.hour + last_seen.minute / 60.0)
+
+        start_hours.sort()
+        end_hours.sort()
+
+        sample_days = len(start_hours)
+        typical_start = sum(start_hours) / sample_days
+        typical_end = sum(end_hours) / sample_days
+
+        # 10th percentile for earliest start (accounts for occasional very early days)
+        p10_index = max(0, int(sample_days * 0.1))
+        earliest_start = start_hours[p10_index]
+
+        pattern, _ = cls.objects.update_or_create(
+            user=user,
+            defaults={
+                'typical_start_hour': round(typical_start, 2),
+                'typical_end_hour': round(typical_end, 2),
+                'earliest_start_hour': round(earliest_start, 2),
+                'sample_days': sample_days,
+            },
+        )
+        return pattern

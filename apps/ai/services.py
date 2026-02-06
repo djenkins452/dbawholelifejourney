@@ -482,9 +482,11 @@ Match your response to your coaching style."""
         # TIME CONTEXT (for time-aware messaging)
         # ===================
         hour = user_data.get('hour_of_day', 12)
-        early_morning = hour < 8
+        # Use personalized threshold from user's activity pattern (falls back to 8.0)
+        em_threshold = user_data.get('early_morning_threshold', 8.0)
+        early_morning = hour < em_threshold
         late_day = hour >= 18
-        if hour < 8:
+        if hour < em_threshold:
             time_of_day = "early morning"
         elif hour < 12:
             time_of_day = "morning"

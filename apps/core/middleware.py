@@ -123,8 +123,16 @@ class PageViewTrackingMiddleware:
         title = self._extract_title(response)
         if title:
             # Import here to avoid circular imports
-            from apps.core.models import PageView
+            from apps.core.models import PageView, UserDailyActivity
             PageView.record_view(request.user, path, title)
+
+            # Record daily activity for user behavior pattern tracking
+            try:
+                from apps.core.utils import get_user_now
+                current_time = get_user_now(request.user)
+                UserDailyActivity.record_activity(request.user, current_time)
+            except Exception:
+                pass  # Never break page loads for analytics
 
         return response
 

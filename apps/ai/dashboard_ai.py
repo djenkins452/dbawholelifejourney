@@ -201,10 +201,21 @@ class DashboardAI:
         # TODAY's journal status
         journaled_today = entries.filter(entry_date=today).exists()
 
+        # Look up user's activity pattern for personalized time thresholds
+        early_morning_threshold = 8.0  # default fallback
+        try:
+            from apps.core.models import UserActivityPattern
+            pattern = UserActivityPattern.objects.filter(user=self.user).first()
+            if pattern and pattern.is_reliable:
+                early_morning_threshold = pattern.get_early_morning_threshold()
+        except Exception:
+            pass
+
         data = {
             'today': today,
             'current_time': now,
             'hour_of_day': now.hour,  # 0-23, for time-aware messaging
+            'early_morning_threshold': early_morning_threshold,
             'journal_count_week': entries_this_week.count(),
             'last_journal_date': last_entry.entry_date if last_entry else None,
             'journal_done_today': journaled_today,

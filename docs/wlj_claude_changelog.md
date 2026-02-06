@@ -16,6 +16,35 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-02-06 Changes
 
+### User Activity Pattern Tracking for Personalized Insights
+
+Added a system that learns when each user typically starts and ends their day, then uses that to personalize the early morning insight threshold instead of a hardcoded 8am cutoff.
+
+**New models:**
+- `UserDailyActivity` — one row per user per day, tracks first/last interaction time and count. Updated by `PageViewTrackingMiddleware` on every page view.
+- `UserActivityPattern` — computed summary (typical start/end hour, earliest start, sample size). OneToOne with User.
+
+**New management command:**
+- `compute_activity_patterns` — analyzes 30 days of daily activity to compute patterns. Supports `--lookback-days`, `--user-id`, and `--cleanup` flags. Should be run daily.
+
+**Integration:**
+- `PageViewTrackingMiddleware` now records `UserDailyActivity` on each page view (with try/except so it never breaks page loads)
+- `dashboard_ai.py` looks up the user's `UserActivityPattern` and passes `early_morning_threshold` to insight generation
+- `services.py` uses the personalized threshold (falls back to 8.0 when not enough data)
+
+**Files modified:**
+- `apps/core/models.py` (new models: UserDailyActivity, UserActivityPattern)
+- `apps/core/middleware.py` (PageViewTrackingMiddleware records daily activity)
+- `apps/core/management/commands/compute_activity_patterns.py` (new command)
+- `apps/ai/dashboard_ai.py` (fetch activity pattern for user)
+- `apps/ai/services.py` (use dynamic early_morning_threshold)
+
+**Migration:** `apps/core/migrations/0052_add_user_activity_tracking.py`
+
+**Tests:** `apps/core/tests/test_activity_patterns.py` (17 tests)
+
+---
+
 ### Add AI Assistant Quick Action to Dashboard
 
 Added an "AI Assistant" tile to the quick actions grid on the dashboard, linking to `/assistant/` (ai:dashboard). Placed inside the existing `ai_enabled` conditional block.

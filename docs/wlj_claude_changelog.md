@@ -16,6 +16,15 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-02-06 Changes
 
+### Add AI Assistant Quick Action to Dashboard
+
+Added an "AI Assistant" tile to the quick actions grid on the dashboard, linking to `/assistant/` (ai:dashboard). Placed inside the existing `ai_enabled` conditional block.
+
+**Files modified:**
+- `templates/dashboard/tiles/quick_actions.html`
+
+---
+
 ### Early Morning Insight Tone Fix
 
 **Problem:** Dashboard insight was showing negative "slow start" messaging before 8am, making users feel behind when their day hadn't even begun.

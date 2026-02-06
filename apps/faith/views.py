@@ -739,11 +739,13 @@ class BibleAPIProxyMixin:
             params: Optional query parameters
 
         Returns:
-            tuple: (success: bool, data: dict or error message)
+            tuple: (success: bool, data: dict)
+            On failure, data includes 'error' message and 'status_code' for
+            the caller to return an appropriate HTTP status.
         """
         api_key = self.get_api_key()
         if not api_key:
-            return False, {"error": "Bible API is not configured"}
+            return False, {"error": "Bible API is not configured", "status_code": 503}
 
         url = f"{BIBLE_API_BASE}{endpoint}"
         headers = {"X-YVP-App-Key": api_key}
@@ -754,11 +756,12 @@ class BibleAPIProxyMixin:
             return True, response.json()
         except requests.exceptions.Timeout:
             logger.warning(f"YouVersion API timeout: {endpoint}")
-            return False, {"error": "Request timed out"}
+            return False, {"error": "Request timed out", "status_code": 504}
         except requests.exceptions.HTTPError as e:
-            if e.response.status_code == 401:
+            status = e.response.status_code
+            if status == 401:
                 logger.error("YouVersion API: Invalid or expired API key")
-                return False, {"error": "Bible API key is invalid or expired. Please contact the administrator."}
+                return False, {"error": "Bible API key is invalid or expired. Please contact the administrator.", "status_code": 502}
             # Try to extract error details from response body
             error_detail = ""
             try:
@@ -767,16 +770,19 @@ class BibleAPIProxyMixin:
                     error_detail = error_body.get('message', error_body.get('error', ''))
             except Exception:
                 error_detail = e.response.text[:200] if e.response.text else ""
-            logger.error(f"YouVersion API HTTP error: {e.response.status_code} - {error_detail} - URL: {url}")
-            # For 404/403 errors, provide user-friendly messages
-            if e.response.status_code == 404:
-                return False, {"error": "Scripture not found. This translation may not have this passage available."}
-            if e.response.status_code == 403:
-                return False, {"error": "This translation is not available for this passage. Please try a different translation."}
-            return False, {"error": f"Bible API error: {e.response.status_code}"}
+            # 403/404 are expected upstream errors - log at warning level (no admin email)
+            if status == 404:
+                logger.warning(f"YouVersion API 404: {endpoint} - {error_detail}")
+                return False, {"error": "Scripture not found. This translation may not have this passage available.", "status_code": 404}
+            if status == 403:
+                logger.warning(f"YouVersion API 403: Access denied for {endpoint}")
+                return False, {"error": "This translation is not available for this passage. Please try a different translation.", "status_code": 403}
+            # Unexpected upstream errors - log at error level
+            logger.error(f"YouVersion API HTTP error: {status} - {error_detail} - URL: {url}")
+            return False, {"error": f"Bible API error: {status}", "status_code": 502}
         except requests.exceptions.RequestException as e:
             logger.error(f"YouVersion API error: {e}")
-            return False, {"error": "Failed to fetch from Bible API"}
+            return False, {"error": "Failed to fetch from Bible API", "status_code": 502}
 
 
 class BibleAPIStatusView(LoginRequiredMixin, FaithRequiredMixin, BibleAPIProxyMixin, View):
@@ -836,7 +842,8 @@ class BibleAPIBiblesView(LoginRequiredMixin, FaithRequiredMixin, BibleAPIProxyMi
                     'copyright': bible.get('copyright', ''),
                 })
             return JsonResponse({'data': transformed_data})
-        return JsonResponse(data, status=500)
+        error_status = data.pop('status_code', 502)
+        return JsonResponse(data, status=error_status)
 
 
 class BibleAPIBooksView(LoginRequiredMixin, FaithRequiredMixin, BibleAPIProxyMixin, View):
@@ -869,7 +876,8 @@ class BibleAPIBooksView(LoginRequiredMixin, FaithRequiredMixin, BibleAPIProxyMix
                         'abbreviation': book.get('abbreviation', ''),
                     })
             return JsonResponse({'data': transformed_data})
-        return JsonResponse(data, status=500)
+        error_status = data.pop('status_code', 502)
+        return JsonResponse(data, status=error_status)
 
 
 class BibleAPIChaptersView(LoginRequiredMixin, FaithRequiredMixin, BibleAPIProxyMixin, View):
@@ -911,7 +919,8 @@ class BibleAPIChaptersView(LoginRequiredMixin, FaithRequiredMixin, BibleAPIProxy
                         'number': chapter.get('number', chapter.get('title', chapter_id.split('.')[-1] if '.' in str(chapter_id) else chapter_id)),
                     })
             return JsonResponse({'data': transformed_data})
-        return JsonResponse(data, status=500)
+        error_status = data.pop('status_code', 502)
+        return JsonResponse(data, status=error_status)
 
 
 class BibleAPIVersesView(LoginRequiredMixin, FaithRequiredMixin, BibleAPIProxyMixin, View):
@@ -947,7 +956,8 @@ class BibleAPIVersesView(LoginRequiredMixin, FaithRequiredMixin, BibleAPIProxyMi
                     'content': data.get('content', ''),
                 }
             })
-        return JsonResponse(data, status=500)
+        error_status = data.pop('status_code', 502)
+        return JsonResponse(data, status=error_status)
 
 
 class BibleAPIVerseView(LoginRequiredMixin, FaithRequiredMixin, BibleAPIProxyMixin, View):
@@ -993,7 +1003,8 @@ class BibleAPIVerseView(LoginRequiredMixin, FaithRequiredMixin, BibleAPIProxyMix
                     'content': data.get('content', ''),
                 }
             })
-        return JsonResponse(data, status=500)
+        error_status = data.pop('status_code', 502)
+        return JsonResponse(data, status=error_status)
 
 
 class BibleAPIPassageView(LoginRequiredMixin, FaithRequiredMixin, BibleAPIProxyMixin, View):
@@ -1040,7 +1051,8 @@ class BibleAPIPassageView(LoginRequiredMixin, FaithRequiredMixin, BibleAPIProxyM
             })
         # Return the error with more context
         logger.warning(f"Passage fetch failed: bible_id={safe_bible_id}, passage_id={safe_passage_id}, error={data}")
-        return JsonResponse(data, status=500)
+        error_status = data.pop('status_code', 502)
+        return JsonResponse(data, status=error_status)
 
 
 class BibleAPISearchView(LoginRequiredMixin, FaithRequiredMixin, BibleAPIProxyMixin, View):

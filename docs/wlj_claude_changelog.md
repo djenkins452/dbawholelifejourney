@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-06 (Favorites URL normalization + max increase)
+# Last Updated: 2026-02-06 (Bible API error email fix)
 # ==============================================================================
 
 # WLJ Change History
@@ -31,6 +31,24 @@ For active development context, see `CLAUDE.md` (project root).
 - `apps/core/models.py` - Added `normalize_url()`, `save()` override, updated `is_favorite()` and `toggle()`, changed `MAX_FAVORITES` to 16
 - `apps/core/context_processors.py` - Updated comment
 - `apps/core/views.py` - Updated comment
+
+### Stop Spam Error Emails from Bible API (YouVersion 403/404)
+
+**Problem:** When the YouVersion Bible API returned 403 (access denied) or 404 (not found) for certain Bible version IDs, the app was:
+1. Logging at `logger.error()` level → triggered `mail_admins` handler → admin email
+2. Returning HTTP 500 to Django → `django.request` logger caught it → another admin email
+
+This resulted in 18 duplicate error emails for expected upstream errors (invalid/unauthorized Bible version IDs).
+
+**Fix:**
+- Downgraded 403/404 YouVersion API errors from `logger.error()` to `logger.warning()` — warnings don't trigger admin emails
+- `make_api_request()` now returns `status_code` so views return appropriate HTTP status (403, 404, 502, 504) instead of blanket 500
+- Only truly unexpected errors remain at `logger.error()`
+
+**Tasks consolidated:** IDs 457–474 (all marked done)
+
+**Files modified:**
+- `apps/faith/views.py` - Updated `BibleAPIProxyMixin.make_api_request()` error handling and all 6 Bible API proxy views
 
 ### User Activity Pattern Tracking for Personalized Insights
 

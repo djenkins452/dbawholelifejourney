@@ -323,7 +323,7 @@ class NotificationService:
             'notification': notification,
             'site_name': site_config.site_name,
             'current_year': timezone.now().year,
-            'preferences_url': f"{settings.SITE_URL}/settings/preferences/",
+            'preferences_url': f"{settings.SITE_DOMAIN}/settings/preferences/",
         }
 
         try:
@@ -405,8 +405,8 @@ class NotificationService:
             'notification_count': len(filtered_notifications),
             'site_name': site_config.site_name,
             'current_year': timezone.now().year,
-            'preferences_url': f"{settings.SITE_URL}/settings/preferences/",
-            'notifications_url': f"{settings.SITE_URL}/notifications/",
+            'preferences_url': f"{settings.SITE_DOMAIN}/settings/preferences/",
+            'notifications_url': f"{settings.SITE_DOMAIN}/notifications/",
         }
 
         try:

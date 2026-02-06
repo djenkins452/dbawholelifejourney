@@ -139,7 +139,7 @@ def send_processing_complete_email(capture_entry):
 
     # Build detail URL
     try:
-        detail_url = settings.SITE_URL + reverse('capture:detail', kwargs={'pk': capture_entry.id})
+        detail_url = settings.SITE_DOMAIN + reverse('capture:detail', kwargs={'pk': capture_entry.id})
     except Exception:
         detail_url = f"https://wholelifejourney.com/capture/{capture_entry.id}/"
 

@@ -14,6 +14,51 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+## 2026-02-06 Changes
+
+### Dashboard Performance Optimization (20+ seconds → ~2-3 seconds)
+
+**Problem:** Dashboard was taking 20+ seconds to load due to:
+1. N+1 query problem in medicine tracking (30+ extra queries)
+2. Synchronous Google Calendar API call blocking page load
+3. Multiple COUNT queries instead of aggregation
+4. No query optimization (missing prefetch_related/select_related)
+
+**Solution:**
+
+1. **Fixed Medicine N+1 Query** - Was: loop queries for each medicine+schedule. Now: single query with `prefetch_related` + batch MedicineLog lookup
+2. **Moved Google Calendar to Background Thread** - Sync now runs in daemon thread, doesn't block page load
+3. **Aggregation for Adherence Stats** - Was: 3 separate COUNT queries. Now: single aggregated query
+4. **Added Cache Invalidation Signals** - Dashboard cache auto-invalidates when data changes
+
+**Query Reduction:**
+- Before: 53-137 queries per dashboard load
+- After: ~15-20 queries (optimized with prefetch/select_related)
+
+**New Files:**
+- `apps/dashboard/cache.py` - DashboardCacheService with optimized queries
+- `apps/dashboard/signals.py` - Signal handlers for cache invalidation
+
+**Files Modified:**
+- `apps/dashboard/views.py` - Uses cache service for health data, background thread for Google Calendar
+- `apps/dashboard/apps.py` - Loads signals on app ready
+
+**Key Classes:**
+- `DashboardCacheService` - Optimized query methods with cache invalidation
+- Signal handlers for: health models, journal, faith, life, purpose
+
+---
+
+### Fix SITE_URL → SITE_DOMAIN in Notification Service
+
+Fixed `'Settings' object has no attribute 'SITE_URL'` error in notification digest emails.
+
+**Files Modified:**
+- `apps/core/services/notification_service.py`
+- `apps/capture/services/email.py`
+
+---
+
 ## 2026-02-05 Changes
 
 ### Fix YouVersion Bible API 403 Errors

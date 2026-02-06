@@ -317,19 +317,29 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         }
     
     def _get_health_data(self, user, today, month_ago):
-        """Get health-related data."""
+        """
+        Get health-related data with optimized caching.
+
+        Uses DashboardCacheService to:
+        - Cache expensive medicine/workout queries
+        - Fix N+1 query problem with prefetch_related
+        - Use aggregation instead of multiple COUNT queries
+        """
         from apps.health.models import (
             WeightEntry, FastingWindow, GlucoseEntry,
-            Medicine, MedicineLog, WorkoutSession, PersonalRecord,
             CycleSettings, Cycle, CycleDailyLog
         )
+        from apps.dashboard.cache import DashboardCacheService
 
-        # Weight
-        weights = WeightEntry.objects.filter(user=user)
-        latest_weight = weights.order_by('-recorded_at').first()
+        # Use cache service for optimized medicine/workout queries
+        cache_service = DashboardCacheService(user)
+        cached = cache_service.get_health_data(today, month_ago)
 
+        # Weight trend calculation (not in cache - needs comparison)
+        latest_weight = cached.get('latest_weight')
         weight_change = None
         weight_trend = None
+        weights = WeightEntry.objects.filter(user=user)
         if latest_weight and weights.count() >= 2:
             month_ago_weight = weights.filter(
                 recorded_at__lte=timezone.now() - timedelta(days=25),
@@ -339,7 +349,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                 weight_change = round(latest_weight.value_in_lb - month_ago_weight.value_in_lb, 1)
                 weight_trend = 'down' if weight_change < 0 else 'up' if weight_change > 0 else 'stable'
 
-        # Fasting
+        # Fasting (simple queries - not worth caching separately)
         fasting = FastingWindow.objects.filter(user=user)
         active_fast = fasting.filter(ended_at__isnull=True).first()
         completed_fasts_month = fasting.filter(
@@ -347,99 +357,14 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             started_at__gte=month_ago
         ).count()
 
-        # Glucose
-        glucose = GlucoseEntry.objects.filter(user=user)
-        latest_glucose = glucose.order_by('-recorded_at').first()
+        # Get cached data
+        todays_schedules = cached.get('todays_schedules', [])
+        adherence_rate = cached.get('medicine_adherence_rate')
+        needs_refill = cached.get('needs_refill', [])
+        refill_requested = cached.get('refill_requested', [])
 
-        # =====================
-        # Medicine Tracking
-        # =====================
-        active_medicines = Medicine.objects.filter(
-            user=user,
-            medicine_status=Medicine.STATUS_ACTIVE
-        )
-
-        # Today's medicine schedule
-        today_weekday = today.weekday()
-        todays_schedules = []
-        for medicine in active_medicines.filter(is_prn=False):
-            for schedule in medicine.schedules.filter(is_active=True):
-                if schedule.applies_to_day(today_weekday):
-                    # Check if this dose was taken today
-                    log = MedicineLog.objects.filter(
-                        medicine=medicine,
-                        schedule=schedule,
-                        scheduled_date=today
-                    ).first()
-                    todays_schedules.append({
-                        'medicine': medicine,
-                        'schedule': schedule,
-                        'log': log,
-                        'taken': log is not None and log.log_status in ['taken', 'late'],
-                        'missed': log is not None and log.log_status == 'missed',
-                        'skipped': log is not None and log.log_status == 'skipped',
-                    })
-
-        # Sort by scheduled time
-        todays_schedules.sort(key=lambda x: x['schedule'].scheduled_time)
-
-        # Medicine adherence for the week
-        week_ago_date = today - timedelta(days=7)
-        medicine_logs_week = MedicineLog.objects.filter(
-            user=user,
-            scheduled_date__gte=week_ago_date,
-            scheduled_date__lte=today
-        )
-        taken_count = medicine_logs_week.filter(log_status__in=['taken', 'late']).count()
-        missed_count = medicine_logs_week.filter(log_status='missed').count()
-        total_scheduled = taken_count + missed_count
-        adherence_rate = round((taken_count / total_scheduled) * 100) if total_scheduled > 0 else None
-
-        # Medicines needing refill (exclude those with refill already requested)
-        needs_refill = active_medicines.filter(
-            current_supply__isnull=False,
-            current_supply__lte=models.F('refill_threshold'),
-            refill_requested=False
-        )
-
-        # Medicines with refill requested
-        refill_requested = active_medicines.filter(refill_requested=True)
-
-        # =====================
-        # Workout Tracking
-        # =====================
-        week_ago_date = today - timedelta(days=7)
-
-        # Workouts this week
-        workouts_week = WorkoutSession.objects.filter(
-            user=user,
-            date__gte=week_ago_date,
-            date__lte=today
-        )
-
-        # Recent workouts (last 3)
-        recent_workouts = WorkoutSession.objects.filter(
-            user=user
-        ).order_by('-date')[:3]
-
-        # Recent PRs (last 30 days)
-        recent_prs = PersonalRecord.objects.filter(
-            user=user,
-            achieved_date__gte=today - timedelta(days=30)
-        ).order_by('-achieved_date')[:3]
-
-        # Workout streak (consecutive days with workouts)
+        # Workout streak (calculation not in cache)
         workout_streak = self._calculate_workout_streak(user, today)
-
-        # Last workout date
-        last_workout = WorkoutSession.objects.filter(user=user).order_by('-date').first()
-        days_since_workout = None
-        if last_workout:
-            days_since_workout = (today - last_workout.date).days
-
-        # Weight and Nutrition Goal Progress
-        weight_progress = user.preferences.get_weight_progress()
-        nutrition_progress = user.preferences.get_nutrition_progress(today)
 
         # =====================
         # Cycle Tracking
@@ -453,23 +378,16 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                 cycle_tracking_enabled = True
                 from apps.health.services.cycle_phase import get_current_phase
 
-                # Get current phase info
                 phase = get_current_phase(user, today)
-
-                # Get current active cycle
                 current_cycle = Cycle.objects.filter(
                     user=user,
                     end_date__isnull=True,
                     start_date__lte=today
                 ).first()
-
-                # Get today's log if exists
                 todays_log = CycleDailyLog.objects.filter(
                     user=user,
                     log_date=today
                 ).first()
-
-                # Check if period is active today (flow level not none/empty)
                 is_period_day = todays_log and todays_log.flow_level and todays_log.flow_level not in ['', 'none']
 
                 cycle_data = {
@@ -491,27 +409,27 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             "active_fast": active_fast,
             "fasting_active": active_fast is not None,
             "completed_fasts_month": completed_fasts_month,
-            "latest_glucose": latest_glucose,
-            # Medicine data
-            "active_medicines": active_medicines.count(),
+            "latest_glucose": cached.get('latest_glucose'),
+            # Medicine data (from cache - optimized queries)
+            "active_medicines": len(cached.get('active_medicines', [])),
             "todays_medicine_schedule": todays_schedules,
             "medicine_doses_today": len(todays_schedules),
             "medicine_doses_taken_today": sum(1 for s in todays_schedules if s['taken']),
             "medicine_adherence_rate": adherence_rate,
-            "medicines_need_refill": list(needs_refill),
-            "medicines_need_refill_count": needs_refill.count(),
-            "medicines_refill_requested": list(refill_requested),
-            "medicines_refill_requested_count": refill_requested.count(),
-            # Workout data
-            "workouts_this_week": workouts_week.count(),
-            "recent_workouts": list(recent_workouts),
-            "recent_prs": list(recent_prs),
+            "medicines_need_refill": needs_refill,
+            "medicines_need_refill_count": len(needs_refill),
+            "medicines_refill_requested": refill_requested,
+            "medicines_refill_requested_count": len(refill_requested),
+            # Workout data (from cache)
+            "workouts_this_week": cached.get('workouts_count_week', 0),
+            "recent_workouts": cached.get('recent_workouts', []),
+            "recent_prs": cached.get('recent_prs', []),
             "workout_streak": workout_streak,
-            "days_since_workout": days_since_workout,
-            "last_workout": last_workout,
-            # Weight & Nutrition Goal Progress
-            "weight_progress": weight_progress,
-            "nutrition_progress": nutrition_progress,
+            "days_since_workout": cached.get('days_since_workout'),
+            "last_workout": cached.get('recent_workouts', [None])[0] if cached.get('recent_workouts') else None,
+            # Weight & Nutrition Goal Progress (from cache)
+            "weight_progress": cached.get('weight_progress'),
+            "nutrition_progress": cached.get('nutrition_progress'),
             "has_weight_goal": user.preferences.has_weight_goal,
             "has_nutrition_goals": user.preferences.has_nutrition_goals,
             # Cycle Tracking
@@ -697,10 +615,17 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
 
     def _get_life_data(self, user, today):
         """Get organize-related data (tasks, events, projects)."""
+        import threading
         from apps.life.models import Project, Task, LifeEvent, SignificantEvent
 
-        # Auto-sync Google Calendar before fetching events
-        self._sync_google_calendar_if_needed(user)
+        # Trigger Google Calendar sync in background (non-blocking)
+        # This doesn't wait for the sync - data will be fresh on next load
+        sync_thread = threading.Thread(
+            target=self._sync_google_calendar_if_needed,
+            args=(user,),
+            daemon=True
+        )
+        sync_thread.start()
 
         week_ahead = today + timedelta(days=7)
         today + timedelta(days=30)

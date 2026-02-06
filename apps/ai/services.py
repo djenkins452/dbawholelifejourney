@@ -482,7 +482,11 @@ Match your response to your coaching style."""
         # TIME CONTEXT (for time-aware messaging)
         # ===================
         hour = user_data.get('hour_of_day', 12)
-        if hour < 12:
+        early_morning = hour < 8
+        late_day = hour >= 18
+        if hour < 8:
+            time_of_day = "early morning"
+        elif hour < 12:
             time_of_day = "morning"
         elif hour < 17:
             time_of_day = "afternoon"
@@ -497,27 +501,47 @@ Match your response to your coaching style."""
         # ===================
         habits_status = []
 
-        # Journal status today
-        if user_data.get('journal_done_today'):
-            habits_status.append("Journal: DONE today")
+        if early_morning:
+            # Before 8am: frame habits as "ahead of schedule" if done,
+            # otherwise just note the day is starting - don't list as NOT DONE
+            if user_data.get('journal_done_today'):
+                habits_status.append("Journal: Already done (early riser!)")
+            if user_data.get('workout_done_today'):
+                habits_status.append("Workout: Already done (early riser!)")
+            if user_data.get('medicines_expected_today', 0) > 0:
+                taken = user_data.get('medicines_taken_today', 0)
+                total = user_data.get('medicines_expected_today', 0)
+                pending = user_data.get('medicines_pending_today', 0)
+                if pending == 0:
+                    habits_status.append(f"Medicines: ALL DONE ({taken}/{total} taken)")
+                elif taken > 0:
+                    habits_status.append(f"Medicines: {taken}/{total} taken so far")
+                # If nothing taken yet before 8am, don't mention it
+            if not habits_status:
+                habits_status.append("Day is just getting started")
         else:
-            habits_status.append("Journal: NOT done today")
-
-        # Workout status today
-        if user_data.get('workout_done_today'):
-            habits_status.append("Workout: DONE today")
-        else:
-            habits_status.append("Workout: NOT done today")
-
-        # Medicine status today
-        if user_data.get('medicines_expected_today', 0) > 0:
-            pending = user_data.get('medicines_pending_today', 0)
-            taken = user_data.get('medicines_taken_today', 0)
-            total = user_data.get('medicines_expected_today', 0)
-            if pending == 0:
-                habits_status.append(f"Medicines: ALL DONE ({taken}/{total} taken)")
+            # Normal hours: show full status
+            # Journal status today
+            if user_data.get('journal_done_today'):
+                habits_status.append("Journal: DONE today")
             else:
-                habits_status.append(f"Medicines: {pending} PENDING ({taken}/{total} taken)")
+                habits_status.append("Journal: NOT done today")
+
+            # Workout status today
+            if user_data.get('workout_done_today'):
+                habits_status.append("Workout: DONE today")
+            else:
+                habits_status.append("Workout: NOT done today")
+
+            # Medicine status today
+            if user_data.get('medicines_expected_today', 0) > 0:
+                pending = user_data.get('medicines_pending_today', 0)
+                taken = user_data.get('medicines_taken_today', 0)
+                total = user_data.get('medicines_expected_today', 0)
+                if pending == 0:
+                    habits_status.append(f"Medicines: ALL DONE ({taken}/{total} taken)")
+                else:
+                    habits_status.append(f"Medicines: {pending} PENDING ({taken}/{total} taken)")
 
         context_parts.append("TODAY'S DAILY HABITS: " + ", ".join(habits_status))
 
@@ -650,12 +674,14 @@ YOUR ROLE: You're their accountability assistant. Help them stay on track today.
 
 RULES:
 1. Focus on INCOMPLETE daily habits (medicines, workout, journal)—tell them what needs to happen
-2. Be more urgent in the evening than the morning
-3. DON'T congratulate or give kudos—just acknowledge what's done and move to what's not
-4. If everything is done, briefly say so and suggest they relax or take a break
-5. Plain conversational prose only—NO markdown, NO lists, NO bullet points
-6. 2-3 natural sentences maximum
-7. Be direct and helpful, like a friend keeping them accountable
+2. EARLY MORNING (before 8am): The day is just starting. Be warm and welcoming. Do NOT point out what hasn't been done yet—it's too early for that. If they've already done something, acknowledge it positively. Otherwise, set a positive tone for the day ahead.
+3. MORNING TO AFTERNOON (8am-5pm): Gentle, helpful reminders about what's still on the list
+4. EVENING (after 6pm): Be more direct and urgent—the day is winding down and things need to get done
+5. DON'T congratulate or give kudos—just acknowledge what's done and move to what's not
+6. If everything is done, briefly say so and suggest they relax or take a break
+7. Plain conversational prose only—NO markdown, NO lists, NO bullet points
+8. 2-3 natural sentences maximum
+9. Be direct and helpful, like a friend keeping them accountable
 
 Generate the message now."""
 

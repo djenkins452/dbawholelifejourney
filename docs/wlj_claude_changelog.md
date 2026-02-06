@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-01 (AI Assistant personal reflection handling)
+# Last Updated: 2026-02-06 (Early morning insight tone fix)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,22 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-02-06 Changes
+
+### Early Morning Insight Tone Fix
+
+**Problem:** Dashboard insight was showing negative "slow start" messaging before 8am, making users feel behind when their day hadn't even begun.
+
+**Changes:**
+- Added `early_morning` (before 8am) and `late_day` (after 6pm) time-of-day buckets in `apps/ai/services.py`
+- Before 8am: incomplete habits are no longer listed as "NOT done" — only completed items are mentioned positively, otherwise the message sets a warm tone for the day ahead
+- Updated prompt rules: warmth before 8am, gentle reminders 8am-5pm, urgency reserved for after 6pm
+- Updated `ai_prompt_configs.json` fixture with aligned time-of-day tone guidance and early morning example response
+
+**Files modified:**
+- `apps/ai/services.py` (generate_daily_insight time bucketing, habits context, prompt rules)
+- `apps/ai/fixtures/ai_prompt_configs.json` (daily_insight system instructions and examples)
+
+---
 
 ### Dashboard Performance Optimization (20+ seconds → ~2-3 seconds)
 

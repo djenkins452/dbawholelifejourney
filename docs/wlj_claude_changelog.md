@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-06 (Early morning insight tone fix)
+# Last Updated: 2026-02-06 (Favorites URL normalization + max increase)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,22 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-02-06 Changes
+
+### Fix Favorites Star Not Recognizing Current Page + Increase Max to 16
+
+**Problem:** When navigating to a page via the favorites dropdown, the page-level star didn't recognize the page was already favorited. Clicking the star tried to add it again instead of removing it. This was caused by exact URL string matching without normalization - any difference in query parameters, trailing slashes, or URL encoding would cause the match to fail.
+
+**Fix:**
+- Added `normalize_url()` static method to `FavoritePage` that strips query params and ensures trailing slashes
+- Applied normalization in `is_favorite()`, `toggle()`, and `save()` methods
+- All URL comparisons now go through normalization for consistent matching
+
+**Also:** Increased `MAX_FAVORITES` from 10 to 16.
+
+**Files modified:**
+- `apps/core/models.py` - Added `normalize_url()`, `save()` override, updated `is_favorite()` and `toggle()`, changed `MAX_FAVORITES` to 16
+- `apps/core/context_processors.py` - Updated comment
+- `apps/core/views.py` - Updated comment
 
 ### User Activity Pattern Tracking for Personalized Insights
 

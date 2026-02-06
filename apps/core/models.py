@@ -1222,11 +1222,11 @@ class FavoritePage(models.Model):
     """
     Track user's favorite pages for quick access.
 
-    Users can mark up to 10 pages as favorites. Favorites appear in the
+    Users can mark up to 16 pages as favorites. Favorites appear in the
     Favorites dropdown menu in the navigation.
     """
 
-    MAX_FAVORITES = 10
+    MAX_FAVORITES = 16
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -1252,10 +1252,26 @@ class FavoritePage(models.Model):
     def __str__(self):
         return f"{self.user.email} - {self.title}"
 
+    @staticmethod
+    def normalize_url(url):
+        """Normalize URL for consistent matching: strip query params, ensure trailing slash."""
+        from urllib.parse import urlparse, urlunparse
+        parsed = urlparse(url)
+        # Keep only the path, strip query string and fragment
+        path = parsed.path
+        # Ensure trailing slash
+        if path and not path.endswith('/'):
+            path += '/'
+        return path
+
+    def save(self, *args, **kwargs):
+        self.url = self.normalize_url(self.url)
+        super().save(*args, **kwargs)
+
     @classmethod
     def is_favorite(cls, user, url):
         """Check if a URL is favorited by the user."""
-        return cls.objects.filter(user=user, url=url).exists()
+        return cls.objects.filter(user=user, url=cls.normalize_url(url)).exists()
 
     @classmethod
     def toggle(cls, user, url, title):
@@ -1265,7 +1281,8 @@ class FavoritePage(models.Model):
         Returns tuple of (is_now_favorite, error_message).
         Error message is set if max favorites reached when trying to add.
         """
-        existing = cls.objects.filter(user=user, url=url).first()
+        normalized_url = cls.normalize_url(url)
+        existing = cls.objects.filter(user=user, url=normalized_url).first()
         if existing:
             existing.delete()
             return (False, None)
@@ -1275,7 +1292,7 @@ class FavoritePage(models.Model):
         if current_count >= cls.MAX_FAVORITES:
             return (True, f"Maximum of {cls.MAX_FAVORITES} favorites reached. Remove one to add more.")
 
-        cls.objects.create(user=user, url=url, title=title)
+        cls.objects.create(user=user, url=normalized_url, title=title)
         return (True, None)
 
     @classmethod
@@ -1292,7 +1309,7 @@ class PageView(models.Model):
     Track page views for the user.
 
     Used to populate the "Most Used" section of the Favorites menu
-    when there are fewer than 10 favorites. Pages are ranked by
+    when there are fewer than 16 favorites. Pages are ranked by
     visit count (most frequently visited first).
     """
 

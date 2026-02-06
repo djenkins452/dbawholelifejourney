@@ -210,7 +210,7 @@ def favorites_context(request):
         if cached_menu is not None:
             context['favorites_menu_data'] = cached_menu
         else:
-            # Get favorites (up to 10)
+            # Get favorites (up to max)
             favorites = FavoritePage.get_favorites_for_user(
                 request.user,
                 limit=FavoritePage.MAX_FAVORITES

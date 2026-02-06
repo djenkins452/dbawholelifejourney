@@ -1271,7 +1271,12 @@ class FavoritePage(models.Model):
     @classmethod
     def is_favorite(cls, user, url):
         """Check if a URL is favorited by the user."""
-        return cls.objects.filter(user=user, url=cls.normalize_url(url)).exists()
+        from django.db.models import Q
+        normalized_url = cls.normalize_url(url)
+        return cls.objects.filter(
+            Q(url=normalized_url) | Q(url=url),
+            user=user
+        ).exists()
 
     @classmethod
     def toggle(cls, user, url, title):
@@ -1281,8 +1286,13 @@ class FavoritePage(models.Model):
         Returns tuple of (is_now_favorite, error_message).
         Error message is set if max favorites reached when trying to add.
         """
+        from django.db.models import Q
         normalized_url = cls.normalize_url(url)
-        existing = cls.objects.filter(user=user, url=normalized_url).first()
+        # Match on both normalized and original URL for backward compatibility
+        existing = cls.objects.filter(
+            Q(url=normalized_url) | Q(url=url),
+            user=user
+        ).first()
         if existing:
             existing.delete()
             return (False, None)

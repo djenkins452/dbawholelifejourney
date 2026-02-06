@@ -622,6 +622,8 @@ class FavoriteToggleView(LoginRequiredMixin, View):
 
     def post(self, request, *args, **kwargs):
         import json
+        import logging
+        logger = logging.getLogger(__name__)
         try:
             data = json.loads(request.body)
             url = data.get('url', '').strip()
@@ -646,6 +648,9 @@ class FavoriteToggleView(LoginRequiredMixin, View):
 
         except json.JSONDecodeError:
             return JsonResponse({'error': 'Invalid JSON'}, status=400)
+        except Exception as e:
+            logger.warning(f"Favorite toggle error for user {request.user.id}: {e}")
+            return JsonResponse({'error': 'Failed to toggle favorite'}, status=500)
 
 
 class FavoriteCheckView(LoginRequiredMixin, View):

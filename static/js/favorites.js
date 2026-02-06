@@ -41,17 +41,27 @@
         button.disabled = true;
 
         try {
+            const csrfToken = getCsrfToken();
+            if (!csrfToken) {
+                console.warn('Favorites: No CSRF token found in cookies');
+            }
+
             const response = await fetch('/api/favorites/toggle/', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRFToken': getCsrfToken(),
+                    'X-CSRFToken': csrfToken,
                 },
                 body: JSON.stringify({ url, title }),
             });
 
             if (!response.ok) {
-                throw new Error('Failed to toggle favorite');
+                let errorMsg = 'Failed to toggle favorite';
+                try {
+                    const errorData = await response.json();
+                    errorMsg = errorData.error || errorMsg;
+                } catch (e) { /* ignore parse error */ }
+                throw new Error(errorMsg);
             }
 
             const data = await response.json();
@@ -84,7 +94,7 @@
 
         } catch (error) {
             console.error('Error toggling favorite:', error);
-            showToast('Failed to update favorite', 'error');
+            showToast(error.message || 'Failed to update favorite', 'error');
         } finally {
             button.disabled = false;
         }

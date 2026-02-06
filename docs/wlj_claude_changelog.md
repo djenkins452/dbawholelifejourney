@@ -39,6 +39,11 @@ Added a system that learns when each user typically starts and ends their day, t
 - `apps/ai/dashboard_ai.py` (fetch activity pattern for user)
 - `apps/ai/services.py` (use dynamic early_morning_threshold)
 
+**Scheduled job:**
+- `compute_activity_patterns` runs daily at 7:00 AM UTC (2:00 AM EST) via APScheduler (Job 13)
+- Also cleans up activity records older than 90 days
+- Added job function to `apps/core/jobs.py`, registered in `config/wsgi.py`
+
 **Migration:** `apps/core/migrations/0052_add_user_activity_tracking.py`
 
 **Tests:** `apps/core/tests/test_activity_patterns.py` (17 tests)

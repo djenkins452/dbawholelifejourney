@@ -15,6 +15,7 @@ These are referenced in config/wsgi.py and run periodically in production.
 Jobs:
     - cleanup_soft_deletes: Permanently delete expired soft-deleted records
     - generate_faith_reminders: Create prayer and reading plan notifications
+    - compute_activity_patterns: Compute user activity patterns for personalized insights
 """
 
 import logging
@@ -122,6 +123,28 @@ def send_notification_digest():
         logger.info("Notification digest job completed successfully")
     except Exception as e:
         logger.exception(f"Notification digest job failed: {e}")
+        raise
+
+
+def compute_activity_patterns():
+    """
+    Compute user activity patterns from daily interaction data.
+
+    Analyzes UserDailyActivity records to determine each user's typical
+    day start/end times. Results stored in UserActivityPattern and used
+    by the AI insight system for personalized time-of-day messaging.
+
+    Also cleans up activity records older than 90 days.
+
+    Scheduled: Daily at 7:00 AM UTC (2:00 AM EST)
+    """
+    logger.info("Starting activity patterns computation job...")
+
+    try:
+        call_command('compute_activity_patterns', '--cleanup')
+        logger.info("Activity patterns computation job completed successfully")
+    except Exception as e:
+        logger.exception(f"Activity patterns computation job failed: {e}")
         raise
 
 

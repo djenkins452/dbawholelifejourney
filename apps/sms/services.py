@@ -159,7 +159,7 @@ class TwilioService:
             if not self.phone_number:
                 missing.append('TWILIO_PHONE_NUMBER (must be E.164 format: +1XXXXXXXXXX)')
             error_msg = f"Twilio not configured. Missing: {', '.join(missing)}"
-            logger.error(error_msg)
+            logger.warning(error_msg)
             return {
                 'success': False,
                 'sid': None,
@@ -170,7 +170,7 @@ class TwilioService:
         normalized_to = self._normalize_phone_number(to)
         if not normalized_to:
             error_msg = f"Invalid destination phone number: '{to}'. Must be E.164 format."
-            logger.error(error_msg)
+            logger.warning(error_msg)
             return {
                 'success': False,
                 'sid': None,
@@ -192,8 +192,9 @@ class TwilioService:
             }
         except Exception as e:
             # Log detailed error including from/to for debugging
+            # Use warning level to avoid triggering admin error emails
             error_str = str(e)
-            logger.error(
+            logger.warning(
                 f"Failed to send SMS - From: '{self.phone_number}', To: '{normalized_to}', "
                 f"Error: {error_str}"
             )
@@ -256,7 +257,7 @@ class TwilioService:
                 'error': None
             }
         except Exception as e:
-            logger.error(f"Failed to send verification to {to}: {e}")
+            logger.warning(f"Failed to send verification to {to}: {e}")
             return {
                 'success': False,
                 'status': None,
@@ -310,7 +311,7 @@ class TwilioService:
                 'error': None
             }
         except Exception as e:
-            logger.error(f"Failed to check verification for {to}: {e}")
+            logger.warning(f"Failed to check verification for {to}: {e}")
             return {
                 'success': False,
                 'status': None,

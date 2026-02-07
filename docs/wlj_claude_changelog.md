@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-07 (Fix daily digest email + milestone detection)
+# Last Updated: 2026-02-07 (Fix SMS errors, daily digest email, milestone detection)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,20 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-02-07 Changes
+
+### Downgrade SMS Service Errors to Warning Level
+
+**Problem:** Twilio SMS failures (auth errors, config issues, send failures) used `logger.error()` which triggered admin error emails for every SMS failure — not actionable in real-time.
+
+**Fix:** Downgraded all `logger.error()` calls in `apps/sms/services.py` to `logger.warning()` for:
+- SMS send failures (line 196) — the main offender (task 413)
+- Twilio not configured (line 162)
+- Invalid destination phone (line 173)
+- Verification send failures (line 259)
+- Verification check failures (line 313)
+
+**Files modified:**
+- `apps/sms/services.py` — 5 logger.error → logger.warning
 
 ### Fix Daily Digest Email Invalid Address
 

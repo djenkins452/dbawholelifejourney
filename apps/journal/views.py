@@ -423,7 +423,7 @@ class EntryCreateView(HelpContextMixin, SaveAddAnotherMixin, LoginRequiredMixin,
             result = ai_service.detect_milestone_completion(
                 entry_text=entry_text,
                 milestones=milestones_data,
-                coaching_style=prefs.coaching_style
+                coaching_style=prefs.ai_coaching_style
             )
 
             if result and result.get('detected'):

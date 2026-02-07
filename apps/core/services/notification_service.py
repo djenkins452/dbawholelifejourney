@@ -337,7 +337,7 @@ class NotificationService:
                 subject=subject,
                 message=text_body,
                 from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[user_log_id(user)],
+                recipient_list=[user.email],
                 html_message=html_body,
                 fail_silently=False,
             )
@@ -420,7 +420,7 @@ class NotificationService:
                 subject=subject,
                 message=text_body,
                 from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[user_log_id(user)],
+                recipient_list=[user.email],
                 html_message=html_body,
                 fail_silently=False,
             )

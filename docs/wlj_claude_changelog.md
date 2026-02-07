@@ -4,13 +4,35 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-06 (Dashboard insight time-awareness + activity refresh)
+# Last Updated: 2026-02-07 (Fix daily digest email + milestone detection)
 # ==============================================================================
 
 # WLJ Change History
 
 This file contains the historical record of all fixes, migrations, and significant changes.
 For active development context, see `CLAUDE.md` (project root).
+
+---
+
+## 2026-02-07 Changes
+
+### Fix Daily Digest Email Invalid Address
+
+**Problem:** Daily digest emails failed with "Invalid address" error because `recipient_list` used `user_log_id(user)` (returns "user:22") instead of the actual email address.
+
+**Fix:** Changed both `send_immediate_email()` (line 340) and `send_daily_digest()` (line 423) in `apps/core/services/notification_service.py` to use `user.email` instead of `user_log_id(user)`.
+
+**Files modified:**
+- `apps/core/services/notification_service.py` — Fixed recipient_list on lines 340 and 423
+
+### Fix Milestone Detection AttributeError
+
+**Problem:** Journal entry milestone detection failed with `AttributeError` because `prefs.coaching_style` doesn't exist — the correct attribute is `prefs.ai_coaching_style`.
+
+**Fix:** Changed line 426 in `apps/journal/views.py` from `coaching_style=prefs.coaching_style` to `coaching_style=prefs.ai_coaching_style`.
+
+**Files modified:**
+- `apps/journal/views.py` — Fixed attribute name on line 426
 
 ---
 

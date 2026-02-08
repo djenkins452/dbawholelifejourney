@@ -7424,3 +7424,19 @@ This uses `or ''` to convert any falsy value (None, empty string, missing key) t
 
 **Files Modified:**
 - `templates/capture/capture_list.html` - Added action icons column, audio modal, and JavaScript
+
+---
+
+## 2026-02-08
+
+### CLAUDE.md - Added Missing Slash Commands to Documentation
+
+**Summary:** Updated CLAUDE.md to include `/close` and `/process-emails` in the Slash Commands table and Reference Documentation row. These commands existed in `.claude/commands/` and the README but were missing from the main CLAUDE.md reference.
+
+**Changes:**
+- Added `/close` (Sonnet) and `/process-emails` (Default) to Slash Commands table
+- Updated Reference Documentation row to list all 6 commands
+- Updated "Last updated" date to 2026-02-08
+
+**Files Modified:**
+- `CLAUDE.md` - Slash Commands table, Reference Documentation table, last updated date

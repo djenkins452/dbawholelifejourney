@@ -148,7 +148,7 @@ python manage.py migrate
 
 | Doc | Purpose |
 |-----|---------|
-| `.claude/commands/README.md` | **Slash commands** (`/next`, `/run-task`, `/troubleshoot`, `/log-change`) |
+| `.claude/commands/README.md` | **Slash commands** (`/next`, `/run-task`, `/troubleshoot`, `/log-change`, `/close`, `/process-emails`) |
 | `docs/wlj_claude_troubleshoot.md` | Known issues & solutions (CHECK FIRST) |
 | `docs/wlj_claude_deploy.md` | Railway deployment, Nixpacks, migrations |
 | `docs/wlj_claude_features.md` | Feature documentation (AI, scan, health) |
@@ -168,6 +168,8 @@ python manage.py migrate
 | `/run-task` | Sonnet | Execute task with full context, auto-changelog |
 | `/troubleshoot` | Haiku | Match error to known issues |
 | `/log-change <desc>` | Haiku | Append entry to changelog |
+| `/close` | Sonnet | End-of-session review: changelog, docs, git status |
+| `/process-emails` | Default | Check Automate folder, create tasks from emails |
 
 ---
 
@@ -374,4 +376,4 @@ See `docs/ios-app-store-submission.md` for complete guide including:
 
 ---
 
-*Last updated: 2026-01-27*
+*Last updated: 2026-02-08*

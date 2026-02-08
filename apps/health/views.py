@@ -3,9 +3,10 @@ Health Views - Physical wellness tracking.
 """
 
 import json
+import logging
 import pytz
 from datetime import datetime, timedelta
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -77,6 +78,8 @@ from .models import (
     WorkoutSession,
     WorkoutTemplate,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class HealthLandingView(HelpContextMixin, LoginRequiredMixin, TemplateView):
@@ -2122,21 +2125,39 @@ def save_set_ajax(request):
     except Exercise.DoesNotExist:
         return JsonResponse({"error": "Exercise not found"}, status=404)
 
-    workout_exercise, created = WorkoutExercise.objects.get_or_create(
-        session=workout,
-        exercise=exercise,
-        defaults={"order": workout.workout_exercises.count()},
-    )
+    try:
+        # Parse weight and reps with validation
+        parsed_weight = None
+        parsed_reps = None
+        if weight:
+            try:
+                parsed_weight = Decimal(str(weight))
+            except (InvalidOperation, ValueError):
+                return JsonResponse({"error": f"Invalid weight value: {weight}"}, status=400)
+        if reps:
+            try:
+                parsed_reps = int(reps)
+            except (ValueError, TypeError):
+                return JsonResponse({"error": f"Invalid reps value: {reps}"}, status=400)
 
-    # Create or update the set
-    exercise_set, set_created = ExerciseSet.objects.update_or_create(
-        workout_exercise=workout_exercise,
-        set_number=set_number,
-        defaults={
-            "weight": Decimal(str(weight)) if weight else None,
-            "reps": int(reps) if reps else None,
-        },
-    )
+        workout_exercise, created = WorkoutExercise.objects.get_or_create(
+            session=workout,
+            exercise=exercise,
+            defaults={"order": workout.workout_exercises.count()},
+        )
+
+        # Create or update the set
+        exercise_set, set_created = ExerciseSet.objects.update_or_create(
+            workout_exercise=workout_exercise,
+            set_number=set_number,
+            defaults={
+                "weight": parsed_weight,
+                "reps": parsed_reps,
+            },
+        )
+    except Exception:
+        logger.exception("Failed to save workout set")
+        return JsonResponse({"error": "Database error saving set"}, status=500)
 
     return JsonResponse({
         "success": True,

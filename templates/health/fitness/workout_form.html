@@ -889,6 +889,11 @@ async function markSetDone(button, exerciseId, setNumber) {
         await startWorkout();
     }
 
+    if (!workoutId) {
+        alert('Failed to start workout session. Please refresh and try again.');
+        return;
+    }
+
     const setRow = button.closest('.set-row');
     const weightInput = setRow.querySelector('.weight-input');
     const repsInput = setRow.querySelector('.reps-input');
@@ -921,6 +926,15 @@ async function markSetDone(button, exerciseId, setNumber) {
             }),
         });
 
+        if (!response.ok) {
+            let errorMsg = `Server error (${response.status})`;
+            try {
+                const errData = await response.json();
+                errorMsg = errData.error || errorMsg;
+            } catch (e) { /* non-JSON response */ }
+            throw new Error(errorMsg);
+        }
+
         const data = await response.json();
         if (data.success) {
             markSetAsSaved(setRow);
@@ -934,7 +948,7 @@ async function markSetDone(button, exerciseId, setNumber) {
         console.error('Failed to save set:', error);
         button.disabled = false;
         button.textContent = 'Done';
-        alert('Failed to save set. Please try again.');
+        alert('Failed to save set: ' + error.message);
     }
 }
 

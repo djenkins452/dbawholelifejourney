@@ -14,6 +14,15 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+## 2026-02-08 Changes
+
+### Fix Workout Set Save Failing
+
+- **Fix:** Fixed workout set save failing with "Failed to save set. Please try again." error. Added try/except error handling around DB operations in `save_set_ajax` view, validated weight/reps values before `Decimal`/`int` conversion, improved JS error alert to show actual server error message, and added guard against null `workoutId`.
+  - Files: `apps/health/views.py`, `templates/health/fitness/workout_form.html`
+
+---
+
 ## 2026-02-07 Changes
 
 ### Downgrade SMS Service Errors to Warning Level

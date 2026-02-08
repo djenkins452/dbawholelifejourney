@@ -18,7 +18,7 @@ For active development context, see `CLAUDE.md` (project root).
 
 ### Fix Workout Set Save Failing
 
-- **Fix:** Fixed workout set save failing with "Failed to save set. Please try again." error. Added try/except error handling around DB operations in `save_set_ajax` view, validated weight/reps values before `Decimal`/`int` conversion, improved JS error alert to show actual server error message, and added guard against null `workoutId`.
+- **Fix:** Fixed workout set save failing with "Failed to save set" error. Root cause: JS was calling `/health/fitness/api/save-set/` which 301-redirected to `/health/physical/fitness/api/save-set/`, converting POST to GET. Fixed all 6 API URLs in workout_form.html to use correct `/health/physical/fitness/api/` prefix. Also added error handling around DB operations and better error messages.
   - Files: `apps/health/views.py`, `templates/health/fitness/workout_form.html`
 
 ---

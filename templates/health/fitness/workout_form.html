@@ -800,7 +800,7 @@ async function startWorkout(templateId = null) {
     if (workoutStarted || isEditing) return;
 
     try {
-        const response = await fetch('/health/fitness/api/start-workout/', {
+        const response = await fetch('/health/physical/fitness/api/start-workout/', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -834,7 +834,7 @@ async function loadWorkoutState() {
     if (!workoutId) return;
 
     try {
-        const response = await fetch(`/health/fitness/api/workout-state/${workoutId}/`);
+        const response = await fetch(`/health/physical/fitness/api/workout-state/${workoutId}/`);
         const data = await response.json();
 
         // Mark saved sets as done
@@ -911,7 +911,7 @@ async function markSetDone(button, exerciseId, setNumber) {
     button.textContent = 'Saving...';
 
     try {
-        const response = await fetch('/health/fitness/api/save-set/', {
+        const response = await fetch('/health/physical/fitness/api/save-set/', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -973,7 +973,7 @@ async function markCardioDone(button, exerciseId) {
     button.textContent = 'Saving...';
 
     try {
-        const response = await fetch('/health/fitness/api/save-cardio/', {
+        const response = await fetch('/health/physical/fitness/api/save-cardio/', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -1027,7 +1027,7 @@ async function markClassDone(button, exerciseId) {
     button.textContent = 'Saving...';
 
     try {
-        const response = await fetch('/health/fitness/api/save-class/', {
+        const response = await fetch('/health/physical/fitness/api/save-class/', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -1135,7 +1135,7 @@ document.getElementById('workoutForm').addEventListener('submit', async function
         e.preventDefault();
 
         try {
-            const response = await fetch('/health/fitness/api/complete-workout/', {
+            const response = await fetch('/health/physical/fitness/api/complete-workout/', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

@@ -164,7 +164,26 @@ def process_assistant_message(
         'weight', 'journal', 'medication', 'food', 'mood', 'glucose', 'faith', 'goals',
         'heart_rate', 'blood_pressure', 'blood_oxygen', 'workout', 'fasting', 'task', 'user',
     ]
+
+    # Map unsupported types to supported ones that provide relevant data
+    # 'habit' queries about streaks/consistency should pull journal data,
+    # but ONLY when no other supported type was already detected
+    # (avoids "What did I eat?" pulling journal data just because 'habit' was incidentally detected)
+    type_mappings = {
+        'habit': 'journal',
+        'reading_plan': 'faith',
+    }
+
+    # First, collect directly supported types
     queryable_types = [dt for dt in intent['data_types'] if dt in supported_types]
+
+    # Then, if NO directly supported type was found, try mappings
+    if not queryable_types:
+        for dt in intent['data_types']:
+            if dt in type_mappings:
+                mapped = type_mappings[dt]
+                if mapped not in queryable_types:
+                    queryable_types.append(mapped)
 
     if not queryable_types:
         # No queryable data types detected - this is a potential gap

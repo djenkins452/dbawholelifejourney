@@ -16,6 +16,20 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-02-11 Changes
 
+### Fix: Habit Queries Not Pulling Journal Data + Tighter Response Discipline
+
+**Problem 1:** "How many days have I missed?" was detected as type `habit` (not `journal`), and `habit` wasn't in the supported query types — so NO data was injected. The AI had zero journal info and confidently told the user they hadn't missed any days (hallucination from lack of data).
+
+**Fix:** Added `type_mappings` in `process_assistant_message` that maps `habit` → `journal` and `reading_plan` → `faith`. Only applies when no directly supported type is already detected (so "What did I eat?" doesn't accidentally pull journal data).
+
+**Problem 2:** AI responses still included cheerleader filler ("great to see you back on track", "How do you feel about...?") despite prompt instructions against it.
+
+**Fix:** Tightened prompt: "Answer what was asked, then STOP" (was "add ONE useful insight"). Added explicit bans on ending with questions, motivational commentary. Per-message user prompt now has strict "do NOT end with a follow-up question" rule with specific examples.
+
+**Files:** `assistant/views.py`, `apps/ai/personal_assistant.py`
+
+---
+
 ### Anti-Hallucination: Real Missed Dates + Temperature Control
 
 **Problem:** When asked "how many days have I missed journaling?", the AI fabricated specific dates (listing dates in 2023, before the app even existed). Root cause: the journal data service provided a count of missed days but no actual dates, so the AI invented them.

@@ -224,6 +224,15 @@ def _format_journal_data(
     if missed is not None:
         lines.append(f'- Days missed: {missed}')
 
+    # Include actual missed dates so the AI doesn't hallucinate them
+    missed_dates = journal_data.get('missed_dates', [])
+    if missed_dates:
+        date_strs = [d.strftime('%Y-%m-%d') if hasattr(d, 'strftime') else str(d) for d in missed_dates]
+        if len(date_strs) <= 15:
+            lines.append(f'- Specific missed dates: {", ".join(date_strs)}')
+        else:
+            lines.append(f'- Most recent missed dates: {", ".join(date_strs[:15])} (and {missed - 15} more)')
+
     consistency = journal_data.get('consistency_percent')
     if consistency is not None:
         lines.append(f'- Consistency: {consistency}%')

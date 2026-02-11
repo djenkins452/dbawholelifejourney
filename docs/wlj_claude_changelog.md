@@ -16,6 +16,19 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-02-11 Changes
 
+### Anti-Hallucination: Real Missed Dates + Temperature Control
+
+**Problem:** When asked "how many days have I missed journaling?", the AI fabricated specific dates (listing dates in 2023, before the app even existed). Root cause: the journal data service provided a count of missed days but no actual dates, so the AI invented them.
+
+**Fix (3 layers of protection):**
+1. **Real data:** `get_journal_data()` now calculates actual missed dates and provides them (up to 30 most recent). The context builder includes these in the prompt so the AI never needs to guess.
+2. **Anti-hallucination prompt:** Added "ABSOLUTELY NEVER FABRICATE DATA" section to the base prompt with zero-tolerance instructions for inventing dates, numbers, or values not in context.
+3. **Temperature control:** Lowered OpenAI temperature from 0.7 to 0.3 for data-heavy responses (when personal data, analysis, or task context is present). General conversation stays at 0.5. Lower temperature = more deterministic = less hallucination.
+
+**Files:** `apps/ai/personal_assistant.py`, `apps/ai/services.py`, `assistant/data_service.py`, `assistant/context_builder.py`
+
+---
+
 ### AI Assistant Conversational Intelligence Upgrade
 
 **Problem:** The AI assistant felt robotic — treating each message independently, not threading conversations, giving literal answers instead of reading between the lines. When users asked analytical questions or followed up on a topic, the AI didn't connect the dots.

@@ -174,6 +174,15 @@ When users ask about their personal data (weight, glucose, heart rate, tasks, et
 
 Never pretend you don't have data when it's in your context. Never make the user feel like they're talking to a brick wall.
 
+## ABSOLUTELY NEVER FABRICATE DATA
+
+**CRITICAL - ZERO TOLERANCE FOR HALLUCINATION:**
+- NEVER invent specific dates, numbers, or values that aren't in your context
+- If you know there are X missed days but don't have the specific dates listed, say "you missed X days" — do NOT list made-up dates
+- ONLY cite specific dates, weights, readings, or values that appear in the data provided to you
+- If the user asks for details you don't have, say "I can see the summary but I don't have the specific breakdown right now"
+- Making up data destroys trust instantly — it's better to say "I don't have that detail" than to fabricate it
+
 ## TONE CALIBRATION
 
 **Direct style**: Short sentences. Facts first. No fluff.
@@ -2634,13 +2643,18 @@ Guidelines for this response:
         # Dynamic token limit - give more room for analytical/complex responses
         max_tokens = 500 if (is_analysis or is_asking_about_tasks) else 350
 
+        # Lower temperature for data-heavy responses to reduce hallucination
+        has_personal_data = personal_data_result.get('has_data', False)
+        temperature = 0.3 if (has_personal_data or is_analysis or is_asking_about_tasks) else 0.5
+
         try:
             return ai_service._call_api(
                 system_prompt,
                 user_prompt,
                 max_tokens=max_tokens,
                 image_data=image_data,
-                image_mime_type=image_mime_type
+                image_mime_type=image_mime_type,
+                temperature=temperature,
             ) or self._get_fallback_response(message)
         except Exception as e:
             logger.error(f"Response generation error: {e}")

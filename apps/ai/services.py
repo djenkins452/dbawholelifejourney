@@ -257,7 +257,8 @@ class AIService:
         user_prompt: str,
         max_tokens: int = 300,
         image_data: str = None,
-        image_mime_type: str = None
+        image_mime_type: str = None,
+        temperature: float = 0.5,
     ) -> Optional[str]:
         """
         Make an API call to OpenAI.
@@ -271,6 +272,9 @@ class AIService:
             max_tokens: Maximum tokens for response
             image_data: Optional base64-encoded image data
             image_mime_type: Optional MIME type of the image
+            temperature: Controls randomness (0.0=deterministic, 1.0=creative).
+                        Default 0.5 balances accuracy with natural conversation.
+                        Use lower (0.3) for data-heavy responses to reduce hallucination.
 
         Returns:
             The AI response content or None if unavailable
@@ -305,7 +309,7 @@ class AIService:
                     {"role": "user", "content": user_content}
                 ],
                 max_tokens=max_tokens,
-                temperature=0.7,
+                temperature=temperature,
             )
             result = response.choices[0].message.content.strip()
             if image_data and image_mime_type:

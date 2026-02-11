@@ -371,6 +371,14 @@ class PersonalDataService:
         # Consistency percentage
         consistency_pct = round((days_with_entries / total_days) * 100, 1) if total_days > 0 else 0
 
+        # Calculate actual missed dates (cap at 30 most recent for prompt size)
+        all_dates_in_range = set()
+        d = earliest_date
+        while d <= today:
+            all_dates_in_range.add(d)
+            d += timedelta(days=1)
+        missed_date_list = sorted(all_dates_in_range - journal_dates, reverse=True)[:30]
+
         result = {
             'type': 'journal',
             'count': count,
@@ -379,6 +387,7 @@ class PersonalDataService:
             'total_days_since_start': total_days,
             'days_with_entries': days_with_entries,
             'missed_days': missed_days,
+            'missed_dates': missed_date_list,
             'current_streak': current_streak,
             'this_week_count': this_week_count,
             'consistency_percent': consistency_pct,

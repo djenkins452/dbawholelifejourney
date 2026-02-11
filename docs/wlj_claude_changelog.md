@@ -16,6 +16,17 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-02-11 Changes
 
+### Enhancement: AI Can Now Read Recent Journal Entries for Date-Specific Questions
+
+**Problem:** User asked "was I happy on Feb 2nd?" and the AI couldn't answer — it only had aggregate journal stats (count, streak, missed days) but no access to individual entry content, moods, or tags.
+
+**Fix:**
+- `data_service.py` `get_journal_data()` now returns `recent_entries` — last 14 journal entries with date, title, mood, tags, and a 200-char body preview
+- `context_builder.py` `_format_journal_data()` now formats these entries into the AI prompt with structured per-entry display: date, title, mood, tags, and content preview
+- Added tests for recent entries formatting (with/without mood and tags)
+
+**Files:** `assistant/data_service.py`, `assistant/context_builder.py`, `assistant/tests/test_context_builder.py`
+
 ### Fix: Habit Queries Not Pulling Journal Data + Tighter Response Discipline
 
 **Problem 1:** "How many days have I missed?" was detected as type `habit` (not `journal`), and `habit` wasn't in the supported query types — so NO data was injected. The AI had zero journal info and confidently told the user they hadn't missed any days (hallucination from lack of data).

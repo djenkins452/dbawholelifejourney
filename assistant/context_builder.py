@@ -241,6 +241,39 @@ def _format_journal_data(
     if this_week is not None:
         lines.append(f'- Entries this week: {this_week}')
 
+    # Include recent journal entries so the AI can answer date-specific questions
+    # like "was I happy on Feb 2nd?" or "what did I write about last week?"
+    recent_entries = journal_data.get('recent_entries', [])
+    if recent_entries:
+        lines.append('')
+        lines.append('Recent Journal Entries (last ~2 weeks):')
+        for entry in recent_entries:
+            entry_date = entry.get('date', '')
+            if hasattr(entry_date, 'strftime'):
+                entry_date = entry_date.strftime('%Y-%m-%d')
+            title = entry.get('title', '')
+            mood = entry.get('mood', '')
+            tags = entry.get('tags', [])
+            preview = entry.get('preview', '')
+
+            # Build entry summary line
+            parts = [f'  [{entry_date}]']
+            if title:
+                parts.append(f'"{title}"')
+            if mood:
+                parts.append(f'(mood: {mood})')
+            if tags:
+                parts.append(f'[tags: {", ".join(tags)}]')
+            lines.append(' '.join(parts))
+
+            # Add content preview on next line if available
+            if preview:
+                # Truncate preview for prompt size management
+                clean_preview = preview.strip().replace('\n', ' ')
+                if len(clean_preview) > 150:
+                    clean_preview = clean_preview[:150] + '...'
+                lines.append(f'    Content: {clean_preview}')
+
     return '\n'.join(lines)
 
 

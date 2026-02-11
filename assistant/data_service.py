@@ -379,6 +379,21 @@ class PersonalDataService:
             d += timedelta(days=1)
         missed_date_list = sorted(all_dates_in_range - journal_dates, reverse=True)[:30]
 
+        # Get recent entries with mood, tags, and content preview
+        # This allows the AI to answer questions like "was I happy on Feb 2nd?"
+        recent_entries = []
+        for entry in queryset.prefetch_related('tags')[:14]:  # Last ~2 weeks
+            tags = [t.name for t in entry.tags.all()]
+            preview = entry.body[:200] + '...' if len(entry.body) > 200 else entry.body
+            recent_entries.append({
+                'date': entry.entry_date,
+                'title': entry.title,
+                'mood': entry.mood or '',
+                'tags': tags,
+                'preview': preview,
+                'word_count': entry.word_count or 0,
+            })
+
         result = {
             'type': 'journal',
             'count': count,
@@ -391,6 +406,7 @@ class PersonalDataService:
             'current_streak': current_streak,
             'this_week_count': this_week_count,
             'consistency_percent': consistency_pct,
+            'recent_entries': recent_entries,
         }
 
         # Cache the result

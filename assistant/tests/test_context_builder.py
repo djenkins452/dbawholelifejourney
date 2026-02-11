@@ -237,6 +237,86 @@ class TestFormatJournalData(unittest.TestCase):
         result = _format_journal_data({})
         self.assertEqual(result, '')
 
+    def test_formats_recent_entries(self):
+        """Should format recent journal entries with mood, tags, and preview."""
+        from assistant.context_builder import _format_journal_data
+
+        journal_data = {
+            'count': 10,
+            'latest_date': date(2026, 2, 8),
+            'earliest_date': date(2026, 1, 25),
+            'current_streak': 3,
+            'total_days_since_start': 15,
+            'days_with_entries': 10,
+            'missed_days': 5,
+            'missed_dates': [date(2026, 2, 1), date(2026, 1, 30)],
+            'consistency_percent': 66.7,
+            'this_week_count': 4,
+            'recent_entries': [
+                {
+                    'date': date(2026, 2, 8),
+                    'title': 'Great day today',
+                    'mood': 'great',
+                    'tags': ['gratitude', 'family'],
+                    'preview': 'Had a wonderful time with the family at the park.',
+                    'word_count': 150,
+                },
+                {
+                    'date': date(2026, 2, 7),
+                    'title': 'Rough morning',
+                    'mood': 'low',
+                    'tags': ['stress'],
+                    'preview': 'Woke up feeling off. Work pressure building up.',
+                    'word_count': 80,
+                },
+            ],
+        }
+
+        result = _format_journal_data(journal_data)
+
+        # Check recent entries section header
+        self.assertIn('Recent Journal Entries', result)
+
+        # Check first entry
+        self.assertIn('[2026-02-08]', result)
+        self.assertIn('"Great day today"', result)
+        self.assertIn('(mood: great)', result)
+        self.assertIn('[tags: gratitude, family]', result)
+        self.assertIn('Had a wonderful time', result)
+
+        # Check second entry
+        self.assertIn('[2026-02-07]', result)
+        self.assertIn('"Rough morning"', result)
+        self.assertIn('(mood: low)', result)
+        self.assertIn('[tags: stress]', result)
+
+    def test_handles_entries_without_mood_or_tags(self):
+        """Should format entries that have no mood or tags gracefully."""
+        from assistant.context_builder import _format_journal_data
+
+        journal_data = {
+            'count': 1,
+            'latest_date': date(2026, 2, 5),
+            'recent_entries': [
+                {
+                    'date': date(2026, 2, 5),
+                    'title': 'Quick note',
+                    'mood': '',
+                    'tags': [],
+                    'preview': 'Just a quick note.',
+                    'word_count': 10,
+                },
+            ],
+        }
+
+        result = _format_journal_data(journal_data)
+
+        self.assertIn('[2026-02-05]', result)
+        self.assertIn('"Quick note"', result)
+        # Should NOT contain mood or tags markers
+        self.assertNotIn('(mood:', result)
+        self.assertNotIn('[tags:', result)
+
 
 class TestFormatMedicationData(unittest.TestCase):
     """Tests for _format_medication_data helper function."""

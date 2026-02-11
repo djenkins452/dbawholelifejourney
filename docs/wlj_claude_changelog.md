@@ -16,6 +16,26 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-02-11 Changes
 
+### AI Assistant Conversational Intelligence Upgrade
+
+**Problem:** The AI assistant felt robotic — treating each message independently, not threading conversations, giving literal answers instead of reading between the lines. When users asked analytical questions or followed up on a topic, the AI didn't connect the dots.
+
+**Improvements (5 areas):**
+1. **Conversational Intelligence prompt** — New "CONVERSATIONAL INTELLIGENCE" section teaches the AI to: thread conversations naturally, infer intent from context, distinguish "analyze my data" from "navigate to a page", and ask smart clarifying questions when needed.
+2. **Expanded conversation context** — Increased from 5 to 10 messages in the user prompt (fetches 15 from DB), so the AI can properly follow up on earlier topics.
+3. **Dynamic token limits** — Analytical/task questions get 500 tokens (was 300 for everything), regular questions get 350. Gives room for thoughtful data-driven responses.
+4. **Natural personal context** — Changed "NEVER bring these up unprompted" to "use like a friend who remembers" — the AI can now naturally weave personal knowledge into relevant responses instead of sitting on it.
+5. **User name in prompts** — The user's first name is now included in the user prompt so the AI can address them personally.
+
+**Also improved:**
+- "WHAT YOU NEVER DO" expanded: no generic answers when you have specific data, no treating messages in isolation
+- "WHAT YOU ALWAYS DO" expanded: reference conversation naturally, use specific numbers, use their name occasionally
+- User prompt rewritten: includes conversational guidelines per-message, not just "answer what was asked"
+
+**Files:** `apps/ai/personal_assistant.py`, `apps/ai/personal_context.py`, `apps/ai/tests/test_personal_context.py`
+
+---
+
 ### Fix AI Assistant Giving Navigation Links Instead of Analyzing User Data
 
 **Problem:** When users asked data-driven questions like "where do I need to strengthen my focus" or "how many days have I missed journaling", the AI assistant gave generic navigation links (e.g., "go to Goals - Intentions") instead of actually analyzing their data. Root cause: `_try_navigation_response()` used keyword matching that was too broad — words like "where", "how", "show me" triggered navigation intercept even for analytical questions, short-circuiting the AI response pipeline.

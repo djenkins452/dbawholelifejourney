@@ -110,7 +110,7 @@ class PromptBuildingTests(TestCase):
         result = build_personal_context_prompt(context)
         self.assertIn("WHAT YOU KNOW ABOUT THIS USER", result)
         self.assertIn("parents divorced", result)
-        self.assertIn("NEVER bring these up unprompted", result)
+        self.assertIn("background knowledge", result)
 
     def test_empty_context_returns_empty(self):
         """Empty context returns empty string."""

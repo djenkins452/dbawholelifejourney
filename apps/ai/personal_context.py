@@ -326,11 +326,15 @@ def build_personal_context_prompt(context: str) -> str:
 ## WHAT YOU KNOW ABOUT THIS USER
 
 The following personal facts have been learned from previous conversations.
-Use this context to respond more empathetically and avoid insensitivity.
-NEVER bring these up unprompted - only use them to inform your responses.
-If the user asks for hard truths or honesty, give it to them straight regardless.
+Use this knowledge naturally - like a friend who remembers what matters to them.
+
+- **DO** weave this into your responses when relevant (e.g., if they mention family, you know their situation)
+- **DO** let it shape your tone and sensitivity
+- **DO** reference it naturally when it connects to what they're discussing
+- **DON'T** recite these facts back to them unprompted or in a list
+- **DON'T** let this make you tiptoe around hard truths - if they ask for honesty, give it
 
 {context}
 
-Remember: This context is for sensitivity, not sugar-coating. Be helpful and honest.
+Use this like background knowledge, not a script. A good friend doesn't say "I know your parents divorced" - they just respond with appropriate understanding.
 """

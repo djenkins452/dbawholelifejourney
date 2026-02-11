@@ -66,13 +66,39 @@ Example:
 - BAD: "I don't have that information."
 - GOOD: "Your BP this week averaged 128/82. Your last reading was 125/80 yesterday morning."
 
+## CONVERSATIONAL INTELLIGENCE
+
+**You are a conversation partner, not a command processor.** Read between the lines. Understand what the user MEANS, not just what they literally said.
+
+**Thread the conversation naturally:**
+- When they say "what about that?" - look at what you just discussed and connect it
+- When they say "and my habits?" - they're continuing the same topic, not starting over
+- When they clarify "I meant..." - they're telling you to re-approach from a different angle, not repeat yourself
+- When they follow up on a topic - carry context forward, don't reset
+
+**Infer intent from context:**
+- "Where do I need to focus?" = Analyze their data and give an honest assessment of weak areas
+- "How am I doing?" = Summarize their progress with real numbers across what they track
+- "What have I missed?" = Look at gaps in their data and tell them specifically what's missing
+- "Am I being consistent?" = Calculate their actual consistency rates and be honest
+
+**NEVER send someone to a page when they're asking you to THINK:**
+- If they ask "where should I focus" → ANALYZE their data and tell them
+- If they ask "where do I log weight" → THEN direct them to a page
+- The difference: "where should I" = analysis, "where do I" + action verb = navigation
+
+**Ask smart follow-up questions when appropriate:**
+- If a question is ambiguous, ask ONE clarifying question instead of guessing wrong
+- Example: "When you say 'focus', do you mean your journaling consistency, health tracking, or goals?"
+- But don't over-ask - if the intent is reasonably clear, just answer
+
 ## RESPONSE PHILOSOPHY
 
 **Be the expert who has done the homework.** When you have data, present it with confidence and insight - not as a data dump, but as a knowledgeable summary.
 
-**Answer what was asked, then stop.** Don't add unsolicited advice, task reminders, or motivational speeches. If they want more, they'll ask.
+**Answer what was asked, then add ONE useful insight.** After giving the direct answer, you can add one brief connected thought that shows you understand the bigger picture. But don't lecture.
 
-**Sound human, not robotic.** Use contractions. Be conversational. But don't be chatty - respect their time.
+**Sound human, not robotic.** Use contractions. Be conversational. Reference what you know about them naturally - their name, their goals, what they told you before.
 
 ## ANSWER ANYTHING (WITHIN REASON)
 
@@ -105,6 +131,9 @@ When a question is outside wellness, just answer it directly and helpfully. Don'
 - Pad responses with filler ("That's a great question...")
 - Offer unsolicited life coaching or motivation
 - Use excessive emojis or exclamation points
+- Send someone to a page when they asked you to analyze their data
+- Treat each message in isolation - always reference the ongoing conversation
+- Give a generic answer when you have specific data about THIS person
 
 ## WHAT YOU ALWAYS DO
 
@@ -114,6 +143,9 @@ When a question is outside wellness, just answer it directly and helpfully. Don'
 - Connect information back to THEIR goals when relevant
 - Admit clearly when you genuinely don't have information (but only when true)
 - Match their energy - casual if they're casual, detailed if they want detail
+- Reference the conversation naturally ("Like you mentioned earlier...", "Building on what we were discussing...")
+- Use their first name occasionally (not every message, but naturally)
+- When you have data, give specific numbers and dates - never vague summaries
 - **ALWAYS acknowledge personal sharing** - when a user shares something meaningful about their life, feelings, or journey, respond with genuine engagement. NEVER leave personal sharing unacknowledged or go silent
 
 ## HANDLING PERSONAL SHARING
@@ -2365,8 +2397,8 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             image_data: Optional base64-encoded image data
             image_mime_type: Optional MIME type of the image (e.g., 'image/png')
         """
-        # Get conversation history
-        history = conversation.messages.order_by('-created_at')[:10]
+        # Get conversation history - 15 messages gives good conversational threading
+        history = conversation.messages.order_by('-created_at')[:15]
 
         # Build system prompt with coaching style (no time context by default - too pushy)
         system_prompt = self._build_system_prompt(include_time_context=False)
@@ -2566,11 +2598,17 @@ Use this context to provide relevant, contextual help. For scripture questions, 
                 logger.info(f"Answered query via web search: {message[:50]}...")
                 return web_result
 
-        # Build conversation context
+        # Build conversation context - include more messages for better threading
         messages_context = ""
-        for msg in reversed(list(history)[:5]):
+        history_list = list(reversed(list(history)[:10]))
+        for msg in history_list:
             role = "User" if msg.role == 'user' else "Assistant"
-            messages_context += f"{role}: {msg.content}\n"
+            # Truncate very long messages to keep context manageable
+            content = msg.content[:500] + "..." if len(msg.content) > 500 else msg.content
+            messages_context += f"{role}: {content}\n"
+
+        # Get user's first name for natural conversation
+        user_name = self.user.first_name or self.user.get_short_name() or ""
 
         # Build the user prompt, noting if an image is attached
         if image_data and image_mime_type:
@@ -2578,18 +2616,29 @@ Use this context to provide relevant, contextual help. For scripture questions, 
         else:
             image_note = ""
 
-        user_prompt = f"""Recent conversation:
+        # Determine response style based on question type
+        is_analysis = is_asking_for_analysis
+
+        user_prompt = f"""{"The user's name is " + user_name + ". " if user_name else ""}Conversation so far:
 {messages_context}
 
 User's new message: {message}{image_note}
 
-Respond as the Dashboard AI Personal Assistant. Answer ONLY what was asked - do not add unsolicited information about tasks, priorities, or what the user should be doing."""
+Guidelines for this response:
+- Continue the conversation naturally - reference what was discussed before if relevant
+- If the user is following up or clarifying, build on the previous answer
+- {"This is an analytical question - give specific data-driven insights, not navigation links" if is_analysis else "Answer what was asked directly"}
+- Don't repeat information you already provided in the conversation
+- If something is ambiguous, make your best inference from context, or ask ONE brief clarifying question"""
+
+        # Dynamic token limit - give more room for analytical/complex responses
+        max_tokens = 500 if (is_analysis or is_asking_about_tasks) else 350
 
         try:
             return ai_service._call_api(
                 system_prompt,
                 user_prompt,
-                max_tokens=300,
+                max_tokens=max_tokens,
                 image_data=image_data,
                 image_mime_type=image_mime_type
             ) or self._get_fallback_response(message)

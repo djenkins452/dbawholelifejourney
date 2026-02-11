@@ -644,16 +644,18 @@ class MedicineScheduleForm(forms.ModelForm):
                 str(d) for d in self.instance.days_list
             ]
         else:
-            # Default to all days
-            self.initial["days"] = ["0", "1", "2", "3", "4", "5", "6"]
+            # New schedule: no days pre-selected (user must choose)
+            self.initial["days"] = []
+
+    def clean_days(self):
+        days = self.cleaned_data.get("days", [])
+        if not days:
+            raise forms.ValidationError("Please select at least one day.")
+        return days
 
     def save(self, commit=True):
         instance = super().save(commit=False)
-        # Convert selected days to comma-separated string
         days = self.cleaned_data.get("days", [])
-        # If no days selected, default to all days
-        if not days:
-            days = ["0", "1", "2", "3", "4", "5", "6"]
         instance.days_of_week = ",".join(sorted(days))
         if commit:
             instance.save()

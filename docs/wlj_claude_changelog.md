@@ -16,6 +16,11 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-02-10 Changes
 
+### Fix Medicine Schedule Days Selection UX
+
+- **Fix:** Medicine schedule form defaulted to all 7 days pre-selected, confusing users who thought they were selecting a single day but were actually toggling one off. New schedules now start with no days selected. Added validation requiring at least one day. Fixed day badge display to use proper list membership check instead of substring matching.
+  - Files: `apps/health/forms.py`, `templates/health/medicine/medicine_schedules.html`
+
 ### Fix AI Assistant Stale Time Display & Add Refresh Support
 
 **Problem:** AI assistant dashboard showed stale "17 hours until bedtime" text all day because the AI assessment was cached in `UserStateSnapshot` once and never refreshed. Also, returning to the page or pull-to-refresh on mobile didn't update the content.

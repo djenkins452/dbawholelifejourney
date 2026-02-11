@@ -5,6 +5,33 @@
 
 {% block extra_css %}
 <style nonce="{{ csp_nonce }}">
+/* Pull-to-refresh indicator */
+.pull-refresh-indicator {
+    text-align: center;
+    padding: 12px;
+    color: var(--color-text-muted);
+    font-size: 13px;
+    display: none;
+    transition: opacity 0.3s;
+}
+.pull-refresh-indicator.visible {
+    display: block;
+}
+.pull-refresh-indicator .spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--color-border);
+    border-top-color: var(--color-primary);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    margin-right: 6px;
+    vertical-align: middle;
+}
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
 /* Assistant Dashboard Layout */
 .assistant-container {
     max-width: 1200px;
@@ -703,6 +730,9 @@
 {% endblock %}
 
 {% block content %}
+<div class="pull-refresh-indicator" id="pull-refresh-indicator">
+    <span class="spinner"></span> Refreshing...
+</div>
 <div class="assistant-container">
     <!-- Main Content -->
     <div class="assistant-main">
@@ -1576,12 +1606,57 @@
         }
     }
 
-    // Sync on visibility change - refresh when user returns to tab
+    // Sync on visibility change - refresh everything when user returns to tab/app
     document.addEventListener('visibilitychange', function() {
         if (document.visibilityState === 'visible') {
+            loadOpening();  // Refresh greeting, assessment, priorities, nudges
             refreshChatHistory();
         }
     });
+
+    // Also refresh on pageshow (handles mobile browser back/forward cache)
+    window.addEventListener('pageshow', function(event) {
+        if (event.persisted) {
+            loadOpening();
+            refreshChatHistory();
+        }
+    });
+
+    // Pull-to-refresh for mobile browsers
+    let pullStartY = 0;
+    let isPulling = false;
+    const pullThreshold = 80;
+    const mainContent = document.querySelector('.assistant-main');
+    const pullIndicator = document.getElementById('pull-refresh-indicator');
+
+    document.addEventListener('touchstart', function(e) {
+        if (window.scrollY === 0) {
+            pullStartY = e.touches[0].clientY;
+            isPulling = true;
+        }
+    }, { passive: true });
+
+    document.addEventListener('touchmove', function(e) {
+        if (!isPulling) return;
+        const pullDistance = e.touches[0].clientY - pullStartY;
+        if (pullDistance > 30 && window.scrollY === 0) {
+            pullIndicator.classList.add('visible');
+        }
+    }, { passive: true });
+
+    document.addEventListener('touchend', function(e) {
+        if (!isPulling) return;
+        isPulling = false;
+        if (pullIndicator.classList.contains('visible')) {
+            // Trigger refresh
+            loadOpening();
+            refreshChatHistory();
+            // Hide indicator after a short delay
+            setTimeout(function() {
+                pullIndicator.classList.remove('visible');
+            }, 1500);
+        }
+    }, { passive: true });
 
     // Load initial data
     loadOpening();

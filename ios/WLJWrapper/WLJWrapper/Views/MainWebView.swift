@@ -33,12 +33,20 @@ struct MainWebView: UIViewRepresentable {
         webView.uiDelegate = context.coordinator
         webView.allowsBackForwardNavigationGestures = true
 
+        // Enable pull-to-refresh
+        let refreshControl = UIRefreshControl()
+        refreshControl.addTarget(context.coordinator, action: #selector(Coordinator.handleRefresh(_:)), for: .valueChanged)
+        webView.scrollView.refreshControl = refreshControl
+
         // Enable inspection in debug builds
         #if DEBUG
         if #available(iOS 16.4, *) {
             webView.isInspectable = true
         }
         #endif
+
+        // Store reference for coordinator
+        context.coordinator.webView = webView
 
         // Load WLJ
         if let url = URL(string: "https://wholelifejourney.com") {
@@ -55,6 +63,7 @@ struct MainWebView: UIViewRepresentable {
     // MARK: - Coordinator
     class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
         var parent: MainWebView
+        weak var webView: WKWebView?
 
         // Allowed domains for navigation
         private let allowedDomains = [
@@ -64,6 +73,15 @@ struct MainWebView: UIViewRepresentable {
 
         init(_ parent: MainWebView) {
             self.parent = parent
+        }
+
+        // MARK: - Pull-to-Refresh
+
+        @objc func handleRefresh(_ sender: UIRefreshControl) {
+            webView?.reload()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                sender.endRefreshing()
+            }
         }
 
         // MARK: - WKNavigationDelegate

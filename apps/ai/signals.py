@@ -34,6 +34,24 @@ def invalidate_daily_insight_cache(user):
     DashboardAI.invalidate_daily_insight(user)
 
 
+def invalidate_state_snapshot(user):
+    """
+    Delete today's UserStateSnapshot so the AI assessment regenerates on next load.
+
+    Called when any user data changes (journal, health, tasks, faith, etc.)
+    so the assistant dashboard always shows up-to-date information.
+    """
+    from apps.core.utils import get_user_today
+    from .models import UserStateSnapshot
+    try:
+        today = get_user_today(user)
+        deleted, _ = UserStateSnapshot.objects.filter(user=user, snapshot_date=today).delete()
+        if deleted:
+            logger.debug(f"Invalidated state snapshot for user {user.id}")
+    except Exception:
+        pass  # Don't let snapshot invalidation break data saves
+
+
 def invalidate_user_insights(user, insight_types=None):
     """
     Invalidate cached AI insights for a user.
@@ -97,6 +115,7 @@ def invalidate_insights_on_journal_save(sender, instance, created, **kwargs):
     invalidate_personal_data_cache(instance.user, 'journal')
     if instance.mood:
         invalidate_personal_data_cache(instance.user, 'mood')
+    invalidate_state_snapshot(instance.user)
 
 
 @receiver(post_delete, sender='journal.JournalEntry')
@@ -108,6 +127,7 @@ def invalidate_insights_on_journal_delete(sender, instance, **kwargs):
     invalidate_personal_data_cache(instance.user, 'journal')
     if instance.mood:
         invalidate_personal_data_cache(instance.user, 'mood')
+    invalidate_state_snapshot(instance.user)
 
 
 # =============================================================================
@@ -121,6 +141,7 @@ def invalidate_insights_on_goal_save(sender, instance, created, **kwargs):
     invalidate_user_insights(instance.user, insight_types)
     # Also invalidate personal data cache
     invalidate_personal_data_cache(instance.user, 'goals')
+    invalidate_state_snapshot(instance.user)
 
 
 @receiver(post_delete, sender='purpose.LifeGoal')
@@ -130,6 +151,7 @@ def invalidate_insights_on_goal_delete(sender, instance, **kwargs):
     invalidate_user_insights(instance.user, insight_types)
     # Also invalidate personal data cache
     invalidate_personal_data_cache(instance.user, 'goals')
+    invalidate_state_snapshot(instance.user)
 
 
 # =============================================================================
@@ -143,6 +165,7 @@ def invalidate_insights_on_glucose_save(sender, instance, created, **kwargs):
     invalidate_user_insights(instance.user, insight_types)
     # Also invalidate personal data cache
     invalidate_personal_data_cache(instance.user, 'glucose')
+    invalidate_state_snapshot(instance.user)
 
 
 @receiver(post_delete, sender='health.GlucoseEntry')
@@ -152,6 +175,7 @@ def invalidate_insights_on_glucose_delete(sender, instance, **kwargs):
     invalidate_user_insights(instance.user, insight_types)
     # Also invalidate personal data cache
     invalidate_personal_data_cache(instance.user, 'glucose')
+    invalidate_state_snapshot(instance.user)
 
 
 @receiver(post_save, sender='health.WeightEntry')
@@ -161,6 +185,7 @@ def invalidate_insights_on_weight_save(sender, instance, created, **kwargs):
     invalidate_user_insights(instance.user, insight_types)
     # Also invalidate personal data cache
     invalidate_personal_data_cache(instance.user, 'weight')
+    invalidate_state_snapshot(instance.user)
 
 
 @receiver(post_delete, sender='health.WeightEntry')
@@ -170,6 +195,7 @@ def invalidate_insights_on_weight_delete(sender, instance, **kwargs):
     invalidate_user_insights(instance.user, insight_types)
     # Also invalidate personal data cache
     invalidate_personal_data_cache(instance.user, 'weight')
+    invalidate_state_snapshot(instance.user)
 
 
 # =============================================================================
@@ -181,6 +207,7 @@ def invalidate_insights_on_task_save(sender, instance, created, **kwargs):
     """Invalidate relevant insights when a task is saved."""
     insight_types = ['daily_insight', 'life_home', 'accountability_nudge']
     invalidate_user_insights(instance.user, insight_types)
+    invalidate_state_snapshot(instance.user)
 
 
 @receiver(post_delete, sender='life.Task')
@@ -188,6 +215,7 @@ def invalidate_insights_on_task_delete(sender, instance, **kwargs):
     """Invalidate relevant insights when a task is deleted."""
     insight_types = ['daily_insight', 'life_home']
     invalidate_user_insights(instance.user, insight_types)
+    invalidate_state_snapshot(instance.user)
 
 
 # =============================================================================
@@ -201,6 +229,7 @@ def invalidate_insights_on_prayer_save(sender, instance, created, **kwargs):
     invalidate_user_insights(instance.user, insight_types)
     # Also invalidate personal data cache
     invalidate_personal_data_cache(instance.user, 'faith')
+    invalidate_state_snapshot(instance.user)
 
 
 @receiver(post_delete, sender='faith.PrayerRequest')
@@ -210,6 +239,7 @@ def invalidate_insights_on_prayer_delete(sender, instance, **kwargs):
     invalidate_user_insights(instance.user, insight_types)
     # Also invalidate personal data cache
     invalidate_personal_data_cache(instance.user, 'faith')
+    invalidate_state_snapshot(instance.user)
 
 
 @receiver(post_save, sender='faith.SavedVerse')
@@ -257,12 +287,14 @@ def invalidate_cache_on_medicine_log_save(sender, instance, created, **kwargs):
     """Invalidate personal data cache when a medicine log is saved."""
     invalidate_personal_data_cache(instance.user, 'medication')
     invalidate_daily_insight_cache(instance.user)
+    invalidate_state_snapshot(instance.user)
 
 
 @receiver(post_delete, sender='health.MedicineLog')
 def invalidate_cache_on_medicine_log_delete(sender, instance, **kwargs):
     """Invalidate personal data cache when a medicine log is deleted."""
     invalidate_personal_data_cache(instance.user, 'medication')
+    invalidate_state_snapshot(instance.user)
 
 
 # =============================================================================
@@ -273,12 +305,14 @@ def invalidate_cache_on_medicine_log_delete(sender, instance, **kwargs):
 def invalidate_cache_on_food_entry_save(sender, instance, created, **kwargs):
     """Invalidate personal data cache when a food entry is saved."""
     invalidate_personal_data_cache(instance.user, 'food')
+    invalidate_state_snapshot(instance.user)
 
 
 @receiver(post_delete, sender='health.FoodEntry')
 def invalidate_cache_on_food_entry_delete(sender, instance, **kwargs):
     """Invalidate personal data cache when a food entry is deleted."""
     invalidate_personal_data_cache(instance.user, 'food')
+    invalidate_state_snapshot(instance.user)
 
 
 # =============================================================================
@@ -292,6 +326,7 @@ def invalidate_cache_on_water_entry_save(sender, instance, created, **kwargs):
     # Also invalidate health insights
     insight_types = ['daily_insight', 'health_home', 'health_encouragement']
     invalidate_user_insights(instance.user, insight_types)
+    invalidate_state_snapshot(instance.user)
 
 
 @receiver(post_delete, sender='health.WaterEntry')
@@ -301,6 +336,7 @@ def invalidate_cache_on_water_entry_delete(sender, instance, **kwargs):
     # Also invalidate health insights
     insight_types = ['daily_insight', 'health_home', 'health_encouragement']
     invalidate_user_insights(instance.user, insight_types)
+    invalidate_state_snapshot(instance.user)
 
 
 # =============================================================================
@@ -315,6 +351,7 @@ def invalidate_cache_on_workout_save(sender, instance, created, **kwargs):
     # Also invalidate health insights
     insight_types = ['daily_insight', 'health_home', 'health_encouragement']
     invalidate_user_insights(instance.user, insight_types)
+    invalidate_state_snapshot(instance.user)
 
 
 @receiver(post_delete, sender='health.WorkoutSession')
@@ -324,6 +361,7 @@ def invalidate_cache_on_workout_delete(sender, instance, **kwargs):
     # Also invalidate health insights
     insight_types = ['daily_insight', 'health_home', 'health_encouragement']
     invalidate_user_insights(instance.user, insight_types)
+    invalidate_state_snapshot(instance.user)
 
 
 @receiver(post_save, sender='health.ExerciseSet')
@@ -353,6 +391,7 @@ def invalidate_cache_on_steps_save(sender, instance, created, **kwargs):
     # Also invalidate health insights
     insight_types = ['daily_insight', 'health_home', 'health_encouragement']
     invalidate_user_insights(instance.user, insight_types)
+    invalidate_state_snapshot(instance.user)
 
 
 @receiver(post_delete, sender='health.StepsEntry')
@@ -362,3 +401,4 @@ def invalidate_cache_on_steps_delete(sender, instance, **kwargs):
     # Also invalidate health insights
     insight_types = ['daily_insight', 'health_home', 'health_encouragement']
     invalidate_user_insights(instance.user, insight_types)
+    invalidate_state_snapshot(instance.user)

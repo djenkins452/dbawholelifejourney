@@ -14,6 +14,32 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+## 2026-02-10 Changes
+
+### Fix AI Assistant Stale Time Display & Add Refresh Support
+
+**Problem:** AI assistant dashboard showed stale "17 hours until bedtime" text all day because the AI assessment was cached in `UserStateSnapshot` once and never refreshed. Also, returning to the page or pull-to-refresh on mobile didn't update the content.
+
+**Root Cause:** `assess_current_state()` cached the AI-generated assessment (which included exact hours remaining) in a daily snapshot and served it unchanged for the rest of the day, even as time passed and new data was added.
+
+**Fix (3 parts):**
+
+1. **Backend - Snapshot invalidation on data changes:** Added `invalidate_state_snapshot()` to all existing Django signals (journal, weight, workout, food, water, tasks, goals, prayers, medicine, glucose, steps). Any data save/delete now deletes the cached snapshot so it regenerates on next load.
+
+2. **Backend - Time-based staleness + safer AI prompts:** Added 2-hour staleness check in `assess_current_state()` as a fallback. Changed AI assessment prompt to use day_status description ("evening") instead of exact hours ("4 hours") since the text gets cached.
+
+3. **Frontend - Automatic refresh on return:** `visibilitychange` now reloads the full opening message (greeting + assessment + priorities + nudges), not just chat history. Added `pageshow` handler for mobile browser back/forward cache. Added pull-to-refresh touch gesture support.
+
+4. **iOS - Pull-to-refresh:** Added `UIRefreshControl` to WKWebView's scroll view for native pull-to-refresh in the iOS app.
+
+**Files Modified:**
+- `apps/ai/personal_assistant.py` - Staleness detection, safer AI prompt
+- `apps/ai/signals.py` - `invalidate_state_snapshot()` added to all data signals
+- `templates/ai/assistant_dashboard.html` - visibilitychange, pageshow, pull-to-refresh
+- `ios/WLJWrapper/WLJWrapper/Views/MainWebView.swift` - UIRefreshControl
+
+---
+
 ## 2026-02-08 Changes
 
 ### Fix Workout Set Save Failing

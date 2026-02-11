@@ -579,7 +579,43 @@ class PersonalAssistant:
                 else:
                     logger.info(f"No coaching style stored in snapshot, regenerating assessment with {self.coaching_style}")
 
+        # Check if snapshot is stale (>2 hours old or key data changed)
+        snapshot_stale = False
         if snapshot and not force_refresh and not coaching_style_changed:
+            user_now = get_user_now(self.user)
+            hours_since_update = (user_now - snapshot.updated_at.astimezone(
+                user_now.tzinfo
+            )).total_seconds() / 3600
+
+            # Stale if >2 hours old (time references become inaccurate)
+            if hours_since_update >= 2:
+                snapshot_stale = True
+                logger.info(f"Snapshot stale: {hours_since_update:.1f} hours old, refreshing")
+
+            # Stale if key metrics changed (user added data)
+            if not snapshot_stale:
+                if (fresh_task_data.get('tasks_completed_today', 0) != snapshot.tasks_completed_today
+                        or fresh_task_data.get('tasks_overdue', 0) != snapshot.tasks_overdue
+                        or fresh_task_data.get('tasks_due_today', 0) != snapshot.tasks_due_today):
+                    snapshot_stale = True
+                    logger.info("Snapshot stale: task counts changed, refreshing")
+
+            # Stale if new health/journal data added since last snapshot update
+            if not snapshot_stale:
+                from apps.journal.models import JournalEntry
+                from apps.health.models import WorkoutSession, WeightEntry, FoodEntry
+                snapshot_updated = snapshot.updated_at
+                new_data = (
+                    JournalEntry.objects.filter(user=self.user, created_at__gt=snapshot_updated).exists()
+                    or WorkoutSession.objects.filter(user=self.user, created_at__gt=snapshot_updated).exists()
+                    or WeightEntry.objects.filter(user=self.user, created_at__gt=snapshot_updated).exists()
+                    or FoodEntry.objects.filter(user=self.user, created_at__gt=snapshot_updated).exists()
+                )
+                if new_data:
+                    snapshot_stale = True
+                    logger.info("Snapshot stale: new data entries since last update, refreshing")
+
+        if snapshot and not force_refresh and not coaching_style_changed and not snapshot_stale:
             # Return cached data but with FRESH task counts
             result = self._snapshot_to_dict(snapshot)
             result['tasks'] = {
@@ -1046,9 +1082,9 @@ class PersonalAssistant:
         # Build context for AI - prioritize REMAINING items and gaps
         context_parts = []
 
-        # Get time context for urgency
+        # Get time context for urgency - use day_status not exact hours (assessment gets cached)
         time_context = self._get_time_context()
-        context_parts.append(f"Time: {time_context['current_time']} ({time_context['hours_remaining']} hours until bedtime)")
+        context_parts.append(f"Time: {time_context['current_time']} ({time_context['day_status'].replace('_', ' ')})")
 
         # Task context - overdue and due today are most important
         overdue = state_data.get('tasks_overdue', 0)

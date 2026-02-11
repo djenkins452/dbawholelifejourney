@@ -1540,22 +1540,49 @@
         if (!confirm('Clear all messages and start fresh?')) return;
 
         try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 15000);
+
             const response = await fetch('/assistant/api/clear/', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRFToken': getCsrfToken()
-                }
+                },
+                signal: controller.signal
             });
 
-            const data = await response.json();
+            clearTimeout(timeoutId);
+
+            if (!response.ok) {
+                if (response.status === 403) {
+                    window.location.reload();
+                    return;
+                }
+                console.error('Clear failed with status:', response.status);
+                return;
+            }
+
+            let data;
+            try {
+                data = await response.json();
+            } catch (parseErr) {
+                // Non-JSON response (middleware redirect) - reload
+                window.location.reload();
+                return;
+            }
 
             if (data.success) {
                 showEmptyState();
             }
 
         } catch (error) {
-            console.error('Clear error:', error);
+            if (error.name === 'AbortError') {
+                // Timed out but server likely processed - show empty state
+                showEmptyState();
+            } else {
+                console.error('Clear error:', error);
+            }
         }
     });
 

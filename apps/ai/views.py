@@ -403,9 +403,9 @@ class ClearConversationView(LoginRequiredMixin, View):
 
     def post(self, request, *args, **kwargs):
         try:
-            # Extract personal context before clearing the conversation
-            # This captures valuable personal facts the user shared
-            self._extract_personal_context_before_clear(request.user)
+            # Extract personal context in a background thread so it doesn't
+            # block the clear response. The messages are captured before clearing.
+            self._extract_personal_context_async(request.user)
 
             conversation = AssistantConversation.clear_active_conversation(request.user)
 
@@ -422,17 +422,18 @@ class ClearConversationView(LoginRequiredMixin, View):
                 'error': 'Failed to clear conversation',
             }, status=500)
 
-    def _extract_personal_context_before_clear(self, user):
+    def _extract_personal_context_async(self, user):
         """
-        Extract personal context from the active conversation before clearing it.
+        Extract personal context from the active conversation in a background
+        thread so the clear response returns immediately.
 
-        This runs asynchronously-ish (we don't wait for it to complete) to avoid
-        slowing down the clear operation for the user.
+        We capture messages before clearing so they're available for extraction
+        even after the conversation is wiped.
         """
+        import threading
+
         try:
-            from .personal_context import update_user_personal_context
-
-            # Get the active conversation
+            # Get the active conversation and its messages BEFORE clearing
             conversation = AssistantConversation.objects.filter(
                 user=user,
                 is_active=True
@@ -441,7 +442,6 @@ class ClearConversationView(LoginRequiredMixin, View):
             if not conversation:
                 return
 
-            # Get all messages from the conversation
             messages = list(conversation.messages.order_by('created_at').values(
                 'role', 'content'
             ))
@@ -449,12 +449,32 @@ class ClearConversationView(LoginRequiredMixin, View):
             if not messages:
                 return
 
-            # Extract and update personal context
-            update_user_personal_context(user, messages)
+            # Run extraction in background thread
+            def _extract(user_id, messages_copy):
+                try:
+                    from django.contrib.auth import get_user_model
+                    from .personal_context import update_user_personal_context
+                    from django import db
+
+                    # Get a fresh user instance for the new thread
+                    User = get_user_model()
+                    user = User.objects.get(pk=user_id)
+                    update_user_personal_context(user, messages_copy)
+                except Exception as e:
+                    logger.warning(f"Background personal context extraction failed: {e}")
+                finally:
+                    db.connections.close_all()
+
+            thread = threading.Thread(
+                target=_extract,
+                args=(user.pk, messages),
+                daemon=True
+            )
+            thread.start()
 
         except Exception as e:
             # Log but don't fail the clear operation
-            logger.warning(f"Personal context extraction failed: {e}", exc_info=True)
+            logger.warning(f"Personal context extraction setup failed: {e}", exc_info=True)
 
 
 # =============================================================================

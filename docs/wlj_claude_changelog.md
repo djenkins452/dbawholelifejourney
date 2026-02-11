@@ -14,6 +14,21 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+## 2026-02-11 Changes
+
+### Fix Chat Bot Clear Conversation Failing
+
+**Problem:** Clicking "Clear Conversation" in the AI assistant chat drawer would show "Sorry, I couldn't clear the conversation. Please try again." The root cause: the clear endpoint ran a synchronous OpenAI API call (personal context extraction) before clearing, which could timeout or fail, blocking the clear response.
+
+**Fix:**
+- **Backend:** Moved personal context extraction to a background thread so the clear response returns immediately. Messages are captured before clearing and passed to the thread.
+- **Frontend (chat widget):** Added AbortController with 15-second timeout, JSON parse error recovery, and 403 auto-reload for stale CSRF tokens.
+- **Frontend (assistant dashboard):** Same timeout and error handling improvements for the full-page clear button.
+
+**Files:** `apps/ai/views.py`, `templates/components/chat_widget.html`, `templates/ai/assistant_dashboard.html`
+
+---
+
 ## 2026-02-10 Changes
 
 ### Brain Training Help Topics & Game-Specific Help Context

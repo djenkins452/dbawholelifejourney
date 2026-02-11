@@ -87,6 +87,11 @@ FIXTURE_LOADERS = [
         'description': 'Admin console help documentation',
     },
     {
+        'name': 'help_topics_brain_training',
+        'display': 'Brain Training Help Topics',
+        'description': 'Help topics for cognitive health brain training exercises',
+    },
+    {
         'name': 'help_categories',
         'display': 'Help Categories',
         'description': 'Categories for help articles',

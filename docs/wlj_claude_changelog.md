@@ -16,6 +16,16 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-02-10 Changes
 
+### Brain Training Help Topics & Game-Specific Help Context
+
+**Problem:** Brain training game pages (KenKen, Sudoku, etc.) showed generic "Health: Track What You Can Measure" help instead of game-specific instructions.
+
+**Fix:** Created 7 new help topics (hub, stats, and each of the 5 games) with full rules, controls, and tips. Added dynamic URL matching in the context processor so `/health/cognitive/<game>/play/` maps to `BRAIN_TRAINING_<GAME>`. Added help_context_id directly to brain training views and BRAIN_TRAINING_/HEALTH_COGNITIVE_ module fallbacks.
+
+**Files:** `apps/help/fixtures/help_topics_brain_training.json` (NEW), `apps/core/management/commands/load_initial_data.py`, `apps/brain_training/views.py`, `apps/core/context_processors.py`, `apps/help/views.py`
+
+---
+
 ### Context-Aware Help: Auto-Map All Pages
 
 **Problem:** Many pages (brain training, faith sub-pages, life sub-pages, purpose, finance, capture) didn't have `HelpContextMixin` and were falling back to generic "GENERAL" help context. ~150+ views were missing proper help context.

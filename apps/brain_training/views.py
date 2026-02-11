@@ -71,6 +71,7 @@ def hub(request):
         'exercises': exercises,
         'exercise_stats': exercise_stats,
         'overall': overall,
+        'help_context_id': 'HEALTH_COGNITIVE_HUB',
     }
     return render(request, 'brain_training/hub.html', context)
 
@@ -92,10 +93,14 @@ def play(request, game_slug):
     except UserGameStats.DoesNotExist:
         preferred_difficulty = exercise.default_difficulty
 
+    # Map game slug to help context ID (e.g., kenken -> BRAIN_TRAINING_KENKEN)
+    help_context = f'BRAIN_TRAINING_{game_slug.replace("-", "_").upper()}'
+
     context = {
         'exercise': exercise,
         'preferred_difficulty': preferred_difficulty,
         'difficulty_levels': exercise.difficulty_levels or ['easy', 'medium', 'hard', 'expert'],
+        'help_context_id': help_context,
     }
     return render(request, f'brain_training/games/{game_slug}.html', context)
 
@@ -650,5 +655,6 @@ def stats_dashboard(request):
     context = {
         'overall': overall,
         'exercise_stats': exercise_stats,
+        'help_context_id': 'HEALTH_COGNITIVE_STATS',
     }
     return render(request, 'brain_training/stats.html', context)

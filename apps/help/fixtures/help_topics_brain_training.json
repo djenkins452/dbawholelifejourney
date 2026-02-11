@@ -1,0 +1,93 @@
+[
+    {
+        "model": "help.helptopic",
+        "fields": {
+            "context_id": "HEALTH_COGNITIVE_HUB",
+            "help_id": "brain-training-hub",
+            "title": "Brain Training: Exercise Your Mind",
+            "description": "Overview of the cognitive health brain training exercises",
+            "content": "Train your brain with fun, challenging puzzles that build mental sharpness.\n\n## Available Exercises\n\n- **Sudoku** - Fill a 9x9 grid using logic and deduction\n- **KenKen** - Combine math operations with Sudoku-style logic\n- **Nonogram** - Solve clues to reveal a hidden picture\n- **Word Ladder** - Transform one word into another, one letter at a time\n- **Memory Matrix** - Test your memory by recalling highlighted cells\n\n## Your Progress\n\nThe hub shows your stats for each exercise:\n- **Completed** - Total puzzles solved\n- **Streak** - Consecutive days played\n- **Best Score** - Your top performance\n\n## Tips\n\n- Start with easier difficulties to learn the rules\n- Try different exercises to work various cognitive skills\n- Consistency matters more than difficulty - play a little each day\n- Use the **Stats** page to track improvement over time",
+            "app_name": "brain_training",
+            "order": 0,
+            "is_active": true
+        }
+    },
+    {
+        "model": "help.helptopic",
+        "fields": {
+            "context_id": "HEALTH_COGNITIVE_STATS",
+            "help_id": "brain-training-stats",
+            "title": "Brain Training Stats: Track Your Progress",
+            "description": "Understanding your brain training statistics and improvement trends",
+            "content": "See how your cognitive fitness is improving over time.\n\n## What You'll See\n\n- **Overall Stats** - Total sessions, time trained, current streak\n- **Per-Exercise Stats** - Performance breakdown for each game\n- **Improvement Trends** - How your scores and times are changing\n\n## Key Metrics\n\n- **Completion Rate** - What percentage of started puzzles you finish\n- **Average Score** - Your typical performance level\n- **Best Score** - Your peak performance\n- **Streak** - Consecutive days with at least one completed exercise\n\n## Tips\n\n- Focus on consistency rather than perfection\n- Compare yourself to your own past performance, not others\n- A longer streak builds stronger neural pathways",
+            "app_name": "brain_training",
+            "order": 1,
+            "is_active": true
+        }
+    },
+    {
+        "model": "help.helptopic",
+        "fields": {
+            "context_id": "BRAIN_TRAINING_SUDOKU",
+            "help_id": "brain-training-sudoku",
+            "title": "How to Play Sudoku",
+            "description": "Rules and tips for solving Sudoku puzzles",
+            "content": "Fill the 9x9 grid so every row, column, and 3x3 box contains the digits 1-9 exactly once.\n\n## Rules\n\n1. Each **row** must contain 1-9 with no repeats\n2. Each **column** must contain 1-9 with no repeats\n3. Each **3x3 box** must contain 1-9 with no repeats\n4. Pre-filled numbers (darker cells) cannot be changed\n\n## Controls\n\n- **Click** a cell to select it\n- **Number keys (1-9)** or tap the number pad to enter a digit\n- **Delete/Backspace** to erase a cell\n- **Arrow keys** to move between cells\n- **N key** to toggle Notes mode\n\n## Notes Mode\n\nPress **N** or tap the **Notes** button to enter pencil marks:\n- Small numbers appear in the corner of the cell\n- Track possible values for each cell\n- Notes auto-clear when you enter a final answer\n\n## Tips\n\n- Look for rows/columns/boxes missing only 1-2 numbers\n- Use **notes** to track possibilities, then eliminate\n- Red numbers mean a conflict - same digit appears twice in a row, column, or box\n- **Undo** (Ctrl+Z) lets you back up if you get stuck\n- The number pad shows how many of each digit are placed",
+            "app_name": "brain_training",
+            "order": 10,
+            "is_active": true
+        }
+    },
+    {
+        "model": "help.helptopic",
+        "fields": {
+            "context_id": "BRAIN_TRAINING_KENKEN",
+            "help_id": "brain-training-kenken",
+            "title": "How to Play KenKen",
+            "description": "Rules and tips for solving KenKen puzzles",
+            "content": "KenKen combines Sudoku logic with arithmetic. Fill the grid so each row and column has unique numbers, and each cage meets its math target.\n\n## Rules\n\n1. Fill the grid with numbers **1 to N** (where N = grid size: 4, 5, or 6)\n2. Each **row** must contain each number exactly once\n3. Each **column** must contain each number exactly once\n4. Each **cage** (outlined group of cells) has a target number and operation\n5. The numbers in a cage must combine using that operation to equal the target\n\n## Cage Operations\n\n- **+ (Addition):** Numbers add up to the target. Example: \"8+\" means cells sum to 8\n- **\u2212 (Subtraction):** Difference equals the target (2-cell cages only)\n- **\u00d7 (Multiplication):** Product equals the target. Example: \"12\u00d7\" means cells multiply to 12\n- **\u00f7 (Division):** Quotient equals the target (2-cell cages only)\n- **No operation:** Single-cell cage, the number IS the target\n\n## Controls\n\n- **Click** a cell to select it\n- **Number keys** or tap the number pad to enter a value\n- **Delete/Backspace** to clear a cell\n\n## Tips\n\n- Start with **single-cell cages** - the answer is given!\n- Look for cages where only one combination of numbers works\n- Remember: in a 4x4 grid, only use numbers 1-4\n- Think about both constraints: the cage math AND row/column uniqueness\n- Subtraction and division cages only have 2 cells, making them easier to solve first",
+            "app_name": "brain_training",
+            "order": 11,
+            "is_active": true
+        }
+    },
+    {
+        "model": "help.helptopic",
+        "fields": {
+            "context_id": "BRAIN_TRAINING_NONOGRAM",
+            "help_id": "brain-training-nonogram",
+            "title": "How to Play Nonogram",
+            "description": "Rules and tips for solving Nonogram picture puzzles",
+            "content": "Nonograms are picture logic puzzles. Use the number clues to figure out which cells to fill, revealing a hidden image.\n\n## Rules\n\n1. **Row clues** (left side) tell you which cells are filled in that row\n2. **Column clues** (top) tell you which cells are filled in that column\n3. Each number = a group of consecutive filled cells\n4. Groups must appear in order, separated by **at least one empty cell**\n5. Example: \"3 2\" means 3 filled cells, a gap, then 2 filled cells\n\n## Controls\n\n- **Fill Tool** (default): Click or drag to fill cells black\n- **Mark Tool**: Click or drag to mark cells with X (known empty)\n- Toggle between tools using the buttons at the top\n- Drag across multiple cells to fill/mark a whole row quickly\n\n## Grid Sizes\n\n- **Easy:** 5x5\n- **Medium:** 10x10\n- **Hard:** 15x15\n\n## Tips\n\n- Start with the **largest clue numbers** - they have fewer possible positions\n- If a clue equals the row/column size, fill the entire row/column\n- **Mark empty cells** with X to keep track of what you've figured out\n- Look for **overlapping** possibilities - cells that must be filled regardless of position\n- Work from the edges inward\n- Grid lines every 5 cells help you count spaces accurately",
+            "app_name": "brain_training",
+            "order": 12,
+            "is_active": true
+        }
+    },
+    {
+        "model": "help.helptopic",
+        "fields": {
+            "context_id": "BRAIN_TRAINING_WORD_LADDER",
+            "help_id": "brain-training-word-ladder",
+            "title": "How to Play Word Ladder",
+            "description": "Rules and tips for solving Word Ladder puzzles",
+            "content": "Transform the start word into the end word by changing **one letter at a time**. Every step must be a valid English word.\n\n## Rules\n\n1. The **start word** (blue) and **end word** (green) are given\n2. Change exactly **one letter** per step\n3. Every intermediate word must be a **real English word**\n4. All words are the same length\n\n## Example\n\nCAT \u2192 COT \u2192 COG \u2192 DOG\n\n## Controls\n\n- Click the **+** button to add a new step\n- Type letters using the keyboard or on-screen buttons\n- Letters auto-advance to the next position\n- **Delete/Backspace** to go back and fix mistakes\n\n## Visual Feedback\n\n- **Green border** = valid step (exactly 1 letter different from previous word)\n- **Red border** = invalid step (0 or 2+ letters different)\n\n## Tips\n\n- Think about which letters need to change between start and end\n- Change **vowels** first - they often have more valid word options\n- If stuck, try working **backwards** from the end word\n- Fewer steps = better score\n- Common short words (3-4 letters) have many valid neighbors",
+            "app_name": "brain_training",
+            "order": 13,
+            "is_active": true
+        }
+    },
+    {
+        "model": "help.helptopic",
+        "fields": {
+            "context_id": "BRAIN_TRAINING_MEMORY_MATRIX",
+            "help_id": "brain-training-memory-matrix",
+            "title": "How to Play Memory Matrix",
+            "description": "Rules and tips for the Memory Matrix exercise",
+            "content": "Test and strengthen your visual memory. Memorize which cells are highlighted, then select them from a blank grid.\n\n## How It Works\n\n### Phase 1: Get Ready\nA countdown prepares you to focus.\n\n### Phase 2: Memorize\nThe grid appears with certain cells **highlighted**. Study their positions carefully - you have a few seconds.\n\n### Phase 3: Recall\nThe grid goes blank. **Click the cells** you remember being highlighted. A counter shows how many you've selected vs. how many to find.\n\n### Phase 4: Results\n- **Green** = correctly selected\n- **Red** = incorrectly selected (wasn't highlighted)\n- **Yellow** = missed (was highlighted but you didn't select it)\n\n## Grid Sizes\n\n- **Easy:** 3x3 (fewer cells to remember)\n- **Medium:** 4x4\n- **Hard:** 5x5\n- **Expert:** 6x6\n\n## Tips\n\n- **Chunk** the cells into groups or patterns (L-shape, diagonal, etc.)\n- Use the grid edges as reference points\n- Look for **symmetry** in the highlighted pattern\n- Don't overthink - your first instinct is often right\n- Practice regularly to expand your working memory capacity",
+            "app_name": "brain_training",
+            "order": 14,
+            "is_active": true
+        }
+    }
+]

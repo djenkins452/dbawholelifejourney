@@ -38,6 +38,8 @@ class HelpTopicAPIView(View):
 
     # Map context_id prefixes to their module home context_ids
     MODULE_FALLBACKS = {
+        'BRAIN_TRAINING_': 'HEALTH_COGNITIVE_HUB',
+        'HEALTH_COGNITIVE_': 'HEALTH_COGNITIVE_HUB',
         'HEALTH_': 'HEALTH_HOME',
         'JOURNAL_': 'JOURNAL_HOME',
         'FAITH_': 'FAITH_HOME',

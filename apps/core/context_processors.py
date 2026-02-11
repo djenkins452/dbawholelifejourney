@@ -545,8 +545,9 @@ def invalidate_notification_count_cache(user_id):
 # Uses longest-prefix matching so more specific paths win over general ones.
 _HELP_CONTEXT_MAP = [
     # Brain Training (Cognitive Health) - function-based views, no mixin
+    # Individual game play pages are handled dynamically in help_context()
     ('/health/cognitive/stats', 'HEALTH_COGNITIVE_STATS'),
-    ('/health/cognitive/', 'HEALTH_COGNITIVE'),
+    ('/health/cognitive/', 'HEALTH_COGNITIVE_HUB'),
     # Health sub-pages missing mixin
     ('/health/physical/steps/', 'HEALTH_STEPS'),
     ('/health/physical/sleep/', 'HEALTH_SLEEP'),
@@ -627,7 +628,15 @@ def help_context(request):
     Views that use HelpContextMixin will override this in their get_context_data().
     Uses longest-prefix matching for accurate context assignment.
     """
+    import re
     path = request.path
+
+    # Brain training game play pages: /health/cognitive/<slug>/play/
+    game_match = re.match(r'^/health/cognitive/([a-z_-]+)/play/', path)
+    if game_match:
+        game_slug = game_match.group(1).replace('-', '_').upper()
+        return {'help_context_id': f'BRAIN_TRAINING_{game_slug}'}
+
     for prefix, context_id in _HELP_CONTEXT_MAP:
         if path.startswith(prefix):
             return {'help_context_id': context_id}

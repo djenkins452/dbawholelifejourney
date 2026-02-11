@@ -193,6 +193,7 @@ TEMPLATES = [
                 "apps.core.context_processors.theme_context",
                 "apps.core.context_processors.site_context",
                 "apps.core.context_processors.favorites_context",
+                "apps.core.context_processors.quick_links_context",  # External quick links in profile dropdown
                 "apps.core.context_processors.csp_nonce",  # CSP nonce for inline scripts (CISO Review)
                 "apps.core.context_processors.pending_captures_context",  # Pending capture banner
                 "apps.core.context_processors.navigation_modules_context",  # Mobile nav modules

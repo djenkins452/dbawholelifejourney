@@ -2280,6 +2280,83 @@ The AI will remember these to respond more thoughtfully in the future."
                 </div>
             </div>
 
+            <!-- ═══════════════════════════════════════════════════════════════════
+                 QUICK LINKS
+                 ═══════════════════════════════════════════════════════════════════ -->
+            <div class="accordion-group" data-accordion-key="quick-links">
+                <button type="button" class="accordion-header">
+                    <div class="accordion-header-content">
+                        <span class="accordion-icon">🔗</span>
+                        <div class="accordion-title-group">
+                            <h2 class="accordion-title">Quick Links</h2>
+                            <p class="accordion-subtitle">External links for quick access from your profile menu</p>
+                        </div>
+                    </div>
+                    <div class="accordion-header-right">
+                        <div class="accordion-status">
+                            <span class="accordion-badge" id="quick-links-badge">
+                                {{ quick_links|length }} / {{ quick_links_max }}
+                            </span>
+                        </div>
+                        <svg class="accordion-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                    </div>
+                </button>
+                <div class="accordion-body">
+                    <p class="form-help mb-4">Add external links (e.g., patient portal, bank login) that appear in your profile dropdown menu. Links open in a new tab.</p>
+
+                    <!-- Existing Links -->
+                    <div id="quick-links-list">
+                        {% for link in quick_links %}
+                        <div class="quick-link-item" data-link-id="{{ link.id }}">
+                            <div class="quick-link-info">
+                                <svg class="quick-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                                    <polyline points="15 3 21 3 21 9"/>
+                                    <line x1="10" y1="14" x2="21" y2="3"/>
+                                </svg>
+                                <div>
+                                    <span class="quick-link-name">{{ link.name }}</span>
+                                    <span class="quick-link-url">{{ link.url }}</span>
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn-ghost btn-sm quick-link-delete" onclick="deleteQuickLink({{ link.id }}, this)" title="Remove link">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                    <polyline points="3 6 5 6 21 6"/>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                                </svg>
+                            </button>
+                        </div>
+                        {% empty %}
+                        <div class="quick-links-empty" id="quick-links-empty">
+                            <p class="text-muted text-sm">No quick links yet. Add one below!</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <!-- Add Link Form -->
+                    <div class="quick-link-add-form" id="quick-link-add-form">
+                        <div class="quick-link-add-fields">
+                            <div class="form-group mb-0">
+                                <input type="text" id="quick-link-name" class="form-input" placeholder="Link name (e.g., Patient Portal)" maxlength="100">
+                            </div>
+                            <div class="form-group mb-0">
+                                <input type="url" id="quick-link-url" class="form-input" placeholder="https://example.com" maxlength="500">
+                            </div>
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="addQuickLink()">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                    <line x1="12" y1="5" x2="12" y2="19"/>
+                                    <line x1="5" y1="12" x2="19" y2="12"/>
+                                </svg>
+                                Add
+                            </button>
+                        </div>
+                        <div id="quick-link-error" class="quick-link-error" style="display: none;"></div>
+                    </div>
+                </div>
+            </div>
+
         </div>
 
         <!-- Save -->
@@ -3202,6 +3279,110 @@ The AI will remember these to respond more thoughtfully in the future."
 @media (max-width: 480px) {
     .feature-toggles-grid {
         grid-template-columns: 1fr;
+    }
+}
+
+/* Quick Links */
+.quick-link-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-2);
+    background: var(--color-surface);
+}
+
+.quick-link-info {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-width: 0;
+    flex: 1;
+}
+
+.quick-link-icon {
+    flex-shrink: 0;
+    color: var(--color-text-muted);
+}
+
+.quick-link-info > div {
+    min-width: 0;
+}
+
+.quick-link-name {
+    display: block;
+    font-weight: 500;
+    font-size: var(--font-size-base);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.quick-link-url {
+    display: block;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 300px;
+}
+
+.quick-link-delete {
+    flex-shrink: 0;
+    color: var(--color-text-muted);
+}
+
+.quick-link-delete:hover {
+    color: #ef4444;
+}
+
+.quick-links-empty {
+    padding: var(--space-4);
+    text-align: center;
+}
+
+.quick-link-add-form {
+    margin-top: var(--space-4);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+
+.quick-link-add-fields {
+    display: flex;
+    gap: var(--space-2);
+    align-items: flex-start;
+}
+
+.quick-link-add-fields .form-group {
+    flex: 1;
+}
+
+.quick-link-add-fields .btn {
+    margin-top: 0;
+    white-space: nowrap;
+    height: 40px;
+}
+
+.quick-link-error {
+    color: #ef4444;
+    font-size: var(--font-size-sm);
+    margin-top: var(--space-2);
+}
+
+@media (max-width: 480px) {
+    .quick-link-add-fields {
+        flex-direction: column;
+    }
+
+    .quick-link-add-fields .btn {
+        width: 100%;
+    }
+
+    .quick-link-url {
+        max-width: 180px;
     }
 }
 </style>
@@ -4144,6 +4325,139 @@ document.addEventListener('DOMContentLoaded', function() {
             }, 150);
         }, 100);
     }
+});
+
+// ============================================
+// Quick Links Management
+// ============================================
+function addQuickLink() {
+    const nameInput = document.getElementById('quick-link-name');
+    const urlInput = document.getElementById('quick-link-url');
+    const errorDiv = document.getElementById('quick-link-error');
+    const name = nameInput.value.trim();
+    let url = urlInput.value.trim();
+
+    errorDiv.style.display = 'none';
+
+    if (!name) {
+        errorDiv.textContent = 'Please enter a name for the link.';
+        errorDiv.style.display = 'block';
+        nameInput.focus();
+        return;
+    }
+    if (!url) {
+        errorDiv.textContent = 'Please enter a URL.';
+        errorDiv.style.display = 'block';
+        urlInput.focus();
+        return;
+    }
+
+    // Auto-add https:// if missing
+    if (!url.match(/^https?:\/\//i)) {
+        url = 'https://' + url;
+        urlInput.value = url;
+    }
+
+    fetch('{% url "users:quick_link_create" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+        },
+        body: JSON.stringify({ name: name, url: url }),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.error) {
+            errorDiv.textContent = data.error;
+            errorDiv.style.display = 'block';
+            return;
+        }
+        // Add to list
+        const list = document.getElementById('quick-links-list');
+        const emptyMsg = document.getElementById('quick-links-empty');
+        if (emptyMsg) emptyMsg.remove();
+
+        const item = document.createElement('div');
+        item.className = 'quick-link-item';
+        item.dataset.linkId = data.link.id;
+        item.innerHTML = `
+            <div class="quick-link-info">
+                <svg class="quick-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                    <polyline points="15 3 21 3 21 9"/>
+                    <line x1="10" y1="14" x2="21" y2="3"/>
+                </svg>
+                <div>
+                    <span class="quick-link-name">${data.link.name}</span>
+                    <span class="quick-link-url">${data.link.url}</span>
+                </div>
+            </div>
+            <button type="button" class="btn btn-ghost btn-sm quick-link-delete" onclick="deleteQuickLink(${data.link.id}, this)" title="Remove link">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                    <polyline points="3 6 5 6 21 6"/>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                </svg>
+            </button>
+        `;
+        list.appendChild(item);
+
+        // Clear inputs
+        nameInput.value = '';
+        urlInput.value = '';
+        nameInput.focus();
+
+        // Update badge
+        updateQuickLinksBadge();
+    })
+    .catch(() => {
+        errorDiv.textContent = 'Something went wrong. Please try again.';
+        errorDiv.style.display = 'block';
+    });
+}
+
+function deleteQuickLink(linkId, btn) {
+    if (!confirm('Remove this quick link?')) return;
+
+    fetch(`/user/api/quick-links/${linkId}/delete/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+        },
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            const item = btn.closest('.quick-link-item');
+            item.remove();
+
+            // Show empty message if no links left
+            const list = document.getElementById('quick-links-list');
+            if (!list.querySelector('.quick-link-item')) {
+                const empty = document.createElement('div');
+                empty.className = 'quick-links-empty';
+                empty.id = 'quick-links-empty';
+                empty.innerHTML = '<p class="text-muted text-sm">No quick links yet. Add one below!</p>';
+                list.appendChild(empty);
+            }
+
+            updateQuickLinksBadge();
+        }
+    });
+}
+
+function updateQuickLinksBadge() {
+    const badge = document.getElementById('quick-links-badge');
+    const count = document.querySelectorAll('.quick-link-item').length;
+    if (badge) badge.textContent = count + ' / {{ quick_links_max }}';
+}
+
+// Allow Enter key to submit quick link form
+document.getElementById('quick-link-url')?.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); addQuickLink(); }
+});
+document.getElementById('quick-link-name')?.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); document.getElementById('quick-link-url').focus(); }
 });
 </script>
 <script src="{% static 'js/biometric.js' %}"></script>

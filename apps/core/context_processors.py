@@ -259,6 +259,48 @@ def invalidate_favorites_cache(user_id):
     cache.delete(f'favorites_menu_user_{user_id}')
 
 
+def quick_links_context(request):
+    """
+    Add user's external quick links to template context for profile dropdown.
+
+    Provides:
+    - quick_links_list: QuerySet of ExternalLink objects for the user
+
+    Performance: Cached per-user for 60 seconds.
+    """
+    context = {
+        'quick_links_list': [],
+    }
+
+    if not request.user.is_authenticated:
+        return context
+
+    # Skip for API, static, admin paths
+    path = request.path
+    if any(path.startswith(p) for p in ['/api/', '/static/', '/media/', '/admin/']):
+        return context
+
+    try:
+        from django.core.cache import cache
+        from apps.users.models import ExternalLink
+
+        cache_key = f'quick_links_user_{request.user.id}'
+        cached_links = cache.get(cache_key)
+
+        if cached_links is not None:
+            context['quick_links_list'] = cached_links
+        else:
+            links = list(ExternalLink.get_links_for_user(request.user).values(
+                'id', 'name', 'url'
+            ))
+            context['quick_links_list'] = links
+            cache.set(cache_key, links, 60)
+    except Exception:
+        pass
+
+    return context
+
+
 def navigation_modules_context(request):
     """
     Add navigation module data to template context for mobile bottom nav and desktop left rail.

@@ -268,6 +268,11 @@ class PreferencesView(HelpContextMixin, LoginRequiredMixin, UpdateView):
         # SMS feature flag (disabled - will be replaced by push notifications)
         context['SMS_FEATURE_ENABLED'] = getattr(settings, 'SMS_FEATURE_ENABLED', False)
 
+        # Quick Links (external links)
+        from apps.users.models import ExternalLink
+        context['quick_links'] = ExternalLink.get_links_for_user(self.request.user)
+        context['quick_links_max'] = ExternalLink.MAX_LINKS
+
         return context
 
     def form_valid(self, form):
@@ -2405,3 +2410,93 @@ class ExportAccountDataView(LoginRequiredMixin, View):
             ))
         except Exception:
             return []
+
+
+class QuickLinkCreateView(LoginRequiredMixin, View):
+    """
+    API endpoint to add an external quick link.
+
+    POST /user/api/quick-links/
+    Body: {"name": "Patient Portal", "url": "https://myportal.com"}
+    """
+
+    def post(self, request, *args, **kwargs):
+        import json
+        from django.core.cache import cache
+        from apps.users.models import ExternalLink
+
+        try:
+            data = json.loads(request.body)
+            name = data.get('name', '').strip()
+            url = data.get('url', '').strip()
+        except (json.JSONDecodeError, AttributeError):
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        if not name:
+            return JsonResponse({'error': 'Name is required'}, status=400)
+        if not url:
+            return JsonResponse({'error': 'URL is required'}, status=400)
+        if len(name) > 100:
+            return JsonResponse({'error': 'Name must be 100 characters or less'}, status=400)
+
+        # Validate URL format
+        from django.core.validators import URLValidator
+        from django.core.exceptions import ValidationError
+        validator = URLValidator()
+        try:
+            validator(url)
+        except ValidationError:
+            return JsonResponse({'error': 'Please enter a valid URL (e.g., https://example.com)'}, status=400)
+
+        # Check limit
+        if not ExternalLink.can_add_link(request.user):
+            return JsonResponse({
+                'error': f'Maximum of {ExternalLink.MAX_LINKS} quick links allowed'
+            }, status=400)
+
+        # Create the link
+        link = ExternalLink.objects.create(
+            user=request.user,
+            name=name,
+            url=url,
+        )
+
+        # Invalidate cache
+        cache.delete(f'quick_links_user_{request.user.id}')
+
+        return JsonResponse({
+            'success': True,
+            'link': {
+                'id': link.id,
+                'name': link.name,
+                'url': link.url,
+            }
+        })
+
+
+class QuickLinkDeleteView(LoginRequiredMixin, View):
+    """
+    API endpoint to delete an external quick link.
+
+    DELETE /user/api/quick-links/<id>/
+    """
+
+    def delete(self, request, link_id, *args, **kwargs):
+        from django.core.cache import cache
+        from apps.users.models import ExternalLink
+
+        try:
+            link = ExternalLink.objects.get(id=link_id, user=request.user)
+        except ExternalLink.DoesNotExist:
+            return JsonResponse({'error': 'Link not found'}, status=404)
+
+        link.delete()
+
+        # Invalidate cache
+        cache.delete(f'quick_links_user_{request.user.id}')
+
+        return JsonResponse({'success': True})
+
+    def post(self, request, link_id, *args, **kwargs):
+        """Allow POST as fallback for DELETE (some browsers/forms)."""
+        return self.delete(request, link_id, *args, **kwargs)

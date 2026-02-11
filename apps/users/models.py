@@ -2332,3 +2332,54 @@ class AccountDeletionAudit(models.Model):
         reason = re.sub(r'\b\d{3}[-.]?\d{3}[-.]?\d{4}\b', '[PHONE REMOVED]', reason)
 
         return reason
+
+
+class ExternalLink(models.Model):
+    """
+    User-defined external links for quick access from the profile dropdown.
+
+    Examples: Patient portal, bank login, favorite websites.
+    Links open in a new browser tab.
+    """
+
+    MAX_LINKS = 10
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='external_links',
+    )
+    name = models.CharField(
+        max_length=100,
+        help_text="Display name for the link (e.g., 'Patient Portal')",
+    )
+    url = models.URLField(
+        max_length=500,
+        help_text="Full URL including https:// (e.g., 'https://myportal.com')",
+    )
+    sort_order = models.IntegerField(
+        default=0,
+        help_text="Order in which links appear (lower = first)",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['sort_order', 'created_at']
+        verbose_name = "External Link"
+        verbose_name_plural = "External Links"
+
+    def __str__(self):
+        return f"{self.name} ({self.url})"
+
+    @classmethod
+    def get_links_for_user(cls, user, limit=None):
+        """Get all external links for a user, ordered by sort_order."""
+        qs = cls.objects.filter(user=user)
+        if limit:
+            qs = qs[:limit]
+        return qs
+
+    @classmethod
+    def can_add_link(cls, user):
+        """Check if user hasn't reached the maximum link count."""
+        return cls.objects.filter(user=user).count() < cls.MAX_LINKS

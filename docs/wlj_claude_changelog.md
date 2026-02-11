@@ -16,6 +16,21 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-02-11 Changes
 
+### Feature: Quick Links (External Links in Profile Dropdown)
+
+**What:** Users can now save external links (e.g., patient portal, bank login) and access them from the profile dropdown menu. Links open in a new browser tab.
+
+**Implementation:**
+- New `ExternalLink` model (max 10 per user) with name, URL, sort_order
+- Quick Links accordion section in Preferences page with AJAX add/delete
+- Links appear in both desktop profile dropdown and mobile user menu
+- Context processor with 60-second per-user cache
+- URL validation, max limit enforcement, user isolation
+- 17 tests covering model, API, and context processor
+
+**Files:** `apps/users/models.py`, `apps/users/views.py`, `apps/users/urls.py`, `templates/users/preferences.html`, `templates/components/desktop_top_bar.html`, `templates/components/navigation.html`, `apps/core/context_processors.py`, `config/settings.py`, `apps/users/tests/test_quick_links.py`
+**Migration:** `apps/users/migrations/0061_externallink.py`
+
 ### Enhancement: AI Can Now Read Recent Journal Entries for Date-Specific Questions
 
 **Problem:** User asked "was I happy on Feb 2nd?" and the AI couldn't answer — it only had aggregate journal stats (count, streak, missed days) but no access to individual entry content, moods, or tags.

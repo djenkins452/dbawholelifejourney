@@ -90,4 +90,8 @@ urlpatterns = [
     # Account deletion (GDPR/App Store compliance)
     path("delete-account/", views.DeleteAccountView.as_view(), name="delete_account"),
     path("export-data/", views.ExportAccountDataView.as_view(), name="export_data"),
+
+    # Quick Links (external links)
+    path("api/quick-links/", views.QuickLinkCreateView.as_view(), name="quick_link_create"),
+    path("api/quick-links/<int:link_id>/delete/", views.QuickLinkDeleteView.as_view(), name="quick_link_delete"),
 ]

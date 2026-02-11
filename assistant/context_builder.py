@@ -204,6 +204,34 @@ def _format_journal_data(
         date_str = _format_date(latest_date, user_timezone)
         lines.append(f'- Most recent entry: {date_str}')
 
+    # Earliest entry date (start date)
+    earliest_date = journal_data.get('earliest_date')
+    if earliest_date is not None:
+        date_str = _format_date(earliest_date, user_timezone)
+        lines.append(f'- First entry: {date_str}')
+
+    # Streak and consistency
+    current_streak = journal_data.get('current_streak')
+    if current_streak is not None:
+        lines.append(f'- Current streak: {current_streak} day{"s" if current_streak != 1 else ""}')
+
+    total_days = journal_data.get('total_days_since_start')
+    days_with = journal_data.get('days_with_entries')
+    missed = journal_data.get('missed_days')
+    if total_days is not None and days_with is not None:
+        lines.append(f'- Days journaled: {days_with} out of {total_days} days since starting')
+
+    if missed is not None:
+        lines.append(f'- Days missed: {missed}')
+
+    consistency = journal_data.get('consistency_percent')
+    if consistency is not None:
+        lines.append(f'- Consistency: {consistency}%')
+
+    this_week = journal_data.get('this_week_count')
+    if this_week is not None:
+        lines.append(f'- Entries this week: {this_week}')
+
     return '\n'.join(lines)
 
 

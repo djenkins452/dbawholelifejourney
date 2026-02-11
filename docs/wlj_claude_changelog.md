@@ -16,6 +16,19 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-02-11 Changes
 
+### Fix AI Assistant Giving Navigation Links Instead of Analyzing User Data
+
+**Problem:** When users asked data-driven questions like "where do I need to strengthen my focus" or "how many days have I missed journaling", the AI assistant gave generic navigation links (e.g., "go to Goals - Intentions") instead of actually analyzing their data. Root cause: `_try_navigation_response()` used keyword matching that was too broad — words like "where", "how", "show me" triggered navigation intercept even for analytical questions, short-circuiting the AI response pipeline.
+
+**Fix (3 parts):**
+1. **Navigation bypass for data analysis queries** (`personal_assistant.py`): Added `data_analysis_indicators` list that checks for analysis-related phrases (e.g., "my habits", "need to focus", "how many days", "missed", "since I started") and skips navigation entirely, letting the AI respond with data.
+2. **State data injection for analysis questions** (`personal_assistant.py`): Added `is_asking_for_analysis` check that injects full user state (tasks, goals, journal streak, prayers) with explicit instructions to analyze data, not suggest pages.
+3. **Enriched journal data** (`data_service.py`, `context_builder.py`): `get_journal_data()` now returns streak, missed days, consistency %, days since start, this week's count — so the AI can answer "how many days have I missed" with real numbers.
+
+**Files:** `apps/ai/personal_assistant.py`, `assistant/data_service.py`, `assistant/context_builder.py`
+
+---
+
 ### Fix Chat Bot Clear Conversation Failing
 
 **Problem:** Clicking "Clear Conversation" in the AI assistant chat drawer would show "Sorry, I couldn't clear the conversation. Please try again." The root cause: the clear endpoint ran a synchronous OpenAI API call (personal context extraction) before clearing, which could timeout or fail, blocking the clear response.

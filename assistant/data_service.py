@@ -45,7 +45,7 @@ The version key format is: personal_data_version:{user_id}:{data_type}
 The data cache key format is: personal_data:{user_id}:{data_type}:v{version}:{date}
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from django.core.cache import cache
@@ -331,10 +331,57 @@ class PersonalDataService:
         latest_entry = queryset.first()
         latest_date = latest_entry.entry_date
 
+        # Get earliest entry for streak/consistency calculations
+        earliest_entry = queryset.order_by('entry_date').first()
+        earliest_date = earliest_entry.entry_date
+
+        # Calculate days since first entry and missed days
+        from apps.core.utils import get_user_today
+        today = get_user_today(self.user)
+        total_days = (today - earliest_date).days + 1  # inclusive
+
+        # Get unique journal dates for streak and missed day calculations
+        journal_dates = set(
+            queryset.values_list('entry_date', flat=True).distinct()
+        )
+        days_with_entries = len(journal_dates)
+        missed_days = total_days - days_with_entries
+
+        # Calculate current streak (consecutive days ending today or yesterday)
+        current_streak = 0
+        check_date = today
+        while check_date in journal_dates:
+            current_streak += 1
+            check_date -= timedelta(days=1)
+
+        # If streak is 0, check if yesterday had an entry (user may not have
+        # journaled yet today)
+        if current_streak == 0:
+            check_date = today - timedelta(days=1)
+            while check_date in journal_dates:
+                current_streak += 1
+                check_date -= timedelta(days=1)
+
+        # Calculate this week's entries (Mon-Sun)
+        start_of_week = today - timedelta(days=today.weekday())
+        this_week_count = queryset.filter(
+            entry_date__gte=start_of_week
+        ).count()
+
+        # Consistency percentage
+        consistency_pct = round((days_with_entries / total_days) * 100, 1) if total_days > 0 else 0
+
         result = {
             'type': 'journal',
             'count': count,
             'latest_date': latest_date,
+            'earliest_date': earliest_date,
+            'total_days_since_start': total_days,
+            'days_with_entries': days_with_entries,
+            'missed_days': missed_days,
+            'current_streak': current_streak,
+            'this_week_count': this_week_count,
+            'consistency_percent': consistency_pct,
         }
 
         # Cache the result

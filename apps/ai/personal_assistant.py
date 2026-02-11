@@ -2205,6 +2205,40 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                 if any(word in query_lower for word in journal_context_words):
                     return None
 
+        # IMPORTANT: Skip navigation for data analysis / personal insight questions.
+        # These should go to the AI with personal data context, not return a link.
+        # Examples: "where do I need to focus", "how many days have I missed",
+        # "show me my trends", "where am I falling behind"
+        data_analysis_indicators = [
+            # Analysis / insight words
+            'my data', 'my habits', 'my trends', 'my patterns', 'my progress',
+            'my streak', 'my consistency', 'my stats', 'my performance',
+            'my average', 'my history',
+            # Questions about personal state/gaps
+            'need to focus', 'need to improve', 'need to work on',
+            'falling behind', 'doing well', 'doing poorly',
+            'strengthen', 'weakness', 'strong', 'consistent',
+            'missed', 'skipped', 'forgot', 'forgotten',
+            # Counting / measuring personal data
+            'how many days', 'how many times', 'how many entries',
+            'how often', 'how much', 'how long have i',
+            'since i started', 'since i began',
+            # Trend questions
+            'trending', 'going up', 'going down', 'getting better',
+            'getting worse', 'improved', 'declined',
+            # Comparative
+            'compared to', 'last week', 'last month', 'this week', 'this month',
+            'over time', 'past week', 'past month',
+            # Summary requests about personal data
+            'summary of my', 'overview of my', 'analyze my', 'review my',
+            'look at my', 'looking at my', 'based on my',
+            'what does my data', 'what do my',
+        ]
+
+        if any(indicator in query_lower for indicator in data_analysis_indicators):
+            logger.debug(f"Skipping navigation for data analysis query: {message[:60]}")
+            return None
+
         navigation_indicators = [
             # Location questions
             'where do i', 'where can i', 'where is', 'where are',
@@ -2337,7 +2371,8 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         # Build system prompt with coaching style (no time context by default - too pushy)
         system_prompt = self._build_system_prompt(include_time_context=False)
 
-        # Check if user is asking about tasks/priorities - only then include state data
+        # Check if user is asking about tasks/priorities/habits/focus
+        # Include full state data so the AI can give data-driven answers
         message_lower = message.lower()
         is_asking_about_tasks = any(phrase in message_lower for phrase in [
             'what do i have', 'what\'s left', 'what tasks', 'what should i',
@@ -2346,13 +2381,40 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             'what needs to be done', 'what\'s remaining', 'how many tasks',
         ])
 
-        if is_asking_about_tasks:
-            # User is asking about tasks - include full state context
+        # Also check for broader analysis questions about habits, consistency, focus areas
+        is_asking_for_analysis = any(phrase in message_lower for phrase in [
+            'need to focus', 'need to improve', 'need to work on',
+            'strengthen', 'weakness', 'falling behind', 'doing well',
+            'my habits', 'my consistency', 'my streaks', 'my patterns',
+            'missed', 'skipped', 'how many days',
+            'since i started', 'how consistent', 'how am i doing',
+            'where am i', 'where do i need', 'where should i',
+            'what areas', 'which areas',
+        ])
+
+        if is_asking_about_tasks or is_asking_for_analysis:
+            # User is asking about tasks or wants analysis - include full state context
             state = self.assess_current_state()
             time_context = self._get_time_context()
             tasks = state.get('tasks', {})
             remaining_tasks = tasks.get('due_today', 0) + tasks.get('overdue', 0)
-            system_prompt += f"""
+
+            if is_asking_for_analysis:
+                system_prompt += f"""
+
+USER IS ASKING FOR ANALYSIS OF THEIR DATA AND HABITS - provide specific, data-driven insights:
+- Tasks REMAINING today: {remaining_tasks} ({tasks.get('overdue', 0)} overdue, {tasks.get('due_today', 0)} due today)
+- Active goals needing progress: {state.get('goals', {}).get('active', 0)}
+- Journal streak: {state.get('journal', {}).get('streak', 0)} days
+- Active prayers: {state.get('faith', {}).get('active_prayers', 0)}
+- Time remaining in day: ~{time_context.get('hours_remaining', 'unknown')} hours until bedtime
+
+IMPORTANT: The user wants YOU to analyze their data and tell them where to focus.
+Do NOT tell them to go to a page or click a link. ANALYZE the data you have and give specific insights.
+If they ask about missed days or consistency, use the journal/health data to answer with real numbers.
+"""
+            else:
+                system_prompt += f"""
 
 USER IS ASKING ABOUT THEIR TASKS/PRIORITIES - provide this information:
 - Tasks REMAINING today: {remaining_tasks} ({tasks.get('overdue', 0)} overdue, {tasks.get('due_today', 0)} due today)

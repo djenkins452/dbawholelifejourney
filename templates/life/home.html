@@ -827,6 +827,8 @@
 }
 </style>
 
+{% include "components/scroll_preserve.html" with scroll_key="organize" form_selector="form.task-checkbox-form" %}
+
 {% if request.GET.task_completed %}
 <!-- Task Completion Popup -->
 <div id="task-completion-popup" class="task-completion-popup" onclick="this.remove()">

@@ -16,6 +16,18 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-02-11 Changes
 
+### Fix: Scroll Position Preserved on Form Submissions
+
+**Problem:** On pages with repeated form actions (medicine Take/Skip/Undo, task toggles, prayer mark answered, water quick-log), the page jumped back to the top after each action because Django's POST/redirect pattern causes a full page reload.
+
+**Fix:** Created a reusable `scroll_preserve.html` component that saves scroll position to `sessionStorage` before form submission and restores it on page load. Applied to:
+- **Medicine home** — Take, Skip, Undo, Take All, Skip All buttons
+- **Organize home** — Task completion checkboxes (Now/Soon lists)
+- **Prayer list** — Mark Answered buttons
+- **Water list** — Quick-add preset buttons (+8oz/+16oz/+32oz) and delete buttons
+
+**Files:** `templates/components/scroll_preserve.html` (new), `templates/health/medicine/home.html`, `templates/life/home.html`, `templates/faith/prayer_list.html`, `templates/health/water_list.html`
+
 ### Feature: Quick Links (External Links in Profile Dropdown)
 
 **What:** Users can now save external links (e.g., patient portal, bank login) and access them from the profile dropdown menu. Links open in a new browser tab.

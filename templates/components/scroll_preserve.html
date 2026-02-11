@@ -1,0 +1,18 @@
+{# Include this component on pages where form submissions redirect back to the same page. #}
+{# It saves scroll position before form submit and restores it on page load. #}
+{# Usage: {% include "components/scroll_preserve.html" with scroll_key="page_name" form_selector="form.inline-form" %} #}
+<script nonce="{{ csp_nonce }}">
+(function() {
+    var KEY = 'wlj_scroll_' + '{{ scroll_key|default:"page" }}';
+    var saved = sessionStorage.getItem(KEY);
+    if (saved) {
+        sessionStorage.removeItem(KEY);
+        window.scrollTo(0, parseInt(saved, 10));
+    }
+    document.querySelectorAll('{{ form_selector|default:"form.inline-form" }}').forEach(function(form) {
+        form.addEventListener('submit', function() {
+            sessionStorage.setItem(KEY, String(window.scrollY || document.documentElement.scrollTop));
+        });
+    });
+})();
+</script>

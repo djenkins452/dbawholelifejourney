@@ -538,3 +538,97 @@ def invalidate_notification_count_cache(user_id):
     """
     from django.core.cache import cache
     cache.delete(f'notification_count_user_{user_id}')
+
+
+# URL path prefix to help context ID mapping for pages that don't use HelpContextMixin.
+# Views that DO use HelpContextMixin will override this value in get_context_data().
+# Uses longest-prefix matching so more specific paths win over general ones.
+_HELP_CONTEXT_MAP = [
+    # Brain Training (Cognitive Health) - function-based views, no mixin
+    ('/health/cognitive/stats', 'HEALTH_COGNITIVE_STATS'),
+    ('/health/cognitive/', 'HEALTH_COGNITIVE'),
+    # Health sub-pages missing mixin
+    ('/health/physical/steps/', 'HEALTH_STEPS'),
+    ('/health/physical/sleep/', 'HEALTH_SLEEP'),
+    ('/health/physical/blood-pressure/', 'HEALTH_VITALS'),
+    ('/health/physical/blood-oxygen/', 'HEALTH_VITALS'),
+    ('/health/physical/body-temperature/', 'HEALTH_VITALS'),
+    ('/health/physical/quick-log', 'HEALTH_PHYSICAL_HOME'),
+    ('/health/physical/cycle/', 'HEALTH_CYCLE_HOME'),
+    ('/health/physical/fitness/', 'HEALTH_FITNESS'),
+    ('/health/physical/fasting/', 'HEALTH_FASTING'),
+    ('/health/physical/', 'HEALTH_PHYSICAL_HOME'),
+    ('/health/', 'HEALTH_LANDING'),
+    # Journal sub-pages
+    ('/journal/new/', 'JOURNAL_ENTRY_CREATE'),
+    ('/journal/entries/', 'JOURNAL_ENTRY_LIST'),
+    ('/journal/page-view/', 'JOURNAL_ENTRY_LIST'),
+    ('/journal/book-view/', 'JOURNAL_ENTRY_LIST'),
+    ('/journal/archived/', 'JOURNAL_ENTRY_LIST'),
+    ('/journal/deleted/', 'JOURNAL_ENTRY_LIST'),
+    ('/journal/prompts/', 'JOURNAL_HOME'),
+    ('/journal/tags/', 'JOURNAL_HOME'),
+    ('/journal/calendar/', 'JOURNAL_CALENDAR'),
+    ('/journal/', 'JOURNAL_HOME'),
+    # Faith sub-pages
+    ('/faith/prayers/', 'FAITH_HOME'),
+    ('/faith/scripture/', 'FAITH_HOME'),
+    ('/faith/milestones/', 'FAITH_HOME'),
+    ('/faith/reflections/', 'FAITH_HOME'),
+    ('/faith/study/', 'FAITH_STUDY_TOOLS'),
+    ('/faith/reading-plans/', 'FAITH_READING_PLANS'),
+    ('/faith/', 'FAITH_HOME'),
+    # Life sub-pages
+    ('/life/tasks/', 'LIFE_TASKS'),
+    ('/life/projects/', 'LIFE_HOME'),
+    ('/life/calendar/', 'LIFE_HOME'),
+    ('/life/events/', 'LIFE_HOME'),
+    ('/life/inventory/', 'LIFE_HOME'),
+    ('/life/pets/', 'LIFE_HOME'),
+    ('/life/recipes/', 'LIFE_HOME'),
+    ('/life/maintenance/', 'LIFE_HOME'),
+    ('/life/documents/', 'LIFE_HOME'),
+    ('/life/significant-events/', 'LIFE_SIGNIFICANT_EVENTS'),
+    ('/life/', 'LIFE_HOME'),
+    # Purpose sub-pages
+    ('/purpose/directions/', 'PURPOSE_HOME'),
+    ('/purpose/goals/', 'PURPOSE_HOME'),
+    ('/purpose/intentions/', 'PURPOSE_HOME'),
+    ('/purpose/reflections/', 'PURPOSE_HOME'),
+    ('/purpose/habits/', 'PURPOSE_HOME'),
+    ('/purpose/', 'PURPOSE_HOME'),
+    # Finance
+    ('/finance/', 'FINANCE_HOME'),
+    # Capture
+    ('/capture/', 'CAPTURE_HOME'),
+    # AI Assistant
+    ('/assistant/', 'ASSISTANT_HOME'),
+    # Settings
+    ('/user/preferences/', 'SETTINGS_PREFERENCES'),
+    ('/user/profile/', 'SETTINGS_PROFILE'),
+    ('/user/data-export/', 'SETTINGS_DATA_EXPORT'),
+    ('/user/', 'SETTINGS_PREFERENCES'),
+    # Scan
+    ('/scan/', 'SCAN_HOME'),
+    # Core
+    ('/dashboard/', 'DASHBOARD_HOME'),
+    ('/notifications/', 'DASHBOARD_HOME'),
+    ('/more/', 'DASHBOARD_HOME'),
+    ('/favorites/', 'DASHBOARD_HOME'),
+    # Admin Console
+    ('/admin-console/', 'ADMIN_CONSOLE_HOME'),
+]
+
+
+def help_context(request):
+    """
+    Auto-provide help_context_id based on URL path for pages missing HelpContextMixin.
+
+    Views that use HelpContextMixin will override this in their get_context_data().
+    Uses longest-prefix matching for accurate context assignment.
+    """
+    path = request.path
+    for prefix, context_id in _HELP_CONTEXT_MAP:
+        if path.startswith(prefix):
+            return {'help_context_id': context_id}
+    return {'help_context_id': 'GENERAL'}

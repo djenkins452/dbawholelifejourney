@@ -50,6 +50,8 @@ class HelpTopicAPIView(View):
         'ADMIN_CONSOLE_': 'ADMIN_CONSOLE_HOME',
         'SCAN_': 'SCAN_HOME',
         'ASSISTANT_': 'ASSISTANT_HOME',
+        'FINANCE_': 'FINANCE_HOME',
+        'CAPTURE_': 'CAPTURE_HOME',
     }
 
     def get(self, request, context_id):

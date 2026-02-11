@@ -16,6 +16,21 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-02-10 Changes
 
+### Context-Aware Help: Auto-Map All Pages
+
+**Problem:** Many pages (brain training, faith sub-pages, life sub-pages, purpose, finance, capture) didn't have `HelpContextMixin` and were falling back to generic "GENERAL" help context. ~150+ views were missing proper help context.
+
+**Fix:** Created a `help_context` context processor that auto-maps URL paths to help context IDs. Uses longest-prefix matching so every page gets appropriate help context without modifying individual views. Views that already use `HelpContextMixin` override the context processor value.
+
+Also added `FINANCE_` and `CAPTURE_` module fallbacks to the help API.
+
+**Files Modified:**
+- `apps/core/context_processors.py` - New `help_context()` processor with `_HELP_CONTEXT_MAP`
+- `config/settings.py` - Register new context processor
+- `apps/help/views.py` - Added FINANCE_ and CAPTURE_ module fallbacks
+
+---
+
 ### Fix Medicine Schedule Days Selection UX
 
 - **Fix:** Medicine schedule form defaulted to all 7 days pre-selected, confusing users who thought they were selecting a single day but were actually toggling one off. New schedules now start with no days selected. Added validation requiring at least one day. Fixed day badge display to use proper list membership check instead of substring matching.

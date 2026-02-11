@@ -198,6 +198,7 @@ TEMPLATES = [
                 "apps.core.context_processors.navigation_modules_context",  # Mobile nav modules
                 "apps.core.context_processors.system_announcements_context",  # System-wide announcements
                 "apps.core.context_processors.notifications_context",  # Notification badge count
+                "apps.core.context_processors.help_context",  # Auto help_context_id from URL path
                 "apps.billing.context_processors.billing_config",
             ],
         },

@@ -367,7 +367,7 @@ class Command(BaseCommand):
                     category='journal',
                     title="Journal Reminder",
                     message=message,
-                    action_url='/journal/entries/new/',
+                    action_url='/journal/new/',
                 )
 
                 if notification:

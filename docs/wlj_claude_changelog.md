@@ -4,10 +4,22 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-13 (Disable App Review Notifications)
+# Last Updated: 2026-02-13 (Fix trial_expired 500 error)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-02-13 — Fix trial_expired 500 Error
+
+**Problem:** `/billing/trial-expired/` was throwing `NoReverseMatch: 'accounts' is not a registered namespace` because the template used `{% url 'accounts:logout' %}` instead of allauth's flat `account_logout` name.
+
+**What changed:**
+- Fixed logout URL in `trial_expired.html` from `accounts:logout` → `account_logout`
+
+**Files modified:**
+- `templates/billing/trial_expired.html`
+
+---
 
 ## 2026-02-13 — Disable Notifications for App Review Account
 

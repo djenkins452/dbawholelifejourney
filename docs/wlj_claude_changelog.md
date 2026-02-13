@@ -4,10 +4,44 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-12 (Medical Lab Ingestion - UI, tests, docs, deployment)
+# Last Updated: 2026-02-13 (Medical Lab Education Layer)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-02-13 — Medical Lab Education Layer
+
+**What changed:**
+- Added `LabEducationContent` model (OneToOne with LabTestCatalog) for structured medical education
+- Seeded education content for all 57 system-seeded lab tests (CBC, CMP, Lipids, Thyroid, A1c, Urinalysis, Inflammation)
+- Added "About This Test" modal on Labs Summary page (AJAX-loaded, client-cached)
+- Added "About This Test" expandable section on Result Detail page
+- Education panels show: what it measures, what it reflects, low/high associations, influencing factors, typical panel
+- Abnormal results prioritize the relevant section (Low values first when flag=L, High values first when flag=H)
+- Required disclaimer on every education display
+- Admin interface with review queue, "Needs Education" filter, bulk "Mark Reviewed" action
+- Prohibited phrase scanner in test suite (15 phrases scanned across all content fields)
+- 13 new tests (coverage, prohibited phrases, model constraints, view rendering)
+
+**Files created:**
+- `apps/medical/migrations/0003_lab_education_content.py` — Schema migration
+- `apps/medical/migrations/0004_seed_lab_education.py` — Education content for 57 tests
+- `templates/medical/partials/education_panel.html` — AJAX modal content partial
+- `templates/medical/partials/education_inline.html` — Inline expandable education
+- `docs/lab_education_layer.md` — Content rules, prohibited phrasing, generation workflow
+
+**Files modified:**
+- `apps/medical/models.py` — Added LabEducationContent model
+- `apps/medical/admin.py` — Added LabEducationContentAdmin, NeedsEducationFilter
+- `apps/medical/views.py` — Added EducationDetailView, education context in ResultDetailView
+- `apps/medical/urls.py` — Added education_detail URL
+- `templates/medical/labs_summary.html` — Added edu-btn icons, modal, JS, CSS
+- `templates/medical/result_detail.html` — Added inline education include + CSS
+- `apps/medical/tests/test_medical.py` — 13 new education tests
+
+**Why:** Users need general medical education about their lab tests to understand what results mean, without receiving medical advice.
+
+---
 
 ## 2026-02-13 — Labs & Vitals Card on Health Home Page
 

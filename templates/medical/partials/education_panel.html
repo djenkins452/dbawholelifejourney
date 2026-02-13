@@ -1,0 +1,81 @@
+{% if education %}
+<div class="edu-content">
+    <h3 class="edu-title">{{ education.summary_plain_name }}</h3>
+
+    <div class="edu-section">
+        <h4>What this test measures</h4>
+        <p>{{ education.what_it_measures }}</p>
+    </div>
+
+    <div class="edu-section">
+        <h4>What it reflects in the body</h4>
+        <p>{{ education.what_it_reflects }}</p>
+    </div>
+
+    {% if abnormal_flag == "L" or abnormal_flag == "LL" %}
+        {% if education.low_general_associations %}
+        <div class="edu-section edu-highlight">
+            <h4>Low values</h4>
+            <p>{{ education.low_general_associations }}</p>
+        </div>
+        {% endif %}
+        {% if education.high_general_associations %}
+        <div class="edu-section">
+            <h4>High values</h4>
+            <p>{{ education.high_general_associations }}</p>
+        </div>
+        {% endif %}
+    {% elif abnormal_flag == "H" or abnormal_flag == "HH" %}
+        {% if education.high_general_associations %}
+        <div class="edu-section edu-highlight">
+            <h4>High values</h4>
+            <p>{{ education.high_general_associations }}</p>
+        </div>
+        {% endif %}
+        {% if education.low_general_associations %}
+        <div class="edu-section">
+            <h4>Low values</h4>
+            <p>{{ education.low_general_associations }}</p>
+        </div>
+        {% endif %}
+    {% else %}
+        {% if education.low_general_associations %}
+        <div class="edu-section">
+            <h4>Low values</h4>
+            <p>{{ education.low_general_associations }}</p>
+        </div>
+        {% endif %}
+        {% if education.high_general_associations %}
+        <div class="edu-section">
+            <h4>High values</h4>
+            <p>{{ education.high_general_associations }}</p>
+        </div>
+        {% endif %}
+    {% endif %}
+
+    <div class="edu-section">
+        <h4>Common influencing factors</h4>
+        <p>{{ education.common_influencing_factors }}</p>
+    </div>
+
+    {% if education.typical_panel %}
+    <div class="edu-section">
+        <h4>Typical panel grouping</h4>
+        <p>{{ education.typical_panel }}</p>
+    </div>
+    {% endif %}
+
+    <div class="edu-disclaimer">
+        This information is provided for general educational purposes only and is not medical advice.
+        It is not intended to diagnose, treat, cure, or prevent any condition.
+    </div>
+</div>
+{% else %}
+<div class="edu-content">
+    <p class="edu-unavailable">Educational information for this test is not yet available.</p>
+    <div class="edu-disclaimer">
+        This information is provided for general educational purposes only and is not medical advice.
+        It is not intended to diagnose, treat, cure, or prevent any condition.
+    </div>
+</div>
+{% endif %}

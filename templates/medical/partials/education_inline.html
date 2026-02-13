@@ -1,0 +1,83 @@
+{% if education %}
+<details class="edu-details">
+    <summary class="edu-summary">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="16" x2="12" y2="12"/>
+            <line x1="12" y1="8" x2="12.01" y2="8"/>
+        </svg>
+        About This Test
+    </summary>
+    <div class="edu-body">
+        <h4 class="edu-name">{{ education.summary_plain_name }}</h4>
+
+        <div class="edu-field">
+            <h5>What this test measures</h5>
+            <p>{{ education.what_it_measures }}</p>
+        </div>
+
+        <div class="edu-field">
+            <h5>What it reflects in the body</h5>
+            <p>{{ education.what_it_reflects }}</p>
+        </div>
+
+        {% if result.abnormal_flag == "L" or result.abnormal_flag == "LL" %}
+            {% if education.low_general_associations %}
+            <div class="edu-field edu-emphasized">
+                <h5>Low values</h5>
+                <p>{{ education.low_general_associations }}</p>
+            </div>
+            {% endif %}
+            {% if education.high_general_associations %}
+            <div class="edu-field">
+                <h5>High values</h5>
+                <p>{{ education.high_general_associations }}</p>
+            </div>
+            {% endif %}
+        {% elif result.abnormal_flag == "H" or result.abnormal_flag == "HH" %}
+            {% if education.high_general_associations %}
+            <div class="edu-field edu-emphasized">
+                <h5>High values</h5>
+                <p>{{ education.high_general_associations }}</p>
+            </div>
+            {% endif %}
+            {% if education.low_general_associations %}
+            <div class="edu-field">
+                <h5>Low values</h5>
+                <p>{{ education.low_general_associations }}</p>
+            </div>
+            {% endif %}
+        {% else %}
+            {% if education.low_general_associations %}
+            <div class="edu-field">
+                <h5>Low values</h5>
+                <p>{{ education.low_general_associations }}</p>
+            </div>
+            {% endif %}
+            {% if education.high_general_associations %}
+            <div class="edu-field">
+                <h5>High values</h5>
+                <p>{{ education.high_general_associations }}</p>
+            </div>
+            {% endif %}
+        {% endif %}
+
+        <div class="edu-field">
+            <h5>Common influencing factors</h5>
+            <p>{{ education.common_influencing_factors }}</p>
+        </div>
+
+        {% if education.typical_panel %}
+        <div class="edu-field">
+            <h5>Typical panel grouping</h5>
+            <p>{{ education.typical_panel }}</p>
+        </div>
+        {% endif %}
+
+        <div class="edu-disclaimer">
+            This information is provided for general educational purposes only and is not medical advice.
+            It is not intended to diagnose, treat, cure, or prevent any condition.
+        </div>
+    </div>
+</details>
+{% endif %}

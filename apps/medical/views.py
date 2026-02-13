@@ -23,6 +23,7 @@ from .forms import LabResultFilterForm, LabUploadForm
 from .models import (
     ImportBatch,
     ImportErrorRow,
+    LabEducationContent,
     LabPanel,
     LabResult,
     LabTestCatalog,
@@ -266,7 +267,41 @@ class ResultDetailView(MedicalAccessMixin, DetailView):
                 user=self.request.user,
                 canonical_test=result.canonical_test,
             ).order_by("-collected_at")[:20]
+            # Education content
+            try:
+                ctx["education"] = result.canonical_test.education
+            except LabEducationContent.DoesNotExist:
+                ctx["education"] = None
         return ctx
+
+
+class EducationDetailView(MedicalAccessMixin, DetailView):
+    """Return education content for a lab test (for AJAX modal)."""
+
+    template_name = "medical/partials/education_panel.html"
+    context_object_name = "education"
+
+    def get_queryset(self):
+        return LabEducationContent.objects.select_related("lab_test")
+
+    def get_object(self, queryset=None):
+        """Look up education by lab_test (LabTestCatalog) pk."""
+        test_id = self.kwargs["test_id"]
+        qs = self.get_queryset()
+        try:
+            return qs.get(lab_test_id=test_id)
+        except LabEducationContent.DoesNotExist:
+            return None
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["abnormal_flag"] = self.request.GET.get("flag", "")
+        return ctx
+
+    def get(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        context = self.get_context_data(object=self.object)
+        return self.render_to_response(context)
 
 
 class PanelDetailView(MedicalAccessMixin, DetailView):

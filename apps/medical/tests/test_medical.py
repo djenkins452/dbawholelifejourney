@@ -29,6 +29,7 @@ from apps.users.models import TermsAcceptance
 from apps.medical.models import (
     ImportBatch,
     ImportErrorRow,
+    LabEducationContent,
     LabPanel,
     LabResult,
     LabTestAlias,
@@ -717,3 +718,224 @@ class AuditLogTests(TestCase):
                 action="view",
             ).exists()
         )
+
+
+# =============================================================================
+# Lab Education Content Tests
+# =============================================================================
+
+class LabEducationCoverageTests(TestCase):
+    """Ensure every seeded LabTestCatalog entry has education content."""
+
+    def test_all_seeded_tests_have_education(self):
+        """Every system-seeded catalog entry must have a LabEducationContent record."""
+        seeded_tests = LabTestCatalog.objects.filter(is_system_seeded=True)
+        self.assertTrue(seeded_tests.exists(), "No seeded tests found — migrations may not have run")
+
+        for test in seeded_tests:
+            has_edu = LabEducationContent.objects.filter(lab_test=test).exists()
+            self.assertTrue(
+                has_edu,
+                f"Missing education content for seeded test: {test.name}"
+            )
+
+    def test_education_count_matches_seeded_count(self):
+        """Education count should match seeded catalog count."""
+        seeded_count = LabTestCatalog.objects.filter(is_system_seeded=True).count()
+        edu_count = LabEducationContent.objects.filter(is_system_generated=True).count()
+        self.assertEqual(seeded_count, edu_count)
+
+    def test_all_education_fields_populated(self):
+        """Every education record must have core fields populated."""
+        for edu in LabEducationContent.objects.all():
+            self.assertTrue(edu.summary_plain_name, f"Empty summary_plain_name for {edu.lab_test.name}")
+            self.assertTrue(edu.what_it_measures, f"Empty what_it_measures for {edu.lab_test.name}")
+            self.assertTrue(edu.what_it_reflects, f"Empty what_it_reflects for {edu.lab_test.name}")
+            self.assertTrue(edu.common_influencing_factors, f"Empty common_influencing_factors for {edu.lab_test.name}")
+
+
+class LabEducationProhibitedPhraseTests(TestCase):
+    """Scan all education content for prohibited advice-giving phrases."""
+
+    PROHIBITED_PHRASES = [
+        "you should",
+        "you need to",
+        "you must",
+        "talk to your doctor",
+        "see your doctor",
+        "consult your doctor",
+        "in your case",
+        "because you have",
+        "you should consider",
+        "we recommend",
+        "it is recommended that you",
+        "stop taking",
+        "start taking",
+        "take this medication",
+        "prescribe",
+    ]
+
+    TEXT_FIELDS = [
+        "what_it_measures",
+        "what_it_reflects",
+        "low_general_associations",
+        "high_general_associations",
+        "common_influencing_factors",
+    ]
+
+    def test_no_prohibited_phrases_in_education_content(self):
+        """Education content must not contain any advice-giving language."""
+        violations = []
+        for edu in LabEducationContent.objects.all():
+            for field_name in self.TEXT_FIELDS:
+                text = getattr(edu, field_name, "").lower()
+                for phrase in self.PROHIBITED_PHRASES:
+                    if phrase in text:
+                        violations.append(
+                            f"{edu.lab_test.name}.{field_name} contains '{phrase}'"
+                        )
+        self.assertEqual(
+            violations, [],
+            f"Prohibited phrases found in education content:\n" + "\n".join(violations)
+        )
+
+
+class LabEducationModelTests(TestCase):
+    """Test LabEducationContent model behavior."""
+
+    def test_one_to_one_relationship(self):
+        """Each catalog test can only have one education record."""
+        test = LabTestCatalog.objects.filter(is_system_seeded=True).first()
+        self.assertIsNotNone(test)
+        # Should already exist from seed
+        edu = test.education
+        self.assertIsNotNone(edu)
+        # Trying to create another should fail
+        with self.assertRaises(Exception):
+            LabEducationContent.objects.create(
+                lab_test=test,
+                summary_plain_name="Duplicate",
+                what_it_measures="test",
+                what_it_reflects="test",
+                common_influencing_factors="test",
+            )
+
+    def test_str_representation(self):
+        """Test string representation."""
+        edu = LabEducationContent.objects.first()
+        self.assertIn("Education:", str(edu))
+
+
+class LabEducationViewTests(TestCase):
+    """Test education-related views."""
+
+    def setUp(self):
+        self.user = _create_test_user()
+
+    def test_result_detail_includes_education(self):
+        """Result detail page should include education content when available."""
+        test = LabTestCatalog.objects.filter(is_system_seeded=True).first()
+        result = LabResult.objects.create(
+            user=self.user,
+            canonical_test=test,
+            raw_test_name=test.name,
+            value_text="5.0",
+            unit=test.default_unit,
+            collected_at=timezone.now(),
+        )
+        self.client.force_login(self.user)
+        response = self.client.get(
+            reverse("medical:result_detail", kwargs={"pk": result.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("education", response.context)
+        self.assertIsNotNone(response.context["education"])
+        # Check that the education content is rendered
+        self.assertContains(response, "About This Test")
+        self.assertContains(response, "What this test measures")
+        self.assertContains(response, "general educational purposes only")
+
+    def test_result_detail_no_education_for_unknown_test(self):
+        """Result detail for test without education should not crash."""
+        unknown_test = LabTestCatalog.objects.create(
+            name="Unknown Lab Test XYZ",
+            category="uncategorized",
+            needs_review=True,
+        )
+        result = LabResult.objects.create(
+            user=self.user,
+            canonical_test=unknown_test,
+            raw_test_name="Unknown Lab Test XYZ",
+            value_text="99",
+            collected_at=timezone.now(),
+        )
+        self.client.force_login(self.user)
+        response = self.client.get(
+            reverse("medical:result_detail", kwargs={"pk": result.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.context.get("education"))
+
+    def test_education_detail_ajax_view(self):
+        """Education AJAX endpoint should return HTML content."""
+        test = LabTestCatalog.objects.filter(is_system_seeded=True).first()
+        self.client.force_login(self.user)
+        url = reverse("medical:education_detail", kwargs={"test_id": test.pk})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "What this test measures")
+        self.assertContains(response, "general educational purposes only")
+
+    def test_education_detail_with_flag(self):
+        """Education AJAX with flag=H should show high values first."""
+        test = LabTestCatalog.objects.filter(
+            is_system_seeded=True, name="Hemoglobin"
+        ).first()
+        self.client.force_login(self.user)
+        url = reverse("medical:education_detail", kwargs={"test_id": test.pk})
+        response = self.client.get(url + "?flag=H")
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        # High values section should appear before Low values when flag=H
+        high_pos = content.find("High values")
+        low_pos = content.find("Low values")
+        self.assertTrue(
+            high_pos < low_pos,
+            "When flag=H, High values should appear before Low values"
+        )
+
+    def test_education_detail_missing_education(self):
+        """Education AJAX for test without education should show unavailable message."""
+        unknown_test = LabTestCatalog.objects.create(
+            name="Mystery Test ABC",
+            category="uncategorized",
+        )
+        self.client.force_login(self.user)
+        url = reverse("medical:education_detail", kwargs={"test_id": unknown_test.pk})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "not yet available")
+
+    def test_labs_summary_has_edu_buttons(self):
+        """Labs summary page should include edu-btn for results with canonical tests."""
+        test = LabTestCatalog.objects.filter(is_system_seeded=True).first()
+        LabResult.objects.create(
+            user=self.user,
+            canonical_test=test,
+            raw_test_name=test.name,
+            value_text="5.0",
+            unit=test.default_unit,
+            collected_at=timezone.now(),
+        )
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("medical:home"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "edu-btn")
+        self.assertContains(response, "About this test")
+
+    def test_education_detail_requires_login(self):
+        """Education endpoint should require authentication."""
+        test = LabTestCatalog.objects.filter(is_system_seeded=True).first()
+        url = reverse("medical:education_detail", kwargs={"test_id": test.pk})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 302)  # Redirect to login

@@ -11,6 +11,7 @@ from django.contrib import admin
 from .models import (
     ImportBatch,
     ImportErrorRow,
+    LabEducationContent,
     LabPanel,
     LabResult,
     LabTestAlias,
@@ -39,6 +40,68 @@ class LabTestAliasAdmin(admin.ModelAdmin):
     search_fields = ["alias", "canonical_test__name"]
     list_filter = ["canonical_test__category"]
     raw_id_fields = ["canonical_test"]
+
+
+class NeedsEducationFilter(admin.SimpleListFilter):
+    """Filter for LabTestCatalog entries that lack education content."""
+    title = "education status"
+    parameter_name = "needs_education"
+
+    def lookups(self, request, model_admin):
+        return [
+            ("yes", "Needs Education"),
+            ("no", "Has Education"),
+        ]
+
+    def queryset(self, request, queryset):
+        if self.value() == "yes":
+            return queryset.filter(education__isnull=True)
+        if self.value() == "no":
+            return queryset.filter(education__isnull=False)
+        return queryset
+
+
+# Add NeedsEducationFilter to LabTestCatalogAdmin
+LabTestCatalogAdmin.list_filter = ["category", "is_system_seeded", "needs_review", NeedsEducationFilter]
+
+
+@admin.register(LabEducationContent)
+class LabEducationContentAdmin(admin.ModelAdmin):
+    list_display = [
+        "lab_test", "summary_plain_name", "typical_panel",
+        "is_system_generated", "reviewed_at",
+    ]
+    list_filter = ["is_system_generated", "typical_panel"]
+    search_fields = ["lab_test__name", "summary_plain_name", "typical_panel"]
+    raw_id_fields = ["lab_test"]
+    readonly_fields = ["id", "created_at", "updated_at"]
+    fieldsets = (
+        (None, {
+            "fields": ("lab_test", "summary_plain_name", "typical_panel"),
+        }),
+        ("Educational Content", {
+            "fields": (
+                "what_it_measures",
+                "what_it_reflects",
+                "low_general_associations",
+                "high_general_associations",
+                "common_influencing_factors",
+            ),
+        }),
+        ("Review Status", {
+            "fields": ("is_system_generated", "reviewed_at"),
+        }),
+        ("Metadata", {
+            "classes": ("collapse",),
+            "fields": ("id", "created_at", "updated_at"),
+        }),
+    )
+    actions = ["mark_reviewed"]
+
+    @admin.action(description="Mark selected education content as reviewed")
+    def mark_reviewed(self, request, queryset):
+        from django.utils import timezone
+        queryset.update(reviewed_at=timezone.now())
 
 
 @admin.register(LabPanel)

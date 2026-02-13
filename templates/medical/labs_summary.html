@@ -94,6 +94,11 @@
                                 {% if r.canonical_test %}{{ r.canonical_test.name }}{% else %}{{ r.raw_test_name }}{% endif %}
                             </a>
                             {% if r.canonical_test %}
+                            <button class="edu-btn" onclick="openEduModal('{{ r.canonical_test.pk }}', '{{ r.abnormal_flag }}')" title="About this test">
+                                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+                                </svg>
+                            </button>
                             <a href="{% url 'medical:test_trend' test_id=r.canonical_test.pk %}" class="trend-link" title="View trend">
                                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
                                     <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
@@ -163,6 +168,11 @@
                                 {% if r.canonical_test %}{{ r.canonical_test.name }}{% else %}{{ r.raw_test_name }}{% endif %}
                             </a>
                             {% if r.canonical_test %}
+                            <button class="edu-btn" onclick="openEduModal('{{ r.canonical_test.pk }}', '{{ r.abnormal_flag }}')" title="About this test">
+                                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+                                </svg>
+                            </button>
                             <a href="{% url 'medical:test_trend' test_id=r.canonical_test.pk %}" class="trend-link" title="View trend">
                                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
                                     <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
@@ -231,6 +241,20 @@
     {% endif %}
 
     {% endif %}
+</div>
+
+<!-- Education Modal -->
+<div id="edu-modal" class="edu-modal" role="dialog" aria-modal="true" aria-labelledby="edu-modal-title" hidden>
+    <div class="edu-modal-backdrop" onclick="closeEduModal()"></div>
+    <div class="edu-modal-dialog">
+        <div class="edu-modal-header">
+            <h3 id="edu-modal-title">About This Test</h3>
+            <button onclick="closeEduModal()" class="edu-modal-close" aria-label="Close">&times;</button>
+        </div>
+        <div id="edu-modal-body" class="edu-modal-body">
+            <p>Loading...</p>
+        </div>
+    </div>
 </div>
 
 <style nonce="{{ csp_nonce }}">
@@ -524,6 +548,132 @@
     color: var(--color-accent);
 }
 
+/* Education button */
+.edu-btn {
+    background: none;
+    border: none;
+    color: var(--color-accent);
+    cursor: pointer;
+    padding: 2px;
+    margin-left: var(--space-1);
+    vertical-align: middle;
+    opacity: 0.7;
+    transition: opacity var(--transition-fast);
+}
+
+.edu-btn:hover { opacity: 1; }
+
+/* Education Modal */
+.edu-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.edu-modal[hidden] { display: none; }
+
+.edu-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.edu-modal-dialog {
+    position: relative;
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-xl);
+    width: 90vw;
+    max-width: 560px;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+}
+
+.edu-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-4) var(--space-5);
+    border-bottom: 1px solid var(--color-border);
+    flex-shrink: 0;
+}
+
+.edu-modal-header h3 {
+    margin: 0;
+    font-size: var(--font-size-lg);
+}
+
+.edu-modal-close {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: var(--color-text-muted);
+    padding: var(--space-1);
+    line-height: 1;
+}
+
+.edu-modal-close:hover { color: var(--color-text); }
+
+.edu-modal-body {
+    padding: var(--space-5);
+    overflow-y: auto;
+    flex: 1;
+}
+
+/* Education content styles (used in modal) */
+.edu-content { font-size: var(--font-size-sm); }
+
+.edu-title {
+    font-size: var(--font-size-lg);
+    margin: 0 0 var(--space-4);
+}
+
+.edu-section {
+    margin-bottom: var(--space-4);
+}
+
+.edu-section h4 {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    margin: 0 0 var(--space-1);
+}
+
+.edu-section p {
+    line-height: 1.6;
+    margin: 0;
+}
+
+.edu-highlight {
+    background: color-mix(in srgb, var(--color-accent) 5%, transparent);
+    border-left: 3px solid var(--color-accent);
+    padding: var(--space-3);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.edu-disclaimer {
+    margin-top: var(--space-4);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--color-border);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    font-style: italic;
+}
+
+.edu-unavailable {
+    color: var(--color-text-muted);
+    text-align: center;
+    padding: var(--space-6) 0;
+}
+
 @media (max-width: 768px) {
     .stats-grid {
         grid-template-columns: repeat(2, 1fr);
@@ -540,6 +690,10 @@
     .results-table td:nth-child(3) {
         display: none;
     }
+    .edu-modal-dialog {
+        width: 95vw;
+        max-height: 90vh;
+    }
 }
 
 @media (max-width: 480px) {
@@ -549,4 +703,55 @@
     }
 }
 </style>
+
+<script nonce="{{ csp_nonce }}">
+(function() {
+    var modal = document.getElementById('edu-modal');
+    var modalBody = document.getElementById('edu-modal-body');
+    var cache = {};
+
+    window.openEduModal = function(testId, flag) {
+        var cacheKey = testId + '_' + flag;
+        modal.hidden = false;
+        document.body.style.overflow = 'hidden';
+
+        if (cache[cacheKey]) {
+            modalBody.innerHTML = cache[cacheKey];
+            return;
+        }
+
+        modalBody.innerHTML = '<p style="text-align:center;color:var(--color-text-muted);padding:var(--space-6)">Loading...</p>';
+
+        var url = '{% url "medical:education_detail" test_id="00000000-0000-0000-0000-000000000000" %}'.replace(
+            '00000000-0000-0000-0000-000000000000', testId
+        );
+        if (flag) url += '?flag=' + encodeURIComponent(flag);
+
+        fetch(url, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin'
+        })
+        .then(function(resp) { return resp.text(); })
+        .then(function(html) {
+            cache[cacheKey] = html;
+            modalBody.innerHTML = html;
+        })
+        .catch(function() {
+            modalBody.innerHTML = '<p style="text-align:center;color:var(--color-text-muted)">Unable to load education content.</p>';
+        });
+    };
+
+    window.closeEduModal = function() {
+        modal.hidden = true;
+        document.body.style.overflow = '';
+    };
+
+    // Close on Escape
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && !modal.hidden) {
+            closeEduModal();
+        }
+    });
+})();
+</script>
 {% endblock %}

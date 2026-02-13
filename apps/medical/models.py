@@ -8,6 +8,7 @@ Purpose: Domain models for medical lab ingestion, catalog, panels, results, and 
 Models:
     - LabTestCatalog: Canonical lab test definitions (system-seeded + user-discovered)
     - LabTestAlias: Many-to-one alias mapping to canonical tests
+    - LabEducationContent: Structured educational content for lab tests
     - LabPanel: Named panel groupings (CBC, CMP, Lipids, etc.)
     - MedicalDocument: Links an Organize Document to a medical import
     - ImportBatch: Tracks a single import run
@@ -154,6 +155,78 @@ class LabTestAlias(TimeStampedModel):
 
     def __str__(self):
         return f"{self.alias} → {self.canonical_test.name}"
+
+
+# =============================================================================
+# Lab Education Content
+# =============================================================================
+
+class LabEducationContent(TimeStampedModel):
+    """
+    Structured educational content for a lab test.
+
+    Provides general medical education only — NOT medical advice, diagnosis,
+    treatment plans, or personal recommendations.
+
+    Content rules:
+    - Educational, neutral, non-personalized, plain language
+    - Uses phrasing like "Low levels are commonly associated with..."
+    - NEVER uses "you should", "you need to", "talk to your doctor",
+      "in your case", "because you have", "you should consider"
+    - NEVER recommends treatment, medications, or lifestyle plans
+    - NEVER diagnoses or interprets results in context of other labs
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    lab_test = models.OneToOneField(
+        LabTestCatalog,
+        on_delete=models.CASCADE,
+        related_name="education",
+        help_text="The canonical lab test this education content describes"
+    )
+    summary_plain_name = models.CharField(
+        max_length=200,
+        help_text="Plain-language name (e.g., 'White Blood Cell Count')"
+    )
+    what_it_measures = models.TextField(
+        help_text="What this test measures, in plain language"
+    )
+    what_it_reflects = models.TextField(
+        help_text="What this test reflects about body function"
+    )
+    low_general_associations = models.TextField(
+        blank=True,
+        help_text="What low values are commonly associated with (general causes)"
+    )
+    high_general_associations = models.TextField(
+        blank=True,
+        help_text="What high values are commonly associated with (general causes)"
+    )
+    common_influencing_factors = models.TextField(
+        help_text="Common non-prescriptive factors that can influence results"
+    )
+    typical_panel = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Typical panel grouping (e.g., 'CBC', 'CMP', 'Lipid Panel')"
+    )
+    reviewed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this content was last reviewed for accuracy"
+    )
+    is_system_generated = models.BooleanField(
+        default=False,
+        help_text="True if generated via seed migration"
+    )
+
+    class Meta:
+        ordering = ["lab_test__category", "lab_test__sort_order"]
+        verbose_name = "Lab Education Content"
+        verbose_name_plural = "Lab Education Content"
+
+    def __str__(self):
+        return f"Education: {self.lab_test.name}"
 
 
 # =============================================================================

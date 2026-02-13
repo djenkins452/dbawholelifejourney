@@ -341,7 +341,7 @@ class DocumentDetailView(MedicalAccessMixin, DetailView):
 
 
 class DocumentRenameView(MedicalAccessMixin, View):
-    """Rename a medical document's filename."""
+    """Rename a medical document's filename and linked Organize Document title."""
 
     def post(self, request, pk):
         doc = get_object_or_404(MedicalDocument, pk=pk, user=request.user)
@@ -353,6 +353,11 @@ class DocumentRenameView(MedicalAccessMixin, View):
         old_name = doc.original_filename
         doc.original_filename = new_name
         doc.save(update_fields=["original_filename", "updated_at"])
+
+        # Also update the linked Organize Document title
+        if doc.organize_document:
+            doc.organize_document.title = new_name
+            doc.organize_document.save(update_fields=["title", "updated_at"])
 
         MedicalAuditLog.objects.create(
             user=request.user,

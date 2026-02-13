@@ -558,6 +558,9 @@ class Command(BaseCommand):
         # One-time: Disable notifications for app review account (not a real mailbox)
         self._disable_appreview_notifications(DataLoadConfig, force, verbosity)
 
+        # One-time: Clean up orphaned medical data for Danny (fix re-import after delete bug)
+        self._cleanup_danny_medical_data(DataLoadConfig, force, verbosity)
+
         # Only output summary if something loaded or if verbose
         if verbosity >= 1 and loaded_count > 0:
             self.stdout.write(self.style.SUCCESS(f'Initial data: loaded {loaded_count} items'))
@@ -1011,3 +1014,81 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Disable appreview notifications FAILED: {e}'))
+
+    def _cleanup_danny_medical_data(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time cleanup of orphaned medical data for dannyjenkins71@gmail.com.
+
+        Due to a bug in ImportDeleteView (not soft-deleting MedicalDocument),
+        the user has orphaned records blocking re-import. This hard-deletes
+        all medical data so they can start fresh.
+        """
+        loader_name = 'cleanup_danny_medical_data_2026_02_13'
+
+        if not force and self._is_loader_complete(DataLoadConfig, loader_name):
+            return
+
+        try:
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+
+            email = 'dannyjenkins71@gmail.com'
+            try:
+                user = User.objects.get(email=email)
+            except User.DoesNotExist:
+                if verbosity >= 1:
+                    self.stdout.write(f'  User not found ({email}), skipping medical cleanup')
+                self._mark_loader_complete(
+                    DataLoadConfig, loader_name, 'Cleanup Danny Medical Data (Feb 2026)',
+                    'command', 'User not found, skipped'
+                )
+                return
+
+            from apps.medical.models import (
+                ImportBatch, LabPanel, LabResult, MedicalAuditLog, MedicalDocument,
+            )
+
+            # Hard-delete all medical records (including soft-deleted)
+            docs = MedicalDocument.all_objects.filter(user=user)
+            batches = ImportBatch.all_objects.filter(user=user)
+            results = LabResult.all_objects.filter(user=user)
+            panels = LabPanel.all_objects.filter(user=user)
+
+            doc_count = docs.count()
+            batch_count = batches.count()
+            result_count = results.count()
+            panel_count = panels.count()
+
+            # Delete error rows first
+            for batch in batches:
+                batch.error_rows.all().delete()
+
+            results.delete()
+            panels.delete()
+            batches.delete()
+            docs.delete()
+
+            MedicalAuditLog.objects.create(
+                user=user,
+                action="admin_cleanup",
+                detail=(
+                    f"Deploy cleanup: {doc_count} docs, {batch_count} batches, "
+                    f"{result_count} results, {panel_count} panels"
+                ),
+            )
+
+            if verbosity >= 1:
+                self.stdout.write(self.style.SUCCESS(
+                    f'  Cleaned up medical data for {email}: '
+                    f'{doc_count} docs, {batch_count} batches, '
+                    f'{result_count} results, {panel_count} panels'
+                ))
+
+            self._mark_loader_complete(
+                DataLoadConfig, loader_name, 'Cleanup Danny Medical Data (Feb 2026)',
+                'command', 'One-time cleanup of orphaned medical data after ImportDeleteView bug fix'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Cleanup Danny medical data FAILED: {e}'))

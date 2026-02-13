@@ -181,15 +181,31 @@ def _parse_portal_format(text: str) -> list[ParsedResult]:
             value_parsed = _parse_portal_value_line(line)
             if value_parsed:
                 value, unit, flag = value_parsed
-                # Look for date on next line
+                # Look for date on next line(s) — may be past a page break
                 collected_at = None
                 ref_range = ""
+                date_line_offset = 0
 
-                if i + 1 < len(lines):
-                    date_line = lines[i + 1].strip()
+                # Search up to 4 lines ahead to find "Date:" line
+                # (page breaks insert URL, page number, timestamp, header)
+                for look_ahead in range(1, 5):
+                    if i + look_ahead >= len(lines):
+                        break
+                    candidate = lines[i + look_ahead].strip()
+
+                    # Skip page-break noise lines
+                    if (not candidate or
+                        candidate.startswith("http") or
+                        re.match(r'^\d+/\d+/\d+,\s+\d+:\d+\s+[AP]M', candidate) or
+                        "iqhealth.com" in candidate or
+                        re.match(r'^\d+/\d+$', candidate) or
+                        candidate == "UT Medical - Labs and Vitals"):
+                        continue
+
+                    # Found a Date: line
                     date_match = re.match(
                         r'^Date:\s*(.+?)(?:\s+Reference Range(?:\s*\([^)]*\))?:\s*(.+))?\s*$',
-                        date_line
+                        candidate
                     )
                     if date_match:
                         date_str = date_match.group(1).strip()
@@ -198,17 +214,25 @@ def _parse_portal_format(text: str) -> list[ParsedResult]:
                         if collected_at is None:
                             logger.warning(
                                 "Date extraction failed for test '%s', date line: %r",
-                                current_test, date_line
+                                current_test, candidate
                             )
                         if ref_raw:
                             ref_range = ref_raw.strip()
-                        i += 1  # Skip date line
-                    elif date_line.startswith('Date'):
-                        # Date line exists but regex didn't match — log it
+                        date_line_offset = look_ahead
+                        break
+                    elif candidate.startswith('Date'):
                         logger.warning(
                             "Date line didn't match expected format for test '%s': %r",
-                            current_test, date_line
+                            current_test, candidate
                         )
+                        date_line_offset = look_ahead
+                        break
+                    else:
+                        # Hit a non-noise, non-date line — stop looking
+                        break
+
+                if date_line_offset:
+                    i += date_line_offset  # Skip past the date line
 
                 range_low, range_high = _parse_reference_range(ref_range)
 

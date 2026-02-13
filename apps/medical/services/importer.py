@@ -314,9 +314,24 @@ def _process_parsed_results(user, batch, med_doc, parsed_results, result):
                 if parsed.confidence < 0.7:
                     status = "pending_review"
 
-                # Flag when date couldn't be extracted from the document
-                has_date = parsed.collected_at is not None
-                effective_date = parsed.collected_at or timezone.now()
+                # Reject results with no extracted date — don't fake data
+                if parsed.collected_at is None:
+                    record_error(
+                        batch, parsed.row_number,
+                        raw_test_name=parsed.test_name,
+                        raw_value=parsed.value,
+                        raw_unit=parsed.unit,
+                        raw_range=parsed.reference_range,
+                        raw_line=parsed.raw_line,
+                        error_type="missing_date",
+                        error_message=(
+                            "Collection date could not be extracted from the "
+                            "document. Result was not imported to avoid "
+                            "incorrect data."
+                        ),
+                    )
+                    result.failed += 1
+                    continue
 
                 lab_result = LabResult(
                     user=user,
@@ -329,8 +344,8 @@ def _process_parsed_results(user, batch, med_doc, parsed_results, result):
                     range_high=candidate["range_high"],
                     range_text=parsed.reference_range,
                     abnormal_flag=parsed.abnormal_flag,
-                    collected_at=effective_date,
-                    date_estimated=not has_date,
+                    collected_at=parsed.collected_at,
+                    date_estimated=False,
                     reported_at=parsed.reported_at,
                     panel=panel,
                     medical_document=med_doc,

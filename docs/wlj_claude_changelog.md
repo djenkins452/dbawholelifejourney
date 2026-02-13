@@ -4,10 +4,24 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-13 (Flag estimated dates on lab results)
+# Last Updated: 2026-02-13 (Fix page-break parsing + reject missing dates)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-02-13 — Fix Page-Break Parsing + Reject Results with Missing Dates
+
+**Problem:** When a lab result's value line was at the bottom of a PDF page and the Date/Range line was on the next page, the parser couldn't find the date or range. The importer then silently used `timezone.now()` as the date and the catalog default as the range — both wrong. For RBC, the catalog default range (4.00-5.50) was different from the actual doctor's range (4.14-5.80), leading to potentially incorrect clinical interpretation.
+
+**Root cause fix:** Parser now looks up to 4 lines ahead past page-break noise (URLs, page numbers, timestamps, headers) to find the `Date:` line. All 7 previously broken results now parse correctly with proper dates and ranges.
+
+**Safety net:** If a result's date still can't be extracted after the look-ahead, the importer now **rejects the result** with a `missing_date` error instead of faking the date. The error shows in the import results page so the user knows exactly what failed and why.
+
+**Files modified:**
+- `apps/medical/services/lab_parser.py` (page-break skip logic in portal parser)
+- `apps/medical/services/importer.py` (reject missing dates instead of faking)
+
+---
 
 ## 2026-02-13 — Flag Estimated Dates on Lab Results
 

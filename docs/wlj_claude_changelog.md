@@ -4,10 +4,24 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-13 (Fix trial_expired 500 error)
+# Last Updated: 2026-02-13 (Enhanced trend chart + date parser fix)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-02-13 — Enhanced Trend Chart with Colored Range Zones + Date Parser Fix
+
+**Changes:**
+1. **Trend chart**: Added colored background zones — green for in-range, light red for above range, light blue for below range. Color-coded data points, dashed boundary lines, value labels, and legend.
+2. **Range fallback**: Data table now falls back to catalog default ranges when per-result ranges are missing.
+3. **Date parser**: Added 7 missing date formats to `_parse_portal_date()` including date-only (`"Feb 06, 2026"`), no-comma variants, and full month names. Added warning logging for failed date extraction.
+4. **Date regex**: Made `Date:` line regex more flexible (optional space after colon). Added fallback logging when date line exists but doesn't match.
+
+**Files modified:**
+- `templates/medical/test_trend.html` (chart zones, range fallback in table, color-coded points)
+- `apps/medical/services/lab_parser.py` (expanded date formats, better logging)
+
+---
 
 ## 2026-02-13 — Fix Re-Import After Delete (Two-Part Fix)
 

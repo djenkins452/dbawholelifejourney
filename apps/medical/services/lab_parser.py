@@ -188,16 +188,27 @@ def _parse_portal_format(text: str) -> list[ParsedResult]:
                 if i + 1 < len(lines):
                     date_line = lines[i + 1].strip()
                     date_match = re.match(
-                        r'^Date:\s+(.+?)(?:\s+Reference Range(?:\s*\([^)]*\))?:\s*(.+))?\s*$',
+                        r'^Date:\s*(.+?)(?:\s+Reference Range(?:\s*\([^)]*\))?:\s*(.+))?\s*$',
                         date_line
                     )
                     if date_match:
                         date_str = date_match.group(1).strip()
                         ref_raw = date_match.group(2)
                         collected_at = _parse_portal_date(date_str)
+                        if collected_at is None:
+                            logger.warning(
+                                "Date extraction failed for test '%s', date line: %r",
+                                current_test, date_line
+                            )
                         if ref_raw:
                             ref_range = ref_raw.strip()
                         i += 1  # Skip date line
+                    elif date_line.startswith('Date'):
+                        # Date line exists but regex didn't match — log it
+                        logger.warning(
+                            "Date line didn't match expected format for test '%s': %r",
+                            current_test, date_line
+                        )
 
                 range_low, range_high = _parse_reference_range(ref_range)
 
@@ -277,17 +288,27 @@ def _parse_portal_value_line(line: str):
 
 def _parse_portal_date(date_str: str) -> Optional[datetime]:
     """Parse portal date strings like 'Feb 06, 2026 07:56 a.m. EST'."""
-    # Remove timezone abbreviation
-    cleaned = re.sub(r'\s+[A-Z]{2,4}\s*$', '', date_str.strip())
-    # Normalize am/pm
+    # Remove timezone abbreviation (2-5 uppercase letters at end, e.g. EST, CDT, AEST)
+    cleaned = re.sub(r'\s+[A-Z]{2,5}\s*$', '', date_str.strip())
+    # Normalize am/pm variants
     cleaned = cleaned.replace('a.m.', 'AM').replace('p.m.', 'PM')
+    cleaned = cleaned.replace(' am', ' AM').replace(' pm', ' PM')
+    # Strip any trailing whitespace or punctuation
+    cleaned = cleaned.strip().rstrip('.')
 
     formats = [
-        "%b %d, %Y %I:%M %p",
-        "%b %d, %Y %H:%M",
-        "%B %d, %Y %I:%M %p",
-        "%m/%d/%Y %I:%M %p",
-        "%m/%d/%Y",
+        "%b %d, %Y %I:%M %p",      # "Feb 06, 2026 07:56 AM"
+        "%b %d, %Y %H:%M",          # "Feb 06, 2026 07:56"
+        "%B %d, %Y %I:%M %p",       # "February 06, 2026 07:56 AM"
+        "%B %d, %Y %H:%M",          # "February 06, 2026 07:56"
+        "%b %d, %Y",                 # "Feb 06, 2026"
+        "%B %d, %Y",                 # "February 06, 2026"
+        "%b %d %Y %I:%M %p",        # "Feb 06 2026 07:56 AM" (no comma)
+        "%b %d %Y %H:%M",           # "Feb 06 2026 07:56" (no comma)
+        "%b %d %Y",                  # "Feb 06 2026" (no comma)
+        "%m/%d/%Y %I:%M %p",        # "02/06/2026 07:56 AM"
+        "%m/%d/%Y %H:%M",           # "02/06/2026 07:56"
+        "%m/%d/%Y",                  # "02/06/2026"
     ]
 
     for fmt in formats:
@@ -296,7 +317,7 @@ def _parse_portal_date(date_str: str) -> Optional[datetime]:
         except ValueError:
             continue
 
-    logger.debug("Could not parse portal date: %s", date_str)
+    logger.warning("Could not parse portal date: %r (cleaned: %r)", date_str, cleaned)
     return None
 
 

@@ -19,14 +19,22 @@
 
     {% if test.default_range_low or test.default_range_high %}
     <div class="range-banner">
-        Reference range: {{ test.default_range_low }}{% if test.default_range_low and test.default_range_high %} - {% endif %}{{ test.default_range_high }} {{ test.default_unit }}
+        <span class="range-indicator"></span>
+        Reference range: {{ test.default_range_low }}{% if test.default_range_low and test.default_range_high %} &ndash; {% endif %}{{ test.default_range_high }} {{ test.default_unit }}
     </div>
     {% endif %}
 
     {% if results %}
-    <!-- Simple Chart -->
+    <!-- Chart -->
     <div class="chart-container">
         <canvas id="trendChart" height="200"></canvas>
+    </div>
+
+    <!-- Legend -->
+    <div class="chart-legend">
+        <span class="legend-item"><span class="legend-swatch legend-normal"></span> In Range</span>
+        <span class="legend-item"><span class="legend-swatch legend-high"></span> Above Range</span>
+        <span class="legend-item"><span class="legend-swatch legend-low"></span> Below Range</span>
     </div>
 
     <!-- Data Table -->
@@ -47,7 +55,15 @@
                     <td>{{ r.collected_at|date:"M j, Y" }}</td>
                     <td class="result-value">{{ r.value_text }}</td>
                     <td>{{ r.unit }}</td>
-                    <td class="result-range">{{ r.range_text }}</td>
+                    <td class="result-range">
+                        {% if r.range_text %}
+                            {{ r.range_text }}
+                        {% elif test.default_range_low or test.default_range_high %}
+                            {{ test.default_range_low }}{% if test.default_range_low and test.default_range_high %} - {% endif %}{{ test.default_range_high }}
+                        {% else %}
+                            &mdash;
+                        {% endif %}
+                    </td>
                     <td>
                         <span class="status-label status-{{ r.abnormal_flag|default:'normal'|lower }}">{{ r.status_label }}</span>
                     </td>
@@ -72,6 +88,19 @@
     color: var(--color-text-muted);
     margin-bottom: var(--space-6);
     text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+}
+
+.range-indicator {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    background: rgba(34, 197, 94, 0.25);
+    border: 1px solid rgba(34, 197, 94, 0.5);
 }
 
 .chart-container {
@@ -79,15 +108,41 @@
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
     padding: var(--space-4);
-    margin-bottom: var(--space-6);
+    margin-bottom: var(--space-3);
     position: relative;
-    height: 250px;
+    height: 280px;
 }
 
 .chart-container canvas {
     width: 100% !important;
     height: 100% !important;
 }
+
+.chart-legend {
+    display: flex;
+    justify-content: center;
+    gap: var(--space-4);
+    margin-bottom: var(--space-6);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+}
+
+.legend-swatch {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+}
+
+.legend-normal { background: rgba(34, 197, 94, 0.2); border: 1px solid rgba(34, 197, 94, 0.4); }
+.legend-high { background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); }
+.legend-low { background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.3); }
 
 .results-table-wrapper { overflow-x: auto; }
 
@@ -131,31 +186,46 @@
     padding: var(--space-8);
     color: var(--color-text-muted);
 }
+
+@media (max-width: 480px) {
+    .chart-legend { flex-wrap: wrap; gap: var(--space-2); }
+}
 </style>
 
 {% if results %}
 <script nonce="{{ csp_nonce }}">
 (function() {
-    // Simple canvas chart - no external dependencies
     var canvas = document.getElementById('trendChart');
     if (!canvas) return;
     var ctx = canvas.getContext('2d');
     var container = canvas.parentElement;
 
-    // Data from template
     var data = [
         {% for r in results %}
         {
             date: '{{ r.collected_at|date:"M j, Y" }}',
             value: {{ r.value_numeric|default:"null" }},
-            flag: '{{ r.abnormal_flag }}'
+            flag: '{{ r.abnormal_flag }}',
+            rangeLow: {{ r.range_low|default:"null" }},
+            rangeHigh: {{ r.range_high|default:"null" }}
         }{% if not forloop.last %},{% endif %}
         {% endfor %}
     ].filter(function(d) { return d.value !== null; });
 
-    if (data.length < 2) {
-        container.innerHTML = '<p style="text-align:center;color:var(--color-text-muted);padding:var(--space-8);">Need at least 2 numeric values to show a chart.</p>';
+    if (data.length < 1) {
+        container.innerHTML = '<p style="text-align:center;color:var(--color-text-muted);padding:var(--space-8);">No numeric values to chart.</p>';
         return;
+    }
+
+    // Catalog default ranges (fallback)
+    var defaultLow = {{ test.default_range_low|default:"null" }};
+    var defaultHigh = {{ test.default_range_high|default:"null" }};
+
+    function getRange(d) {
+        return {
+            low: (d.rangeLow !== null) ? d.rangeLow : defaultLow,
+            high: (d.rangeHigh !== null) ? d.rangeHigh : defaultHigh
+        };
     }
 
     function draw() {
@@ -173,31 +243,83 @@
         var plotW = w - pad.left - pad.right;
         var plotH = h - pad.top - pad.bottom;
 
+        // Calculate Y-axis bounds — include range bounds
         var values = data.map(function(d) { return d.value; });
-        var minV = Math.min.apply(null, values);
-        var maxV = Math.max.apply(null, values);
-        var range = maxV - minV || 1;
-        minV -= range * 0.1;
-        maxV += range * 0.1;
+        var allVals = values.slice();
+        if (defaultLow !== null) allVals.push(defaultLow);
+        if (defaultHigh !== null) allVals.push(defaultHigh);
+        var minV = Math.min.apply(null, allVals);
+        var maxV = Math.max.apply(null, allVals);
+        var yRange = maxV - minV || 1;
+        minV -= yRange * 0.15;
+        maxV += yRange * 0.15;
 
-        // Reference range
-        var refLow = {{ test.default_range_low|default:"null" }};
-        var refHigh = {{ test.default_range_high|default:"null" }};
+        var style = getComputedStyle(document.documentElement);
+        var bgColor = style.getPropertyValue('--color-background').trim() || '#fff';
+        var borderColor = style.getPropertyValue('--color-border').trim() || '#e5e7eb';
+        var mutedColor = style.getPropertyValue('--color-text-muted').trim() || '#6b7280';
+        var accent = style.getPropertyValue('--color-accent').trim() || '#3b82f6';
 
-        // Background
-        ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--color-background').trim() || '#fff';
+        function yPos(val) {
+            return pad.top + plotH - ((val - minV) / (maxV - minV)) * plotH;
+        }
+        function xPos(idx) {
+            return data.length === 1 ? pad.left + plotW / 2 : pad.left + (idx / (data.length - 1)) * plotW;
+        }
+
+        // Clear
+        ctx.fillStyle = bgColor;
         ctx.fillRect(0, 0, w, h);
 
-        // Reference range band
-        if (refLow !== null && refHigh !== null) {
-            var y1 = pad.top + plotH - ((refHigh - minV) / (maxV - minV)) * plotH;
-            var y2 = pad.top + plotH - ((refLow - minV) / (maxV - minV)) * plotH;
-            ctx.fillStyle = 'rgba(34, 197, 94, 0.1)';
-            ctx.fillRect(pad.left, Math.max(y1, pad.top), plotW, Math.min(y2 - y1, plotH));
+        // Draw colored background zones
+        var refLow = defaultLow;
+        var refHigh = defaultHigh;
+        var hasRange = refLow !== null || refHigh !== null;
+
+        if (hasRange) {
+            var yTop = pad.top;
+            var yBottom = pad.top + plotH;
+            var rangeTop = refHigh !== null ? Math.max(yPos(refHigh), yTop) : yTop;
+            var rangeBottom = refLow !== null ? Math.min(yPos(refLow), yBottom) : yBottom;
+
+            // High zone (above range) — light red
+            if (refHigh !== null && rangeTop > yTop) {
+                ctx.fillStyle = 'rgba(239, 68, 68, 0.08)';
+                ctx.fillRect(pad.left, yTop, plotW, rangeTop - yTop);
+            }
+
+            // Normal zone (in range) — light green
+            ctx.fillStyle = 'rgba(34, 197, 94, 0.10)';
+            ctx.fillRect(pad.left, rangeTop, plotW, rangeBottom - rangeTop);
+
+            // Low zone (below range) — light blue
+            if (refLow !== null && rangeBottom < yBottom) {
+                ctx.fillStyle = 'rgba(59, 130, 246, 0.08)';
+                ctx.fillRect(pad.left, rangeBottom, plotW, yBottom - rangeBottom);
+            }
+
+            // Range boundary lines
+            ctx.setLineDash([4, 4]);
+            ctx.lineWidth = 1;
+            if (refHigh !== null) {
+                ctx.strokeStyle = 'rgba(239, 68, 68, 0.4)';
+                ctx.beginPath();
+                ctx.moveTo(pad.left, rangeTop);
+                ctx.lineTo(pad.left + plotW, rangeTop);
+                ctx.stroke();
+            }
+            if (refLow !== null) {
+                ctx.strokeStyle = 'rgba(59, 130, 246, 0.4)';
+                ctx.beginPath();
+                ctx.moveTo(pad.left, rangeBottom);
+                ctx.lineTo(pad.left + plotW, rangeBottom);
+                ctx.stroke();
+            }
+            ctx.setLineDash([]);
         }
 
         // Grid lines
-        ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--color-border').trim() || '#e5e7eb';
+        ctx.strokeStyle = borderColor;
         ctx.lineWidth = 0.5;
         for (var i = 0; i <= 4; i++) {
             var y = pad.top + (plotH / 4) * i;
@@ -205,50 +327,89 @@
             ctx.moveTo(pad.left, y);
             ctx.lineTo(pad.left + plotW, y);
             ctx.stroke();
-            // Label
             var val = maxV - ((maxV - minV) / 4) * i;
-            ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--color-text-muted').trim() || '#6b7280';
+            ctx.fillStyle = mutedColor;
             ctx.font = '11px system-ui, sans-serif';
             ctx.textAlign = 'right';
             ctx.fillText(val.toFixed(1), pad.left - 8, y + 4);
         }
 
-        // Plot line
-        var accent = getComputedStyle(document.documentElement).getPropertyValue('--color-accent').trim() || '#3b82f6';
-        ctx.strokeStyle = accent;
-        ctx.lineWidth = 2;
-        ctx.lineJoin = 'round';
-        ctx.beginPath();
-        data.forEach(function(d, idx) {
-            var x = pad.left + (idx / (data.length - 1)) * plotW;
-            var y = pad.top + plotH - ((d.value - minV) / (maxV - minV)) * plotH;
-            if (idx === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
-        });
-        ctx.stroke();
+        // Range labels on right side
+        if (hasRange) {
+            ctx.font = '10px system-ui, sans-serif';
+            ctx.textAlign = 'left';
+            if (refHigh !== null) {
+                ctx.fillStyle = 'rgba(239, 68, 68, 0.7)';
+                ctx.fillText('High: ' + refHigh, pad.left + plotW + 3, Math.max(yPos(refHigh) + 3, pad.top + 10));
+            }
+            if (refLow !== null) {
+                ctx.fillStyle = 'rgba(59, 130, 246, 0.7)';
+                ctx.fillText('Low: ' + refLow, pad.left + plotW + 3, Math.min(yPos(refLow) + 3, pad.top + plotH - 2));
+            }
+        }
 
-        // Points
+        // Plot line
+        if (data.length > 1) {
+            ctx.strokeStyle = accent;
+            ctx.lineWidth = 2.5;
+            ctx.lineJoin = 'round';
+            ctx.beginPath();
+            data.forEach(function(d, idx) {
+                if (idx === 0) ctx.moveTo(xPos(idx), yPos(d.value));
+                else ctx.lineTo(xPos(idx), yPos(d.value));
+            });
+            ctx.stroke();
+        }
+
+        // Points — color based on range status
         data.forEach(function(d, idx) {
-            var x = pad.left + (idx / (data.length - 1)) * plotW;
-            var y = pad.top + plotH - ((d.value - minV) / (maxV - minV)) * plotH;
+            var x = xPos(idx);
+            var y = yPos(d.value);
+            var r = getRange(d);
+            var color;
+
+            if (r.high !== null && d.value > r.high) {
+                color = '#ef4444'; // Red — above range
+            } else if (r.low !== null && d.value < r.low) {
+                color = '#3b82f6'; // Blue — below range
+            } else if (r.low !== null || r.high !== null) {
+                color = '#22c55e'; // Green — in range
+            } else {
+                color = accent; // No range data — neutral
+            }
+
+            // Outer ring
+            ctx.beginPath();
+            ctx.arc(x, y, 6, 0, Math.PI * 2);
+            ctx.fillStyle = color;
+            ctx.globalAlpha = 0.2;
+            ctx.fill();
+            ctx.globalAlpha = 1.0;
+
+            // Inner dot
             ctx.beginPath();
             ctx.arc(x, y, 4, 0, Math.PI * 2);
-            ctx.fillStyle = d.flag ? '#ef4444' : accent;
+            ctx.fillStyle = color;
             ctx.fill();
             ctx.strokeStyle = '#fff';
             ctx.lineWidth = 1.5;
             ctx.stroke();
+
+            // Value label above point
+            ctx.fillStyle = mutedColor;
+            ctx.font = '10px system-ui, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(d.value.toFixed(1), x, y - 10);
         });
 
         // X-axis labels
-        ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--color-text-muted').trim() || '#6b7280';
+        ctx.fillStyle = mutedColor;
         ctx.font = '10px system-ui, sans-serif';
         ctx.textAlign = 'center';
         var step = Math.max(1, Math.floor(data.length / 6));
         data.forEach(function(d, idx) {
             if (idx % step === 0 || idx === data.length - 1) {
-                var x = pad.left + (idx / (data.length - 1)) * plotW;
-                ctx.fillText(d.date, x, h - 8);
+                ctx.fillText(d.date, xPos(idx), h - 8);
             }
         });
     }

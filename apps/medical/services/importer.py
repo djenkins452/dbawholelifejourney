@@ -84,16 +84,30 @@ def ingest_lab_pdf(user, uploaded_file, ip_address=None) -> IngestionResult:
     # 2. Compute file hash
     file_hash = PDFTextExtractor.compute_file_hash(uploaded_file)
 
-    # Check if this exact file was already uploaded by this user
+    # Check if this exact file was already uploaded by this user (active records only)
     existing_doc = MedicalDocument.objects.filter(
         user=user, file_hash=file_hash
     ).first()
     if existing_doc:
-        result.error_message = (
-            f"This file was already uploaded on {existing_doc.created_at.strftime('%Y-%m-%d')}. "
-            "If you want to re-import, delete the previous import first."
-        )
-        return result
+        # Check if it has any active results — if not, it's orphaned and we can clean it up
+        active_results = LabResult.objects.filter(
+            user=user, medical_document=existing_doc
+        ).exists()
+        if active_results:
+            result.error_message = (
+                f"This file was already uploaded on {existing_doc.created_at.strftime('%Y-%m-%d')}. "
+                "If you want to re-import, delete the previous import first."
+            )
+            return result
+        else:
+            # Orphaned document with no active results — clean it up
+            logger.info("Cleaning up orphaned MedicalDocument %s (no active results)", existing_doc.pk)
+            existing_doc.soft_delete()
+
+    # Also clean up any soft-deleted docs with this hash (hard delete to free the hash)
+    MedicalDocument.all_objects.filter(
+        user=user, file_hash=file_hash, status="deleted"
+    ).delete()
 
     # 3. Save to temp file for processing
     with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp:

@@ -4,10 +4,24 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-13 (Document Rename + Batch Delete)
+# Last Updated: 2026-02-13 (Disable App Review Notifications)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-02-13 — Disable Notifications for App Review Account
+
+**Problem:** The `appreview@wholelifejourney.com` account (Apple App Store review demo) had email notifications enabled by default. Since this is not a real mailbox, the daily digest job was failing with "Recipient address rejected: Mailbox is out of service" errors every day.
+
+**What changed:**
+- Updated `setup_app_review_account` command to explicitly disable `email_notifications_enabled` and `notifications_enabled`
+- Added one-time `_disable_appreview_notifications` operation in `load_initial_data.py` to fix the existing production account on next deploy
+
+**Files modified:**
+- `apps/users/management/commands/setup_app_review_account.py` — added notification disable lines
+- `apps/core/management/commands/load_initial_data.py` — added one-time fix for existing account
+
+---
 
 ## 2026-02-13 — Document Rename + Batch Delete for Lab Imports
 

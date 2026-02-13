@@ -555,6 +555,9 @@ class Command(BaseCommand):
         # One-time: Reset blind_spots_week3 loader to reload with True/False radio buttons
         self._reset_blind_spots_week3_truefalse(DataLoadConfig, force, verbosity)
 
+        # One-time: Disable notifications for app review account (not a real mailbox)
+        self._disable_appreview_notifications(DataLoadConfig, force, verbosity)
+
         # Only output summary if something loaded or if verbose
         if verbosity >= 1 and loaded_count > 0:
             self.stdout.write(self.style.SUCCESS(f'Initial data: loaded {loaded_count} items'))
@@ -965,3 +968,46 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset blind spots week3 truefalse FAILED: {e}'))
+
+    def _disable_appreview_notifications(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time disable of email/notifications for the app review account.
+
+        appreview@wholelifejourney.com is not a real mailbox - it's only a demo
+        login for Apple App Store reviewers. Sending digests to it causes errors.
+        Only runs once (tracked via DataLoadConfig) unless force=True.
+        """
+        loader_name = 'disable_appreview_notifications_2026_02'
+
+        if not force and self._is_loader_complete(DataLoadConfig, loader_name):
+            return
+
+        try:
+            import os
+            from apps.users.models import UserPreferences
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+
+            email = os.environ.get('APP_REVIEW_EMAIL', 'appreview@wholelifejourney.com')
+            try:
+                user = User.objects.get(email=email)
+                prefs = user.preferences
+                prefs.email_notifications_enabled = False
+                prefs.notifications_enabled = False
+                prefs.save()
+                if verbosity >= 1:
+                    self.stdout.write(self.style.SUCCESS(
+                        f'  Disabled notifications for app review account ({email})'
+                    ))
+            except User.DoesNotExist:
+                if verbosity >= 1:
+                    self.stdout.write(f'  App review account not found ({email}), skipping')
+
+            self._mark_loader_complete(
+                DataLoadConfig, loader_name, 'Disable App Review Notifications (Feb 2026)',
+                'command', 'One-time disable of notifications for app review demo account'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Disable appreview notifications FAILED: {e}'))

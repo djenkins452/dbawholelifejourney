@@ -119,6 +119,10 @@ class Command(BaseCommand):
         # Disable MFA requirement
         prefs.mfa_required = False
 
+        # Disable email notifications - this is not a real mailbox
+        prefs.email_notifications_enabled = False
+        prefs.notifications_enabled = False
+
         prefs.save()
         self.stdout.write(self.style.SUCCESS("Preferences configured - all modules enabled"))
 

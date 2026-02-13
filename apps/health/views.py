@@ -472,6 +472,15 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         except Exception:
             pass
 
+        # Labs & Vitals summary
+        try:
+            from apps.medical.models import LabResult
+            lab_results = LabResult.objects.filter(user=user)
+            context["lab_result_count"] = lab_results.count()
+            context["lab_abnormal_count"] = lab_results.exclude(abnormal_flag="").count()
+        except Exception:
+            pass
+
         # Breadcrumbs for Physical Health
         context["breadcrumbs"] = [
             {"title": "Health", "url": reverse("health:landing")},

@@ -9,6 +9,22 @@
 
 # WLJ Change History
 
+## 2026-02-13 — Labs & Vitals Card on Health Home Page
+
+**What changed:**
+- Added Labs & Vitals card to the Physical Health home page grid
+- Shows lab result count, abnormal result count, upload button, and link to full labs view
+- Updated HealthHomeView to pass `lab_result_count` and `lab_abnormal_count` context variables
+- Added CSS for `.labs-stats` and `.stat-abnormal` styling
+
+**Files modified:**
+- `apps/health/views.py` — Added LabResult query to get_context_data
+- `templates/health/home.html` — Added Labs & Vitals card HTML and CSS
+
+**Why:** Users needed a way to access Labs & Vitals from the Health home page instead of typing /medical in the URL.
+
+---
+
 ## 2026-02-12 — Medical Lab Ingestion: UI, Tests, and Documentation
 
 **What changed:**

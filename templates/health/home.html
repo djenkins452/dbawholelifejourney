@@ -644,6 +644,40 @@
             <a href="{% url 'health:provider_list' %}" class="card-link">View Providers</a>
         </div>
         {% endif %}
+
+        <!-- Labs & Vitals Card -->
+        <div class="health-card labs-card">
+            <div class="card-header">
+                <h2>
+                    <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                        <line x1="9" y1="12" x2="15" y2="12"/>
+                        <line x1="9" y1="16" x2="15" y2="16"/>
+                    </svg>
+                    Labs & Vitals
+                </h2>
+                <a href="{% url 'medical:upload' %}" class="btn btn-primary btn-sm">Upload</a>
+            </div>
+
+            {% if lab_result_count %}
+            <div class="labs-stats">
+                <div class="stat">
+                    <span class="stat-value">{{ lab_result_count }}</span>
+                    <span class="stat-label">lab results</span>
+                </div>
+                {% if lab_abnormal_count %}
+                <div class="stat">
+                    <span class="stat-value stat-abnormal">{{ lab_abnormal_count }}</span>
+                    <span class="stat-label">abnormal</span>
+                </div>
+                {% endif %}
+            </div>
+            {% else %}
+            <p class="text-muted">Upload lab PDFs to track your results over time.</p>
+            {% endif %}
+
+            <a href="{% url 'medical:home' %}" class="card-link">View Labs & Vitals</a>
+        </div>
     </div>
 
     {# Advanced Metrics Section - shows when user has wearable/sync data #}
@@ -1114,6 +1148,32 @@
 .provider-name {
     font-weight: 500;
     font-size: var(--font-size-sm);
+}
+
+/* Labs & Vitals Card */
+.labs-stats {
+    display: flex;
+    gap: var(--space-6);
+    margin-bottom: var(--space-4);
+}
+
+.labs-stats .stat {
+    display: flex;
+    flex-direction: column;
+}
+
+.labs-stats .stat-value {
+    font-size: var(--font-size-2xl);
+    font-weight: 600;
+}
+
+.labs-stats .stat-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.stat-abnormal {
+    color: var(--color-danger, #ef4444);
 }
 
 /* Cycle Tracking Card */

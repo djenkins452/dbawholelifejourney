@@ -12,10 +12,21 @@
 
     <div class="page-header">
         <div>
-            <h1 class="page-title">{{ document.original_filename }}</h1>
+            <h1 class="page-title" id="doc-title">{{ document.original_filename }}</h1>
             <p class="page-subtitle">Uploaded {{ document.created_at|date:"M j, Y g:i A" }}</p>
         </div>
+        <button class="btn btn-outline btn-sm" onclick="toggleRename()" id="rename-toggle-btn">Rename</button>
     </div>
+
+    <!-- Rename Form (hidden by default) -->
+    <form method="post" action="{% url 'medical:document_rename' pk=document.pk %}" class="rename-form" id="rename-form" hidden>
+        {% csrf_token %}
+        <div class="rename-row">
+            <input type="text" name="filename" value="{{ document.original_filename }}" class="rename-input" id="rename-input" required>
+            <button type="submit" class="btn btn-primary btn-sm">Save</button>
+            <button type="button" class="btn btn-outline btn-sm" onclick="toggleRename()">Cancel</button>
+        </div>
+    </form>
 
     <div class="detail-grid">
         <div class="detail-card">
@@ -55,9 +66,11 @@
     </div>
 
     <div class="actions-bar">
-        <form method="post" action="{% url 'medical:document_delete' pk=document.pk %}" onsubmit="return confirm('Delete this document? Lab results will be retained.');">
+        <form method="post" action="{% url 'medical:document_delete' pk=document.pk %}" onsubmit="return confirm('Delete this document and all {{ result_count }} associated lab results? This cannot be undone.');">
             {% csrf_token %}
-            <button type="submit" class="btn btn-sm btn-danger">Delete Document</button>
+            <button type="submit" class="btn btn-sm btn-danger">
+                Delete Document & All Results ({{ result_count }})
+            </button>
         </form>
     </div>
 </div>
@@ -107,8 +120,61 @@
     margin-top: var(--space-6);
 }
 
+/* Rename Form */
+.rename-form {
+    margin-bottom: var(--space-4);
+}
+
+.rename-form[hidden] { display: none; }
+
+.rename-row {
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+}
+
+.rename-input {
+    flex: 1;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-size: 16px;
+    background: var(--color-background);
+    color: var(--color-text);
+}
+
+.rename-input:focus {
+    outline: none;
+    border-color: var(--color-accent);
+}
+
 @media (max-width: 768px) {
     .detail-grid { grid-template-columns: 1fr; }
+    .rename-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
 }
 </style>
+
+<script nonce="{{ csp_nonce }}">
+function toggleRename() {
+    var form = document.getElementById('rename-form');
+    var title = document.getElementById('doc-title');
+    var btn = document.getElementById('rename-toggle-btn');
+    var input = document.getElementById('rename-input');
+
+    if (form.hidden) {
+        form.hidden = false;
+        title.style.display = 'none';
+        btn.style.display = 'none';
+        input.focus();
+        input.select();
+    } else {
+        form.hidden = true;
+        title.style.display = '';
+        btn.style.display = '';
+    }
+}
+</script>
 {% endblock %}

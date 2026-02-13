@@ -4,10 +4,29 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-13 (Medical Lab Education Layer)
+# Last Updated: 2026-02-13 (Document Rename + Batch Delete)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-02-13 — Document Rename + Batch Delete for Lab Imports
+
+**What changed:**
+- Added "Rename" button on Document Detail page — click to inline-edit the filename
+- Changed "Delete Document" to "Delete Document & All Results" — now soft-deletes the document AND all associated lab results in one action (previously kept results)
+- Added "Delete Import & All Results" button on Import Detail page — deletes an import batch and all its lab results
+- Added `DocumentRenameView` and `ImportDeleteView`
+- Added new URLs: `document_rename`, `import_delete`
+
+**Files modified:**
+- `apps/medical/views.py` — Added DocumentRenameView, ImportDeleteView; updated DocumentDeleteView to also delete results
+- `apps/medical/urls.py` — Added document_rename and import_delete URLs
+- `templates/medical/document_detail.html` — Added rename form, updated delete button
+- `templates/medical/import_detail.html` — Added delete import button
+
+**Why:** Users needed to rename documents (e.g., change "sample.pdf" to a meaningful name) and delete an entire upload (document + all results) in one action instead of deleting results one at a time.
+
+---
 
 ## 2026-02-13 — Medical Lab Education Layer
 

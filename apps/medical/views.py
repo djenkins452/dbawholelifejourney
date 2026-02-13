@@ -340,6 +340,37 @@ class DocumentDetailView(MedicalAccessMixin, DetailView):
         return ctx
 
 
+class DocumentRenameView(MedicalAccessMixin, View):
+    """Rename a medical document's filename."""
+
+    def post(self, request, pk):
+        doc = get_object_or_404(MedicalDocument, pk=pk, user=request.user)
+        new_name = request.POST.get("filename", "").strip()
+        if not new_name:
+            messages.error(request, "Filename cannot be empty.")
+            return redirect("medical:document_detail", pk=pk)
+
+        old_name = doc.original_filename
+        doc.original_filename = new_name
+        doc.save(update_fields=["original_filename", "updated_at"])
+
+        MedicalAuditLog.objects.create(
+            user=request.user,
+            action="view",  # rename is a non-destructive action
+            detail=f"Renamed document from '{old_name}' to '{new_name}'",
+            ip_address=self._get_client_ip(),
+        )
+
+        messages.success(request, f"Document renamed to '{new_name}'.")
+        return redirect("medical:document_detail", pk=pk)
+
+    def _get_client_ip(self):
+        x_forwarded = self.request.META.get("HTTP_X_FORWARDED_FOR")
+        if x_forwarded:
+            return x_forwarded.split(",")[0].strip()
+        return self.request.META.get("REMOTE_ADDR")
+
+
 class TestTrendView(MedicalAccessMixin, TemplateView):
     """Single test trend view — values over time."""
 
@@ -362,28 +393,78 @@ class TestTrendView(MedicalAccessMixin, TemplateView):
 # =============================================================================
 
 class DocumentDeleteView(MedicalAccessMixin, View):
-    """Delete a medical document (soft delete). Results are retained with source-removed marker."""
+    """Delete a medical document AND all associated lab results (soft delete)."""
 
     def post(self, request, pk):
         doc = get_object_or_404(MedicalDocument, pk=pk, user=request.user)
 
+        # Count results before deleting
+        result_count = LabResult.objects.filter(
+            user=request.user, medical_document=doc
+        ).count()
+
+        # Soft-delete all lab results from this document
+        for result in LabResult.objects.filter(user=request.user, medical_document=doc):
+            result.soft_delete()
+
+        # Soft-delete all import batches from this document
+        for batch in doc.import_batches.all():
+            batch.delete()
+
         # Soft-delete the medical document
         doc.soft_delete()
-
-        # Mark results as source removed but keep them
-        LabResult.objects.filter(
-            user=request.user, medical_document=doc
-        ).update(notes="Source document removed")
 
         # Audit
         MedicalAuditLog.objects.create(
             user=request.user,
             action="delete_doc",
-            detail=f"Deleted medical document (results retained)",
+            detail=f"Deleted medical document and {result_count} associated lab results",
             ip_address=self._get_client_ip(),
         )
 
-        messages.success(request, "Document deleted. Lab results have been retained.")
+        messages.success(
+            request,
+            f"Document and {result_count} lab result{'s' if result_count != 1 else ''} deleted."
+        )
+        return redirect("medical:home")
+
+    def _get_client_ip(self):
+        x_forwarded = self.request.META.get("HTTP_X_FORWARDED_FOR")
+        if x_forwarded:
+            return x_forwarded.split(",")[0].strip()
+        return self.request.META.get("REMOTE_ADDR")
+
+
+class ImportDeleteView(MedicalAccessMixin, View):
+    """Delete an import batch and all its lab results (soft delete)."""
+
+    def post(self, request, pk):
+        batch = get_object_or_404(ImportBatch, pk=pk, user=request.user)
+
+        # Count and soft-delete all results from this batch
+        results = LabResult.objects.filter(user=request.user, import_batch=batch)
+        result_count = results.count()
+        for result in results:
+            result.soft_delete()
+
+        # Delete error rows
+        batch.error_rows.all().delete()
+
+        # Delete the batch itself
+        batch.delete()
+
+        # Audit
+        MedicalAuditLog.objects.create(
+            user=request.user,
+            action="delete_results",
+            detail=f"Deleted import batch and {result_count} lab results",
+            ip_address=self._get_client_ip(),
+        )
+
+        messages.success(
+            request,
+            f"Import and {result_count} lab result{'s' if result_count != 1 else ''} deleted."
+        )
         return redirect("medical:home")
 
     def _get_client_ip(self):

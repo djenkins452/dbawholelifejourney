@@ -88,6 +88,16 @@
     </div>
     {% endif %}
 
+    <!-- Actions -->
+    <div class="import-actions">
+        <form method="post" action="{% url 'medical:import_delete' pk=batch.pk %}" onsubmit="return confirm('Delete this import and all {{ batch.rows_imported }} imported lab results? This cannot be undone.');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-danger">
+                Delete Import & All Results ({{ batch.rows_imported }})
+            </button>
+        </form>
+    </div>
+
     <!-- Imported Results -->
     {% if imported_results %}
     <div class="results-section">
@@ -300,6 +310,20 @@
 .btn-outline:hover {
     border-color: var(--color-accent);
     color: var(--color-accent);
+}
+
+.import-actions {
+    margin-bottom: var(--space-6);
+    padding: var(--space-4);
+    background: color-mix(in srgb, var(--color-error) 3%, var(--color-background));
+    border: 1px solid color-mix(in srgb, var(--color-error) 15%, var(--color-border));
+    border-radius: var(--radius-md);
+}
+
+.btn-danger {
+    background: var(--color-error);
+    color: white;
+    border: none;
 }
 
 @media (max-width: 480px) {

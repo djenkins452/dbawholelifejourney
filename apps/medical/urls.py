@@ -30,7 +30,10 @@ urlpatterns = [
     path("document/<uuid:pk>/", views.DocumentDetailView.as_view(), name="document_detail"),
     # Education (AJAX partial for modal)
     path("education/<uuid:test_id>/", views.EducationDetailView.as_view(), name="education_detail"),
+    # Document management
+    path("document/<uuid:pk>/rename/", views.DocumentRenameView.as_view(), name="document_rename"),
     # Delete actions
     path("document/<uuid:pk>/delete/", views.DocumentDeleteView.as_view(), name="document_delete"),
+    path("import/<uuid:pk>/delete/", views.ImportDeleteView.as_view(), name="import_delete"),
     path("result/<uuid:pk>/delete/", views.ResultDeleteView.as_view(), name="result_delete"),
 ]

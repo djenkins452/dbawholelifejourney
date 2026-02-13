@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+
+{% block title %}{{ result }} - Labs & Vitals{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'medical:home' %}">Labs & Vitals</a>
+        <span>/</span>
+        <span>Result Detail</span>
+    </nav>
+
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">{% if result.canonical_test %}{{ result.canonical_test.name }}{% else %}{{ result.raw_test_name }}{% endif %}</h1>
+            <p class="page-subtitle">{{ result.collected_at|date:"M j, Y g:i A" }}</p>
+        </div>
+        {% if result.canonical_test %}
+        <a href="{% url 'medical:test_trend' test_id=result.canonical_test.pk %}" class="btn btn-outline">View Trend</a>
+        {% endif %}
+    </div>
+
+    <div class="detail-grid">
+        <div class="detail-card detail-main">
+            <div class="big-value">
+                <span class="value">{{ result.value_text }}</span>
+                <span class="unit">{{ result.unit }}</span>
+            </div>
+            <span class="status-label status-{{ result.abnormal_flag|default:'normal'|lower }}">{{ result.status_label }}</span>
+            {% if result.range_text %}
+            <p class="range-info">Reference range: {{ result.range_text }}</p>
+            {% endif %}
+        </div>
+
+        <div class="detail-card">
+            <h3>Details</h3>
+            <dl class="detail-list">
+                <dt>Raw Test Name</dt>
+                <dd>{{ result.raw_test_name }}</dd>
+                {% if result.canonical_test.category %}
+                <dt>Category</dt>
+                <dd>{{ result.canonical_test.get_category_display }}</dd>
+                {% endif %}
+                {% if result.panel %}
+                <dt>Panel</dt>
+                <dd><a href="{% url 'medical:panel_detail' pk=result.panel.pk %}">{{ result.panel.get_panel_type_display }}</a></dd>
+                {% endif %}
+                {% if result.provider %}
+                <dt>Provider</dt>
+                <dd>{{ result.provider }}</dd>
+                {% endif %}
+                <dt>Result Status</dt>
+                <dd>{{ result.get_result_status_display }}</dd>
+                {% if result.reported_at %}
+                <dt>Reported</dt>
+                <dd>{{ result.reported_at|date:"M j, Y g:i A" }}</dd>
+                {% endif %}
+                {% if result.medical_document %}
+                <dt>Source Document</dt>
+                <dd><a href="{% url 'medical:document_detail' pk=result.medical_document.pk %}">{{ result.medical_document.original_filename }}</a></dd>
+                {% endif %}
+            </dl>
+        </div>
+    </div>
+
+    <!-- History -->
+    {% if history and history|length > 1 %}
+    <div class="history-section">
+        <h2 class="section-title">History</h2>
+        <div class="results-table-wrapper">
+            <table class="results-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Value</th>
+                        <th>Range</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for h in history %}
+                    <tr class="{% if h.pk == result.pk %}current-row{% endif %} {% if h.is_abnormal %}result-abnormal{% endif %}">
+                        <td>{{ h.collected_at|date:"M j, Y" }}</td>
+                        <td class="result-value">{{ h.value_text }} {{ h.unit }}</td>
+                        <td class="result-range">{{ h.range_text }}</td>
+                        <td><span class="status-label status-{{ h.abnormal_flag|default:'normal'|lower }}">{{ h.status_label }}</span></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="actions-bar">
+        <form method="post" action="{% url 'medical:result_delete' pk=result.pk %}" onsubmit="return confirm('Delete this result?');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-danger">Delete Result</button>
+        </form>
+    </div>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+    margin-bottom: var(--space-6);
+}
+
+.detail-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+}
+
+.detail-card h3 {
+    margin: 0 0 var(--space-3);
+    font-size: var(--font-size-base);
+}
+
+.detail-main {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
+.big-value {
+    margin-bottom: var(--space-3);
+}
+
+.big-value .value {
+    font-size: 2.5rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.big-value .unit {
+    font-size: var(--font-size-lg);
+    color: var(--color-text-muted);
+    margin-left: var(--space-2);
+}
+
+.range-info {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    margin-top: var(--space-3);
+}
+
+.detail-list {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--space-2) var(--space-4);
+    font-size: var(--font-size-sm);
+}
+
+.detail-list dt {
+    color: var(--color-text-muted);
+    font-weight: 500;
+}
+
+.detail-list dd {
+    margin: 0;
+}
+
+.detail-list a {
+    color: var(--color-accent);
+    text-decoration: none;
+}
+
+.section-title {
+    font-size: var(--font-size-lg);
+    margin: var(--space-6) 0 var(--space-4);
+}
+
+.results-table-wrapper { overflow-x: auto; }
+
+.results-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--font-size-sm);
+}
+
+.results-table th, .results-table td {
+    padding: var(--space-3);
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.results-table th {
+    font-weight: 600;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    text-transform: uppercase;
+}
+
+.current-row { background: color-mix(in srgb, var(--color-accent) 8%, transparent); }
+.result-abnormal { background: color-mix(in srgb, var(--color-error) 5%, transparent); }
+.result-value { font-weight: 600; font-variant-numeric: tabular-nums; }
+.result-range { color: var(--color-text-muted); font-size: var(--font-size-xs); }
+
+.status-label {
+    display: inline-block;
+    font-size: var(--font-size-xs);
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-sm);
+    font-weight: 500;
+}
+.status-normal, .status- { background: color-mix(in srgb, var(--color-success) 15%, transparent); color: var(--color-success); }
+.status-l { background: color-mix(in srgb, #3b82f6 15%, transparent); color: #2563eb; }
+.status-h { background: color-mix(in srgb, #f59e0b 15%, transparent); color: #b45309; }
+.status-ll, .status-hh { background: color-mix(in srgb, var(--color-error) 15%, transparent); color: var(--color-error); }
+.status-a { background: color-mix(in srgb, #8b5cf6 15%, transparent); color: #7c3aed; }
+
+.btn-outline {
+    background: transparent;
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+    text-decoration: none;
+}
+
+.btn-danger {
+    background: var(--color-error);
+    color: white;
+    border: none;
+}
+
+.actions-bar {
+    padding: var(--space-4) 0;
+    border-top: 1px solid var(--color-border);
+    margin-top: var(--space-6);
+}
+
+@media (max-width: 768px) {
+    .detail-grid {
+        grid-template-columns: 1fr;
+    }
+    .big-value .value {
+        font-size: 2rem;
+    }
+}
+</style>
+{% endblock %}

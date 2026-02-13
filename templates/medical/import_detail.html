@@ -1,0 +1,311 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Import Results - Medical{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'medical:home' %}">Labs & Vitals</a>
+        <span>/</span>
+        <span>Import Results</span>
+    </nav>
+
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Import Results</h1>
+            <p class="page-subtitle">
+                {% if batch.medical_document %}{{ batch.medical_document.original_filename }}{% endif %}
+                &mdash; {{ batch.created_at|date:"M j, Y g:i A" }}
+            </p>
+        </div>
+        <a href="{% url 'medical:upload' %}" class="btn btn-primary">Upload Another</a>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="summary-grid">
+        <div class="summary-card">
+            <span class="summary-value">{{ batch.total_rows_found }}</span>
+            <span class="summary-label">Found</span>
+        </div>
+        <div class="summary-card summary-success">
+            <span class="summary-value">{{ batch.rows_imported }}</span>
+            <span class="summary-label">Imported</span>
+        </div>
+        <div class="summary-card summary-warning">
+            <span class="summary-value">{{ batch.rows_skipped_duplicate }}</span>
+            <span class="summary-label">Duplicates Skipped</span>
+        </div>
+        <div class="summary-card summary-error">
+            <span class="summary-value">{{ batch.rows_failed }}</span>
+            <span class="summary-label">Failed</span>
+        </div>
+    </div>
+
+    {% if batch.duration_seconds %}
+    <p class="import-duration">Processed in {{ batch.duration_seconds|floatformat:1 }} seconds</p>
+    {% endif %}
+
+    <!-- Errors -->
+    {% if errors %}
+    <div class="errors-section">
+        <div class="errors-header">
+            <h2 class="section-title">Import Errors</h2>
+            <a href="{% url 'medical:import_errors_csv' pk=batch.pk %}" class="btn btn-sm btn-outline">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                Download CSV
+            </a>
+        </div>
+        <div class="errors-table-wrapper">
+            <table class="errors-table">
+                <thead>
+                    <tr>
+                        <th>Row</th>
+                        <th>Test Name</th>
+                        <th>Value</th>
+                        <th>Error</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for err in errors %}
+                    <tr>
+                        <td>{{ err.row_number }}</td>
+                        <td>{{ err.raw_test_name|truncatechars:40 }}</td>
+                        <td>{{ err.raw_value }}</td>
+                        <td>
+                            <span class="error-type">{{ err.error_type }}</span>
+                            {{ err.error_message|truncatechars:80 }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Imported Results -->
+    {% if imported_results %}
+    <div class="results-section">
+        <h2 class="section-title">Imported Results</h2>
+        <div class="results-table-wrapper">
+            <table class="results-table">
+                <thead>
+                    <tr>
+                        <th>Test</th>
+                        <th>Value</th>
+                        <th>Unit</th>
+                        <th>Range</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in imported_results %}
+                    <tr class="{% if r.is_abnormal %}result-abnormal{% endif %}">
+                        <td>
+                            <a href="{% url 'medical:result_detail' pk=r.pk %}">
+                                {% if r.canonical_test %}{{ r.canonical_test.name }}{% else %}{{ r.raw_test_name }}{% endif %}
+                            </a>
+                        </td>
+                        <td class="result-value">{{ r.value_text }}</td>
+                        <td>{{ r.unit }}</td>
+                        <td>{{ r.range_text }}</td>
+                        <td>
+                            <span class="status-label status-{{ r.abnormal_flag|default:'normal'|lower }}">
+                                {{ r.status_label }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="results-footer">
+            <a href="{% url 'medical:home' %}" class="btn btn-primary">View All Labs & Vitals</a>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: var(--space-4);
+    margin-bottom: var(--space-6);
+}
+
+.summary-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    text-align: center;
+}
+
+.summary-value {
+    display: block;
+    font-size: var(--font-size-2xl);
+    font-weight: 700;
+}
+
+.summary-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.summary-success .summary-value { color: var(--color-success); }
+.summary-warning .summary-value { color: #f59e0b; }
+.summary-error .summary-value { color: var(--color-error); }
+
+.import-duration {
+    text-align: center;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--space-6);
+}
+
+.section-title {
+    font-size: var(--font-size-lg);
+    margin-bottom: var(--space-4);
+}
+
+.errors-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-bottom: var(--space-4);
+}
+
+.errors-header .section-title { margin-bottom: 0; }
+
+.errors-table-wrapper,
+.results-table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin-bottom: var(--space-6);
+}
+
+.errors-table,
+.results-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--font-size-sm);
+}
+
+.errors-table th,
+.errors-table td,
+.results-table th,
+.results-table td {
+    padding: var(--space-3);
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.errors-table th,
+.results-table th {
+    font-weight: 600;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.error-type {
+    display: inline-block;
+    font-size: var(--font-size-xs);
+    padding: 1px var(--space-2);
+    background: color-mix(in srgb, var(--color-error) 15%, transparent);
+    color: var(--color-error);
+    border-radius: var(--radius-sm);
+    margin-right: var(--space-1);
+}
+
+.result-abnormal {
+    background: color-mix(in srgb, var(--color-error) 5%, transparent);
+}
+
+.result-value {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.results-table a {
+    color: var(--color-accent);
+    text-decoration: none;
+}
+
+.results-table a:hover {
+    text-decoration: underline;
+}
+
+.status-label {
+    display: inline-block;
+    font-size: var(--font-size-xs);
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-sm);
+    font-weight: 500;
+}
+
+.status-normal, .status- {
+    background: color-mix(in srgb, var(--color-success) 15%, transparent);
+    color: var(--color-success);
+}
+
+.status-l {
+    background: color-mix(in srgb, #3b82f6 15%, transparent);
+    color: #2563eb;
+}
+
+.status-h {
+    background: color-mix(in srgb, #f59e0b 15%, transparent);
+    color: #b45309;
+}
+
+.status-ll, .status-hh {
+    background: color-mix(in srgb, var(--color-error) 15%, transparent);
+    color: var(--color-error);
+}
+
+.status-a {
+    background: color-mix(in srgb, #8b5cf6 15%, transparent);
+    color: #7c3aed;
+}
+
+.results-footer {
+    text-align: center;
+    padding: var(--space-4) 0;
+}
+
+.btn-outline {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    background: transparent;
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.btn-outline:hover {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+}
+
+@media (max-width: 480px) {
+    .summary-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+</style>
+{% endblock %}

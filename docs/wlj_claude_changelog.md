@@ -4,10 +4,47 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-07 (Fix SMS errors, daily digest email, milestone detection)
+# Last Updated: 2026-02-12 (Medical Lab Ingestion - UI, tests, docs, deployment)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-02-12 — Medical Lab Ingestion: UI, Tests, and Documentation
+
+**What changed:**
+- Built complete user-facing UI for medical lab ingestion module
+- Created 6 view classes: LabUploadView, ImportDetailView, LabsSummaryView, ResultDetailView, PanelDetailView, TestTrendView, DocumentDetailView, DocumentDeleteView, ResultDeleteView
+- Created 6 responsive templates: upload, import_detail, labs_summary, result_detail, panel_detail, document_detail, test_trend
+- Registered medical URLs at `/medical/` namespace in config/urls.py
+- Added Labs & Vitals column to Health mega-menu navigation
+- Updated bottom tab bar to highlight Health when on medical pages
+- Integrated with Organize Documents (deep-link to filtered medical documents)
+- Added pdfplumber to requirements.txt
+- Wrote 41 comprehensive tests (models, services, views, integration)
+- Created documentation: medical_ingestion.md, decisions.md
+- Updated medical_ingestion_repo_map.md with build status
+
+**Files modified:**
+- `apps/medical/views.py` (new)
+- `apps/medical/urls.py` (new)
+- `apps/medical/tests/test_medical.py` (new)
+- `templates/medical/upload.html` (new)
+- `templates/medical/import_detail.html` (new)
+- `templates/medical/labs_summary.html` (new)
+- `templates/medical/result_detail.html` (new)
+- `templates/medical/panel_detail.html` (new)
+- `templates/medical/document_detail.html` (new)
+- `templates/medical/test_trend.html` (new)
+- `config/urls.py` (added medical URL)
+- `templates/components/navigation.html` (added Labs column)
+- `templates/components/bottom_tab_bar.html` (medical app_name active state)
+- `requirements.txt` (added pdfplumber)
+- `docs/medical_ingestion.md` (new)
+- `docs/decisions.md` (new)
+- `docs/medical_ingestion_repo_map.md` (updated status)
+
+**Why:** Completing the medical lab ingestion feature — backend services were built in a prior session, this session adds the UI layer, tests, security (auth checks, audit logging), and documentation.
+
 
 This file contains the historical record of all fixes, migrations, and significant changes.
 For active development context, see `CLAUDE.md` (project root).

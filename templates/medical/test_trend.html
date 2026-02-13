@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+
+{% block title %}{{ test.name }} Trend - Labs & Vitals{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'medical:home' %}">Labs & Vitals</a>
+        <span>/</span>
+        <span>{{ test.name }} Trend</span>
+    </nav>
+
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">{{ test.name }}{% if test.short_name %} ({{ test.short_name }}){% endif %}</h1>
+            <p class="page-subtitle">{{ test.get_category_display }} &mdash; Values over time</p>
+        </div>
+    </div>
+
+    {% if test.default_range_low or test.default_range_high %}
+    <div class="range-banner">
+        Reference range: {{ test.default_range_low }}{% if test.default_range_low and test.default_range_high %} - {% endif %}{{ test.default_range_high }} {{ test.default_unit }}
+    </div>
+    {% endif %}
+
+    {% if results %}
+    <!-- Simple Chart -->
+    <div class="chart-container">
+        <canvas id="trendChart" height="200"></canvas>
+    </div>
+
+    <!-- Data Table -->
+    <div class="results-table-wrapper">
+        <table class="results-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Value</th>
+                    <th>Unit</th>
+                    <th>Range</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in results reversed %}
+                <tr class="{% if r.is_abnormal %}result-abnormal{% endif %}">
+                    <td>{{ r.collected_at|date:"M j, Y" }}</td>
+                    <td class="result-value">{{ r.value_text }}</td>
+                    <td>{{ r.unit }}</td>
+                    <td class="result-range">{{ r.range_text }}</td>
+                    <td>
+                        <span class="status-label status-{{ r.abnormal_flag|default:'normal'|lower }}">{{ r.status_label }}</span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <p>No results found for this test.</p>
+    </div>
+    {% endif %}
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.range-banner {
+    background: var(--color-surface);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-6);
+    text-align: center;
+}
+
+.chart-container {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    margin-bottom: var(--space-6);
+    position: relative;
+    height: 250px;
+}
+
+.chart-container canvas {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.results-table-wrapper { overflow-x: auto; }
+
+.results-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--font-size-sm);
+}
+
+.results-table th, .results-table td {
+    padding: var(--space-3);
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.results-table th {
+    font-weight: 600;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    text-transform: uppercase;
+}
+
+.result-abnormal { background: color-mix(in srgb, var(--color-error) 5%, transparent); }
+.result-value { font-weight: 600; font-variant-numeric: tabular-nums; }
+.result-range { color: var(--color-text-muted); font-size: var(--font-size-xs); }
+
+.status-label {
+    display: inline-block;
+    font-size: var(--font-size-xs);
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-sm);
+    font-weight: 500;
+}
+.status-normal, .status- { background: color-mix(in srgb, var(--color-success) 15%, transparent); color: var(--color-success); }
+.status-l { background: color-mix(in srgb, #3b82f6 15%, transparent); color: #2563eb; }
+.status-h { background: color-mix(in srgb, #f59e0b 15%, transparent); color: #b45309; }
+.status-ll, .status-hh { background: color-mix(in srgb, var(--color-error) 15%, transparent); color: var(--color-error); }
+
+.empty-state {
+    text-align: center;
+    padding: var(--space-8);
+    color: var(--color-text-muted);
+}
+</style>
+
+{% if results %}
+<script nonce="{{ csp_nonce }}">
+(function() {
+    // Simple canvas chart - no external dependencies
+    var canvas = document.getElementById('trendChart');
+    if (!canvas) return;
+    var ctx = canvas.getContext('2d');
+    var container = canvas.parentElement;
+
+    // Data from template
+    var data = [
+        {% for r in results %}
+        {
+            date: '{{ r.collected_at|date:"M j, Y" }}',
+            value: {{ r.value_numeric|default:"null" }},
+            flag: '{{ r.abnormal_flag }}'
+        }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ].filter(function(d) { return d.value !== null; });
+
+    if (data.length < 2) {
+        container.innerHTML = '<p style="text-align:center;color:var(--color-text-muted);padding:var(--space-8);">Need at least 2 numeric values to show a chart.</p>';
+        return;
+    }
+
+    function draw() {
+        var dpr = window.devicePixelRatio || 1;
+        var rect = container.getBoundingClientRect();
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        canvas.style.width = rect.width + 'px';
+        canvas.style.height = rect.height + 'px';
+        ctx.scale(dpr, dpr);
+
+        var w = rect.width;
+        var h = rect.height;
+        var pad = { top: 20, right: 30, bottom: 40, left: 60 };
+        var plotW = w - pad.left - pad.right;
+        var plotH = h - pad.top - pad.bottom;
+
+        var values = data.map(function(d) { return d.value; });
+        var minV = Math.min.apply(null, values);
+        var maxV = Math.max.apply(null, values);
+        var range = maxV - minV || 1;
+        minV -= range * 0.1;
+        maxV += range * 0.1;
+
+        // Reference range
+        var refLow = {{ test.default_range_low|default:"null" }};
+        var refHigh = {{ test.default_range_high|default:"null" }};
+
+        // Background
+        ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--color-background').trim() || '#fff';
+        ctx.fillRect(0, 0, w, h);
+
+        // Reference range band
+        if (refLow !== null && refHigh !== null) {
+            var y1 = pad.top + plotH - ((refHigh - minV) / (maxV - minV)) * plotH;
+            var y2 = pad.top + plotH - ((refLow - minV) / (maxV - minV)) * plotH;
+            ctx.fillStyle = 'rgba(34, 197, 94, 0.1)';
+            ctx.fillRect(pad.left, Math.max(y1, pad.top), plotW, Math.min(y2 - y1, plotH));
+        }
+
+        // Grid lines
+        ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--color-border').trim() || '#e5e7eb';
+        ctx.lineWidth = 0.5;
+        for (var i = 0; i <= 4; i++) {
+            var y = pad.top + (plotH / 4) * i;
+            ctx.beginPath();
+            ctx.moveTo(pad.left, y);
+            ctx.lineTo(pad.left + plotW, y);
+            ctx.stroke();
+            // Label
+            var val = maxV - ((maxV - minV) / 4) * i;
+            ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--color-text-muted').trim() || '#6b7280';
+            ctx.font = '11px system-ui, sans-serif';
+            ctx.textAlign = 'right';
+            ctx.fillText(val.toFixed(1), pad.left - 8, y + 4);
+        }
+
+        // Plot line
+        var accent = getComputedStyle(document.documentElement).getPropertyValue('--color-accent').trim() || '#3b82f6';
+        ctx.strokeStyle = accent;
+        ctx.lineWidth = 2;
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        data.forEach(function(d, idx) {
+            var x = pad.left + (idx / (data.length - 1)) * plotW;
+            var y = pad.top + plotH - ((d.value - minV) / (maxV - minV)) * plotH;
+            if (idx === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+
+        // Points
+        data.forEach(function(d, idx) {
+            var x = pad.left + (idx / (data.length - 1)) * plotW;
+            var y = pad.top + plotH - ((d.value - minV) / (maxV - minV)) * plotH;
+            ctx.beginPath();
+            ctx.arc(x, y, 4, 0, Math.PI * 2);
+            ctx.fillStyle = d.flag ? '#ef4444' : accent;
+            ctx.fill();
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+        });
+
+        // X-axis labels
+        ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--color-text-muted').trim() || '#6b7280';
+        ctx.font = '10px system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        var step = Math.max(1, Math.floor(data.length / 6));
+        data.forEach(function(d, idx) {
+            if (idx % step === 0 || idx === data.length - 1) {
+                var x = pad.left + (idx / (data.length - 1)) * plotW;
+                ctx.fillText(d.date, x, h - 8);
+            }
+        });
+    }
+
+    draw();
+    window.addEventListener('resize', draw);
+})();
+</script>
+{% endif %}
+{% endblock %}

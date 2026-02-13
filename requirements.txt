@@ -78,6 +78,9 @@ coverage>=7.4.0
 # Document Generation
 python-docx>=1.1.0  # Word document generation (no system dependencies needed)
 
+# Medical Lab PDF Ingestion
+pdfplumber>=0.11.0  # PDF text extraction for lab results
+
 # Payment Processing (Stripe)
 stripe>=7.0.0
 dj-stripe>=2.8.0

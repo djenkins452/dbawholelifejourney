@@ -277,7 +277,7 @@
                 <li class="nav-dropdown nav-mega-dropdown" data-nav-dropdown>
                     <button
                         type="button"
-                        class="nav-link nav-dropdown-toggle {% if request.resolver_match.app_name == 'health' %}active{% endif %}"
+                        class="nav-link nav-dropdown-toggle {% if request.resolver_match.app_name == 'health' or request.resolver_match.app_name == 'medical' %}active{% endif %}"
                         aria-expanded="false"
                         aria-haspopup="true"
                     >
@@ -334,6 +334,12 @@
                                 {% if features.health.fasting %}<a href="{% url 'health:fasting_list' %}" class="nav-dropdown-item">Fasting</a>{% endif %}
                             </div>
                             {% endif %}
+                            <!-- Labs Column -->
+                            <div class="nav-mega-column">
+                                <div class="nav-mega-heading">Labs</div>
+                                <a href="{% url 'medical:home' %}" class="nav-dropdown-item">Labs & Vitals</a>
+                                <a href="{% url 'medical:upload' %}" class="nav-dropdown-item">Upload Lab PDF</a>
+                            </div>
                             <!-- Providers Column -->
                             {% if features.health.providers %}
                             <div class="nav-mega-column">

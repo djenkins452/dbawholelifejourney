@@ -1,0 +1,552 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Labs & Vitals - Medical{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'health:home' %}">Health</a>
+        <span>/</span>
+        <span>Labs & Vitals</span>
+    </nav>
+
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Labs & Vitals {% include "components/favorite_toggle.html" with page_title="Labs & Vitals" %}</h1>
+            <p class="page-subtitle">Your lab results, organized and trackable</p>
+        </div>
+        <a href="{% url 'medical:upload' %}" class="btn btn-primary">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            Upload Lab PDF
+        </a>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <span class="stat-value">{{ total_results }}</span>
+            <span class="stat-label">Total Results</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-value stat-abnormal">{{ total_abnormal }}</span>
+            <span class="stat-label">Abnormal</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-value">{{ total_panels }}</span>
+            <span class="stat-label">Panels</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-value">{{ total_documents }}</span>
+            <span class="stat-label">Documents</span>
+        </div>
+    </div>
+
+    {% if has_medical_docs %}
+    <div class="quick-links">
+        <a href="{% url 'life:document_list' %}?category=medical" class="quick-link">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+            </svg>
+            View Medical Documents in Organize
+        </a>
+    </div>
+    {% endif %}
+
+    {% if total_results == 0 %}
+    <div class="empty-state">
+        <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+            <line x1="12" y1="12" x2="12" y2="16"/>
+            <line x1="10" y1="14" x2="14" y2="14"/>
+        </svg>
+        <h2>No lab results yet</h2>
+        <p>Upload a lab PDF to get started. Your results will be automatically extracted and organized.</p>
+        <a href="{% url 'medical:upload' %}" class="btn btn-primary">Upload Your First Lab PDF</a>
+    </div>
+    {% else %}
+
+    <!-- Section A: Abnormal Results -->
+    {% if abnormal_results %}
+    <div class="section-abnormal">
+        <h2 class="section-title">Abnormal Results</h2>
+        <div class="results-table-wrapper">
+            <table class="results-table">
+                <thead>
+                    <tr>
+                        <th>Test</th>
+                        <th>Value</th>
+                        <th>Range</th>
+                        <th>Status</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in abnormal_results %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'medical:result_detail' pk=r.pk %}">
+                                {% if r.canonical_test %}{{ r.canonical_test.name }}{% else %}{{ r.raw_test_name }}{% endif %}
+                            </a>
+                            {% if r.canonical_test %}
+                            <a href="{% url 'medical:test_trend' test_id=r.canonical_test.pk %}" class="trend-link" title="View trend">
+                                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                                </svg>
+                            </a>
+                            {% endif %}
+                        </td>
+                        <td class="result-value">{{ r.value_text }} {{ r.unit }}</td>
+                        <td class="result-range">{{ r.range_text }}</td>
+                        <td>
+                            <span class="status-label status-{{ r.abnormal_flag|lower }}">{{ r.status_label }}</span>
+                        </td>
+                        <td class="result-date">{{ r.collected_at|date:"M j, Y" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Section B: All Results with Filters -->
+    <div class="section-all">
+        <h2 class="section-title">All Results</h2>
+
+        <form method="get" class="filters-bar">
+            <div class="filter-group">
+                {{ filter_form.date_from }}
+                <span class="filter-sep">to</span>
+                {{ filter_form.date_to }}
+            </div>
+            <div class="filter-group">
+                {{ filter_form.category }}
+                {{ filter_form.panel_type }}
+            </div>
+            <div class="filter-group">
+                {{ filter_form.search }}
+                <label class="checkbox-label">
+                    {{ filter_form.abnormal_only }}
+                    <span>Abnormal only</span>
+                </label>
+            </div>
+            <button type="submit" class="btn btn-sm btn-primary">Filter</button>
+            {% if request.GET %}
+            <a href="{% url 'medical:home' %}" class="btn btn-sm btn-outline">Clear</a>
+            {% endif %}
+        </form>
+
+        {% if results %}
+        <div class="results-table-wrapper">
+            <table class="results-table">
+                <thead>
+                    <tr>
+                        <th>Test</th>
+                        <th>Value</th>
+                        <th>Unit</th>
+                        <th>Range</th>
+                        <th>Status</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in results %}
+                    <tr class="{% if r.is_abnormal %}result-abnormal{% endif %}">
+                        <td>
+                            <a href="{% url 'medical:result_detail' pk=r.pk %}">
+                                {% if r.canonical_test %}{{ r.canonical_test.name }}{% else %}{{ r.raw_test_name }}{% endif %}
+                            </a>
+                            {% if r.canonical_test %}
+                            <a href="{% url 'medical:test_trend' test_id=r.canonical_test.pk %}" class="trend-link" title="View trend">
+                                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                                </svg>
+                            </a>
+                            {% endif %}
+                        </td>
+                        <td class="result-value">{{ r.value_text }}</td>
+                        <td>{{ r.unit }}</td>
+                        <td class="result-range">{{ r.range_text }}</td>
+                        <td>
+                            <span class="status-label status-{{ r.abnormal_flag|default:'normal'|lower }}">{{ r.status_label }}</span>
+                        </td>
+                        <td class="result-date">{{ r.collected_at|date:"M j, Y" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        {% if is_paginated %}
+        <nav class="pagination">
+            {% if page_obj.has_previous %}
+            <a href="?{{ request.GET.urlencode }}&page={{ page_obj.previous_page_number }}" class="page-link">Previous</a>
+            {% endif %}
+            <span class="page-info">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+            {% if page_obj.has_next %}
+            <a href="?{{ request.GET.urlencode }}&page={{ page_obj.next_page_number }}" class="page-link">Next</a>
+            {% endif %}
+        </nav>
+        {% endif %}
+        {% else %}
+        <p class="no-results">No results match your filters.</p>
+        {% endif %}
+    </div>
+
+    <!-- Test Trends Quick Access -->
+    {% if unique_tests %}
+    <div class="trends-section">
+        <h2 class="section-title">Track a Test Over Time</h2>
+        <div class="test-chips">
+            {% for test in unique_tests %}
+            <a href="{% url 'medical:test_trend' test_id=test.pk %}" class="test-chip">
+                {% if test.short_name %}{{ test.short_name }}{% else %}{{ test.name }}{% endif %}
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Recent Panels -->
+    {% if recent_panels %}
+    <div class="panels-section">
+        <h2 class="section-title">Recent Panels</h2>
+        <div class="panel-list">
+            {% for panel in recent_panels %}
+            <a href="{% url 'medical:panel_detail' pk=panel.pk %}" class="panel-card">
+                <span class="panel-name">{{ panel.get_panel_type_display }}</span>
+                <span class="panel-date">{{ panel.collected_at|date:"M j, Y" }}</span>
+                <span class="panel-count">{{ panel.result_count }} results</span>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% endif %}
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+}
+
+.stat-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    text-align: center;
+}
+
+.stat-value {
+    display: block;
+    font-size: var(--font-size-2xl);
+    font-weight: 700;
+}
+
+.stat-abnormal { color: var(--color-error); }
+
+.stat-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.quick-links {
+    margin-bottom: var(--space-6);
+}
+
+.quick-link {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-accent);
+    text-decoration: none;
+}
+
+.quick-link:hover { text-decoration: underline; }
+
+.section-title {
+    font-size: var(--font-size-lg);
+    margin: var(--space-6) 0 var(--space-4);
+}
+
+.section-abnormal {
+    background: color-mix(in srgb, var(--color-error) 3%, var(--color-background));
+    border: 1px solid color-mix(in srgb, var(--color-error) 20%, var(--color-border));
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    margin-bottom: var(--space-6);
+}
+
+.section-abnormal .section-title { margin-top: 0; }
+
+.filters-bar {
+    display: flex;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    align-items: flex-end;
+    margin-bottom: var(--space-4);
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+}
+
+.filter-group {
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.filter-sep {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.results-table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.results-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--font-size-sm);
+}
+
+.results-table th,
+.results-table td {
+    padding: var(--space-3);
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+    white-space: nowrap;
+}
+
+.results-table th {
+    font-weight: 600;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.results-table a {
+    color: var(--color-accent);
+    text-decoration: none;
+}
+
+.results-table a:hover { text-decoration: underline; }
+
+.result-abnormal {
+    background: color-mix(in srgb, var(--color-error) 5%, transparent);
+}
+
+.result-value {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.result-range {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+}
+
+.result-date {
+    color: var(--color-text-muted);
+}
+
+.trend-link {
+    color: var(--color-text-muted) !important;
+    margin-left: var(--space-1);
+    vertical-align: middle;
+}
+
+.trend-link:hover { color: var(--color-accent) !important; }
+
+.status-label {
+    display: inline-block;
+    font-size: var(--font-size-xs);
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-sm);
+    font-weight: 500;
+}
+
+.status-normal, .status- {
+    background: color-mix(in srgb, var(--color-success) 15%, transparent);
+    color: var(--color-success);
+}
+
+.status-l {
+    background: color-mix(in srgb, #3b82f6 15%, transparent);
+    color: #2563eb;
+}
+
+.status-h {
+    background: color-mix(in srgb, #f59e0b 15%, transparent);
+    color: #b45309;
+}
+
+.status-ll, .status-hh {
+    background: color-mix(in srgb, var(--color-error) 15%, transparent);
+    color: var(--color-error);
+}
+
+.status-a {
+    background: color-mix(in srgb, #8b5cf6 15%, transparent);
+    color: #7c3aed;
+}
+
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-4) 0;
+}
+
+.page-link {
+    color: var(--color-accent);
+    text-decoration: none;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.page-info {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.no-results {
+    text-align: center;
+    color: var(--color-text-muted);
+    padding: var(--space-8);
+}
+
+.test-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.test-chip {
+    display: inline-block;
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-sm);
+    color: var(--color-text);
+    text-decoration: none;
+    transition: all var(--transition-fast);
+}
+
+.test-chip:hover {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+}
+
+.panel-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: var(--space-3);
+}
+
+.panel-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-4);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    text-decoration: none;
+    color: inherit;
+    transition: border-color var(--transition-fast);
+}
+
+.panel-card:hover { border-color: var(--color-accent); }
+
+.panel-name { font-weight: 500; }
+
+.panel-date, .panel-count {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.empty-state {
+    text-align: center;
+    padding: var(--space-12) var(--space-4);
+}
+
+.empty-state svg {
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-4);
+}
+
+.empty-state h2 { margin-bottom: var(--space-2); }
+.empty-state p { color: var(--color-text-muted); margin-bottom: var(--space-6); }
+
+.btn-outline {
+    background: transparent;
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.btn-outline:hover {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+}
+
+@media (max-width: 768px) {
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .filters-bar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .filter-group {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .results-table th:nth-child(3),
+    .results-table td:nth-child(3) {
+        display: none;
+    }
+}
+
+@media (max-width: 480px) {
+    .results-table th:nth-child(4),
+    .results-table td:nth-child(4) {
+        display: none;
+    }
+}
+</style>
+{% endblock %}

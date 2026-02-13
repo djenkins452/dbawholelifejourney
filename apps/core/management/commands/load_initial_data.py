@@ -561,6 +561,9 @@ class Command(BaseCommand):
         # One-time: Clean up orphaned medical data for Danny (fix re-import after delete bug)
         self._cleanup_danny_medical_data(DataLoadConfig, force, verbosity)
 
+        # One-time: Fix lab result dates (re-parse from extracted text)
+        self._fix_lab_result_dates(DataLoadConfig, force, verbosity)
+
         # Only output summary if something loaded or if verbose
         if verbosity >= 1 and loaded_count > 0:
             self.stdout.write(self.style.SUCCESS(f'Initial data: loaded {loaded_count} items'))
@@ -1092,3 +1095,27 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Cleanup Danny medical data FAILED: {e}'))
+
+    def _fix_lab_result_dates(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time fix: re-parse extracted text and correct lab result dates.
+
+        When the date parser failed during import, timezone.now() was used as
+        fallback, giving results today's date instead of the actual collection date.
+        """
+        loader_name = 'fix_lab_result_dates_2026_02_13'
+
+        if not force and self._is_loader_complete(DataLoadConfig, loader_name):
+            return
+
+        try:
+            from django.core.management import call_command
+            call_command('fix_lab_dates', verbosity=verbosity)
+
+            self._mark_loader_complete(
+                DataLoadConfig, loader_name, 'Fix Lab Result Dates (Feb 2026)',
+                'command', 'One-time fix for lab results with incorrect dates from timezone.now() fallback'
+            )
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Fix lab dates FAILED: {e}'))

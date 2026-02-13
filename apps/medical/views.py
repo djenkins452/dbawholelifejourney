@@ -445,6 +445,7 @@ class ImportDeleteView(MedicalAccessMixin, View):
 
     def post(self, request, pk):
         batch = get_object_or_404(ImportBatch, pk=pk, user=request.user)
+        med_doc = batch.medical_document
 
         # Count and soft-delete all results from this batch
         results = LabResult.objects.filter(user=request.user, import_batch=batch)
@@ -458,11 +459,20 @@ class ImportDeleteView(MedicalAccessMixin, View):
         # Delete the batch itself
         batch.delete()
 
+        # Soft-delete the associated medical document (so file hash doesn't block re-upload)
+        if med_doc:
+            # Check if there are other active batches for this document
+            other_batches = ImportBatch.objects.filter(
+                medical_document=med_doc
+            ).exclude(pk=pk).exists()
+            if not other_batches:
+                med_doc.soft_delete()
+
         # Audit
         MedicalAuditLog.objects.create(
             user=request.user,
             action="delete_results",
-            detail=f"Deleted import batch and {result_count} lab results",
+            detail=f"Deleted import batch, {result_count} lab results, and associated document",
             ip_address=self._get_client_ip(),
         )
 

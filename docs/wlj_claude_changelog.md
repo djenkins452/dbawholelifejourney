@@ -9,15 +9,18 @@
 
 # WLJ Change History
 
-## 2026-02-13 — Fix Duplicate Detector Blocking Re-Import After Delete
+## 2026-02-13 — Fix Re-Import After Delete (Two-Part Fix)
 
-**Problem:** After deleting an import (soft delete), re-uploading the same PDF would result in 0 results imported because the duplicate detector was checking against `LabResult.all_objects` (includes soft-deleted records). Soft-deleted results would block re-import.
+**Problem:** After deleting an import, re-uploading the same PDF was blocked by two issues:
+1. `ImportDeleteView` only deleted the batch and results but left the `MedicalDocument` active, so the file hash check blocked re-upload with "This file was already uploaded"
+2. The result-level duplicate detector checked against soft-deleted results via `all_objects`, so even if the file check passed, all results would be skipped as duplicates
 
 **What changed:**
-- Changed `is_duplicate()` and `check_batch_duplicates()` in `duplicate_detector.py` to use `LabResult.objects` (active-only manager) instead of `LabResult.all_objects`
-- Users can now delete an import and re-upload the same file successfully
+- `ImportDeleteView` now soft-deletes the associated `MedicalDocument` when no other active batches reference it
+- Changed `is_duplicate()` and `check_batch_duplicates()` to use `LabResult.objects` (active-only) instead of `LabResult.all_objects`
 
 **Files modified:**
+- `apps/medical/views.py` (ImportDeleteView)
 - `apps/medical/services/duplicate_detector.py`
 
 ---

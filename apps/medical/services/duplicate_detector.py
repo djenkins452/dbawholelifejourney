@@ -36,11 +36,12 @@ def compute_fingerprint(user_id, canonical_test_id, raw_test_name,
 
 def is_duplicate(fingerprint: str, user_id) -> bool:
     """
-    Check if a result with this fingerprint already exists for this user.
+    Check if an active result with this fingerprint already exists for this user.
 
     Uses application-level check (not DB constraint) for clear reporting.
+    Only checks active records — soft-deleted results should not block re-import.
     """
-    return LabResult.all_objects.filter(
+    return LabResult.objects.filter(
         user_id=user_id,
         fingerprint=fingerprint,
     ).exists()
@@ -57,9 +58,10 @@ def check_batch_duplicates(candidates: list[dict], user_id) -> tuple[list[dict],
     Returns:
         (unique_candidates, duplicate_candidates)
     """
-    # Get all existing fingerprints for this user in one query
+    # Get all existing active fingerprints for this user in one query.
+    # Only checks active records — soft-deleted results should not block re-import.
     existing_fps = set(
-        LabResult.all_objects.filter(user_id=user_id)
+        LabResult.objects.filter(user_id=user_id)
         .values_list("fingerprint", flat=True)
     )
 

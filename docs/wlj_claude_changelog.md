@@ -9,6 +9,19 @@
 
 # WLJ Change History
 
+## 2026-02-13 — Fix Duplicate Detector Blocking Re-Import After Delete
+
+**Problem:** After deleting an import (soft delete), re-uploading the same PDF would result in 0 results imported because the duplicate detector was checking against `LabResult.all_objects` (includes soft-deleted records). Soft-deleted results would block re-import.
+
+**What changed:**
+- Changed `is_duplicate()` and `check_batch_duplicates()` in `duplicate_detector.py` to use `LabResult.objects` (active-only manager) instead of `LabResult.all_objects`
+- Users can now delete an import and re-upload the same file successfully
+
+**Files modified:**
+- `apps/medical/services/duplicate_detector.py`
+
+---
+
 ## 2026-02-13 — Fix trial_expired 500 Error
 
 **Problem:** `/billing/trial-expired/` was throwing `NoReverseMatch: 'accounts' is not a registered namespace` because the template used `{% url 'accounts:logout' %}` instead of allauth's flat `account_logout` name.

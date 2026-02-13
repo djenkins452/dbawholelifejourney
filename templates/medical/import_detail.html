@@ -40,10 +40,69 @@
             <span class="summary-value">{{ batch.rows_failed }}</span>
             <span class="summary-label">Failed</span>
         </div>
+        {% if estimated_date_count %}
+        <div class="summary-card summary-estimated">
+            <span class="summary-value">{{ estimated_date_count }}</span>
+            <span class="summary-label">Estimated Dates</span>
+        </div>
+        {% endif %}
     </div>
 
     {% if batch.duration_seconds %}
     <p class="import-duration">Processed in {{ batch.duration_seconds|floatformat:1 }} seconds</p>
+    {% endif %}
+
+    <!-- Estimated Dates Warning -->
+    {% if estimated_date_count %}
+    <div class="warnings-section">
+        <div class="warnings-header">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <h2 class="section-title">{{ estimated_date_count }} Result{{ estimated_date_count|pluralize }} with Estimated Date{{ estimated_date_count|pluralize }}</h2>
+        </div>
+        <p class="warnings-note">
+            The date could not be extracted from your document for these results.
+            Today's date was used as a placeholder. You can edit the date on each result's detail page.
+        </p>
+        <div class="results-table-wrapper">
+            <table class="results-table">
+                <thead>
+                    <tr>
+                        <th>Test</th>
+                        <th>Value</th>
+                        <th>Unit</th>
+                        <th>Date Used</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in estimated_date_results %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'medical:result_detail' pk=r.pk %}">
+                                {% if r.canonical_test %}{{ r.canonical_test.name }}{% else %}{{ r.raw_test_name }}{% endif %}
+                            </a>
+                        </td>
+                        <td class="result-value">{{ r.value_text }}</td>
+                        <td>{{ r.unit }}</td>
+                        <td class="result-date">
+                            <span class="date-estimated-badge">
+                                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                                    <line x1="12" y1="9" x2="12" y2="13"/>
+                                    <line x1="12" y1="17" x2="12.01" y2="17"/>
+                                </svg>
+                                {{ r.collected_at|date:"M j, Y" }} (estimated)
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
     {% endif %}
 
     <!-- Errors -->
@@ -171,6 +230,7 @@
 .summary-success .summary-value { color: var(--color-success); }
 .summary-warning .summary-value { color: #f59e0b; }
 .summary-error .summary-value { color: var(--color-error); }
+.summary-estimated .summary-value { color: #d97706; }
 
 .import-duration {
     text-align: center;
@@ -239,6 +299,45 @@
 
 .result-abnormal {
     background: color-mix(in srgb, var(--color-error) 5%, transparent);
+}
+
+.warnings-section {
+    background: color-mix(in srgb, #f59e0b 5%, var(--color-background));
+    border: 1px solid color-mix(in srgb, #f59e0b 30%, var(--color-border));
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    margin-bottom: var(--space-6);
+}
+
+.warnings-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: #b45309;
+}
+
+.warnings-header .section-title {
+    margin: 0;
+    color: #b45309;
+}
+
+.warnings-note {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin: var(--space-2) 0 var(--space-4);
+    line-height: 1.5;
+}
+
+.date-estimated-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: var(--font-size-xs);
+    padding: 2px var(--space-2);
+    background: color-mix(in srgb, #f59e0b 15%, transparent);
+    color: #b45309;
+    border-radius: var(--radius-sm);
+    font-weight: 500;
 }
 
 .result-value {

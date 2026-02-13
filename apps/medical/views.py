@@ -102,9 +102,14 @@ class ImportDetailView(MedicalAccessMixin, DetailView):
         ctx = super().get_context_data(**kwargs)
         batch = self.object
         ctx["errors"] = batch.error_rows.all()
-        ctx["imported_results"] = LabResult.objects.filter(
+        imported = LabResult.objects.filter(
             user=self.request.user, import_batch=batch
-        ).select_related("canonical_test")[:50]
+        ).select_related("canonical_test")
+        ctx["imported_results"] = imported[:50]
+        # Flag results where the date couldn't be extracted from the document
+        estimated_date_results = imported.filter(date_estimated=True)
+        ctx["estimated_date_results"] = estimated_date_results
+        ctx["estimated_date_count"] = estimated_date_results.count()
         return ctx
 
 

@@ -111,7 +111,10 @@
                         <td>
                             <span class="status-label status-{{ r.abnormal_flag|lower }}">{{ r.status_label }}</span>
                         </td>
-                        <td class="result-date">{{ r.collected_at|date:"M j, Y" }}</td>
+                        <td class="result-date">
+                            {{ r.collected_at|date:"M j, Y" }}
+                            {% if r.date_estimated %}<span class="date-estimated-icon" title="Date could not be extracted from document — this is an estimate">⚠</span>{% endif %}
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -186,7 +189,10 @@
                         <td>
                             <span class="status-label status-{{ r.abnormal_flag|default:'normal'|lower }}">{{ r.status_label }}</span>
                         </td>
-                        <td class="result-date">{{ r.collected_at|date:"M j, Y" }}</td>
+                        <td class="result-date">
+                            {{ r.collected_at|date:"M j, Y" }}
+                            {% if r.date_estimated %}<span class="date-estimated-icon" title="Date could not be extracted from document — this is an estimate">⚠</span>{% endif %}
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -398,6 +404,13 @@
 
 .result-date {
     color: var(--color-text-muted);
+}
+
+.date-estimated-icon {
+    color: #d97706;
+    font-size: var(--font-size-sm);
+    cursor: help;
+    margin-left: 2px;
 }
 
 .trend-link {

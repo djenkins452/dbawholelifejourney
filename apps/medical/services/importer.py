@@ -314,6 +314,10 @@ def _process_parsed_results(user, batch, med_doc, parsed_results, result):
                 if parsed.confidence < 0.7:
                     status = "pending_review"
 
+                # Flag when date couldn't be extracted from the document
+                has_date = parsed.collected_at is not None
+                effective_date = parsed.collected_at or timezone.now()
+
                 lab_result = LabResult(
                     user=user,
                     canonical_test=candidate["catalog_entry"],
@@ -325,7 +329,8 @@ def _process_parsed_results(user, batch, med_doc, parsed_results, result):
                     range_high=candidate["range_high"],
                     range_text=parsed.reference_range,
                     abnormal_flag=parsed.abnormal_flag,
-                    collected_at=parsed.collected_at or timezone.now(),
+                    collected_at=effective_date,
+                    date_estimated=not has_date,
                     reported_at=parsed.reported_at,
                     panel=panel,
                     medical_document=med_doc,

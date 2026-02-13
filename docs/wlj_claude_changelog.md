@@ -4,10 +4,34 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-13 (Enhanced trend chart + date parser fix)
+# Last Updated: 2026-02-13 (Flag estimated dates on lab results)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-02-13 — Flag Estimated Dates on Lab Results
+
+**Problem:** When the parser couldn't extract a date from the document, the importer silently used `timezone.now()` as a placeholder. Users had no way to know which results had fabricated dates.
+
+**Changes:**
+1. **New `date_estimated` field** on `LabResult` model — boolean flag that's `True` when the collection date was not extracted from the document.
+2. **Importer updated** — sets `date_estimated=True` when `parsed.collected_at` is None and fallback date is used.
+3. **Import results page** — new amber warning section listing results with estimated dates, including count in summary cards. Tells user "today's date was used as a placeholder."
+4. **Labs summary page** — warning icon (⚠) next to dates that are estimated, with tooltip explanation.
+5. **Result detail page** — amber banner at top when date is estimated, badge next to date in subtitle, and warning icon in history table.
+6. **fix_lab_dates command** — now clears `date_estimated` when it corrects a date, and sets it when it can't find the correct date.
+
+**Files modified:**
+- `apps/medical/models.py` (added `date_estimated` BooleanField)
+- `apps/medical/migrations/0005_add_date_estimated_to_labresult.py` (new migration)
+- `apps/medical/services/importer.py` (flag estimated dates)
+- `apps/medical/views.py` (pass estimated_date_results to template)
+- `apps/medical/management/commands/fix_lab_dates.py` (handle date_estimated flag)
+- `templates/medical/import_detail.html` (warning section + summary card)
+- `templates/medical/labs_summary.html` (⚠ icon next to estimated dates)
+- `templates/medical/result_detail.html` (warning banner + badge + history icon)
+
+---
 
 ## 2026-02-13 — Enhanced Trend Chart with Colored Range Zones + Date Parser Fix
 

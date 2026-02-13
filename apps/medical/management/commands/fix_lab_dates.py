@@ -102,8 +102,18 @@ class Command(BaseCommand):
 
                     if not dry_run:
                         result.collected_at = correct_date
-                        result.save(update_fields=['collected_at', 'updated_at'])
+                        result.date_estimated = False
+                        result.save(update_fields=[
+                            'collected_at', 'date_estimated', 'updated_at'
+                        ])
                         total_fixed += 1
+                elif not correct_date and is_likely_fallback:
+                    # Can't fix it — mark as estimated so user sees warning
+                    if not result.date_estimated and not dry_run:
+                        result.date_estimated = True
+                        result.save(update_fields=[
+                            'date_estimated', 'updated_at'
+                        ])
 
         if dry_run:
             self.stdout.write(f"\nDRY RUN: Would fix {total_fixed} results")

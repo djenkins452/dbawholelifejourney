@@ -590,6 +590,10 @@ class LabResult(UserOwnedModel):
         blank=True,
         help_text="When the result was reported"
     )
+    date_estimated = models.BooleanField(
+        default=False,
+        help_text="True if collected_at was estimated (not extracted from document)"
+    )
 
     # Relationships
     panel = models.ForeignKey(

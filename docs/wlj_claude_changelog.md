@@ -9,6 +9,23 @@
 
 # WLJ Change History
 
+## 2026-02-14 — Habit Matrix Toggle & Undo Toast Fix
+
+**Fixes:**
+- **Undo toast visibility**: Changed background from `var(--color-text)` to hardcoded `#1e293b` — the CSS variable resolved to a light color, making white text invisible
+- **Matrix toggle on/off**: Completed (green) boxes are now clickable — clicking un-logs the date. Red hover ring indicates "remove" action
+- **Calendar toggle**: Completed dates in calendar are now clickable to un-log, with red hover indicator
+- **Shift+click range for unlog**: Both matrix and calendar support shift+click to bulk unlog completed dates
+
+**New JS functions:**
+- `unlogDatesAndUndo()` — optimistic UI for batch un-logging with server call
+- `showUndoReLog()` — undo toast for removals (undo re-logs the dates)
+
+**Files modified:**
+- `apps/purpose/templates/purpose/habit_goal_detail.html`
+
+---
+
 ## 2026-02-14 — Goal Engine: Measurement-Driven Goal System
 
 **Feature:** Extended HabitGoal with four measurement types (binary, duration, count, target), streaks, analytics, recommendations, and dashboard integration.

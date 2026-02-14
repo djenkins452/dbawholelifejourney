@@ -148,12 +148,12 @@
             {% for row in matrix_rows %}
             <div class="matrix-row">
                 {% for box in row %}
-                <div class="matrix-box box-{{ box.state }}{% if box.state == 'missed' or box.state == 'today' %} box-clickable{% endif %}"
+                <div class="matrix-box box-{{ box.state }}{% if box.state == 'missed' or box.state == 'today' or box.state == 'completed' %} box-clickable{% endif %}"
                      data-box-number="{{ box.box_number }}"
                      data-day-number="{{ box.day_number }}"
                      data-date="{{ box.date|date:'Y-m-d' }}"
                      data-state="{{ box.state }}"
-                     title="{% if box.date %}Day {{ box.day_number }}: {{ box.date|date:'M j, Y' }}{% if box.state == 'missed' or box.state == 'today' %} — click to log{% endif %}{% else %}Disabled{% endif %}">
+                     title="{% if box.date %}Day {{ box.day_number }}: {{ box.date|date:'M j, Y' }}{% if box.state == 'missed' or box.state == 'today' %} — click to log{% elif box.state == 'completed' %} — click to unlog{% endif %}{% else %}Disabled{% endif %}">
                 </div>
                 {% endfor %}
             </div>
@@ -244,7 +244,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 box.classList.remove('box-missed', 'box-today', 'box-future', 'box-completed', 'box-clickable');
                 box.classList.add('box-' + newState);
                 box.dataset.state = newState;
-                if (newState === 'missed' || newState === 'today') {
+                if (newState === 'missed' || newState === 'today' || newState === 'completed') {
                     box.classList.add('box-clickable');
                 }
             }
@@ -324,6 +324,97 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // ── Batch unlog dates with undo (re-log) ──
+    function unlogDatesAndUndo(dateStrings) {
+        if (!dateStrings.length) return;
+
+        // Optimistic UI — mark all as missed/today immediately
+        const dayNumbers = [];
+        const today = todayStr();
+        dateStrings.forEach(ds => {
+            const d = new Date(ds + 'T00:00:00');
+            const s = new Date(goalStartDate + 'T00:00:00');
+            const dayNum = Math.floor((d - s) / 86400000) + 1;
+            const newState = ds === today ? 'today' : 'missed';
+            dayNumbers.push({ date: ds, dayNumber: dayNum, revertState: newState });
+            updateMatrixBox(dayNum, newState);
+            completedDates.delete(ds);
+        });
+
+        fetch(`/purpose/habits/${goalPk}/unlog-dates/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+            body: JSON.stringify({ dates: dateStrings })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                updateStats(data.stats);
+                if (dateStrings.includes(today)) syncLogTodayBtn(false);
+                renderCalendar();
+                showUndoReLog(dateStrings, data.count);
+            } else {
+                // Revert on failure — put them back to completed
+                dayNumbers.forEach(dn => {
+                    completedDates.add(dn.date);
+                    updateMatrixBox(dn.dayNumber, 'completed');
+                });
+                showFeedback(data.error, true);
+            }
+        })
+        .catch(() => {
+            dayNumbers.forEach(dn => {
+                completedDates.add(dn.date);
+                updateMatrixBox(dn.dayNumber, 'completed');
+            });
+            showFeedback('An error occurred. Please try again.', true);
+        });
+    }
+
+    // ── Show undo toast for un-logging (undo = re-log the dates) ──
+    function showUndoReLog(dates, count) {
+        clearUndo();
+
+        const toast = document.getElementById('undo-toast');
+        const msg = document.getElementById('undo-message');
+        const btn = document.getElementById('undo-btn');
+        const fill = document.getElementById('undo-timer-fill');
+        if (!toast || !msg || !btn || !fill) return;
+
+        msg.textContent = `Removed ${count} date${count !== 1 ? 's' : ''}.`;
+        toast.style.display = 'flex';
+        fill.style.width = '100%';
+
+        const startTime = Date.now();
+        const duration = UNDO_SECONDS * 1000;
+
+        function tick() {
+            const elapsed = Date.now() - startTime;
+            const pct = Math.max(0, 1 - elapsed / duration) * 100;
+            fill.style.width = pct + '%';
+            if (elapsed < duration) {
+                undoTimerRAF = requestAnimationFrame(tick);
+            }
+        }
+        undoTimerRAF = requestAnimationFrame(tick);
+
+        undoTimer = setTimeout(() => {
+            toast.style.display = 'none';
+            undoTimer = null;
+        }, duration);
+
+        // Undo = re-log the dates
+        const handler = () => {
+            clearUndo();
+            toast.style.display = 'none';
+            logDatesAndUndo(dates);
+            newBtn.removeEventListener('click', handler);
+        };
+        const newBtn = btn.cloneNode(true);
+        btn.parentNode.replaceChild(newBtn, btn);
+        newBtn.addEventListener('click', handler);
+    }
+
     // ── Undo Toast ──
     function showUndo(dates, count) {
         // Cancel any existing undo timer
@@ -399,7 +490,7 @@ document.addEventListener('DOMContentLoaded', function() {
         .catch(() => showFeedback('Undo failed. Please try again.', true));
     }
 
-    // ── Matrix Box Click-to-Log (with shift+click range) ──
+    // ── Matrix Box Click-to-Toggle (with shift+click range) ──
     let lastMatrixClickDate = null;
     const matrix = document.getElementById('habit-matrix');
     if (matrix) {
@@ -410,30 +501,37 @@ document.addEventListener('DOMContentLoaded', function() {
             const state = box.dataset.state;
             const dateStr = box.dataset.date;
             if (!dateStr) return;
-            if (state !== 'missed' && state !== 'today') return;
+            if (state !== 'missed' && state !== 'today' && state !== 'completed') return;
             if (box.classList.contains('box-logging')) return;
 
             if (e.shiftKey && lastMatrixClickDate) {
-                // Range select on matrix
+                // Range select on matrix — log all un-logged, or unlog all logged
                 const allBoxes = Array.from(document.querySelectorAll('.matrix-box[data-date]'));
                 const d1 = lastMatrixClickDate;
                 const d2 = dateStr;
                 const minD = d1 < d2 ? d1 : d2;
                 const maxD = d1 > d2 ? d1 : d2;
-                const rangeDates = [];
+                const toLog = [];
+                const toUnlog = [];
                 allBoxes.forEach(b => {
                     const bd = b.dataset.date;
                     const bs = b.dataset.state;
-                    if (bd >= minD && bd <= maxD && (bs === 'missed' || bs === 'today')) {
-                        rangeDates.push(bd);
+                    if (bd >= minD && bd <= maxD) {
+                        if (bs === 'missed' || bs === 'today') toLog.push(bd);
+                        else if (bs === 'completed') toUnlog.push(bd);
                     }
                 });
-                if (rangeDates.length) logDatesAndUndo(rangeDates);
-            } else if (e.ctrlKey || e.metaKey) {
-                // Ctrl/Cmd click — log single without resetting lastMatrixClickDate
-                logDatesAndUndo([dateStr]);
+                // If the clicked box was completed, intent is to unlog the range; otherwise log
+                if (state === 'completed') {
+                    if (toUnlog.length) unlogDatesAndUndo(toUnlog);
+                } else {
+                    if (toLog.length) logDatesAndUndo(toLog);
+                }
+            } else if (state === 'completed') {
+                // Toggle off — unlog this date
+                unlogDatesAndUndo([dateStr]);
             } else {
-                // Normal click — log single
+                // Toggle on — log this date (normal or ctrl/cmd click)
                 logDatesAndUndo([dateStr]);
             }
             lastMatrixClickDate = dateStr;
@@ -508,7 +606,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!inRange) {
                 cls += ' cal-day-out';
             } else if (isCompleted) {
-                cls += ' cal-day-completed';
+                cls += ' cal-day-completed cal-day-loggable';
             } else if (isToday) {
                 cls += ' cal-day-today cal-day-loggable';
             } else if (isPast) {
@@ -554,7 +652,7 @@ document.addEventListener('DOMContentLoaded', function() {
         renderCalendar();
     });
 
-    // Calendar day clicks
+    // Calendar day clicks (toggle: log if missed/today, unlog if completed)
     const calGrid = document.getElementById('cal-grid');
     if (calGrid) {
         calGrid.addEventListener('click', function(e) {
@@ -563,23 +661,35 @@ document.addEventListener('DOMContentLoaded', function() {
             const dateStr = cell.dataset.date;
             if (!dateStr) return;
 
+            const isCompleted = completedDates.has(dateStr);
+
             if (e.shiftKey && lastClickedDate) {
-                // Range: from lastClickedDate to this date
+                // Range select — collect dates to log and unlog separately
                 const minD = lastClickedDate < dateStr ? lastClickedDate : dateStr;
                 const maxD = lastClickedDate > dateStr ? lastClickedDate : dateStr;
-                const rangeDates = [];
+                const toLog = [];
+                const toUnlog = [];
                 const cur = parseDate(minD);
                 const end = parseDate(maxD);
                 while (cur <= end) {
                     const ds = fmtDate(cur);
-                    if (ds >= goalStartDate && ds <= goalEndDate && ds <= todayStr() && !completedDates.has(ds)) {
-                        rangeDates.push(ds);
+                    if (ds >= goalStartDate && ds <= goalEndDate && ds <= todayStr()) {
+                        if (completedDates.has(ds)) toUnlog.push(ds);
+                        else toLog.push(ds);
                     }
                     cur.setDate(cur.getDate() + 1);
                 }
-                if (rangeDates.length) logDatesAndUndo(rangeDates);
+                // Intent based on what was clicked: completed → unlog range, missed → log range
+                if (isCompleted) {
+                    if (toUnlog.length) unlogDatesAndUndo(toUnlog);
+                } else {
+                    if (toLog.length) logDatesAndUndo(toLog);
+                }
+            } else if (isCompleted) {
+                // Toggle off — unlog
+                unlogDatesAndUndo([dateStr]);
             } else {
-                // Normal or ctrl/cmd click — log single date
+                // Toggle on — log
                 logDatesAndUndo([dateStr]);
             }
             lastClickedDate = dateStr;
@@ -801,6 +911,11 @@ document.addEventListener('DOMContentLoaded', function() {
     z-index: 1;
 }
 
+.cal-day-completed.cal-day-loggable:hover {
+    box-shadow: 0 0 0 2px #ef4444;
+    opacity: 0.85;
+}
+
 /* Undo Toast */
 .undo-toast {
     position: fixed;
@@ -811,10 +926,10 @@ document.addEventListener('DOMContentLoaded', function() {
     align-items: center;
     gap: var(--space-3);
     padding: var(--space-3) var(--space-4);
-    background: var(--color-text, #1e293b);
-    color: white;
+    background: #1e293b;
+    color: #ffffff;
     border-radius: var(--radius-md);
-    box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
     z-index: 1000;
     min-width: 200px;
     max-width: 90vw;
@@ -939,6 +1054,11 @@ document.addEventListener('DOMContentLoaded', function() {
 .box-clickable:hover {
     transform: scale(1.2);
     box-shadow: 0 0 0 2px var(--color-success, #22c55e);
+}
+
+.box-completed.box-clickable:hover {
+    box-shadow: 0 0 0 2px #ef4444;
+    opacity: 0.85;
 }
 
 .box-logging {

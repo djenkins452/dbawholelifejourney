@@ -545,6 +545,9 @@ class Command(BaseCommand):
         self._cleanup_heather_recurring_tasks(DataLoadConfig, force, verbosity)
         self._cleanup_danny_recurring_tasks(DataLoadConfig, force, verbosity)
 
+        # One-time: AGGRESSIVE cleanup of ALL recurring tasks for Heather (Feb 2026)
+        self._nuke_heather_recurring_tasks(DataLoadConfig, force, verbosity)
+
         # One-time: Disable Finance module for all users (Coming Soon)
         self._disable_finance_module(DataLoadConfig, force, verbosity)
 
@@ -768,6 +771,84 @@ This test email is sent once on first deploy after SMTP is configured.
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Danny recurring tasks cleanup FAILED: {e}'))
+
+    def _nuke_heather_recurring_tasks(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        AGGRESSIVE one-time cleanup of ALL recurring tasks for heatherjenkins74@gmail.com.
+
+        Previous cleanup (Jan 2026) only deleted incomplete past-due recurring tasks
+        using Task.objects (which excludes soft-deleted). This one:
+        - Uses all_objects to catch soft-deleted tasks
+        - Deletes ALL recurring tasks regardless of status, completion, or date
+        - Also deletes spawned non-recurring tasks that share titles with recurring ones
+        - Hard-deletes everything so nothing can come back
+        """
+        loader_name = 'nuke_heather_recurring_tasks_2026_02'
+
+        if not force and self._is_loader_complete(DataLoadConfig, loader_name):
+            return
+
+        try:
+            from apps.users.models import User
+            from apps.life.models import Task
+
+            try:
+                user = User.objects.get(email='heatherjenkins74@gmail.com')
+            except User.DoesNotExist:
+                return  # User doesn't exist, skip silently
+
+            # Get ALL recurring tasks (active, archived, soft-deleted - everything)
+            all_recurring = Task.all_objects.filter(user=user, is_recurring=True)
+            recurring_titles = list(all_recurring.values_list('title', flat=True).distinct())
+            recurring_count = all_recurring.count()
+
+            # Find spawned non-recurring tasks that share titles with recurring ones
+            spawned_count = 0
+            if recurring_titles:
+                spawned_tasks = Task.all_objects.filter(
+                    user=user,
+                    title__in=recurring_titles,
+                    is_recurring=False,
+                    is_completed=False,
+                )
+                spawned_count = spawned_tasks.count()
+                if spawned_count > 0:
+                    if verbosity >= 1:
+                        self.stdout.write(
+                            f'  Hard-deleting {spawned_count} spawned tasks '
+                            f'for heatherjenkins74@gmail.com...'
+                        )
+                    spawned_tasks.delete()
+
+            if recurring_count > 0:
+                if verbosity >= 1:
+                    titles_preview = ', '.join(recurring_titles[:5])
+                    self.stdout.write(
+                        f'  Hard-deleting {recurring_count} recurring tasks '
+                        f'for heatherjenkins74@gmail.com: {titles_preview}...'
+                    )
+                all_recurring.delete()
+
+            total = recurring_count + spawned_count
+            if total > 0 and verbosity >= 1:
+                self.stdout.write(self.style.SUCCESS(
+                    f'  NUKED {total} total recurring/spawned tasks for heatherjenkins74@gmail.com'
+                ))
+            elif verbosity >= 1:
+                self.stdout.write('  No recurring tasks found for heatherjenkins74@gmail.com')
+
+            self._mark_loader_complete(
+                DataLoadConfig, loader_name,
+                'Nuke Heather Recurring Tasks (Feb 2026)',
+                'command',
+                'Aggressive cleanup: hard-delete ALL recurring tasks + spawned instances'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(
+                    f'Nuke heather recurring tasks FAILED: {e}'
+                ))
 
     def _disable_finance_module(self, DataLoadConfig, force=False, verbosity=1):
         """

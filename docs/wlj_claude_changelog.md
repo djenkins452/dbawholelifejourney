@@ -9,6 +9,20 @@
 
 # WLJ Change History
 
+## 2026-02-14 — Nuke Heather's Recurring Tasks (Data Cleanup)
+
+**Problem:** heatherjenkins74@gmail.com has had persistent recurring task issues for months. Previous cleanup (Jan 2026) only deleted incomplete past-due tasks via `Task.objects` (excluding soft-deleted). Soft-deleted and future-dated recurring tasks kept regenerating.
+
+**Fix:** Added aggressive one-time cleanup in `load_initial_data.py` that:
+- Uses `Task.all_objects` to catch soft-deleted tasks
+- Hard-deletes ALL recurring tasks regardless of status, completion, or date
+- Also deletes spawned non-recurring incomplete tasks with matching titles
+- New DataLoadConfig key (`nuke_heather_recurring_tasks_2026_02`) so it runs fresh
+
+**Files:** `apps/core/management/commands/load_initial_data.py`
+
+---
+
 ## 2026-02-14 — Button Color Sync + Calendar Date Pickers
 
 **Changes:**

@@ -446,5 +446,21 @@
       "created_at": "2026-01-20T00:00:00Z",
       "updated_at": "2026-01-20T00:00:00Z"
     }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 28,
+    "fields": {
+      "context_id": "HABIT_GOAL_DETAIL",
+      "help_id": "habit-goal-detail",
+      "title": "Habit Goals: Build Consistency",
+      "description": "Track daily habits with four measurement types, streaks, and smart insights.",
+      "content": "## Why Track Habits?\n\nSmall daily actions compound into big results. Habit tracking helps you:\n\n- **Build consistency** - Visual streaks motivate daily action\n- **Measure progress** - See completion rates and trends\n- **Get insights** - Smart recommendations based on your patterns\n- **Stay accountable** - Know exactly what you did and when\n\n---\n\n## Measurement Types\n\nWhen creating a habit, choose the type that fits:\n\n### Binary (Yes/No)\nSimple daily check-off. Did you do it today?\n- Example: \"Read my Bible\", \"Take vitamins\", \"Make bed\"\n- Click **\"I Did It Today!\"** to log\n\n### Duration (Timed)\nTrack how long you spend on something.\n- Example: \"Meditate 10 min\", \"Practice guitar 30 min\"\n- Use the built-in **timer** with start/pause/stop\n- Circular progress ring shows target progress\n- Timer state saves locally (close browser and come back)\n\n### Count (Repetitions)\nTrack how many times you do something.\n- Example: \"50 pushups\", \"8 glasses of water\", \"3 chapters\"\n- Use **+/\u2212 buttons** to count up\n- Progress bar shows target completion\n\n### Target (Hit a Number)\nTrack a numeric value toward a target.\n- Example: \"10,000 steps\", \"2000 calories\", \"7 hours sleep\"\n- Enter your value with the **numeric input**\n- Running total tracks daily progress\n\n---\n\n## Logging Habits\n\n### Quick Click Logging\n- **Progress matrix** - Click any missed or today box to log instantly\n- **Calendar** - Click any day to log that date\n- **Shift+click** - Select a range of dates\n- **Ctrl/Cmd+click** - Select multiple individual dates\n\n### Undo\nEvery log action shows an **undo toast** with an 8-second countdown. Click \"Undo\" to reverse the action.\n\n---\n\n## Streaks\n\nStreaks track your consecutive completions:\n- **Daily habits** - Consecutive days completed\n- **Weekly habits** - Consecutive weeks meeting your sessions target\n- **Monthly habits** - Consecutive months with completion\n\nLook for the flame icon next to your streak count. A warning icon appears when your streak is **at risk** (you haven't logged today yet).\n\n---\n\n## Smart Insights\n\nThe system analyzes your patterns and offers insights:\n- **Milestone celebrations** - 7, 30, 60, 90, 365 day streaks\n- **Target adjustments** - Suggestions to increase/decrease when your completion rate is very high or low\n- **Day patterns** - Notices which days you tend to miss\n- **Trend warnings** - Alerts when your consistency is declining\n\nInsights can be **applied** (updates your target) or **dismissed**.\n\n---\n\n## Tips for Habit Success\n\n1. **Start small** - A 5-minute habit beats a skipped 30-minute one\n2. **Stack habits** - Attach new habits to existing routines\n3. **Don't break the chain** - Streaks are powerful motivation\n4. **Review weekly** - Check your completion rate and adjust\n5. **Use the timer** - For duration habits, the timer keeps you honest\n\n---\n\n## Related Features\n- **Dashboard** - Habit goals tile shows today's status\n- **Goals** - Habits connect to your broader life goals\n- **AI Assistant** - Ask about your habit patterns\n- **Calendar** - Visual month view of completions",
+      "app_name": "purpose",
+      "order": 2,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
   }
 ]

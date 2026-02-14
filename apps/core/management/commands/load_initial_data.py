@@ -138,6 +138,11 @@ FIXTURE_LOADERS = [
         'description': 'Blocklist of temporary/disposable email domains',
         'app': 'users',
     },
+    {
+        'name': 'release_notes',
+        'display': 'What\'s New Release Notes',
+        'description': 'Release notes shown in the What\'s New popup',
+    },
     # NOTE: module_definitions removed - now handled by migration 0052_fix_module_route_names
     # Loading via fixture causes UNIQUE constraint errors since migration already creates the data
 ]
@@ -563,6 +568,9 @@ class Command(BaseCommand):
 
         # One-time: Fix lab result dates (re-parse from extracted text)
         self._fix_lab_result_dates(DataLoadConfig, force, verbosity)
+
+        # One-time: Reset release_notes loader to reload with Feb 2026 entries
+        self._reset_release_notes_loader(DataLoadConfig, force, verbosity)
 
         # Only output summary if something loaded or if verbose
         if verbosity >= 1 and loaded_count > 0:
@@ -1119,3 +1127,54 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Fix lab dates FAILED: {e}'))
+
+    def _reset_release_notes_loader(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset of release_notes loader to reload with Feb 2026 entries.
+
+        Release notes were previously loaded manually. This resets the loader
+        so it reloads the fixture with new entries (PKs 23-30).
+        Also resets teaching_destinations to pick up new Goal Engine entries.
+        Only runs once (tracked via DataLoadConfig).
+        """
+        reset_tracker_name = 'reset_release_notes_2026_02_14'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            # Reset release_notes loader
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                config.reset()
+                if verbosity >= 1:
+                    self.stdout.write(f'  Reset release_notes loader for Feb 2026 entries')
+            except DataLoadConfig.DoesNotExist:
+                pass  # Not loaded yet, will load fresh
+
+            # Reset teaching_destinations loader for Goal Engine entries
+            try:
+                config = DataLoadConfig.objects.get(loader_name='teaching_destinations')
+                config.reset()
+                if verbosity >= 1:
+                    self.stdout.write(f'  Reset teaching_destinations loader for Goal Engine')
+            except DataLoadConfig.DoesNotExist:
+                pass  # Not loaded yet, will load fresh
+
+            # Reset help_topics loader for HABIT_GOAL_DETAIL topic
+            try:
+                config = DataLoadConfig.objects.get(loader_name='help_topics')
+                config.reset()
+                if verbosity >= 1:
+                    self.stdout.write(f'  Reset help_topics loader for HABIT_GOAL_DETAIL')
+            except DataLoadConfig.DoesNotExist:
+                pass  # Not loaded yet, will load fresh
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name, 'Reset Release Notes & Teaching Destinations (Feb 2026)',
+                'command', 'One-time reset to reload fixtures with Feb 2026 entries'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset release notes loader FAILED: {e}'))

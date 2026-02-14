@@ -1,6 +1,134 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 30,
+        "fields": {
+            "title": "Goal Engine: Measurement-Driven Habits",
+            "description": "Habit goals now support four measurement types: Binary (daily check-off), Duration (timed sessions with built-in timer), Count (track repetitions), and Target (hit numeric goals). Each type gets its own logging UI, progress tracking, and analytics. Existing habits continue working unchanged. Find them under Goals > Habits.",
+            "entry_type": "feature",
+            "version": "",
+            "release_date": "2026-02-14",
+            "is_published": true,
+            "is_major": true,
+            "learn_more_url": "",
+            "created_at": "2026-02-14T00:00:00Z",
+            "updated_at": "2026-02-14T00:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
+        "pk": 29,
+        "fields": {
+            "title": "Habit Streaks & Smart Insights",
+            "description": "Track your habit streaks with daily, weekly, or monthly frequency. Get smart insights when you hit milestones (7, 30, 90 days), when completion rates are unusually high or low, and when day-of-week patterns emerge. Insights can be applied or dismissed. View your streak on the habit detail page and dashboard tile.",
+            "entry_type": "feature",
+            "version": "",
+            "release_date": "2026-02-14",
+            "is_published": true,
+            "is_major": false,
+            "learn_more_url": "",
+            "created_at": "2026-02-14T00:00:00Z",
+            "updated_at": "2026-02-14T00:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
+        "pk": 28,
+        "fields": {
+            "title": "Clickable Habit Calendar & Undo",
+            "description": "Click any day on your habit's progress matrix or calendar to instantly log it. Use Shift+Click for date ranges and Ctrl/Cmd+Click for multi-select. Every action shows an undo toast with an 8-second countdown so you can reverse mistakes instantly.",
+            "entry_type": "enhancement",
+            "version": "",
+            "release_date": "2026-02-14",
+            "is_published": true,
+            "is_major": false,
+            "learn_more_url": "",
+            "created_at": "2026-02-14T00:00:00Z",
+            "updated_at": "2026-02-14T00:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
+        "pk": 27,
+        "fields": {
+            "title": "Labs & Vitals",
+            "description": "Upload lab result PDFs and get automatic parsing of blood work panels. View results with color-coded flags (normal, high, low), track trends over time with charts, and learn what each test measures with built-in education content. Find it under Health > Labs & Vitals.",
+            "entry_type": "feature",
+            "version": "",
+            "release_date": "2026-02-13",
+            "is_published": true,
+            "is_major": true,
+            "learn_more_url": "",
+            "created_at": "2026-02-13T00:00:00Z",
+            "updated_at": "2026-02-13T00:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
+        "pk": 26,
+        "fields": {
+            "title": "Lab Test Education",
+            "description": "Tap the info icon next to any lab test to learn what it measures, what high or low values may indicate, and what factors can influence results. Education content available for all 57 standard lab tests. Includes required medical disclaimers.",
+            "entry_type": "feature",
+            "version": "",
+            "release_date": "2026-02-13",
+            "is_published": true,
+            "is_major": false,
+            "learn_more_url": "",
+            "created_at": "2026-02-13T00:00:00Z",
+            "updated_at": "2026-02-13T00:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
+        "pk": 25,
+        "fields": {
+            "title": "Quick Links",
+            "description": "Save your frequently used external links (patient portal, bank login, etc.) and access them from the profile dropdown menu. Add up to 10 links in Preferences > Quick Links. Links open in a new tab.",
+            "entry_type": "feature",
+            "version": "",
+            "release_date": "2026-02-11",
+            "is_published": true,
+            "is_major": false,
+            "learn_more_url": "",
+            "created_at": "2026-02-11T00:00:00Z",
+            "updated_at": "2026-02-11T00:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
+        "pk": 24,
+        "fields": {
+            "title": "Smarter AI Assistant",
+            "description": "The AI assistant now threads conversations naturally, remembers what you discussed earlier in the chat, and gives data-driven answers instead of generic advice. It can read your recent journal entries to answer date-specific questions like 'how was I feeling last Tuesday?'",
+            "entry_type": "enhancement",
+            "version": "",
+            "release_date": "2026-02-11",
+            "is_published": true,
+            "is_major": false,
+            "learn_more_url": "",
+            "created_at": "2026-02-11T00:00:00Z",
+            "updated_at": "2026-02-11T00:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
+        "pk": 23,
+        "fields": {
+            "title": "Scroll Position Preserved",
+            "description": "Pages with repeated actions (medicine doses, task checkboxes, prayer answers, water logging) no longer jump to the top after each action. Your scroll position is saved and restored automatically.",
+            "entry_type": "enhancement",
+            "version": "",
+            "release_date": "2026-02-11",
+            "is_published": true,
+            "is_major": false,
+            "learn_more_url": "",
+            "created_at": "2026-02-11T00:00:00Z",
+            "updated_at": "2026-02-11T00:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 22,
         "fields": {
             "title": "New Character Study: Daniel",
@@ -10,7 +138,9 @@
             "release_date": "2026-01-21",
             "is_published": true,
             "is_major": false,
-            "learn_more_url": ""
+            "learn_more_url": "",
+            "created_at": "2026-01-21T00:00:00Z",
+            "updated_at": "2026-01-21T00:00:00Z"
         }
     },
     {
@@ -24,7 +154,9 @@
             "release_date": "2026-01-20",
             "is_published": true,
             "is_major": true,
-            "learn_more_url": ""
+            "learn_more_url": "",
+            "created_at": "2026-01-20T00:00:00Z",
+            "updated_at": "2026-01-20T00:00:00Z"
         }
     },
     {
@@ -38,7 +170,9 @@
             "release_date": "2026-01-20",
             "is_published": true,
             "is_major": true,
-            "learn_more_url": ""
+            "learn_more_url": "",
+            "created_at": "2026-01-20T00:00:00Z",
+            "updated_at": "2026-01-20T00:00:00Z"
         }
     },
     {
@@ -52,7 +186,9 @@
             "release_date": "2026-01-19",
             "is_published": true,
             "is_major": false,
-            "learn_more_url": ""
+            "learn_more_url": "",
+            "created_at": "2026-01-19T00:00:00Z",
+            "updated_at": "2026-01-19T00:00:00Z"
         }
     },
     {
@@ -66,7 +202,9 @@
             "release_date": "2026-01-19",
             "is_published": true,
             "is_major": false,
-            "learn_more_url": ""
+            "learn_more_url": "",
+            "created_at": "2026-01-19T00:00:00Z",
+            "updated_at": "2026-01-19T00:00:00Z"
         }
     },
     {
@@ -80,7 +218,9 @@
             "release_date": "2026-01-15",
             "is_published": true,
             "is_major": true,
-            "learn_more_url": ""
+            "learn_more_url": "",
+            "created_at": "2026-01-15T00:00:00Z",
+            "updated_at": "2026-01-15T00:00:00Z"
         }
     },
     {
@@ -94,7 +234,9 @@
             "release_date": "2026-01-01",
             "is_published": true,
             "is_major": true,
-            "learn_more_url": ""
+            "learn_more_url": "",
+            "created_at": "2026-01-01T00:00:00Z",
+            "updated_at": "2026-01-01T00:00:00Z"
         }
     },
     {
@@ -108,7 +250,9 @@
             "release_date": "2025-12-31",
             "is_published": true,
             "is_major": true,
-            "learn_more_url": ""
+            "learn_more_url": "",
+            "created_at": "2025-12-31T00:00:00Z",
+            "updated_at": "2025-12-31T00:00:00Z"
         }
     },
     {
@@ -122,7 +266,9 @@
             "release_date": "2025-12-28",
             "is_published": true,
             "is_major": true,
-            "learn_more_url": ""
+            "learn_more_url": "",
+            "created_at": "2025-12-28T00:00:00Z",
+            "updated_at": "2025-12-28T00:00:00Z"
         }
     },
     {
@@ -136,7 +282,9 @@
             "release_date": "2025-12-28",
             "is_published": true,
             "is_major": true,
-            "learn_more_url": ""
+            "learn_more_url": "",
+            "created_at": "2025-12-28T00:00:00Z",
+            "updated_at": "2025-12-28T00:00:00Z"
         }
     },
     {
@@ -150,7 +298,9 @@
             "release_date": "2025-12-28",
             "is_published": true,
             "is_major": true,
-            "learn_more_url": ""
+            "learn_more_url": "",
+            "created_at": "2025-12-28T00:00:00Z",
+            "updated_at": "2025-12-28T00:00:00Z"
         }
     },
     {
@@ -164,7 +314,9 @@
             "release_date": "2025-12-28",
             "is_published": true,
             "is_major": false,
-            "learn_more_url": ""
+            "learn_more_url": "",
+            "created_at": "2025-12-28T00:00:00Z",
+            "updated_at": "2025-12-28T00:00:00Z"
         }
     },
     {
@@ -178,7 +330,9 @@
             "release_date": "2025-12-28",
             "is_published": true,
             "is_major": false,
-            "learn_more_url": ""
+            "learn_more_url": "",
+            "created_at": "2025-12-28T00:00:00Z",
+            "updated_at": "2025-12-28T00:00:00Z"
         }
     },
     {
@@ -192,7 +346,9 @@
             "release_date": "2025-12-28",
             "is_published": true,
             "is_major": false,
-            "learn_more_url": ""
+            "learn_more_url": "",
+            "created_at": "2025-12-28T00:00:00Z",
+            "updated_at": "2025-12-28T00:00:00Z"
         }
     },
     {
@@ -206,7 +362,9 @@
             "release_date": "2025-12-20",
             "is_published": true,
             "is_major": true,
-            "learn_more_url": ""
+            "learn_more_url": "",
+            "created_at": "2025-12-20T00:00:00Z",
+            "updated_at": "2025-12-20T00:00:00Z"
         }
     },
     {
@@ -220,7 +378,9 @@
             "release_date": "2025-12-18",
             "is_published": true,
             "is_major": false,
-            "learn_more_url": ""
+            "learn_more_url": "",
+            "created_at": "2025-12-18T00:00:00Z",
+            "updated_at": "2025-12-18T00:00:00Z"
         }
     },
     {
@@ -234,7 +394,9 @@
             "release_date": "2025-12-15",
             "is_published": true,
             "is_major": false,
-            "learn_more_url": ""
+            "learn_more_url": "",
+            "created_at": "2025-12-15T00:00:00Z",
+            "updated_at": "2025-12-15T00:00:00Z"
         }
     },
     {
@@ -248,7 +410,9 @@
             "release_date": "2025-12-12",
             "is_published": true,
             "is_major": false,
-            "learn_more_url": ""
+            "learn_more_url": "",
+            "created_at": "2025-12-12T00:00:00Z",
+            "updated_at": "2025-12-12T00:00:00Z"
         }
     },
     {
@@ -262,7 +426,9 @@
             "release_date": "2025-12-10",
             "is_published": true,
             "is_major": true,
-            "learn_more_url": ""
+            "learn_more_url": "",
+            "created_at": "2025-12-10T00:00:00Z",
+            "updated_at": "2025-12-10T00:00:00Z"
         }
     },
     {
@@ -276,7 +442,9 @@
             "release_date": "2025-12-08",
             "is_published": true,
             "is_major": false,
-            "learn_more_url": ""
+            "learn_more_url": "",
+            "created_at": "2025-12-08T00:00:00Z",
+            "updated_at": "2025-12-08T00:00:00Z"
         }
     },
     {
@@ -290,7 +458,9 @@
             "release_date": "2025-12-05",
             "is_published": true,
             "is_major": true,
-            "learn_more_url": ""
+            "learn_more_url": "",
+            "created_at": "2025-12-05T00:00:00Z",
+            "updated_at": "2025-12-05T00:00:00Z"
         }
     },
     {
@@ -304,7 +474,9 @@
             "release_date": "2025-12-03",
             "is_published": true,
             "is_major": true,
-            "learn_more_url": ""
+            "learn_more_url": "",
+            "created_at": "2025-12-03T00:00:00Z",
+            "updated_at": "2025-12-03T00:00:00Z"
         }
     }
 ]

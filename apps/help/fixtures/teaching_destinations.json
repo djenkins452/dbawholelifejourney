@@ -1516,7 +1516,7 @@
         "model": "help.teachingdestination",
         "pk": 90,
         "fields": {
-            "destination_id": "finance-budgets",
+            "destination_id": "finance-budgets-overview",
             "name": "Budget Tracking",
             "path_description": "Finance - Budgets",
             "explanation": "Set monthly spending limits by category and track your progress. See how much you've spent versus your budget in real-time.",
@@ -1618,7 +1618,7 @@
         "model": "help.teachingdestination",
         "pk": 96,
         "fields": {
-            "destination_id": "data-export",
+            "destination_id": "data-export-preferences",
             "name": "Export My Data",
             "path_description": "Preferences - Data Export",
             "explanation": "Download a complete copy of all your WLJ data in JSON or CSV format. Your data belongs to you and you can take it anywhere.",
@@ -1629,6 +1629,108 @@
             "is_active": true,
             "created_at": "2026-02-01T00:00:00Z",
             "updated_at": "2026-02-01T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 97,
+        "fields": {
+            "destination_id": "habit-goal-create",
+            "name": "Create Habit Goal",
+            "path_description": "Goals - Habits - New Habit",
+            "explanation": "Create a new habit goal with four measurement types: Binary (daily yes/no), Duration (timed sessions), Count (track repetitions), or Target (hit a numeric goal). Set frequency, targets, and start tracking.",
+            "url": "/purpose/habits/create/",
+            "keywords": "create habit, new habit, add habit, habit goal, start habit, build habit, track habit, measurement type, duration, count, target, binary",
+            "module": "purpose",
+            "sort_order": 97,
+            "is_active": true,
+            "created_at": "2026-02-14T00:00:00Z",
+            "updated_at": "2026-02-14T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 98,
+        "fields": {
+            "destination_id": "habit-goal-timer",
+            "name": "Habit Timer",
+            "path_description": "Goals - Habits - Timer",
+            "explanation": "Use the built-in timer for duration-based habits. Start, pause, and stop sessions with a circular progress ring. Your timer state is saved locally so you can close the browser and come back.",
+            "url": "/purpose/habits/",
+            "keywords": "habit timer, duration timer, start timer, stop timer, timed session, meditation timer, exercise timer, practice timer",
+            "module": "purpose",
+            "sort_order": 98,
+            "is_active": true,
+            "created_at": "2026-02-14T00:00:00Z",
+            "updated_at": "2026-02-14T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 99,
+        "fields": {
+            "destination_id": "habit-streaks",
+            "name": "Habit Streaks",
+            "path_description": "Goals - Habits - Streaks",
+            "explanation": "Track your consistency with daily, weekly, or monthly streaks. See your current and longest streaks, get at-risk warnings before you break a streak, and celebrate milestones at 7, 30, 90, and 365 days.",
+            "url": "/purpose/habits/",
+            "keywords": "streak, habit streak, consecutive days, streak count, don't break the chain, consistency, at risk, streak milestone",
+            "module": "purpose",
+            "sort_order": 99,
+            "is_active": true,
+            "created_at": "2026-02-14T00:00:00Z",
+            "updated_at": "2026-02-14T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 100,
+        "fields": {
+            "destination_id": "labs-upload",
+            "name": "Upload Lab Results",
+            "path_description": "Health - Labs & Vitals - Upload",
+            "explanation": "Upload your lab result PDFs for automatic parsing. The system extracts test names, values, reference ranges, and flags. View results organized by panel with color-coded status indicators.",
+            "url": "/medical/upload/",
+            "keywords": "upload labs, lab results, blood work, blood test, lab report, medical labs, upload pdf, lab panel, cbc, cmp, lipid panel, thyroid",
+            "module": "medical",
+            "sort_order": 100,
+            "is_active": true,
+            "created_at": "2026-02-14T00:00:00Z",
+            "updated_at": "2026-02-14T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 101,
+        "fields": {
+            "destination_id": "labs-summary",
+            "name": "Labs Summary",
+            "path_description": "Health - Labs & Vitals - Summary",
+            "explanation": "View all your lab results organized by test type. See current values, reference ranges, flags (normal/high/low), and trends over time. Tap the info icon to learn what each test measures.",
+            "url": "/medical/labs/",
+            "keywords": "labs summary, lab results, blood work results, test results, normal range, high, low, abnormal, lab values, lab history",
+            "module": "medical",
+            "sort_order": 101,
+            "is_active": true,
+            "created_at": "2026-02-14T00:00:00Z",
+            "updated_at": "2026-02-14T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 102,
+        "fields": {
+            "destination_id": "quick-links",
+            "name": "Quick Links",
+            "path_description": "Preferences - Quick Links",
+            "explanation": "Save your frequently used external links (patient portal, bank login, etc.) and access them from the profile dropdown menu. Add up to 10 links.",
+            "url": "/preferences/#quick-links",
+            "keywords": "quick links, external links, bookmarks, patient portal, bank login, saved links, profile links, shortcuts",
+            "module": "users",
+            "sort_order": 102,
+            "is_active": true,
+            "created_at": "2026-02-14T00:00:00Z",
+            "updated_at": "2026-02-14T00:00:00Z"
         }
     }
 ]

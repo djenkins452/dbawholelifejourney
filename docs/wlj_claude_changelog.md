@@ -4,10 +4,47 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-14 (Goal Engine: measurement-driven goal system)
+# Last Updated: 2026-02-14 (Documentation catch-up: What's New, teaching destinations, help topics)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-02-14 — Documentation Catch-Up: What's New, Teaching Destinations, Help Topics
+
+**Problem:** What's New release notes, teaching destinations, and help topics had not been updated for features deployed since Jan 21, 2026.
+
+**What changed:**
+1. **Release Notes** — Added 8 new entries (PKs 23-30) to `apps/core/fixtures/release_notes.json`:
+   - Goal Engine: Measurement-Driven Habits (major)
+   - Habit Streaks & Smart Insights
+   - Clickable Habit Calendar & Undo
+   - Labs & Vitals (major)
+   - Lab Test Education
+   - Quick Links
+   - Smarter AI Assistant
+   - Scroll Position Preserved
+   - Added `created_at`/`updated_at` timestamps to all entries (required by `auto_now_add`/`auto_now` fields)
+
+2. **Teaching Destinations** — Added 6 new entries (PKs 97-102) to `apps/help/fixtures/teaching_destinations.json`:
+   - Create Habit Goal, Habit Timer, Habit Streaks (purpose module)
+   - Upload Lab Results, Labs Summary (medical module)
+   - Quick Links (users module)
+   - Fixed duplicate `destination_id` conflicts (finance-budgets, data-export)
+
+3. **Help Topics** — Added HABIT_GOAL_DETAIL help topic (PK 28) to `apps/help/fixtures/help_topics.json`:
+   - Comprehensive guide covering measurement types, logging methods, streaks, smart insights, tips
+
+4. **Fixture Loading** — Updated `apps/core/management/commands/load_initial_data.py`:
+   - Registered `release_notes` in `FIXTURE_LOADERS` (was previously missing)
+   - Added one-time reset for `release_notes`, `teaching_destinations`, and `help_topics` loaders so updated fixtures deploy automatically
+
+**Files modified:**
+- `apps/core/fixtures/release_notes.json` — 8 new entries + timestamps
+- `apps/help/fixtures/teaching_destinations.json` — 6 new entries + duplicate fixes
+- `apps/help/fixtures/help_topics.json` — 1 new HABIT_GOAL_DETAIL topic
+- `apps/core/management/commands/load_initial_data.py` — release_notes loader + reset operation
+
+---
 
 ## 2026-02-14 — Habit Matrix Toggle & Undo Toast Fix
 

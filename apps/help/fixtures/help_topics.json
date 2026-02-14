@@ -462,5 +462,53 @@
       "created_at": "2026-02-14T00:00:00Z",
       "updated_at": "2026-02-14T00:00:00Z"
     }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 29,
+    "fields": {
+      "context_id": "HEALTH_BODY_COMPOSITION",
+      "help_id": "health-body-composition",
+      "title": "Body Composition: Track Your Measurements",
+      "description": "Log body fat, lean mass, measurements, and more from gym scans or smart scales.",
+      "content": "## What is Body Composition?\n\nBody composition tracking captures performance-based measurements separate from clinical lab work. This includes data from gym scans, smart scales, tape measurements, and DEXA scans.\n\n---\n\n## What You Can Track\n\n### Common Metrics\n- **Body Fat %** - Percentage of body weight that is fat\n- **Lean Mass** - Weight minus fat (muscle, bone, water)\n- **Fat Mass** - Total fat weight\n- **Skeletal Muscle Mass** - Active muscle tissue\n\n### Body Measurements\n- Waist, Chest, Hips\n- Arms (Left/Right), Thighs (Left/Right)\n- Neck, Shoulders, Calves, Forearms\n\n### Advanced Metrics\n- Bone Mass, Body Water %\n- Visceral Fat Index, BMR, Metabolic Age\n- **Custom metrics** - Add any measurement type you want\n\n---\n\n## How to Log\n\n1. Go to **Health > Body Composition**\n2. Click **\"Log Measurement\"**\n3. Select the metric type (or choose Custom)\n4. Enter value and unit (auto-suggested based on metric)\n5. Set the measurement date and source\n6. Add optional notes\n7. Click **Log Measurement** or **Save & Add Another** for batch entry\n\n---\n\n## Sources\n\nTrack where measurements come from:\n- Manual Entry, Smart Scale, DEXA Scan\n- Bod Pod, InBody Scanner, Gym Body Scan\n- Apple Health, Other\n\n---\n\n## Tips\n\n1. **Measure consistently** - Same time of day, same conditions\n2. **Use the same device** - Different scales give different readings\n3. **Track trends, not single readings** - Daily fluctuations are normal\n4. **Log multiple metrics** - Body fat + weight together tells a fuller story\n\n---\n\n## Related Features\n- **Weight** - Track weight alongside composition\n- **Health Insights** - Cross-domain trend analysis\n- **Health Profile** - Set height and activity level for modeling",
+      "app_name": "health",
+      "order": 12,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 30,
+    "fields": {
+      "context_id": "HEALTH_INSIGHTS",
+      "help_id": "health-insights",
+      "title": "Health Insights: Cross-Domain Patterns",
+      "description": "View observational insights generated from your health data across multiple domains.",
+      "content": "## What Are Health Insights?\n\nThe Insight Engine analyzes patterns across your health data and generates observational, non-directive insights. These insights describe what the data shows without providing advice or recommendations.\n\n---\n\n## Insight Types\n\n### Trend\nDescribes directional movement in your data:\n- \"Weight trend has declined over 6 weeks.\"\n- \"Body fat percentage trending downward.\"\n\n### Consistency\nHighlights regular patterns:\n- \"Goal has an 85% completion rate.\"\n- \"Current streak of 14 days.\"\n\n### Gap\nIdentifies periods without logging:\n- \"No weight entries logged in the past 30 days.\"\n- \"No journal entries in the past 30 days.\"\n\n### Correlation\nConnects patterns across domains:\n- \"Lean mass stable during weight reduction.\"\n- \"Both weight and lean mass have increased.\"\n\n---\n\n## Domains Covered\n\nInsights can span across:\n- **Weight** - Weight trends and rate of change\n- **Body Composition** - Body fat, lean mass, measurements\n- **Goals** - Health-related goal completion rates\n- **Habits** - Streak tracking and consistency\n- **Journal** - Writing frequency patterns\n\n---\n\n## How It Works\n\n1. Go to **Health > Insights**\n2. Click **\"Refresh Insights\"** to generate new analysis\n3. Review your insights\n4. Dismiss any you've already noted\n\nEach insight shows:\n- **Type badge** - Trend, Consistency, Gap, or Correlation\n- **Confidence score** - Based on how much data was available\n- **Related domains** - Which areas of your data contributed\n\n---\n\n## Important Note\n\nWLJ provides educational insights based on user-entered data. This information is not medical advice. Individual results vary.",
+      "app_name": "health",
+      "order": 13,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 31,
+    "fields": {
+      "context_id": "HEALTH_PROFILE",
+      "help_id": "health-profile",
+      "title": "Health Profile: Height & Activity Level",
+      "description": "Set your height and activity level for goal projections and modeling calculations.",
+      "content": "## What is the Health Profile?\n\nThe Health Profile stores basic physical attributes used for mathematical modeling in goal projections. These are not medical fields.\n\n---\n\n## Fields\n\n### Height\nEnter your height in feet and inches. Used for:\n- BMI calculations in body composition context\n- Caloric modeling in weight goal projections\n- Body composition ratio analysis\n\n### Activity Level\nChoose your general activity level:\n- **Sedentary** - Desk job, minimal exercise\n- **Lightly Active** - Light exercise 1-3 days/week\n- **Moderately Active** - Moderate exercise 3-5 days/week\n- **Very Active** - Hard exercise 6-7 days/week\n- **Highly Active** - Very hard exercise, physical job\n\nUsed for caloric modeling in goal projections.\n\n---\n\n## How to Set\n\n1. Go to **Health > Health Profile**\n2. Enter your height (feet and inches)\n3. Select your activity level\n4. Click **Save Profile**\n\n---\n\n## Related Features\n- **Body Composition** - Measurements use height for context\n- **Health Insights** - Profile data enriches modeling\n- **Goals** - Weight goals use activity level for projections",
+      "app_name": "health",
+      "order": 14,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
   }
 ]

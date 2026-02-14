@@ -11,8 +11,10 @@ from django.urls import path
 from django.views.generic import RedirectView
 
 from . import views
+from . import views_body_composition
 from . import views_cycle
 from . import views_dashboards
+from . import views_insights
 from . import views_sleep_api
 
 app_name = "health"
@@ -306,5 +308,19 @@ urlpatterns = [
     path("physical/cycle/data/delete-all/", views_cycle.CycleDeleteAllView.as_view(), name="cycle_delete_all"),
     path("physical/api/cycle/export/", views_cycle.CycleExportAPIView.as_view(), name="cycle_export_api"),
     path("physical/api/cycle/delete-all/", views_cycle.CycleDeleteAllAPIView.as_view(), name="cycle_delete_all_api"),
+
+    # Body Composition
+    path("physical/body-composition/", views_body_composition.BodyCompositionListView.as_view(), name="body_composition_list"),
+    path("physical/body-composition/log/", views_body_composition.BodyCompositionCreateView.as_view(), name="body_composition_create"),
+    path("physical/body-composition/<int:pk>/edit/", views_body_composition.BodyCompositionUpdateView.as_view(), name="body_composition_update"),
+    path("physical/body-composition/<int:pk>/delete/", views_body_composition.BodyCompositionDeleteView.as_view(), name="body_composition_delete"),
+
+    # Health Profile
+    path("physical/profile/", views_body_composition.HealthProfileView.as_view(), name="health_profile"),
+
+    # Insights
+    path("physical/insights/", views_insights.InsightListView.as_view(), name="insights_list"),
+    path("physical/insights/refresh/", views_insights.InsightRefreshView.as_view(), name="insights_refresh"),
+    path("physical/insights/<int:pk>/dismiss/", views_insights.InsightDismissView.as_view(), name="insights_dismiss"),
 
 ] + legacy_redirects

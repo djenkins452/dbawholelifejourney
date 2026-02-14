@@ -572,6 +572,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes loader to reload with Feb 2026 entries
         self._reset_release_notes_loader(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset fixtures for Body Composition + Insight Engine
+        self._reset_body_composition_fixtures(DataLoadConfig, force, verbosity)
+
         # Only output summary if something loaded or if verbose
         if verbosity >= 1 and loaded_count > 0:
             self.stdout.write(self.style.SUCCESS(f'Initial data: loaded {loaded_count} items'))
@@ -1178,3 +1181,34 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset release notes loader FAILED: {e}'))
+
+    def _reset_body_composition_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload fixtures with Body Composition, Health Profile,
+        and Insight Engine entries (release notes PKs 31-32, teaching destinations
+        PKs 103-105, help topics PKs 29-31).
+        """
+        reset_tracker_name = 'reset_body_composition_2026_02_14'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            for loader_name in ('release_notes', 'teaching_destinations', 'help_topics'):
+                try:
+                    config = DataLoadConfig.objects.get(loader_name=loader_name)
+                    config.reset()
+                    if verbosity >= 1:
+                        self.stdout.write(f'  Reset {loader_name} loader for Body Composition/Insights')
+                except DataLoadConfig.DoesNotExist:
+                    pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for Body Composition & Insight Engine',
+                'command', 'One-time reset to reload fixtures with body comp/insights entries'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset body composition fixtures FAILED: {e}'))

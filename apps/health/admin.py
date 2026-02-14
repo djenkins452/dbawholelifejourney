@@ -5,6 +5,7 @@ Health Admin Configuration
 from django.contrib import admin
 
 from .models import (
+    BodyCompositionEntry,
     CardioDetails,
     CustomFood,
     Cycle,
@@ -19,7 +20,9 @@ from .models import (
     FoodEntry,
     FoodItem,
     GlucoseEntry,
+    HealthProfile,
     HeartRateEntry,
+    InsightResult,
     MedicalProvider,
     Medicine,
     MedicineLog,
@@ -806,3 +809,37 @@ class CyclePredictionAdmin(admin.ModelAdmin):
         return obj.is_verified
     is_verified.boolean = True
     is_verified.short_description = "Verified"
+
+
+@admin.register(BodyCompositionEntry)
+class BodyCompositionEntryAdmin(admin.ModelAdmin):
+    list_display = ["user", "metric_name", "value", "unit", "measurement_date", "source", "status"]
+    list_filter = ["metric_name", "source", "status", "measurement_date"]
+    search_fields = ["user__email", "metric_name"]
+    raw_id_fields = ["user"]
+    date_hierarchy = "measurement_date"
+
+
+@admin.register(HealthProfile)
+class HealthProfileAdmin(admin.ModelAdmin):
+    list_display = ["user", "height_display", "activity_level", "updated_at"]
+    search_fields = ["user__email"]
+    raw_id_fields = ["user"]
+    list_filter = ["activity_level"]
+
+    def height_display(self, obj):
+        return obj.height_display or "-"
+    height_display.short_description = "Height"
+
+
+@admin.register(InsightResult)
+class InsightResultAdmin(admin.ModelAdmin):
+    list_display = ["user", "insight_type", "text_truncated", "confidence_score", "generated_at", "is_dismissed"]
+    list_filter = ["insight_type", "is_dismissed", "generated_at"]
+    search_fields = ["user__email", "text"]
+    raw_id_fields = ["user"]
+    date_hierarchy = "generated_at"
+
+    def text_truncated(self, obj):
+        return obj.text[:80] + "..." if len(obj.text) > 80 else obj.text
+    text_truncated.short_description = "Insight"

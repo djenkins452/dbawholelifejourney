@@ -16,6 +16,8 @@ from .cycle_export import CycleDataExportService
 from .cycle_phase import get_current_phase, get_phase_by_day, get_all_phases
 from .cycle_prediction import CyclePredictionService
 from .cycle_statistics import CycleStatisticsService
+from .health_data import HealthDataService
+from .insight_engine import InsightEngine
 
 __all__ = [
     'DexcomService',
@@ -34,4 +36,6 @@ __all__ = [
     'get_all_phases',
     'CyclePredictionService',
     'CycleStatisticsService',
+    'HealthDataService',
+    'InsightEngine',
 ]

@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block title %}Health Profile - Health - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="content-container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'health:home' %}">Health</a>
+        <span>/</span>
+        <span>Health Profile</span>
+    </nav>
+
+    <div class="page-header">
+        <h1 class="page-title">Health Profile</h1>
+        <p class="page-subtitle">Used for goal projections and modeling calculations. These are not medical fields.</p>
+    </div>
+
+    <form method="post" class="card">
+        {% csrf_token %}
+
+        <div class="form-group">
+            <label class="form-label">Height</label>
+            <div class="height-row">
+                <div class="height-field">
+                    <input type="number" name="height_feet" id="id_height_feet"
+                           class="form-input"
+                           value="{{ form.height_feet.value|default:'' }}"
+                           min="0" max="8" placeholder="ft">
+                    <span class="height-unit">ft</span>
+                </div>
+                <div class="height-field">
+                    <input type="number" name="height_remaining_inches" id="id_height_remaining_inches"
+                           class="form-input"
+                           value="{{ form.height_remaining_inches.value|default:'' }}"
+                           min="0" max="11" placeholder="in">
+                    <span class="height-unit">in</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="id_activity_level" class="form-label">Activity Level</label>
+            <select name="activity_level" id="id_activity_level" class="form-select">
+                <option value="">-- Select --</option>
+                {% for value, label in form.fields.activity_level.choices %}
+                    {% if value %}
+                    <option value="{{ value }}" {% if form.activity_level.value == value %}selected{% endif %}>
+                        {{ label }}
+                    </option>
+                    {% endif %}
+                {% endfor %}
+            </select>
+            <p class="form-hint">Used for caloric modeling in goal projections.</p>
+        </div>
+
+        {% if form.errors %}
+        <div class="form-errors mb-4">
+            {% for field, errors in form.errors.items %}
+                {% for error in errors %}
+                    <p class="text-error">{{ error }}</p>
+                {% endfor %}
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Save Profile</button>
+            <a href="{% url 'health:home' %}" class="btn btn-ghost">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.height-row {
+    display: flex;
+    gap: var(--space-3);
+    max-width: 250px;
+}
+
+.height-field {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.height-field .form-input {
+    width: 80px;
+}
+
+.height-unit {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.form-hint {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-top: var(--space-1);
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--color-border);
+}
+
+.form-errors { color: var(--color-error); }
+.text-error { color: var(--color-error); }
+</style>
+{% endblock %}

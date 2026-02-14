@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Edit{% else %}Log{% endif %} Body Composition - Health - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="content-container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'health:home' %}">Health</a>
+        <span>/</span>
+        <a href="{% url 'health:body_composition_list' %}">Body Composition</a>
+        <span>/</span>
+        <span>{% if object %}Edit{% else %}Log{% endif %}</span>
+    </nav>
+
+    <div class="page-header">
+        <h1 class="page-title">{% if object %}Edit{% else %}Log{% endif %} Measurement</h1>
+    </div>
+
+    <form method="post" class="card">
+        {% csrf_token %}
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="id_metric_name" class="form-label">Metric</label>
+                <select name="metric_name" id="id_metric_name" class="form-select">
+                    {% for value, label in form.fields.metric_name.choices %}
+                        <option value="{{ value }}" {% if form.metric_name.value == value %}selected{% endif %}>
+                            {{ label }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group" id="custom-metric-group" style="display:none;">
+                <label for="id_custom_metric_name" class="form-label">Custom Metric Name</label>
+                <input type="text" name="custom_metric_name" id="id_custom_metric_name"
+                       class="form-input"
+                       value="{{ form.custom_metric_name.value|default:'' }}"
+                       placeholder="Enter custom metric name">
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="id_value" class="form-label">Value</label>
+                <input type="number" name="value" id="id_value" class="form-input"
+                       value="{{ form.value.value|default:'' }}"
+                       step="0.01" placeholder="Enter value" required>
+            </div>
+
+            <div class="form-group">
+                <label for="id_unit" class="form-label">Unit</label>
+                <select name="unit" id="id_unit" class="form-select">
+                    {% for value, label in form.fields.unit.choices %}
+                        <option value="{{ value }}" {% if form.unit.value == value %}selected{% endif %}>
+                            {{ label }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="id_measurement_date" class="form-label">Date</label>
+                <input type="date" name="measurement_date" id="id_measurement_date"
+                       class="form-input"
+                       value="{{ form.measurement_date.value|date:'Y-m-d'|default:'' }}">
+            </div>
+
+            <div class="form-group">
+                <label for="id_source" class="form-label">Source</label>
+                <select name="source" id="id_source" class="form-select">
+                    {% for value, label in form.fields.source.choices %}
+                        <option value="{{ value }}" {% if form.source.value == value %}selected{% endif %}>
+                            {{ label }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="id_notes" class="form-label">Notes (optional)</label>
+            <textarea name="notes" id="id_notes" class="form-textarea"
+                      placeholder="Any notes about this measurement..."
+                      rows="2">{{ form.notes.value|default:'' }}</textarea>
+        </div>
+
+        {% if form.errors %}
+        <div class="form-errors mb-4">
+            {% for field, errors in form.errors.items %}
+                {% for error in errors %}
+                    <p class="text-error">{{ error }}</p>
+                {% endfor %}
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
+                {% if object %}Save Changes{% else %}Log Measurement{% endif %}
+            </button>
+            {% if not object %}
+            <button type="submit" name="save_add_another" class="btn btn-secondary">
+                Save &amp; Add Another
+            </button>
+            {% endif %}
+            <a href="{% url 'health:body_composition_list' %}" class="btn btn-ghost">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+}
+
+@media (max-width: 640px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--color-border);
+}
+
+.form-errors { color: var(--color-error); }
+.text-error { color: var(--color-error); }
+</style>
+
+<script nonce="{{ csp_nonce }}">
+document.addEventListener('DOMContentLoaded', function() {
+    const metricSelect = document.getElementById('id_metric_name');
+    const customGroup = document.getElementById('custom-metric-group');
+
+    function toggleCustom() {
+        customGroup.style.display = metricSelect.value === 'custom' ? '' : 'none';
+    }
+
+    metricSelect.addEventListener('change', toggleCustom);
+    toggleCustom();
+
+    // Auto-populate date
+    const dateInput = document.getElementById('id_measurement_date');
+    if (dateInput && !dateInput.value) {
+        const now = new Date();
+        const y = now.getFullYear();
+        const m = String(now.getMonth() + 1).padStart(2, '0');
+        const d = String(now.getDate()).padStart(2, '0');
+        dateInput.value = `${y}-${m}-${d}`;
+    }
+
+    // Auto-set unit based on metric selection
+    const unitSelect = document.getElementById('id_unit');
+    const metricUnits = {
+        'body_fat_pct': 'pct', 'lean_mass': 'lb', 'fat_mass': 'lb',
+        'skeletal_muscle_mass': 'lb', 'waist': 'in', 'chest': 'in',
+        'hips': 'in', 'arm_left': 'in', 'arm_right': 'in',
+        'thigh_left': 'in', 'thigh_right': 'in', 'neck': 'in',
+        'shoulders': 'in', 'calf_left': 'in', 'calf_right': 'in',
+        'forearm_left': 'in', 'forearm_right': 'in',
+        'bone_mass': 'lb', 'body_water_pct': 'pct',
+        'visceral_fat': 'index', 'bmr': 'kcal', 'metabolic_age': 'years',
+    };
+
+    metricSelect.addEventListener('change', function() {
+        const suggestedUnit = metricUnits[this.value];
+        if (suggestedUnit && unitSelect) {
+            unitSelect.value = suggestedUnit;
+        }
+    });
+});
+</script>
+{% endblock %}

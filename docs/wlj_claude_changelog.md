@@ -4,10 +4,71 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-14 (Documentation catch-up: What's New, teaching destinations, help topics)
+# Last Updated: 2026-02-14 (Body Composition Domain + Insight Engine)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-02-14 — Body Composition Domain, Health Profile, Cross-Domain Insight Engine
+
+**What changed:** System-level enhancement adding 3 new models, 2 service layers, and a global insight engine.
+
+**Part 1 — Body Composition Domain:**
+- New `BodyCompositionEntry` model — flexible metric storage (metric_name, value, unit, date, source, notes)
+- Supports unlimited metric types without migrations (body fat %, lean mass, waist, chest, etc.)
+- Separate from Labs and Vitals — performance-based measurements only
+- Full CRUD views, forms, admin, templates at `/health/physical/body-composition/`
+
+**Part 2 — Health Profile:**
+- New `HealthProfile` model (OneToOne to User) — height_inches + activity_level
+- Used for mathematical modeling in goals (not medical fields)
+- Feet/inches input with auto-conversion
+- View at `/health/physical/profile/`
+
+**Part 3 — Health Data Service Layer:**
+- New `apps/health/services/health_data.py` — cross-domain read abstraction
+- Reads Labs (medical app), Vitals, Body Composition, Weight, Sleep, Steps
+- Methods: `get_latest_metric()`, `get_metric_trend()`, `get_metrics_by_category()`, `get_recent_activity_summary()`
+- Normalized dict output — no model instances leak across boundaries
+
+**Part 4 — Global Insight Engine:**
+- New `apps/health/services/insight_engine.py` — reads via service layer only
+- Reads across Health, Goals, Habits, Journal domains
+- Generates descriptive-only insights (trend, consistency, gap, correlation)
+- `InsightResult` model persists insights with confidence_score and related_domains
+- Views at `/health/physical/insights/` with refresh and dismiss
+
+**Part 5 — Extreme Value Handling:**
+- Neutral caloric modeling for rapid weight changes
+- No blocking, no correction, no judgment language
+
+**Part 6 — Legal Footer:**
+- Global disclaimer partial template `_health_disclaimer.html`
+- "WLJ provides educational insights based on user-entered data. This information is not medical advice."
+
+**Part 7 — Tests:** 59 new tests covering models, views, forms, service layer, insight engine
+
+**Files created:**
+- `apps/health/views_body_composition.py`
+- `apps/health/views_insights.py`
+- `apps/health/services/health_data.py`
+- `apps/health/services/insight_engine.py` (replaced stub)
+- `apps/health/tests/test_body_composition.py`
+- `apps/health/migrations/0040_body_composition_health_profile_insights.py`
+- `templates/health/body_composition_list.html`
+- `templates/health/body_composition_form.html`
+- `templates/health/health_profile_form.html`
+- `templates/health/insights_list.html`
+- `templates/health/_health_disclaimer.html`
+
+**Files modified:**
+- `apps/health/models.py` — added BodyCompositionEntry, HealthProfile, InsightResult
+- `apps/health/forms.py` — added BodyCompositionEntryForm, HealthProfileForm
+- `apps/health/admin.py` — registered 3 new model admins
+- `apps/health/urls.py` — added body-composition, profile, insights URL patterns
+- `apps/health/services/__init__.py` — exports HealthDataService, InsightEngine
+
+---
 
 ## 2026-02-14 — Fix Manual Logging for Non-Binary Goals
 

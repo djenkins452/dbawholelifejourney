@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Body Composition - Health - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'health:home' %}">Health</a>
+        <span>/</span>
+        <span>Body Composition</span>
+    </nav>
+
+    <div class="page-header flex justify-between items-center">
+        <div>
+            <h1 class="page-title">Body Composition {% include "components/favorite_toggle.html" with page_title="Body Composition" %}</h1>
+            <p class="page-subtitle">{{ total_count }} entr{{ total_count|pluralize:"y,ies" }} logged</p>
+        </div>
+        <a href="{% url 'health:body_composition_create' %}" class="btn btn-primary">Log Measurement</a>
+    </div>
+
+    {% if metrics_summary %}
+        <!-- Latest Values Summary -->
+        <div class="stats-bar mb-6">
+            {% for m in metrics_summary %}
+                <div class="stat-item">
+                    <span class="stat-label">{{ m.name }}</span>
+                    <span class="stat-value">{{ m.value }}{% if m.unit %} {{ m.unit }}{% endif %}</span>
+                    <span class="stat-date">{{ m.date|date:"M j" }}</span>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <!-- Metric Filter -->
+    {% if user_metrics %}
+    <div class="filter-bar mb-4">
+        <a href="{% url 'health:body_composition_list' %}"
+           class="filter-chip {% if not metric_filter %}active{% endif %}">All</a>
+        {% for mn in user_metrics %}
+            <a href="?metric={{ mn }}"
+               class="filter-chip {% if metric_filter == mn %}active{% endif %}">{{ mn }}</a>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if entries %}
+        <div class="entry-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Metric</th>
+                        <th>Value</th>
+                        <th>Source</th>
+                        <th>Notes</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entry in entries %}
+                        <tr>
+                            <td>
+                                <span class="entry-date">{{ entry.measurement_date|date:"M j, Y" }}</span>
+                            </td>
+                            <td>{{ entry.get_metric_display }}</td>
+                            <td class="entry-value">{{ entry.value }}{% if entry.unit %} {{ entry.unit }}{% endif %}</td>
+                            <td class="entry-source">{{ entry.get_source_display }}</td>
+                            <td class="entry-notes">{{ entry.notes|truncatewords:10|default:"-" }}</td>
+                            <td class="entry-actions">
+                                <a href="{% url 'health:body_composition_update' entry.pk %}" class="btn btn-ghost btn-sm">Edit</a>
+                                <form method="post" action="{% url 'health:body_composition_delete' entry.pk %}" class="inline-form">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-ghost btn-sm text-error">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if page_obj.has_other_pages %}
+            <nav class="pagination mt-6">
+                {% if page_obj.has_previous %}
+                    <a href="?page={{ page_obj.previous_page_number }}{% if metric_filter %}&metric={{ metric_filter }}{% endif %}" class="btn btn-ghost btn-sm">&larr; Previous</a>
+                {% endif %}
+                <span class="pagination-info">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+                {% if page_obj.has_next %}
+                    <a href="?page={{ page_obj.next_page_number }}{% if metric_filter %}&metric={{ metric_filter }}{% endif %}" class="btn btn-ghost btn-sm">Next &rarr;</a>
+                {% endif %}
+            </nav>
+        {% endif %}
+    {% else %}
+        <div class="empty-state">
+            <h2 class="empty-state-title">No body composition entries yet</h2>
+            <p class="empty-state-text">Track body fat, lean mass, measurements, and more from gym scans or smart scales.</p>
+            <a href="{% url 'health:body_composition_create' %}" class="btn btn-primary">Log Your First Measurement</a>
+        </div>
+    {% endif %}
+
+    <div class="mt-8 text-center">
+        <a href="{% url 'health:home' %}" class="btn btn-ghost">&larr; Back to Health</a>
+    </div>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.stats-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+}
+
+.stat-item {
+    display: flex;
+    flex-direction: column;
+    min-width: 80px;
+}
+
+.stat-item .stat-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.stat-item .stat-value {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+}
+
+.stat-item .stat-date {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.filter-chip {
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-full);
+    border: 1px solid var(--color-border);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    text-decoration: none;
+    transition: all 0.15s;
+}
+
+.filter-chip:hover {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+}
+
+.filter-chip.active {
+    background: var(--color-accent);
+    color: #fff;
+    border-color: var(--color-accent);
+}
+
+.entry-table {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.entry-table table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.entry-table th,
+.entry-table td {
+    padding: var(--space-3) var(--space-4);
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.entry-table th {
+    background: var(--color-surface);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--color-text-muted);
+}
+
+.entry-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.entry-table tbody tr:hover {
+    background: var(--color-surface);
+}
+
+.entry-date { display: block; }
+.entry-value { font-weight: 600; }
+.entry-source { font-size: var(--font-size-sm); color: var(--color-text-muted); }
+.entry-notes { color: var(--color-text-muted); font-size: var(--font-size-sm); }
+.entry-actions { display: flex; gap: var(--space-2); justify-content: flex-end; }
+.inline-form { display: inline; }
+.text-error { color: var(--color-error); }
+
+@media (max-width: 768px) {
+    .entry-table { overflow-x: auto; }
+    .entry-table table { min-width: 600px; }
+}
+</style>
+{% endblock %}

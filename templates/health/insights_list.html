@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+
+{% block title %}Health Insights - Health - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'health:home' %}">Health</a>
+        <span>/</span>
+        <span>Insights</span>
+    </nav>
+
+    <div class="page-header flex justify-between items-center">
+        <div>
+            <h1 class="page-title">Health Insights {% include "components/favorite_toggle.html" with page_title="Health Insights" %}</h1>
+            <p class="page-subtitle">Observational patterns across your health data</p>
+        </div>
+        <form method="post" action="{% url 'health:insights_refresh' %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-primary">Refresh Insights</button>
+        </form>
+    </div>
+
+    {% if insights %}
+        <div class="insights-grid">
+            {% for insight in insights %}
+                <div class="insight-card insight-{{ insight.insight_type }}">
+                    <div class="insight-header">
+                        <span class="insight-type-badge">{{ insight.get_insight_type_display }}</span>
+                        <span class="insight-confidence" title="Confidence: {{ insight.confidence_score }}">
+                            {% widthratio insight.confidence_score 1 100 %}%
+                        </span>
+                    </div>
+                    <p class="insight-text">{{ insight.text }}</p>
+                    <div class="insight-footer">
+                        <div class="insight-domains">
+                            {% for domain in insight.related_domains %}
+                                <span class="domain-tag">{{ domain }}</span>
+                            {% endfor %}
+                        </div>
+                        <div class="insight-actions">
+                            <span class="insight-date">{{ insight.generated_at|date:"M j" }}</span>
+                            <form method="post" action="{% url 'health:insights_dismiss' insight.pk %}" class="inline-form">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-ghost btn-sm" title="Dismiss">Dismiss</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+
+        {% if page_obj.has_other_pages %}
+            <nav class="pagination mt-6">
+                {% if page_obj.has_previous %}
+                    <a href="?page={{ page_obj.previous_page_number }}" class="btn btn-ghost btn-sm">&larr; Previous</a>
+                {% endif %}
+                <span class="pagination-info">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+                {% if page_obj.has_next %}
+                    <a href="?page={{ page_obj.next_page_number }}" class="btn btn-ghost btn-sm">Next &rarr;</a>
+                {% endif %}
+            </nav>
+        {% endif %}
+    {% else %}
+        <div class="empty-state">
+            <h2 class="empty-state-title">No insights yet</h2>
+            <p class="empty-state-text">Log health data across weight, body composition, vitals, and goals, then refresh to generate observational insights.</p>
+            <form method="post" action="{% url 'health:insights_refresh' %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-primary">Generate Insights</button>
+            </form>
+        </div>
+    {% endif %}
+
+    <!-- Legal Disclaimer -->
+    <div class="health-disclaimer mt-8">
+        <p>WLJ provides educational insights based on user-entered data. This information is not medical advice. Individual results vary.</p>
+    </div>
+
+    <div class="mt-4 text-center">
+        <a href="{% url 'health:home' %}" class="btn btn-ghost">&larr; Back to Health</a>
+    </div>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.insights-grid {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.insight-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    border-left: 4px solid var(--color-accent);
+}
+
+.insight-card.insight-trend { border-left-color: #6366f1; }
+.insight-card.insight-consistency { border-left-color: #10b981; }
+.insight-card.insight-gap { border-left-color: #f59e0b; }
+.insight-card.insight-correlation { border-left-color: #8b5cf6; }
+
+.insight-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-3);
+}
+
+.insight-type-badge {
+    font-size: var(--font-size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-muted);
+    font-weight: 600;
+}
+
+.insight-confidence {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.insight-text {
+    font-size: var(--font-size-base);
+    line-height: 1.6;
+    margin: 0;
+}
+
+.insight-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: var(--space-3);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--color-border);
+}
+
+.insight-domains {
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.domain-tag {
+    font-size: var(--font-size-xs);
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-full);
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+}
+
+.insight-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.insight-date {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.inline-form { display: inline; }
+
+.health-disclaimer {
+    text-align: center;
+    padding: var(--space-4);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    border-top: 1px solid var(--color-border);
+}
+</style>
+{% endblock %}

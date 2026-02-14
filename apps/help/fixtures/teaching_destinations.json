@@ -1732,5 +1732,56 @@
             "created_at": "2026-02-14T00:00:00Z",
             "updated_at": "2026-02-14T00:00:00Z"
         }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 103,
+        "fields": {
+            "destination_id": "body-composition",
+            "name": "Body Composition",
+            "path_description": "Health - Body Composition",
+            "explanation": "Track body fat %, lean mass, skeletal muscle mass, waist, chest, and other measurements from gym scans, smart scales, or manual entry.",
+            "url": "/health/physical/body-composition/",
+            "keywords": "body composition, body fat, lean mass, fat mass, muscle mass, waist, chest, hips, measurements, dexa scan, inbody, smart scale",
+            "module": "health",
+            "sort_order": 103,
+            "is_active": true,
+            "created_at": "2026-02-14T00:00:00Z",
+            "updated_at": "2026-02-14T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 104,
+        "fields": {
+            "destination_id": "health-profile",
+            "name": "Health Profile",
+            "path_description": "Health - Health Profile",
+            "explanation": "Set your height and activity level for use in goal projections and body composition modeling calculations.",
+            "url": "/health/physical/profile/",
+            "keywords": "health profile, height, activity level, modeling, projections, sedentary, active",
+            "module": "health",
+            "sort_order": 104,
+            "is_active": true,
+            "created_at": "2026-02-14T00:00:00Z",
+            "updated_at": "2026-02-14T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 105,
+        "fields": {
+            "destination_id": "health-insights",
+            "name": "Health Insights",
+            "path_description": "Health - Insights",
+            "explanation": "View observational insights generated from your health data across weight, body composition, goals, habits, and journal entries.",
+            "url": "/health/physical/insights/",
+            "keywords": "health insights, trends, patterns, analysis, weight trend, body composition trend, logging gaps, correlations",
+            "module": "health",
+            "sort_order": 105,
+            "is_active": true,
+            "created_at": "2026-02-14T00:00:00Z",
+            "updated_at": "2026-02-14T00:00:00Z"
+        }
     }
 ]

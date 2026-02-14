@@ -478,5 +478,37 @@
             "created_at": "2025-12-03T00:00:00Z",
             "updated_at": "2025-12-03T00:00:00Z"
         }
+    },
+    {
+        "model": "core.releasenote",
+        "pk": 31,
+        "fields": {
+            "title": "Body Composition Tracking",
+            "description": "Track body fat %, lean mass, measurements, and more from gym scans or smart scales. Flexible metric storage supports unlimited measurement types. Find it under Health > Body Composition.",
+            "entry_type": "feature",
+            "version": "",
+            "release_date": "2026-02-14",
+            "is_published": true,
+            "is_major": true,
+            "learn_more_url": "",
+            "created_at": "2026-02-14T00:00:00Z",
+            "updated_at": "2026-02-14T00:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
+        "pk": 32,
+        "fields": {
+            "title": "Health Insights Engine",
+            "description": "A new cross-domain insight engine analyzes patterns across weight, body composition, goals, habits, and journal entries. Generates observational insights like trends, consistency patterns, and logging gaps. Find it under Health > Insights.",
+            "entry_type": "feature",
+            "version": "",
+            "release_date": "2026-02-14",
+            "is_published": true,
+            "is_major": true,
+            "learn_more_url": "",
+            "created_at": "2026-02-14T00:00:00Z",
+            "updated_at": "2026-02-14T00:00:00Z"
+        }
     }
 ]

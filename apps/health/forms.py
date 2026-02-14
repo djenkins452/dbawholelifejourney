@@ -19,10 +19,14 @@ from apps.core.utils import get_user_today
 from .models import (
     BloodOxygenEntry,
     BloodPressureEntry,
+    BodyCompositionEntry,
+    BODY_COMPOSITION_METRIC_CHOICES,
+    BODY_COMPOSITION_UNIT_CHOICES,
     CustomFood,
     FastingWindow,
     FoodEntry,
     GlucoseEntry,
+    HealthProfile,
     HeartRateEntry,
     MedicalProvider,
     Medicine,
@@ -1716,6 +1720,126 @@ class QuickSleepForm(forms.ModelForm):
 
         instance.source = "manual"
 
+        if commit:
+            instance.save()
+        return instance
+
+
+# =============================================================================
+# Body Composition Forms
+# =============================================================================
+
+class BodyCompositionEntryForm(forms.ModelForm):
+    """Form for logging a body composition measurement."""
+
+    metric_name = forms.ChoiceField(
+        choices=BODY_COMPOSITION_METRIC_CHOICES,
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    custom_metric_name = forms.CharField(
+        max_length=50,
+        required=False,
+        widget=forms.TextInput(attrs={
+            "class": "form-input",
+            "placeholder": "Enter custom metric name",
+        }),
+    )
+    unit = forms.ChoiceField(
+        choices=BODY_COMPOSITION_UNIT_CHOICES,
+        required=False,
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+
+    class Meta:
+        model = BodyCompositionEntry
+        fields = ["metric_name", "value", "unit", "measurement_date", "source", "notes"]
+        widgets = {
+            "value": forms.NumberInput(attrs={
+                "class": "form-input",
+                "step": "0.01",
+                "placeholder": "Enter value",
+            }),
+            "measurement_date": forms.DateInput(attrs={
+                "class": "form-input",
+                "type": "date",
+            }),
+            "source": forms.Select(attrs={"class": "form-select"}),
+            "notes": forms.Textarea(attrs={
+                "class": "form-textarea",
+                "rows": 2,
+                "placeholder": "Any notes about this measurement...",
+            }),
+        }
+
+    def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop("user", None)
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk:
+            # Editing: if metric_name is custom, populate custom field
+            known = dict(BODY_COMPOSITION_METRIC_CHOICES)
+            if self.instance.metric_name not in known:
+                self.initial["custom_metric_name"] = self.instance.metric_name
+                self.initial["metric_name"] = "custom"
+
+    def clean(self):
+        cleaned_data = super().clean()
+        metric = cleaned_data.get("metric_name")
+        custom = cleaned_data.get("custom_metric_name", "").strip()
+        if metric == "custom":
+            if not custom:
+                self.add_error("custom_metric_name", "Enter a custom metric name.")
+            else:
+                cleaned_data["metric_name"] = custom
+        return cleaned_data
+
+
+# =============================================================================
+# Health Profile Form
+# =============================================================================
+
+class HealthProfileForm(forms.ModelForm):
+    """Form for editing health profile (height + activity level)."""
+
+    height_feet = forms.IntegerField(
+        min_value=0,
+        max_value=8,
+        required=False,
+        widget=forms.NumberInput(attrs={
+            "class": "form-input",
+            "placeholder": "ft",
+        }),
+    )
+    height_remaining_inches = forms.IntegerField(
+        min_value=0,
+        max_value=11,
+        required=False,
+        widget=forms.NumberInput(attrs={
+            "class": "form-input",
+            "placeholder": "in",
+        }),
+    )
+
+    class Meta:
+        model = HealthProfile
+        fields = ["activity_level"]
+        widgets = {
+            "activity_level": forms.Select(attrs={"class": "form-select"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk and self.instance.height_inches:
+            ft_in = self.instance.height_feet_inches
+            if ft_in:
+                self.initial["height_feet"] = ft_in[0]
+                self.initial["height_remaining_inches"] = int(ft_in[1])
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        feet = self.cleaned_data.get("height_feet")
+        inches = self.cleaned_data.get("height_remaining_inches") or 0
+        if feet is not None:
+            instance.height_inches = (feet * 12) + inches
         if commit:
             instance.save()
         return instance

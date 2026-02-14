@@ -3872,3 +3872,252 @@ SLEEP_FACTOR_EMOJIS = {
     "noise": "🔊",
     "temperature": "🌡️",
 }
+
+
+# =============================================================================
+# Body Composition Domain (Part 1)
+# Separate from Labs and Vitals — performance-based measurements
+# =============================================================================
+
+# Common metric names for UI dropdowns (not enforced at DB level)
+BODY_COMPOSITION_METRIC_CHOICES = [
+    ("body_fat_pct", "Body Fat %"),
+    ("lean_mass", "Lean Mass"),
+    ("fat_mass", "Fat Mass"),
+    ("skeletal_muscle_mass", "Skeletal Muscle Mass"),
+    ("waist", "Waist"),
+    ("chest", "Chest"),
+    ("hips", "Hips"),
+    ("arm_left", "Arm (Left)"),
+    ("arm_right", "Arm (Right)"),
+    ("thigh_left", "Thigh (Left)"),
+    ("thigh_right", "Thigh (Right)"),
+    ("neck", "Neck"),
+    ("shoulders", "Shoulders"),
+    ("calf_left", "Calf (Left)"),
+    ("calf_right", "Calf (Right)"),
+    ("forearm_left", "Forearm (Left)"),
+    ("forearm_right", "Forearm (Right)"),
+    ("bone_mass", "Bone Mass"),
+    ("body_water_pct", "Body Water %"),
+    ("visceral_fat", "Visceral Fat"),
+    ("bmr", "Basal Metabolic Rate"),
+    ("metabolic_age", "Metabolic Age"),
+    ("custom", "Custom"),
+]
+
+BODY_COMPOSITION_UNIT_CHOICES = [
+    ("pct", "%"),
+    ("lb", "lb"),
+    ("kg", "kg"),
+    ("in", "in"),
+    ("cm", "cm"),
+    ("kcal", "kcal"),
+    ("years", "years"),
+    ("index", "index"),
+    ("", "—"),
+]
+
+
+class BodyCompositionEntry(UserOwnedModel):
+    """
+    Flexible body composition measurement.
+
+    Supports unlimited metric types without schema changes.
+    Separate from Labs (clinical) and Vitals (vital signs).
+    This is performance-based data: gym scans, smart scales, tape measurements.
+    """
+
+    SOURCE_CHOICES = [
+        ("manual", "Manual Entry"),
+        ("smart_scale", "Smart Scale"),
+        ("dexa_scan", "DEXA Scan"),
+        ("bod_pod", "Bod Pod"),
+        ("inbody", "InBody Scanner"),
+        ("gym_scan", "Gym Body Scan"),
+        ("apple_health", "Apple Health"),
+        ("other", "Other"),
+    ]
+
+    metric_name = models.CharField(
+        max_length=50,
+        help_text="Type of measurement (e.g. body_fat_pct, lean_mass, waist)",
+        db_index=True,
+    )
+    value = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        help_text="Measurement value",
+    )
+    unit = models.CharField(
+        max_length=10,
+        blank=True,
+        default="",
+        help_text="Unit of measurement (%, lb, in, cm, etc.)",
+    )
+    measurement_date = models.DateField(
+        help_text="Date the measurement was taken",
+    )
+    source = models.CharField(
+        max_length=20,
+        choices=SOURCE_CHOICES,
+        default="manual",
+        blank=True,
+    )
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-measurement_date", "-created_at"]
+        verbose_name = "body composition entry"
+        verbose_name_plural = "body composition entries"
+        indexes = [
+            models.Index(fields=["user", "metric_name", "-measurement_date"]),
+        ]
+
+    def __str__(self):
+        unit_display = f" {self.unit}" if self.unit else ""
+        return f"{self.get_metric_display()}: {self.value}{unit_display} ({self.measurement_date})"
+
+    def get_metric_display(self):
+        """Return human-readable metric name."""
+        choices_dict = dict(BODY_COMPOSITION_METRIC_CHOICES)
+        return choices_dict.get(self.metric_name, self.metric_name)
+
+
+# =============================================================================
+# Health Profile (Part 2)
+# Height and Activity Level for mathematical modeling
+# =============================================================================
+
+class HealthProfile(models.Model):
+    """
+    Health-specific profile data used for mathematical modeling.
+
+    Separate from UserPreferences — these are health-domain fields
+    used for goal projections and body composition calculations.
+    Not medical fields.
+    """
+
+    ACTIVITY_LEVEL_CHOICES = [
+        ("sedentary", "Sedentary"),
+        ("lightly_active", "Lightly Active"),
+        ("moderately_active", "Moderately Active"),
+        ("very_active", "Very Active"),
+        ("highly_active", "Highly Active"),
+    ]
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="health_profile",
+    )
+    height_inches = models.DecimalField(
+        max_digits=5,
+        decimal_places=1,
+        null=True,
+        blank=True,
+        help_text="Height in inches (used for projections and modeling)",
+    )
+    activity_level = models.CharField(
+        max_length=20,
+        choices=ACTIVITY_LEVEL_CHOICES,
+        blank=True,
+        default="",
+        help_text="General activity level (used for caloric modeling)",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "health profile"
+        verbose_name_plural = "health profiles"
+
+    def __str__(self):
+        return f"Health Profile: {self.user.email}"
+
+    @property
+    def height_feet_inches(self):
+        """Return height as (feet, inches) tuple."""
+        if not self.height_inches:
+            return None
+        total = float(self.height_inches)
+        feet = int(total // 12)
+        inches = round(total % 12, 1)
+        return (feet, inches)
+
+    @property
+    def height_display(self):
+        """Return formatted height string like 5'10\"."""
+        result = self.height_feet_inches
+        if not result:
+            return ""
+        feet, inches = result
+        return f"{feet}'{int(inches)}\""
+
+    @property
+    def height_cm(self):
+        """Return height in centimeters."""
+        if not self.height_inches:
+            return None
+        return round(float(self.height_inches) * 2.54, 1)
+
+
+# =============================================================================
+# Insight Engine Results (Part 4)
+# Persisted descriptive insights generated by the Insight Engine
+# =============================================================================
+
+class InsightResult(UserOwnedModel):
+    """
+    A descriptive, non-directive insight generated by the Insight Engine.
+
+    Insights are observational, pattern-based, neutral, and encouraging.
+    They MUST NOT contain advice, recommendations, medical interpretation,
+    risk assessment, diagnosis, or prescriptions.
+    """
+
+    INSIGHT_TYPE_CHOICES = [
+        ("trend", "Trend"),
+        ("consistency", "Consistency"),
+        ("gap", "Gap"),
+        ("correlation", "Correlation"),
+    ]
+
+    insight_type = models.CharField(
+        max_length=20,
+        choices=INSIGHT_TYPE_CHOICES,
+        db_index=True,
+    )
+    text = models.TextField(
+        help_text="The insight text shown to the user",
+    )
+    related_domains = models.JSONField(
+        default=list,
+        help_text='Domains this insight spans, e.g. ["weight", "body_composition"]',
+    )
+    confidence_score = models.DecimalField(
+        max_digits=3,
+        decimal_places=2,
+        help_text="0.00-1.00 confidence based on data density",
+    )
+    generated_at = models.DateTimeField(default=timezone.now)
+    metadata = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Additional structured data about the insight",
+    )
+    is_dismissed = models.BooleanField(
+        default=False,
+        help_text="User has dismissed this insight",
+    )
+
+    class Meta:
+        ordering = ["-generated_at"]
+        verbose_name = "insight result"
+        verbose_name_plural = "insight results"
+        indexes = [
+            models.Index(fields=["user", "insight_type", "-generated_at"]),
+        ]
+
+    def __str__(self):
+        return f"[{self.insight_type}] {self.text[:60]}..."

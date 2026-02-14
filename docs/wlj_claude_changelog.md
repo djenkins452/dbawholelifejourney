@@ -9,6 +9,16 @@
 
 # WLJ Change History
 
+## 2026-02-14 — Add CSS Tooltips to Journal View Toggle Icons
+
+**Problem:** Icon-only view toggle buttons (List, Calendar, Page, Book) in Journal had `title` attributes but native browser tooltips are slow and unreliable — users didn't know what each icon did.
+
+**Fix:** Added CSS tooltip system (`.tooltip-wrap` + `.tooltip-text`) to `main.css` as a reusable global utility. Applied to Journal `entry_list.html` and `calendar_view.html` view toggle icons. Tooltips appear instantly on hover above the icon.
+
+**Files:** `static/css/main.css`, `templates/journal/entry_list.html`, `templates/journal/calendar_view.html`
+
+---
+
 ## 2026-02-14 — Close Final 5 Help Topic Gaps (Cycle Tracking + Brain Training)
 
 **Problem:** Second-pass audit found 5 `help_context_id` values used in views with no matching help topic — users clicking help on these pages got generic fallback content.

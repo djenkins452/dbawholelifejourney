@@ -1234,6 +1234,34 @@ a:hover {
 
 .hidden { display: none !important; }
 
+/* CSS Tooltips - add .tooltip-wrap to parent, <span class="tooltip-text">Label</span> inside */
+.tooltip-wrap {
+    position: relative;
+}
+
+.tooltip-text {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 4px 8px;
+    background: var(--color-text, #1f2937);
+    color: var(--color-background, #fff);
+    font-size: var(--font-size-xs, 12px);
+    font-weight: 500;
+    line-height: 1;
+    white-space: nowrap;
+    border-radius: var(--radius-sm, 4px);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    z-index: 10;
+}
+
+.tooltip-wrap:hover .tooltip-text {
+    opacity: 1;
+}
+
 /* ==========================================================================
    Empty States
    ========================================================================== */

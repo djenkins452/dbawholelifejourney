@@ -772,13 +772,18 @@ class HabitGoalDetailView(HelpContextMixin, PurposeAccessMixin, DetailView):
         # Active insights
         context['insights'] = recommendation_service.get_active_insights(goal)[:5]
 
-        # Show upgrade banner for binary goals that might benefit from
-        # duration/count tracking (created before measurement types existed)
+        # Show upgrade banner for binary goals created before measurement
+        # types were added. Hide once the user has edited the goal (updated_at
+        # after the feature deploy indicates they've seen the new options).
+        from datetime import datetime
+        from django.utils import timezone as tz
+        measurement_feature_date = tz.make_aware(datetime(2026, 2, 14, 20, 0, 0))
         context['show_upgrade_banner'] = (
             goal.is_binary
             and goal.target_value is None
             and goal.habit_required
             and goal.status == 'active'
+            and goal.updated_at < measurement_feature_date
         )
 
         return context

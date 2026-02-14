@@ -37,19 +37,14 @@
             </svg>
             <div>
                 <strong>New: Enhanced Tracking Available</strong>
-                <p>This goal uses simple yes/no tracking. You can now upgrade it to use a <strong>countdown timer</strong>, <strong>counter</strong>, or <strong>running total</strong> for more detailed tracking.</p>
+                <p>This goal uses simple yes/no tracking. You can now upgrade it to use a <strong>countdown timer</strong>, <strong>counter</strong>, or <strong>running total</strong> by editing your goal.</p>
             </div>
         </div>
         <div class="upgrade-banner-actions">
-            <a href="{% url 'purpose:habit_goal_update' goal.pk %}" class="btn btn-primary btn-sm">Upgrade Goal</a>
-            <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('upgrade-banner').style.display='none'; localStorage.setItem('dismiss_upgrade_{{goal.pk}}', '1');">Dismiss</button>
+            <a href="{% url 'purpose:habit_goal_update' goal.pk %}" class="btn btn-primary btn-sm">Edit Goal</a>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('upgrade-banner').style.display='none';">Dismiss</button>
         </div>
     </div>
-    <script>
-    if (localStorage.getItem('dismiss_upgrade_{{goal.pk}}')) {
-        document.getElementById('upgrade-banner').style.display = 'none';
-    }
-    </script>
     {% endif %}
 
     <!-- Stats Bar -->

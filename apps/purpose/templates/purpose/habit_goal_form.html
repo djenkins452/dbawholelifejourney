@@ -88,14 +88,90 @@
         </div>
 
         <div class="form-section">
+            <h2>Measurement</h2>
+
+            <div class="form-group">
+                <label for="id_measurement_type">How do you measure this goal?</label>
+                {{ form.measurement_type }}
+                {% if form.measurement_type.errors %}
+                <div class="field-error">{{ form.measurement_type.errors }}</div>
+                {% endif %}
+                <p class="field-help">Binary = yes/no, Duration = timed sessions, Count = numeric counting, Target = running total.</p>
+            </div>
+
+            <div class="form-group">
+                <label for="id_frequency_type">Frequency</label>
+                {{ form.frequency_type }}
+                {% if form.frequency_type.errors %}
+                <div class="field-error">{{ form.frequency_type.errors }}</div>
+                {% endif %}
+            </div>
+
+            <div id="target-fields" class="measurement-fields">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="id_target_value">Target per Session</label>
+                        {{ form.target_value }}
+                        {% if form.target_value.errors %}
+                        <div class="field-error">{{ form.target_value.errors }}</div>
+                        {% endif %}
+                        <p class="field-help">e.g., 30 minutes, 50 pushups, 2000 words</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="id_target_unit">Unit</label>
+                        {{ form.target_unit }}
+                        {% if form.target_unit.errors %}
+                        <div class="field-error">{{ form.target_unit.errors }}</div>
+                        {% endif %}
+                        <p class="field-help">e.g., minutes, pages, glasses</p>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="id_sessions_per_week">Sessions per Week</label>
+                    {{ form.sessions_per_week }}
+                    {% if form.sessions_per_week.errors %}
+                    <div class="field-error">{{ form.sessions_per_week.errors }}</div>
+                    {% endif %}
+                    <p class="field-help">How many times per week do you want to do this?</p>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="id_category">Category</label>
+                {{ form.category }}
+                {% if form.category.errors %}
+                <div class="field-error">{{ form.category.errors }}</div>
+                {% endif %}
+                <p class="field-help">Optional label for organizing your goals (e.g., fitness, reading).</p>
+            </div>
+        </div>
+
+        <div class="form-section">
             <h2>Settings</h2>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const mtField = document.getElementById('id_measurement_type');
+    const targetFields = document.getElementById('target-fields');
+    if (!mtField || !targetFields) return;
+
+    function toggleTargetFields() {
+        const val = mtField.value;
+        targetFields.style.display = (val === 'binary') ? 'none' : 'block';
+    }
+
+    toggleTargetFields();
+    mtField.addEventListener('change', toggleTargetFields);
+});
+</script>
 
             <div class="form-group checkbox-group">
                 <label>
                     {{ form.habit_required }}
-                    Enable daily habit tracking
+                    Enable habit tracking
                 </label>
-                <p class="field-help">When enabled, you can log daily completions and see a visual matrix.</p>
+                <p class="field-help">When enabled, you can log sessions and see a visual progress matrix.</p>
             </div>
 
             <div class="form-group">

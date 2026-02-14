@@ -1,0 +1,49 @@
+{% comment %}
+Counter Widget — +/- counter for COUNT goals.
+Included from habit_goal_detail.html when measurement_type == 'count'.
+{% endcomment %}
+{% load static %}
+
+<div id="counter-container" class="counter-container">
+    <div class="counter-display">
+        <button type="button" id="counter-minus" class="btn btn-secondary counter-btn" aria-label="Decrease">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="3"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+        <div class="counter-value-wrapper">
+            <span id="counter-value" class="counter-value">{{ today_entry.count_value|default:"0" }}</span>
+            {% if target_unit %}<span class="counter-unit">{{ target_unit }}</span>{% endif %}
+        </div>
+        <button type="button" id="counter-plus" class="btn btn-primary counter-btn" aria-label="Increase">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="3"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+    </div>
+
+    <input type="number" id="counter-input" class="counter-input" min="0" step="1"
+           value="{{ today_entry.count_value|default:'0' }}" aria-label="Count value">
+
+    {% if target_value %}
+    <div class="counter-progress">
+        <div class="counter-progress-bar">
+            <div id="counter-progress-fill" class="counter-progress-fill" style="width: 0%"></div>
+        </div>
+        <span id="counter-progress-label" class="counter-progress-label">0 / {{ target_value|floatformat:0 }}</span>
+    </div>
+    {% endif %}
+
+    <button type="button" id="counter-save" class="btn btn-primary btn-lg counter-save-btn">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+        Save Count
+    </button>
+</div>
+
+<script src="{% static 'js/goal-counter.js' %}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    initGoalCounterUI(
+        {{ goal.pk }},
+        {{ target_value|default:"0" }},
+        {{ today_entry.count_value|default:"0" }},
+        '{{ csrf_token }}'
+    );
+});
+</script>

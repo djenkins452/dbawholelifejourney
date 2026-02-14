@@ -688,7 +688,8 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
     
     def _get_purpose_data(self, user):
         """Get purpose-related data."""
-        from apps.purpose.models import AnnualDirection, LifeGoal, ChangeIntention
+        from apps.purpose.models import AnnualDirection, LifeGoal, ChangeIntention, HabitGoal
+        from apps.purpose.services import streak_service
 
         current_year = timezone.now().year
 
@@ -714,6 +715,29 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                 'next_milestone': goal.next_milestone,
             })
 
+        # Active habit goals for dashboard tile (limit to 5)
+        from apps.core.utils import get_user_today
+        today = get_user_today(user)
+        active_habit_goals = HabitGoal.objects.filter(
+            user=user, status='active'
+        ).select_related('domain').order_by('start_date')[:5]
+
+        habit_goals_data = []
+        for hg in active_habit_goals:
+            streak_data = streak_service.get_streak_data(hg)
+            logged_today = hg.habit_entries.filter(
+                date=today, completed=True
+            ).exists()
+            habit_goals_data.append({
+                'goal': hg,
+                'streak': streak_data.current,
+                'at_risk': streak_data.at_risk,
+                'completion_rate': hg.completion_rate,
+                'measurement_type': hg.measurement_type,
+                'measurement_icon': hg.measurement_icon,
+                'today_logged': logged_today,
+            })
+
         return {
             "word_of_year": direction.word_of_year if direction else None,
             "annual_direction": direction,
@@ -721,6 +745,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             "active_goals_list": goals_with_progress,
             "completed_goals": goals.filter(status='completed').count(),
             "active_intentions": intentions.count(),
+            "active_habit_goals": habit_goals_data,
         }
     
     def _get_ai_insights(self, user, prefs, user_data):

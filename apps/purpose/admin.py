@@ -16,6 +16,9 @@ from .models import (
     Reflection,
     ReflectionResponse,
     PlanningAction,
+    HabitGoal,
+    HabitEntry,
+    GoalInsight,
 )
 
 
@@ -142,3 +145,54 @@ class PlanningActionAdmin(admin.ModelAdmin):
     def description_preview(self, obj):
         return obj.description[:50] + '...' if len(obj.description) > 50 else obj.description
     description_preview.short_description = 'Description'
+
+
+# =============================================================================
+# Habit Goals & Goal Engine
+# =============================================================================
+
+class HabitEntryInline(admin.TabularInline):
+    """Inline for Habit Entries."""
+    model = HabitEntry
+    extra = 0
+    fields = ['date', 'completed', 'duration_minutes', 'count_value', 'target_value', 'session_number', 'notes']
+    readonly_fields = ['created_at']
+
+
+@admin.register(HabitGoal)
+class HabitGoalAdmin(admin.ModelAdmin):
+    """Admin for Habit Goals with measurement types."""
+    list_display = [
+        'name', 'user', 'measurement_type', 'frequency_type',
+        'status', 'start_date', 'end_date', 'target_value', 'target_unit',
+    ]
+    list_filter = ['measurement_type', 'frequency_type', 'status']
+    search_fields = ['name', 'purpose', 'user__email']
+    raw_id_fields = ['user', 'annual_direction']
+    date_hierarchy = 'start_date'
+    inlines = [HabitEntryInline]
+
+    def get_queryset(self, request):
+        return HabitGoal.all_objects.all()
+
+
+@admin.register(HabitEntry)
+class HabitEntryAdmin(admin.ModelAdmin):
+    """Admin for Habit Entries (Goal Logs)."""
+    list_display = [
+        'goal', 'date', 'completed', 'session_number',
+        'duration_minutes', 'count_value', 'target_value', 'created_at',
+    ]
+    list_filter = ['completed', 'date']
+    search_fields = ['goal__name', 'notes']
+    raw_id_fields = ['goal']
+    date_hierarchy = 'date'
+
+
+@admin.register(GoalInsight)
+class GoalInsightAdmin(admin.ModelAdmin):
+    """Admin for Goal Insights."""
+    list_display = ['goal', 'insight_type', 'title', 'is_dismissed', 'is_applied', 'created_at']
+    list_filter = ['insight_type', 'is_dismissed', 'is_applied']
+    search_fields = ['title', 'message', 'goal__name']
+    raw_id_fields = ['goal']

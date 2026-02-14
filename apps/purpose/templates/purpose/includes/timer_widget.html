@@ -1,0 +1,101 @@
+{% comment %}
+Timer Widget — Circular progress timer for DURATION goals.
+Included from habit_goal_detail.html when measurement_type == 'duration'.
+{% endcomment %}
+{% load static %}
+
+<div id="timer-container" class="timer-container">
+    <div class="timer-ring-wrapper">
+        <svg class="timer-ring" viewBox="0 0 120 120" width="180" height="180">
+            <circle class="timer-ring-bg" cx="60" cy="60" r="52" fill="none" stroke="var(--color-border)" stroke-width="8"/>
+            <circle id="timer-progress-ring" class="timer-ring-progress" cx="60" cy="60" r="52"
+                    fill="none" stroke="var(--color-accent)" stroke-width="8"
+                    stroke-linecap="round" transform="rotate(-90 60 60)"/>
+        </svg>
+        <div class="timer-center">
+            <span id="timer-time" class="timer-time">00:00</span>
+            <span id="timer-percent" class="timer-percent">0%</span>
+            <span id="timer-status" class="timer-status timer-status-idle">Ready</span>
+        </div>
+    </div>
+
+    <div class="timer-info">
+        {% if target_value %}
+        <div class="timer-target">
+            <span class="timer-target-label">Session Target</span>
+            <span class="timer-target-value">{{ target_value|floatformat:0 }} {{ target_unit }}</span>
+        </div>
+        {% endif %}
+        {% if sessions_per_week %}
+        <div class="timer-weekly">
+            <span class="timer-weekly-label">This Week</span>
+            <span class="timer-weekly-value">{{ weekly_sessions }}/{{ sessions_per_week }} sessions</span>
+            <div class="timer-weekly-bar">
+                <div class="timer-weekly-fill" style="width: {{ weekly_progress }}%"></div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="timer-controls">
+        <button type="button" id="timer-start" class="btn btn-primary btn-lg timer-btn">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><polygon points="5 3 19 12 5 21"/></svg>
+            Start
+        </button>
+        <button type="button" id="timer-pause" class="btn btn-secondary btn-lg timer-btn" style="display:none;">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+            Pause
+        </button>
+        <button type="button" id="timer-resume" class="btn btn-primary btn-lg timer-btn" style="display:none;">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><polygon points="5 3 19 12 5 21"/></svg>
+            Resume
+        </button>
+        <button type="button" id="timer-stop" class="btn btn-danger btn-lg timer-btn" style="display:none;">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
+            Stop &amp; Save
+        </button>
+    </div>
+
+    <!-- Manual Entry Fallback -->
+    <details class="timer-manual">
+        <summary>Log manually instead</summary>
+        <div class="timer-manual-form">
+            <label for="manual-duration">Minutes:</label>
+            <input type="number" id="manual-duration" min="0.5" step="0.5" placeholder="e.g., 30" class="form-control">
+            <button type="button" id="manual-save" class="btn btn-secondary">Save</button>
+        </div>
+    </details>
+</div>
+
+<script src="{% static 'js/goal-timer.js' %}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const timer = initGoalTimerUI(
+        {{ goal.pk }},
+        {{ target_value|default:"0" }},
+        '{{ csrf_token }}'
+    );
+
+    // Manual entry
+    const manualSave = document.getElementById('manual-save');
+    if (manualSave) {
+        manualSave.addEventListener('click', async function() {
+            const input = document.getElementById('manual-duration');
+            const mins = parseFloat(input.value);
+            if (!mins || mins <= 0) return;
+            manualSave.disabled = true;
+            manualSave.textContent = 'Saving...';
+            try {
+                const res = await fetch(`/purpose/habits/{{ goal.pk }}/log-duration/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                    body: JSON.stringify({ duration_minutes: mins }),
+                });
+                const data = await res.json();
+                if (data.success) window.location.reload();
+                else { manualSave.disabled = false; manualSave.textContent = 'Save'; }
+            } catch(e) { manualSave.disabled = false; manualSave.textContent = 'Save'; }
+        });
+    }
+});
+</script>

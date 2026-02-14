@@ -39,7 +39,9 @@ from .models import (
     PlanningAction,
     HabitGoal,
     HabitEntry,
+    GoalInsight,
 )
+from .services import streak_service, analytics_service, recommendation_service
 
 
 class PurposeAccessMixin(LoginRequiredMixin):
@@ -699,6 +701,9 @@ class HabitGoalListView(PurposeAccessMixin, ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['current_status'] = self.request.GET.get('status', 'active')
+        # Annotate each goal with streak data for display
+        for goal in context['habit_goals']:
+            goal.streak_info = streak_service.get_streak_data(goal)
         return context
 
 
@@ -715,24 +720,57 @@ class HabitGoalDetailView(HelpContextMixin, PurposeAccessMixin, DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         today = get_user_today(self.request.user)
+        goal = self.object
 
         # Get matrix data organized as rows
-        context['matrix_rows'] = self.object.get_matrix_as_rows()
+        context['matrix_rows'] = goal.get_matrix_as_rows()
 
         # Check if today is within goal range for "I Did It" button
         context['can_log_today'] = (
-            self.object.start_date <= today <= self.object.end_date
-            and self.object.habit_required
+            goal.start_date <= today <= goal.end_date
+            and goal.habit_required
         )
 
         # Check if today already logged
-        context['today_logged'] = self.object.habit_entries.filter(
+        context['today_logged'] = goal.habit_entries.filter(
             date=today, completed=True
         ).exists()
 
         # Get the min/max valid dates for the date picker
-        context['min_date'] = self.object.start_date.isoformat()
-        context['max_date'] = min(self.object.end_date, today).isoformat()
+        context['min_date'] = goal.start_date.isoformat()
+        context['max_date'] = min(goal.end_date, today).isoformat()
+
+        # ── Measurement Engine Context ──
+        context['measurement_type'] = goal.measurement_type
+        context['is_duration'] = goal.is_duration
+        context['is_count'] = goal.is_count
+        context['is_binary'] = goal.is_binary
+        context['is_target'] = goal.is_target
+
+        # Streak data
+        context['streak_data'] = streak_service.get_streak_data(goal)
+
+        # Target and unit info
+        context['target_value'] = goal.target_value
+        context['target_unit'] = goal.target_unit_display
+        context['sessions_per_week'] = goal.sessions_per_week
+        context['weekly_sessions'] = goal.get_weekly_session_count()
+        context['weekly_progress'] = goal.weekly_progress_percent
+
+        # Measurement-specific stats
+        if goal.is_duration:
+            context['avg_duration'] = goal.avg_duration
+        elif goal.is_count:
+            context['total_count'] = goal.total_count
+        elif goal.is_target:
+            context['running_total'] = goal.running_total
+
+        # Today's entry value (for pre-filling UI)
+        today_entry = goal.habit_entries.filter(date=today).first()
+        context['today_entry'] = today_entry
+
+        # Active insights
+        context['insights'] = recommendation_service.get_active_insights(goal)[:5]
 
         return context
 
@@ -743,8 +781,10 @@ class HabitGoalCreateView(PurposeAccessMixin, CreateView):
     template_name = "purpose/habit_goal_form.html"
     fields = [
         'name', 'purpose', 'description', 'success_criteria',
-        'start_date', 'end_date', 'habit_required', 'domain',
-        'annual_direction'
+        'start_date', 'end_date', 'habit_required',
+        'measurement_type', 'frequency_type', 'target_value',
+        'target_unit', 'sessions_per_week', 'category',
+        'domain', 'annual_direction',
     ]
 
     def get_form(self, form_class=None):
@@ -770,8 +810,10 @@ class HabitGoalUpdateView(PurposeAccessMixin, UpdateView):
     template_name = "purpose/habit_goal_form.html"
     fields = [
         'name', 'purpose', 'description', 'success_criteria',
-        'start_date', 'end_date', 'habit_required', 'domain',
-        'status', 'annual_direction'
+        'start_date', 'end_date', 'habit_required',
+        'measurement_type', 'frequency_type', 'target_value',
+        'target_unit', 'sessions_per_week', 'category',
+        'domain', 'status', 'annual_direction',
     ]
 
     def get_queryset(self):
@@ -1279,3 +1321,312 @@ class BulkDeleteGoalsView(LoginRequiredMixin, View):
             'message': f'{count} goal{"" if count == 1 else "s"} deleted',
             'count': count
         })
+
+
+# =============================================================================
+# Goal Engine — Measurement Logging Views
+# =============================================================================
+
+class GoalLogDurationView(PurposeAccessMixin, View):
+    """
+    Log a duration session for a DURATION goal.
+
+    POST /purpose/habits/<pk>/log-duration/
+    Body: {"duration_minutes": 30.5, "date": "YYYY-MM-DD" (optional), "notes": ""}
+    """
+
+    def post(self, request, pk):
+        goal = get_object_or_404(HabitGoal, pk=pk, user=request.user)
+
+        if not goal.is_duration:
+            return JsonResponse({
+                'success': False,
+                'error': 'This goal does not use duration tracking.'
+            }, status=400)
+
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'success': False, 'error': 'Invalid JSON.'}, status=400)
+
+        duration = data.get('duration_minutes')
+        if duration is None or float(duration) <= 0:
+            return JsonResponse({
+                'success': False,
+                'error': 'Duration must be a positive number.'
+            }, status=400)
+
+        from datetime import datetime
+        from decimal import Decimal
+        date_str = data.get('date')
+        if date_str:
+            try:
+                log_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+            except ValueError:
+                log_date = get_user_today(request.user)
+        else:
+            log_date = get_user_today(request.user)
+
+        notes = data.get('notes', '')
+        duration_dec = Decimal(str(duration))
+
+        # Determine session number
+        existing = HabitEntry.objects.filter(goal=goal, date=log_date).count()
+        session_num = existing + 1
+
+        # Auto-completed if meets target
+        completed = True
+        if goal.target_value:
+            completed = duration_dec >= goal.target_value
+
+        entry = HabitEntry(
+            goal=goal,
+            date=log_date,
+            duration_minutes=duration_dec,
+            completed=completed,
+            notes=notes,
+            session_number=session_num,
+        )
+        entry.save()
+
+        day_number = (log_date - goal.start_date).days + 1
+
+        return JsonResponse({
+            'success': True,
+            'entry_id': entry.pk,
+            'date': log_date.isoformat(),
+            'day_number': day_number,
+            'duration_minutes': float(duration_dec),
+            'completed': completed,
+            'stats': {
+                'completed_days': goal.completed_days,
+                'completion_rate': round(goal.completion_rate),
+                'current_streak': goal.current_streak,
+                'avg_duration': goal.avg_duration,
+                'weekly_sessions': goal.get_weekly_session_count(),
+                'weekly_progress': goal.weekly_progress_percent,
+            }
+        })
+
+
+class GoalLogCountView(PurposeAccessMixin, View):
+    """
+    Log a count entry for a COUNT goal.
+
+    POST /purpose/habits/<pk>/log-count/
+    Body: {"count_value": 15, "date": "YYYY-MM-DD" (optional), "notes": ""}
+    """
+
+    def post(self, request, pk):
+        goal = get_object_or_404(HabitGoal, pk=pk, user=request.user)
+
+        if not goal.is_count:
+            return JsonResponse({
+                'success': False,
+                'error': 'This goal does not use count tracking.'
+            }, status=400)
+
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'success': False, 'error': 'Invalid JSON.'}, status=400)
+
+        count_val = data.get('count_value')
+        if count_val is None or float(count_val) < 0:
+            return JsonResponse({
+                'success': False,
+                'error': 'Count must be a non-negative number.'
+            }, status=400)
+
+        from datetime import datetime
+        from decimal import Decimal
+        date_str = data.get('date')
+        if date_str:
+            try:
+                log_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+            except ValueError:
+                log_date = get_user_today(request.user)
+        else:
+            log_date = get_user_today(request.user)
+
+        notes = data.get('notes', '')
+        count_dec = Decimal(str(count_val))
+
+        # Update existing entry for today or create new
+        entry, created = HabitEntry.objects.update_or_create(
+            goal=goal,
+            date=log_date,
+            session_number=1,
+            defaults={
+                'count_value': count_dec,
+                'completed': count_dec >= goal.target_value if goal.target_value else True,
+                'notes': notes,
+            }
+        )
+
+        day_number = (log_date - goal.start_date).days + 1
+
+        return JsonResponse({
+            'success': True,
+            'entry_id': entry.pk,
+            'date': log_date.isoformat(),
+            'day_number': day_number,
+            'count_value': float(count_dec),
+            'completed': entry.completed,
+            'stats': {
+                'completed_days': goal.completed_days,
+                'completion_rate': round(goal.completion_rate),
+                'current_streak': goal.current_streak,
+                'total_count': goal.total_count,
+            }
+        })
+
+
+class GoalLogTargetView(PurposeAccessMixin, View):
+    """
+    Log a target measurement for a TARGET goal.
+
+    POST /purpose/habits/<pk>/log-target/
+    Body: {"target_value": 185.5, "date": "YYYY-MM-DD" (optional), "notes": ""}
+    """
+
+    def post(self, request, pk):
+        goal = get_object_or_404(HabitGoal, pk=pk, user=request.user)
+
+        if not goal.is_target:
+            return JsonResponse({
+                'success': False,
+                'error': 'This goal does not use target tracking.'
+            }, status=400)
+
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'success': False, 'error': 'Invalid JSON.'}, status=400)
+
+        target_val = data.get('target_value')
+        if target_val is None:
+            return JsonResponse({
+                'success': False,
+                'error': 'Target value is required.'
+            }, status=400)
+
+        from datetime import datetime
+        from decimal import Decimal
+        date_str = data.get('date')
+        if date_str:
+            try:
+                log_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+            except ValueError:
+                log_date = get_user_today(request.user)
+        else:
+            log_date = get_user_today(request.user)
+
+        notes = data.get('notes', '')
+        target_dec = Decimal(str(target_val))
+
+        entry, created = HabitEntry.objects.update_or_create(
+            goal=goal,
+            date=log_date,
+            session_number=1,
+            defaults={
+                'target_value': target_dec,
+                'completed': True,  # Any entry counts as completed for target goals
+                'notes': notes,
+            }
+        )
+
+        day_number = (log_date - goal.start_date).days + 1
+
+        return JsonResponse({
+            'success': True,
+            'entry_id': entry.pk,
+            'date': log_date.isoformat(),
+            'day_number': day_number,
+            'target_value': float(target_dec),
+            'running_total': goal.running_total,
+            'stats': {
+                'completed_days': goal.completed_days,
+                'completion_rate': round(goal.completion_rate),
+                'current_streak': goal.current_streak,
+            }
+        })
+
+
+# =============================================================================
+# Goal Engine — Analytics & Insights API Views
+# =============================================================================
+
+class GoalAnalyticsView(PurposeAccessMixin, View):
+    """
+    Return analytics JSON for a goal.
+
+    GET /purpose/habits/<pk>/analytics/?days=30
+    """
+
+    def get(self, request, pk):
+        goal = get_object_or_404(HabitGoal, pk=pk, user=request.user)
+        days = int(request.GET.get('days', 30))
+        analytics = analytics_service.get_analytics(goal, days=days)
+
+        # Also generate any new insights
+        recommendation_service.generate_insights(goal)
+
+        return JsonResponse({
+            'success': True,
+            'analytics': analytics_service.analytics_to_dict(analytics),
+        })
+
+
+class GoalInsightsView(PurposeAccessMixin, View):
+    """
+    Return active insights for a goal.
+
+    GET /purpose/habits/<pk>/insights/
+    """
+
+    def get(self, request, pk):
+        goal = get_object_or_404(HabitGoal, pk=pk, user=request.user)
+        insights = recommendation_service.get_active_insights(goal)
+
+        return JsonResponse({
+            'success': True,
+            'insights': [
+                {
+                    'id': i.pk,
+                    'type': i.insight_type,
+                    'title': i.title,
+                    'message': i.message,
+                    'suggestion_data': i.suggestion_data,
+                    'created_at': i.created_at.isoformat(),
+                }
+                for i in insights
+            ],
+        })
+
+
+class GoalInsightDismissView(PurposeAccessMixin, View):
+    """
+    Dismiss an insight.
+
+    POST /purpose/insights/<pk>/dismiss/
+    """
+
+    def post(self, request, pk):
+        insight = get_object_or_404(GoalInsight, pk=pk, goal__user=request.user)
+        insight.is_dismissed = True
+        insight.save(update_fields=['is_dismissed'])
+        return JsonResponse({'success': True})
+
+
+class GoalInsightApplyView(PurposeAccessMixin, View):
+    """
+    Apply an insight's suggestion to the goal.
+
+    POST /purpose/insights/<pk>/apply/
+    """
+
+    def post(self, request, pk):
+        insight = get_object_or_404(GoalInsight, pk=pk, goal__user=request.user)
+        success = recommendation_service.apply_insight(insight.pk)
+        return JsonResponse({'success': success})

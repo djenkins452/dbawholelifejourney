@@ -381,6 +381,8 @@ body.edit-mode .tile-name-label {
                 {% include "dashboard/tiles/recent_workouts.html" with tile=tile %}
             {% elif tile_id == 'goal_progress' %}
                 {% include "dashboard/tiles/goal_progress.html" with tile=tile %}
+            {% elif tile_id == 'habit_goals' %}
+                {% include "dashboard/tiles/habit_goals.html" with tile=tile %}
             {% elif tile_id == 'upcoming_events' %}
                 {% include "dashboard/tiles/upcoming_events.html" with tile=tile %}
             {% elif tile_id == 'upcoming_celebrations' %}

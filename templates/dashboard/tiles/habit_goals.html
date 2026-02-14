@@ -1,0 +1,123 @@
+{% comment %}
+Dashboard Tile: Habit Goals
+Shows active habit goals with streaks, completion rates, and measurement type icons.
+{% endcomment %}
+
+{% if purpose_enabled and user_data.active_habit_goals %}
+<section class="habit-goals-tile tile-size-{{ tile.size|default:'medium' }}" data-tile-id="habit_goals">
+    <div class="section-header">
+        <h2 class="section-title">Habit Goals</h2>
+        <a href="{% url 'purpose:habit_goal_list' %}" class="section-link">View All</a>
+    </div>
+    <div class="habit-goals-list">
+        {% for item in user_data.active_habit_goals %}
+        <a href="{% url 'purpose:habit_goal_detail' item.goal.pk %}" class="habit-goal-tile-item{% if item.today_logged %} logged{% endif %}">
+            <span class="hgt-icon" title="{{ item.goal.get_measurement_type_display }}">{{ item.measurement_icon }}</span>
+            <div class="hgt-content">
+                <span class="hgt-name">{{ item.goal.name }}</span>
+                <span class="hgt-meta">
+                    {{ item.completion_rate|floatformat:0 }}% complete
+                    {% if item.streak > 0 %}
+                    · 🔥 {{ item.streak }}{% if item.at_risk %}<span class="hgt-risk">⚠</span>{% endif %}
+                    {% endif %}
+                </span>
+            </div>
+            <div class="hgt-status">
+                {% if item.today_logged %}
+                <svg class="hgt-check" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <polyline points="20 6 9 17 4 12"/>
+                </svg>
+                {% else %}
+                <span class="hgt-dot"></span>
+                {% endif %}
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+</section>
+
+<style>
+.habit-goals-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.habit-goal-tile-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    background: var(--color-bg);
+    border-radius: var(--radius-sm);
+    text-decoration: none;
+    color: var(--color-text);
+    transition: background 0.15s ease;
+}
+
+.habit-goal-tile-item:hover {
+    background: var(--color-border);
+}
+
+.habit-goal-tile-item.logged {
+    opacity: 0.7;
+}
+
+.hgt-icon {
+    font-size: 1.25rem;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-surface);
+    border-radius: var(--radius-sm);
+    flex-shrink: 0;
+}
+
+.hgt-content {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.hgt-name {
+    font-weight: 500;
+    font-size: var(--font-size-sm);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.hgt-meta {
+    font-size: var(--font-size-xs, 0.75rem);
+    color: var(--color-text-muted);
+}
+
+.hgt-risk {
+    font-size: 0.65rem;
+    vertical-align: super;
+}
+
+.hgt-status {
+    flex-shrink: 0;
+    width: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.hgt-check {
+    color: var(--color-success, #22c55e);
+}
+
+.hgt-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 2px solid var(--color-border);
+}
+</style>
+{% endif %}

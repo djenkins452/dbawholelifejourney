@@ -1,0 +1,69 @@
+{% comment %}
+Insights Panel — Dismissible insight cards for goal recommendations.
+Included from habit_goal_detail.html for all measurement types.
+{% endcomment %}
+
+{% if insights %}
+<div class="insights-panel">
+    <h2>Insights</h2>
+    {% for insight in insights %}
+    <div class="insight-card insight-{{ insight.insight_type }}" data-insight-id="{{ insight.pk }}">
+        <div class="insight-icon">
+            {% if insight.insight_type == 'encouragement' %}🌟
+            {% elif insight.insight_type == 'warning' %}💡
+            {% elif insight.insight_type == 'optimization' %}🚀
+            {% elif insight.insight_type == 'milestone' %}🎉
+            {% elif insight.insight_type == 'pattern' %}📊
+            {% endif %}
+        </div>
+        <div class="insight-content">
+            <h4 class="insight-title">{{ insight.title }}</h4>
+            <p class="insight-message">{{ insight.message }}</p>
+            <div class="insight-actions">
+                {% if insight.suggestion_data.new_target %}
+                <button type="button" class="btn btn-sm btn-primary insight-apply" data-insight="{{ insight.pk }}">
+                    Apply Suggestion
+                </button>
+                {% endif %}
+                <button type="button" class="btn btn-sm btn-secondary insight-dismiss" data-insight="{{ insight.pk }}">
+                    Dismiss
+                </button>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const csrfToken = '{{ csrf_token }}';
+
+    document.querySelectorAll('.insight-dismiss').forEach(btn => {
+        btn.addEventListener('click', async function() {
+            const id = this.dataset.insight;
+            await fetch(`/purpose/insights/${id}/dismiss/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrfToken },
+            });
+            this.closest('.insight-card').remove();
+        });
+    });
+
+    document.querySelectorAll('.insight-apply').forEach(btn => {
+        btn.addEventListener('click', async function() {
+            const id = this.dataset.insight;
+            const res = await fetch(`/purpose/insights/${id}/apply/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrfToken },
+            });
+            const data = await res.json();
+            if (data.success) {
+                window.location.reload();
+            } else {
+                this.closest('.insight-card').remove();
+            }
+        });
+    });
+});
+</script>
+{% endif %}

@@ -1,0 +1,66 @@
+{% comment %}
+Target Input Widget — Numeric input for TARGET goals.
+Included from habit_goal_detail.html when measurement_type == 'target'.
+{% endcomment %}
+
+<div id="target-container" class="target-container">
+    <div class="target-display">
+        <div class="target-running-total">
+            <span class="target-total-label">Running Total</span>
+            <span class="target-total-value">{{ running_total|floatformat:1|default:"0" }}</span>
+            {% if target_unit %}<span class="target-total-unit">{{ target_unit }}</span>{% endif %}
+        </div>
+        {% if target_value %}
+        <div class="target-goal-info">
+            <span class="target-goal-label">Goal</span>
+            <span class="target-goal-value">{{ target_value|floatformat:0 }} {{ target_unit }}</span>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if target_value %}
+    <div class="target-progress">
+        <div class="target-progress-bar">
+            {% widthratio running_total|default:"0" target_value 100 as pct %}
+            <div class="target-progress-fill{% if pct >= 100 %} complete{% endif %}" style="width: min(100%, {{ pct|default:'0' }}%)"></div>
+        </div>
+        <span class="target-progress-label">
+            {% widthratio running_total|default:"0" target_value 100 %}% of target
+        </span>
+    </div>
+    {% endif %}
+
+    <div class="target-input-row">
+        <label for="target-input">Today's Entry:</label>
+        <input type="number" id="target-input" class="form-control" step="0.1"
+               value="{{ today_entry.target_value|default:'' }}"
+               placeholder="Enter value">
+        {% if target_unit %}<span class="target-input-unit">{{ target_unit }}</span>{% endif %}
+        <button type="button" id="target-save" class="btn btn-primary">Save</button>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const saveBtn = document.getElementById('target-save');
+    const input = document.getElementById('target-input');
+    if (!saveBtn || !input) return;
+
+    saveBtn.addEventListener('click', async function() {
+        const val = parseFloat(input.value);
+        if (isNaN(val)) return;
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Saving...';
+        try {
+            const res = await fetch(`/purpose/habits/{{ goal.pk }}/log-target/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                body: JSON.stringify({ target_value: val }),
+            });
+            const data = await res.json();
+            if (data.success) window.location.reload();
+            else { saveBtn.disabled = false; saveBtn.textContent = 'Save'; }
+        } catch(e) { saveBtn.disabled = false; saveBtn.textContent = 'Save'; }
+    });
+});
+</script>

@@ -761,17 +761,39 @@ class PlanningAction(UserOwnedModel):
 
 
 # =============================================================================
-# Habit Goals (Short-term with Daily Tracking)
+# Habit Goals (Measurement-Driven Goal Engine)
 # =============================================================================
+
+# Measurement type choices for the Goal Engine
+MEASUREMENT_TYPE_CHOICES = [
+    ('binary', 'Binary (Yes/No)'),
+    ('duration', 'Duration (Minutes)'),
+    ('count', 'Count'),
+    ('target', 'Target Value'),
+]
+
+# Frequency type choices
+FREQUENCY_TYPE_CHOICES = [
+    ('daily', 'Daily'),
+    ('weekly', 'Weekly'),
+    ('monthly', 'Monthly'),
+]
+
 
 class HabitGoal(UserOwnedModel):
     """
-    Short-term habit goals with daily tracking and visual matrix display.
+    Measurement-driven goal with flexible tracking types.
 
-    Unlike LifeGoal (12-36 month direction), HabitGoal is for focused daily execution
-    over a defined period with visual progress tracking via a habit matrix.
+    Supports four measurement types:
+    - BINARY: Simple yes/no daily completion (original behavior)
+    - DURATION: Timed sessions with minute tracking and timer engine
+    - COUNT: Numeric counting (reps, pages, glasses, etc.)
+    - TARGET: Running total toward a numeric target
 
-    See docs/wlj_goals_habit_rules.md for full specification.
+    The visual habit matrix works for all types. The detail page renders
+    context-aware UI based on measurement_type (timer, counter, toggle, input).
+
+    See docs/goal_engine_architecture.md for full specification.
     """
     STATUS_CHOICES = [
         ('active', 'Active'),
@@ -797,6 +819,44 @@ class HabitGoal(UserOwnedModel):
     habit_required = models.BooleanField(
         default=True,
         help_text="Whether this goal requires daily habit tracking"
+    )
+
+    # ── Measurement Configuration ──
+    measurement_type = models.CharField(
+        max_length=20,
+        choices=MEASUREMENT_TYPE_CHOICES,
+        default='binary',
+        help_text="How this goal is measured"
+    )
+    frequency_type = models.CharField(
+        max_length=20,
+        choices=FREQUENCY_TYPE_CHOICES,
+        default='daily',
+        help_text="How often this goal should be tracked"
+    )
+    target_value = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Target per session (minutes for duration, reps for count, etc.)"
+    )
+    target_unit = models.CharField(
+        max_length=50,
+        blank=True,
+        default='',
+        help_text="Unit label for display (e.g., 'minutes', 'pages', 'glasses')"
+    )
+    sessions_per_week = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Target number of sessions per week"
+    )
+    category = models.CharField(
+        max_length=100,
+        blank=True,
+        default='',
+        help_text="Flexible categorization (e.g., 'reading', 'fitness')"
     )
 
     # Optional fields
@@ -836,6 +896,10 @@ class HabitGoal(UserOwnedModel):
         ordering = ['-start_date', 'name']
         verbose_name = "Habit Goal"
         verbose_name_plural = "Habit Goals"
+        indexes = [
+            models.Index(fields=['user', 'status'], name='idx_habitgoal_user_status'),
+            models.Index(fields=['measurement_type'], name='idx_habitgoal_mtype'),
+        ]
 
     def __str__(self):
         return self.name
@@ -1055,12 +1119,115 @@ class HabitGoal(UserOwnedModel):
 
         return streak
 
+    # =========================================================================
+    # Measurement Type Helpers
+    # =========================================================================
+
+    @property
+    def is_binary(self):
+        """Goal uses simple yes/no tracking."""
+        return self.measurement_type == 'binary'
+
+    @property
+    def is_duration(self):
+        """Goal tracks timed sessions in minutes."""
+        return self.measurement_type == 'duration'
+
+    @property
+    def is_count(self):
+        """Goal tracks numeric counts."""
+        return self.measurement_type == 'count'
+
+    @property
+    def is_target(self):
+        """Goal tracks a running total toward a target."""
+        return self.measurement_type == 'target'
+
+    @property
+    def measurement_icon(self):
+        """Return emoji icon for display based on measurement type."""
+        icons = {
+            'binary': '✓',
+            'duration': '⏱',
+            'count': '#',
+            'target': '🎯',
+        }
+        return icons.get(self.measurement_type, '✓')
+
+    @property
+    def target_unit_display(self):
+        """Return unit label, with smart defaults for duration goals."""
+        if self.target_unit:
+            return self.target_unit
+        if self.is_duration:
+            return 'minutes'
+        return ''
+
+    def get_weekly_session_count(self):
+        """Count completed sessions in the current week (Mon-Sun)."""
+        today = get_user_today(self.user)
+        # Monday of current week
+        week_start = today - timezone.timedelta(days=today.weekday())
+        return self.habit_entries.filter(
+            date__gte=week_start,
+            date__lte=today,
+            completed=True,
+        ).count()
+
+    @property
+    def weekly_progress_percent(self):
+        """Percentage toward weekly sessions goal (0-100)."""
+        if not self.sessions_per_week:
+            return 0
+        count = self.get_weekly_session_count()
+        return min(100, int((count / self.sessions_per_week) * 100))
+
+    @property
+    def avg_duration(self):
+        """Average duration in minutes across all completed entries (DURATION goals)."""
+        if not self.is_duration:
+            return None
+        from django.db.models import Avg
+        result = self.habit_entries.filter(
+            completed=True,
+            duration_minutes__isnull=False,
+        ).aggregate(avg=Avg('duration_minutes'))
+        return float(result['avg']) if result['avg'] else 0.0
+
+    @property
+    def total_count(self):
+        """Sum of all count values (COUNT goals)."""
+        if not self.is_count:
+            return None
+        from django.db.models import Sum
+        result = self.habit_entries.filter(
+            completed=True,
+            count_value__isnull=False,
+        ).aggregate(total=Sum('count_value'))
+        return float(result['total']) if result['total'] else 0.0
+
+    @property
+    def running_total(self):
+        """Running total of target values (TARGET goals)."""
+        if not self.is_target:
+            return None
+        from django.db.models import Sum
+        result = self.habit_entries.filter(
+            target_value__isnull=False,
+        ).aggregate(total=Sum('target_value'))
+        return float(result['total']) if result['total'] else 0.0
+
 
 class HabitEntry(models.Model):
     """
-    Daily habit completion entry for a HabitGoal.
+    Goal log entry supporting all measurement types.
 
-    One entry per goal per calendar day.
+    For BINARY goals: one entry per day with completed=True/False (original behavior).
+    For DURATION goals: duration_minutes is populated, completed is set when target met.
+    For COUNT goals: count_value is populated, completed when target met.
+    For TARGET goals: target_value is populated per entry.
+
+    Multiple sessions per day are supported via session_number for non-binary goals.
     """
     goal = models.ForeignKey(
         HabitGoal,
@@ -1072,25 +1239,72 @@ class HabitEntry(models.Model):
     )
     completed = models.BooleanField(
         default=True,
-        help_text="Whether the habit was completed"
+        help_text="Whether the session met the goal target"
     )
     notes = models.TextField(
         blank=True,
-        help_text="Optional notes about this day"
+        help_text="Optional notes about this session"
+    )
+
+    # ── Measurement Data (nullable — only populated for non-binary goals) ──
+    duration_minutes = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Duration in minutes (for DURATION goals)"
+    )
+    count_value = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Count value (for COUNT goals)"
+    )
+    target_value = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Measured value (for TARGET goals)"
+    )
+
+    # Timer metadata
+    timer_started_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the timer was started (for DURATION goals)"
+    )
+
+    # Session tracking for multiple sessions per day
+    session_number = models.PositiveIntegerField(
+        default=1,
+        help_text="Session number for goals with multiple daily sessions"
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = ['goal', 'date']
-        ordering = ['-date']
+        unique_together = ['goal', 'date', 'session_number']
+        ordering = ['-date', '-session_number']
         verbose_name = "Habit Entry"
         verbose_name_plural = "Habit Entries"
+        indexes = [
+            models.Index(fields=['goal', 'date'], name='idx_habitentry_goal_date'),
+            models.Index(fields=['date', 'completed'], name='idx_habitentry_date_done'),
+        ]
 
     def __str__(self):
         status = "✓" if self.completed else "✗"
-        return f"{self.goal.name} - {self.date} [{status}]"
+        extra = ''
+        if self.duration_minutes:
+            extra = f' ({self.duration_minutes}m)'
+        elif self.count_value:
+            extra = f' (×{self.count_value})'
+        elif self.target_value:
+            extra = f' ({self.target_value})'
+        return f"{self.goal.name} - {self.date} [{status}]{extra}"
 
     def clean(self):
         """Validate habit entry data."""
@@ -1123,5 +1337,67 @@ class HabitEntry(models.Model):
             })
 
     def save(self, *args, **kwargs):
+        # Auto-set completed based on measurement type and target
+        if self.goal_id and self.goal.target_value:
+            if self.goal.is_duration and self.duration_minutes is not None:
+                self.completed = self.duration_minutes >= self.goal.target_value
+            elif self.goal.is_count and self.count_value is not None:
+                self.completed = self.count_value >= self.goal.target_value
         self.full_clean()
         super().save(*args, **kwargs)
+
+    def get_next_session_number(self):
+        """Get the next available session number for this goal+date."""
+        last = HabitEntry.objects.filter(
+            goal=self.goal,
+            date=self.date,
+        ).aggregate(max_session=models.Max('session_number'))
+        return (last['max_session'] or 0) + 1
+
+
+# =============================================================================
+# Goal Insights (Recommendations & Celebrations)
+# =============================================================================
+
+class GoalInsight(models.Model):
+    """
+    AI-generated or rule-based insight/recommendation for a goal.
+
+    Insights are generated by the RecommendationService and displayed
+    on the goal detail page. Users can dismiss or apply suggestions.
+    """
+    INSIGHT_TYPE_CHOICES = [
+        ('encouragement', 'Encouragement'),
+        ('warning', 'Warning'),
+        ('optimization', 'Optimization'),
+        ('milestone', 'Milestone Celebration'),
+        ('pattern', 'Pattern Detected'),
+    ]
+
+    goal = models.ForeignKey(
+        HabitGoal,
+        on_delete=models.CASCADE,
+        related_name='insights'
+    )
+    insight_type = models.CharField(
+        max_length=20,
+        choices=INSIGHT_TYPE_CHOICES
+    )
+    title = models.CharField(max_length=200)
+    message = models.TextField()
+    suggestion_data = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Structured suggestion data (e.g., {'new_target': 35})"
+    )
+    is_dismissed = models.BooleanField(default=False)
+    is_applied = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Goal Insight"
+        verbose_name_plural = "Goal Insights"
+
+    def __str__(self):
+        return f"{self.get_insight_type_display()}: {self.title}"

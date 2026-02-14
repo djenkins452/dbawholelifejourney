@@ -4,10 +4,66 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-14 (Habit goal custom calendar, shift/ctrl click, undo)
+# Last Updated: 2026-02-14 (Goal Engine: measurement-driven goal system)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-02-14 — Goal Engine: Measurement-Driven Goal System
+
+**Feature:** Extended HabitGoal with four measurement types (binary, duration, count, target), streaks, analytics, recommendations, and dashboard integration.
+
+**Models & Migration (`0005_add_measurement_fields.py`):**
+- `HabitGoal`: Added `measurement_type`, `frequency_type`, `target_value`, `target_unit`, `sessions_per_week`, `category` fields + helper properties
+- `HabitEntry`: Added `duration_minutes`, `count_value`, `target_value`, `timer_started_at`, `session_number` fields; changed unique_together for multi-session support; auto-completion logic in `save()`
+- New model: `GoalInsight` for rule-based recommendations (encouragement, warning, optimization, milestone, pattern)
+
+**Service Layer (`apps/purpose/services/`):**
+- `streak_service.py` — daily/weekly/monthly streak calculations with at-risk detection
+- `analytics_service.py` — completion rate, weekly consistency, day-of-week breakdown, trend detection
+- `recommendation_service.py` — milestone celebrations, high/low completion suggestions, day patterns, trend warnings
+
+**Views (7 new endpoints):**
+- `GoalLogDurationView`, `GoalLogCountView`, `GoalLogTargetView` — AJAX logging for each measurement type
+- `GoalAnalyticsView`, `GoalInsightsView` — JSON data endpoints
+- `GoalInsightDismissView`, `GoalInsightApplyView` — insight actions
+
+**Frontend:**
+- Timer widget (circular SVG progress ring, start/pause/resume/stop, localStorage persistence)
+- Counter widget (+/- buttons, progress bar, save)
+- Target input widget (running total display, progress bar, save)
+- Insights panel (dismissible cards with apply/dismiss actions)
+- Detail page renders context-aware UI based on measurement_type
+- Form page: show/hide conditional fields based on measurement_type
+- List page: measurement type emoji badges, streak counts per goal
+
+**Dashboard Tile:**
+- Added `habit_goals` tile to `TILE_DEFINITIONS`
+- Dashboard shows active habit goals with streaks, completion rates, logged-today status
+
+**Files created (15):**
+- `apps/purpose/services/__init__.py`, `streak_service.py`, `analytics_service.py`, `recommendation_service.py`
+- `apps/purpose/migrations/0005_add_measurement_fields.py`
+- `apps/purpose/tests/test_goal_engine.py` (55 tests)
+- `static/js/goal-timer.js`, `static/js/goal-counter.js`
+- `apps/purpose/templates/purpose/includes/timer_widget.html`, `counter_widget.html`, `target_input_widget.html`, `insights_panel.html`
+- `templates/dashboard/tiles/habit_goals.html`
+
+**Files modified (8):**
+- `apps/purpose/models.py` — measurement fields, GoalInsight model, helper properties
+- `apps/purpose/views.py` — 7 new views, updated create/update/detail/list views
+- `apps/purpose/urls.py` — 7 new URL patterns
+- `apps/purpose/admin.py` — HabitGoalAdmin, HabitEntryAdmin, GoalInsightAdmin
+- `apps/purpose/templates/purpose/habit_goal_detail.html` — context-aware UI, widget CSS
+- `apps/purpose/templates/purpose/habit_goal_form.html` — measurement section, conditional JS
+- `apps/purpose/templates/purpose/habit_goal_list.html` — measurement badges, streak counts
+- `apps/dashboard/services/config_service.py` — habit_goals tile definition
+- `apps/dashboard/views.py` — habit goal data in purpose data
+- `templates/dashboard/home.html` — habit_goals tile include
+
+**Tests:** 172 purpose tests passing (55 new goal engine tests). All backward-compatible.
+
+---
 
 ## 2026-02-14 — Habit Goal: Custom Calendar, Shift/Ctrl Click, Undo Toast
 

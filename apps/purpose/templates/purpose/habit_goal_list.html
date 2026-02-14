@@ -43,10 +43,17 @@
         {% for goal in habit_goals %}
         <div class="goal-card">
             <div class="goal-card-header">
-                <h3><a href="{% url 'purpose:habit_goal_detail' goal.pk %}">{{ goal.name }}</a></h3>
-                {% if goal.domain %}
-                <span class="domain-badge">{{ goal.domain.name }}</span>
-                {% endif %}
+                <h3>
+                    <a href="{% url 'purpose:habit_goal_detail' goal.pk %}">{{ goal.name }}</a>
+                </h3>
+                <div class="goal-badges">
+                    <span class="measurement-badge measurement-{{ goal.measurement_type }}" title="{{ goal.get_measurement_type_display }}">
+                        {{ goal.measurement_icon }}
+                    </span>
+                    {% if goal.domain %}
+                    <span class="domain-badge">{{ goal.domain.name }}</span>
+                    {% endif %}
+                </div>
             </div>
             <p class="goal-purpose">{{ goal.purpose|truncatewords:20 }}</p>
             <div class="goal-dates">
@@ -59,6 +66,12 @@
                 <span class="stat">
                     <strong>{{ goal.completion_rate|floatformat:0 }}%</strong> complete
                 </span>
+                {% if goal.streak_info.current > 0 %}
+                <span class="stat streak-stat">
+                    🔥 <strong>{{ goal.streak_info.current }}</strong> streak
+                    {% if goal.streak_info.at_risk %}<span class="streak-risk" title="At risk">⚠</span>{% endif %}
+                </span>
+                {% endif %}
             </div>
             <div class="goal-actions">
                 <a href="{% url 'purpose:habit_goal_detail' goal.pk %}" class="btn btn-primary btn-sm">View</a>
@@ -175,6 +188,38 @@
 
 .goal-card-header h3 a:hover {
     color: var(--color-accent);
+}
+
+.goal-badges {
+    display: flex;
+    gap: var(--space-1);
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.measurement-badge {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    background: var(--color-bg);
+}
+
+.measurement-badge.measurement-duration { background: rgba(99, 102, 241, 0.1); }
+.measurement-badge.measurement-count { background: rgba(34, 197, 94, 0.1); }
+.measurement-badge.measurement-target { background: rgba(245, 158, 11, 0.1); }
+.measurement-badge.measurement-binary { background: rgba(107, 114, 128, 0.1); }
+
+.streak-stat {
+    white-space: nowrap;
+}
+
+.streak-risk {
+    font-size: var(--font-size-xs, 0.75rem);
+    vertical-align: super;
 }
 
 .domain-badge {

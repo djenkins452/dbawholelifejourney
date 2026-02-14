@@ -51,6 +51,15 @@ from .views import (
     HabitLogDateView,
     HabitLogDatesView,
     HabitUnlogDatesView,
+    # Goal Engine — Measurement Logging
+    GoalLogDurationView,
+    GoalLogCountView,
+    GoalLogTargetView,
+    # Goal Engine — Analytics & Insights
+    GoalAnalyticsView,
+    GoalInsightsView,
+    GoalInsightDismissView,
+    GoalInsightApplyView,
 )
 
 app_name = "purpose"
@@ -111,4 +120,15 @@ urlpatterns = [
     path("habits/<int:pk>/log-date/", HabitLogDateView.as_view(), name="habit_log_date"),
     path("habits/<int:pk>/log-dates/", HabitLogDatesView.as_view(), name="habit_log_dates"),
     path("habits/<int:pk>/unlog-dates/", HabitUnlogDatesView.as_view(), name="habit_unlog_dates"),
+
+    # Goal Engine — Measurement Logging (AJAX)
+    path("habits/<int:pk>/log-duration/", GoalLogDurationView.as_view(), name="goal_log_duration"),
+    path("habits/<int:pk>/log-count/", GoalLogCountView.as_view(), name="goal_log_count"),
+    path("habits/<int:pk>/log-target/", GoalLogTargetView.as_view(), name="goal_log_target"),
+
+    # Goal Engine — Analytics & Insights (AJAX)
+    path("habits/<int:pk>/analytics/", GoalAnalyticsView.as_view(), name="goal_analytics"),
+    path("habits/<int:pk>/insights/", GoalInsightsView.as_view(), name="goal_insights"),
+    path("insights/<int:pk>/dismiss/", GoalInsightDismissView.as_view(), name="goal_insight_dismiss"),
+    path("insights/<int:pk>/apply/", GoalInsightApplyView.as_view(), name="goal_insight_apply"),
 ]

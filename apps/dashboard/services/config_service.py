@@ -201,6 +201,17 @@ TILE_DEFINITIONS = {
         'mandatory': False,
         'default_order': 16,
     },
+    'habit_goals': {
+        'id': 'habit_goals',
+        'name': 'Habit Goals',
+        'description': 'Active habit goals with streaks, completion rates, and quick actions.',
+        'icon': 'flame',
+        'module_dependency': 'purpose_enabled',
+        'default_visible': True,
+        'default_size': 'medium',
+        'mandatory': False,
+        'default_order': 17,
+    },
     'upcoming_events': {
         'id': 'upcoming_events',
         'name': 'Upcoming Events',
@@ -210,7 +221,7 @@ TILE_DEFINITIONS = {
         'default_visible': True,
         'default_size': 'medium',
         'mandatory': False,
-        'default_order': 17,
+        'default_order': 18,
     },
     'upcoming_celebrations': {
         'id': 'upcoming_celebrations',
@@ -221,7 +232,7 @@ TILE_DEFINITIONS = {
         'default_visible': True,
         'default_size': 'medium',
         'mandatory': False,
-        'default_order': 18,
+        'default_order': 19,
     },
     'recurring_transactions': {
         'id': 'recurring_transactions',
@@ -232,7 +243,7 @@ TILE_DEFINITIONS = {
         'default_visible': True,
         'default_size': 'medium',
         'mandatory': False,
-        'default_order': 19,
+        'default_order': 20,
     },
     'getting_started': {
         'id': 'getting_started',

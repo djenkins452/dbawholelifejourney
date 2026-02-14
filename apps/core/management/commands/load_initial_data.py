@@ -578,6 +578,9 @@ class Command(BaseCommand):
         # One-time: Reset fixtures for Body Composition + Insight Engine
         self._reset_body_composition_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset help_topics to reload with 40+ new context-aware help entries
+        self._reset_help_topics_system_review(DataLoadConfig, force, verbosity)
+
         # Only output summary if something loaded or if verbose
         if verbosity >= 1 and loaded_count > 0:
             self.stdout.write(self.style.SUCCESS(f'Initial data: loaded {loaded_count} items'))
@@ -1293,3 +1296,40 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset body composition fixtures FAILED: {e}'))
+
+    def _reset_help_topics_system_review(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload help_topics with 40+ new context-aware entries
+        added during the Feb 14 2026 system review. Also fixes duplicate PK 24
+        (ADMIN_CONSOLE_TASKS moved to PK 32).
+        """
+        reset_tracker_name = 'reset_help_topics_system_review_2026_02_14'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            # Delete the old PK 24 ADMIN_CONSOLE_TASKS entry (will be recreated as PK 32)
+            from apps.help.models import HelpTopic
+            HelpTopic.objects.filter(
+                context_id='ADMIN_CONSOLE_TASKS', pk=24
+            ).delete()
+
+            # Reset help_topics loader so it reloads with all new entries
+            try:
+                config = DataLoadConfig.objects.get(loader_name='help_topics')
+                config.reset()
+                if verbosity >= 1:
+                    self.stdout.write(f'  Reset help_topics loader for system review (40+ new entries)')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset help_topics for system review (Feb 2026)',
+                'command', 'One-time reset to reload help_topics with 40+ new context-aware entries'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset help_topics system review FAILED: {e}'))

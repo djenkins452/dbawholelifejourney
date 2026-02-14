@@ -209,7 +209,7 @@
   },
   {
     "model": "help.helptopic",
-    "pk": 24,
+    "pk": 32,
     "fields": {
       "context_id": "ADMIN_CONSOLE_TASKS",
       "help_id": "admin-console-tasks",
@@ -506,6 +506,694 @@
       "content": "## What is the Health Profile?\n\nThe Health Profile stores basic physical attributes used for mathematical modeling in goal projections. These are not medical fields.\n\n---\n\n## Fields\n\n### Height\nEnter your height in feet and inches. Used for:\n- BMI calculations in body composition context\n- Caloric modeling in weight goal projections\n- Body composition ratio analysis\n\n### Activity Level\nChoose your general activity level:\n- **Sedentary** - Desk job, minimal exercise\n- **Lightly Active** - Light exercise 1-3 days/week\n- **Moderately Active** - Moderate exercise 3-5 days/week\n- **Very Active** - Hard exercise 6-7 days/week\n- **Highly Active** - Very hard exercise, physical job\n\nUsed for caloric modeling in goal projections.\n\n---\n\n## How to Set\n\n1. Go to **Health > Health Profile**\n2. Enter your height (feet and inches)\n3. Select your activity level\n4. Click **Save Profile**\n\n---\n\n## Related Features\n- **Body Composition** - Measurements use height for context\n- **Health Insights** - Profile data enriches modeling\n- **Goals** - Weight goals use activity level for projections",
       "app_name": "health",
       "order": 14,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 33,
+    "fields": {
+      "context_id": "HEALTH_LANDING",
+      "help_id": "health-landing",
+      "title": "Health Module Overview",
+      "description": "Your health tracking hub with quick access to all health features.",
+      "content": "## Health Module\n\nThis is your health tracking hub. From here you can access all health sub-modules:\n\n- **Weight** - Track your weight over time\n- **Nutrition** - Log meals and track macros\n- **Medicine** - Track medications and adherence\n- **Vitals** - Blood pressure, heart rate, SpO2\n- **Fitness** - Log workouts and track PRs\n- **Sleep** - Monitor sleep patterns\n- **Fasting** - Track eating windows\n- **Glucose** - Blood sugar monitoring\n- **Body Composition** - Body fat, lean mass, measurements\n- **Providers** - Medical contacts\n- **Brain Training** - Cognitive health exercises\n\nEach card shows your latest data and quick-action buttons.",
+      "app_name": "health",
+      "order": 0,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 34,
+    "fields": {
+      "context_id": "HEALTH_PHYSICAL_HOME",
+      "help_id": "health-physical-home",
+      "title": "Physical Health Measurements",
+      "description": "View and manage physical health metrics like weight, body composition, and vitals.",
+      "content": "## Physical Health\n\nThis section groups your physical health measurements:\n\n- **Weight** - Body weight tracking with trend charts\n- **Body Composition** - Body fat %, lean mass, measurements\n- **Health Profile** - Height, activity level, weight goal\n- **Health Insights** - Cross-domain pattern analysis\n\nUse the cards to navigate to each area or log new entries directly.",
+      "app_name": "health",
+      "order": 1,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 35,
+    "fields": {
+      "context_id": "HEALTH_SLEEP",
+      "help_id": "health-sleep",
+      "title": "Sleep Tracking",
+      "description": "Log and monitor your sleep patterns to improve rest quality.",
+      "content": "## Sleep Tracking\n\nGood sleep is foundational to everything else. Track your sleep to:\n\n- **See patterns** - Understand your sleep schedule\n- **Improve quality** - Identify what helps or hurts your rest\n- **Get insights** - AI notices sleep trends over time\n\n### Logging Sleep\n\n1. Click **\"Log Sleep\"**\n2. Enter bedtime and wake time\n3. Rate your sleep quality (1-5)\n4. Add optional notes (caffeine, stress, etc.)\n5. Save\n\n### What Gets Tracked\n- **Duration** - Total hours slept\n- **Quality** - Your subjective rating\n- **Timing** - When you went to bed and woke up\n- **Notes** - Anything that affected your sleep\n\n### HealthKit Integration\nIf using the iOS app, sleep data from Apple Health syncs automatically.\n\n### Tips\n1. **Log every morning** - While it's fresh\n2. **Be honest about quality** - Helps identify patterns\n3. **Note what affects sleep** - Caffeine, screens, stress\n4. **Aim for consistency** - Same bedtime helps quality",
+      "app_name": "health",
+      "order": 15,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 36,
+    "fields": {
+      "context_id": "HEALTH_WATER",
+      "help_id": "health-water",
+      "title": "Water Intake Tracking",
+      "description": "Track your daily water intake to stay hydrated.",
+      "content": "## Water Intake\n\nStaying hydrated affects energy, focus, and overall health.\n\n### Logging Water\n\n1. Click **\"Log Water\"**\n2. Enter the amount (oz or mL)\n3. Save\n\nYou can log multiple times per day. Each entry adds to your daily total.\n\n### HealthKit Integration\nIf using the iOS app, water intake from Apple Health syncs automatically.\n\n### Tips\n1. **Log as you drink** - Easier than remembering later\n2. **Set a daily goal** - Aim for 64+ oz (8 glasses)\n3. **Track consistently** - Even partial days help build the habit",
+      "app_name": "health",
+      "order": 16,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 37,
+    "fields": {
+      "context_id": "GLUCOSE_CREATE",
+      "help_id": "glucose-create",
+      "title": "Log a Glucose Reading",
+      "description": "Record a blood sugar reading with context and notes.",
+      "content": "## Log a Glucose Reading\n\n### How to Log\n1. Enter your glucose value\n2. Select unit (mg/dL or mmol/L)\n3. Choose the context (fasting, before meal, after meal, bedtime, random)\n4. Add optional notes\n5. Save\n\n### Tips for Accuracy\n- **Wash hands** before finger-stick testing\n- **Log the context** - Fasting vs after-meal readings mean different things\n- **Add notes** - What you ate, how you're feeling\n- **Be consistent** - Test at similar times for comparable data",
+      "app_name": "health",
+      "order": 17,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 38,
+    "fields": {
+      "context_id": "GLUCOSE_LIST",
+      "help_id": "glucose-list",
+      "title": "Glucose Reading History",
+      "description": "View and manage your glucose reading history.",
+      "content": "## Glucose History\n\nThis page shows all your glucose readings with filtering options.\n\n### Features\n- **Date range filter** - View readings for specific periods\n- **Context filter** - Show only fasting, post-meal, etc.\n- **Category badges** - Color-coded status (normal, high, low)\n- **Edit/Delete** - Manage individual readings\n\n### Understanding the List\nEach reading shows:\n- Value and unit\n- Context (when the reading was taken)\n- Category badge (normal, low, high, etc.)\n- Date and time\n- Any notes you added",
+      "app_name": "health",
+      "order": 18,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 39,
+    "fields": {
+      "context_id": "GLUCOSE_UPDATE",
+      "help_id": "glucose-update",
+      "title": "Edit Glucose Reading",
+      "description": "Update an existing glucose reading.",
+      "content": "## Edit Glucose Reading\n\nCorrect a previously logged glucose reading.\n\n### What You Can Edit\n- Glucose value\n- Unit (mg/dL or mmol/L)\n- Context (fasting, before meal, etc.)\n- Notes\n- Date and time\n\nThe category badge (normal, high, low) updates automatically based on the new value.",
+      "app_name": "health",
+      "order": 19,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 40,
+    "fields": {
+      "context_id": "HEALTH_PROVIDER_CREATE",
+      "help_id": "health-provider-create",
+      "title": "Add a Medical Provider",
+      "description": "Add a new doctor, clinic, or healthcare provider to your records.",
+      "content": "## Add a Medical Provider\n\n### Required Fields\n- **Name** - Provider or practice name\n- **Specialty** - Choose from 27 specialties\n\n### Optional Fields\n- Phone, fax, email, website\n- Full address\n- Patient portal URL and username\n- NPI number, credentials\n- Mark as primary care provider\n- Notes\n\n### AI-Assisted Lookup\nEnter just the name and location, then click **\"Search with AI\"** to auto-fill contact details, address, and credentials.\n\n### Tips\n- Mark your primary care provider for quick access on the Health home page\n- Store portal URLs for one-click access to patient portals\n- Add staff members after creating the provider",
+      "app_name": "health",
+      "order": 20,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 41,
+    "fields": {
+      "context_id": "HEALTH_PROVIDER_DETAIL",
+      "help_id": "health-provider-detail",
+      "title": "Provider Details",
+      "description": "View complete information about a healthcare provider.",
+      "content": "## Provider Details\n\nView all information about this healthcare provider.\n\n### What You'll See\n- **Contact info** - Phone, fax, email, website\n- **Address** - Full practice address\n- **Credentials** - Specialty, NPI, credentials\n- **Patient portal** - Direct link and username\n- **Staff members** - Associated staff with contact info\n- **Notes** - Your personal notes about this provider\n\n### Actions\n- **Edit** - Update provider information\n- **Add Staff** - Add a staff member\n- **Delete** - Remove this provider",
+      "app_name": "health",
+      "order": 21,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 42,
+    "fields": {
+      "context_id": "HEALTH_PROVIDER_EDIT",
+      "help_id": "health-provider-edit",
+      "title": "Edit Provider",
+      "description": "Update information about an existing healthcare provider.",
+      "content": "## Edit Provider\n\nUpdate any field for this provider. All fields from the create form are available for editing.\n\nChanges save immediately when you click **Save**.",
+      "app_name": "health",
+      "order": 22,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 43,
+    "fields": {
+      "context_id": "HEALTH_PROVIDER_STAFF_CREATE",
+      "help_id": "health-provider-staff-create",
+      "title": "Add Provider Staff",
+      "description": "Add a staff member to a healthcare provider's record.",
+      "content": "## Add Staff Member\n\nTrack the specific people you interact with at a provider's office.\n\n### Fields\n- **Name** - Staff member's name\n- **Role** - Their role (PA, nurse, receptionist, etc.)\n- **Phone/Extension** - Direct contact number\n- **Email** - Direct email address\n- **Notes** - Your notes about this person",
+      "app_name": "health",
+      "order": 23,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 44,
+    "fields": {
+      "context_id": "HEALTH_PROVIDER_STAFF_EDIT",
+      "help_id": "health-provider-staff-edit",
+      "title": "Edit Provider Staff",
+      "description": "Update a staff member's information.",
+      "content": "## Edit Staff Member\n\nUpdate any field for this staff member. Changes save when you click **Save**.",
+      "app_name": "health",
+      "order": 24,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 45,
+    "fields": {
+      "context_id": "JOURNAL_ENTRY_CREATE",
+      "help_id": "journal-entry-create",
+      "title": "Write a Journal Entry",
+      "description": "Create a new journal entry to capture your thoughts and track your mood.",
+      "content": "## Write a New Entry\n\nCapture your thoughts, reflections, and mood.\n\n### How to Write\n1. Enter a **title** (or leave blank for an auto-dated title)\n2. Select your current **mood** from the dropdown\n3. Write your thoughts in the **body** field\n4. Optionally add **categories** to organize\n5. Click **Save**\n\n### Mood Tracking\nSelecting your mood with each entry powers:\n- Mood trend charts over time\n- AI insights about emotional patterns\n- Pattern detection (which days/times feel best)\n\n### Tips\n- **Don't aim for perfection** - Even a few sentences count\n- **Be honest** - The AI learns from authentic entries\n- **Set your coaching style** in Preferences for personalized prompts\n- **Use AI prompts** - The Personal Assistant can suggest what to write about",
+      "app_name": "journal",
+      "order": 2,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 46,
+    "fields": {
+      "context_id": "JOURNAL_ENTRY_DETAIL",
+      "help_id": "journal-entry-detail",
+      "title": "Journal Entry",
+      "description": "Read and manage a journal entry.",
+      "content": "## Journal Entry\n\nView the full text of your journal entry.\n\n### Actions\n- **Edit** - Modify the entry\n- **Delete** - Remove the entry\n- **Share** - (if enabled) Share with a trusted person\n\n### Entry Details\n- **Date** - When the entry was written\n- **Mood** - The mood you selected\n- **Categories** - How you tagged the entry\n- **AI Insights** - Any AI analysis of the entry (if AI is enabled)",
+      "app_name": "journal",
+      "order": 3,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 47,
+    "fields": {
+      "context_id": "JOURNAL_ENTRY_LIST",
+      "help_id": "journal-entry-list",
+      "title": "Journal Entries",
+      "description": "Browse and search your journal entries.",
+      "content": "## Your Journal Entries\n\nBrowse all your journal entries, newest first.\n\n### Features\n- **Search** - Find entries by keyword\n- **Filter by mood** - Show only entries with a specific mood\n- **Filter by category** - Narrow down by topic\n- **Pagination** - Navigate through older entries\n\n### Each Entry Shows\n- Title and date\n- Mood indicator\n- Preview of the entry body\n- Categories (if assigned)\n\nClick any entry to read the full text.",
+      "app_name": "journal",
+      "order": 4,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 48,
+    "fields": {
+      "context_id": "JOURNAL_CALENDAR",
+      "help_id": "journal-calendar",
+      "title": "Journal Calendar",
+      "description": "View your journal entries on a calendar to see your writing patterns.",
+      "content": "## Journal Calendar\n\nSee your journaling patterns at a glance.\n\n### How It Works\n- Days with entries are highlighted\n- Click a day to view that day's entry\n- Navigate months with the arrows\n- Your **journal streak** is visible at the top\n\n### Why Use the Calendar\n- **Spot gaps** - See which days you missed\n- **Track streaks** - Visual motivation to keep going\n- **Find entries** - Quickly navigate to a specific date",
+      "app_name": "journal",
+      "order": 5,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 49,
+    "fields": {
+      "context_id": "LIFE_TASKS",
+      "help_id": "life-tasks",
+      "title": "Task List",
+      "description": "Manage your tasks and to-dos with priorities and due dates.",
+      "content": "## Your Task List\n\nCapture everything so your brain can relax.\n\n### Creating Tasks\n1. Click **\"New Task\"**\n2. Enter a title and optional description\n3. Set priority: Now, Soon, or Later\n4. Add a due date if time-sensitive\n5. Link to a project (optional)\n6. Save\n\n### Priority Levels\n- **Now** - Do today\n- **Soon** - This week\n- **Later** - Someday\n\n### Managing Tasks\n- **Check off** - Mark as complete\n- **Edit** - Change details or priority\n- **Delete** - Remove the task\n- **Recurring** - Set tasks to repeat automatically\n\n### Dashboard Connection\nYour task count appears on the Dashboard. Overdue tasks trigger AI nudges.",
+      "app_name": "life",
+      "order": 2,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 50,
+    "fields": {
+      "context_id": "LIFE_SIGNIFICANT_EVENTS",
+      "help_id": "life-significant-events",
+      "title": "Significant Life Events",
+      "description": "Record and remember the important moments in your life.",
+      "content": "## Significant Life Events\n\nCapture the moments that define your story.\n\n### What to Record\n- Major milestones (graduations, promotions)\n- Life changes (moves, career shifts)\n- Personal achievements\n- Family events\n- Health milestones\n- Spiritual moments\n\n### How to Add\n1. Click **\"Add Event\"**\n2. Enter the event title and date\n3. Choose a category\n4. Add a description with details\n5. Save\n\nThese events provide context for your AI insights and help you see your life journey over time.",
+      "app_name": "life",
+      "order": 3,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 51,
+    "fields": {
+      "context_id": "LIFE_SIGNIFICANT_EVENT_CREATE",
+      "help_id": "life-significant-event-create",
+      "title": "Add a Life Event",
+      "description": "Record a new significant event in your life timeline.",
+      "content": "## Add a Significant Event\n\n### Fields\n- **Title** - A short name for the event\n- **Date** - When it happened\n- **Category** - Type of event\n- **Description** - Details and reflections about this moment\n\nSaved events appear on your life timeline and provide context for AI insights.",
+      "app_name": "life",
+      "order": 4,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 52,
+    "fields": {
+      "context_id": "LIFE_SIGNIFICANT_EVENT_DETAIL",
+      "help_id": "life-significant-event-detail",
+      "title": "Life Event Details",
+      "description": "View the details of a significant life event.",
+      "content": "## Event Details\n\nView the full details of this life event including date, category, and your description.\n\n### Actions\n- **Edit** - Update the event details\n- **Delete** - Remove the event",
+      "app_name": "life",
+      "order": 5,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 53,
+    "fields": {
+      "context_id": "LIFE_SIGNIFICANT_EVENT_EDIT",
+      "help_id": "life-significant-event-edit",
+      "title": "Edit Life Event",
+      "description": "Update the details of a significant life event.",
+      "content": "## Edit Event\n\nUpdate any field for this life event. Changes save when you click **Save**.",
+      "app_name": "life",
+      "order": 6,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 54,
+    "fields": {
+      "context_id": "FAITH_READING_PLANS",
+      "help_id": "faith-reading-plans",
+      "title": "Bible Reading Plans",
+      "description": "Follow guided Bible reading plans with daily readings, commentary, and reflection prompts.",
+      "content": "## Bible Reading Plans\n\nStructured plans to guide your Bible reading with daily Scripture, context, and reflection.\n\n### Available Plans\nPlans are organized by series:\n- **People of the Bible** - Character studies (Jonah, Ruth, Noah, Daniel)\n- **Bible Foundations** - Core teachings (Ten Commandments)\n- **The Gospels** - Walk through Matthew, Mark, Luke, and John\n- **Spiritual Growth** - Topical series (Blind Spots)\n\n### How Plans Work\n1. **Choose a plan** from the available list\n2. **Start the plan** - Sets your begin date\n3. **Read daily** - Each day has assigned Scripture passages\n4. **Review commentary** - Context and insights for each reading\n5. **Reflect** - Answer reflection prompts in your journal\n6. **Complete** - Mark each day done as you go\n\n### Plan Features\n- Daily Scripture readings with verse references\n- Context summaries explaining the passage\n- Commentary appropriate to the difficulty level\n- Reflection prompts for deeper engagement\n- Progress tracking and completion stats\n- Some plans include assessments",
+      "app_name": "faith",
+      "order": 2,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 55,
+    "fields": {
+      "context_id": "FAITH_STUDY_TOOLS",
+      "help_id": "faith-study-tools",
+      "title": "Bible Study Tools",
+      "description": "Tools to deepen your Bible study including verse lookup and study resources.",
+      "content": "## Bible Study Tools\n\nResources to support your Scripture study.\n\n### Available Tools\n- **Verse Lookup** - Search for specific Bible passages\n- **Saved Scripture** - Your collection of saved verses\n- **Study Notes** - Notes linked to your reading plans\n\n### Tips\n- Save verses that speak to you for easy reference later\n- Use the study tools alongside your reading plans\n- Connect insights to your journal for deeper reflection",
+      "app_name": "faith",
+      "order": 3,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 56,
+    "fields": {
+      "context_id": "NUTRITION_ENTRY_CREATE",
+      "help_id": "nutrition-entry-create",
+      "title": "Log Food",
+      "description": "Record a meal or food item with nutritional information.",
+      "content": "## Log a Food Entry\n\n### How to Log\n1. Enter the **food name** or description\n2. Select **meal type** (Breakfast, Lunch, Dinner, Snack)\n3. Enter **calories** (required)\n4. Add macros: **protein, carbs, fat** (optional but recommended)\n5. Optionally add: fiber, sugar, sodium\n6. Set **serving size** and number of servings\n7. Add context: location, eating pace, hunger/fullness levels\n8. Save\n\n### Quick Alternatives\n- **Camera Scan** - Photograph food for AI-powered entry\n- **Quick Add** - Just enter name and calories\n- **Custom Foods** - Select from your saved foods",
+      "app_name": "health",
+      "order": 25,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 57,
+    "fields": {
+      "context_id": "NUTRITION_ENTRY_DETAIL",
+      "help_id": "nutrition-entry-detail",
+      "title": "Food Entry Details",
+      "description": "View the full nutritional details of a logged food entry.",
+      "content": "## Food Entry Details\n\nView all nutritional information for this entry including calories, macros, meal type, and any context you added.\n\n### Actions\n- **Edit** - Update the entry\n- **Delete** - Remove the entry",
+      "app_name": "health",
+      "order": 26,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 58,
+    "fields": {
+      "context_id": "NUTRITION_ENTRY_EDIT",
+      "help_id": "nutrition-entry-edit",
+      "title": "Edit Food Entry",
+      "description": "Update a previously logged food entry.",
+      "content": "## Edit Food Entry\n\nUpdate any field for this food entry. All fields from the create form are available for editing.\n\nChanges save when you click **Save**.",
+      "app_name": "health",
+      "order": 27,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 59,
+    "fields": {
+      "context_id": "NUTRITION_QUICK_ADD",
+      "help_id": "nutrition-quick-add",
+      "title": "Quick Add Food",
+      "description": "Quickly log food with just a name and calories.",
+      "content": "## Quick Add\n\nThe fastest way to log food when you don't need full nutritional detail.\n\n### How to Use\n1. Enter the **food name**\n2. Enter **calories**\n3. Optionally add protein, carbs, fat\n4. Save\n\nPerfect for when you know the rough calorie count but not the full macro breakdown.",
+      "app_name": "health",
+      "order": 28,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 60,
+    "fields": {
+      "context_id": "NUTRITION_HISTORY",
+      "help_id": "nutrition-history",
+      "title": "Food History",
+      "description": "Browse your past food entries and daily nutrition summaries.",
+      "content": "## Food History\n\nReview your past food entries with daily totals.\n\n### Features\n- **Daily summaries** - Total calories and macros per day\n- **Individual entries** - Each food logged\n- **Date navigation** - Browse by date\n- **Search** - Find specific foods\n\n### Daily View\nEach day shows:\n- Total calories consumed\n- Macro breakdown (protein, carbs, fat)\n- Progress toward your goals (if set)\n- Individual food entries",
+      "app_name": "health",
+      "order": 29,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 61,
+    "fields": {
+      "context_id": "NUTRITION_STATS",
+      "help_id": "nutrition-stats",
+      "title": "Nutrition Statistics",
+      "description": "View trends and statistics about your eating patterns.",
+      "content": "## Nutrition Statistics\n\nAnalyze your eating patterns over time.\n\n### Available Stats\n- **Calorie trends** - Daily average over weeks/months\n- **Macro ratios** - Your actual protein/carbs/fat split\n- **Meal timing** - When you typically eat\n- **Goal adherence** - How often you hit your targets\n\n### Time Periods\nView stats for:\n- Last 7 days\n- Last 30 days\n- Custom date range",
+      "app_name": "health",
+      "order": 30,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 62,
+    "fields": {
+      "context_id": "NUTRITION_GOALS",
+      "help_id": "nutrition-goals",
+      "title": "Nutrition Goals",
+      "description": "Set and manage your daily calorie and macro targets.",
+      "content": "## Nutrition Goals\n\nSet your daily nutrition targets.\n\n### Available Goals\n- **Daily calories** - Your calorie target\n- **Protein** - Grams or percentage\n- **Carbs** - Grams or percentage\n- **Fat** - Grams or percentage\n\n### Presets\nChoose from pre-configured macro splits:\n- **Balanced** - 30% protein, 40% carbs, 30% fat\n- **High Protein** - 40% protein, 30% carbs, 30% fat\n- **Low Carb** - 35% protein, 25% carbs, 40% fat\n- **Keto** - 25% protein, 5% carbs, 70% fat\n\nYour Dashboard shows progress bars based on these goals.",
+      "app_name": "health",
+      "order": 31,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 63,
+    "fields": {
+      "context_id": "NUTRITION_CUSTOM_FOODS",
+      "help_id": "nutrition-custom-foods",
+      "title": "Custom Foods",
+      "description": "Manage your library of custom food entries for quick logging.",
+      "content": "## Custom Foods\n\nSave foods you eat regularly for quick re-use.\n\n### Why Custom Foods?\n- **Save time** - Log common meals in seconds\n- **Accuracy** - Enter nutrition once, reuse accurately\n- **Your recipes** - Store homemade meal nutrition\n\n### Managing Custom Foods\n- **Create** - Add a new custom food with full nutrition info\n- **Edit** - Update nutrition details\n- **Delete** - Remove foods you no longer eat\n- **Use** - Select from custom foods when logging meals",
+      "app_name": "health",
+      "order": 32,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 64,
+    "fields": {
+      "context_id": "NUTRITION_CUSTOM_FOOD_CREATE",
+      "help_id": "nutrition-custom-food-create",
+      "title": "Create Custom Food",
+      "description": "Add a new food to your custom food library.",
+      "content": "## Create Custom Food\n\n### Fields\n- **Name** - Food name (e.g., \"Mom's chicken soup\")\n- **Serving size** - Standard portion\n- **Calories** - Per serving\n- **Protein, Carbs, Fat** - Grams per serving\n- **Fiber, Sugar, Sodium** - Optional details\n\nOnce created, this food appears in your custom food list for quick selection when logging meals.",
+      "app_name": "health",
+      "order": 33,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 65,
+    "fields": {
+      "context_id": "NUTRITION_CUSTOM_FOOD_EDIT",
+      "help_id": "nutrition-custom-food-edit",
+      "title": "Edit Custom Food",
+      "description": "Update a custom food's nutritional information.",
+      "content": "## Edit Custom Food\n\nUpdate the nutritional information for this custom food. Changes apply to future entries only; previously logged entries are not affected.",
+      "app_name": "health",
+      "order": 34,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 66,
+    "fields": {
+      "context_id": "SETTINGS_PROFILE_EDIT",
+      "help_id": "settings-profile-edit",
+      "title": "Edit Your Profile",
+      "description": "Update your display name, email, and profile picture.",
+      "content": "## Edit Profile\n\n### What You Can Update\n- **Display name** - How you appear throughout the app\n- **Email** - Your login email address\n- **Profile picture** - Your avatar image\n\n### Tips\n- Your name is used in AI greetings and personalized insights\n- Changing your email requires verification of the new address\n- Profile pictures should be square for best display",
+      "app_name": "users",
+      "order": 3,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 67,
+    "fields": {
+      "context_id": "SETTINGS_DATA_EXPORT",
+      "help_id": "settings-data-export",
+      "title": "Export Your Data",
+      "description": "Download all your data from Whole Life Journey.",
+      "content": "## Data Export\n\nDownload a complete copy of your data.\n\n### What's Included\n- Journal entries\n- Health measurements (weight, vitals, nutrition, etc.)\n- Prayer requests and faith data\n- Tasks and projects\n- Goals and habits\n- Profile and preferences\n\n### How to Export\n1. Go to **Settings > Data Export**\n2. Choose your format\n3. Click **Export**\n4. Download the file when ready\n\n### Your Data, Your Control\nYou can export your data at any time. This is your information and you have full ownership of it.",
+      "app_name": "users",
+      "order": 4,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 68,
+    "fields": {
+      "context_id": "ADMIN_CONSOLE_ANNOUNCEMENTS",
+      "help_id": "admin-console-announcements",
+      "title": "System Announcements",
+      "description": "Create and manage announcements shown to all users.",
+      "content": "## System Announcements\n\nBroadcast messages to all users.\n\n### Creating an Announcement\n1. Click **\"New Announcement\"**\n2. Enter title and message body\n3. Set display dates (start and end)\n4. Choose priority level\n5. Publish\n\n### Announcement Types\n- **Info** - General information\n- **Warning** - Important notices\n- **Success** - Positive updates\n\nAnnouncements appear as banners on the dashboard for all users during the active date range.",
+      "app_name": "admin_console",
+      "order": 6,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 69,
+    "fields": {
+      "context_id": "ADMIN_CONSOLE_CODEBASE_METRICS",
+      "help_id": "admin-console-codebase-metrics",
+      "title": "Codebase Metrics",
+      "description": "View development metrics including lines of code, test counts, and app statistics.",
+      "content": "## Codebase Metrics\n\nDashboard showing development statistics for the WLJ codebase.\n\n### Available Metrics\n- **Lines of code** - Total across all apps\n- **Test count** - Number of test methods\n- **App breakdown** - Code distribution by app\n- **File counts** - Models, views, templates per app\n\nUseful for tracking codebase growth and test coverage over time.",
+      "app_name": "admin_console",
+      "order": 7,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 70,
+    "fields": {
+      "context_id": "ADMIN_CONSOLE_PROJECTS",
+      "help_id": "admin-console-projects",
+      "title": "Project Management",
+      "description": "View and manage development projects and their tasks.",
+      "content": "## Project Management\n\nManage development projects with phases and tasks.\n\n### Features\n- **Project list** - All active and completed projects\n- **Phase tracking** - Projects broken into numbered phases\n- **Task assignment** - Tasks linked to projects and phases\n- **Status tracking** - Project progress and completion\n\n### Project Workflow\n1. Create a project with description and phases\n2. Add tasks to each phase\n3. Mark tasks ready for execution\n4. Track progress as tasks complete",
+      "app_name": "admin_console",
+      "order": 8,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 71,
+    "fields": {
+      "context_id": "ADMIN_CONSOLE_PROJECT_DETAIL",
+      "help_id": "admin-console-project-detail",
+      "title": "Project Details",
+      "description": "View a project's phases, tasks, and progress.",
+      "content": "## Project Details\n\nView the full breakdown of a project including all phases and their tasks.\n\n### What You'll See\n- **Project description** - What the project aims to accomplish\n- **Phases** - Numbered phases with task lists\n- **Task status** - Each task's current status\n- **Progress** - Overall completion percentage\n- **Timeline** - Created and updated dates",
+      "app_name": "admin_console",
+      "order": 9,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 72,
+    "fields": {
+      "context_id": "ADMIN_CONSOLE_PROJECT_PHASES",
+      "help_id": "admin-console-project-phases",
+      "title": "Project Phases",
+      "description": "Manage the phases of a development project.",
+      "content": "## Project Phases\n\nPhases organize a project into sequential stages.\n\n### Managing Phases\n- **Add Phase** - Create a new numbered phase\n- **Edit Phase** - Update phase description or order\n- **View Tasks** - See all tasks in this phase\n- **Reorder** - Adjust phase sequence\n\nEach phase contains tasks that should be completed before moving to the next phase.",
+      "app_name": "admin_console",
+      "order": 10,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 73,
+    "fields": {
+      "context_id": "ADMIN_CONSOLE_PROJECTS_RUNBOOK",
+      "help_id": "admin-console-projects-runbook",
+      "title": "Projects Runbook",
+      "description": "Operational guide for managing projects and their execution.",
+      "content": "## Projects Runbook\n\nOperational documentation for project management.\n\n### Purpose\nThe runbook provides step-by-step procedures for:\n- Creating and scoping new projects\n- Managing task workflows\n- Handling blocked tasks\n- Closing out completed projects\n\nRefer to this guide when managing the development pipeline.",
+      "app_name": "admin_console",
+      "order": 11,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 74,
+    "fields": {
+      "context_id": "ADMIN_CONSOLE_TASK_INTAKE",
+      "help_id": "admin-console-task-intake",
+      "title": "Task Intake",
+      "description": "Create and submit new tasks for projects.",
+      "content": "## Task Intake\n\nCreate new tasks and assign them to projects.\n\n### Creating a Task\n1. Enter task title\n2. Write a description (JSON format for executable tasks)\n3. Assign to a project and phase\n4. Set priority\n5. Submit\n\n### Executable Task Format\nTasks for Claude execution must include:\n- **objective** - What the task should accomplish\n- **inputs** - Required context\n- **actions** - Step-by-step instructions\n- **output** - Expected deliverable",
+      "app_name": "admin_console",
+      "order": 12,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 75,
+    "fields": {
+      "context_id": "ADMIN_CONSOLE_TEST_PLANS",
+      "help_id": "admin-console-test-plans",
+      "title": "Test Plans",
+      "description": "Manage test cycles and test case execution.",
+      "content": "## Test Plans\n\nOrganize and track testing efforts.\n\n### Features\n- **Test cycles** - Group related test cases\n- **Test cases** - Individual test scenarios\n- **Execution tracking** - Pass/fail/skip status\n- **Coverage** - Which features have been tested\n\n### Workflow\n1. Create a test cycle for a feature or release\n2. Add test cases with steps and expected results\n3. Execute tests and record results\n4. Review pass/fail summary",
+      "app_name": "admin_console",
+      "order": 13,
       "is_active": true,
       "created_at": "2026-02-14T00:00:00Z",
       "updated_at": "2026-02-14T00:00:00Z"

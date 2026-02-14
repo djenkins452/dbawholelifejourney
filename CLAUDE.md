@@ -85,7 +85,7 @@ When adding **new features, pages, or significant enhancements**, update ALL of 
 | **API Key** | Set `WLJ_CLAUDE_API_KEY` in your `.env` file (see `.env.example`) |
 | **Ready Tasks** | `GET /admin-console/api/claude/ready-tasks/?auto_start=true` |
 | **Update Status** | `POST /admin-console/api/claude/tasks/<id>/status/` |
-| **Test Count** | 1395 tests |
+| **Test Count** | ~3,450 tests |
 | **Push From** | Main repo (C:\dbawholelifejourney), NOT worktrees |
 
 **Commands:**
@@ -163,7 +163,7 @@ python manage.py migrate
 
 ## Key Architecture
 
-- **Apps:** users, core, dashboard, journal, faith, health, purpose, ai, life, admin_console, help, scan, **mobile**
+- **Apps:** users, core, dashboard, journal, faith, health, purpose, ai, life, admin_console, help, scan, mobile, medical, billing, brain_training, capture, finance, security, sms
 - **User model:** Custom User (email-based auth) | UserPreferences for settings
 - **Soft deletes:** Models use `soft_delete()` method, not hard deletes. See troubleshoot.md #7 for SoftDeleteManager pattern
 
@@ -407,4 +407,4 @@ See `docs/ios-app-store-submission.md` for complete guide including:
 
 ---
 
-*Last updated: 2026-02-08*
+*Last updated: 2026-02-14*

@@ -4,10 +4,46 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-14 (Body Composition Domain + Insight Engine)
+# Last Updated: 2026-02-14 (System Review + Help Topics)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-02-14 — Full System Review: CLAUDE.md, Help Topics, Documentation
+
+**Scope:** Comprehensive audit and update of project documentation and context-aware help system.
+
+**Changes:**
+
+1. **CLAUDE.md updates:**
+   - Updated test count from 1,395 to ~3,450 (actual count)
+   - Added 7 missing apps to apps list (medical, billing, brain_training, capture, finance, security, sms)
+   - Updated last-modified date
+
+2. **Help Topics — 43 new entries (33 → 75 total):**
+   - Fixed duplicate PK 24 (ADMIN_CONSOLE_TASKS moved to PK 32)
+   - Added Health: HEALTH_LANDING, HEALTH_PHYSICAL_HOME, HEALTH_SLEEP, HEALTH_WATER
+   - Added Glucose: GLUCOSE_CREATE, GLUCOSE_LIST, GLUCOSE_UPDATE
+   - Added Providers: HEALTH_PROVIDER_CREATE/DETAIL/EDIT, HEALTH_PROVIDER_STAFF_CREATE/EDIT
+   - Added Journal: JOURNAL_ENTRY_CREATE/DETAIL/LIST, JOURNAL_CALENDAR
+   - Added Life: LIFE_TASKS, LIFE_SIGNIFICANT_EVENTS/CREATE/DETAIL/EDIT
+   - Added Faith: FAITH_READING_PLANS, FAITH_STUDY_TOOLS
+   - Added Nutrition: NUTRITION_ENTRY_CREATE/DETAIL/EDIT, NUTRITION_QUICK_ADD, NUTRITION_HISTORY, NUTRITION_STATS, NUTRITION_GOALS, NUTRITION_CUSTOM_FOODS/CREATE/EDIT
+   - Added Settings: SETTINGS_PROFILE_EDIT, SETTINGS_DATA_EXPORT
+   - Added Admin: ADMIN_CONSOLE_ANNOUNCEMENTS/CODEBASE_METRICS/PROJECTS/PROJECT_DETAIL/PROJECT_PHASES/PROJECTS_RUNBOOK/TASK_INTAKE/TEST_PLANS
+
+3. **Fixture loader reset:**
+   - Added `_reset_help_topics_system_review` to load_initial_data.py
+   - Deletes old PK 24 ADMIN_CONSOLE_TASKS before reload
+   - Resets help_topics loader for fresh load on deploy
+
+**Files:**
+- `CLAUDE.md`
+- `apps/help/fixtures/help_topics.json`
+- `apps/core/management/commands/load_initial_data.py`
+- `docs/wlj_claude_changelog.md`
+
+---
 
 ## 2026-02-14 — Fix AI Nudging About Future Medicine Doses
 

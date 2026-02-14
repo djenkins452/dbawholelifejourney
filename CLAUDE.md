@@ -45,11 +45,36 @@ When fetching a new task from the improvement backlog:
 
 **After ANY code changes, you MUST:**
 1. Update changelog (`docs/wlj_claude_changelog.md`)
-2. Commit changes
-3. Push worktree branch to GitHub
-4. Merge to main and push to deploy (see "On Task Completion" section)
+2. Update user-facing documentation (see "Documentation Updates" below)
+3. Commit changes
+4. Push worktree branch to GitHub
+5. Merge to main and push to deploy (see "On Task Completion" section)
 
 **A task is NOT complete until it is deployed to production.**
+
+### Documentation Updates (Required After Every Feature/Enhancement)
+
+When adding **new features, pages, or significant enhancements**, update ALL of these:
+
+1. **What's New Release Notes** (`apps/core/fixtures/release_notes.json`)
+   - Add a new entry with next PK, user-friendly title and description
+   - Include `created_at`/`updated_at` timestamps (required by auto_now fields)
+   - Set `is_major: true` for big features, `false` for enhancements
+   - Add a one-time reset in `load_initial_data.py` so the fixture reloads on deploy
+
+2. **Teaching Destinations** (`apps/help/fixtures/teaching_destinations.json`)
+   - Add entries for any new pages/features users can navigate to
+   - Include relevant keywords for search matching
+   - Check for duplicate `destination_id` values before adding
+
+3. **Help Topics** (`apps/help/fixtures/help_topics.json`)
+   - Add/update help topics for any new `help_context_id` referenced in views
+   - Include comprehensive content covering what the feature does and how to use it
+
+4. **Fixture Loader Resets** (`apps/core/management/commands/load_initial_data.py`)
+   - If you modified any fixture that was already loaded in production, add a one-time reset method so it reloads on next deploy
+
+**Skip documentation updates for:** bug fixes, CSS tweaks, refactors, test-only changes, and backend-only changes invisible to users.
 
 ---
 
@@ -263,7 +288,13 @@ After ANY code changes:
    - Date, what changed, files modified, why
    - Include migration names if created
 
-2. **Merge and Deploy:**
+2. **Update user-facing docs** (if feature/enhancement — see "Documentation Updates" section above):
+   - What's New release notes
+   - Teaching destinations for new pages
+   - Help topics for new context IDs
+   - Fixture loader resets if needed
+
+3. **Merge and Deploy:**
    - **Push worktree branch first:** `GIT_SSH_COMMAND="ssh -p 443" git push git@ssh.github.com:djenkins452/dbawholelifejourney.git <branch>:<branch>`
    - Go to main repo: `cd /Users/dannyjenkins/Projects/dbawholelifejourney`
    - Fetch worktree branch: `GIT_SSH_COMMAND="ssh -p 443" git fetch git@ssh.github.com:djenkins452/dbawholelifejourney.git <branch>:refs/remotes/origin/<branch>`

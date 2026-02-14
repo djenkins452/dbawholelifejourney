@@ -772,7 +772,50 @@ class HabitGoalDetailView(HelpContextMixin, PurposeAccessMixin, DetailView):
         # Active insights
         context['insights'] = recommendation_service.get_active_insights(goal)[:5]
 
+        # Show upgrade banner for binary goals that might benefit from
+        # duration/count tracking (created before measurement types existed)
+        context['show_upgrade_banner'] = (
+            goal.is_binary
+            and goal.target_value is None
+            and goal.habit_required
+            and goal.status == 'active'
+        )
+
         return context
+
+
+TARGET_UNIT_CHOICES = [
+    ('', '— Select unit —'),
+    ('minutes', 'Minutes'),
+    ('hours', 'Hours'),
+    ('pages', 'Pages'),
+    ('reps', 'Reps'),
+    ('sets', 'Sets'),
+    ('miles', 'Miles'),
+    ('km', 'Kilometers'),
+    ('steps', 'Steps'),
+    ('glasses', 'Glasses'),
+    ('oz', 'Ounces'),
+    ('calories', 'Calories'),
+    ('words', 'Words'),
+    ('laps', 'Laps'),
+    ('sessions', 'Sessions'),
+    ('items', 'Items'),
+    ('dollars', 'Dollars'),
+    ('percent', 'Percent'),
+]
+
+
+def _apply_goal_form_widgets(form):
+    """Apply shared widget customizations for habit goal forms."""
+    from django.forms import DateInput, Select
+    # Native date pickers
+    for field_name in ('start_date', 'end_date'):
+        form.fields[field_name].widget = DateInput(
+            attrs={'type': 'date', 'class': 'date-input'}
+        )
+    # Target unit dropdown
+    form.fields['target_unit'].widget = Select(choices=TARGET_UNIT_CHOICES)
 
 
 class HabitGoalCreateView(PurposeAccessMixin, CreateView):
@@ -793,12 +836,7 @@ class HabitGoalCreateView(PurposeAccessMixin, CreateView):
         form.fields['annual_direction'].queryset = AnnualDirection.objects.filter(
             user=self.request.user
         ).order_by('-year')
-        # Use native date pickers
-        from django.forms import DateInput
-        for field_name in ('start_date', 'end_date'):
-            form.fields[field_name].widget = DateInput(
-                attrs={'type': 'date', 'class': 'date-input'}
-            )
+        _apply_goal_form_widgets(form)
         return form
 
     def form_valid(self, form):
@@ -831,12 +869,7 @@ class HabitGoalUpdateView(PurposeAccessMixin, UpdateView):
         form.fields['annual_direction'].queryset = AnnualDirection.objects.filter(
             user=self.request.user
         ).order_by('-year')
-        # Use native date pickers
-        from django.forms import DateInput
-        for field_name in ('start_date', 'end_date'):
-            form.fields[field_name].widget = DateInput(
-                attrs={'type': 'date', 'class': 'date-input'}
-            )
+        _apply_goal_form_widgets(form)
         return form
 
     def form_valid(self, form):

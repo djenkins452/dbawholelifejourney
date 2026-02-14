@@ -27,6 +27,31 @@
         <p class="goal-purpose">{{ goal.purpose }}</p>
     </div>
 
+    {% if show_upgrade_banner %}
+    <div class="upgrade-banner" id="upgrade-banner">
+        <div class="upgrade-banner-content">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="16" x2="12" y2="12"></line>
+                <line x1="12" y1="8" x2="12.01" y2="8"></line>
+            </svg>
+            <div>
+                <strong>New: Enhanced Tracking Available</strong>
+                <p>This goal uses simple yes/no tracking. You can now upgrade it to use a <strong>countdown timer</strong>, <strong>counter</strong>, or <strong>running total</strong> for more detailed tracking.</p>
+            </div>
+        </div>
+        <div class="upgrade-banner-actions">
+            <a href="{% url 'purpose:habit_goal_update' goal.pk %}" class="btn btn-primary btn-sm">Upgrade Goal</a>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('upgrade-banner').style.display='none'; localStorage.setItem('dismiss_upgrade_{{goal.pk}}', '1');">Dismiss</button>
+        </div>
+    </div>
+    <script>
+    if (localStorage.getItem('dismiss_upgrade_{{goal.pk}}')) {
+        document.getElementById('upgrade-banner').style.display = 'none';
+    }
+    </script>
+    {% endif %}
+
     <!-- Stats Bar -->
     <div class="stats-bar">
         <div class="stat">
@@ -721,6 +746,45 @@ document.addEventListener('DOMContentLoaded', function() {
 
 .habit-goal-header {
     margin-bottom: var(--space-6);
+}
+
+.upgrade-banner {
+    background: var(--color-surface);
+    border: 1px solid var(--color-accent);
+    border-left: 4px solid var(--color-accent);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+    margin-bottom: var(--space-5);
+}
+
+.upgrade-banner-content {
+    display: flex;
+    gap: var(--space-3);
+    align-items: flex-start;
+    margin-bottom: var(--space-3);
+}
+
+.upgrade-banner-content svg {
+    flex-shrink: 0;
+    color: var(--color-accent);
+    margin-top: 2px;
+}
+
+.upgrade-banner-content p {
+    margin: var(--space-1) 0 0 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.upgrade-banner-actions {
+    display: flex;
+    gap: var(--space-2);
+    margin-left: 32px;
+}
+
+.btn-sm {
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--font-size-sm);
 }
 
 .breadcrumb {

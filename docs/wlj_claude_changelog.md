@@ -9,6 +9,17 @@
 
 # WLJ Change History
 
+## 2026-02-14 — Upgrade Banner + Unit Dropdown for Goal Form
+
+**Changes:**
+1. Added upgrade banner on binary goal detail pages suggesting users switch to duration/count/target tracking. Dismissible via localStorage.
+2. Target unit field changed from free-form text to dropdown with 18 common units (minutes, hours, pages, reps, miles, etc.)
+3. Shared `_apply_goal_form_widgets()` helper for consistent form customization across Create and Update views.
+
+**Files:** `apps/purpose/views.py`, `apps/purpose/templates/purpose/habit_goal_detail.html`, `apps/purpose/templates/purpose/habit_goal_form.html`
+
+---
+
 ## 2026-02-14 — Nuke Heather's Recurring Tasks (Data Cleanup)
 
 **Problem:** heatherjenkins74@gmail.com has had persistent recurring task issues for months. Previous cleanup (Jan 2026) only deleted incomplete past-due tasks via `Task.objects` (excluding soft-deleted). Soft-deleted and future-dated recurring tasks kept regenerating.

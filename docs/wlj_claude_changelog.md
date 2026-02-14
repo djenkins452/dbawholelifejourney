@@ -4,10 +4,29 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-14 (System Review + Help Topics)
+# Last Updated: 2026-02-14 (System Review + Help Topics + Final Gaps)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-02-14 — Close Final 5 Help Topic Gaps (Cycle Tracking + Brain Training)
+
+**Problem:** Second-pass audit found 5 `help_context_id` values used in views with no matching help topic — users clicking help on these pages got generic fallback content.
+
+**Fix:** Added 5 new help topics (PKs 76-80):
+- `HEALTH_CYCLE_HOME` — Cycle tracking home with logging, predictions, and privacy info
+- `HEALTH_CYCLE_CALENDAR` — Visual calendar with phase colors and interaction guide
+- `HEALTH_CYCLE_SETTINGS` — Cycle preferences and privacy controls
+- `HEALTH_COGNITIVE_HUB` — Brain training hub with all 5 exercise types explained
+- `HEALTH_COGNITIVE_STATS` — Performance analytics and trends
+
+**Total help topics: 80** (was 75 after first pass, now 80 — 100% coverage of all view context IDs)
+
+**Files:**
+- `apps/help/fixtures/help_topics.json`
+- `docs/wlj_claude_changelog.md`
+
+---
 
 ## 2026-02-14 — Full System Review: CLAUDE.md, Help Topics, Documentation
 

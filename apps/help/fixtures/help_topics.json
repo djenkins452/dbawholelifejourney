@@ -1198,5 +1198,85 @@
       "created_at": "2026-02-14T00:00:00Z",
       "updated_at": "2026-02-14T00:00:00Z"
     }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 76,
+    "fields": {
+      "context_id": "HEALTH_CYCLE_HOME",
+      "help_id": "health-cycle-home",
+      "title": "Cycle Tracking Home",
+      "description": "Track your menstrual cycle, log daily symptoms, and view predictions.",
+      "content": "## Cycle Tracking\n\nTrack your menstrual cycle to understand your body's patterns.\n\n### What You'll See\n- **Current phase** - Which phase you're in (Menstrual, Follicular, Ovulation, Luteal)\n- **Days until period** - Predicted countdown\n- **Recent logs** - Your latest daily entries\n- **Quick stats** - Cycle length, regularity score\n\n### Daily Logging\nLog each day's data:\n- **Flow level** - None, Spotting, Light, Medium, Heavy\n- **Symptoms** - Cramps, headache, fatigue, bloating, etc.\n- **Mood** - How you're feeling emotionally\n- **Energy level** - Rate 1-5\n- **Fertility data** - Cervical mucus, basal temp (optional)\n\n### Predictions\nAfter 3+ completed cycles, the system predicts:\n- Next period start date\n- Fertile window (if enabled)\n- Confidence score based on your regularity\n\n### Privacy\nCycle tracking is opt-in and your data is private. Enable or disable anytime in Preferences.\n\n---\n\n## Related Features\n- **Cycle Calendar** - Visual month view of your cycle\n- **Cycle Settings** - Customize tracking preferences\n- **Health Insights** - Cycle-aware pattern analysis\n- **Dashboard** - Current phase displayed if enabled",
+      "app_name": "health",
+      "order": 35,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 77,
+    "fields": {
+      "context_id": "HEALTH_CYCLE_CALENDAR",
+      "help_id": "health-cycle-calendar",
+      "title": "Cycle Calendar",
+      "description": "View your menstrual cycle data on a calendar with phase colors and daily details.",
+      "content": "## Cycle Calendar\n\nA visual month view of your cycle data.\n\n### How to Read the Calendar\n- **Red days** - Menstrual phase (period)\n- **Orange days** - Follicular phase\n- **Green days** - Ovulation window\n- **Blue days** - Luteal phase\n- **Dots/icons** - Days with logged symptoms\n\n### Interacting\n- Click any day to view or edit that day's log\n- Navigate months with the arrows\n- Predicted period days are shown with lighter shading\n\n### What It Shows\n- Flow levels for each day\n- Symptom indicators\n- Phase boundaries\n- Predicted dates (dashed outlines)\n\n### Tips\n- Log daily for the most accurate calendar view\n- Compare months side-by-side to spot patterns\n- Use with the stats page for deeper analysis",
+      "app_name": "health",
+      "order": 36,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 78,
+    "fields": {
+      "context_id": "HEALTH_CYCLE_SETTINGS",
+      "help_id": "health-cycle-settings",
+      "title": "Cycle Tracking Settings",
+      "description": "Customize your cycle tracking preferences and notification settings.",
+      "content": "## Cycle Settings\n\nCustomize how cycle tracking works for you.\n\n### Available Settings\n- **Enable/Disable** - Turn cycle tracking on or off\n- **Default cycle length** - Your typical cycle length (used for initial predictions)\n- **Default period length** - Your typical period length\n- **Fertility tracking** - Enable fertile window predictions\n- **Notifications** - Get reminders about upcoming periods\n\n### Privacy Controls\n- Cycle data is always private to your account\n- You can export your cycle data separately\n- Disabling cycle tracking hides the feature but preserves your data\n\n### Tips\n- Set your default cycle length based on your best estimate\n- After 3 cycles, the system uses your actual data for predictions\n- Enable fertility tracking only if useful to you",
+      "app_name": "health",
+      "order": 37,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 79,
+    "fields": {
+      "context_id": "HEALTH_COGNITIVE_HUB",
+      "help_id": "health-cognitive-hub",
+      "title": "Brain Training: Cognitive Health Exercises",
+      "description": "Keep your mind sharp with daily brain training puzzles and track your cognitive performance.",
+      "content": "## Brain Training\n\nExercise your mind with daily cognitive challenges.\n\n### Available Exercises\n\n**Sudoku** - Classic number placement puzzle\n- Builds logical reasoning and pattern recognition\n- Multiple difficulty levels\n\n**KenKen** - Math-based logic puzzle\n- Combines arithmetic with Sudoku-style constraints\n- Strengthens mental math skills\n\n**Nonogram** - Picture logic puzzle\n- Reveal a hidden image using number clues\n- Develops spatial reasoning\n\n**Word Ladder** - Change one letter at a time\n- Transform one word into another through valid words\n- Builds vocabulary and linguistic flexibility\n\n**Memory Matrix** - Pattern recall challenge\n- Memorize and reproduce grid patterns\n- Trains working memory and visual recall\n\n### How It Works\n1. Choose an exercise from the hub\n2. Select your difficulty level\n3. Complete the puzzle\n4. View your time and score\n5. Track your improvement over time\n\n### Your Stats\n- **Games played** - Total across all exercise types\n- **Average time** - How quickly you solve puzzles\n- **Streaks** - Consecutive days of brain training\n- **Improvement trends** - Are you getting faster?\n\n### Tips\n1. **Train daily** - Even one puzzle a day builds the habit\n2. **Mix it up** - Different exercises work different skills\n3. **Increase difficulty gradually** - Don't stay comfortable too long\n4. **Check your stats** - Track improvement over weeks\n\n---\n\n## Related Features\n- **Brain Training Stats** - Detailed performance analytics\n- **Health Home** - Quick access to brain training\n- **Dashboard** - Cognitive training in your daily summary",
+      "app_name": "health",
+      "order": 38,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 80,
+    "fields": {
+      "context_id": "HEALTH_COGNITIVE_STATS",
+      "help_id": "health-cognitive-stats",
+      "title": "Brain Training Statistics",
+      "description": "View your cognitive training performance, trends, and improvement over time.",
+      "content": "## Brain Training Stats\n\nTrack your cognitive exercise performance.\n\n### What You'll See\n- **Total games played** - Across all exercise types\n- **Average completion time** - Per exercise type\n- **Best times** - Your personal records\n- **Difficulty distribution** - How often you play each level\n- **Trend charts** - Performance over time\n- **Streaks** - Consecutive training days\n\n### Exercise Breakdown\nStats are tracked separately for each exercise:\n- Sudoku, KenKen, Nonogram, Word Ladder, Memory Matrix\n- Compare your performance across types\n- Identify your strengths and areas for growth\n\n### Tips\n- Review stats weekly to see progress\n- Challenge yourself to beat your average times\n- A consistent daily habit matters more than individual scores",
+      "app_name": "health",
+      "order": 39,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
   }
 ]

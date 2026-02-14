@@ -9,6 +9,20 @@
 
 # WLJ Change History
 
+## 2026-02-14 — Fix Nested Accordion Collapse/Expand in Preferences
+
+**Problem:** Sub-sections within preferences (e.g., Fasting/Nutrition inside Health, In-App/Email/SMS inside Notifications) could not collapse/expand independently. When a parent section was open, ALL nested sub-section bodies were forced visible.
+
+**Root cause:** CSS selector `.accordion-group.is-open .accordion-body` uses descendant combinator, matching ALL nested `.accordion-body` elements — not just the direct child. So when a parent group is `is-open`, every nested accordion body is also `display: block`.
+
+**Fix:** Changed two CSS rules to use direct child combinator (`>`):
+- `.accordion-group.is-open > .accordion-body` — only shows the group's own body
+- `.accordion-group.is-open > .accordion-header .accordion-chevron` — only rotates the group's own chevron
+
+**Files:** `static/css/main.css`
+
+---
+
 ## 2026-02-14 — Upgrade Banner + Unit Dropdown for Goal Form
 
 **Changes:**

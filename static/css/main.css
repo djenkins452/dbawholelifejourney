@@ -1466,7 +1466,7 @@ a:hover {
     flex-shrink: 0;
 }
 
-.accordion-group.is-open .accordion-chevron {
+.accordion-group.is-open > .accordion-header .accordion-chevron {
     transform: rotate(180deg);
 }
 
@@ -1477,7 +1477,7 @@ a:hover {
     background: var(--color-background);
 }
 
-.accordion-group.is-open .accordion-body {
+.accordion-group.is-open > .accordion-body {
     display: block;
 }
 

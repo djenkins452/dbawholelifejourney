@@ -4,7 +4,7 @@
 # Description: Known issues and solutions for common development problems
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2026-01-04
-# Last Updated: 2026-01-16
+# Last Updated: 2026-02-14
 # ==============================================================================
 
 # WLJ Troubleshooting Guide
@@ -244,60 +244,7 @@ python manage.py makemigrations --check
 
 ---
 
-## 9. "Slide to Right" Visual Glitch on Page Navigation (SOLVED)
-
-**Problem:** Pages show a "PowerPoint-like" slide transition on every navigation. Initially misdiagnosed as FOUC (Flash of Unstyled Content).
-
-**Symptoms:**
-- Occurs on page navigation (clicking links)
-- Does NOT occur on hard refresh
-- Described as "something sliding right off screen" or "PowerPoint transition"
-- Visible for ~0.3 seconds on every page load
-
-**Root Cause:** Chat drawer widget (`templates/components/chat_widget.html`) was:
-1. Persisting open state in localStorage via `DRAWER_STATE_KEY`
-2. Auto-opening on page load via `checkSavedState()` function
-3. Immediately closing (for unknown reason), causing visible slide animation
-4. CSS transition `transform 0.3s ease-out` made the close visible
-
-**Key Diagnostic Clue:** User described "slides to the right" - this pointed to `translateX` animation, NOT CSS loading issues. Searching for `translateX` led directly to the chat drawer.
-
-**Solution (2026-01-13):**
-1. Removed `checkSavedState()` function - drawer no longer auto-opens from localStorage
-2. Removed CSS transition from base `.assistant-drawer` class
-3. Added `.animate` class that contains the transition
-4. JavaScript adds `.animate` class only on first user click
-
-**Files Modified:**
-- `templates/components/chat_widget.html`
-
-**Code Pattern (Preventing Animation on Initial Render):**
-```css
-/* Base class - NO transition */
-.assistant-drawer {
-    transform: translateX(100%);
-    /* No transition property here */
-}
-
-/* Transition only after user interaction */
-.assistant-drawer.animate {
-    transition: transform 0.3s ease-out;
-}
-```
-
-```javascript
-function openDrawer() {
-    drawer.classList.add('animate');  // Enable transition on first click
-    drawer.classList.add('open');
-}
-```
-
-**Lesson Learned:** When user describes something "sliding" or "transitioning", search for CSS animations (`transition`, `transform`, `@keyframes`) before assuming it's a loading/caching issue. The word "slide" should trigger a search for `translateX` or `translateY`.
-
-**Also Added (Preventive Measures):**
-- Critical inline CSS in `base.html` and `account/base.html` for nav/logo sizing
-- Strengthened cache headers in `NoCacheHTMLMiddleware`
-- bfcache handler for pageshow event
+## 9. (Archived — see bottom of file)
 
 ---
 
@@ -361,3 +308,22 @@ fi
 ```
 
 **Note:** The hook is stored in the main repo's `.git/hooks/` directory, not in a worktree. New worktrees automatically use hooks from the shared git directory.
+
+---
+---
+
+# Archived Issues (Solved)
+
+These issues have been fully resolved and are kept here for historical reference only.
+
+---
+
+## 9. "Slide to Right" Visual Glitch on Page Navigation (SOLVED 2026-01-13)
+
+**Problem:** Pages show a "PowerPoint-like" slide transition on every navigation. Initially misdiagnosed as FOUC (Flash of Unstyled Content).
+
+**Root Cause:** Chat drawer widget (`templates/components/chat_widget.html`) was persisting open state in localStorage and auto-opening on page load, then immediately closing with a visible CSS transition.
+
+**Solution:** Removed `checkSavedState()`, moved CSS transition to an `.animate` class that's only added on first user click.
+
+**Lesson Learned:** When user describes "sliding" or "transitioning", search for CSS animations (`transition`, `transform`, `@keyframes`) before assuming it's a loading/caching issue.

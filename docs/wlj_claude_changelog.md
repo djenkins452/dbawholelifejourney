@@ -4,10 +4,22 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-14 (System Review + Help Topics + Final Gaps)
+# Last Updated: 2026-02-14 (System Review Complete)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-02-14 — System Review: Final Cleanup + Features Doc Refresh
+
+**Changes:**
+1. **Help Topics** — Added FINANCE_HOME (pk 81) and HEALTH_STEPS (pk 82) to close last 2 context_id gaps. Deactivated orphaned SMS_SETTINGS topic (feature not launched). Total: 82 help topics.
+2. **Troubleshoot Doc** — Archived solved issue #9 ("Slide to Right" visual glitch) to new "Archived Issues" section at bottom. Updated date.
+3. **Features Doc** — Added 10 new feature sections covering all Jan-Feb 2026 work: Goal Engine, Body Composition, Health Insights, Medical Lab UI, AI Intelligence Layer, Quick Links, Activity Patterns, Brain Training, Dashboard Performance, Medicine Adherence. Updated table of contents.
+4. **Admin Help Topics** — Confirmed admin_help_topics.json (17 entries, model: help.adminhelptopic) is correctly separate from help_topics.json — different Django model, no actual conflict.
+
+**Files:** `apps/help/fixtures/help_topics.json`, `docs/wlj_claude_troubleshoot.md`, `docs/wlj_claude_features.md`, `docs/wlj_claude_changelog.md`
+
+---
 
 ## 2026-02-14 — Add CSS Tooltips to Journal View Toggle Icons
 

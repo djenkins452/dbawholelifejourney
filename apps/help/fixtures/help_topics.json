@@ -294,13 +294,13 @@
       "context_id": "SMS_SETTINGS",
       "help_id": "sms-overview",
       "title": "SMS Notifications: Reminders Where You'll See Them",
-      "description": "Get text message reminders for medicines, tasks, events, and more.",
+      "description": "Get text message reminders for medicines, tasks, events, and more. (NOTE: SMS feature not yet launched — topic preserved for future use.)",
       "content": "## Why SMS Notifications?\n\nApp notifications are easy to ignore. Text messages aren't. SMS notifications ensure you:\n\n- **Never miss a medicine dose** - Texts arrive at scheduled times\n- **Stay on top of tasks** - Due date reminders via text\n- **Remember events** - 30-minute advance notice\n- **Can respond quickly** - Reply to log without opening the app\n\n### The Quick Reply System\n\nWhen you get a medicine reminder, reply:\n- **D** (Done) - Mark taken immediately\n- **R** (Remind) - Get another reminder in 5 minutes\n- **N** (No/Skip) - Skip this dose\n\nNo app needed. Just text back.\n\n---\n\n## Setting Up SMS\n\n### Step 1: Add Your Phone\n1. Go to **Preferences > SMS Notifications**\n2. Enter your phone number\n3. Click **\"Send Verification Code\"**\n4. Enter the 6-digit code you receive\n5. Phone is now verified\n\n### Step 2: Enable SMS\n1. Toggle **\"Enable SMS Notifications\"** on\n2. Accept the SMS consent\n\n### Step 3: Choose Categories\nSelect which reminders you want:\n- ✅ Medicine reminders\n- ✅ Medicine refill alerts\n- ✅ Task due date reminders\n- ✅ Event reminders\n- ✅ Prayer reminders (if Faith enabled)\n- ✅ Fasting reminders\n\n### Step 4: Set Quiet Hours\nNo texts during sleep:\n- Set start time (e.g., 10:00 PM)\n- Set end time (e.g., 7:00 AM)\n- Reminders queue until quiet hours end\n\n---\n\n## Notification Types\n\n| Type | When Sent | Example |\n|------|-----------|----------|\n| Medicine | At scheduled time | \"Time for Metformin. Reply D/R/N\" |\n| Refill Alert | When supply low | \"Low supply: Metformin (3 days left)\" |\n| Task Due | On due date | \"Due today: Buy groceries\" |\n| Event | 30 min before | \"In 30 min: Doctor appt\" |\n| Prayer | Morning | \"Take a moment for prayer today\" |\n| Fasting | Window times | \"Eating window opens at noon\" |\n\n---\n\n## Reply Codes\n\n| You Text | What Happens |\n|----------|-------------|\n| D, done, yes, taken | Mark complete |\n| R, R5, R10, R30 | Remind in X minutes |\n| N, no, skip | Skip/dismiss |\n\nCodes are case-insensitive.\n\n---\n\n## Costs\n\nSMS is a premium feature with real carrier costs:\n- Outbound: ~$0.008/message\n- Inbound: ~$0.008/message\n\n**Example:** 3 medicine reminders/day = ~$0.72/month\n\nYour site admin manages the Twilio account.\n\n---\n\n## Tips for Best Use\n\n1. **Start with medicine only** - Most impactful category\n2. **Set appropriate quiet hours** - Avoid late-night texts\n3. **Use reply codes** - Faster than opening the app\n4. **Check SMS history** - View all sent messages in app\n\n---\n\n## Related Features\n- **Medicine Tracking** - Primary use case for SMS\n- **Life Events** - Event reminders via SMS\n- **Preferences** - Configure all SMS settings\n- **Faith** - Daily prayer reminders",
       "app_name": "sms",
       "order": 1,
-      "is_active": true,
+      "is_active": false,
       "created_at": "2025-12-31T00:00:00Z",
-      "updated_at": "2025-12-31T00:00:00Z"
+      "updated_at": "2026-02-14T00:00:00Z"
     }
   },
   {
@@ -1274,6 +1274,38 @@
       "content": "## Brain Training Stats\n\nTrack your cognitive exercise performance.\n\n### What You'll See\n- **Total games played** - Across all exercise types\n- **Average completion time** - Per exercise type\n- **Best times** - Your personal records\n- **Difficulty distribution** - How often you play each level\n- **Trend charts** - Performance over time\n- **Streaks** - Consecutive training days\n\n### Exercise Breakdown\nStats are tracked separately for each exercise:\n- Sudoku, KenKen, Nonogram, Word Ladder, Memory Matrix\n- Compare your performance across types\n- Identify your strengths and areas for growth\n\n### Tips\n- Review stats weekly to see progress\n- Challenge yourself to beat your average times\n- A consistent daily habit matters more than individual scores",
       "app_name": "health",
       "order": 39,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 81,
+    "fields": {
+      "context_id": "FINANCE_HOME",
+      "help_id": "finance-home",
+      "title": "Finance: Budget & Expense Tracking",
+      "description": "Track your budget, expenses, and financial goals in one place.",
+      "content": "## Finance Overview\n\nManage your personal finances with budgeting and expense tracking.\n\n### What You Can Do\n- **Create budgets** - Set monthly or custom-period budgets\n- **Track expenses** - Log spending by category\n- **View summaries** - See where your money goes\n- **Set financial goals** - Save toward specific targets\n\n### Getting Started\n1. Create your first budget with income and expense categories\n2. Log expenses as they occur\n3. Review your spending summary regularly\n4. Adjust categories and amounts as needed\n\n### Tips\n- Check your spending summary weekly to stay on track\n- Use categories that match how you think about spending\n- Set realistic budget amounts based on past spending",
+      "app_name": "finance",
+      "order": 1,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 82,
+    "fields": {
+      "context_id": "HEALTH_STEPS",
+      "help_id": "health-steps",
+      "title": "Steps & Activity Tracking",
+      "description": "Track your daily steps, distance, and physical activity levels.",
+      "content": "## Steps & Activity\n\nMonitor your daily movement and activity levels.\n\n### What's Tracked\n- **Daily steps** - Total step count for each day\n- **Distance** - Walking/running distance\n- **Active calories** - Calories burned through activity\n- **Flights climbed** - Stair climbing activity\n- **Exercise minutes** - Active exercise time\n- **Stand hours** - Hours with standing activity\n\n### Data Sources\n- **iOS App** - Automatic sync from Apple Health via HealthKit\n- **Manual entry** - Log steps directly if not using the iOS app\n\n### Viewing Your Data\n- **Daily view** - See today's activity breakdown\n- **Weekly/Monthly trends** - Chart your activity over time\n- **Goals** - Set and track daily step targets\n\n### Tips\n1. Set a realistic daily step goal to start\n2. Check your trends weekly to see patterns\n3. If using the iOS app, steps sync automatically in the background\n4. Pair step tracking with fitness workouts for a complete picture",
+      "app_name": "health",
+      "order": 40,
       "is_active": true,
       "created_at": "2026-02-14T00:00:00Z",
       "updated_at": "2026-02-14T00:00:00Z"

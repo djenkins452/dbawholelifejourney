@@ -4,7 +4,7 @@
 # Description: Detailed feature documentation for reference when needed
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-31
+# Last Updated: 2026-02-14
 # ==============================================================================
 
 # WLJ Feature Documentation
@@ -36,6 +36,16 @@ For core project context, see `CLAUDE.md` (project root).
 18. [Bible Reading Plans & Study Tools](#bible-reading-plans--study-tools)
 19. [Capture (Audio Recording & Transcription)](#capture-audio-recording--transcription)
 20. [Cycle Tracking](#cycle-tracking)
+21. [Goal Engine: Measurement-Driven Habits](#goal-engine-measurement-driven-habits) *(Jan 2026)*
+22. [Body Composition & Health Profile](#body-composition--health-profile) *(Jan 2026)*
+23. [Health Insight Engine](#health-insight-engine) *(Jan 2026)*
+24. [Medical Lab Ingestion UI](#medical-lab-ingestion-ui) *(Jan 2026)*
+25. [AI Assistant Intelligence Layer](#ai-assistant-intelligence-layer) *(Jan-Feb 2026)*
+26. [Quick Links (External Links)](#quick-links-external-links) *(Feb 2026)*
+27. [User Activity Pattern Tracking](#user-activity-pattern-tracking) *(Jan 2026)*
+28. [Brain Training (Cognitive Health)](#brain-training-cognitive-health) *(Jan 2026)*
+29. [Dashboard Performance & Caching](#dashboard-performance--caching) *(Jan 2026)*
+30. [Medicine Adherence Calculation](#medicine-adherence-calculation) *(Jan 2026)*
 
 ---
 
@@ -2222,4 +2232,370 @@ The cycle tracking feature integrates with the dashboard's daily summary:
 
 ---
 
-*Last updated: 2026-01-15*
+---
+
+## Goal Engine: Measurement-Driven Habits
+
+### Overview
+The Goal Engine extends HabitGoal from simple binary tracking to four measurement types, with streaks, analytics, rule-based recommendations, and interactive logging widgets.
+
+### Measurement Types
+| Type | Widget | Example |
+|------|--------|---------|
+| **Binary** | Checkbox / "I Did It" button | "Did I exercise today?" |
+| **Duration** | Timer widget (start/stop/pause) | "How long did I meditate?" |
+| **Count** | Counter widget (+/- buttons) | "How many glasses of water?" |
+| **Target** | Target input with unit dropdown | "How many pages did I read?" |
+
+### Key Features
+- **Habit streaks** - Current streak, longest streak, streak recovery (1 missed day grace)
+- **Analytics service** - Completion rate, averages, trend direction, best day of week
+- **Rule-based recommendations** - System suggests when to increase difficulty
+- **Clickable matrix** - Click any day in the matrix to log; shift+click for date ranges
+- **Custom calendar** - Full month view, color-coded days, click to log, shift/ctrl multi-select
+- **Undo toast** - 8-second countdown with "Undo" button after logging
+- **Quick Log** - Available for ALL goal types (not just binary)
+- **Retroactive logging** - "I Did It Today" button with date picker
+- **Upgrade banner** - Binary goals show dismissible prompt to upgrade to measurement types
+- **18 unit options** - minutes, hours, pages, reps, miles, km, oz, cups, mg, etc.
+
+### Key Files
+- `apps/purpose/models.py` - HabitGoal (measurement_type, target_value, unit), HabitLog (value, session_number)
+- `apps/purpose/services/streak.py` - Streak calculation with grace period
+- `apps/purpose/services/analytics.py` - Completion rate, trends, best day
+- `apps/purpose/services/recommendation.py` - Rule-based difficulty suggestions
+- `apps/purpose/views.py` - 7 new endpoints including HabitLogDatesView, HabitUnlogDatesView
+- `apps/purpose/templates/purpose/habit_goal_detail.html` - Matrix, calendar, timer, counter widgets
+- `apps/purpose/templates/purpose/habit_goal_form.html` - Native date pickers, unit dropdown
+
+### Tests
+- `apps/purpose/tests/test_goal_engine.py` - 55 tests covering models, services, views
+
+---
+
+## Body Composition & Health Profile
+
+### Overview
+Separates body composition metrics from Labs/Vitals into a dedicated domain. Health Profile stores user-specific context (height, activity level, weight goal) used by the Insight Engine.
+
+### Body Composition Metrics
+- Body fat percentage
+- Lean body mass
+- Waist circumference
+- Hip circumference
+- BMI (calculated)
+- Custom metrics via flexible storage
+
+### Health Profile
+- Height (stored for BMI calculations)
+- Activity level (sedentary, lightly active, active, very active)
+- Weight goal (moved from Preferences - with backward-compatible delegation)
+- Used by Insight Engine for personalized health insights
+
+### Key Files
+- `apps/health/models.py` - BodyCompositionEntry, HealthProfile
+- `apps/health/views_body_composition.py` - CRUD views
+- `apps/health/views.py` - Health Profile form, ClearWeightGoalView
+- `apps/health/forms.py` - Body composition and health profile forms
+- `apps/health/migrations/0040_body_composition_health_profile_insights.py`
+- `apps/health/migrations/0041_add_weight_goal_to_health_profile.py`
+- `apps/health/migrations/0042_migrate_weight_goal_data.py`
+
+### Tests
+- 59 tests covering models, views, forms, services
+
+---
+
+## Health Insight Engine
+
+### Overview
+Cross-domain health analysis engine that reads data from Labs, Vitals, Body Composition, Weight, Sleep, and Steps to generate personalized health insights with confidence scoring.
+
+### Architecture
+```
+Labs ──┐
+Vitals ──┤
+Body Comp ──┤──→ health_data.py (service layer) ──→ insight_engine.py ──→ InsightResult
+Weight ──┤
+Sleep ──┤
+Steps ──┘
+```
+
+### InsightResult Model
+- `insight_type` - Category of insight (trend, correlation, alert)
+- `confidence_score` - How confident the system is (0-1)
+- `related_domains` - Which health domains contributed
+- `content` - The insight text
+- Persisted to database for history tracking
+
+### Key Files
+- `apps/health/services/health_data.py` - Unified health data service layer
+- `apps/health/services/insight_engine.py` - Cross-domain analysis logic
+- `apps/health/views_insights.py` - Insight display views
+- `apps/health/models.py` - InsightResult model
+
+---
+
+## Medical Lab Ingestion UI
+
+### Overview
+Complete user-facing UI for uploading PDF lab results, viewing parsed results, trending over time, and lab test education. Builds on the medical module backend (apps/medical/).
+
+### User Flow
+1. **Upload** - Upload PDF lab report via form
+2. **Parse** - System extracts lab results using `lab_parser.py`
+3. **Review** - Import detail page shows all extracted results with abnormal highlighting
+4. **View** - Labs Summary page with filterable results, abnormal result badges
+5. **Trend** - Individual test trend charts with colored range zones
+6. **Learn** - Education panels on result detail pages
+
+### Lab Test Education
+- 57 system-seeded lab tests with structured content
+- What each test measures
+- Common associations for low/high values
+- Factors that influence results
+- Typical panels where the test appears
+- Model: `LabEducationContent`
+
+### Safety Features
+- Rejects lab results with missing dates (won't fabricate dates)
+- Flags estimated dates with amber warnings
+- Page-break handling in parser (looks ahead 4 lines past breaks)
+- Duplicate detection prevents re-importing same PDF
+- Soft-delete support for imports and documents
+
+### Trend Charts
+- Colored background zones (green in-range, light red above, light blue below)
+- Color-coded data points
+- Dashed boundary lines for reference ranges
+- Value labels on data points
+- Range fallback to catalog defaults when per-result ranges missing
+
+### Key Files
+- `apps/medical/views.py` - 8 view classes (Upload, ImportDetail, LabsSummary, ResultDetail, TestTrend, DocumentRename, DocumentDelete, ImportDelete)
+- `apps/medical/services/lab_parser.py` - PDF parsing with 7+ date formats
+- `apps/medical/services/importer.py` - Import orchestration
+- `apps/medical/services/duplicate_detector.py` - Duplicate PDF detection
+- `apps/medical/models.py` - LabEducationContent, date_estimated field
+- `templates/medical/` - 7 template files
+- `apps/medical/migrations/0003-0005` - Education content, date_estimated
+
+### Tests
+- 41 comprehensive tests covering upload, parse, view, trend, education
+
+---
+
+## AI Assistant Intelligence Layer
+
+### Overview
+Major overhaul of the AI personal assistant adding proactive check-ins, conversational intelligence, quick reply system, and a "Master Prompt" philosophy.
+
+### Master Prompt Philosophy
+The assistant is an **attentive, calm, factual, efficient right-hand assistant**. NOT a cheerleader, therapist, or medical advisor.
+
+### Proactive Check-ins
+- System initiates relevant check-ins based on user patterns
+- InteractionThrottler: max 3/hour, no repeats within 4 hours
+- PatternAnalyzer: food-glucose, workout-mood, sleep-energy correlations
+- ScheduleAnalyzer: detects busy days, adjusts check-in timing
+- CoachingStyleTemplates: Default, Southern Belle, New Yorker, California variations
+
+### Quick Reply System
+- Check-in messages include action buttons (e.g., "Take Medicine", "Log Workout")
+- Quick reply handlers process button taps without full chat interaction
+- Confirmation detector understands natural language confirmations
+
+### Conversational Intelligence
+- 10-message thread context (up from 5)
+- Intent inference: analytical vs. navigation queries
+- Dynamic token limits: 500 for analytical, 350 for regular
+- User first name in prompts for personalization
+- Anti-hallucination: real data, lower temperature (0.3) for data-heavy queries
+- Recent journal entries (14 days) included in context
+
+### Dashboard Insights
+- Time-period caching (early_morning/morning/afternoon/evening)
+- Immediate invalidation when activities are logged
+- Acknowledges completed activities before mentioning pending
+- Early morning warmth (before 8am, no "slow start" messaging)
+- No duplicate greeting (page already shows one)
+
+### Medicine Nudging Fix
+- Split pending into `missed_doses_today` (past due) and `upcoming_doses_today` (future)
+- Nudge only fires for overdue doses, not future scheduled ones
+
+### Key Files
+- `apps/ai/assistant_intelligence.py` - Master prompt, intelligence orchestration
+- `apps/ai/proactive_checkins.py` - Check-in generation with throttling
+- `apps/ai/quick_reply_handlers.py` - Button action handlers
+- `apps/ai/confirmation_detector.py` - Natural language confirmation parsing
+- `apps/ai/personal_assistant.py` - Conversational intelligence, thread management
+- `apps/ai/dashboard_ai.py` - Time-period insights, activity acknowledgment
+- `apps/ai/services.py` - Token management, context building
+- `apps/ai/models.py` - quick_replies JSONField, is_proactive, time_period
+- `apps/users/models.py` - Proactive check-in preferences
+- `assistant/data_service.py` - Journal data, health data for context
+- `assistant/context_builder.py` - Context assembly
+
+### Tests
+- Tests across AI module covering check-ins, quick replies, insights
+
+---
+
+## Quick Links (External Links)
+
+### Overview
+Users can save up to 16 external links (patient portal, bank login, pharmacy site, etc.) accessible from the profile dropdown and mobile menu.
+
+### Features
+- Up to 16 saved links per user
+- URL validation on save
+- AJAX add/delete (no page reload)
+- 60-second per-user cache for performance
+- Accessible from profile dropdown and mobile bottom bar
+
+### Key Files
+- `apps/users/models.py` - ExternalLink model
+- `apps/users/views.py` - CRUD views with AJAX
+- `apps/users/urls.py` - Quick link endpoints
+- `apps/core/context_processors.py` - Links injected into template context
+
+### Tests
+- `apps/users/tests/test_quick_links.py` - 17 tests
+
+---
+
+## User Activity Pattern Tracking
+
+### Overview
+System learns when each user starts and ends their day, enabling personalized insight timing and early morning threshold detection.
+
+### Components
+- **UserDailyActivity** - One row per user per day recording first/last activity times
+- **UserActivityPattern** - Computed summary of typical patterns
+- **PageViewTrackingMiddleware** - Records page views for activity detection
+- **compute_activity_patterns** - Management command (runs daily at 7 AM UTC)
+
+### Usage
+- Dashboard AI uses patterns to determine "early morning" threshold per user
+- Insight generation adapts to user's typical schedule
+
+### Key Files
+- `apps/core/models.py` - UserDailyActivity, UserActivityPattern
+- `apps/core/middleware.py` - PageViewTrackingMiddleware
+- `apps/core/management/commands/compute_activity_patterns.py`
+- `apps/ai/dashboard_ai.py` - Consumes patterns for insight timing
+
+### Tests
+- `apps/core/tests/test_activity_patterns.py` - 17 tests
+
+---
+
+## Brain Training (Cognitive Health)
+
+### Overview
+Daily brain training exercises accessible from the Health module. Multiple puzzle types targeting different cognitive skills.
+
+### Available Exercises
+| Exercise | Cognitive Skill | Description |
+|----------|----------------|-------------|
+| **Sudoku** | Logical reasoning | Number placement puzzle, multiple difficulties |
+| **KenKen** | Mental math | Arithmetic + Sudoku constraints |
+| **Nonogram** | Spatial reasoning | Reveal hidden image from number clues |
+| **Word Ladder** | Vocabulary | Transform words one letter at a time |
+| **Memory Matrix** | Working memory | Memorize and reproduce grid patterns |
+
+### Features
+- Multiple difficulty levels per exercise
+- Time and score tracking
+- Streaks (consecutive training days)
+- Performance statistics and trends
+- Game-specific context-aware help topics
+
+### Key Files
+- `apps/brain_training/` - Models, views, templates
+- `apps/help/fixtures/help_topics_brain_training.json` - 7 game-specific help topics
+- `apps/core/context_processors.py` - Dynamic BRAIN_TRAINING_{GAME_SLUG} context_id generation
+
+---
+
+## Dashboard Performance & Caching
+
+### Overview
+Dashboard load time optimized from 20+ seconds to 2-3 seconds through query optimization and intelligent caching.
+
+### Improvements
+- Fixed N+1 queries in medicine loading with `prefetch_related`
+- Moved Google Calendar sync to background thread
+- Aggregation for adherence statistics (single query vs. per-dose iteration)
+- Cache invalidation via Django signals (medicine, workout, journal actions)
+- DashboardCacheService for structured cache management
+
+### Key Files
+- `apps/dashboard/cache.py` - DashboardCacheService
+- `apps/dashboard/signals.py` - Cache invalidation on data changes
+- `apps/dashboard/views.py` - Optimized data loading
+
+---
+
+## Medicine Adherence Calculation
+
+### Overview
+Critical fix to medicine adherence reporting. Previous formula only counted logged doses, giving false 100% adherence rates.
+
+### Old Formula (Wrong)
+```
+taken / (taken + missed) * 100
+```
+Only counted doses the user explicitly logged as taken or missed. If a user simply forgot (didn't log at all), it wasn't counted — resulting in artificially high adherence.
+
+### New Formula (Correct)
+```
+taken / (expected - skipped) * 100
+```
+Counts ALL expected doses based on schedule, minus intentionally skipped ones. Missed/unlogged doses now correctly reduce the percentage.
+
+### Single Source of Truth
+- `apps/health/medicine_utils.py` - One function used by all 4 consumers:
+  - `apps/ai/dashboard_ai.py` - AI insight generation
+  - `apps/dashboard/cache.py` - Dashboard tile display
+  - `apps/ai/personal_assistant.py` - Assistant queries
+  - `apps/health/trend_tracking.py` - Trend analysis
+
+### Tests
+- `apps/health/tests/test_medicine_adherence.py` - 23 tests
+
+---
+
+## Additional Jan-Feb 2026 Enhancements
+
+### Scroll Position Preservation
+- Pages remember scroll position after form actions (medicine Take/Skip, task toggles, quick-log)
+- Reusable component: `templates/components/scroll_preserve.html` using sessionStorage
+- Applied to: Medicine home, Organize home, Prayer list, Water list
+
+### Help System Expansion
+- Grew from 33 to 82 context-aware help topics
+- Covers all major views across health, journal, faith, purpose, settings, admin
+- Brain training game-specific help (7 topics with rules/controls/tips)
+- Auto-mapping URL paths to help context IDs in `apps/core/context_processors.py`
+- Module fallback system in `apps/help/views.py`
+
+### Favorites System
+- URL normalization (strips query params for matching)
+- Increased MAX_FAVORITES from 10 to 16
+- Dynamic dropdown sizing
+
+### Health Home Labs Card
+- Card showing lab result count, abnormal count, upload button
+- Links to full labs summary view
+
+### Notification Service Fixes
+- Fixed daily digest recipient address
+- Fixed trial_expired page errors
+- Disabled notifications for app review account
+- Downgraded SMS service logging (prevents admin email spam)
+
+---
+
+*Last updated: 2026-02-14*

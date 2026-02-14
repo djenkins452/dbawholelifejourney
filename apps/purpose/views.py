@@ -888,13 +888,21 @@ class HabitLogTodayView(PurposeAccessMixin, View):
             elif goal.is_count:
                 defaults['count_value'] = goal.target_value
 
-        # Create or update today's entry (session_number=1 for manual logging)
-        entry, created = HabitEntry.objects.update_or_create(
-            goal=goal,
-            date=today,
-            session_number=1,
-            defaults=defaults,
-        )
+        try:
+            # Create or update today's entry (session_number=1 for manual logging)
+            entry, created = HabitEntry.objects.update_or_create(
+                goal=goal,
+                date=today,
+                session_number=1,
+                defaults=defaults,
+            )
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).exception("HabitLogTodayView error")
+            return JsonResponse({
+                'success': False,
+                'error': f'Failed to log habit: {str(e)}'
+            }, status=500)
 
         # Calculate which box number this corresponds to
         day_number = (today - goal.start_date).days + 1

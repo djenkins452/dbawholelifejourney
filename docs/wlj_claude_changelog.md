@@ -9,6 +9,21 @@
 
 # WLJ Change History
 
+## 2026-02-14 — Fix Manual Logging for Non-Binary Goals
+
+**Bug:** "I Did It Today!" button and calendar click didn't work for duration/count goals. Two issues:
+1. `update_or_create` used `goal+date` lookup but `unique_together` is `['goal', 'date', 'session_number']` — caused `MultipleObjectsReturned` when multiple sessions existed.
+2. For duration goals with existing timer entries, `save()` auto-calc would override `completed=True` back to `False` based on `duration_minutes < target_value`.
+
+**Fix:**
+- Added `session_number=1` to all manual logging `update_or_create` lookups
+- Manual logging views now set measurement value to target (e.g. `duration_minutes=target_value`) so auto-calc correctly sets `completed=True`
+- Created stub `apps/health/services/insight_engine.py` (was blocking test runner)
+
+**Files:** `apps/purpose/views.py`, `apps/purpose/models.py`, `apps/health/services/insight_engine.py`
+
+---
+
 ## 2026-02-14 — Quick Log Available for All Goal Types
 
 **Change:** Moved "I Did It Today!", "Pick a Date", and custom calendar (shift/ctrl multi-select, toggle on/off) out of the binary-only block so they appear for ALL measurement types (duration, count, target, binary).

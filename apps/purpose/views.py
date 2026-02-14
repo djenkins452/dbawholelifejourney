@@ -878,11 +878,22 @@ class HabitLogTodayView(PurposeAccessMixin, View):
                 'error': 'Goal has already ended.'
             }, status=400)
 
-        # Create or update today's entry
+        # Build defaults for manual logging.
+        # For non-binary goals, set measurement value to target so auto-calc
+        # in save() correctly marks as completed.
+        defaults = {'completed': True}
+        if goal.target_value:
+            if goal.is_duration:
+                defaults['duration_minutes'] = goal.target_value
+            elif goal.is_count:
+                defaults['count_value'] = goal.target_value
+
+        # Create or update today's entry (session_number=1 for manual logging)
         entry, created = HabitEntry.objects.update_or_create(
             goal=goal,
             date=today,
-            defaults={'completed': True}
+            session_number=1,
+            defaults=defaults,
         )
 
         # Calculate which box number this corresponds to
@@ -962,11 +973,20 @@ class HabitLogDateView(PurposeAccessMixin, View):
                 'error': 'Cannot log habits for future dates.'
             }, status=400)
 
-        # Create or update entry for selected date
+        # Build defaults for manual logging.
+        defaults = {'completed': True}
+        if goal.target_value:
+            if goal.is_duration:
+                defaults['duration_minutes'] = goal.target_value
+            elif goal.is_count:
+                defaults['count_value'] = goal.target_value
+
+        # Create or update entry for selected date (session_number=1 for manual logging)
         entry, created = HabitEntry.objects.update_or_create(
             goal=goal,
             date=selected_date,
-            defaults={'completed': True}
+            session_number=1,
+            defaults=defaults,
         )
 
         # Calculate which box number this corresponds to
@@ -1057,13 +1077,22 @@ class HabitLogDatesView(PurposeAccessMixin, View):
                 'error': errors[0] if errors else 'No valid dates provided.'
             }, status=400)
 
-        # Bulk create/update entries
+        # Build defaults for manual logging.
+        defaults = {'completed': True}
+        if goal.target_value:
+            if goal.is_duration:
+                defaults['duration_minutes'] = goal.target_value
+            elif goal.is_count:
+                defaults['count_value'] = goal.target_value
+
+        # Bulk create/update entries (session_number=1 for manual logging)
         logged = []
         for d in parsed_dates:
             entry, created = HabitEntry.objects.update_or_create(
                 goal=goal,
                 date=d,
-                defaults={'completed': True}
+                session_number=1,
+                defaults=defaults,
             )
             day_number = (d - goal.start_date).days + 1
             logged.append({

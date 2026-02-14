@@ -9,6 +9,17 @@
 
 # WLJ Change History
 
+## 2026-02-14 — Button Color Sync + Calendar Date Pickers
+
+**Changes:**
+1. "I Did It Today" button now properly toggles green (`btn-success`) when logged and back to purple (`btn-primary`) when unlogged via matrix toggle
+2. Goal create/edit form date fields (`start_date`, `end_date`) now use native `<input type="date">` calendar pickers instead of free-form text
+3. Added `input[type="number"]` to form CSS, set 16px min font to prevent iOS auto-zoom
+
+**Files:** `apps/purpose/templates/purpose/habit_goal_detail.html`, `apps/purpose/templates/purpose/habit_goal_form.html`, `apps/purpose/views.py`
+
+---
+
 ## 2026-02-14 — Body Composition Domain, Health Profile, Cross-Domain Insight Engine
 
 **What changed:** System-level enhancement adding 3 new models, 2 service layers, and a global insight engine.

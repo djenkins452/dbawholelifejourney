@@ -793,6 +793,12 @@ class HabitGoalCreateView(PurposeAccessMixin, CreateView):
         form.fields['annual_direction'].queryset = AnnualDirection.objects.filter(
             user=self.request.user
         ).order_by('-year')
+        # Use native date pickers
+        from django.forms import DateInput
+        for field_name in ('start_date', 'end_date'):
+            form.fields[field_name].widget = DateInput(
+                attrs={'type': 'date', 'class': 'date-input'}
+            )
         return form
 
     def form_valid(self, form):
@@ -825,6 +831,12 @@ class HabitGoalUpdateView(PurposeAccessMixin, UpdateView):
         form.fields['annual_direction'].queryset = AnnualDirection.objects.filter(
             user=self.request.user
         ).order_by('-year')
+        # Use native date pickers
+        from django.forms import DateInput
+        for field_name in ('start_date', 'end_date'):
+            form.fields[field_name].widget = DateInput(
+                attrs={'type': 'date', 'class': 'date-input'}
+            )
         return form
 
     def form_valid(self, form):

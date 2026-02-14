@@ -276,11 +276,13 @@ document.addEventListener('DOMContentLoaded', function() {
         if (isLogged) {
             logTodayBtn.disabled = true;
             logTodayBtn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> Done for Today';
+            logTodayBtn.classList.remove('btn-primary');
             logTodayBtn.classList.add('btn-success');
         } else {
             logTodayBtn.disabled = false;
             logTodayBtn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> I Did It Today!';
             logTodayBtn.classList.remove('btn-success');
+            logTodayBtn.classList.add('btn-primary');
         }
     }
 

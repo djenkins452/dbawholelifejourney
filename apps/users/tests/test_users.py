@@ -235,8 +235,7 @@ class PreferencesViewTest(TestCase):
             'location_city': '',
             'location_country': '',
             'default_fasting_type': '16:8',
-            # Required fields for weight goal and SMS
-            'weight_goal_unit': 'lb',
+            # Required fields for SMS
             'sms_quiet_start': '22:00',
             'sms_quiet_end': '08:00',
             # Required notification fields

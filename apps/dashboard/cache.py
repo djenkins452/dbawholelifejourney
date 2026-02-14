@@ -243,7 +243,9 @@ class DashboardCacheService:
         days_since_workout = (today - last_workout.date).days if last_workout else None
 
         # Weight and Nutrition Progress
-        weight_progress = user.preferences.get_weight_progress()
+        from apps.health.models import HealthProfile
+        health_profile = HealthProfile.get_for_user(user)
+        weight_progress = health_profile.get_weight_progress()
         nutrition_progress = user.preferences.get_nutrition_progress(today)
 
         return {

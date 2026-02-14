@@ -477,7 +477,9 @@ class DashboardAI:
                     data['current_weight'] = round(recent[0].value_in_lb, 1)
 
                 # Weight goal progress
-                weight_progress = self.prefs.get_weight_progress()
+                from apps.health.models import HealthProfile
+                health_profile = HealthProfile.get_for_user(self.user)
+                weight_progress = health_profile.get_weight_progress()
                 if weight_progress and weight_progress.get('current_weight'):
                     data['weight_goal'] = weight_progress.get('goal')
                     data['weight_remaining'] = weight_progress.get('remaining')

@@ -41,6 +41,9 @@ urlpatterns = [
     # Quarterly review
     path("api/quarterly-review/dismiss/", views.DismissQuarterlyReviewView.as_view(), name="dismiss_quarterly_review"),
 
+    # Weight goal
+    path("api/weight-goal/clear/", views.ClearWeightGoalView.as_view(), name="clear_weight_goal"),
+
     # Dashboard configuration API
     path("api/setup-banner/dismiss/", views.DismissSetupBannerView.as_view(), name="dismiss_setup_banner"),
     path("api/config/", views.DashboardConfigAPIView.as_view(), name="config_api"),

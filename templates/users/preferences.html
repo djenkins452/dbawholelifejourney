@@ -1929,20 +1929,17 @@ The AI will remember these to respond more thoughtfully in the future."
                             </div>
                         </div>
 
-                        <!-- Weight & Nutrition Goals -->
+                        <!-- Nutrition Goals -->
                         <div class="accordion-group" data-accordion-key="nutrition">
                             <button type="button" class="accordion-header">
                                 <div class="accordion-header-content">
-                                    <span class="accordion-icon">⚖️</span>
+                                    <span class="accordion-icon">🍎</span>
                                     <div class="accordion-title-group">
-                                        <h3 class="accordion-title">Weight & Nutrition Goals</h3>
+                                        <h3 class="accordion-title">Nutrition Goals</h3>
                                     </div>
                                 </div>
                                 <div class="accordion-header-right">
                                     <div class="accordion-status">
-                                        {% if form.weight_goal.value %}
-                                            <span class="accordion-badge accordion-badge-active">Goal: {{ form.weight_goal.value }} {{ form.weight_goal_unit.value }}</span>
-                                        {% endif %}
                                     </div>
                                     <svg class="accordion-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <polyline points="6 9 12 15 18 9"></polyline>
@@ -1950,53 +1947,7 @@ The AI will remember these to respond more thoughtfully in the future."
                                 </div>
                             </button>
                             <div class="accordion-body">
-                                <p class="text-muted mb-4">Set your personal weight and nutrition targets. Track your progress on the dashboard.</p>
-
-                                <!-- Weight Goal Section -->
-                                <div class="goal-section">
-                                    <h4 class="module-section-title">
-                                        <span class="goal-icon">⚖️</span> Weight Goal
-                                    </h4>
-                                    <p class="text-muted text-sm mb-4">Set your target weight and when you want to achieve it.</p>
-
-                                    <div class="form-row form-row-3">
-                                        <div class="form-group">
-                                            <label for="id_weight_goal" class="form-label">Target Weight</label>
-                                            <input
-                                                type="number"
-                                                name="weight_goal"
-                                                id="id_weight_goal"
-                                                class="form-input"
-                                                value="{{ form.weight_goal.value|default:'' }}"
-                                                placeholder="e.g., 180"
-                                                step="0.1"
-                                                min="50"
-                                                max="500"
-                                            >
-                                        </div>
-
-                                        <div class="form-group">
-                                            <label for="id_weight_goal_unit" class="form-label">Unit</label>
-                                            <select name="weight_goal_unit" id="id_weight_goal_unit" class="form-select">
-                                                <option value="lb" {% if form.weight_goal_unit.value == 'lb' %}selected{% endif %}>Pounds (lb)</option>
-                                                <option value="kg" {% if form.weight_goal_unit.value == 'kg' %}selected{% endif %}>Kilograms (kg)</option>
-                                            </select>
-                                        </div>
-
-                                        <div class="form-group">
-                                            <label for="id_weight_goal_target_date" class="form-label">Target Date</label>
-                                            <input
-                                                type="date"
-                                                name="weight_goal_target_date"
-                                                id="id_weight_goal_target_date"
-                                                class="form-input"
-                                                value="{{ form.weight_goal_target_date.value|date:'Y-m-d'|default:'' }}"
-                                            >
-                                        </div>
-                                    </div>
-
-                                    <p class="form-help">Leave blank if you don't have a specific weight goal. The dashboard will show your progress once you set a goal and log weight entries.</p>
-                                </div>
+                                <p class="text-muted mb-4">Set your daily nutrition targets. Weight goals have moved to <a href="{% url 'health:health_profile' %}">Health Profile</a>.</p>
 
                                 <!-- Nutrition Goals Section -->
                                 <div class="goal-section mt-6">

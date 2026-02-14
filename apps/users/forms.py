@@ -493,10 +493,7 @@ class PreferencesForm(forms.ModelForm):
             "biometric_login_enabled",
             # Health
             "default_fasting_type",
-            # Weight Goals
-            "weight_goal",
-            "weight_goal_unit",
-            "weight_goal_target_date",
+            # Weight Goals — moved to Health Profile (apps/health/models.py HealthProfile)
             # Nutrition Goals
             "daily_calorie_goal",
             "protein_percentage",
@@ -626,21 +623,7 @@ class PreferencesForm(forms.ModelForm):
             "default_fasting_type": forms.Select(attrs={
                 "class": "form-select",
             }),
-            # Weight Goals
-            "weight_goal": forms.NumberInput(attrs={
-                "class": "form-input",
-                "placeholder": "Target weight",
-                "step": "0.1",
-                "min": "50",
-                "max": "500",
-            }),
-            "weight_goal_unit": forms.Select(attrs={
-                "class": "form-select",
-            }),
-            "weight_goal_target_date": forms.DateInput(attrs={
-                "class": "form-input",
-                "type": "date",
-            }),
+            # Weight Goals — moved to Health Profile
             # Nutrition Goals
             "daily_calorie_goal": forms.NumberInput(attrs={
                 "class": "form-input",

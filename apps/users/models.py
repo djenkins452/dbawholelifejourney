@@ -1128,8 +1128,12 @@ class UserPreferences(models.Model):
 
     @property
     def has_weight_goal(self):
-        """Check if user has a weight goal set."""
-        return self.weight_goal is not None
+        """Check if user has a weight goal set. Delegates to HealthProfile."""
+        from apps.health.models import HealthProfile
+        try:
+            return self.user.health_profile.has_weight_goal
+        except HealthProfile.DoesNotExist:
+            return False
 
     @property
     def has_nutrition_goals(self):
@@ -1145,87 +1149,12 @@ class UserPreferences(models.Model):
         return total == 100
 
     def get_weight_progress(self):
-        """
-        Calculate progress toward weight goal.
-        Returns dict with current_weight, goal, progress_percent, remaining, on_track.
-        """
-        from apps.health.models import WeightEntry
-
-        if not self.has_weight_goal:
+        """Delegates to HealthProfile.get_weight_progress()."""
+        from apps.health.models import HealthProfile
+        try:
+            return self.user.health_profile.get_weight_progress()
+        except HealthProfile.DoesNotExist:
             return None
-
-        latest_weight = WeightEntry.objects.filter(
-            user=self.user, status='active'
-        ).order_by('-recorded_at').first()
-
-        if not latest_weight:
-            return {
-                'current_weight': None,
-                'goal': float(self.weight_goal),
-                'unit': self.weight_goal_unit,
-                'target_date': self.weight_goal_target_date,
-                'progress_percent': 0,
-                'remaining': None,
-                'on_track': None,
-            }
-
-        # Get current weight in the goal's unit
-        if self.weight_goal_unit == 'lb':
-            current = latest_weight.value_in_lb
-        else:
-            current = latest_weight.value_in_kg
-
-        goal = float(self.weight_goal)
-
-        # Get starting weight (first entry after setting goal or just first entry)
-        starting_weight = WeightEntry.objects.filter(
-            user=self.user, status='active'
-        ).order_by('recorded_at').first()
-
-        if starting_weight:
-            if self.weight_goal_unit == 'lb':
-                start = starting_weight.value_in_lb
-            else:
-                start = starting_weight.value_in_kg
-        else:
-            start = current
-
-        # Calculate progress
-        total_change_needed = start - goal
-        change_so_far = start - current
-
-        if abs(total_change_needed) < 0.1:
-            progress_percent = 100
-        elif total_change_needed != 0:
-            progress_percent = min(100, max(0, (change_so_far / total_change_needed) * 100))
-        else:
-            progress_percent = 100 if abs(current - goal) < 0.5 else 0
-
-        remaining = current - goal
-
-        # Determine if on track for target date
-        on_track = None
-        if self.weight_goal_target_date:
-            from django.utils import timezone
-            today = timezone.now().date()
-            if self.weight_goal_target_date > today:
-                days_remaining = (self.weight_goal_target_date - today).days
-                if abs(remaining) <= 0.5:
-                    on_track = True
-                elif days_remaining > 0 and abs(remaining) > 0:
-                    # Check if recent trend supports reaching goal
-                    on_track = progress_percent >= 50 or remaining < abs(total_change_needed) / 2
-
-        return {
-            'current_weight': round(current, 1),
-            'goal': goal,
-            'unit': self.weight_goal_unit,
-            'target_date': self.weight_goal_target_date,
-            'progress_percent': round(progress_percent, 1),
-            'remaining': round(remaining, 1) if remaining else 0,
-            'on_track': on_track,
-            'direction': 'lose' if remaining > 0 else 'gain' if remaining < 0 else 'maintain',
-        }
 
     def get_nutrition_progress(self, date=None):
         """

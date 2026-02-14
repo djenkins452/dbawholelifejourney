@@ -1443,7 +1443,6 @@ class AIProfilePreferencesTest(AITestMixin, TestCase):
                 'ai_profile': 'Test profile content for AI personalization.',
                 'timezone': 'US/Eastern',
                 'default_fasting_type': '16:8',
-                'weight_goal_unit': 'lb',  # Required field
                 'sms_quiet_start': '22:00',  # Required SMS field
                 'sms_quiet_end': '08:00',  # Required SMS field
                 'email_notification_frequency': 'immediate',  # Required notification field

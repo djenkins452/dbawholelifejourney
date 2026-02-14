@@ -9,6 +9,42 @@
 
 # WLJ Change History
 
+## 2026-02-14 — Move Weight Goal from Preferences to Health Profile
+
+**Problem:** Users had no obvious way to set, view, or clear their weight goal. It was buried in Preferences under "Weight & Nutrition Goals" and disconnected from the Health module. Removing a LifeGoal called "Weightloss" didn't clear the weight goal, causing confusing "72.6 lb to go" to persist on the dashboard.
+
+**Fix:**
+1. Added `weight_goal`, `weight_goal_unit`, `weight_goal_target_date` fields to `HealthProfile` model
+2. Moved `has_weight_goal` property and `get_weight_progress()` method to `HealthProfile`
+3. Created data migration to copy existing weight goals from UserPreferences → HealthProfile
+4. Updated Health Profile page (`/health/physical/profile/`) with weight goal form section
+5. Removed weight goal fields from Preferences form and template (with link to Health Profile)
+6. Added ✕ clear button on dashboard Health card to clear weight goal inline
+7. Added `ClearWeightGoalView` POST endpoint (`/dashboard/api/weight-goal/clear/`)
+8. Added `HealthProfile` post_save signal to invalidate dashboard health cache
+9. Updated all consumers: dashboard cache, dashboard views, AI dashboard_ai.py
+10. UserPreferences `has_weight_goal` and `get_weight_progress()` now delegate to HealthProfile (backward compatible)
+
+**Files:**
+- `apps/health/models.py` (HealthProfile: new fields + methods + `get_for_user()` static method)
+- `apps/health/forms.py` (HealthProfileForm: added weight goal fields)
+- `apps/health/migrations/0041_add_weight_goal_to_health_profile.py` (NEW)
+- `apps/health/migrations/0042_migrate_weight_goal_data.py` (NEW - data migration)
+- `apps/users/models.py` (delegate has_weight_goal/get_weight_progress to HealthProfile)
+- `apps/users/forms.py` (removed weight_goal fields)
+- `apps/dashboard/views.py` (ClearWeightGoalView uses HealthProfile)
+- `apps/dashboard/urls.py` (added clear_weight_goal endpoint)
+- `apps/dashboard/cache.py` (uses HealthProfile.get_for_user)
+- `apps/dashboard/signals.py` (added HealthProfile post_save → invalidate_health)
+- `apps/ai/dashboard_ai.py` (uses HealthProfile.get_for_user)
+- `templates/health/health_profile_form.html` (added weight goal section)
+- `templates/users/preferences.html` (removed weight goal, added link to Health Profile)
+- `templates/dashboard/tiles/module_cards.html` (added ✕ clear button)
+- `static/css/dashboard.css` (clear button styles)
+- Test updates: test_body_composition.py, test_users.py, test_core_comprehensive.py, test_ai_comprehensive.py
+
+---
+
 ## 2026-02-14 — CRITICAL: Fix False Medicine Adherence Reporting
 
 **Problem:** AI insights and dashboard were telling users they had 100% medicine adherence even when they'd barely logged any doses. The formula `taken / (taken + missed)` was wrong because MedicineLog entries only exist when users explicitly interact — if a user takes 2 of 20 expected doses and never logs the other 18, the old calculation was 2/(2+0) = 100%.

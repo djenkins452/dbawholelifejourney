@@ -327,6 +327,7 @@ class HealthProfileViewTests(TestCase):
                 "height_feet": "5",
                 "height_remaining_inches": "10",
                 "activity_level": "moderately_active",
+                "weight_goal_unit": "lb",
             },
         )
         self.assertEqual(response.status_code, 302)
@@ -704,6 +705,7 @@ class HealthProfileFormTest(TestCase):
                 "height_feet": "5",
                 "height_remaining_inches": "10",
                 "activity_level": "moderately_active",
+                "weight_goal_unit": "lb",
             },
             instance=self.profile,
         )
@@ -714,7 +716,41 @@ class HealthProfileFormTest(TestCase):
     def test_empty_height_ok(self):
         from apps.health.forms import HealthProfileForm
         form = HealthProfileForm(
-            data={"activity_level": "sedentary"},
+            data={"activity_level": "sedentary", "weight_goal_unit": "lb"},
             instance=self.profile,
         )
         self.assertTrue(form.is_valid())
+
+    def test_weight_goal_saved(self):
+        """Weight goal fields save to HealthProfile."""
+        from apps.health.forms import HealthProfileForm
+        form = HealthProfileForm(
+            data={
+                "activity_level": "moderately_active",
+                "weight_goal": "180",
+                "weight_goal_unit": "lb",
+                "weight_goal_target_date": "2026-06-01",
+            },
+            instance=self.profile,
+        )
+        self.assertTrue(form.is_valid())
+        saved = form.save()
+        self.assertEqual(float(saved.weight_goal), 180.0)
+        self.assertEqual(saved.weight_goal_unit, "lb")
+
+    def test_clear_weight_goal(self):
+        """Clearing weight goal field sets it to None."""
+        from apps.health.forms import HealthProfileForm
+        self.profile.weight_goal = 200
+        self.profile.save()
+        form = HealthProfileForm(
+            data={
+                "activity_level": "sedentary",
+                "weight_goal": "",
+                "weight_goal_unit": "lb",
+            },
+            instance=self.profile,
+        )
+        self.assertTrue(form.is_valid())
+        saved = form.save()
+        self.assertIsNone(saved.weight_goal)

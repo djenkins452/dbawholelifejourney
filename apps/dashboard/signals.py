@@ -116,6 +116,12 @@ def invalidate_on_pr_change(sender, instance, **kwargs):
     _invalidate_health(instance.user)
 
 
+@receiver(post_save, sender='health.HealthProfile')
+def invalidate_on_health_profile_change(sender, instance, **kwargs):
+    """Invalidate health cache when health profile changes (weight goal, etc)."""
+    _invalidate_health(instance.user)
+
+
 # =============================================================================
 # JOURNAL SIGNALS
 # =============================================================================

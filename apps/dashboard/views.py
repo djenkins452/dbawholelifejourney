@@ -430,7 +430,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             # Weight & Nutrition Goal Progress (from cache)
             "weight_progress": cached.get('weight_progress'),
             "nutrition_progress": cached.get('nutrition_progress'),
-            "has_weight_goal": user.preferences.has_weight_goal,
+            "has_weight_goal": cached.get('weight_progress') is not None,
             "has_nutrition_goals": user.preferences.has_nutrition_goals,
             # Cycle Tracking
             "cycle_tracking_enabled": cycle_tracking_enabled,
@@ -1595,6 +1595,19 @@ class DismissQuarterlyReviewView(LoginRequiredMixin, View):
 
         except json.JSONDecodeError:
             return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+
+class ClearWeightGoalView(LoginRequiredMixin, View):
+    """Clear the weight goal from health profile."""
+
+    def post(self, request, *args, **kwargs):
+        from apps.health.models import HealthProfile
+        profile = HealthProfile.get_for_user(request.user)
+        profile.weight_goal = None
+        profile.weight_goal_target_date = None
+        profile.save(update_fields=["weight_goal", "weight_goal_target_date"])
+        DashboardCacheService.invalidate_health(request.user)
+        return redirect("dashboard:home")
 
 
 class DismissSetupBannerView(LoginRequiredMixin, View):

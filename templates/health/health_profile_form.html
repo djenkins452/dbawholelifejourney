@@ -53,6 +53,36 @@
             <p class="form-hint">Used for caloric modeling in goal projections.</p>
         </div>
 
+        <hr class="form-divider">
+
+        <h2 class="form-section-title">Weight Goal</h2>
+        <p class="form-hint" style="margin-bottom: var(--space-4);">Set a target weight to track progress on your dashboard. Leave blank to remove.</p>
+
+        <div class="form-row form-row-3">
+            <div class="form-group">
+                <label for="id_weight_goal" class="form-label">Target Weight</label>
+                <input type="number" name="weight_goal" id="id_weight_goal"
+                       class="form-input"
+                       value="{{ form.weight_goal.value|default:'' }}"
+                       placeholder="e.g., 180" step="0.1" min="50" max="500">
+            </div>
+
+            <div class="form-group">
+                <label for="id_weight_goal_unit" class="form-label">Unit</label>
+                <select name="weight_goal_unit" id="id_weight_goal_unit" class="form-select">
+                    <option value="lb" {% if form.weight_goal_unit.value == 'lb' %}selected{% endif %}>Pounds (lb)</option>
+                    <option value="kg" {% if form.weight_goal_unit.value == 'kg' %}selected{% endif %}>Kilograms (kg)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="id_weight_goal_target_date" class="form-label">Target Date</label>
+                <input type="date" name="weight_goal_target_date" id="id_weight_goal_target_date"
+                       class="form-input"
+                       value="{{ form.weight_goal_target_date.value|date:'Y-m-d'|default:'' }}">
+            </div>
+        </div>
+
         {% if form.errors %}
         <div class="form-errors mb-4">
             {% for field, errors in form.errors.items %}
@@ -98,6 +128,24 @@
     margin-top: var(--space-1);
 }
 
+.form-divider {
+    border: none;
+    border-top: 1px solid var(--color-border);
+    margin: var(--space-6) 0;
+}
+
+.form-section-title {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    margin-bottom: var(--space-2);
+}
+
+.form-row-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: var(--space-4);
+}
+
 .form-actions {
     display: flex;
     gap: var(--space-3);
@@ -108,5 +156,17 @@
 
 .form-errors { color: var(--color-error); }
 .text-error { color: var(--color-error); }
+
+@media (max-width: 480px) {
+    .form-row-3 {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) and (min-width: 481px) {
+    .form-row-3 {
+        grid-template-columns: 1fr 1fr;
+    }
+}
 </style>
 {% endblock %}

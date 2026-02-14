@@ -1181,6 +1181,29 @@
     color: var(--color-text-muted);
 }
 
+.clear-weight-goal-form {
+    display: inline;
+}
+
+.clear-goal-btn {
+    background: none;
+    border: none;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    font-size: var(--font-size-xs);
+    padding: 2px 4px;
+    margin-left: 4px;
+    border-radius: var(--radius-sm);
+    line-height: 1;
+    opacity: 0.6;
+    transition: opacity 0.15s, color 0.15s;
+}
+
+.clear-goal-btn:hover {
+    opacity: 1;
+    color: var(--color-text);
+}
+
 /* Module cards with goals get a subtle indicator */
 .module-nav-card.has-goals {
     border-left: 3px solid var(--color-accent);

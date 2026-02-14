@@ -1798,7 +1798,7 @@ class BodyCompositionEntryForm(forms.ModelForm):
 # =============================================================================
 
 class HealthProfileForm(forms.ModelForm):
-    """Form for editing health profile (height + activity level)."""
+    """Form for editing health profile (height, activity level, weight goal)."""
 
     height_feet = forms.IntegerField(
         min_value=0,
@@ -1821,9 +1821,21 @@ class HealthProfileForm(forms.ModelForm):
 
     class Meta:
         model = HealthProfile
-        fields = ["activity_level"]
+        fields = ["activity_level", "weight_goal", "weight_goal_unit", "weight_goal_target_date"]
         widgets = {
             "activity_level": forms.Select(attrs={"class": "form-select"}),
+            "weight_goal": forms.NumberInput(attrs={
+                "class": "form-input",
+                "placeholder": "Target weight",
+                "step": "0.1",
+                "min": "50",
+                "max": "500",
+            }),
+            "weight_goal_unit": forms.Select(attrs={"class": "form-select"}),
+            "weight_goal_target_date": forms.DateInput(attrs={
+                "class": "form-input",
+                "type": "date",
+            }),
         }
 
     def __init__(self, *args, **kwargs):

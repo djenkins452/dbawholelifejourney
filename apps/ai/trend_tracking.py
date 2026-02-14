@@ -199,15 +199,10 @@ class TrendTracker:
             )
             data['workouts'] = workouts.count()
 
-            # Medicine adherence
-            logs = MedicineLog.objects.filter(
-                user=self.user,
-                scheduled_date__gte=start_date,
-                scheduled_date__lte=end_date
-            )
-            taken = logs.filter(log_status__in=['taken', 'late']).count()
-            total = logs.filter(log_status__in=['taken', 'late', 'missed']).count()
-            data['medicine_adherence'] = round((taken / total) * 100) if total > 0 else None
+            # Medicine adherence (correct: expected vs taken from schedules)
+            from apps.health.medicine_utils import calculate_medicine_adherence
+            adherence = calculate_medicine_adherence(self.user, start_date, end_date)
+            data['medicine_adherence'] = adherence['adherence_rate']
 
         # Faith metrics
         if self.faith_enabled:

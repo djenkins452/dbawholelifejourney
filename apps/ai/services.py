@@ -662,10 +662,8 @@ Match your response to your coaching style."""
 
         if user_data.get('medicine_adherence_rate') is not None:
             rate = user_data['medicine_adherence_rate']
-            if rate < 80:
-                context_parts.append(f"Medicine adherence at {rate}% this week")
-            elif rate >= 95:
-                context_parts.append(f"Excellent medicine adherence ({rate}%)")
+            # Always report the actual rate — never editorialize
+            context_parts.append(f"Medicine adherence at {rate}% this week")
 
         if user_data.get('medicines_need_refill', 0) > 0:
             context_parts.append(f"{user_data['medicines_need_refill']} medicines need refill soon")

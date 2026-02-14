@@ -1056,16 +1056,10 @@ class PersonalAssistant:
         data['workouts_week'] = workouts.filter(date__gte=week_ago).count()
         data['workout_streak'] = self._calculate_workout_streak(today)
 
-        # Medicine adherence
-        medicine_logs = MedicineLog.objects.filter(
-            user=self.user,
-            scheduled_date__gte=week_ago,
-            scheduled_date__lte=today
-        )
-        taken = medicine_logs.filter(log_status__in=['taken', 'late']).count()
-        missed = medicine_logs.filter(log_status='missed').count()
-        total = taken + missed
-        data['medicine_adherence'] = round((taken / total) * 100) if total > 0 else None
+        # Medicine adherence (correct: expected vs taken from schedules)
+        from apps.health.medicine_utils import calculate_medicine_adherence
+        adherence = calculate_medicine_adherence(self.user, week_ago, today)
+        data['medicine_adherence'] = adherence['adherence_rate']
 
         return data
 

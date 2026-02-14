@@ -9,6 +9,39 @@
 
 # WLJ Change History
 
+## 2026-02-14 — CRITICAL: Fix False Medicine Adherence Reporting
+
+**Problem:** AI insights and dashboard were telling users they had 100% medicine adherence even when they'd barely logged any doses. The formula `taken / (taken + missed)` was wrong because MedicineLog entries only exist when users explicitly interact — if a user takes 2 of 20 expected doses and never logs the other 18, the old calculation was 2/(2+0) = 100%.
+
+**Root cause:** Adherence was calculated from log records only (taken vs missed), but logs are only created on user action. There is no "pending" status — unlogged doses simply don't exist in MedicineLog. The correct formula must count expected doses from MedicineSchedule entries.
+
+**Impact:** This was a credibility-killing bug that could also be perceived as false medical advice — telling users their adherence is "excellent" when it's actually very low.
+
+**Fix:**
+1. Created `apps/health/medicine_utils.py` — single source of truth for adherence calculation
+   - Iterates each day in the range and checks active schedules via `applies_to_day()`
+   - Formula: `taken / (expected - skipped) * 100`
+   - Skipped doses are intentional, excluded from denominator
+   - Returns: expected_doses, taken_doses, missed_doses, unlogged_doses, adherence_rate
+2. Updated all 4 locations that had the wrong calculation to use the shared utility:
+   - `apps/ai/dashboard_ai.py` (~line 555)
+   - `apps/dashboard/cache.py` (~line 207)
+   - `apps/ai/personal_assistant.py` (~line 1059)
+   - `apps/ai/trend_tracking.py` (~line 202)
+3. Fixed `apps/ai/services.py` to stop editorializing ("Excellent medicine adherence") — now always reports the actual rate neutrally
+4. Added 23 tests in `apps/health/tests/test_medicine_adherence.py` covering: no medicines, no schedules, perfect adherence, partial logging (the bug case), missed doses, skipped doses, late doses, multiple schedules, multiple medicines, weekday-only schedules, inactive medicines/schedules, data isolation, edge cases
+
+**Files:**
+- `apps/health/medicine_utils.py` (NEW)
+- `apps/health/tests/test_medicine_adherence.py` (NEW)
+- `apps/ai/dashboard_ai.py`
+- `apps/ai/personal_assistant.py`
+- `apps/ai/trend_tracking.py`
+- `apps/ai/services.py`
+- `apps/dashboard/cache.py`
+
+---
+
 ## 2026-02-14 — Fix Nested Accordion Collapse/Expand in Preferences
 
 **Problem:** Sub-sections within preferences (e.g., Fasting/Nutrition inside Health, In-App/Email/SMS inside Notifications) could not collapse/expand independently. When a parent section was open, ALL nested sub-section bodies were forced visible.

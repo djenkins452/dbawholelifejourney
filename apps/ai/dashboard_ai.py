@@ -552,19 +552,12 @@ class DashboardAI:
                     data['medicines_pending_today'] = pending_doses_today
                     data['medicines_done_today'] = pending_doses_today == 0
 
-                # Medicine adherence this week
-                medicine_logs = MedicineLog.objects.filter(
-                    user=self.user,
-                    scheduled_date__gte=today - timedelta(days=7),
-                    scheduled_date__lte=today
+                # Medicine adherence this week (correct: expected vs taken)
+                from apps.health.medicine_utils import calculate_medicine_adherence
+                adherence = calculate_medicine_adherence(
+                    self.user, today - timedelta(days=7), today
                 )
-                taken_count = medicine_logs.filter(log_status__in=['taken', 'late']).count()
-                missed_count = medicine_logs.filter(log_status='missed').count()
-                total = taken_count + missed_count
-                if total > 0:
-                    data['medicine_adherence_rate'] = round((taken_count / total) * 100)
-                else:
-                    data['medicine_adherence_rate'] = None
+                data['medicine_adherence_rate'] = adherence['adherence_rate']
 
                 # Medicines needing refill
                 needs_refill = active_medicines.filter(

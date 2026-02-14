@@ -204,21 +204,12 @@ class DashboardCacheService:
 
         todays_schedules.sort(key=lambda x: x['schedule'].scheduled_time)
 
-        # Step 4: Medicine adherence - use aggregation instead of multiple COUNT (ONE query)
-        adherence_stats = MedicineLog.objects.filter(
-            user=user,
-            scheduled_date__gte=week_ago_date,
-            scheduled_date__lte=today
-        ).aggregate(
-            taken_count=Count('id', filter=Q(log_status__in=['taken', 'late'])),
-            missed_count=Count('id', filter=Q(log_status='missed')),
-            total_count=Count('id')
-        )
-
-        taken_count = adherence_stats['taken_count'] or 0
-        missed_count = adherence_stats['missed_count'] or 0
-        total_scheduled = taken_count + missed_count
-        adherence_rate = round((taken_count / total_scheduled) * 100) if total_scheduled > 0 else None
+        # Step 4: Medicine adherence - correct calculation against expected doses
+        from apps.health.medicine_utils import calculate_medicine_adherence
+        adherence_result = calculate_medicine_adherence(user, week_ago_date, today)
+        adherence_rate = adherence_result['adherence_rate']
+        taken_count = adherence_result['taken_doses']
+        missed_count = adherence_result['missed_doses']
 
         # Refill queries - filter the already-fetched list instead of new queries
         needs_refill = [

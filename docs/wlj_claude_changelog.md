@@ -9,6 +9,18 @@
 
 # WLJ Change History
 
+## 2026-02-14 — Quick Log Available for All Goal Types
+
+**Change:** Moved "I Did It Today!", "Pick a Date", and custom calendar (shift/ctrl multi-select, toggle on/off) out of the binary-only block so they appear for ALL measurement types (duration, count, target, binary).
+
+**Why:** Non-binary goals only showed their measurement widget — no way to quickly mark past days done or use the calendar retroactively.
+
+**UI:** Non-binary goals get a "Quick Log" section with divider below the measurement widget. Binary goals show buttons directly as before.
+
+**Files:** `apps/purpose/templates/purpose/habit_goal_detail.html`
+
+---
+
 ## 2026-02-14 — Documentation Catch-Up: What's New, Teaching Destinations, Help Topics
 
 **Problem:** What's New release notes, teaching destinations, and help topics had not been updated for features deployed since Jan 21, 2026.

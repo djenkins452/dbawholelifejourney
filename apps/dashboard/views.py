@@ -415,6 +415,10 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             "todays_medicine_schedule": todays_schedules,
             "medicine_doses_today": len(todays_schedules),
             "medicine_doses_taken_today": sum(1 for s in todays_schedules if s['taken']),
+            "medicine_doses_overdue_today": sum(
+                1 for s in todays_schedules
+                if not s['taken'] and not s.get('skipped') and s['schedule'].scheduled_time <= timezone.now().time()
+            ),
             "medicine_adherence_rate": adherence_rate,
             "medicines_need_refill": needs_refill,
             "medicines_need_refill_count": len(needs_refill),
@@ -1079,14 +1083,12 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
 
         # Health-related nudges (only if health module is enabled)
         if prefs.health_enabled:
-            # Missed medicine doses today (high priority)
-            doses_today = user_data.get("medicine_doses_today", 0)
-            taken_today = user_data.get("medicine_doses_taken_today", 0)
-            pending_doses = doses_today - taken_today
-            if pending_doses > 0:
+            # Overdue medicine doses today (high priority — only past-due, not future)
+            overdue_doses = user_data.get("medicine_doses_overdue_today", 0)
+            if overdue_doses > 0:
                 nudges.append({
                     "type": "medicine",
-                    "count": pending_doses,
+                    "count": overdue_doses,
                     "action_url": "/health/medicine/",
                     "action_text": "Open Tracker"
                 })

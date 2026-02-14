@@ -9,6 +9,24 @@
 
 # WLJ Change History
 
+## 2026-02-14 — Fix AI Nudging About Future Medicine Doses
+
+**Problem:** At 3:50pm, AI insight said "three are still pending" about medicines not due until 6pm and 10pm. Dashboard nudges and health reminders also counted future-scheduled doses as "pending", pressuring users about doses that aren't due yet.
+
+**Fix:** All 4 locations now check `schedule.scheduled_time` against current time:
+1. `apps/ai/dashboard_ai.py` — split "pending" into `missed_doses_today` (past due) and `upcoming_doses_today` (future); AI only nudges about overdue doses
+2. `apps/ai/services.py` — replaced `medicines_pending_today` with missed/upcoming distinction; "OVERDUE" for past-due, "scheduled later today" for future
+3. `apps/dashboard/views.py` — added `medicine_doses_overdue_today` field; nudge only fires for overdue doses
+4. `apps/core/management/commands/generate_health_reminders.py` — only counts doses where `scheduled_time <= current_time`
+
+**Files:**
+- `apps/ai/dashboard_ai.py`
+- `apps/ai/services.py`
+- `apps/dashboard/views.py`
+- `apps/core/management/commands/generate_health_reminders.py`
+
+---
+
 ## 2026-02-14 — Move Weight Goal from Preferences to Health Profile
 
 **Problem:** Users had no obvious way to set, view, or clear their weight goal. It was buried in Preferences under "Weight & Nutrition Goals" and disconnected from the Health module. Removing a LifeGoal called "Weightloss" didn't clear the weight goal, causing confusing "72.6 lb to go" to persist on the dashboard.

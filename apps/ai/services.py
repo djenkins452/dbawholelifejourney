@@ -517,8 +517,9 @@ Match your response to your coaching style."""
             if user_data.get('medicines_expected_today', 0) > 0:
                 taken = user_data.get('medicines_taken_today', 0)
                 total = user_data.get('medicines_expected_today', 0)
-                pending = user_data.get('medicines_pending_today', 0)
-                if pending == 0:
+                missed = user_data.get('medicines_missed_today', 0)
+                upcoming = user_data.get('medicines_upcoming_today', 0)
+                if missed == 0 and upcoming == 0:
                     habits_status.append(f"Medicines: ALL DONE ({taken}/{total} taken)")
                 elif taken > 0:
                     habits_status.append(f"Medicines: {taken}/{total} taken so far")
@@ -541,13 +542,18 @@ Match your response to your coaching style."""
 
             # Medicine status today
             if user_data.get('medicines_expected_today', 0) > 0:
-                pending = user_data.get('medicines_pending_today', 0)
+                missed = user_data.get('medicines_missed_today', 0)
+                upcoming = user_data.get('medicines_upcoming_today', 0)
                 taken = user_data.get('medicines_taken_today', 0)
                 total = user_data.get('medicines_expected_today', 0)
-                if pending == 0:
+                if missed == 0 and upcoming == 0:
                     habits_status.append(f"Medicines: ALL DONE ({taken}/{total} taken)")
-                else:
-                    habits_status.append(f"Medicines: {pending} PENDING ({taken}/{total} taken)")
+                elif missed > 0:
+                    habits_status.append(f"Medicines: {missed} OVERDUE ({taken}/{total} taken)")
+                elif upcoming > 0 and taken > 0:
+                    habits_status.append(f"Medicines: {taken}/{total} taken, {upcoming} later today")
+                elif upcoming > 0:
+                    habits_status.append(f"Medicines: {upcoming} scheduled later today")
 
         context_parts.append("TODAY'S DAILY HABITS: " + ", ".join(habits_status))
 

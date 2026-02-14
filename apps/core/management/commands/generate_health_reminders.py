@@ -170,7 +170,7 @@ class Command(BaseCommand):
         from django.contrib.auth import get_user_model
         from apps.health.models import Medicine, MedicineLog
         from apps.core.services.notification_service import notification_service
-        from apps.core.utils import get_user_today
+        from apps.core.utils import get_user_today, get_user_now
 
         User = get_user_model()
         count = 0
@@ -187,11 +187,12 @@ class Command(BaseCommand):
                 today = get_user_today(user)
                 day_of_week = today.weekday()
 
-                # Count pending doses for today
+                # Count overdue doses for today (only past scheduled time)
+                current_time = get_user_now(user).time()
                 pending_count = 0
                 for medicine in user.medicines.filter(medicine_status='active'):
                     for schedule in medicine.schedules.filter(is_active=True):
-                        if schedule.applies_to_day(day_of_week):
+                        if schedule.applies_to_day(day_of_week) and schedule.scheduled_time <= current_time:
                             # Check if dose already logged
                             log = MedicineLog.objects.filter(
                                 user=user,
@@ -199,7 +200,7 @@ class Command(BaseCommand):
                                 schedule=schedule,
                                 scheduled_date=today
                             ).first()
-                            if not log or log.log_status == 'pending':
+                            if not log:
                                 pending_count += 1
 
                 if pending_count == 0:

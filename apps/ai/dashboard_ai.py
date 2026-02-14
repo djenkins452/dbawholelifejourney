@@ -528,9 +528,11 @@ class DashboardAI:
 
                 # TODAY'S medicine status - what's expected vs what's done
                 day_of_week = today.weekday()  # 0=Mon, 6=Sun
+                current_time = now.time()
                 expected_doses_today = 0
                 taken_doses_today = 0
-                pending_doses_today = 0
+                missed_doses_today = 0  # past due and not taken
+                upcoming_doses_today = 0  # not yet due
 
                 for medicine in active_medicines.prefetch_related('schedules'):
                     for schedule in medicine.schedules.filter(is_active=True):
@@ -545,14 +547,19 @@ class DashboardAI:
                             ).first()
                             if log and log.log_status in ['taken', 'late']:
                                 taken_doses_today += 1
-                            elif not log or log.log_status == 'pending':
-                                pending_doses_today += 1
+                            elif schedule.scheduled_time > current_time:
+                                # Dose is in the future — don't nag about it
+                                upcoming_doses_today += 1
+                            else:
+                                # Past due and not taken
+                                missed_doses_today += 1
 
                 if expected_doses_today > 0:
                     data['medicines_expected_today'] = expected_doses_today
                     data['medicines_taken_today'] = taken_doses_today
-                    data['medicines_pending_today'] = pending_doses_today
-                    data['medicines_done_today'] = pending_doses_today == 0
+                    data['medicines_missed_today'] = missed_doses_today
+                    data['medicines_upcoming_today'] = upcoming_doses_today
+                    data['medicines_done_today'] = missed_doses_today == 0 and upcoming_doses_today == 0
 
                 # Medicine adherence this week (correct: expected vs taken)
                 from apps.health.medicine_utils import calculate_medicine_adherence

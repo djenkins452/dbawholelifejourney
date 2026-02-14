@@ -50,6 +50,7 @@ from .views import (
     HabitLogTodayView,
     HabitLogDateView,
     HabitLogDatesView,
+    HabitUnlogDatesView,
 )
 
 app_name = "purpose"
@@ -109,4 +110,5 @@ urlpatterns = [
     path("habits/<int:pk>/log-today/", HabitLogTodayView.as_view(), name="habit_log_today"),
     path("habits/<int:pk>/log-date/", HabitLogDateView.as_view(), name="habit_log_date"),
     path("habits/<int:pk>/log-dates/", HabitLogDatesView.as_view(), name="habit_log_dates"),
+    path("habits/<int:pk>/unlog-dates/", HabitUnlogDatesView.as_view(), name="habit_unlog_dates"),
 ]

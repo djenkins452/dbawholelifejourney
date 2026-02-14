@@ -1045,6 +1045,77 @@ class HabitLogDatesView(PurposeAccessMixin, View):
         })
 
 
+class HabitUnlogDatesView(PurposeAccessMixin, View):
+    """
+    Remove habit entries for specified dates (undo support).
+
+    POST /purpose/habits/<pk>/unlog-dates/
+    Body: {"dates": ["YYYY-MM-DD", ...]}
+    Returns JSON with success status and updated stats.
+    """
+
+    def post(self, request, pk):
+        import json
+        goal = get_object_or_404(HabitGoal, pk=pk, user=request.user)
+        today = get_user_today(request.user)
+
+        try:
+            data = json.loads(request.body)
+            date_strings = data.get('dates')
+            if not date_strings or not isinstance(date_strings, list):
+                return JsonResponse({
+                    'success': False,
+                    'error': 'A list of dates is required.'
+                }, status=400)
+        except json.JSONDecodeError:
+            return JsonResponse({
+                'success': False,
+                'error': 'Invalid JSON.'
+            }, status=400)
+
+        from datetime import datetime
+        parsed_dates = []
+        for date_str in date_strings:
+            try:
+                d = datetime.strptime(date_str, '%Y-%m-%d').date()
+                parsed_dates.append(d)
+            except (ValueError, TypeError):
+                continue
+
+        deleted_count, _ = HabitEntry.objects.filter(
+            goal=goal,
+            date__in=parsed_dates,
+        ).delete()
+
+        # Build state info for each date so frontend can revert boxes
+        reverted = []
+        for d in parsed_dates:
+            day_number = (d - goal.start_date).days + 1
+            if d == today:
+                state = 'today'
+            elif d < today:
+                state = 'missed'
+            else:
+                state = 'future'
+            reverted.append({
+                'date': d.isoformat(),
+                'day_number': day_number,
+                'state': state,
+            })
+
+        return JsonResponse({
+            'success': True,
+            'reverted': reverted,
+            'count': deleted_count,
+            'message': f'Undid {deleted_count} date{"s" if deleted_count != 1 else ""}.',
+            'stats': {
+                'completed_days': goal.completed_days,
+                'completion_rate': round(goal.completion_rate),
+                'current_streak': goal.current_streak,
+            }
+        })
+
+
 # =============================================================================
 # Goal Milestones
 # =============================================================================

@@ -75,23 +75,19 @@
             </button>
         </div>
 
-        <!-- Multi-Date Picker (hidden by default) -->
-        <div id="date-picker-container" class="date-picker-container" style="display: none;">
-            <div class="date-picker-row">
-                <label for="habit-date">Add dates to log:</label>
-                <input type="date"
-                       id="habit-date"
-                       name="habit-date"
-                       min="{{ min_date }}"
-                       max="{{ max_date }}"
-                       class="form-control">
-                <button type="button" id="add-date-btn" class="btn btn-secondary">Add Date</button>
+        <!-- Custom Calendar Picker (hidden by default) -->
+        <div id="calendar-container" class="calendar-container" style="display: none;">
+            <div class="calendar-header">
+                <button type="button" id="cal-prev" class="btn btn-sm btn-secondary cal-nav">&lsaquo;</button>
+                <span id="cal-month-label" class="cal-month-label"></span>
+                <button type="button" id="cal-next" class="btn btn-sm btn-secondary cal-nav">&rsaquo;</button>
+                <button type="button" id="cancel-cal-btn" class="btn btn-sm btn-secondary" style="margin-left: auto;">Close</button>
             </div>
-            <div id="selected-dates-list" class="selected-dates-list" style="display: none;"></div>
-            <div class="date-picker-actions">
-                <button type="button" id="log-dates-btn" class="btn btn-primary" style="display: none;">Log All Dates</button>
-                <button type="button" id="cancel-date-btn" class="btn btn-secondary">Cancel</button>
+            <p class="calendar-hint">Click to log. Shift+click for range. Ctrl/⌘+click for individual dates.</p>
+            <div class="calendar-weekdays">
+                <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
             </div>
+            <div id="cal-grid" class="calendar-grid"></div>
         </div>
 
         <!-- Feedback Message -->
@@ -127,6 +123,13 @@
     </div>
     {% endif %}
 
+    <!-- Undo Toast -->
+    <div id="undo-toast" class="undo-toast" style="display: none;">
+        <span id="undo-message"></span>
+        <button type="button" id="undo-btn" class="btn btn-sm undo-action">Undo</button>
+        <div class="undo-timer-bar"><div id="undo-timer-fill" class="undo-timer-fill"></div></div>
+    </div>
+
     <!-- Goal Details -->
     <div class="goal-details">
         {% if goal.description %}
@@ -161,36 +164,49 @@
 document.addEventListener('DOMContentLoaded', function() {
     const csrfToken = '{{ csrf_token }}';
     const goalPk = {{ goal.pk }};
+    const goalStartDate = '{{ goal.start_date|date:"Y-m-d" }}';
+    const goalEndDate = '{{ goal.end_date|date:"Y-m-d" }}';
     const logTodayBtn = document.getElementById('log-today-btn');
     const pickDateBtn = document.getElementById('pick-date-btn');
-    const datePicker = document.getElementById('date-picker-container');
-    const habitDateInput = document.getElementById('habit-date');
-    const addDateBtn = document.getElementById('add-date-btn');
-    const logDatesBtn = document.getElementById('log-dates-btn');
-    const cancelDateBtn = document.getElementById('cancel-date-btn');
-    const selectedDatesList = document.getElementById('selected-dates-list');
+    const calendarContainer = document.getElementById('calendar-container');
     const feedbackMessage = document.getElementById('feedback-message');
 
-    // Track selected dates for multi-date picker
-    let selectedDates = [];
+    // Undo state
+    let undoTimer = null;
+    let undoTimerRAF = null;
+    const UNDO_SECONDS = 8;
+
+    // Calendar state
+    let calViewDate = new Date();  // current month being viewed
+    let lastClickedDate = null;    // for shift+click range
+
+    // Build a set of already-completed dates from the matrix
+    const completedDates = new Set();
+    document.querySelectorAll('.matrix-box[data-state="completed"]').forEach(box => {
+        if (box.dataset.date) completedDates.add(box.dataset.date);
+    });
+
+    function todayStr() {
+        const d = new Date();
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
 
     function showFeedback(message, isError) {
         feedbackMessage.textContent = message;
         feedbackMessage.className = 'feedback-message ' + (isError ? 'error' : 'success');
         feedbackMessage.style.display = 'block';
-        setTimeout(() => {
-            feedbackMessage.style.display = 'none';
-        }, 4000);
+        setTimeout(() => { feedbackMessage.style.display = 'none'; }, 4000);
     }
 
     function updateMatrixBox(dayNumber, newState) {
-        const boxes = document.querySelectorAll('.matrix-box');
-        boxes.forEach(box => {
+        document.querySelectorAll('.matrix-box').forEach(box => {
             if (box.dataset.dayNumber === String(dayNumber)) {
-                box.classList.remove('box-missed', 'box-today', 'box-future', 'box-completed');
+                box.classList.remove('box-missed', 'box-today', 'box-future', 'box-completed', 'box-clickable');
                 box.classList.add('box-' + newState);
-                box.classList.remove('box-clickable');
                 box.dataset.state = newState;
+                if (newState === 'missed' || newState === 'today') {
+                    box.classList.add('box-clickable');
+                }
             }
         });
     }
@@ -198,30 +214,152 @@ document.addEventListener('DOMContentLoaded', function() {
     function updateStats(stats) {
         const statsBar = document.querySelector('.stats-bar');
         if (!statsBar || !stats) return;
-
-        const statElements = statsBar.querySelectorAll('.stat');
-        statElements.forEach(stat => {
+        statsBar.querySelectorAll('.stat').forEach(stat => {
             const label = stat.querySelector('.stat-label');
             const value = stat.querySelector('.stat-value');
             if (!label || !value) return;
-
-            const labelText = label.textContent.toLowerCase();
-            if (labelText === 'completed') {
-                value.textContent = stats.completed_days;
-            } else if (labelText === 'success rate') {
-                value.textContent = stats.completion_rate + '%';
-            } else if (labelText === 'current streak') {
-                value.textContent = stats.current_streak;
-            }
+            const t = label.textContent.toLowerCase();
+            if (t === 'completed') value.textContent = stats.completed_days;
+            else if (t === 'success rate') value.textContent = stats.completion_rate + '%';
+            else if (t === 'current streak') value.textContent = stats.current_streak;
         });
     }
 
-    function formatDate(dateStr) {
-        const d = new Date(dateStr + 'T00:00:00');
-        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    function syncLogTodayBtn(isLogged) {
+        if (!logTodayBtn) return;
+        if (isLogged) {
+            logTodayBtn.disabled = true;
+            logTodayBtn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> Done for Today';
+            logTodayBtn.classList.add('btn-success');
+        } else {
+            logTodayBtn.disabled = false;
+            logTodayBtn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> I Did It Today!';
+            logTodayBtn.classList.remove('btn-success');
+        }
     }
 
-    // ── Matrix Box Click-to-Log ──
+    // ── Batch log dates and show undo ──
+    function logDatesAndUndo(dateStrings) {
+        if (!dateStrings.length) return;
+
+        // Optimistic UI — mark all as completed immediately
+        const dayNumbers = [];
+        dateStrings.forEach(ds => {
+            const d = new Date(ds + 'T00:00:00');
+            const s = new Date(goalStartDate + 'T00:00:00');
+            const dayNum = Math.floor((d - s) / 86400000) + 1;
+            dayNumbers.push({ date: ds, dayNumber: dayNum });
+            updateMatrixBox(dayNum, 'completed');
+            completedDates.add(ds);
+        });
+
+        fetch(`/purpose/habits/${goalPk}/log-dates/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+            body: JSON.stringify({ dates: dateStrings })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                updateStats(data.stats);
+                if (dateStrings.includes(todayStr())) syncLogTodayBtn(true);
+                renderCalendar();  // refresh calendar cells
+                showUndo(data.logged.map(l => l.date), data.count);
+            } else {
+                // Revert on failure
+                dayNumbers.forEach(dn => {
+                    completedDates.delete(dn.date);
+                    const today = todayStr();
+                    updateMatrixBox(dn.dayNumber, dn.date === today ? 'today' : 'missed');
+                });
+                showFeedback(data.error, true);
+            }
+        })
+        .catch(() => {
+            dayNumbers.forEach(dn => {
+                completedDates.delete(dn.date);
+                updateMatrixBox(dn.dayNumber, dn.date === todayStr() ? 'today' : 'missed');
+            });
+            showFeedback('An error occurred. Please try again.', true);
+        });
+    }
+
+    // ── Undo Toast ──
+    function showUndo(dates, count) {
+        // Cancel any existing undo timer
+        clearUndo();
+
+        const toast = document.getElementById('undo-toast');
+        const msg = document.getElementById('undo-message');
+        const btn = document.getElementById('undo-btn');
+        const fill = document.getElementById('undo-timer-fill');
+
+        msg.textContent = `Logged ${count} date${count !== 1 ? 's' : ''}.`;
+        toast.style.display = 'flex';
+        fill.style.width = '100%';
+
+        const startTime = Date.now();
+        const duration = UNDO_SECONDS * 1000;
+
+        function tick() {
+            const elapsed = Date.now() - startTime;
+            const pct = Math.max(0, 1 - elapsed / duration) * 100;
+            fill.style.width = pct + '%';
+            if (elapsed < duration) {
+                undoTimerRAF = requestAnimationFrame(tick);
+            }
+        }
+        undoTimerRAF = requestAnimationFrame(tick);
+
+        undoTimer = setTimeout(() => {
+            toast.style.display = 'none';
+            undoTimer = null;
+        }, duration);
+
+        // One-time click handler for undo
+        const handler = () => {
+            clearUndo();
+            toast.style.display = 'none';
+            performUndo(dates);
+            btn.removeEventListener('click', handler);
+        };
+        // Remove old listeners by cloning
+        const newBtn = btn.cloneNode(true);
+        btn.parentNode.replaceChild(newBtn, btn);
+        newBtn.addEventListener('click', handler);
+    }
+
+    function clearUndo() {
+        if (undoTimer) { clearTimeout(undoTimer); undoTimer = null; }
+        if (undoTimerRAF) { cancelAnimationFrame(undoTimerRAF); undoTimerRAF = null; }
+    }
+
+    function performUndo(dates) {
+        fetch(`/purpose/habits/${goalPk}/unlog-dates/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+            body: JSON.stringify({ dates: dates })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                data.reverted.forEach(item => {
+                    updateMatrixBox(item.day_number, item.state);
+                    completedDates.delete(item.date);
+                });
+                updateStats(data.stats);
+                if (dates.includes(todayStr())) syncLogTodayBtn(false);
+                renderCalendar();
+                showFeedback(data.message, false);
+            } else {
+                showFeedback(data.error || 'Undo failed.', true);
+            }
+        })
+        .catch(() => showFeedback('Undo failed. Please try again.', true));
+    }
+
+    // ── Matrix Box Click-to-Log (with shift+click range) ──
+    let lastMatrixClickDate = null;
     const matrix = document.getElementById('habit-matrix');
     if (matrix) {
         matrix.addEventListener('click', function(e) {
@@ -229,48 +367,35 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!box) return;
 
             const state = box.dataset.state;
-            const date = box.dataset.date;
-            if (!date || (state !== 'missed' && state !== 'today')) return;
+            const dateStr = box.dataset.date;
+            if (!dateStr) return;
+            if (state !== 'missed' && state !== 'today') return;
             if (box.classList.contains('box-logging')) return;
 
-            // Immediate visual feedback
-            box.classList.add('box-logging');
-            box.classList.remove('box-missed', 'box-today');
-            box.classList.add('box-completed');
-
-            fetch(`/purpose/habits/${goalPk}/log-date/`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': csrfToken
-                },
-                body: JSON.stringify({ date: date })
-            })
-            .then(response => response.json())
-            .then(data => {
-                box.classList.remove('box-logging');
-                if (data.success) {
-                    box.classList.remove('box-clickable');
-                    box.dataset.state = 'completed';
-                    updateStats(data.stats);
-                    // If this was today's box, also update the Log Today button
-                    if (state === 'today' && logTodayBtn) {
-                        logTodayBtn.disabled = true;
-                        logTodayBtn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> Done for Today';
-                        logTodayBtn.classList.add('btn-success');
+            if (e.shiftKey && lastMatrixClickDate) {
+                // Range select on matrix
+                const allBoxes = Array.from(document.querySelectorAll('.matrix-box[data-date]'));
+                const d1 = lastMatrixClickDate;
+                const d2 = dateStr;
+                const minD = d1 < d2 ? d1 : d2;
+                const maxD = d1 > d2 ? d1 : d2;
+                const rangeDates = [];
+                allBoxes.forEach(b => {
+                    const bd = b.dataset.date;
+                    const bs = b.dataset.state;
+                    if (bd >= minD && bd <= maxD && (bs === 'missed' || bs === 'today')) {
+                        rangeDates.push(bd);
                     }
-                } else {
-                    // Revert on failure
-                    box.classList.remove('box-completed');
-                    box.classList.add('box-' + state, 'box-clickable');
-                    showFeedback(data.error, true);
-                }
-            })
-            .catch(() => {
-                box.classList.remove('box-logging', 'box-completed');
-                box.classList.add('box-' + state, 'box-clickable');
-                showFeedback('An error occurred. Please try again.', true);
-            });
+                });
+                if (rangeDates.length) logDatesAndUndo(rangeDates);
+            } else if (e.ctrlKey || e.metaKey) {
+                // Ctrl/Cmd click — log single without resetting lastMatrixClickDate
+                logDatesAndUndo([dateStr]);
+            } else {
+                // Normal click — log single
+                logDatesAndUndo([dateStr]);
+            }
+            lastMatrixClickDate = dateStr;
         });
     }
 
@@ -279,158 +404,144 @@ document.addEventListener('DOMContentLoaded', function() {
         logTodayBtn.addEventListener('click', function() {
             logTodayBtn.disabled = true;
             logTodayBtn.textContent = 'Logging...';
-
             fetch(`/purpose/habits/${goalPk}/log-today/`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': csrfToken
-                }
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken }
             })
-            .then(response => response.json())
+            .then(r => r.json())
             .then(data => {
                 if (data.success) {
-                    showFeedback(data.message, false);
-                    logTodayBtn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> Done for Today';
-                    logTodayBtn.classList.add('btn-success');
+                    syncLogTodayBtn(true);
                     updateMatrixBox(data.day_number, 'completed');
+                    completedDates.add(todayStr());
                     updateStats(data.stats);
+                    renderCalendar();
+                    showUndo([todayStr()], 1);
                 } else {
                     showFeedback(data.error, true);
-                    logTodayBtn.disabled = false;
-                    logTodayBtn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> I Did It Today!';
+                    syncLogTodayBtn(false);
                 }
             })
             .catch(() => {
                 showFeedback('An error occurred. Please try again.', true);
-                logTodayBtn.disabled = false;
-                logTodayBtn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> I Did It Today!';
+                syncLogTodayBtn(false);
             });
         });
     }
 
-    // ── Multi-Date Picker ──
-    function renderSelectedDates() {
-        if (selectedDates.length === 0) {
-            selectedDatesList.style.display = 'none';
-            logDatesBtn.style.display = 'none';
-            return;
-        }
-        selectedDatesList.style.display = 'flex';
-        logDatesBtn.style.display = 'inline-flex';
-        logDatesBtn.textContent = `Log ${selectedDates.length} Date${selectedDates.length !== 1 ? 's' : ''}`;
+    // ── Custom Calendar ──
+    function parseDate(str) { return new Date(str + 'T00:00:00'); }
+    function fmtDate(d) {
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
 
-        selectedDatesList.innerHTML = selectedDates.map(d =>
-            `<span class="date-chip" data-date="${d}">
-                ${formatDate(d)}
-                <button type="button" class="chip-remove" aria-label="Remove">&times;</button>
-            </span>`
-        ).join('');
+    function renderCalendar() {
+        const grid = document.getElementById('cal-grid');
+        const label = document.getElementById('cal-month-label');
+        if (!grid || !label) return;
+
+        const year = calViewDate.getFullYear();
+        const month = calViewDate.getMonth();
+        label.textContent = calViewDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+        const startPad = firstDay.getDay();  // 0=Sun
+        const today = todayStr();
+        const gStart = goalStartDate;
+        const gEnd = goalEndDate;
+
+        let html = '';
+        // Pad days before month start
+        for (let i = 0; i < startPad; i++) {
+            html += '<div class="cal-day cal-day-empty"></div>';
+        }
+        for (let d = 1; d <= lastDay.getDate(); d++) {
+            const ds = fmtDate(new Date(year, month, d));
+            const inRange = ds >= gStart && ds <= gEnd;
+            const isPast = ds <= today;
+            const isCompleted = completedDates.has(ds);
+            const isToday = ds === today;
+
+            let cls = 'cal-day';
+            if (!inRange) {
+                cls += ' cal-day-out';
+            } else if (isCompleted) {
+                cls += ' cal-day-completed';
+            } else if (isToday) {
+                cls += ' cal-day-today cal-day-loggable';
+            } else if (isPast) {
+                cls += ' cal-day-missed cal-day-loggable';
+            } else {
+                cls += ' cal-day-future';
+            }
+            html += `<div class="${cls}" data-date="${ds}">${d}</div>`;
+        }
+        grid.innerHTML = html;
     }
 
     if (pickDateBtn) {
         pickDateBtn.addEventListener('click', function() {
-            datePicker.style.display = 'flex';
+            // Start calendar on current month (or goal start if goal hasn't started yet)
+            const today = new Date();
+            const gStart = parseDate(goalStartDate);
+            calViewDate = today < gStart ? new Date(gStart.getFullYear(), gStart.getMonth(), 1) : new Date(today.getFullYear(), today.getMonth(), 1);
+            renderCalendar();
+            calendarContainer.style.display = 'block';
             pickDateBtn.style.display = 'none';
         });
     }
 
-    if (cancelDateBtn) {
-        cancelDateBtn.addEventListener('click', function() {
-            datePicker.style.display = 'none';
+    const cancelCalBtn = document.getElementById('cancel-cal-btn');
+    if (cancelCalBtn) {
+        cancelCalBtn.addEventListener('click', function() {
+            calendarContainer.style.display = 'none';
             pickDateBtn.style.display = 'inline-flex';
-            habitDateInput.value = '';
-            selectedDates = [];
-            renderSelectedDates();
+            lastClickedDate = null;
         });
     }
 
-    if (addDateBtn) {
-        addDateBtn.addEventListener('click', function() {
-            const val = habitDateInput.value;
-            if (!val) {
-                showFeedback('Please select a date.', true);
-                return;
-            }
-            if (selectedDates.includes(val)) {
-                showFeedback('Date already added.', true);
-                return;
-            }
-            selectedDates.push(val);
-            selectedDates.sort();
-            habitDateInput.value = '';
-            renderSelectedDates();
-        });
+    // Month navigation
+    const prevBtn = document.getElementById('cal-prev');
+    const nextBtn = document.getElementById('cal-next');
+    if (prevBtn) prevBtn.addEventListener('click', () => {
+        calViewDate.setMonth(calViewDate.getMonth() - 1);
+        renderCalendar();
+    });
+    if (nextBtn) nextBtn.addEventListener('click', () => {
+        calViewDate.setMonth(calViewDate.getMonth() + 1);
+        renderCalendar();
+    });
 
-        // Also allow Enter key on the date input
-        habitDateInput.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                addDateBtn.click();
-            }
-        });
-    }
+    // Calendar day clicks
+    const calGrid = document.getElementById('cal-grid');
+    if (calGrid) {
+        calGrid.addEventListener('click', function(e) {
+            const cell = e.target.closest('.cal-day-loggable');
+            if (!cell) return;
+            const dateStr = cell.dataset.date;
+            if (!dateStr) return;
 
-    // Remove chip
-    if (selectedDatesList) {
-        selectedDatesList.addEventListener('click', function(e) {
-            const removeBtn = e.target.closest('.chip-remove');
-            if (!removeBtn) return;
-            const chip = removeBtn.closest('.date-chip');
-            const date = chip.dataset.date;
-            selectedDates = selectedDates.filter(d => d !== date);
-            renderSelectedDates();
-        });
-    }
-
-    // Log All Dates button
-    if (logDatesBtn) {
-        logDatesBtn.addEventListener('click', function() {
-            if (selectedDates.length === 0) return;
-
-            logDatesBtn.disabled = true;
-            logDatesBtn.textContent = 'Logging...';
-
-            fetch(`/purpose/habits/${goalPk}/log-dates/`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': csrfToken
-                },
-                body: JSON.stringify({ dates: selectedDates })
-            })
-            .then(response => response.json())
-            .then(data => {
-                logDatesBtn.disabled = false;
-                if (data.success) {
-                    showFeedback(data.message, false);
-                    data.logged.forEach(item => {
-                        updateMatrixBox(item.day_number, 'completed');
-                    });
-                    updateStats(data.stats);
-                    // Check if today was logged
-                    const todayStr = new Date().toISOString().split('T')[0];
-                    if (data.logged.some(item => item.date === todayStr) && logTodayBtn) {
-                        logTodayBtn.disabled = true;
-                        logTodayBtn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> Done for Today';
-                        logTodayBtn.classList.add('btn-success');
+            if (e.shiftKey && lastClickedDate) {
+                // Range: from lastClickedDate to this date
+                const minD = lastClickedDate < dateStr ? lastClickedDate : dateStr;
+                const maxD = lastClickedDate > dateStr ? lastClickedDate : dateStr;
+                const rangeDates = [];
+                const cur = parseDate(minD);
+                const end = parseDate(maxD);
+                while (cur <= end) {
+                    const ds = fmtDate(cur);
+                    if (ds >= goalStartDate && ds <= goalEndDate && ds <= todayStr() && !completedDates.has(ds)) {
+                        rangeDates.push(ds);
                     }
-                    // Reset picker
-                    selectedDates = [];
-                    renderSelectedDates();
-                    datePicker.style.display = 'none';
-                    pickDateBtn.style.display = 'inline-flex';
-                    habitDateInput.value = '';
-                } else {
-                    showFeedback(data.error, true);
-                    renderSelectedDates();
+                    cur.setDate(cur.getDate() + 1);
                 }
-            })
-            .catch(() => {
-                logDatesBtn.disabled = false;
-                renderSelectedDates();
-                showFeedback('An error occurred. Please try again.', true);
-            });
+                if (rangeDates.length) logDatesAndUndo(rangeDates);
+            } else {
+                // Normal or ctrl/cmd click — log single date
+                logDatesAndUndo([dateStr]);
+            }
+            lastClickedDate = dateStr;
         });
     }
 });
@@ -544,71 +655,159 @@ document.addEventListener('DOMContentLoaded', function() {
     border-color: var(--color-success, #22c55e) !important;
 }
 
-.date-picker-container {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
+/* Custom Calendar */
+.calendar-container {
     padding: var(--space-4);
     background: var(--color-bg);
     border-radius: var(--radius-sm);
+    max-width: 380px;
 }
 
-.date-picker-row {
+.calendar-header {
     display: flex;
     align-items: center;
-    gap: var(--space-3);
-    flex-wrap: wrap;
-}
-
-.date-picker-row label {
-    font-weight: 500;
-}
-
-.date-picker-container input[type="date"] {
-    padding: var(--space-2) var(--space-3);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    font-size: var(--font-size-base);
-}
-
-.date-picker-actions {
-    display: flex;
-    gap: var(--space-3);
-    flex-wrap: wrap;
-}
-
-.selected-dates-list {
-    display: flex;
-    flex-wrap: wrap;
     gap: var(--space-2);
+    margin-bottom: var(--space-2);
 }
 
-.date-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-1);
+.cal-month-label {
+    font-weight: 600;
+    font-size: var(--font-size-base);
+    min-width: 160px;
+    text-align: center;
+}
+
+.cal-nav {
     padding: var(--space-1) var(--space-2);
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: 999px;
+    font-size: var(--font-size-lg);
+    line-height: 1;
+}
+
+.calendar-hint {
     font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin: 0 0 var(--space-3) 0;
+}
+
+.calendar-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+    margin-bottom: 2px;
+    text-align: center;
+    font-size: var(--font-size-xs, 0.75rem);
+    font-weight: 600;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+}
+
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+}
+
+.cal-day {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
+    user-select: none;
+}
+
+.cal-day-empty {
+    visibility: hidden;
+}
+
+.cal-day-out {
+    color: var(--color-text-muted);
+    opacity: 0.3;
+}
+
+.cal-day-completed {
+    background: var(--color-success, #22c55e);
+    color: white;
+    font-weight: 600;
+}
+
+.cal-day-missed {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.cal-day-today {
+    background: var(--color-accent);
+    color: white;
+    font-weight: 600;
+}
+
+.cal-day-future {
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+    border: 1px dashed var(--color-border);
+}
+
+.cal-day-loggable {
+    cursor: pointer;
+}
+
+.cal-day-loggable:hover {
+    transform: scale(1.15);
+    box-shadow: 0 0 0 2px var(--color-success, #22c55e);
+    z-index: 1;
+}
+
+/* Undo Toast */
+.undo-toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-text, #1e293b);
+    color: white;
+    border-radius: var(--radius-md);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+    z-index: 1000;
+    min-width: 200px;
+    max-width: 90vw;
+    flex-wrap: wrap;
+}
+
+.undo-action {
+    background: transparent;
+    color: var(--color-accent-light, #93c5fd);
+    border: 1px solid var(--color-accent-light, #93c5fd);
+    font-weight: 600;
+    cursor: pointer;
     white-space: nowrap;
 }
 
-.chip-remove {
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: var(--color-text-muted);
-    font-size: var(--font-size-lg);
-    line-height: 1;
-    padding: 0 2px;
-    display: flex;
-    align-items: center;
+.undo-action:hover {
+    background: rgba(255,255,255,0.1);
 }
 
-.chip-remove:hover {
-    color: var(--color-danger, #ef4444);
+.undo-timer-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
+    overflow: hidden;
+}
+
+.undo-timer-fill {
+    height: 100%;
+    background: var(--color-accent-light, #93c5fd);
+    transition: none;
 }
 
 .feedback-message {
@@ -779,6 +978,25 @@ document.addEventListener('DOMContentLoaded', function() {
 
     .stat {
         min-width: 80px;
+    }
+
+    .calendar-container {
+        max-width: 100%;
+    }
+
+    .calendar-hint {
+        font-size: var(--font-size-xs, 0.75rem);
+    }
+
+    .cal-day {
+        font-size: var(--font-size-xs, 0.75rem);
+    }
+
+    .undo-toast {
+        bottom: 16px;
+        left: 16px;
+        right: 16px;
+        transform: none;
     }
 }
 </style>

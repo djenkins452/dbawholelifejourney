@@ -4,26 +4,30 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-14 (Habit goal click-to-log matrix + multi-date picker)
+# Last Updated: 2026-02-14 (Habit goal custom calendar, shift/ctrl click, undo)
 # ==============================================================================
 
 # WLJ Change History
 
-## 2026-02-14 — Habit Goal: Click-to-Log Matrix + Multi-Date Picker
+## 2026-02-14 — Habit Goal: Custom Calendar, Shift/Ctrl Click, Undo Toast
 
-**Feature:** Two new ways to log missed habit days faster:
-1. **Clickable matrix boxes** — click any missed (amber) or today box directly on the progress matrix to instantly log it. Immediate visual feedback with green completion state.
-2. **Multi-date picker** — "Pick a Date" now supports adding multiple dates before submitting. Add dates one at a time, see them as removable chips, then "Log All Dates" in one batch request.
+**Feature:** Major upgrade to habit logging UX with three interaction methods:
 
-**Backend:** New `HabitLogDatesView` endpoint (`POST /purpose/habits/<pk>/log-dates/`) accepts `{"dates": [...]}` array, validates all dates, creates entries, and returns updated stats. Handles partial success (valid dates logged, invalid ones returned as errors).
+1. **Clickable matrix boxes** — click any missed/today box on the progress matrix to instantly log. Supports shift+click for range selection across matrix boxes.
+2. **Custom calendar widget** — replaces native date input. Full month-view calendar with color-coded days (green=completed, amber=missed, purple=today). Click to log instantly. Shift+click for date range. Ctrl/⌘+click for individual multi-select. Month navigation with prev/next arrows.
+3. **Undo toast** — every log action shows a fixed-bottom toast with 8-second countdown timer bar and "Undo" button. Undo deletes the entries and reverts both matrix and calendar UI.
+
+**Backend:**
+- `HabitLogDatesView` — batch log endpoint (`POST /purpose/habits/<pk>/log-dates/`)
+- `HabitUnlogDatesView` — undo/delete endpoint (`POST /purpose/habits/<pk>/unlog-dates/`) returns reverted states for UI sync
 
 **Files modified:**
-- `apps/purpose/views.py` — Added `HabitLogDatesView` batch endpoint
-- `apps/purpose/urls.py` — Added `log-dates/` URL route + import
-- `apps/purpose/templates/purpose/habit_goal_detail.html` — Clickable matrix boxes, multi-date picker UI, updated JS
-- `apps/purpose/tests/test_purpose_comprehensive.py` — 8 new tests for batch endpoint
+- `apps/purpose/views.py` — Added `HabitLogDatesView` + `HabitUnlogDatesView` endpoints
+- `apps/purpose/urls.py` — Added `log-dates/` + `unlog-dates/` URL routes
+- `apps/purpose/templates/purpose/habit_goal_detail.html` — Full rewrite: custom calendar widget, shift/ctrl click on matrix + calendar, undo toast with countdown, responsive CSS
+- `apps/purpose/tests/test_purpose_comprehensive.py` — 15 new tests (8 batch log + 7 unlog)
 
-**Tests:** 110 purpose tests passing (8 new).
+**Tests:** 117 purpose tests passing (15 new).
 
 ---
 

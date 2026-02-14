@@ -1406,3 +1406,125 @@ class HabitLogDatesViewTest(PurposeTestMixin, TestCase):
         self.assertEqual(data['count'], 1)
         self.assertFalse(data['logged'][0]['created'])
         self.assertEqual(HabitEntry.objects.filter(goal=self.goal).count(), 1)
+
+
+class HabitUnlogDatesViewTest(PurposeTestMixin, TestCase):
+    """Tests for the HabitUnlogDatesView (undo support)."""
+
+    def setUp(self):
+        self.user = self.create_user()
+        self.client.login(email='test@example.com', password='testpass123')
+        self.today = timezone.now().date()
+        self.goal = HabitGoal.objects.create(
+            user=self.user,
+            name='Test Habit',
+            purpose='Testing',
+            start_date=self.today - timedelta(days=10),
+            end_date=self.today + timedelta(days=19),
+            habit_required=True,
+        )
+
+    def test_unlog_single_date(self):
+        """Can remove a single habit entry."""
+        import json
+        d = self.today - timedelta(days=1)
+        HabitEntry.objects.create(goal=self.goal, date=d, completed=True)
+        self.assertEqual(HabitEntry.objects.filter(goal=self.goal).count(), 1)
+
+        response = self.client.post(
+            reverse('purpose:habit_unlog_dates', kwargs={'pk': self.goal.pk}),
+            data=json.dumps({'dates': [d.isoformat()]}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertTrue(data['success'])
+        self.assertEqual(data['count'], 1)
+        self.assertEqual(HabitEntry.objects.filter(goal=self.goal).count(), 0)
+
+    def test_unlog_multiple_dates(self):
+        """Can remove multiple habit entries at once."""
+        import json
+        dates = []
+        for i in range(1, 4):
+            d = self.today - timedelta(days=i)
+            HabitEntry.objects.create(goal=self.goal, date=d, completed=True)
+            dates.append(d.isoformat())
+        self.assertEqual(HabitEntry.objects.filter(goal=self.goal).count(), 3)
+
+        response = self.client.post(
+            reverse('purpose:habit_unlog_dates', kwargs={'pk': self.goal.pk}),
+            data=json.dumps({'dates': dates}),
+            content_type='application/json'
+        )
+        data = json.loads(response.content)
+        self.assertTrue(data['success'])
+        self.assertEqual(data['count'], 3)
+        self.assertEqual(HabitEntry.objects.filter(goal=self.goal).count(), 0)
+
+    def test_unlog_returns_correct_states(self):
+        """Reverted items include proper state (missed/today)."""
+        import json
+        d = self.today - timedelta(days=2)
+        HabitEntry.objects.create(goal=self.goal, date=d, completed=True)
+
+        response = self.client.post(
+            reverse('purpose:habit_unlog_dates', kwargs={'pk': self.goal.pk}),
+            data=json.dumps({'dates': [d.isoformat()]}),
+            content_type='application/json'
+        )
+        data = json.loads(response.content)
+        self.assertTrue(data['success'])
+        self.assertEqual(data['reverted'][0]['state'], 'missed')
+
+    def test_unlog_today_returns_today_state(self):
+        """Unlinking today's entry returns 'today' state."""
+        import json
+        HabitEntry.objects.create(goal=self.goal, date=self.today, completed=True)
+
+        response = self.client.post(
+            reverse('purpose:habit_unlog_dates', kwargs={'pk': self.goal.pk}),
+            data=json.dumps({'dates': [self.today.isoformat()]}),
+            content_type='application/json'
+        )
+        data = json.loads(response.content)
+        self.assertTrue(data['success'])
+        self.assertEqual(data['reverted'][0]['state'], 'today')
+
+    def test_unlog_nonexistent_dates(self):
+        """Unlinking dates with no entries returns count 0."""
+        import json
+        d = (self.today - timedelta(days=1)).isoformat()
+        response = self.client.post(
+            reverse('purpose:habit_unlog_dates', kwargs={'pk': self.goal.pk}),
+            data=json.dumps({'dates': [d]}),
+            content_type='application/json'
+        )
+        data = json.loads(response.content)
+        self.assertTrue(data['success'])
+        self.assertEqual(data['count'], 0)
+
+    def test_unlog_returns_stats(self):
+        """Response includes updated stats after undo."""
+        import json
+        d = self.today - timedelta(days=1)
+        HabitEntry.objects.create(goal=self.goal, date=d, completed=True)
+
+        response = self.client.post(
+            reverse('purpose:habit_unlog_dates', kwargs={'pk': self.goal.pk}),
+            data=json.dumps({'dates': [d.isoformat()]}),
+            content_type='application/json'
+        )
+        data = json.loads(response.content)
+        self.assertIn('stats', data)
+        self.assertEqual(data['stats']['completed_days'], 0)
+
+    def test_unlog_empty_list(self):
+        """Returns error for empty dates list."""
+        import json
+        response = self.client.post(
+            reverse('purpose:habit_unlog_dates', kwargs={'pk': self.goal.pk}),
+            data=json.dumps({'dates': []}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 400)

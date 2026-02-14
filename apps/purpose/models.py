@@ -767,7 +767,7 @@ class PlanningAction(UserOwnedModel):
 # Measurement type choices for the Goal Engine
 MEASUREMENT_TYPE_CHOICES = [
     ('binary', 'Binary (Yes/No)'),
-    ('duration', 'Duration (Minutes)'),
+    ('duration', 'Duration'),
     ('count', 'Count'),
     ('target', 'Target Value'),
 ]

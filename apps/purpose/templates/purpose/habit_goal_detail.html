@@ -75,17 +75,23 @@
             </button>
         </div>
 
-        <!-- Date Picker (hidden by default) -->
+        <!-- Multi-Date Picker (hidden by default) -->
         <div id="date-picker-container" class="date-picker-container" style="display: none;">
-            <label for="habit-date">Select a date to log:</label>
-            <input type="date"
-                   id="habit-date"
-                   name="habit-date"
-                   min="{{ min_date }}"
-                   max="{{ max_date }}"
-                   class="form-control">
-            <button type="button" id="log-date-btn" class="btn btn-primary">Log This Date</button>
-            <button type="button" id="cancel-date-btn" class="btn btn-secondary">Cancel</button>
+            <div class="date-picker-row">
+                <label for="habit-date">Add dates to log:</label>
+                <input type="date"
+                       id="habit-date"
+                       name="habit-date"
+                       min="{{ min_date }}"
+                       max="{{ max_date }}"
+                       class="form-control">
+                <button type="button" id="add-date-btn" class="btn btn-secondary">Add Date</button>
+            </div>
+            <div id="selected-dates-list" class="selected-dates-list" style="display: none;"></div>
+            <div class="date-picker-actions">
+                <button type="button" id="log-dates-btn" class="btn btn-primary" style="display: none;">Log All Dates</button>
+                <button type="button" id="cancel-date-btn" class="btn btn-secondary">Cancel</button>
+            </div>
         </div>
 
         <!-- Feedback Message -->
@@ -107,11 +113,12 @@
             {% for row in matrix_rows %}
             <div class="matrix-row">
                 {% for box in row %}
-                <div class="matrix-box box-{{ box.state }}"
+                <div class="matrix-box box-{{ box.state }}{% if box.state == 'missed' or box.state == 'today' %} box-clickable{% endif %}"
                      data-box-number="{{ box.box_number }}"
                      data-day-number="{{ box.day_number }}"
                      data-date="{{ box.date|date:'Y-m-d' }}"
-                     title="{% if box.date %}Day {{ box.day_number }}: {{ box.date|date:'M j, Y' }}{% else %}Disabled{% endif %}">
+                     data-state="{{ box.state }}"
+                     title="{% if box.date %}Day {{ box.day_number }}: {{ box.date|date:'M j, Y' }}{% if box.state == 'missed' or box.state == 'today' %} — click to log{% endif %}{% else %}Disabled{% endif %}">
                 </div>
                 {% endfor %}
             </div>
@@ -158,9 +165,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const pickDateBtn = document.getElementById('pick-date-btn');
     const datePicker = document.getElementById('date-picker-container');
     const habitDateInput = document.getElementById('habit-date');
-    const logDateBtn = document.getElementById('log-date-btn');
+    const addDateBtn = document.getElementById('add-date-btn');
+    const logDatesBtn = document.getElementById('log-dates-btn');
     const cancelDateBtn = document.getElementById('cancel-date-btn');
+    const selectedDatesList = document.getElementById('selected-dates-list');
     const feedbackMessage = document.getElementById('feedback-message');
+
+    // Track selected dates for multi-date picker
+    let selectedDates = [];
 
     function showFeedback(message, isError) {
         feedbackMessage.textContent = message;
@@ -175,16 +187,15 @@ document.addEventListener('DOMContentLoaded', function() {
         const boxes = document.querySelectorAll('.matrix-box');
         boxes.forEach(box => {
             if (box.dataset.dayNumber === String(dayNumber)) {
-                // Remove all state classes
                 box.classList.remove('box-missed', 'box-today', 'box-future', 'box-completed');
-                // Add new state class
                 box.classList.add('box-' + newState);
+                box.classList.remove('box-clickable');
+                box.dataset.state = newState;
             }
         });
     }
 
     function updateStats(stats) {
-        // Update the stats bar with new values
         const statsBar = document.querySelector('.stats-bar');
         if (!statsBar || !stats) return;
 
@@ -205,7 +216,65 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Log Today button
+    function formatDate(dateStr) {
+        const d = new Date(dateStr + 'T00:00:00');
+        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    // ── Matrix Box Click-to-Log ──
+    const matrix = document.getElementById('habit-matrix');
+    if (matrix) {
+        matrix.addEventListener('click', function(e) {
+            const box = e.target.closest('.matrix-box');
+            if (!box) return;
+
+            const state = box.dataset.state;
+            const date = box.dataset.date;
+            if (!date || (state !== 'missed' && state !== 'today')) return;
+            if (box.classList.contains('box-logging')) return;
+
+            // Immediate visual feedback
+            box.classList.add('box-logging');
+            box.classList.remove('box-missed', 'box-today');
+            box.classList.add('box-completed');
+
+            fetch(`/purpose/habits/${goalPk}/log-date/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({ date: date })
+            })
+            .then(response => response.json())
+            .then(data => {
+                box.classList.remove('box-logging');
+                if (data.success) {
+                    box.classList.remove('box-clickable');
+                    box.dataset.state = 'completed';
+                    updateStats(data.stats);
+                    // If this was today's box, also update the Log Today button
+                    if (state === 'today' && logTodayBtn) {
+                        logTodayBtn.disabled = true;
+                        logTodayBtn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> Done for Today';
+                        logTodayBtn.classList.add('btn-success');
+                    }
+                } else {
+                    // Revert on failure
+                    box.classList.remove('box-completed');
+                    box.classList.add('box-' + state, 'box-clickable');
+                    showFeedback(data.error, true);
+                }
+            })
+            .catch(() => {
+                box.classList.remove('box-logging', 'box-completed');
+                box.classList.add('box-' + state, 'box-clickable');
+                showFeedback('An error occurred. Please try again.', true);
+            });
+        });
+    }
+
+    // ── Log Today button ──
     if (logTodayBtn && !logTodayBtn.disabled) {
         logTodayBtn.addEventListener('click', function() {
             logTodayBtn.disabled = true;
@@ -232,7 +301,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     logTodayBtn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> I Did It Today!';
                 }
             })
-            .catch(error => {
+            .catch(() => {
                 showFeedback('An error occurred. Please try again.', true);
                 logTodayBtn.disabled = false;
                 logTodayBtn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> I Did It Today!';
@@ -240,7 +309,25 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Pick Date button
+    // ── Multi-Date Picker ──
+    function renderSelectedDates() {
+        if (selectedDates.length === 0) {
+            selectedDatesList.style.display = 'none';
+            logDatesBtn.style.display = 'none';
+            return;
+        }
+        selectedDatesList.style.display = 'flex';
+        logDatesBtn.style.display = 'inline-flex';
+        logDatesBtn.textContent = `Log ${selectedDates.length} Date${selectedDates.length !== 1 ? 's' : ''}`;
+
+        selectedDatesList.innerHTML = selectedDates.map(d =>
+            `<span class="date-chip" data-date="${d}">
+                ${formatDate(d)}
+                <button type="button" class="chip-remove" aria-label="Remove">&times;</button>
+            </span>`
+        ).join('');
+    }
+
     if (pickDateBtn) {
         pickDateBtn.addEventListener('click', function() {
             datePicker.style.display = 'flex';
@@ -248,55 +335,100 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Cancel Date button
     if (cancelDateBtn) {
         cancelDateBtn.addEventListener('click', function() {
             datePicker.style.display = 'none';
             pickDateBtn.style.display = 'inline-flex';
             habitDateInput.value = '';
+            selectedDates = [];
+            renderSelectedDates();
         });
     }
 
-    // Log Date button
-    if (logDateBtn) {
-        logDateBtn.addEventListener('click', function() {
-            const selectedDate = habitDateInput.value;
-            if (!selectedDate) {
+    if (addDateBtn) {
+        addDateBtn.addEventListener('click', function() {
+            const val = habitDateInput.value;
+            if (!val) {
                 showFeedback('Please select a date.', true);
                 return;
             }
+            if (selectedDates.includes(val)) {
+                showFeedback('Date already added.', true);
+                return;
+            }
+            selectedDates.push(val);
+            selectedDates.sort();
+            habitDateInput.value = '';
+            renderSelectedDates();
+        });
 
-            logDateBtn.disabled = true;
-            logDateBtn.textContent = 'Logging...';
+        // Also allow Enter key on the date input
+        habitDateInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                addDateBtn.click();
+            }
+        });
+    }
 
-            fetch(`/purpose/habits/${goalPk}/log-date/`, {
+    // Remove chip
+    if (selectedDatesList) {
+        selectedDatesList.addEventListener('click', function(e) {
+            const removeBtn = e.target.closest('.chip-remove');
+            if (!removeBtn) return;
+            const chip = removeBtn.closest('.date-chip');
+            const date = chip.dataset.date;
+            selectedDates = selectedDates.filter(d => d !== date);
+            renderSelectedDates();
+        });
+    }
+
+    // Log All Dates button
+    if (logDatesBtn) {
+        logDatesBtn.addEventListener('click', function() {
+            if (selectedDates.length === 0) return;
+
+            logDatesBtn.disabled = true;
+            logDatesBtn.textContent = 'Logging...';
+
+            fetch(`/purpose/habits/${goalPk}/log-dates/`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRFToken': csrfToken
                 },
-                body: JSON.stringify({ date: selectedDate })
+                body: JSON.stringify({ dates: selectedDates })
             })
             .then(response => response.json())
             .then(data => {
-                logDateBtn.disabled = false;
-                logDateBtn.textContent = 'Log This Date';
-
+                logDatesBtn.disabled = false;
                 if (data.success) {
                     showFeedback(data.message, false);
-                    updateMatrixBox(data.day_number, 'completed');
+                    data.logged.forEach(item => {
+                        updateMatrixBox(item.day_number, 'completed');
+                    });
                     updateStats(data.stats);
-                    // Hide date picker after success
+                    // Check if today was logged
+                    const todayStr = new Date().toISOString().split('T')[0];
+                    if (data.logged.some(item => item.date === todayStr) && logTodayBtn) {
+                        logTodayBtn.disabled = true;
+                        logTodayBtn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> Done for Today';
+                        logTodayBtn.classList.add('btn-success');
+                    }
+                    // Reset picker
+                    selectedDates = [];
+                    renderSelectedDates();
                     datePicker.style.display = 'none';
                     pickDateBtn.style.display = 'inline-flex';
                     habitDateInput.value = '';
                 } else {
                     showFeedback(data.error, true);
+                    renderSelectedDates();
                 }
             })
-            .catch(error => {
-                logDateBtn.disabled = false;
-                logDateBtn.textContent = 'Log This Date';
+            .catch(() => {
+                logDatesBtn.disabled = false;
+                renderSelectedDates();
                 showFeedback('An error occurred. Please try again.', true);
             });
         });
@@ -414,15 +546,21 @@ document.addEventListener('DOMContentLoaded', function() {
 
 .date-picker-container {
     display: flex;
-    align-items: center;
+    flex-direction: column;
     gap: var(--space-3);
-    flex-wrap: wrap;
     padding: var(--space-4);
     background: var(--color-bg);
     border-radius: var(--radius-sm);
 }
 
-.date-picker-container label {
+.date-picker-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+}
+
+.date-picker-row label {
     font-weight: 500;
 }
 
@@ -431,6 +569,46 @@ document.addEventListener('DOMContentLoaded', function() {
     border: 1px solid var(--color-border);
     border-radius: var(--radius-sm);
     font-size: var(--font-size-base);
+}
+
+.date-picker-actions {
+    display: flex;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+}
+
+.selected-dates-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.date-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: var(--space-1) var(--space-2);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    font-size: var(--font-size-sm);
+    white-space: nowrap;
+}
+
+.chip-remove {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-lg);
+    line-height: 1;
+    padding: 0 2px;
+    display: flex;
+    align-items: center;
+}
+
+.chip-remove:hover {
+    color: var(--color-danger, #ef4444);
 }
 
 .feedback-message {
@@ -512,6 +690,20 @@ document.addEventListener('DOMContentLoaded', function() {
 
 .matrix-box:hover:not(.box-disabled) {
     transform: scale(1.1);
+}
+
+.box-clickable {
+    cursor: pointer;
+}
+
+.box-clickable:hover {
+    transform: scale(1.2);
+    box-shadow: 0 0 0 2px var(--color-success, #22c55e);
+}
+
+.box-logging {
+    opacity: 0.6;
+    pointer-events: none;
 }
 
 .box-completed {

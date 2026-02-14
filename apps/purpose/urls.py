@@ -49,6 +49,7 @@ from .views import (
     HabitGoalDeleteView,
     HabitLogTodayView,
     HabitLogDateView,
+    HabitLogDatesView,
 )
 
 app_name = "purpose"
@@ -107,4 +108,5 @@ urlpatterns = [
     # Habit Logging (AJAX endpoints)
     path("habits/<int:pk>/log-today/", HabitLogTodayView.as_view(), name="habit_log_today"),
     path("habits/<int:pk>/log-date/", HabitLogDateView.as_view(), name="habit_log_date"),
+    path("habits/<int:pk>/log-dates/", HabitLogDatesView.as_view(), name="habit_log_dates"),
 ]

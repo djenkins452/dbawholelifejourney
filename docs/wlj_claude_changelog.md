@@ -4,10 +4,28 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-13 (Fix page-break parsing + reject missing dates)
+# Last Updated: 2026-02-14 (Habit goal click-to-log matrix + multi-date picker)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-02-14 — Habit Goal: Click-to-Log Matrix + Multi-Date Picker
+
+**Feature:** Two new ways to log missed habit days faster:
+1. **Clickable matrix boxes** — click any missed (amber) or today box directly on the progress matrix to instantly log it. Immediate visual feedback with green completion state.
+2. **Multi-date picker** — "Pick a Date" now supports adding multiple dates before submitting. Add dates one at a time, see them as removable chips, then "Log All Dates" in one batch request.
+
+**Backend:** New `HabitLogDatesView` endpoint (`POST /purpose/habits/<pk>/log-dates/`) accepts `{"dates": [...]}` array, validates all dates, creates entries, and returns updated stats. Handles partial success (valid dates logged, invalid ones returned as errors).
+
+**Files modified:**
+- `apps/purpose/views.py` — Added `HabitLogDatesView` batch endpoint
+- `apps/purpose/urls.py` — Added `log-dates/` URL route + import
+- `apps/purpose/templates/purpose/habit_goal_detail.html` — Clickable matrix boxes, multi-date picker UI, updated JS
+- `apps/purpose/tests/test_purpose_comprehensive.py` — 8 new tests for batch endpoint
+
+**Tests:** 110 purpose tests passing (8 new).
+
+---
 
 ## 2026-02-13 — Fix Page-Break Parsing + Reject Results with Missing Dates
 

@@ -1262,3 +1262,147 @@ class HabitLogDateViewTest(PurposeTestMixin, TestCase):
         data = json.loads(response.content)
         self.assertFalse(data['success'])
         self.assertIn('format', data['error'].lower())
+
+
+class HabitLogDatesViewTest(PurposeTestMixin, TestCase):
+    """Tests for the HabitLogDatesView (batch multi-date logging)."""
+
+    def setUp(self):
+        self.user = self.create_user()
+        self.client.login(email='test@example.com', password='testpass123')
+        self.today = timezone.now().date()
+        self.goal = HabitGoal.objects.create(
+            user=self.user,
+            name='Test Habit',
+            purpose='Testing',
+            start_date=self.today - timedelta(days=10),
+            end_date=self.today + timedelta(days=19),
+            habit_required=True,
+        )
+
+    def test_log_multiple_dates_success(self):
+        """Can log multiple past dates at once."""
+        import json
+        dates = [
+            (self.today - timedelta(days=3)).isoformat(),
+            (self.today - timedelta(days=2)).isoformat(),
+            (self.today - timedelta(days=1)).isoformat(),
+        ]
+        response = self.client.post(
+            reverse('purpose:habit_log_dates', kwargs={'pk': self.goal.pk}),
+            data=json.dumps({'dates': dates}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertTrue(data['success'])
+        self.assertEqual(data['count'], 3)
+        self.assertEqual(len(data['logged']), 3)
+        self.assertEqual(HabitEntry.objects.filter(goal=self.goal).count(), 3)
+
+    def test_log_dates_empty_list(self):
+        """Returns error for empty dates list."""
+        import json
+        response = self.client.post(
+            reverse('purpose:habit_log_dates', kwargs={'pk': self.goal.pk}),
+            data=json.dumps({'dates': []}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 400)
+        data = json.loads(response.content)
+        self.assertFalse(data['success'])
+
+    def test_log_dates_no_dates_key(self):
+        """Returns error when dates key is missing."""
+        import json
+        response = self.client.post(
+            reverse('purpose:habit_log_dates', kwargs={'pk': self.goal.pk}),
+            data=json.dumps({}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 400)
+        data = json.loads(response.content)
+        self.assertFalse(data['success'])
+
+    def test_log_dates_skips_invalid(self):
+        """Skips invalid dates but logs valid ones."""
+        import json
+        valid_date = (self.today - timedelta(days=1)).isoformat()
+        future_date = (self.today + timedelta(days=1)).isoformat()
+        dates = [valid_date, future_date]
+        response = self.client.post(
+            reverse('purpose:habit_log_dates', kwargs={'pk': self.goal.pk}),
+            data=json.dumps({'dates': dates}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertTrue(data['success'])
+        self.assertEqual(data['count'], 1)
+        self.assertEqual(len(data['errors']), 1)
+
+    def test_log_dates_all_invalid(self):
+        """Returns error when all dates are invalid."""
+        import json
+        dates = [
+            (self.today + timedelta(days=1)).isoformat(),
+            (self.goal.start_date - timedelta(days=5)).isoformat(),
+        ]
+        response = self.client.post(
+            reverse('purpose:habit_log_dates', kwargs={'pk': self.goal.pk}),
+            data=json.dumps({'dates': dates}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 400)
+        data = json.loads(response.content)
+        self.assertFalse(data['success'])
+
+    def test_log_dates_returns_stats(self):
+        """Response includes updated stats."""
+        import json
+        dates = [(self.today - timedelta(days=1)).isoformat()]
+        response = self.client.post(
+            reverse('purpose:habit_log_dates', kwargs={'pk': self.goal.pk}),
+            data=json.dumps({'dates': dates}),
+            content_type='application/json'
+        )
+        data = json.loads(response.content)
+        self.assertIn('stats', data)
+        self.assertIn('completed_days', data['stats'])
+        self.assertIn('completion_rate', data['stats'])
+        self.assertIn('current_streak', data['stats'])
+
+    def test_log_dates_no_habit_required(self):
+        """Returns error if goal doesn't have habit tracking."""
+        import json
+        self.goal.habit_required = False
+        self.goal.save()
+        dates = [(self.today - timedelta(days=1)).isoformat()]
+        response = self.client.post(
+            reverse('purpose:habit_log_dates', kwargs={'pk': self.goal.pk}),
+            data=json.dumps({'dates': dates}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 400)
+        data = json.loads(response.content)
+        self.assertFalse(data['success'])
+
+    def test_log_dates_idempotent(self):
+        """Re-logging same dates doesn't create duplicates."""
+        import json
+        past_date = (self.today - timedelta(days=1)).isoformat()
+        HabitEntry.objects.create(
+            goal=self.goal,
+            date=self.today - timedelta(days=1),
+            completed=True,
+        )
+        response = self.client.post(
+            reverse('purpose:habit_log_dates', kwargs={'pk': self.goal.pk}),
+            data=json.dumps({'dates': [past_date]}),
+            content_type='application/json'
+        )
+        data = json.loads(response.content)
+        self.assertTrue(data['success'])
+        self.assertEqual(data['count'], 1)
+        self.assertFalse(data['logged'][0]['created'])
+        self.assertEqual(HabitEntry.objects.filter(goal=self.goal).count(), 1)

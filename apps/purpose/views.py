@@ -945,6 +945,106 @@ class HabitLogDateView(PurposeAccessMixin, View):
         })
 
 
+class HabitLogDatesView(PurposeAccessMixin, View):
+    """
+    Log habit completion for multiple dates at once via AJAX.
+
+    POST /purpose/habits/<pk>/log-dates/
+    Body: {"dates": ["YYYY-MM-DD", "YYYY-MM-DD", ...]}
+    Returns JSON with success status and updated stats.
+    """
+
+    def post(self, request, pk):
+        import json
+        goal = get_object_or_404(HabitGoal, pk=pk, user=request.user)
+        today = get_user_today(request.user)
+
+        # Parse dates from request body
+        try:
+            data = json.loads(request.body)
+            date_strings = data.get('dates')
+            if not date_strings or not isinstance(date_strings, list):
+                return JsonResponse({
+                    'success': False,
+                    'error': 'A list of dates is required.'
+                }, status=400)
+        except json.JSONDecodeError:
+            return JsonResponse({
+                'success': False,
+                'error': 'Invalid JSON.'
+            }, status=400)
+
+        if len(date_strings) > 366:
+            return JsonResponse({
+                'success': False,
+                'error': 'Too many dates. Maximum 366 per request.'
+            }, status=400)
+
+        if not goal.habit_required:
+            return JsonResponse({
+                'success': False,
+                'error': 'This goal does not have habit tracking enabled.'
+            }, status=400)
+
+        # Parse and validate all dates first
+        from datetime import datetime
+        parsed_dates = []
+        errors = []
+        for date_str in date_strings:
+            try:
+                d = datetime.strptime(date_str, '%Y-%m-%d').date()
+            except (ValueError, TypeError):
+                errors.append(f'Invalid date format: {date_str}')
+                continue
+
+            if d < goal.start_date:
+                errors.append(f'{date_str} is before goal start date.')
+                continue
+            if d > goal.end_date:
+                errors.append(f'{date_str} is after goal end date.')
+                continue
+            if d > today:
+                errors.append(f'{date_str} is in the future.')
+                continue
+
+            parsed_dates.append(d)
+
+        if not parsed_dates:
+            return JsonResponse({
+                'success': False,
+                'error': errors[0] if errors else 'No valid dates provided.'
+            }, status=400)
+
+        # Bulk create/update entries
+        logged = []
+        for d in parsed_dates:
+            entry, created = HabitEntry.objects.update_or_create(
+                goal=goal,
+                date=d,
+                defaults={'completed': True}
+            )
+            day_number = (d - goal.start_date).days + 1
+            logged.append({
+                'date': d.isoformat(),
+                'day_number': day_number,
+                'state': 'completed',
+                'created': created,
+            })
+
+        return JsonResponse({
+            'success': True,
+            'logged': logged,
+            'count': len(logged),
+            'errors': errors,
+            'message': f'Logged {len(logged)} date{"s" if len(logged) != 1 else ""}.',
+            'stats': {
+                'completed_days': goal.completed_days,
+                'completion_rate': round(goal.completion_rate),
+                'current_streak': goal.current_streak,
+            }
+        })
+
+
 # =============================================================================
 # Goal Milestones
 # =============================================================================

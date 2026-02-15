@@ -4,10 +4,26 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-15 (SUE Semantic Understanding Engine)
+# Last Updated: 2026-02-15 (PGE Proactive Guidance Engine)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-02-15 — PGE: Proactive Guidance Engine
+
+**Major Feature:** Built and deployed PGE (Proactive Guidance Engine) — Engine 8 in the intelligence stack. PGE evaluates SAE state, PIE insights, and PRIE predictions to surface evidence-based, actionable guidance to users. It does not execute actions or generate insights — it selects, ranks, and surfaces existing intelligence.
+
+- **Feature:** Created `apps/core/ai_guidance/` module with guidance_engine.py, guidance_selector.py, guidance_ranker.py, guidance_rules.py (5 rules), guidance_registry.py, guidance_logger.py, models.py (GuidanceItem), views.py, urls.py, admin.py
+- **Feature:** 5 guidance rules: GoalRiskRule, HabitInactivityRule, HealthTrendRule, JournalInactivityRule, PositiveReinforcementRule
+- **Feature:** Ranking algorithm with priority weight, confidence bonus, source bonus, and evidence richness scoring
+- **Feature:** Deduplication via SHA-256 dedupe keys, 7-day default expiry, auto-expire management command
+- **Feature:** Guidance Inbox UI at `/guidance/` with mark-read/dismiss actions, JSON API at `/guidance/api/`
+- **Feature:** Management command `run_guidance_engine` for daily scheduled execution
+- **Test:** 70 PGE tests, 423 total engine tests passing
+- **Docs:** Updated all governance docs with Engine 8, compliance rule #16, updated pipeline diagrams
+  - Files: `apps/core/ai_guidance/__init__.py`, `apps/core/ai_guidance/guidance_engine.py`, `apps/core/ai_guidance/guidance_selector.py`, `apps/core/ai_guidance/guidance_ranker.py`, `apps/core/ai_guidance/guidance_rules.py`, `apps/core/ai_guidance/guidance_registry.py`, `apps/core/ai_guidance/guidance_logger.py`, `apps/core/ai_guidance/models.py`, `apps/core/ai_guidance/views.py`, `apps/core/ai_guidance/urls.py`, `apps/core/ai_guidance/admin.py`, `apps/core/ai_guidance/tests.py`, `apps/core/management/commands/run_guidance_engine.py`, `templates/ai_guidance/inbox.html`, `apps/core/migrations/0058_add_pge_guidance_item.py`, `apps/core/models.py`, `apps/core/admin.py`, `config/urls.py`, `docs/INTELLIGENCE_ARCHITECTURE.md`, `docs/DOMAIN_INTELLIGENCE_ARCHITECTURE.md`, `docs/ENGINE_INTEGRATION_GUIDE.md`, `CLAUDE.md`
+
+---
 
 ## 2026-02-15 — SUE: Semantic Understanding Engine
 

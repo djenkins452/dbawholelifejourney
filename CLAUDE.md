@@ -45,6 +45,7 @@ All intelligence must flow through these engines — no module may bypass them:
 | **SUE** — Semantic Understanding Engine | `apps/core/ai_semantics/` | Interpret human meaning, extract entities, detect ambiguity |
 | **PIE** — Proactive Insight Engine | `apps/core/ai_insights/` | Event-driven + scheduled factual insights |
 | **PRIE** — Predictive Intelligence Engine | `apps/core/ai_predictions/` | Trajectory projection using linear regression |
+| **PGE** — Proactive Guidance Engine | `apps/core/ai_guidance/` | Surface evidence-based guidance from state/insights/predictions |
 
 ### Intelligence Execution Pipeline
 
@@ -60,7 +61,8 @@ User Input
         → SAE (State Update)
           → PIE (Insight Generation, enriched with SAE state)
             → PRIE (Prediction Generation)
-              → Response
+              → PGE (Guidance Generation — scheduled/on-demand)
+                → Response
 ```
 
 This pipeline must never be bypassed.

@@ -20,6 +20,7 @@ User Action in Domain
       → SAE updates user state for this domain
         → PIE evaluates insight rules (enriched with SAE state)
           → PRIE runs prediction rules for this domain
+  → PGE evaluates guidance rules (scheduled/on-demand)
   → Response with temporal context
 ```
 
@@ -298,16 +299,17 @@ No prediction rules currently registered for Scripture. Future candidates:
 
 ## Domain Integration Summary
 
-| Domain | SAE State | PIE Rules | PRIE Rules | UAIO Intents | SLCME Context |
-|--------|-----------|-----------|------------|--------------|---------------|
-| Health (Weight) | `health` | 3 | 1 (3 horizons) | `update_weight` | `health_entry` |
-| Body Composition | `health` | 2 | 2 (6 horizons) | — | `health_entry` |
-| Labs & Vitals | `health` | 1 | 1 | — | — |
-| Goals | `goals` | 2 | 1 | `save_goal`, `complete_goal` | `goal_page` |
-| Habits | `habits` | 2 | 1 | `log_habit` | `habit_page` |
-| Journal | `journal` | 2 | 0 | — | `journal_page` |
-| Scripture | `faith` | 1 | 0 | `save_verse` | `scripture_page` |
-| **Total** | **5 modules** | **13** | **6** | — | — |
+| Domain | SAE State | PIE Rules | PRIE Rules | PGE Rules | UAIO Intents | SLCME Context |
+|--------|-----------|-----------|------------|-----------|--------------|---------------|
+| Health (Weight) | `health` | 3 | 1 (3 horizons) | `health_trend` | `update_weight` | `health_entry` |
+| Body Composition | `health` | 2 | 2 (6 horizons) | `health_trend` | — | `health_entry` |
+| Labs & Vitals | `health` | 1 | 1 | `health_trend` | — | — |
+| Goals | `goals` | 2 | 1 | `goal_risk` | `save_goal`, `complete_goal` | `goal_page` |
+| Habits | `habits` | 2 | 1 | `habit_inactivity` | `log_habit` | `habit_page` |
+| Journal | `journal` | 2 | 0 | `journal_inactivity` | — | `journal_page` |
+| Scripture | `faith` | 1 | 0 | — | `save_verse` | `scripture_page` |
+| Cross-module | — | — | — | `positive_reinforcement` | — | — |
+| **Total** | **5 modules** | **13** | **6** | **5** | — | — |
 
 ---
 
@@ -322,10 +324,11 @@ When adding a new domain module to WLJ:
 5. **Add SAE state builder** — Create `build_<domain>_state(user)` in `state_builder.py`, register in `MODULE_BUILDERS`
 6. **Create PIE rules** — What patterns should the system detect? Create rules with `@register`
 7. **Create PRIE rules** — What trajectories can be projected? Create rules with `@register_prediction`
-8. **Import rules** — Add imports in `run_daily_insights.py` and `run_prediction_engine.py`
-9. **Update this document** — Add the new domain section
-10. **Update `INTELLIGENCE_ARCHITECTURE.md`** — Add to rule tables
+8. **Create PGE rules** — What guidance should be surfaced proactively? Create rules with `@register_guidance`
+9. **Import rules** — Add imports in `run_daily_insights.py`, `run_prediction_engine.py`, and `run_guidance_engine.py`
+10. **Update this document** — Add the new domain section
+11. **Update `INTELLIGENCE_ARCHITECTURE.md`** — Add to rule tables
 
 ---
 
-*Last updated: 2026-02-15 — SUE (Semantic Understanding Engine) added to pipeline*
+*Last updated: 2026-02-15 — PGE (Proactive Guidance Engine) added to pipeline*

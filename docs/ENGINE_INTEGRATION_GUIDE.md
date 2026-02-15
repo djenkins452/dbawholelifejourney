@@ -1,6 +1,6 @@
 # Whole Life Journey — Engine Integration Guide
 
-**Purpose:** Step-by-step guide for integrating new features with the six cognitive engines. Includes code examples, prohibited patterns, and checklists.
+**Purpose:** Step-by-step guide for integrating new features with the eight cognitive engines. Includes code examples, prohibited patterns, and checklists.
 
 **Prerequisite:** Read `docs/INTELLIGENCE_ARCHITECTURE.md` and `docs/DOMAIN_INTELLIGENCE_ARCHITECTURE.md` first.
 
@@ -8,13 +8,13 @@
 
 ## When Integration is Required
 
-| Change Type | UAIO | SLCME | HTIE | SAE | SUE | PIE | PRIE |
-|-------------|------|-------|------|-----|-----|-----|------|
-| New AI assistant action | **YES** | **YES** | If time-aware | **YES** | Auto | Consider | Consider |
-| New data logging feature | — | — | — | **YES** | — | **YES** | Consider |
-| New page/view | — | Consider | — | — | — | — | — |
-| New model with trends | — | — | — | **YES** | — | **YES** | **YES** |
-| Bug fix / CSS tweak | — | — | — | — | — | — | — |
+| Change Type | UAIO | SLCME | HTIE | SAE | SUE | PIE | PRIE | PGE |
+|-------------|------|-------|------|-----|-----|-----|------|-----|
+| New AI assistant action | **YES** | **YES** | If time-aware | **YES** | Auto | Consider | Consider | Consider |
+| New data logging feature | — | — | — | **YES** | — | **YES** | Consider | Consider |
+| New page/view | — | Consider | — | — | — | — | — | — |
+| New model with trends | — | — | — | **YES** | — | **YES** | **YES** | Consider |
+| Bug fix / CSS tweak | — | — | — | — | — | — | — | — |
 
 ---
 
@@ -501,7 +501,8 @@ Before marking a feature complete, verify:
 - [ ] **All predictions** have `confidence_score`, `explanation`, `evidence`, `dedupe_key`
 - [ ] **No prohibited patterns** in new code (including SAE bypass)
 - [ ] **SUE parser patterns** added for new intents in `semantic_parser.py:INTENT_PATTERNS` (if new AI action)
+- [ ] **PGE guidance rules** considered for surfacing important patterns to users (if new module has actionable trends)
 
 ---
 
-*Last updated: 2026-02-15 — SUE integration added*
+*Last updated: 2026-02-15 — PGE integration added*

@@ -111,6 +111,8 @@ urlpatterns = [
     path('medical/', include('apps.medical.urls', namespace='medical')),
     # AI Insights Inbox
     path('insights/', include('apps.core.ai_insights.urls', namespace='ai_insights')),
+    # AI Guidance (PGE)
+    path('guidance/', include('apps.core.ai_guidance.urls', namespace='ai_guidance')),
     # Referral link redirect (short URL)
     path('join', include([
         path('', lambda r: __import__('django.shortcuts', fromlist=['redirect']).redirect('billing:capture_referral') if r.GET.get('ref') else __import__('django.shortcuts', fromlist=['redirect']).redirect('account_signup')),

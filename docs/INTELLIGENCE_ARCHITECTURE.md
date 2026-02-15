@@ -1,6 +1,6 @@
 # Whole Life Journey — Intelligence Architecture
 
-**Purpose:** Permanent architectural authority defining the seven-engine cognitive stack that powers all AI-driven features in WLJ. Claude Code must read this document before implementing any feature that touches AI, data logging, insights, predictions, or user interactions.
+**Purpose:** Permanent architectural authority defining the eight-engine cognitive stack that powers all AI-driven features in WLJ. Claude Code must read this document before implementing any feature that touches AI, data logging, insights, predictions, or user interactions.
 
 **Status:** Active — All engines implemented and deployed.
 
@@ -76,6 +76,15 @@
                           └──────────┬───────────┘
                                      │
                           ┌──────────▼───────────┐
+                          │        PGE           │
+                          │  Proactive Guidance  │
+                          │  Engine              │
+                          │                      │
+                          │  apps/core/          │
+                          │  ai_guidance/        │
+                          └──────────┬───────────┘
+                                     │
+                          ┌──────────▼───────────┐
                           │     Response         │
                           └──────────────────────┘
 ```
@@ -102,6 +111,7 @@ User Input
     → SAE (update_user_state — refresh state snapshot)
     → PIE (run_insights — generate factual insights, enriched with SAE state)
       → PRIE (generate_predictions — trajectory projections)
+  → PGE (generate_guidance — evaluate state/insights/predictions → surface guidance)
   → Response Builder (enhance with temporal context)
   → Response to User
 ```
@@ -585,6 +595,9 @@ Supported data types: `weight_entries`, `body_fat_entries`, `lean_mass_entries`,
 | PRIE → SAE | Read cached state | `prediction_engine.py:get_prediction_input_data()` |
 | PIE → SAE | Event enrichment | `insight_engine.py:_enrich_event_with_state()` |
 | Action Handlers → HTIE | Use resolved time | `action_handlers.py:_get_recorded_at()` |
+| PGE → SAE | Read user state | `guidance_engine.py:_get_user_state()` |
+| PGE → PIE | Read recent insights | `guidance_engine.py:_get_recent_insights()` |
+| PGE → PRIE | Read active predictions | `guidance_engine.py:_get_active_predictions()` |
 | All Engines → HTIE | System time | `system_clock.py:get_current_time()` |
 
 ### Intelligence Execution Chain
@@ -599,10 +612,13 @@ Action Success
     → Evaluate all applicable insight rules
     → PRIE (_trigger_predictions)
       → Evaluate all applicable prediction rules
+  → PGE (generate_guidance) — scheduled/on-demand
+    → Read SAE state + PIE insights + PRIE predictions
+    → Select → Rank → Store guidance items
 ```
 
-This chain is centralized in `execution_engine.py:_run_intelligence_chain()`.
-No other code path may trigger PIE or PRIE during action execution.
+The SAE→PIE→PRIE chain is centralized in `execution_engine.py:_run_intelligence_chain()`.
+PGE runs separately (daily scheduler or on-demand) and reads the outputs of all three engines.
 
 ---
 
@@ -615,6 +631,7 @@ No other code path may trigger PIE or PRIE during action execution.
 | `core.0055` | PRIE | Prediction |
 | `core.0056` | SAE | UserState |
 | `core.0057` | SUE | SemanticDecisionLog |
+| `core.0058` | PGE | GuidanceItem |
 
 HTIE and UAIO are stateless — no database models required.
 
@@ -637,6 +654,7 @@ HTIE and UAIO are stateless — no database models required.
 13. **State authority:** SAE is the authoritative source of current user state. No intelligence engine may reconstruct full user state independently — use `get_user_state()` or `get_module_state()`. Direct database queries for current state summaries are prohibited when SAE state is available.
 14. **State currency:** All features that modify user data must ensure SAE is updated. AI-initiated actions update SAE automatically via the intelligence chain. Non-AI data changes must call `update_user_state()` explicitly.
 15. **Semantic understanding:** SUE provides pre-intent semantic analysis (intent candidates, entity extraction, ambiguity detection). SUE does NOT execute actions — UAIO remains execution authority. SUE failures must never break the pipeline.
+16. **Guidance authority:** PGE is the sole authority for proactive guidance. Guidance must always be evidence-based (backed by SAE state, PIE insights, or PRIE predictions). PGE does NOT execute actions or generate insights — it surfaces existing intelligence. PGE failures must never break any other engine.
 
 ---
 
@@ -831,6 +849,166 @@ Raw Text → Parser (regex intent/entity detection) → Entity Resolver (context
 
 ---
 
+## Engine 8: PGE — Proactive Guidance Engine
+
+**Location:** `apps/core/ai_guidance/`
+**Responsibility:** Evaluate user state, insights, and predictions to determine what the user should be proactively shown. PGE does NOT execute actions or generate insights — it selects, ranks, and surfaces the most important existing intelligence as actionable guidance items.
+
+### Public API
+
+```python
+from apps.core.ai_guidance import generate_guidance
+from apps.core.ai_guidance.guidance_engine import get_active_guidance, expire_old_guidance
+
+# Generate guidance for a user (full pipeline)
+items = generate_guidance(user)
+# Returns: list[GuidanceItem] — created or updated instances
+
+# Retrieve active guidance (for display)
+items = get_active_guidance(user, limit=5)
+# Returns: QuerySet[GuidanceItem] — sorted by priority, excludes expired
+
+# Expire old items (cleanup)
+count = expire_old_guidance()
+```
+
+### Internal Pipeline
+
+```
+SAE State + PIE Insights + PRIE Predictions
+  → Guidance Selector (evaluate all rules)
+    → Guidance Ranker (score, sort, limit to top 5)
+      → Guidance Logger (store with deduplication)
+        → GuidanceItem instances
+```
+
+### Guidance Rule Contract
+
+```python
+from apps.core.ai_guidance.guidance_registry import register_guidance
+from apps.core.ai_guidance.guidance_rules import BaseGuidanceRule
+
+@register_guidance
+class MyRule(BaseGuidanceRule):
+    rule_name = "my_rule"
+    module = "health"
+
+    def evaluate(self, user, state, insights, predictions):
+        return [{
+            "title": "Short headline",
+            "message": "Detailed guidance message",
+            "priority": 3,          # 1=Critical, 5=Info
+            "guidance_type": self.rule_name,
+            "source": "pie_insight", # pie_insight | prie_prediction | sae_state | composite
+            "module": self.module,
+            "confidence_score": 0.85, # Optional
+            "evidence": {...},       # Auditable data
+            "dedupe_key": "sha256",  # REQUIRED
+        }]
+```
+
+### Registered Rules (5 rules, 4 modules)
+
+| Rule | Module | Surfaces |
+|------|--------|----------|
+| `GoalRiskRule` | goals | Overdue goals + PRIE behind-schedule predictions |
+| `HabitInactivityRule` | habits | PIE broken-streak warnings |
+| `HealthTrendRule` | health | PIE health insights + PRIE health projections |
+| `JournalInactivityRule` | journal | PIE journal drop-off + SAE zero-entry detection |
+| `PositiveReinforcementRule` | (all) | PIE positive insights across all modules |
+
+### Ranking Algorithm
+
+Score = Priority weight (10–50) + Confidence bonus (0–10) + Source bonus (2–5) + Evidence richness (0–3)
+
+| Factor | Points | Details |
+|--------|--------|---------|
+| Priority | 10–50 | `(6 - priority) × 10` |
+| Confidence | 0–10 | `confidence × 10` |
+| Source | 2–5 | prie_prediction=5, pie_insight=3, sae_state=2 |
+| Evidence | 0–3 | `min(3, len(evidence))` |
+
+Maximum 5 items surfaced per user (`MAX_GUIDANCE_ITEMS`).
+
+### GuidanceItem Model (app_label="core", db_table="core_guidance_item")
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| `user` | FK(User) | Owner (related_name="guidance_items") |
+| `title` | CharField(255) | Short guidance headline |
+| `message` | TextField | Detailed guidance message |
+| `priority` | IntegerField | 1=Critical, 2=High, 3=Medium, 4=Low, 5=Info |
+| `guidance_type` | CharField(100) | Rule that generated this |
+| `source` | CharField(50) | pie_insight / prie_prediction / sae_state / composite |
+| `module` | CharField(50) | Domain module |
+| `confidence_score` | Float | 0.0–1.0 (if predictive) |
+| `evidence` | JSONField | Structured evidence |
+| `is_active` | Boolean | Currently active |
+| `is_read` | Boolean | User has seen it |
+| `expires_at` | DateTimeField | Auto-expire date |
+| `dedupe_key` | CharField(255) | SHA-256 deduplication key |
+| `metadata` | JSONField | Additional rendering data |
+
+### Deduplication
+
+```python
+from apps.core.ai_guidance.models import build_guidance_dedupe_key
+
+key = build_guidance_dedupe_key(user_id, guidance_type, *extra_parts)
+# Returns: SHA-256 hash truncated to 64 chars
+```
+
+Same `dedupe_key` + active → update existing. Inactive → create new.
+
+### Scheduled Execution
+
+```bash
+python manage.py run_guidance_engine              # All active users
+python manage.py run_guidance_engine --user=42    # Single user
+python manage.py run_guidance_engine --expire     # Only expire old items
+```
+
+Default expiry: 7 days.
+
+### User Interface
+
+Guidance Inbox at `/guidance/` — filterable by status (active/read/all), AJAX mark-read/dismiss.
+JSON API at `/guidance/api/` — returns active items sorted by priority.
+
+### Files
+
+| File | Purpose |
+|------|---------|
+| `guidance_engine.py` | Main entry: `generate_guidance()`, `get_active_guidance()`, `expire_old_guidance()` |
+| `guidance_selector.py` | Run all rules, collect candidates |
+| `guidance_ranker.py` | Score, sort, and limit candidates |
+| `guidance_logger.py` | Store with deduplication |
+| `guidance_rules.py` | 5 registered rules + `BaseGuidanceRule` |
+| `guidance_registry.py` | `@register_guidance` decorator |
+| `models.py` | `GuidanceItem` model + `build_guidance_dedupe_key()` |
+| `views.py` | Inbox view, action view, JSON API view |
+| `urls.py` | URL routing |
+| `admin.py` | Read-only admin display |
+| `tests.py` | 70 tests covering all components |
+
+### Integration Points
+
+| From | To | Mechanism |
+|------|----|-----------|
+| PGE → SAE | Read user state | `guidance_engine.py:_get_user_state()` |
+| PGE → PIE | Read recent insights | `guidance_engine.py:_get_recent_insights()` |
+| PGE → PRIE | Read active predictions | `guidance_engine.py:_get_active_predictions()` |
+
+### Safety Requirements
+
+- PGE does NOT execute actions or generate insights
+- PGE failures never break any other engine (all reads are ImportError-guarded)
+- All guidance is evidence-based — no hallucinated recommendations
+- Deduplication prevents duplicate guidance for the same situation
+- Expired items are automatically deactivated
+
+---
+
 ## Adding New Intelligence
 
 ### New Insight Rule
@@ -845,6 +1023,13 @@ Raw Text → Parser (regex intent/entity detection) → Entity Resolver (context
 3. Import in `run_prediction_engine.py`
 4. Add tests
 
+### New Guidance Rule
+1. Create class inheriting `BaseGuidanceRule`
+2. Decorate with `@register_guidance`
+3. Implement `evaluate(user, state, insights, predictions) -> list[dict]`
+4. Each returned dict must include `dedupe_key`
+5. Add tests
+
 ### New Engine
 1. Create module under `apps/core/`
 2. Define public API in `__init__.py`
@@ -854,4 +1039,4 @@ Raw Text → Parser (regex intent/entity detection) → Entity Resolver (context
 
 ---
 
-*Last updated: 2026-02-15 — SUE (Semantic Understanding Engine) deployed*
+*Last updated: 2026-02-15 — PGE (Proactive Guidance Engine) deployed*

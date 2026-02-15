@@ -28,6 +28,7 @@ from .models import Category, ReleaseNote, Tag, UserReleaseNoteView
 # Import sub-module admin registrations so Django discovers them
 import apps.core.ai_state.admin  # noqa: E402, F401
 import apps.core.ai_semantics.admin  # noqa: E402, F401
+import apps.core.ai_guidance.admin  # noqa: E402, F401
 
 
 @admin.register(Category)

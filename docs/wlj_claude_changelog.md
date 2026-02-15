@@ -4,10 +4,22 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-15 (IOCD padding fix)
+# Last Updated: 2026-02-15 (AI assistant time context fix)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-02-15 — Fix: AI Assistant Always Knows User's Current Time
+
+**Bug:** When user asked "what time is it?", the AI returned wrong time (e.g., 2:15 PM when it was 5:01 PM) because no time context was passed to OpenAI.
+
+**Root cause:** `_generate_response()` built system prompt with `include_time_context=False`. Time context (via HTIE's `get_user_now()`) was only injected for task/priority queries, not general chat.
+
+**Fix:** Changed to `include_time_context=True` so the AI always knows the user's timezone-aware current time.
+
+- **File modified:** `apps/ai/personal_assistant.py` (line 2435)
+
+---
 
 ## 2026-02-15 — IOCD: Dashboard Padding Fix
 

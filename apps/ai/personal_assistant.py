@@ -2431,8 +2431,9 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         # Get conversation history - 15 messages gives good conversational threading
         history = conversation.messages.order_by('-created_at')[:15]
 
-        # Build system prompt with coaching style (no time context by default - too pushy)
-        system_prompt = self._build_system_prompt(include_time_context=False)
+        # Always include time context so the AI knows the user's current time
+        # (e.g., "what time is it?" queries). Urgency messaging is part of time context.
+        system_prompt = self._build_system_prompt(include_time_context=True)
 
         # Check if user is asking about tasks/priorities/habits/focus
         # Include full state data so the AI can give data-driven answers

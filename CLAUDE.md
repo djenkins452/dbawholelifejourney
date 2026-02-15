@@ -32,46 +32,60 @@ Whole Life Journey uses a layered intelligence architecture defined in:
 
 Claude Code **MUST** read and follow these documents before implementing any feature that touches AI, data logging, insights, predictions, or user interactions.
 
+### Intelligence Execution Phases (MANDATORY)
+
+Whole Life Journey operates using **three-phase intelligence execution**:
+
+**Interpretation → Execution → Post-Execution**
+
+Claude Code must integrate new features into the correct phase. Claude Code must NOT violate phase boundaries.
+
+| Phase | Engines | Purpose |
+|-------|---------|---------|
+| **Phase 1 — Interpretation** | SUE, SLCME, HTIE | Understand user meaning. Do NOT execute actions. |
+| **Phase 2 — Execution** | UAIO | Execute domain actions. Sole execution authority. |
+| **Phase 3 — Post-Execution** | SAE, PIE, PRIE, PGE | Update state, detect patterns, predict, guide. Do NOT execute actions. |
+
 ### Intelligence Engines
 
 All intelligence must flow through these engines — no module may bypass them:
 
-| Engine | Location | Purpose |
-|--------|----------|---------|
-| **HTIE** — Human Temporal Intelligence Engine | `apps/core/time/` | Parse natural language time → precise timestamps |
-| **SLCME** — Self-Learning Context Memory Engine | `apps/core/ai_memory/` | Learn from clarifications, auto-reuse with confidence |
-| **UAIO** — Unified AI Orchestrator | `apps/core/ai_orchestrator/` | Central brain connecting all engines to AI pipeline |
-| **SAE** — State Awareness Engine | `apps/core/ai_state/` | Persistent user state snapshot, authoritative current condition |
-| **SUE** — Semantic Understanding Engine | `apps/core/ai_semantics/` | Interpret human meaning, extract entities, detect ambiguity |
-| **PIE** — Proactive Insight Engine | `apps/core/ai_insights/` | Event-driven + scheduled factual insights |
-| **PRIE** — Predictive Intelligence Engine | `apps/core/ai_predictions/` | Trajectory projection using linear regression |
-| **PGE** — Proactive Guidance Engine | `apps/core/ai_guidance/` | Surface evidence-based guidance from state/insights/predictions |
+| Engine | Phase | Location | Purpose |
+|--------|-------|----------|---------|
+| **SUE** — Semantic Understanding Engine | 1 | `apps/core/ai_semantics/` | Interpret human meaning, extract entities, detect ambiguity |
+| **SLCME** — Self-Learning Context Memory Engine | 1 | `apps/core/ai_memory/` | Learn from clarifications, auto-reuse with confidence |
+| **HTIE** — Human Temporal Intelligence Engine | 1 | `apps/core/time/` | Parse natural language time → precise timestamps |
+| **UAIO** — Unified AI Orchestrator | 2 | `apps/core/ai_orchestrator/` | Central brain connecting all engines to AI pipeline |
+| **SAE** — State Awareness Engine | 3 | `apps/core/ai_state/` | Persistent user state snapshot, authoritative current condition |
+| **PIE** — Proactive Insight Engine | 3 | `apps/core/ai_insights/` | Event-driven + scheduled factual insights |
+| **PRIE** — Predictive Intelligence Engine | 3 | `apps/core/ai_predictions/` | Trajectory projection using linear regression |
+| **PGE** — Proactive Guidance Engine | 3 | `apps/core/ai_guidance/` | Surface evidence-based guidance from state/insights/predictions |
 
 ### Intelligence Execution Pipeline
 
-All AI execution follows this pipeline:
-
 ```
 User Input
-  → UAIO (Orchestrator)
+  → PHASE 1 — INTERPRETATION
+    → SUE (Semantic Understanding)
     → SLCME (Memory Resolution)
     → HTIE (Time Resolution)
-    → SUE (Semantic Understanding)
-      → Module Execution (Action Handlers)
-        → SAE (State Update)
-          → PIE (Insight Generation, enriched with SAE state)
-            → PRIE (Prediction Generation)
-              → PGE (Guidance Generation — scheduled/on-demand)
-                → Response
+  → PHASE 2 — EXECUTION
+    → UAIO (Orchestrator → Action Handlers)
+  → PHASE 3 — POST-EXECUTION
+    → SAE (State Update)
+    → PIE (Insight Generation)
+    → PRIE (Prediction Generation)
+    → PGE (Guidance Generation — scheduled/on-demand)
+  → Response
 ```
 
-This pipeline must never be bypassed.
+This pipeline must never be bypassed. Phase boundaries must never be violated.
 
 ### Architectural Authority
 
 - The intelligence architecture documents are **system authority**
 - If existing code violates architecture, Claude Code must refactor it to comply
-- All new features must integrate with intelligence engines
+- All new features must integrate with the correct phase
 - New data-logging features must fire PIE events and PRIE predictions
 
 ---

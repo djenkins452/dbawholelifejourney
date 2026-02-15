@@ -8,25 +8,29 @@
 
 ## Domain Integration Principle
 
-Every domain module follows the same integration pattern:
+Every domain module follows the three-phase integration pattern:
 
 ```
 User Action in Domain
-  → AI Assistant (via UAIO orchestrator)
+  → PHASE 1 — INTERPRETATION
     → SLCME resolves context ("my weight", "that goal")
     → HTIE resolves time ("yesterday", "last Tuesday")
     → SUE interprets semantics (intent, entities, ambiguity)
+  → PHASE 2 — EXECUTION
+    → UAIO orchestrator routes to Action Handler
     → Action Handler executes domain logic
-      → SAE updates user state for this domain
-        → PIE evaluates insight rules (enriched with SAE state)
-          → PRIE runs prediction rules for this domain
-  → PGE evaluates guidance rules (scheduled/on-demand)
+  → PHASE 3 — POST-EXECUTION
+    → SAE updates user state for this domain
+    → PIE evaluates insight rules (enriched with SAE state)
+    → PRIE runs prediction rules for this domain
+    → PGE evaluates guidance rules (scheduled/on-demand)
   → Response with temporal context
 ```
 
 **Rules:**
 - Domain modules MUST NOT directly call `datetime.strptime()` on user input, hard-code context resolution, or generate insights/predictions outside the engine pipeline.
 - Domain modules MUST NOT reconstruct full user state independently — use SAE via `get_user_state()` or `get_module_state()`.
+- Domain modules MUST NOT violate phase boundaries — interpretation engines do not execute, execution engines do not interpret, post-execution engines do not execute.
 
 ---
 
@@ -331,4 +335,4 @@ When adding a new domain module to WLJ:
 
 ---
 
-*Last updated: 2026-02-15 — PGE (Proactive Guidance Engine) added to pipeline*
+*Last updated: 2026-02-15 — Three-phase execution model established*

@@ -6,6 +6,49 @@
 
 ---
 
+## Intelligence Execution Model
+
+The WLJ intelligence system operates in **three distinct phases**. Every engine belongs to exactly one phase. Phase boundaries must never be violated.
+
+### Phase 1 — Interpretation (Pre-Execution)
+
+**Purpose:** Understand user meaning safely and accurately. Prepare execution instructions.
+
+| Engine | Location | Responsibility |
+|--------|----------|----------------|
+| **SUE** — Semantic Understanding Engine | `apps/core/ai_semantics/` | Parse intent, extract entities, detect ambiguity |
+| **SLCME** — Self-Learning Context Memory Engine | `apps/core/ai_memory/` | Resolve context references via learned mappings |
+| **HTIE** — Human Temporal Intelligence Engine | `apps/core/time/` | Resolve human time expressions to timestamps |
+
+**These engines do NOT execute actions. They prepare execution instructions.**
+
+### Phase 2 — Execution
+
+**Purpose:** Execute actions safely and consistently. Single execution authority.
+
+| Engine | Location | Responsibility |
+|--------|----------|----------------|
+| **UAIO** — Unified AI Orchestrator | `apps/core/ai_orchestrator/` | Validate, route, and execute domain actions |
+
+**UAIO is the ONLY execution authority. No engine may execute actions independently.**
+
+### Phase 3 — Post-Execution
+
+**Purpose:** Update awareness, detect patterns, predict trajectory, surface guidance.
+
+| Engine | Location | Responsibility |
+|--------|----------|----------------|
+| **SAE** — State Awareness Engine | `apps/core/ai_state/` | Update authoritative user state snapshot |
+| **PIE** — Proactive Insight Engine | `apps/core/ai_insights/` | Evaluate patterns and detect factual insights |
+| **PRIE** — Predictive Intelligence Engine | `apps/core/ai_predictions/` | Project future trajectory via linear regression |
+| **PGE** — Proactive Guidance Engine | `apps/core/ai_guidance/` | Surface evidence-based proactive guidance |
+
+**Execution order within Phase 3:** SAE → PIE → PRIE → PGE (PGE runs scheduled/on-demand)
+
+**These engines do NOT execute actions. They observe and interpret system state.**
+
+---
+
 ## Architecture Diagram
 
 ```
@@ -13,105 +56,84 @@
                           │     User Input        │
                           └──────────┬───────────┘
                                      │
-                          ┌──────────▼───────────┐
-                          │        UAIO          │
-                          │  Unified AI          │
-                          │  Orchestrator        │
-                          │                      │
-                          │  apps/core/          │
-                          │  ai_orchestrator/    │
-                          └──┬──────────────┬────┘
-                             │              │
-                    ┌────────▼──┐     ┌─────▼────────┐
-                    │   SLCME   │     │    HTIE      │
-                    │  Memory   │     │   Time       │
-                    │ Resolution│     │ Resolution   │
-                    │           │     │              │
-                    │ apps/core/│     │ apps/core/   │
-                    │ ai_memory/│     │ time/        │
-                    └────────┬──┘     └─────┬────────┘
-                             │              │
-                          ┌──▼──────────────▼────┐
-                          │        SUE           │
-                          │  Semantic            │
-                          │  Understanding       │
-                          │                      │
-                          │  apps/core/          │
-                          │  ai_semantics/       │
-                          └──────────┬───────────┘
-                                     │
-                          ┌──────────▼───────────┐
-                          │  Module Execution    │
-                          │  (Action Handlers)   │
-                          │                      │
-                          │  apps/ai/            │
-                          │  action_handlers.py  │
-                          └──────────┬───────────┘
-                                     │
-                          ┌──────────▼───────────┐
-                          │        SAE           │
-                          │  State Awareness     │
-                          │  Engine              │
-                          │                      │
-                          │  apps/core/          │
-                          │  ai_state/           │
-                          └──────────┬───────────┘
-                                     │
-                          ┌──────────▼───────────┐
-                          │        PIE           │
-                          │  Proactive Insight   │
-                          │  Engine              │
-                          │                      │
-                          │  apps/core/          │
-                          │  ai_insights/        │
-                          └──────────┬───────────┘
-                                     │
-                          ┌──────────▼───────────┐
-                          │       PRIE           │
-                          │  Predictive          │
-                          │  Intelligence Engine │
-                          │                      │
-                          │  apps/core/          │
-                          │  ai_predictions/     │
-                          └──────────┬───────────┘
-                                     │
-                          ┌──────────▼───────────┐
-                          │        PGE           │
-                          │  Proactive Guidance  │
-                          │  Engine              │
-                          │                      │
-                          │  apps/core/          │
-                          │  ai_guidance/        │
-                          └──────────┬───────────┘
-                                     │
-                          ┌──────────▼───────────┐
-                          │     Response         │
-                          └──────────────────────┘
+              ╔══════════════════════════════════════════╗
+              ║    PHASE 1 — INTERPRETATION              ║
+              ╠══════════════════════════════════════════╣
+              ║                                          ║
+              ║   ┌──────────┐ ┌──────────┐ ┌────────┐  ║
+              ║   │   SUE    │ │  SLCME   │ │  HTIE  │  ║
+              ║   │ Semantic │ │  Memory  │ │  Time  │  ║
+              ║   │ Under-   │ │ Resol-   │ │ Resol- │  ║
+              ║   │ standing │ │ ution    │ │ ution  │  ║
+              ║   └────┬─────┘ └────┬─────┘ └───┬────┘  ║
+              ║        └────────────┼────────────┘       ║
+              ╚═════════════════════╪════════════════════╝
+                                    │
+              ╔═════════════════════╪════════════════════╗
+              ║    PHASE 2 — EXECUTION                   ║
+              ╠═════════════════════╪════════════════════╣
+              ║              ┌──────▼───────┐            ║
+              ║              │     UAIO     │            ║
+              ║              │ Orchestrator │            ║
+              ║              │  (Action     │            ║
+              ║              │   Handlers)  │            ║
+              ║              └──────┬───────┘            ║
+              ╚═════════════════════╪════════════════════╝
+                                    │
+              ╔═════════════════════╪════════════════════╗
+              ║    PHASE 3 — POST-EXECUTION              ║
+              ╠═════════════════════╪════════════════════╣
+              ║              ┌──────▼───────┐            ║
+              ║              │     SAE      │            ║
+              ║              │  State       │            ║
+              ║              └──────┬───────┘            ║
+              ║              ┌──────▼───────┐            ║
+              ║              │     PIE      │            ║
+              ║              │  Insights    │            ║
+              ║              └──────┬───────┘            ║
+              ║              ┌──────▼───────┐            ║
+              ║              │    PRIE      │            ║
+              ║              │  Predictions │            ║
+              ║              └──────┬───────┘            ║
+              ║              ┌──────▼───────┐            ║
+              ║              │     PGE      │            ║
+              ║              │  Guidance    │            ║
+              ║              └──────┬───────┘            ║
+              ╚═════════════════════╪════════════════════╝
+                                    │
+                          ┌─────────▼──────────┐
+                          │ Guidance, Insights, │
+                          │ Predictions,        │
+                          │ Response            │
+                          └────────────────────┘
 ```
 
 ---
 
-## Execution Pipeline
+## Execution Pipeline (Detailed)
 
 All AI execution follows this pipeline. It must never be bypassed.
 
 ```
 User Input
-  → UAIO (process_user_input)
-    → SLCME (resolve_context — memory/learned mappings)
-    → HTIE (interpret_human_time — temporal resolution)
-    → SUE (interpret — semantic understanding, entity resolution)
-    → Clarification check (ask user if ambiguous)
+  → PHASE 1 — INTERPRETATION
+    → UAIO (process_user_input — orchestrates interpretation)
+      → SLCME (resolve_context — memory/learned mappings)
+      → HTIE (interpret_human_time — temporal resolution)
+      → SUE (interpret — semantic understanding, entity resolution)
+      → Clarification check (ask user if ambiguous)
   → Intent Recognition (OpenAI function calling)
-  → UAIO (enrich_and_execute)
-    → Safety Engine (validate timestamps, bounds)
-    → Action Router (enrich with time/context)
-    → Module Execution (action_handlers.py)
-    → Learning Pipeline (store mappings from successful actions)
+  → PHASE 2 — EXECUTION
+    → UAIO (enrich_and_execute — sole execution authority)
+      → Safety Engine (validate timestamps, bounds)
+      → Action Router (enrich with time/context)
+      → Module Execution (action_handlers.py)
+      → Learning Pipeline (store mappings from successful actions)
+  → PHASE 3 — POST-EXECUTION
     → SAE (update_user_state — refresh state snapshot)
     → PIE (run_insights — generate factual insights, enriched with SAE state)
       → PRIE (generate_predictions — trajectory projections)
-  → PGE (generate_guidance — evaluate state/insights/predictions → surface guidance)
+    → PGE (generate_guidance — scheduled/on-demand, reads SAE + PIE + PRIE)
   → Response Builder (enhance with temporal context)
   → Response to User
 ```
@@ -600,25 +622,28 @@ Supported data types: `weight_entries`, `body_fat_entries`, `lean_mass_entries`,
 | PGE → PRIE | Read active predictions | `guidance_engine.py:_get_active_predictions()` |
 | All Engines → HTIE | System time | `system_clock.py:get_current_time()` |
 
-### Intelligence Execution Chain
+### Phase 3 — Post-Execution Intelligence Chain
 
-Post-execution, the intelligence chain fires from `execute_action()`:
+After execution completes, the Phase 3 intelligence chain fires from `execute_action()`:
 
 ```
-Action Success
-  → SAE (update_user_state)
-    → Rebuild affected module state from database
-  → PIE (run_insights, enriched with SAE state)
-    → Evaluate all applicable insight rules
-    → PRIE (_trigger_predictions)
-      → Evaluate all applicable prediction rules
-  → PGE (generate_guidance) — scheduled/on-demand
-    → Read SAE state + PIE insights + PRIE predictions
-    → Select → Rank → Store guidance items
+Action Success (Phase 2 complete)
+  → PHASE 3 — POST-EXECUTION
+    → SAE (update_user_state)
+      → Rebuild affected module state from database
+    → PIE (run_insights, enriched with SAE state)
+      → Evaluate all applicable insight rules
+      → PRIE (_trigger_predictions)
+        → Evaluate all applicable prediction rules
+    → PGE (generate_guidance) — scheduled/on-demand
+      → Read SAE state + PIE insights + PRIE predictions
+      → Select → Rank → Store guidance items
 ```
 
 The SAE→PIE→PRIE chain is centralized in `execution_engine.py:_run_intelligence_chain()`.
 PGE runs separately (daily scheduler or on-demand) and reads the outputs of all three engines.
+
+**Phase boundary:** No Phase 3 engine may execute domain actions. They observe and analyze only.
 
 ---
 
@@ -655,6 +680,7 @@ HTIE and UAIO are stateless — no database models required.
 14. **State currency:** All features that modify user data must ensure SAE is updated. AI-initiated actions update SAE automatically via the intelligence chain. Non-AI data changes must call `update_user_state()` explicitly.
 15. **Semantic understanding:** SUE provides pre-intent semantic analysis (intent candidates, entity extraction, ambiguity detection). SUE does NOT execute actions — UAIO remains execution authority. SUE failures must never break the pipeline.
 16. **Guidance authority:** PGE is the sole authority for proactive guidance. Guidance must always be evidence-based (backed by SAE state, PIE insights, or PRIE predictions). PGE does NOT execute actions or generate insights — it surfaces existing intelligence. PGE failures must never break any other engine.
+17. **Phase integrity:** Each engine operates only within its designated phase. Interpretation engines (SUE, SLCME, HTIE) may not execute actions. The execution engine (UAIO) may not interpret meaning independently. Post-execution engines (SAE, PIE, PRIE, PGE) may not execute actions. Violating phase boundaries is a critical architectural error.
 
 ---
 
@@ -1039,4 +1065,4 @@ JSON API at `/guidance/api/` — returns active items sorted by priority.
 
 ---
 
-*Last updated: 2026-02-15 — PGE (Proactive Guidance Engine) deployed*
+*Last updated: 2026-02-15 — Three-phase intelligence execution model established*

@@ -6,8 +6,26 @@
 
 ---
 
+## Intelligence Execution Phases
+
+All features must integrate with the correct phase. Phase boundaries must never be violated.
+
+| Phase | Engines | Purpose | Rules |
+|-------|---------|---------|-------|
+| **Phase 1 — Interpretation** | SUE, SLCME, HTIE | Understand user meaning | Do NOT execute actions. Prepare execution instructions only. |
+| **Phase 2 — Execution** | UAIO | Execute domain actions | UAIO is the sole execution authority. No other engine may execute. |
+| **Phase 3 — Post-Execution** | SAE, PIE, PRIE, PGE | Update state, detect patterns, predict, guide | Do NOT execute actions. Observe and analyze system state only. |
+
+**New features must NOT bypass phase boundaries.** For example:
+- A new insight rule (PIE, Phase 3) must never call action handlers directly
+- A new semantic parser (SUE, Phase 1) must never update database records
+- A new action handler (UAIO, Phase 2) must not generate insights directly — it fires PIE via the intelligence chain
+
+---
+
 ## When Integration is Required
 
+|  | Phase 2 | Phase 1 | Phase 1 | Phase 3 | Phase 1 | Phase 3 | Phase 3 | Phase 3 |
 | Change Type | UAIO | SLCME | HTIE | SAE | SUE | PIE | PRIE | PGE |
 |-------------|------|-------|------|-----|-----|-----|------|-----|
 | New AI assistant action | **YES** | **YES** | If time-aware | **YES** | Auto | Consider | Consider | Consider |
@@ -505,4 +523,4 @@ Before marking a feature complete, verify:
 
 ---
 
-*Last updated: 2026-02-15 — PGE integration added*
+*Last updated: 2026-02-15 — Three-phase execution model and phase integrity rules added*

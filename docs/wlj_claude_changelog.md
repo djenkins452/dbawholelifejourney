@@ -4,10 +4,19 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-15 (Intelligence Observability Dashboard)
+# Last Updated: 2026-02-15 (IOCD padding fix)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-02-15 — IOCD: Dashboard Padding Fix
+
+**Fix:** Added horizontal padding to the observability dashboard for better readability.
+
+- Added `.icc-page` padding override: 1.5rem sides (mobile), 2rem sides (desktop)
+- **File modified:** `templates/intelligence/observability_dashboard.html`
+
+---
 
 ## 2026-02-15 — Phase 6C: Intelligence Observability & Calibration Dashboard (IOCD)
 

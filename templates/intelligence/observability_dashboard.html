@@ -281,6 +281,16 @@
 
 {% block extra_css %}
 <style>
+/* Page padding override for readability */
+.icc-page {
+    padding: var(--space-4) var(--space-6);
+}
+@media (min-width: 769px) {
+    .icc-page {
+        padding: var(--space-4) var(--space-8);
+    }
+}
+
 /* Observability-specific styles (extends ICC base styles) */
 .obs-metrics-grid {
     display: grid;

@@ -96,7 +96,7 @@ def _upsert_guidance(user, candidate, default_expiry):
         logger.debug(f"PGE: Updated guidance {existing.id} ({dedupe_key[:16]}...)")
         return existing
 
-    # Create new guidance item
+    # Create new guidance item with clean lifecycle state
     item = GuidanceItem.objects.create(
         user=user,
         title=candidate.get("title", ""),
@@ -110,6 +110,13 @@ def _upsert_guidance(user, candidate, default_expiry):
         dedupe_key=dedupe_key,
         metadata=candidate.get("metadata", {}),
         expires_at=candidate.get("expires_at", default_expiry),
+        # Lifecycle fields initialized to None (clean state)
+        acknowledged_at=None,
+        dismissed_at=None,
+        snoozed_until=None,
+        acted_upon_at=None,
+        action_type=None,
+        feedback=None,
     )
     logger.debug(f"PGE: Created guidance {item.id} ({dedupe_key[:16]}...)")
     return item

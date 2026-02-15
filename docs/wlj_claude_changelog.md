@@ -4,10 +4,30 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-15 (Three-Phase Execution Model)
+# Last Updated: 2026-02-15 (PGE Guidance Lifecycle Tracking)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-02-15 — PGE: Guidance Lifecycle Tracking Enhancement
+
+**Enhancement:** Added full lifecycle tracking to GuidanceItem model — acknowledge, dismiss, snooze, acted upon, and feedback. Users can now interact with guidance beyond read/dismiss, and snoozed items automatically reappear.
+
+- **Model:** Added 6 lifecycle fields: `acknowledged_at`, `dismissed_at`, `snoozed_until`, `acted_upon_at`, `action_type`, `feedback`
+- **Model:** Added 5 lifecycle properties: `is_acknowledged`, `is_dismissed`, `is_snoozed`, `is_acted_upon`, `is_active_guidance`
+- **Model:** Added 5 lifecycle methods: `acknowledge()`, `dismiss()`, `snooze()`, `mark_acted_upon()`, `set_feedback()`
+- **Model:** Added `_get_now()` helper using HTIE system clock with timezone fallback
+- **Engine:** `get_active_guidance()` now excludes dismissed and currently snoozed items
+- **Views:** `GuidanceActionView` handles 6 actions: read, acknowledge, dismiss, snooze (capped at 168h), acted, feedback
+- **Views:** `GuidanceAPIView` returns lifecycle fields in JSON response
+- **Logger:** New guidance items initialize all lifecycle fields to None
+- **Admin:** Lifecycle fields displayed in read-only admin
+- **Migration:** `core.0059` adds lifecycle fields + snoozed_until index
+- **Tests:** 39 lifecycle tests (model, view, API) — total PGE tests now 109
+- **Docs:** Updated INTELLIGENCE_ARCHITECTURE.md, ENGINE_INTEGRATION_GUIDE.md with lifecycle documentation
+  - Files: `apps/core/ai_guidance/models.py`, `apps/core/ai_guidance/guidance_engine.py`, `apps/core/ai_guidance/views.py`, `apps/core/ai_guidance/guidance_logger.py`, `apps/core/ai_guidance/admin.py`, `apps/core/ai_guidance/tests.py`, `apps/core/migrations/0059_add_guidance_lifecycle_fields.py`, `docs/INTELLIGENCE_ARCHITECTURE.md`, `docs/ENGINE_INTEGRATION_GUIDE.md`, `docs/wlj_claude_changelog.md`
+
+---
 
 ## 2026-02-15 — Architecture: Three-Phase Intelligence Execution Model
 

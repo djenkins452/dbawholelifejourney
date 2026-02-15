@@ -523,4 +523,35 @@ Before marking a feature complete, verify:
 
 ---
 
-*Last updated: 2026-02-15 — Three-phase execution model and phase integrity rules added*
+## Guidance Lifecycle Integration
+
+When building UI that displays guidance items, integrate with the lifecycle API:
+
+```python
+# Acknowledge — user saw and acknowledged the guidance
+item.acknowledge()  # Sets acknowledged_at, marks read
+
+# Dismiss — user doesn't want to see this again
+item.dismiss()      # Sets dismissed_at, deactivates (permanent)
+
+# Snooze — hide temporarily, resurface later
+item.snooze(until=timezone.now() + timedelta(hours=24))
+
+# Acted Upon — user took the recommended action
+item.mark_acted_upon(action_type="navigated")
+
+# Feedback — user rated the guidance quality
+item.set_feedback("Very helpful!")
+```
+
+**API endpoint:** `POST /guidance/<pk>/action/` with `action` param (read/acknowledge/dismiss/snooze/acted/feedback).
+
+**Key behaviors:**
+- Dismissed items **never** reappear (permanently excluded from `get_active_guidance()`)
+- Snoozed items automatically reappear after the snooze period ends
+- All lifecycle timestamps use HTIE system clock via `_get_now()` helper
+- All lifecycle methods are idempotent (calling twice has same effect)
+
+---
+
+*Last updated: 2026-02-15 — PGE Guidance Lifecycle Tracking added*

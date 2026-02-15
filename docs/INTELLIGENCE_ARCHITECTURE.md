@@ -657,6 +657,7 @@ PGE runs separately (daily scheduler or on-demand) and reads the outputs of all 
 | `core.0056` | SAE | UserState |
 | `core.0057` | SUE | SemanticDecisionLog |
 | `core.0058` | PGE | GuidanceItem |
+| `core.0059` | PGE | GuidanceItem lifecycle fields (acknowledged_at, dismissed_at, snoozed_until, acted_upon_at, action_type, feedback) |
 
 HTIE and UAIO are stateless — no database models required.
 
@@ -972,8 +973,37 @@ Maximum 5 items surfaced per user (`MAX_GUIDANCE_ITEMS`).
 | `is_active` | Boolean | Currently active |
 | `is_read` | Boolean | User has seen it |
 | `expires_at` | DateTimeField | Auto-expire date |
+| `acknowledged_at` | DateTimeField | When user acknowledged |
+| `dismissed_at` | DateTimeField | When user dismissed (deactivates item) |
+| `snoozed_until` | DateTimeField | Hidden until this time |
+| `acted_upon_at` | DateTimeField | When user took action |
+| `action_type` | CharField(100) | What action was taken (e.g., 'navigated', 'updated_goal') |
+| `feedback` | CharField(255) | User feedback on guidance quality |
 | `dedupe_key` | CharField(255) | SHA-256 deduplication key |
 | `metadata` | JSONField | Additional rendering data |
+
+### Guidance Lifecycle
+
+Guidance items follow a lifecycle: **new → acknowledged → acted_upon / dismissed / snoozed**.
+
+| Action | Method | Effect |
+|--------|--------|--------|
+| Acknowledge | `item.acknowledge()` | Sets `acknowledged_at`, marks read |
+| Dismiss | `item.dismiss()` | Sets `dismissed_at`, deactivates — item never reappears |
+| Snooze | `item.snooze(until)` | Sets `snoozed_until` — hidden until that time, then reappears |
+| Acted Upon | `item.mark_acted_upon(action_type)` | Sets `acted_upon_at`, optionally records action_type |
+| Feedback | `item.set_feedback(text)` | Stores user feedback (max 255 chars) |
+
+**Lifecycle properties:**
+- `is_acknowledged` — `acknowledged_at is not None`
+- `is_dismissed` — `dismissed_at is not None`
+- `is_snoozed` — `snoozed_until` is in the future
+- `is_acted_upon` — `acted_upon_at is not None`
+- `is_active_guidance` — `is_active AND NOT dismissed AND NOT snoozed`
+
+**Time resolution:** All lifecycle timestamps use HTIE's `get_current_time()` via `_get_now()` helper (with `timezone.now()` fallback).
+
+**Query filtering:** `get_active_guidance()` excludes dismissed items (`dismissed_at__isnull=True`) and currently snoozed items (`snoozed_until__gt=now`). Snoozed items automatically reappear when the snooze period ends.
 
 ### Deduplication
 
@@ -999,7 +1029,8 @@ Default expiry: 7 days.
 ### User Interface
 
 Guidance Inbox at `/guidance/` — filterable by status (active/read/all), AJAX mark-read/dismiss.
-JSON API at `/guidance/api/` — returns active items sorted by priority.
+JSON API at `/guidance/api/` — returns active items sorted by priority, includes lifecycle fields.
+Action API at `/guidance/<pk>/action/` — POST with `action` = read/acknowledge/dismiss/snooze/acted/feedback.
 
 ### Files
 
@@ -1015,7 +1046,7 @@ JSON API at `/guidance/api/` — returns active items sorted by priority.
 | `views.py` | Inbox view, action view, JSON API view |
 | `urls.py` | URL routing |
 | `admin.py` | Read-only admin display |
-| `tests.py` | 70 tests covering all components |
+| `tests.py` | 109 tests covering all components + lifecycle |
 
 ### Integration Points
 

@@ -1144,3 +1144,361 @@ class RunGuidanceCommandTest(PGETestMixin, TestCase):
         call_command("run_guidance_engine", user=99999, stderr=err)
         error_output = err.getvalue()
         self.assertIn("not found", error_output)
+
+
+# ---------------------------------------------------------------------------
+# Lifecycle Tracking Tests
+# ---------------------------------------------------------------------------
+
+
+class GuidanceLifecycleModelTest(PGETestMixin, TestCase):
+    """Tests for GuidanceItem lifecycle fields and methods."""
+
+    def _create_item(self, **kwargs):
+        defaults = dict(
+            user=self.user,
+            title="Lifecycle Test",
+            message="Testing lifecycle.",
+            priority=3,
+            guidance_type="test_rule",
+            dedupe_key=f"lifecycle_{id(kwargs)}_{timezone.now().timestamp()}",
+        )
+        defaults.update(kwargs)
+        return GuidanceItem.objects.create(**defaults)
+
+    # -- acknowledge --
+
+    def test_acknowledge_sets_timestamp(self):
+        item = self._create_item()
+        self.assertIsNone(item.acknowledged_at)
+        item.acknowledge()
+        item.refresh_from_db()
+        self.assertIsNotNone(item.acknowledged_at)
+
+    def test_acknowledge_marks_read(self):
+        item = self._create_item()
+        self.assertFalse(item.is_read)
+        item.acknowledge()
+        item.refresh_from_db()
+        self.assertTrue(item.is_read)
+
+    def test_acknowledge_idempotent(self):
+        item = self._create_item()
+        item.acknowledge()
+        first_ts = item.acknowledged_at
+        item.acknowledge()
+        item.refresh_from_db()
+        self.assertEqual(item.acknowledged_at, first_ts)
+
+    def test_is_acknowledged_property(self):
+        item = self._create_item()
+        self.assertFalse(item.is_acknowledged)
+        item.acknowledge()
+        self.assertTrue(item.is_acknowledged)
+
+    # -- dismiss --
+
+    def test_dismiss_sets_timestamp(self):
+        item = self._create_item()
+        self.assertIsNone(item.dismissed_at)
+        item.dismiss()
+        item.refresh_from_db()
+        self.assertIsNotNone(item.dismissed_at)
+
+    def test_dismiss_deactivates(self):
+        item = self._create_item()
+        self.assertTrue(item.is_active)
+        item.dismiss()
+        item.refresh_from_db()
+        self.assertFalse(item.is_active)
+
+    def test_dismiss_idempotent(self):
+        item = self._create_item()
+        item.dismiss()
+        first_ts = item.dismissed_at
+        item.dismiss()
+        item.refresh_from_db()
+        self.assertEqual(item.dismissed_at, first_ts)
+
+    def test_is_dismissed_property(self):
+        item = self._create_item()
+        self.assertFalse(item.is_dismissed)
+        item.dismiss()
+        self.assertTrue(item.is_dismissed)
+
+    def test_dismissed_excluded_from_active_guidance(self):
+        """Dismissed items must not appear in get_active_guidance()."""
+        item = self._create_item(dedupe_key="dismissed_test_1")
+        item.dismiss()
+        active = get_active_guidance(self.user, limit=10)
+        self.assertNotIn(item, list(active))
+
+    # -- snooze --
+
+    def test_snooze_sets_until(self):
+        item = self._create_item()
+        until = timezone.now() + timedelta(hours=24)
+        item.snooze(until)
+        item.refresh_from_db()
+        self.assertIsNotNone(item.snoozed_until)
+
+    def test_is_snoozed_when_future(self):
+        item = self._create_item()
+        item.snooze(timezone.now() + timedelta(hours=24))
+        self.assertTrue(item.is_snoozed)
+
+    def test_is_not_snoozed_when_past(self):
+        item = self._create_item()
+        item.snooze(timezone.now() - timedelta(hours=1))
+        self.assertFalse(item.is_snoozed)
+
+    def test_snoozed_excluded_from_active_guidance(self):
+        """Currently snoozed items must not appear in get_active_guidance()."""
+        item = self._create_item(dedupe_key="snoozed_test_1")
+        item.snooze(timezone.now() + timedelta(hours=24))
+        active = get_active_guidance(self.user, limit=10)
+        self.assertNotIn(item, list(active))
+
+    def test_snoozed_reappears_after_expiration(self):
+        """Items whose snooze has expired should appear in get_active_guidance()."""
+        item = self._create_item(
+            dedupe_key="snoozed_reappear_1",
+            expires_at=timezone.now() + timedelta(days=7),
+        )
+        # Snooze in the past = expired snooze
+        item.snooze(timezone.now() - timedelta(hours=1))
+        active = get_active_guidance(self.user, limit=10)
+        self.assertIn(item, list(active))
+
+    # -- acted upon --
+
+    def test_mark_acted_upon_sets_timestamp(self):
+        item = self._create_item()
+        self.assertIsNone(item.acted_upon_at)
+        item.mark_acted_upon()
+        item.refresh_from_db()
+        self.assertIsNotNone(item.acted_upon_at)
+
+    def test_mark_acted_upon_with_action_type(self):
+        item = self._create_item()
+        item.mark_acted_upon(action_type="navigated")
+        item.refresh_from_db()
+        self.assertEqual(item.action_type, "navigated")
+
+    def test_mark_acted_upon_marks_read(self):
+        item = self._create_item()
+        item.mark_acted_upon()
+        item.refresh_from_db()
+        self.assertTrue(item.is_read)
+
+    def test_mark_acted_upon_idempotent(self):
+        item = self._create_item()
+        item.mark_acted_upon(action_type="navigated")
+        first_ts = item.acted_upon_at
+        item.mark_acted_upon(action_type="updated_goal")
+        item.refresh_from_db()
+        self.assertEqual(item.acted_upon_at, first_ts)
+        self.assertEqual(item.action_type, "navigated")  # unchanged
+
+    def test_is_acted_upon_property(self):
+        item = self._create_item()
+        self.assertFalse(item.is_acted_upon)
+        item.mark_acted_upon()
+        self.assertTrue(item.is_acted_upon)
+
+    # -- feedback --
+
+    def test_set_feedback(self):
+        item = self._create_item()
+        item.set_feedback("Very helpful!")
+        item.refresh_from_db()
+        self.assertEqual(item.feedback, "Very helpful!")
+
+    def test_set_feedback_truncates(self):
+        item = self._create_item()
+        long_text = "A" * 300
+        item.set_feedback(long_text)
+        item.refresh_from_db()
+        self.assertEqual(len(item.feedback), 255)
+
+    # -- is_active_guidance composite property --
+
+    def test_is_active_guidance_default(self):
+        item = self._create_item()
+        self.assertTrue(item.is_active_guidance)
+
+    def test_is_active_guidance_false_when_dismissed(self):
+        item = self._create_item()
+        item.dismiss()
+        self.assertFalse(item.is_active_guidance)
+
+    def test_is_active_guidance_false_when_snoozed(self):
+        item = self._create_item()
+        item.snooze(timezone.now() + timedelta(hours=24))
+        self.assertFalse(item.is_active_guidance)
+
+    def test_is_active_guidance_false_when_inactive(self):
+        item = self._create_item()
+        item.deactivate()
+        self.assertFalse(item.is_active_guidance)
+
+    # -- lifecycle fields initialized to None --
+
+    def test_new_item_lifecycle_fields_are_none(self):
+        item = self._create_item()
+        self.assertIsNone(item.acknowledged_at)
+        self.assertIsNone(item.dismissed_at)
+        self.assertIsNone(item.snoozed_until)
+        self.assertIsNone(item.acted_upon_at)
+        self.assertIsNone(item.action_type)
+        self.assertIsNone(item.feedback)
+
+
+class GuidanceLifecycleViewTest(PGETestMixin, TestCase):
+    """Tests for lifecycle actions via GuidanceActionView."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.login(email="pge_test@example.com", password="testpass123")
+        self.item = GuidanceItem.objects.create(
+            user=self.user,
+            title="View Lifecycle Test",
+            message="Testing view actions.",
+            priority=3,
+            guidance_type="test_rule",
+            dedupe_key="view_lifecycle_test_1",
+            expires_at=timezone.now() + timedelta(days=7),
+        )
+
+    def _action_url(self):
+        return f"/guidance/{self.item.pk}/action/"
+
+    def test_acknowledge_action(self):
+        resp = self.client.post(self._action_url(), {"action": "acknowledge"})
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data["success"])
+        self.assertEqual(data["status"], "acknowledged")
+        self.item.refresh_from_db()
+        self.assertIsNotNone(self.item.acknowledged_at)
+
+    def test_dismiss_action(self):
+        resp = self.client.post(self._action_url(), {"action": "dismiss"})
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data["success"])
+        self.assertEqual(data["status"], "dismissed")
+        self.item.refresh_from_db()
+        self.assertIsNotNone(self.item.dismissed_at)
+        self.assertFalse(self.item.is_active)
+
+    def test_snooze_action(self):
+        resp = self.client.post(self._action_url(), {"action": "snooze", "hours": "12"})
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data["success"])
+        self.assertEqual(data["status"], "snoozed")
+        self.assertIn("snoozed_until", data)
+        self.item.refresh_from_db()
+        self.assertIsNotNone(self.item.snoozed_until)
+
+    def test_snooze_caps_at_168_hours(self):
+        resp = self.client.post(self._action_url(), {"action": "snooze", "hours": "500"})
+        self.assertEqual(resp.status_code, 200)
+        self.item.refresh_from_db()
+        # Should be capped at ~168 hours (7 days) from now, not 500
+        max_delta = timedelta(hours=169)
+        actual_delta = self.item.snoozed_until - timezone.now()
+        self.assertLessEqual(actual_delta, max_delta)
+
+    def test_acted_action(self):
+        resp = self.client.post(
+            self._action_url(),
+            {"action": "acted", "action_type": "navigated"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data["success"])
+        self.assertEqual(data["status"], "acted_upon")
+        self.item.refresh_from_db()
+        self.assertIsNotNone(self.item.acted_upon_at)
+        self.assertEqual(self.item.action_type, "navigated")
+
+    def test_feedback_action(self):
+        resp = self.client.post(
+            self._action_url(),
+            {"action": "feedback", "feedback": "Great tip!"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data["success"])
+        self.assertEqual(data["status"], "feedback_saved")
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.feedback, "Great tip!")
+
+    def test_feedback_action_requires_text(self):
+        resp = self.client.post(
+            self._action_url(),
+            {"action": "feedback", "feedback": ""},
+        )
+        self.assertEqual(resp.status_code, 400)
+        data = resp.json()
+        self.assertFalse(data["success"])
+
+    def test_unknown_action_returns_400(self):
+        resp = self.client.post(self._action_url(), {"action": "explode"})
+        self.assertEqual(resp.status_code, 400)
+
+    def test_action_on_nonexistent_item_returns_404(self):
+        resp = self.client.post("/guidance/99999/action/", {"action": "read"})
+        self.assertEqual(resp.status_code, 404)
+
+
+class GuidanceAPILifecycleTest(PGETestMixin, TestCase):
+    """Tests that the JSON API includes lifecycle fields."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.login(email="pge_test@example.com", password="testpass123")
+        self.item = GuidanceItem.objects.create(
+            user=self.user,
+            title="API Lifecycle Test",
+            message="Testing API response.",
+            priority=2,
+            guidance_type="test_rule",
+            dedupe_key="api_lifecycle_test_1",
+            expires_at=timezone.now() + timedelta(days=7),
+        )
+
+    def test_api_includes_lifecycle_fields(self):
+        resp = self.client.get("/guidance/api/")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data["count"], 1)
+        item_data = data["guidance"][0]
+        # Check lifecycle fields are present
+        self.assertIn("is_acknowledged", item_data)
+        self.assertIn("is_acted_upon", item_data)
+        self.assertIn("acknowledged_at", item_data)
+        self.assertIn("acted_upon_at", item_data)
+        self.assertIn("action_type", item_data)
+
+    def test_api_reflects_acknowledged_state(self):
+        self.item.acknowledge()
+        resp = self.client.get("/guidance/api/")
+        data = resp.json()
+        item_data = data["guidance"][0]
+        self.assertTrue(item_data["is_acknowledged"])
+        self.assertIsNotNone(item_data["acknowledged_at"])
+
+    def test_api_excludes_dismissed_items(self):
+        self.item.dismiss()
+        resp = self.client.get("/guidance/api/")
+        data = resp.json()
+        self.assertEqual(data["count"], 0)
+
+    def test_api_excludes_snoozed_items(self):
+        self.item.snooze(timezone.now() + timedelta(hours=24))
+        resp = self.client.get("/guidance/api/")
+        data = resp.json()
+        self.assertEqual(data["count"], 0)

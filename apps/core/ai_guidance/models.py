@@ -12,6 +12,18 @@ from django.conf import settings
 from django.db import models
 
 
+def _get_now():
+    """Get current time using HTIE system clock (with fallback)."""
+    try:
+        from apps.core.time.system_clock import get_current_time
+
+        return get_current_time()
+    except ImportError:
+        from django.utils import timezone
+
+        return timezone.now()
+
+
 class GuidanceItem(models.Model):
     """
     A single proactive guidance item surfaced to the user.
@@ -96,6 +108,40 @@ class GuidanceItem(models.Model):
         help_text="When this guidance becomes irrelevant",
     )
 
+    # Lifecycle tracking
+    acknowledged_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the user acknowledged this guidance",
+    )
+    dismissed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the user dismissed this guidance",
+    )
+    snoozed_until = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Guidance is hidden until this time",
+    )
+    acted_upon_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the user took action on this guidance",
+    )
+    action_type = models.CharField(
+        max_length=100,
+        null=True,
+        blank=True,
+        help_text="What action the user took (e.g., 'navigated', 'updated_goal')",
+    )
+    feedback = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        help_text="Optional user feedback on the guidance quality",
+    )
+
     # Deduplication
     dedupe_key = models.CharField(
         max_length=255,
@@ -124,16 +170,109 @@ class GuidanceItem(models.Model):
             models.Index(fields=["user", "is_active", "priority"]),
             models.Index(fields=["dedupe_key"]),
             models.Index(fields=["expires_at"]),
+            models.Index(fields=["snoozed_until"]),
         ]
 
     def __str__(self):
         return f"[P{self.priority}] {self.title}"
+
+    # ------------------------------------------------------------------
+    # Lifecycle status properties
+    # ------------------------------------------------------------------
+
+    @property
+    def is_acknowledged(self):
+        """Whether the user has acknowledged this guidance."""
+        return self.acknowledged_at is not None
+
+    @property
+    def is_dismissed(self):
+        """Whether the user has dismissed this guidance."""
+        return self.dismissed_at is not None
+
+    @property
+    def is_snoozed(self):
+        """Whether this guidance is currently snoozed."""
+        if not self.snoozed_until:
+            return False
+        try:
+            from apps.core.time.system_clock import get_current_time
+
+            return self.snoozed_until > get_current_time()
+        except ImportError:
+            from django.utils import timezone
+
+            return self.snoozed_until > timezone.now()
+
+    @property
+    def is_acted_upon(self):
+        """Whether the user has taken action on this guidance."""
+        return self.acted_upon_at is not None
+
+    @property
+    def is_active_guidance(self):
+        """Whether this guidance should be shown to the user."""
+        return self.is_active and not self.is_dismissed and not self.is_snoozed
+
+    # ------------------------------------------------------------------
+    # Lifecycle action methods
+    # ------------------------------------------------------------------
 
     def mark_read(self):
         """Mark this guidance item as read."""
         if not self.is_read:
             self.is_read = True
             self.save(update_fields=["is_read", "updated_at"])
+
+    def acknowledge(self):
+        """Mark this guidance item as acknowledged by the user."""
+        if not self.acknowledged_at:
+            self.acknowledged_at = _get_now()
+            self.is_read = True
+            self.save(update_fields=["acknowledged_at", "is_read", "updated_at"])
+
+    def dismiss(self):
+        """Dismiss this guidance item. Sets dismissed_at and deactivates."""
+        if not self.dismissed_at:
+            self.dismissed_at = _get_now()
+            self.is_active = False
+            self.save(
+                update_fields=["dismissed_at", "is_active", "updated_at"]
+            )
+
+    def snooze(self, until):
+        """
+        Snooze this guidance item until a specific time.
+
+        Args:
+            until: datetime — when the guidance should reappear.
+        """
+        self.snoozed_until = until
+        self.save(update_fields=["snoozed_until", "updated_at"])
+
+    def mark_acted_upon(self, action_type=None):
+        """
+        Mark that the user took action on this guidance.
+
+        Args:
+            action_type: Optional string describing the action taken.
+        """
+        if not self.acted_upon_at:
+            self.acted_upon_at = _get_now()
+            if action_type:
+                self.action_type = action_type
+            self.is_read = True
+            update_fields = [
+                "acted_upon_at", "is_read", "updated_at",
+            ]
+            if action_type:
+                update_fields.append("action_type")
+            self.save(update_fields=update_fields)
+
+    def set_feedback(self, feedback_text):
+        """Store user feedback on this guidance item."""
+        self.feedback = feedback_text[:255]
+        self.save(update_fields=["feedback", "updated_at"])
 
     def deactivate(self):
         """Deactivate this guidance item."""

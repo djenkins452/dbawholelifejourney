@@ -70,6 +70,12 @@ def get_active_guidance(user, limit=5):
     """
     Retrieve active guidance items for a user, sorted by priority.
 
+    Excludes:
+    - Inactive items (is_active=False)
+    - Expired items (expires_at in the past)
+    - Dismissed items (dismissed_at is set)
+    - Currently snoozed items (snoozed_until in the future)
+
     Args:
         user: Django user instance.
         limit: Maximum items to return.
@@ -85,8 +91,10 @@ def get_active_guidance(user, limit=5):
         GuidanceItem.objects.filter(
             user=user,
             is_active=True,
+            dismissed_at__isnull=True,
         )
         .exclude(expires_at__lt=now)
+        .exclude(snoozed_until__gt=now)
         .order_by("priority", "-created_at")[:limit]
     )
 

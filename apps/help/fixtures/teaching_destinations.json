@@ -1934,5 +1934,19 @@
       "created_at": "2026-02-15T00:00:00Z",
       "updated_at": "2026-02-15T00:00:00Z"
     }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 115,
+    "fields": {
+      "destination_id": "intelligence-command-center",
+      "name": "Intelligence Command Center",
+      "path_description": "Intelligence",
+      "explanation": "View a unified dashboard of all your WLJ intelligence: state snapshot, guidance, daily briefing, weekly report, predictions, and delivery history.",
+      "url": "/intelligence/",
+      "keywords": "intelligence,command center,dashboard,guidance,briefing,weekly report,predictions,deliveries,AI,state,insights",
+      "module": "ai",
+      "sort_order": 10
+    }
   }
 ]

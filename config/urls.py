@@ -113,6 +113,8 @@ urlpatterns = [
     path('insights/', include('apps.core.ai_insights.urls', namespace='ai_insights')),
     # AI Guidance (PGE)
     path('guidance/', include('apps.core.ai_guidance.urls', namespace='ai_guidance')),
+    # Intelligence Command Center (ICC)
+    path('intelligence/', include('apps.core.urls_intelligence_center', namespace='intelligence')),
     # Weekly Intelligence Reports (WIRE)
     path('intelligence/weekly/', include('apps.core.ai_weekly_report.urls', namespace='ai_weekly_report')),
     # Evidence & Explainability (E3)

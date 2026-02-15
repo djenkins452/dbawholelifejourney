@@ -646,5 +646,17 @@
       "created_at": "2026-02-15T00:00:00Z",
       "updated_at": "2026-02-15T00:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 42,
+    "fields": {
+      "title": "Intelligence Command Center",
+      "description": "A unified intelligence dashboard that brings together your current state, active guidance, daily briefing, weekly report, predictions, and delivery history \u2014 all in one place with explainability links.",
+      "version": "2026.02.15g",
+      "is_major": true,
+      "created_at": "2026-02-15T00:00:00Z",
+      "updated_at": "2026-02-15T00:00:00Z"
+    }
   }
 ]

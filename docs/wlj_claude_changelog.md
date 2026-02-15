@@ -4,10 +4,23 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-15 (Delivery & Notification Engine)
+# Last Updated: 2026-02-15 (Intelligence Command Center)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-02-15 — Phase 5B: Intelligence Command Center (ICC)
+
+**Feature:** Created the Intelligence Command Center — a unified dashboard at `/intelligence/` that aggregates and displays outputs from all intelligence engines in one place.
+
+- **View:** `apps/core/views_intelligence_center.py` — `IntelligenceCommandCenterView` pulls data from SAE, PGE, DBE, WIRE, DNE, PRIE
+- **URLs:** `apps/core/urls_intelligence_center.py` — mounted at `/intelligence/` with namespace `intelligence`
+- **Template:** `templates/intelligence/command_center.html` — 6 vertically-stacked sections with responsive design
+- **Sections:** Current State (SAE), Active Guidance (PGE), Daily Briefing (DBE), Weekly Report (WIRE), Recent Deliveries (DNE), Predictions (PRIE)
+- **E3 integration:** Every item with data includes a "Why?" explainability link to Evidence & Explainability Engine
+- **Navigation:** Added "Intelligence" dropdown menu to main navigation (conditional on `ai_enabled`), with links to Command Center, Guidance, Insights, Weekly Reports, and Delivery Settings
+- **Fixtures:** Release note PK 42, teaching destination PK 115, help topic PK 92
+- **Tests:** 17 tests (page load, login required, all sections render, engine labels, empty states, data rendering for all engines, navigation links)
 
 ## 2026-02-15 — Phase 5A: Delivery & Notification Engine (DNE)
 

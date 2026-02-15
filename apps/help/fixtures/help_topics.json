@@ -1436,5 +1436,19 @@
       "created_at": "2026-02-15T00:00:00Z",
       "updated_at": "2026-02-15T00:00:00Z"
     }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 92,
+    "fields": {
+      "context_id": "INTELLIGENCE_COMMAND_CENTER",
+      "help_id": "intelligence-command-center",
+      "title": "Intelligence Command Center",
+      "description": "Your unified intelligence overview.",
+      "content": "## Intelligence Command Center\n\nThis is where all WLJ intelligence is unified into a single view.\n\n### What You'll See\n\n- **Current State** \u2014 Your SAE snapshot showing the latest status of each life module\n- **Active Guidance** \u2014 Proactive recommendations from the Guidance Engine based on your data\n- **Daily Briefing** \u2014 Today's intelligence summary generated each morning\n- **Weekly Report** \u2014 Longitudinal trends and progress from the past week\n- **Recent Deliveries** \u2014 History of intelligence notifications sent to you\n- **Predictions** \u2014 Forward-looking projections based on your data patterns\n\n### Explainability\n\nEvery intelligence item includes a \"Why?\" link that explains how it was generated and what evidence supports it.\n\n### Navigation\n\nUse the Intelligence menu in the navigation bar to access the Command Center, Guidance inbox, Insights, Weekly Reports, and Delivery Settings.\n\n### Getting Started\n\nThe more you use WLJ, the richer your intelligence becomes. Log journal entries, track health data, set goals, and the engines will generate increasingly personalized intelligence.",
+      "app_name": "ai",
+      "order": 1,
+      "is_active": true
+    }
   }
 ]

@@ -1,0 +1,628 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Intelligence Command Center - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="icc-page">
+    <!-- Page Header -->
+    <div class="icc-header">
+        <div class="icc-header-row">
+            <h1 class="icc-title">
+                <span class="icc-title-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="28" height="28">
+                        <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+                        <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+                    </svg>
+                </span>
+                Intelligence
+            </h1>
+            <a href="{% url 'dashboard:home' %}" class="icc-back-link">
+                <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd"/></svg>
+                Dashboard
+            </a>
+        </div>
+        <p class="icc-subtitle">Your unified intelligence overview from all WLJ engines.</p>
+    </div>
+
+    <!-- Sections stack vertically -->
+    <div class="icc-sections">
+
+        <!-- ========== 1. Current State (SAE) ========== -->
+        <section class="icc-section" id="icc-state">
+            <div class="icc-section-header">
+                <h2 class="icc-section-title">
+                    <span class="icc-section-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                    </span>
+                    Current State
+                </h2>
+                <span class="icc-section-engine">SAE</span>
+            </div>
+            <div class="icc-section-body">
+                {% if user_state and user_state.state_data %}
+                    <div class="icc-state-grid">
+                        {% for module_name, module_data in user_state.state_data.items %}
+                        <div class="icc-state-module">
+                            <span class="icc-state-module-name">{{ module_name|title }}</span>
+                            {% if module_data.summary %}
+                                <span class="icc-state-module-summary">{{ module_data.summary|truncatewords:20 }}</span>
+                            {% elif module_data.status %}
+                                <span class="icc-state-module-summary">{{ module_data.status }}</span>
+                            {% else %}
+                                <span class="icc-state-module-summary icc-muted">Data available</span>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div class="icc-section-meta">
+                        <span class="icc-timestamp">Updated {{ user_state.last_updated|timesince }} ago</span>
+                    </div>
+                {% else %}
+                    <div class="icc-empty">
+                        <span class="icc-empty-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="32" height="32"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                        </span>
+                        <p>No state snapshot yet. Use the app to start building your intelligence profile.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </section>
+
+        <!-- ========== 2. Active Guidance (PGE) ========== -->
+        <section class="icc-section" id="icc-guidance">
+            <div class="icc-section-header">
+                <h2 class="icc-section-title">
+                    <span class="icc-section-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                    </span>
+                    Active Guidance
+                    {% if guidance_count > 0 %}
+                    <span class="icc-badge">{{ guidance_count }}</span>
+                    {% endif %}
+                </h2>
+                <div class="icc-section-actions">
+                    <span class="icc-section-engine">PGE</span>
+                    <a href="{% url 'ai_guidance:inbox' %}" class="icc-section-link">View All</a>
+                </div>
+            </div>
+            <div class="icc-section-body">
+                {% if guidance_items %}
+                    <div class="icc-list">
+                        {% for item in guidance_items %}
+                        <div class="icc-card icc-priority-{{ item.priority }}">
+                            <div class="icc-card-top">
+                                <span class="icc-priority-dot icc-priority-dot-{{ item.priority }}"></span>
+                                <span class="icc-card-title">{{ item.title }}</span>
+                                {% if item.module %}
+                                <span class="icc-module-tag">{{ item.module }}</span>
+                                {% endif %}
+                            </div>
+                            <p class="icc-card-summary">{{ item.message|truncatewords:25 }}</p>
+                            <div class="icc-card-footer">
+                                <span class="icc-timestamp">{{ item.created_at|timesince }} ago</span>
+                                <div class="icc-card-links">
+                                    <a href="{% url 'ai_guidance:inbox' %}?filter=active" class="icc-detail-link">Details</a>
+                                    <a href="{% url 'ai_explain:detail' source_engine='PGE' object_type='GuidanceItem' object_id=item.id %}" class="icc-why-link">Why?</a>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="icc-empty">
+                        <span class="icc-empty-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="32" height="32"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                        </span>
+                        <p>No active guidance right now. Check back as your data grows.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </section>
+
+        <!-- ========== 3. Daily Briefing (DBE) ========== -->
+        <section class="icc-section" id="icc-briefing">
+            <div class="icc-section-header">
+                <h2 class="icc-section-title">
+                    <span class="icc-section-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                    </span>
+                    Daily Briefing
+                </h2>
+                <span class="icc-section-engine">DBE</span>
+            </div>
+            <div class="icc-section-body">
+                {% if daily_briefing %}
+                    <div class="icc-briefing-summary">{{ daily_briefing.summary|linebreaksbr }}</div>
+                    <div class="icc-section-meta">
+                        <span class="icc-timestamp">Generated {{ daily_briefing.created_at|timesince }} ago</span>
+                        <a href="{% url 'ai_explain:detail' source_engine='DBE' object_type='DailyBriefing' object_id=daily_briefing.id %}" class="icc-why-link">Why?</a>
+                    </div>
+                {% else %}
+                    <div class="icc-empty">
+                        <span class="icc-empty-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="32" height="32"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                        </span>
+                        <p>No briefing yet today. Your daily briefing is generated each morning.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </section>
+
+        <!-- ========== 4. Weekly Report (WIRE) ========== -->
+        <section class="icc-section" id="icc-weekly">
+            <div class="icc-section-header">
+                <h2 class="icc-section-title">
+                    <span class="icc-section-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M3 3v18h18"/><path d="M18 9l-5 5-4-4-6 6"/></svg>
+                    </span>
+                    Weekly Report
+                </h2>
+                <div class="icc-section-actions">
+                    <span class="icc-section-engine">WIRE</span>
+                    <a href="{% url 'ai_weekly_report:history' %}" class="icc-section-link">All Reports</a>
+                </div>
+            </div>
+            <div class="icc-section-body">
+                {% if weekly_report %}
+                    <div class="icc-wire-dates">
+                        {{ weekly_report.week_start_date|date:"M j" }} &mdash; {{ weekly_report.week_end_date|date:"M j, Y" }}
+                    </div>
+                    <div class="icc-briefing-summary">{{ weekly_report.summary|truncatewords:60|linebreaksbr }}</div>
+                    <div class="icc-section-meta">
+                        <span class="icc-timestamp">Generated {{ weekly_report.created_at|timesince }} ago</span>
+                        <div class="icc-card-links">
+                            <a href="{% url 'ai_weekly_report:detail' pk=weekly_report.pk %}" class="icc-detail-link">Full Report</a>
+                            <a href="{% url 'ai_explain:detail' source_engine='WIRE' object_type='WeeklyIntelligenceReport' object_id=weekly_report.id %}" class="icc-why-link">Why?</a>
+                        </div>
+                    </div>
+                {% else %}
+                    <div class="icc-empty">
+                        <span class="icc-empty-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="32" height="32"><path d="M3 3v18h18"/><path d="M18 9l-5 5-4-4-6 6"/></svg>
+                        </span>
+                        <p>No weekly report available yet. Reports are generated weekly.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </section>
+
+        <!-- ========== 5. Recent Deliveries (DNE) ========== -->
+        <section class="icc-section" id="icc-deliveries">
+            <div class="icc-section-header">
+                <h2 class="icc-section-title">
+                    <span class="icc-section-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M22 17H2a3 3 0 003 3h14a3 3 0 003-3zM6 12V7a6 6 0 1112 0v5"/></svg>
+                    </span>
+                    Recent Deliveries
+                </h2>
+                <div class="icc-section-actions">
+                    <span class="icc-section-engine">DNE</span>
+                    <a href="{% url 'ai_delivery:history' %}" class="icc-section-link">Full History</a>
+                </div>
+            </div>
+            <div class="icc-section-body">
+                {% if recent_deliveries %}
+                    <div class="icc-delivery-list">
+                        {% for d in recent_deliveries %}
+                        <div class="icc-delivery-row">
+                            <span class="icc-delivery-channel icc-channel-{{ d.channel }}">
+                                {% if d.channel == 'in_app' %}In-App
+                                {% elif d.channel == 'email' %}Email
+                                {% elif d.channel == 'sms' %}SMS
+                                {% endif %}
+                            </span>
+                            <span class="icc-delivery-title">{{ d.title|truncatewords:10 }}</span>
+                            <span class="icc-delivery-status icc-status-{{ d.status }}">{{ d.get_status_display }}</span>
+                            <span class="icc-timestamp">{{ d.delivered_at|timesince }} ago</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div class="icc-section-meta">
+                        <a href="{% url 'ai_delivery:settings' %}" class="icc-detail-link">Delivery Settings</a>
+                    </div>
+                {% else %}
+                    <div class="icc-empty">
+                        <span class="icc-empty-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="32" height="32"><path d="M22 17H2a3 3 0 003 3h14a3 3 0 003-3zM6 12V7a6 6 0 1112 0v5"/></svg>
+                        </span>
+                        <p>No deliveries yet. Intelligence notifications will appear here.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </section>
+
+        <!-- ========== 6. Predictions (PRIE) ========== -->
+        <section class="icc-section" id="icc-predictions">
+            <div class="icc-section-header">
+                <h2 class="icc-section-title">
+                    <span class="icc-section-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                    </span>
+                    Predictions
+                </h2>
+                <span class="icc-section-engine">PRIE</span>
+            </div>
+            <div class="icc-section-body">
+                {% if predictions %}
+                    <div class="icc-list">
+                        {% for pred in predictions %}
+                        <div class="icc-card">
+                            <div class="icc-card-top">
+                                <span class="icc-card-title">{{ pred.prediction_type|title }}</span>
+                                {% if pred.module %}
+                                <span class="icc-module-tag">{{ pred.module }}</span>
+                                {% endif %}
+                                {% if pred.confidence_score %}
+                                <span class="icc-confidence">{{ pred.confidence_score|floatformat:0 }}%</span>
+                                {% endif %}
+                            </div>
+                            <p class="icc-card-summary">{{ pred.explanation|truncatewords:25 }}</p>
+                            <div class="icc-card-footer">
+                                <span class="icc-timestamp">
+                                    Predicts {{ pred.predicted_date|date:"M j, Y" }}
+                                </span>
+                                <a href="{% url 'ai_explain:detail' source_engine='PRIE' object_type='Prediction' object_id=pred.id %}" class="icc-why-link">Why?</a>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="icc-empty">
+                        <span class="icc-empty-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="32" height="32"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                        </span>
+                        <p>No active predictions. Predictions are generated as your data history grows.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </section>
+
+    </div>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+/* ===== Intelligence Command Center Layout ===== */
+.icc-page {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: var(--space-4);
+}
+
+/* Header */
+.icc-header {
+    margin-bottom: var(--space-5);
+}
+.icc-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-bottom: var(--space-1);
+}
+.icc-title {
+    font-size: var(--font-size-xl, 1.25rem);
+    font-weight: 700;
+    color: var(--color-text);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+.icc-title-icon {
+    color: var(--color-accent);
+    display: flex;
+    align-items: center;
+}
+.icc-back-link {
+    font-size: var(--font-size-sm);
+    color: var(--color-accent);
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.icc-back-link:hover { text-decoration: underline; }
+.icc-subtitle {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+/* Sections */
+.icc-sections {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+.icc-section {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+.icc-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+.icc-section-title {
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    color: var(--color-text);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+.icc-section-icon {
+    color: var(--color-accent);
+    display: flex;
+    align-items: center;
+}
+.icc-section-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+.icc-section-engine {
+    font-size: var(--font-size-xs, 0.75rem);
+    color: var(--color-text-muted);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full, 9999px);
+    padding: 1px 8px;
+    font-weight: 500;
+    letter-spacing: 0.03em;
+}
+.icc-section-link {
+    font-size: var(--font-size-xs);
+    color: var(--color-accent);
+    text-decoration: none;
+    font-weight: 500;
+}
+.icc-section-link:hover { text-decoration: underline; }
+.icc-section-body {
+    padding: var(--space-4);
+}
+.icc-section-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--color-border);
+}
+.icc-badge {
+    font-size: var(--font-size-xs);
+    background: var(--color-accent);
+    color: #fff;
+    border-radius: var(--radius-full, 9999px);
+    padding: 1px 8px;
+    font-weight: 600;
+    margin-left: var(--space-1);
+}
+
+/* Cards (guidance, predictions) */
+.icc-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+.icc-card {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md, 6px);
+    padding: var(--space-3);
+    background: var(--color-background);
+}
+.icc-card.icc-priority-1 { border-left: 3px solid #ef4444; }
+.icc-card.icc-priority-2 { border-left: 3px solid #f59e0b; }
+.icc-card.icc-priority-3 { border-left: 3px solid #3b82f6; }
+.icc-card.icc-priority-4 { border-left: 3px solid #8b5cf6; }
+.icc-card.icc-priority-5 { border-left: 3px solid #6b7280; }
+.icc-card-top {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+    margin-bottom: var(--space-1);
+}
+.icc-priority-dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+}
+.icc-priority-dot-1 { background: #ef4444; }
+.icc-priority-dot-2 { background: #f59e0b; }
+.icc-priority-dot-3 { background: #3b82f6; }
+.icc-priority-dot-4 { background: #8b5cf6; }
+.icc-priority-dot-5 { background: #6b7280; }
+.icc-card-title {
+    font-weight: 600;
+    font-size: var(--font-size-sm);
+    color: var(--color-text);
+}
+.icc-module-tag {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full, 9999px);
+    padding: 0 6px;
+    text-transform: capitalize;
+}
+.icc-confidence {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    color: var(--color-accent);
+}
+.icc-card-summary {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin: 0 0 var(--space-2);
+    line-height: 1.5;
+}
+.icc-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+.icc-card-links {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+.icc-detail-link {
+    font-size: var(--font-size-xs);
+    color: var(--color-accent);
+    text-decoration: none;
+    font-weight: 500;
+}
+.icc-detail-link:hover { text-decoration: underline; }
+
+/* Why link (matches existing E3 pattern) */
+.icc-why-link {
+    font-size: var(--font-size-xs);
+    color: var(--color-accent);
+    text-decoration: none;
+    padding: 2px 8px;
+    border-radius: var(--radius-full, 9999px);
+    background: var(--color-accent-subtle, #e0f0ff);
+    font-weight: 500;
+}
+.icc-why-link:hover { text-decoration: underline; }
+
+/* Timestamps */
+.icc-timestamp {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+/* Briefing summary (DBE, WIRE) */
+.icc-briefing-summary {
+    font-size: var(--font-size-sm);
+    line-height: 1.7;
+    color: var(--color-text);
+    white-space: pre-line;
+}
+.icc-wire-dates {
+    font-weight: 600;
+    font-size: var(--font-size-sm);
+    color: var(--color-text);
+    margin-bottom: var(--space-2);
+}
+
+/* State grid (SAE) */
+.icc-state-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: var(--space-3);
+}
+.icc-state-module {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: var(--space-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md, 6px);
+    background: var(--color-background);
+}
+.icc-state-module-name {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    color: var(--color-accent);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.icc-state-module-summary {
+    font-size: var(--font-size-sm);
+    color: var(--color-text);
+}
+.icc-muted { color: var(--color-text-muted); }
+
+/* Delivery list (DNE) */
+.icc-delivery-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+.icc-delivery-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md, 6px);
+    background: var(--color-background);
+    flex-wrap: wrap;
+}
+.icc-delivery-channel {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    padding: 1px 8px;
+    border-radius: var(--radius-full, 9999px);
+    flex-shrink: 0;
+}
+.icc-channel-in_app { background: #dbeafe; color: #1e40af; }
+.icc-channel-email { background: #fef3c7; color: #92400e; }
+.icc-channel-sms { background: #d1fae5; color: #065f46; }
+.icc-delivery-title {
+    font-size: var(--font-size-sm);
+    color: var(--color-text);
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.icc-delivery-status {
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+    padding: 1px 6px;
+    border-radius: var(--radius-full, 9999px);
+    flex-shrink: 0;
+}
+.icc-status-sent { background: #d1fae5; color: #065f46; }
+.icc-status-skipped { background: #fef3c7; color: #92400e; }
+.icc-status-failed { background: #fde8e8; color: #991b1b; }
+.icc-status-queued { background: #e5e7eb; color: #374151; }
+
+/* Empty states */
+.icc-empty {
+    text-align: center;
+    padding: var(--space-4) var(--space-2);
+    color: var(--color-text-muted);
+}
+.icc-empty-icon {
+    display: flex;
+    justify-content: center;
+    margin-bottom: var(--space-2);
+    color: var(--color-border);
+}
+.icc-empty p {
+    font-size: var(--font-size-sm);
+    margin: 0;
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 480px) {
+    .icc-page { padding: var(--space-3); }
+    .icc-header-row { flex-direction: column; align-items: flex-start; }
+    .icc-section-header { padding: var(--space-2) var(--space-3); }
+    .icc-section-body { padding: var(--space-3); }
+    .icc-state-grid { grid-template-columns: 1fr; }
+    .icc-delivery-row { flex-direction: column; align-items: flex-start; }
+}
+
+@media (max-width: 768px) {
+    .icc-page { max-width: 100%; }
+}
+</style>
+{% endblock %}

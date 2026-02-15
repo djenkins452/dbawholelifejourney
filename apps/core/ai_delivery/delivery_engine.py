@@ -106,6 +106,7 @@ def _deliver_for_user(user):
         for channel in channels:
             delivered = _deliver_to_channel(
                 user, channel, payload, engine, obj_type, obj_id,
+                priority=payload.get("priority"),
             )
             if delivered is True:
                 result["delivered"] += 1
@@ -117,7 +118,8 @@ def _deliver_for_user(user):
     return result
 
 
-def _deliver_to_channel(user, channel, payload, source_engine, obj_type, obj_id):
+def _deliver_to_channel(user, channel, payload, source_engine, obj_type, obj_id,
+                        priority=None):
     """
     Apply policies and deliver to a single channel.
 
@@ -127,9 +129,10 @@ def _deliver_to_channel(user, channel, payload, source_engine, obj_type, obj_id)
     from apps.core.ai_delivery.delivery_router import CHANNEL_HANDLERS
     from apps.core.ai_delivery.delivery_logger import log_skip
 
-    # Policy check
+    # Policy check (priority passed for critical push quiet-hours bypass)
     passed, skip_reason = apply_delivery_policies(
         user, channel, source_engine, obj_type, obj_id,
+        priority=priority,
     )
     if not passed:
         log_skip(user, channel, source_engine, obj_type, obj_id,
@@ -170,6 +173,21 @@ def _get_enabled_channels(user):
         if getattr(prefs, "intelligence_sms_enabled", False):
             channels.append("sms")
 
+    # Push: opt-in (default off), requires active device with push token
+    if getattr(prefs, "intelligence_push_enabled", False):
+        try:
+            from apps.mobile.models import MobileDevice
+
+            has_push_device = MobileDevice.objects.filter(
+                user=user,
+                is_active=True,
+                push_enabled=True,
+            ).exclude(push_token="").exists()
+            if has_push_device:
+                channels.append("push")
+        except Exception:
+            pass
+
     return channels
 
 
@@ -181,8 +199,9 @@ def _build_payload(engine, obj):
         return {
             "title": f"New Guidance: {obj.title[:80]}",
             "message": obj.message[:300] if obj.message else obj.title,
-            "action_url": f"/guidance/inbox/",
+            "action_url": "/guidance/inbox/",
             "icon": "💡",
+            "priority": getattr(obj, "priority", None),
         }
 
     elif obj_type == "DailyBriefing":

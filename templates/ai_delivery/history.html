@@ -16,7 +16,7 @@
         <div class="dne-history-item dne-status-{{ d.status }}">
             <div class="dne-history-item-header">
                 <span class="dne-history-channel">
-                    {% if d.channel == 'in_app' %}🔔{% elif d.channel == 'email' %}📧{% elif d.channel == 'sms' %}💬{% endif %}
+                    {% if d.channel == 'in_app' %}🔔{% elif d.channel == 'email' %}📧{% elif d.channel == 'sms' %}💬{% elif d.channel == 'push' %}📱{% endif %}
                     {{ d.get_channel_display }}
                 </span>
                 <span class="dne-history-engine">{{ d.source_engine }}</span>

@@ -73,6 +73,29 @@ struct MainWebView: UIViewRepresentable {
 
         init(_ parent: MainWebView) {
             self.parent = parent
+            super.init()
+
+            // Listen for push notification deep-links
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(handlePushDeepLink(_:)),
+                name: .pushNotificationDeepLink,
+                object: nil
+            )
+        }
+
+        deinit {
+            NotificationCenter.default.removeObserver(self)
+        }
+
+        // MARK: - Push Deep-Link
+
+        @objc private func handlePushDeepLink(_ notification: Foundation.Notification) {
+            guard let actionURL = notification.userInfo?["action_url"] as? String,
+                  let url = URL(string: "https://wholelifejourney.com\(actionURL)") else {
+                return
+            }
+            webView?.load(URLRequest(url: url))
         }
 
         // MARK: - Pull-to-Refresh

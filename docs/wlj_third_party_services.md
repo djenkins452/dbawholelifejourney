@@ -1037,6 +1037,38 @@ The following services are NOT integrated but may be considered for future use:
 
 ## Maintenance Notes
 
+### 31. Apple Push Notification Service (APNs)
+| Attribute | Value |
+|-----------|-------|
+| **Provider** | Apple |
+| **Type** | HTTP/2 API |
+| **Pricing** | Free (included with Apple Developer account) |
+| **Status** | Active |
+
+**Purpose:**
+- Deliver intelligence notifications (guidance, briefings, reports) to iOS devices via push
+
+**Configuration (Environment Variables):**
+| Variable | Description |
+|----------|-------------|
+| `APNS_TEAM_ID` | Apple Developer Team ID |
+| `APNS_KEY_ID` | APNs auth key identifier |
+| `APNS_AUTH_KEY` | .p8 key file contents (multi-line) |
+| `APNS_BUNDLE_ID` | App bundle identifier (default: com.wholelifejourney.app) |
+| `APNS_USE_SANDBOX` | Use sandbox APNs (default: same as DEBUG) |
+
+**Key Files:**
+- `apps/core/ai_delivery/apns_sender.py` — APNs HTTP/2 client wrapper
+- `apps/core/ai_delivery/delivery_router.py` — `deliver_push()` handler
+- `config/settings.py` — APNs configuration block
+- `ios/WLJWrapper/WLJWrapper/Services/PushNotificationManager.swift` — iOS client
+
+**Dependencies:**
+- `apns2` Python package (requirements.txt)
+- Token-based JWT authentication (no certificate renewal needed)
+
+---
+
 **When adding a new third-party service:**
 1. Add an entry to this document with all required fields
 2. Update the Summary Table
@@ -1052,4 +1084,4 @@ The following services are NOT integrated but may be considered for future use:
 
 ---
 
-*Last Updated: 2026-01-23*
+*Last Updated: 2026-02-15*

@@ -2121,3 +2121,80 @@ def deactivate_device(request, device_id):
     logger.info(f"Device deactivated: {device.device_name or device.device_id[:8]}")
 
     return JsonResponse({"success": True})
+
+
+# =============================================================================
+# Push Notification Views
+# =============================================================================
+
+
+@csrf_exempt
+@require_mobile_auth
+@require_http_methods(["POST"])
+def push_register(request):
+    """
+    Register APNs push token for the current device.
+
+    Called by the iOS app after obtaining a device token from APNs.
+    Device registration and push preference are separate concerns —
+    registering a token does NOT auto-enable intelligence push delivery.
+    The user must explicitly enable push in Notification Settings.
+
+    POST /api/mobile/push/register/
+    Body: {"push_token": "<hex_apns_token>"}
+    Response: {"status": "registered", "device_id": "..."}
+    """
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse(
+            {"error": "invalid_json", "message": "Invalid JSON body"},
+            status=400,
+        )
+
+    push_token = (data.get("push_token") or "").strip()
+    if not push_token or len(push_token) > 255:
+        return JsonResponse(
+            {"error": "invalid_token", "message": "Valid push_token required"},
+            status=400,
+        )
+
+    device = request.mobile_device
+    device.push_token = push_token
+    device.push_enabled = True
+    device.save(update_fields=["push_token", "push_enabled", "updated_at"])
+
+    logger.info(
+        f"Push token registered for user {hash_pii(request.user.email, 'user')}, "
+        f"device {device.device_name or device.device_id[:8]}"
+    )
+
+    return JsonResponse({
+        "status": "registered",
+        "device_id": device.device_id,
+    })
+
+
+@csrf_exempt
+@require_mobile_auth
+@require_http_methods(["POST"])
+def push_unregister(request):
+    """
+    Unregister push token for the current device.
+
+    Called when the user disables push notifications or logs out.
+
+    POST /api/mobile/push/unregister/
+    Response: {"status": "unregistered"}
+    """
+    device = request.mobile_device
+    device.push_token = ""
+    device.push_enabled = False
+    device.save(update_fields=["push_token", "push_enabled", "updated_at"])
+
+    logger.info(
+        f"Push token unregistered for user {hash_pii(request.user.email, 'user')}, "
+        f"device {device.device_name or device.device_id[:8]}"
+    )
+
+    return JsonResponse({"status": "unregistered"})

@@ -55,6 +55,23 @@
                     {% endif %}
                 </span>
             </label>
+
+            <label class="dne-settings-toggle">
+                <input type="checkbox" name="intelligence_push_enabled"
+                       {% if prefs.intelligence_push_enabled %}checked{% endif %}
+                       {% if not has_push_device %}disabled{% endif %}>
+                <span class="dne-toggle-label">
+                    <span class="dne-toggle-icon">📱</span>
+                    Push Notifications
+                </span>
+                <span class="dne-toggle-desc">
+                    {% if not has_push_device %}
+                        Requires iOS app with push notifications enabled
+                    {% else %}
+                        Receive intelligence alerts on your iOS device
+                    {% endif %}
+                </span>
+            </label>
         </div>
 
         <div class="dne-settings-section">
@@ -87,9 +104,9 @@
         </div>
 
         <div class="dne-settings-info">
-            <p><strong>Quiet hours:</strong> Email and SMS intelligence notifications respect your SMS quiet hours
+            <p><strong>Quiet hours:</strong> Email, SMS, and push intelligence notifications respect your SMS quiet hours
             (currently {{ prefs.sms_quiet_start|time:"g:i A" }} – {{ prefs.sms_quiet_end|time:"g:i A" }}).
-            In-app notifications are always delivered.</p>
+            Critical priority push alerts may bypass quiet hours. In-app notifications are always delivered.</p>
         </div>
 
         <div class="dne-settings-actions">

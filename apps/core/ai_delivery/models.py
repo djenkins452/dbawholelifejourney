@@ -22,10 +22,12 @@ class DeliveredNotification(models.Model):
     CHANNEL_INAPP = "in_app"
     CHANNEL_EMAIL = "email"
     CHANNEL_SMS = "sms"
+    CHANNEL_PUSH = "push"
     CHANNEL_CHOICES = [
         (CHANNEL_INAPP, "In-App"),
         (CHANNEL_EMAIL, "Email"),
         (CHANNEL_SMS, "SMS"),
+        (CHANNEL_PUSH, "Push"),
     ]
 
     STATUS_QUEUED = "queued"

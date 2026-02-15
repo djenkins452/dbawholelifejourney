@@ -24,4 +24,8 @@ urlpatterns = [
     # Health data sync (from native app)
     path("health/ingest/", views.health_ingest, name="health_ingest"),
     path("health/sync-status/", views.sync_status, name="sync_status"),
+
+    # Push notifications
+    path("push/register/", views.push_register, name="push_register"),
+    path("push/unregister/", views.push_unregister, name="push_unregister"),
 ]

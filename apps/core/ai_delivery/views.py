@@ -26,6 +26,19 @@ class IntelligenceNotificationSettingsView(LoginRequiredMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         prefs = self.request.user.preferences
         context["prefs"] = prefs
+
+        # Check if user has any device with push enabled
+        try:
+            from apps.mobile.models import MobileDevice
+
+            context["has_push_device"] = MobileDevice.objects.filter(
+                user=self.request.user,
+                is_active=True,
+                push_enabled=True,
+            ).exclude(push_token="").exists()
+        except Exception:
+            context["has_push_device"] = False
+
         return context
 
 
@@ -39,6 +52,7 @@ class IntelligenceNotificationSettingsSaveView(LoginRequiredMixin, View):
         prefs.intelligence_inapp_enabled = request.POST.get("intelligence_inapp_enabled") == "on"
         prefs.intelligence_email_enabled = request.POST.get("intelligence_email_enabled") == "on"
         prefs.intelligence_sms_enabled = request.POST.get("intelligence_sms_enabled") == "on"
+        prefs.intelligence_push_enabled = request.POST.get("intelligence_push_enabled") == "on"
 
         # Throttle limits
         try:

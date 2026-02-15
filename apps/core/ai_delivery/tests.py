@@ -445,3 +445,340 @@ class ISEIntegrationTests(TestCase):
         from apps.core.ai_scheduler.scheduler_runner import run_delivery_cycle
 
         self.assertIsNotNone(run_delivery_cycle)
+
+
+# ---------------------------------------------------------------------------
+# Push notification tests
+# ---------------------------------------------------------------------------
+
+
+class PushChannelModelTests(DNETestBase):
+    """Tests for push channel data model additions."""
+
+    def test_push_channel_in_choices(self):
+        from apps.core.ai_delivery.models import DeliveredNotification
+
+        channels = [c[0] for c in DeliveredNotification.CHANNEL_CHOICES]
+        self.assertIn("push", channels)
+
+    def test_push_channel_constant(self):
+        from apps.core.ai_delivery.models import DeliveredNotification
+
+        self.assertEqual(DeliveredNotification.CHANNEL_PUSH, "push")
+
+    def test_dedupe_hash_push_unique(self):
+        """Push channel gets its own dedupe hash distinct from other channels."""
+        from apps.core.ai_delivery.models import DeliveredNotification
+
+        hash_inapp = DeliveredNotification.compute_dedupe_hash(
+            self.user.id, "in_app", "PGE", "GuidanceItem", 1,
+        )
+        hash_push = DeliveredNotification.compute_dedupe_hash(
+            self.user.id, "push", "PGE", "GuidanceItem", 1,
+        )
+        self.assertNotEqual(hash_inapp, hash_push)
+
+
+class PushDeliveryRouterTests(DNETestBase):
+    """Tests for the deliver_push handler in delivery_router."""
+
+    def test_push_in_channel_handlers(self):
+        from apps.core.ai_delivery.delivery_router import CHANNEL_HANDLERS
+
+        self.assertIn("push", CHANNEL_HANDLERS)
+
+    def test_deliver_push_no_devices_skips(self):
+        """Push with no registered devices should skip."""
+        from apps.core.ai_delivery.delivery_router import deliver_push
+
+        payload = {"title": "Test", "message": "Msg", "action_url": "/test/"}
+        record = deliver_push(self.user, payload, "PGE", "GuidanceItem", 1)
+
+        self.assertIsNotNone(record)
+        self.assertEqual(record.status, "skipped")
+        self.assertEqual(record.skip_reason, "no_push_devices")
+        self.assertEqual(record.channel, "push")
+
+    @patch("apps.core.ai_delivery.apns_sender.send_push_notification")
+    def test_deliver_push_success(self, mock_send):
+        """Push with valid device should send."""
+        mock_send.return_value = True
+
+        from apps.mobile.models import MobileDevice
+
+        MobileDevice.objects.create(
+            user=self.user, device_id="test-device-123",
+            push_token="abc123hex", push_enabled=True, is_active=True,
+        )
+
+        from apps.core.ai_delivery.delivery_router import deliver_push
+
+        payload = {"title": "Test", "message": "Msg", "action_url": "/test/"}
+        record = deliver_push(self.user, payload, "PGE", "GuidanceItem", 1)
+
+        self.assertIsNotNone(record)
+        self.assertEqual(record.status, "sent")
+        self.assertEqual(record.channel, "push")
+        mock_send.assert_called_once()
+        # Adjustment 3: verify device results stored in metadata
+        self.assertIn("devices", record.metadata)
+        self.assertEqual(record.metadata["sent_count"], 1)
+
+    @patch("apps.core.ai_delivery.apns_sender.send_push_notification")
+    def test_deliver_push_multi_device(self, mock_send):
+        """Push delivers to all active push devices and stores per-device results."""
+        mock_send.side_effect = [True, False]  # First succeeds, second fails
+
+        from apps.mobile.models import MobileDevice
+
+        MobileDevice.objects.create(
+            user=self.user, device_id="device-1",
+            push_token="token1", push_enabled=True, is_active=True,
+        )
+        MobileDevice.objects.create(
+            user=self.user, device_id="device-2",
+            push_token="token2", push_enabled=True, is_active=True,
+        )
+
+        from apps.core.ai_delivery.delivery_router import deliver_push
+
+        payload = {"title": "Test", "message": "Msg"}
+        record = deliver_push(self.user, payload, "PGE", "GuidanceItem", 2)
+
+        self.assertEqual(record.status, "sent")  # At least one succeeded
+        self.assertEqual(len(record.metadata["devices"]), 2)
+        self.assertEqual(record.metadata["sent_count"], 1)
+
+    def test_deliver_push_dedupe(self):
+        """Second push delivery of same item should dedupe."""
+        from apps.core.ai_delivery.delivery_router import deliver_push
+
+        payload = {"title": "Test", "message": "Msg"}
+        record1 = deliver_push(self.user, payload, "PGE", "GuidanceItem", 1)
+        record2 = deliver_push(self.user, payload, "PGE", "GuidanceItem", 1)
+
+        self.assertIsNotNone(record1)
+        self.assertIsNone(record2)
+
+
+class PushDeliveryEngineTests(DNETestBase):
+    """Tests for push integration in the delivery engine."""
+
+    def test_get_enabled_channels_push_enabled(self):
+        """Push appears when preference AND device both enabled."""
+        from apps.core.ai_delivery.delivery_engine import _get_enabled_channels
+        from apps.mobile.models import MobileDevice
+
+        self.user.preferences.intelligence_push_enabled = True
+        self.user.preferences.save()
+
+        MobileDevice.objects.create(
+            user=self.user, device_id="test-123",
+            push_token="abc", push_enabled=True, is_active=True,
+        )
+
+        channels = _get_enabled_channels(self.user)
+        self.assertIn("push", channels)
+
+    def test_get_enabled_channels_push_no_device(self):
+        """Push does NOT appear when preference on but no device registered."""
+        from apps.core.ai_delivery.delivery_engine import _get_enabled_channels
+
+        self.user.preferences.intelligence_push_enabled = True
+        self.user.preferences.save()
+
+        channels = _get_enabled_channels(self.user)
+        self.assertNotIn("push", channels)
+
+    def test_get_enabled_channels_push_disabled_pref(self):
+        """Push does NOT appear when preference off even with device."""
+        from apps.core.ai_delivery.delivery_engine import _get_enabled_channels
+        from apps.mobile.models import MobileDevice
+
+        MobileDevice.objects.create(
+            user=self.user, device_id="test-123",
+            push_token="abc", push_enabled=True, is_active=True,
+        )
+
+        channels = _get_enabled_channels(self.user)
+        self.assertNotIn("push", channels)
+
+    def test_get_enabled_channels_push_device_no_token(self):
+        """Push does NOT appear when device has push_enabled but empty token."""
+        from apps.core.ai_delivery.delivery_engine import _get_enabled_channels
+        from apps.mobile.models import MobileDevice
+
+        self.user.preferences.intelligence_push_enabled = True
+        self.user.preferences.save()
+
+        MobileDevice.objects.create(
+            user=self.user, device_id="test-123",
+            push_token="", push_enabled=True, is_active=True,
+        )
+
+        channels = _get_enabled_channels(self.user)
+        self.assertNotIn("push", channels)
+
+
+class PushPolicyTests(DNETestBase):
+    """Tests for push-specific delivery policies."""
+
+    def test_quiet_hours_blocks_push(self):
+        """Push respects quiet hours (same as email/SMS)."""
+        from apps.core.ai_delivery.delivery_policies import check_quiet_hours
+
+        self.user.preferences.sms_quiet_hours_enabled = True
+        now = timezone.localtime().time()
+        start_hour = (now.hour - 1) % 24
+        end_hour = (now.hour + 1) % 24
+        self.user.preferences.sms_quiet_start = datetime.time(start_hour, 0)
+        self.user.preferences.sms_quiet_end = datetime.time(end_hour, 0)
+        self.user.preferences.save()
+
+        passed, reason = check_quiet_hours(self.user, "push")
+        self.assertFalse(passed)
+        self.assertIn("quiet_hours", reason)
+
+    def test_critical_push_bypasses_quiet_hours(self):
+        """Critical priority push (priority=1) bypasses quiet hours."""
+        from apps.core.ai_delivery.delivery_policies import check_quiet_hours
+
+        self.user.preferences.sms_quiet_hours_enabled = True
+        now = timezone.localtime().time()
+        start_hour = (now.hour - 1) % 24
+        end_hour = (now.hour + 1) % 24
+        self.user.preferences.sms_quiet_start = datetime.time(start_hour, 0)
+        self.user.preferences.sms_quiet_end = datetime.time(end_hour, 0)
+        self.user.preferences.save()
+
+        passed, reason = check_quiet_hours(self.user, "push", priority=1)
+        self.assertTrue(passed)
+        self.assertIsNone(reason)
+
+    def test_non_critical_push_does_not_bypass_quiet_hours(self):
+        """Non-critical push (priority=3) does NOT bypass quiet hours."""
+        from apps.core.ai_delivery.delivery_policies import check_quiet_hours
+
+        self.user.preferences.sms_quiet_hours_enabled = True
+        now = timezone.localtime().time()
+        start_hour = (now.hour - 1) % 24
+        end_hour = (now.hour + 1) % 24
+        self.user.preferences.sms_quiet_start = datetime.time(start_hour, 0)
+        self.user.preferences.sms_quiet_end = datetime.time(end_hour, 0)
+        self.user.preferences.save()
+
+        passed, reason = check_quiet_hours(self.user, "push", priority=3)
+        self.assertFalse(passed)
+
+    def test_throttle_applies_to_push(self):
+        """Push has its own throttle counters."""
+        from apps.core.ai_delivery.delivery_policies import check_throttle
+        from apps.core.ai_delivery.models import DeliveredNotification
+
+        for i in range(2):
+            DeliveredNotification.objects.create(
+                user=self.user, source_engine="PGE",
+                source_object_type="GuidanceItem",
+                source_object_id=300 + i, channel="push", title=f"T{i}",
+                message=f"M{i}", status="sent",
+                dedupe_hash=DeliveredNotification.compute_dedupe_hash(
+                    self.user.id, "push", "PGE", "GuidanceItem", 300 + i,
+                ),
+            )
+
+        passed, reason = check_throttle(self.user, "push", max_per_hour=2, max_per_day=6)
+        self.assertFalse(passed)
+        self.assertIn("throttle_hourly", reason)
+
+
+class PushAPNsSenderTests(TestCase):
+    """Tests for the APNs sender module."""
+
+    def test_apns_not_configured_returns_false(self):
+        """send_push_notification returns False when APNs not configured."""
+        from apps.core.ai_delivery import apns_sender
+
+        # Reset cached client
+        apns_sender.reset_client()
+
+        with self.settings(APNS_AUTH_KEY="", APNS_KEY_ID="", APNS_TEAM_ID=""):
+            result = apns_sender.send_push_notification(
+                "abc123", "Title", "Body",
+            )
+            self.assertFalse(result)
+
+    def test_reset_client_clears_cache(self):
+        from apps.core.ai_delivery import apns_sender
+
+        apns_sender._apns_client = "fake_client"
+        apns_sender.reset_client()
+        self.assertIsNone(apns_sender._apns_client)
+
+
+class PushViewTests(DNETestBase):
+    """Tests for push toggle in settings UI."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.login(email="dne_test@example.com", password="testpass123")
+
+    def test_settings_save_with_push(self):
+        response = self.client.post("/intelligence/delivery/settings/save/", {
+            "intelligence_inapp_enabled": "on",
+            "intelligence_push_enabled": "on",
+            "intelligence_max_per_day": "6",
+            "intelligence_max_per_hour": "2",
+        })
+        self.assertEqual(response.status_code, 302)
+        self.user.preferences.refresh_from_db()
+        self.assertTrue(self.user.preferences.intelligence_push_enabled)
+
+    def test_settings_save_without_push(self):
+        self.user.preferences.intelligence_push_enabled = True
+        self.user.preferences.save()
+
+        response = self.client.post("/intelligence/delivery/settings/save/", {
+            "intelligence_inapp_enabled": "on",
+            "intelligence_max_per_day": "6",
+            "intelligence_max_per_hour": "2",
+        })
+        self.assertEqual(response.status_code, 302)
+        self.user.preferences.refresh_from_db()
+        self.assertFalse(self.user.preferences.intelligence_push_enabled)
+
+    def test_settings_page_shows_push_toggle(self):
+        response = self.client.get("/intelligence/delivery/settings/")
+        self.assertContains(response, "Push Notifications")
+        self.assertContains(response, "intelligence_push_enabled")
+
+    def test_settings_page_push_disabled_without_device(self):
+        """Push toggle should be disabled when no push device is registered."""
+        response = self.client.get("/intelligence/delivery/settings/")
+        self.assertContains(response, "Requires iOS app with push notifications enabled")
+
+    def test_settings_page_push_enabled_with_device(self):
+        """Push toggle should be enabled when push device is registered."""
+        from apps.mobile.models import MobileDevice
+
+        MobileDevice.objects.create(
+            user=self.user, device_id="test-123",
+            push_token="abc", push_enabled=True, is_active=True,
+        )
+
+        response = self.client.get("/intelligence/delivery/settings/")
+        self.assertContains(response, "Receive intelligence alerts on your iOS device")
+
+    def test_history_shows_push_icon(self):
+        from apps.core.ai_delivery.models import DeliveredNotification
+
+        DeliveredNotification.objects.create(
+            user=self.user, source_engine="PGE",
+            source_object_type="GuidanceItem",
+            source_object_id=1, channel="push", title="Push Test",
+            message="Push msg", status="sent",
+            dedupe_hash=DeliveredNotification.compute_dedupe_hash(
+                self.user.id, "push", "PGE", "GuidanceItem", 1,
+            ),
+        )
+        response = self.client.get("/intelligence/delivery/history/")
+        self.assertContains(response, "Push Test")

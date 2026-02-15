@@ -914,6 +914,17 @@ SMS_TRIGGER_TOKEN = env('SMS_TRIGGER_TOKEN', default='')
 
 
 # ==============================================================================
+# Apple Push Notification Service (APNs)
+# ==============================================================================
+# Token-based (JWT) authentication — preferred over certificate-based
+# Generate a key at: https://developer.apple.com/account/resources/authkeys/list
+APNS_TEAM_ID = env('APNS_TEAM_ID', default='')
+APNS_KEY_ID = env('APNS_KEY_ID', default='')
+APNS_AUTH_KEY = env('APNS_AUTH_KEY', default='')  # .p8 file contents (multi-line)
+APNS_BUNDLE_ID = env('APNS_BUNDLE_ID', default='com.wholelifejourney.app')
+APNS_USE_SANDBOX = env.bool('APNS_USE_SANDBOX', default=DEBUG)
+
+# ==============================================================================
 # Dexcom CGM Integration
 # ==============================================================================
 # Register your app at: https://developer.dexcom.com/

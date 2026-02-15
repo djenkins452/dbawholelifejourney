@@ -30,16 +30,26 @@ def check_dedupe(user, channel, source_engine, source_object_type, source_object
     return True, None
 
 
-def check_quiet_hours(user, channel):
+def check_quiet_hours(user, channel, priority=None):
     """
     Check if delivery is blocked by quiet hours.
 
-    In-app is always allowed. Email/SMS respect user's quiet hours.
+    In-app is always allowed. Email/SMS/push respect user's quiet hours.
+    Critical priority (priority=1) push notifications bypass quiet hours.
+
+    Args:
+        user: User instance.
+        channel: Delivery channel name.
+        priority: Optional intelligence item priority (1=critical, 5=info).
 
     Returns:
         (passed: bool, skip_reason: str or None)
     """
     if channel == "in_app":
+        return True, None
+
+    # Critical priority push bypasses quiet hours
+    if channel == "push" and priority is not None and priority <= 1:
         return True, None
 
     try:
@@ -108,9 +118,17 @@ def check_throttle(user, channel, max_per_hour=2, max_per_day=6):
 
 
 def apply_delivery_policies(user, channel, source_engine, source_object_type,
-                            source_object_id):
+                            source_object_id, priority=None):
     """
     Run all delivery policy checks in order.
+
+    Args:
+        user: User instance.
+        channel: Delivery channel name.
+        source_engine: Engine that produced the item.
+        source_object_type: Model name of source object.
+        source_object_id: PK of source object.
+        priority: Optional intelligence item priority (1=critical).
 
     Returns:
         (passed: bool, skip_reason: str or None)
@@ -122,8 +140,8 @@ def apply_delivery_policies(user, channel, source_engine, source_object_type,
     if not passed:
         return False, reason
 
-    # 2. Quiet hours
-    passed, reason = check_quiet_hours(user, channel)
+    # 2. Quiet hours (critical push may bypass)
+    passed, reason = check_quiet_hours(user, channel, priority=priority)
     if not passed:
         return False, reason
 

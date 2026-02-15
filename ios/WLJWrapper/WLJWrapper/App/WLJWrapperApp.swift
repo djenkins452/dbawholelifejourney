@@ -32,7 +32,7 @@ struct WLJWrapperApp: App {
 }
 
 // MARK: - App Delegate
-/// UIKit App Delegate for background task registration
+/// UIKit App Delegate for background task registration and push notifications
 class AppDelegate: NSObject, UIApplicationDelegate {
     func application(
         _ application: UIApplication,
@@ -41,6 +41,22 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         // Set up background sync
         BackgroundSyncManager.shared.setupBackgroundSync()
         return true
+    }
+
+    // MARK: - Push Notification Delegate Methods
+
+    func application(
+        _ application: UIApplication,
+        didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+    ) {
+        PushNotificationManager.shared.didRegisterForRemoteNotifications(deviceToken: deviceToken)
+    }
+
+    func application(
+        _ application: UIApplication,
+        didFailToRegisterForRemoteNotificationsWithError error: Error
+    ) {
+        PushNotificationManager.shared.didFailToRegisterForRemoteNotifications(error: error)
     }
 }
 
@@ -105,6 +121,9 @@ class AppState: ObservableObject {
     }
 
     func logout() {
+        // Unregister push notifications before clearing tokens
+        PushNotificationManager.shared.unregisterPush()
+
         KeychainManager.shared.deleteAPIToken()
         KeychainManager.shared.deleteUserInfo()
         isAuthenticated = false

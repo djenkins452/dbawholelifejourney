@@ -1001,6 +1001,10 @@ class UserPreferences(models.Model):
         default=False,
         help_text="SMS notifications for intelligence outputs (opt-in, off by default)",
     )
+    intelligence_push_enabled = models.BooleanField(
+        default=False,
+        help_text="Push notifications for intelligence outputs (opt-in, off by default)",
+    )
     intelligence_max_per_day = models.PositiveIntegerField(
         default=6,
         help_text="Maximum intelligence notifications per day",

@@ -674,5 +674,21 @@
             "created_at": "2026-02-15T00:00:00Z",
             "updated_at": "2026-02-15T00:00:00Z"
         }
+    },
+    {
+        "model": "core.releasenote",
+        "pk": 44,
+        "fields": {
+            "title": "Push Notifications for Intelligence",
+            "description": "You can now receive intelligence guidance, daily briefings, and weekly reports as push notifications on your iOS device. Enable push in the iOS app Settings, then turn on the Push toggle in your web Notification Settings. Push notifications respect your quiet hours, and critical alerts can bypass quiet hours when needed.",
+            "entry_type": "feature",
+            "version": "",
+            "release_date": "2026-02-15",
+            "is_published": true,
+            "is_major": true,
+            "learn_more_url": "",
+            "created_at": "2026-02-15T00:00:00Z",
+            "updated_at": "2026-02-15T00:00:00Z"
+        }
     }
 ]

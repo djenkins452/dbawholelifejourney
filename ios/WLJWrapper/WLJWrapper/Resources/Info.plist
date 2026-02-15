@@ -39,11 +39,12 @@
         <string>healthkit</string>
     </array>
 
-    <!-- Background Modes for HealthKit background delivery -->
+    <!-- Background Modes for HealthKit background delivery and push notifications -->
     <key>UIBackgroundModes</key>
     <array>
         <string>fetch</string>
         <string>processing</string>
+        <string>remote-notification</string>
     </array>
 
     <!-- Background Task Identifiers -->

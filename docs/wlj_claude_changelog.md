@@ -4,10 +4,26 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-15 (ICQG Quality Gate)
+# Last Updated: 2026-02-15 (Push Notification Delivery)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-02-15 — Phase 6A: Push Notification Delivery (PND) via DNE
+
+**Feature:** Added push notifications as a 4th DNE delivery channel, enabling iOS devices to receive intelligence guidance, daily briefings, and weekly reports via APNs.
+
+- **Data Model:** Added `CHANNEL_PUSH = "push"` to `DeliveredNotification.CHANNEL_CHOICES`, `intelligence_push_enabled` to `UserPreferences`
+- **Migration:** `apps/users/migrations/0063_intelligence_push_enabled.py`
+- **APNs Sender:** `apps/core/ai_delivery/apns_sender.py` — cached HTTP/2 client via `apns2` library, JWT token auth, graceful skip if not configured
+- **Delivery Router:** `deliver_push()` in `delivery_router.py` — sends to all active push devices, stores per-device results in metadata, follows SMS pattern
+- **DNE Integration:** Push added to `_get_enabled_channels()` — requires `intelligence_push_enabled` pref AND active MobileDevice with push token
+- **Policy Adjustments:** Critical priority push (priority <= 1) bypasses quiet hours; non-critical push respects quiet hours
+- **Mobile API:** `POST /api/mobile/push/register/` and `POST /api/mobile/push/unregister/` — device registration does NOT auto-enable push preference
+- **iOS Wrapper:** `PushNotificationManager.swift`, AppDelegate push delegates, `APIClient` push methods, entitlements, Info.plist, SettingsView, MainWebView deep-link
+- **Settings UI:** Push toggle added (disabled without device), settings save updated
+- **Tests:** 29 new push tests (64 total DNE+mobile tests passing)
+- **Docs:** Third party services (APNs #31), release note PK 44, fixture reset
 
 ## 2026-02-15 — Phase 5C: Intelligence Calibration & Quality Gate (ICQG)
 

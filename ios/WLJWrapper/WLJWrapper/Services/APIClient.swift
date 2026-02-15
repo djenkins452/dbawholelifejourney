@@ -132,6 +132,55 @@ class APIClient {
         }
     }
 
+    // MARK: - Push Notifications
+
+    /// Register APNs push token with the backend.
+    func registerPushToken(_ token: String) async throws {
+        guard let apiToken = KeychainManager.shared.getAPIToken() else {
+            throw APIError.notAuthenticated
+        }
+
+        let url = URL(string: "\(baseURL)/api/mobile/push/register/")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(apiToken)", forHTTPHeaderField: "Authorization")
+
+        let body = ["push_token": token]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (_, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+
+        if httpResponse.statusCode == 401 {
+            KeychainManager.shared.deleteAPIToken()
+            throw APIError.notAuthenticated
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.serverError("Push registration failed (\(httpResponse.statusCode))")
+        }
+    }
+
+    /// Unregister push token from the backend (on logout/disable).
+    func unregisterPushToken() async throws {
+        guard let apiToken = KeychainManager.shared.getAPIToken() else {
+            return // Already logged out, nothing to unregister
+        }
+
+        let url = URL(string: "\(baseURL)/api/mobile/push/unregister/")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(apiToken)", forHTTPHeaderField: "Authorization")
+
+        // Best-effort — don't throw on failure
+        let (_, _) = try await session.data(for: request)
+    }
+
     // MARK: - Token Revocation
 
     /// Revoke the current API token (logout).

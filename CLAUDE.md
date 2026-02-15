@@ -472,6 +472,8 @@ Native iOS wrapper that loads WLJ in a WKWebView with HealthKit integration for 
 | `POST /api/mobile/token/exchange/` | Exchange code for Bearer token |
 | `POST /api/mobile/health/ingest/` | Submit HealthKit data |
 | `GET /api/mobile/health/sync-status/` | Check last sync status |
+| `POST /api/mobile/push/register/` | Register APNs push token for device |
+| `POST /api/mobile/push/unregister/` | Unregister push token for device |
 
 **Token Authentication:**
 ```

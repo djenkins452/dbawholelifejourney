@@ -70,6 +70,26 @@ struct SettingsView: View {
                     }
                 }
 
+                // MARK: - Notifications Section
+                Section {
+                    Button(action: requestPushPermission) {
+                        HStack {
+                            Image(systemName: "bell.fill")
+                                .foregroundColor(.blue)
+                            Text("Enable Push Notifications")
+                        }
+                    }
+                    .disabled(!appState.isAuthenticated)
+                } header: {
+                    Text("Notifications")
+                } footer: {
+                    if appState.isAuthenticated {
+                        Text("Receive alerts for intelligence guidance, daily briefings, and weekly reports. You can control which types of push notifications you receive in your web Notification Settings.")
+                    } else {
+                        Text("Connect your account first to enable push notifications.")
+                    }
+                }
+
                 // MARK: - Account Section
                 Section {
                     if appState.isAuthenticated {
@@ -196,6 +216,10 @@ struct SettingsView: View {
                 Text("Your health data has been synced successfully.")
             }
         }
+    }
+
+    private func requestPushPermission() {
+        PushNotificationManager.shared.requestPermission()
     }
 
     private func connectAccount() {

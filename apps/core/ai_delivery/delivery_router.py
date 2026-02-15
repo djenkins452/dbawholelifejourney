@@ -201,9 +201,104 @@ def deliver_sms(user, payload, source_engine, source_object_type, source_object_
         return None
 
 
+def deliver_push(user, payload, source_engine, source_object_type, source_object_id):
+    """
+    Deliver an intelligence notification via APNs push notification.
+
+    Sends to all active devices with push enabled for this user.
+    Gracefully skips if APNs is not configured or no devices registered.
+
+    Returns:
+        DeliveredNotification or None.
+    """
+    dedupe_hash = DeliveredNotification.compute_dedupe_hash(
+        user.id, "push", source_engine, source_object_type, source_object_id,
+    )
+
+    try:
+        from apps.core.ai_delivery.apns_sender import send_push_notification
+        from apps.mobile.models import MobileDevice
+
+        # Get user's active devices with push enabled
+        devices = MobileDevice.objects.filter(
+            user=user,
+            is_active=True,
+            push_enabled=True,
+        ).exclude(push_token="")
+
+        if not devices.exists():
+            try:
+                record = DeliveredNotification.objects.create(
+                    user=user,
+                    source_engine=source_engine,
+                    source_object_type=source_object_type,
+                    source_object_id=source_object_id,
+                    channel=DeliveredNotification.CHANNEL_PUSH,
+                    title=payload["title"],
+                    message=payload["message"],
+                    action_url=payload.get("action_url", ""),
+                    status=DeliveredNotification.STATUS_SKIPPED,
+                    skip_reason="no_push_devices",
+                    dedupe_hash=dedupe_hash,
+                )
+                return record
+            except IntegrityError:
+                return None
+
+        sent_count = 0
+        device_results = []
+        for device in devices:
+            success = send_push_notification(
+                push_token=device.push_token,
+                title=payload["title"],
+                body=payload["message"],
+                action_url=payload.get("action_url", ""),
+            )
+            device_results.append({
+                "device_id": device.device_id[:8],
+                "success": success,
+            })
+            if success:
+                sent_count += 1
+
+        status = (
+            DeliveredNotification.STATUS_SENT
+            if sent_count > 0
+            else DeliveredNotification.STATUS_FAILED
+        )
+
+        record = DeliveredNotification.objects.create(
+            user=user,
+            source_engine=source_engine,
+            source_object_type=source_object_type,
+            source_object_id=source_object_id,
+            channel=DeliveredNotification.CHANNEL_PUSH,
+            title=payload["title"],
+            message=payload["message"],
+            action_url=payload.get("action_url", ""),
+            status=status,
+            dedupe_hash=dedupe_hash,
+            metadata={"devices": device_results, "sent_count": sent_count},
+        )
+
+        logger.info(
+            f"DNE: push delivered to user {user.id}: "
+            f"{sent_count}/{len(device_results)} devices"
+        )
+        return record
+
+    except IntegrityError:
+        logger.debug(f"DNE: push duplicate for user {user.id}")
+        return None
+    except Exception as e:
+        logger.error(f"DNE: push delivery failed for user {user.id}: {e}")
+        return None
+
+
 # Channel dispatch map
 CHANNEL_HANDLERS = {
     "in_app": deliver_in_app,
     "email": deliver_email,
     "sms": deliver_sms,
+    "push": deliver_push,
 }

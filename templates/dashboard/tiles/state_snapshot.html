@@ -1,0 +1,179 @@
+{% comment %}
+Dashboard Tile: Your Current State (SAE)
+Displays key state values from the State Awareness Engine.
+All data comes from SAE — no direct domain table queries.
+{% endcomment %}
+
+<section class="state-snapshot-section tile-size-{{ tile.size|default:'medium' }}"
+         data-tile-id="state_snapshot"
+         id="state-snapshot-tile">
+    <div class="state-snapshot-header">
+        <h3 class="state-snapshot-title">
+            <span class="state-snapshot-title-icon">📊</span>
+            Your Current State
+        </h3>
+    </div>
+
+    {% if user_state and user_state.keys|length > 0 %}
+    <div class="state-snapshot-domains">
+
+        {# ── Health ───────────────────────────────────── #}
+        {% with health=user_state.health %}
+        {% if health.weight_current or health.sleep_avg_duration_7d or health.steps_avg_7d %}
+        <div class="state-domain">
+            <h4 class="state-domain-label">Health</h4>
+            <div class="state-rows">
+                {% if health.weight_current %}
+                <div class="state-row">
+                    <span class="state-key">Weight</span>
+                    <span class="state-value">{{ health.weight_current|floatformat:1 }} {{ health.weight_unit|default:"lbs" }}</span>
+                </div>
+                {% endif %}
+                {% if health.weight_trend and health.weight_trend != "insufficient_data" %}
+                <div class="state-row">
+                    <span class="state-key">Weight Trend</span>
+                    <span class="state-value">
+                        {% if health.weight_trend == "decreasing" %}↓ improving
+                        {% elif health.weight_trend == "increasing" %}↑ increasing
+                        {% else %}→ stable{% endif %}
+                    </span>
+                </div>
+                {% endif %}
+                {% if health.sleep_avg_duration_7d %}
+                <div class="state-row">
+                    <span class="state-key">Avg Sleep (7d)</span>
+                    <span class="state-value">{{ health.sleep_avg_duration_7d|floatformat:0 }} min</span>
+                </div>
+                {% endif %}
+                {% if health.steps_avg_7d %}
+                <div class="state-row">
+                    <span class="state-key">Avg Steps (7d)</span>
+                    <span class="state-value">{{ health.steps_avg_7d|floatformat:0 }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        {# ── Goals ────────────────────────────────────── #}
+        {% with goals=user_state.goals %}
+        {% if goals.active_goal_count %}
+        <div class="state-domain">
+            <h4 class="state-domain-label">Goals</h4>
+            <div class="state-rows">
+                <div class="state-row">
+                    <span class="state-key">Active Goals</span>
+                    <span class="state-value">{{ goals.active_goal_count }}</span>
+                </div>
+                {% if goals.overdue_goal_count %}
+                <div class="state-row">
+                    <span class="state-key">Overdue</span>
+                    <span class="state-value state-value-warn">{{ goals.overdue_goal_count }}</span>
+                </div>
+                {% endif %}
+                {% if goals.next_deadline %}
+                <div class="state-row">
+                    <span class="state-key">Next Deadline</span>
+                    <span class="state-value">
+                        {% if goals.days_to_next_deadline < 0 %}Overdue
+                        {% elif goals.days_to_next_deadline == 0 %}Today
+                        {% elif goals.days_to_next_deadline == 1 %}Tomorrow
+                        {% else %}{{ goals.days_to_next_deadline }} days{% endif %}
+                    </span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        {# ── Habits ───────────────────────────────────── #}
+        {% with habits=user_state.habits %}
+        {% if habits.active_habit_count %}
+        <div class="state-domain">
+            <h4 class="state-domain-label">Habits</h4>
+            <div class="state-rows">
+                <div class="state-row">
+                    <span class="state-key">Active Habits</span>
+                    <span class="state-value">{{ habits.active_habit_count }}</span>
+                </div>
+                {% if habits.longest_streak %}
+                <div class="state-row">
+                    <span class="state-key">Longest Streak</span>
+                    <span class="state-value">{{ habits.longest_streak }} days</span>
+                </div>
+                {% endif %}
+                {% if habits.avg_completion_rate %}
+                <div class="state-row">
+                    <span class="state-key">Avg Completion</span>
+                    <span class="state-value">{{ habits.avg_completion_rate|floatformat:0 }}%</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        {# ── Journal ──────────────────────────────────── #}
+        {% with journal=user_state.journal %}
+        {% if journal.last_entry or journal.entries_30d %}
+        <div class="state-domain">
+            <h4 class="state-domain-label">Journal</h4>
+            <div class="state-rows">
+                {% if journal.days_since_entry is not None %}
+                <div class="state-row">
+                    <span class="state-key">Last Entry</span>
+                    <span class="state-value">
+                        {% if journal.days_since_entry == 0 %}Today
+                        {% elif journal.days_since_entry == 1 %}Yesterday
+                        {% else %}{{ journal.days_since_entry }} days ago{% endif %}
+                    </span>
+                </div>
+                {% endif %}
+                {% if journal.entries_30d is not None %}
+                <div class="state-row">
+                    <span class="state-key">Entries (30d)</span>
+                    <span class="state-value">{{ journal.entries_30d }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        {# ── Faith ────────────────────────────────────── #}
+        {% with faith=user_state.faith %}
+        {% if faith.reading_streak or faith.last_scripture_read %}
+        <div class="state-domain">
+            <h4 class="state-domain-label">Faith</h4>
+            <div class="state-rows">
+                {% if faith.reading_streak %}
+                <div class="state-row">
+                    <span class="state-key">Reading Streak</span>
+                    <span class="state-value">{{ faith.reading_streak }} days</span>
+                </div>
+                {% endif %}
+                {% if faith.days_since_reading is not None %}
+                <div class="state-row">
+                    <span class="state-key">Last Scripture</span>
+                    <span class="state-value">
+                        {% if faith.days_since_reading == 0 %}Today
+                        {% elif faith.days_since_reading == 1 %}Yesterday
+                        {% else %}{{ faith.days_since_reading }} days ago{% endif %}
+                    </span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+        {% endwith %}
+
+    </div>
+    {% else %}
+    <div class="state-snapshot-empty">
+        <span class="state-snapshot-empty-icon">📋</span>
+        <p>Start logging activity to build your state profile.</p>
+    </div>
+    {% endif %}
+</section>

@@ -245,6 +245,17 @@ TILE_DEFINITIONS = {
         'mandatory': False,
         'default_order': 20,
     },
+    'state_snapshot': {
+        'id': 'state_snapshot',
+        'name': 'Your Current State',
+        'description': 'Shows what WLJ knows about you — the state used to generate insights, predictions, and guidance.',
+        'icon': 'chart_bar',
+        'module_dependency': 'ai_enabled',
+        'default_visible': True,
+        'default_size': 'medium',
+        'mandatory': False,
+        'default_order': 3,  # Before guidance
+    },
     'guidance': {
         'id': 'guidance',
         'name': "Today's Guidance",

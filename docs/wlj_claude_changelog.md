@@ -4,10 +4,24 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-15 (Guidance Inbox Enhancement)
+# Last Updated: 2026-02-15 (State Snapshot Panel)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-02-15 — Phase 2C: State Snapshot Panel (SAE Transparency Interface)
+
+**Feature:** Added "Your Current State" dashboard tile that displays key state values directly from the State Awareness Engine (SAE), giving users full transparency into the data that powers insights, predictions, and guidance.
+
+- **Template:** `templates/dashboard/tiles/state_snapshot.html` — 5 domain sections (Health, Goals, Habits, Journal, Faith), each conditionally rendered only when data exists. Label-left/value-right layout with human-friendly formatting (trend arrows, "Yesterday", "Today", day counts)
+- **View:** Dashboard `get_context_data()` now loads `user_state` via `get_user_state(user)` from SAE — no direct domain table queries
+- **Tile Config:** New `state_snapshot` tile in config service (default visible, medium size, `ai_enabled` dependency, order 3)
+- **CSS:** `static/css/dashboard.css` — state snapshot section styles (domain labels, key-value rows, warn color for overdue, empty state), mobile responsive with 44px min-height rows
+- **Fixtures:** Teaching destination (PK 109), help topic (PK 86, context_id=DASHBOARD_STATE_SNAPSHOT), release note (PK 37, major feature)
+- **Loader:** One-time reset `_reset_sae_state_snapshot_fixtures` in `load_initial_data.py`
+- **Tests:** 14 new tests in `apps/dashboard/tests/test_state_snapshot.py` covering: panel renders, context has user_state, uses SAE (mock verified), empty state, all 5 domain sections, partial state hides empty sections, weight trend variants (stable/increasing), goal deadline "Today" edge case, AI-disabled hides tile
+- **Files modified:** `apps/dashboard/views.py`, `apps/dashboard/services/config_service.py`, `templates/dashboard/home.html`, `templates/dashboard/tiles/state_snapshot.html` (new), `static/css/dashboard.css`, `apps/help/fixtures/teaching_destinations.json`, `apps/help/fixtures/help_topics.json`, `apps/core/fixtures/release_notes.json`, `apps/core/management/commands/load_initial_data.py`, `apps/dashboard/tests/test_state_snapshot.py` (new)
+- **Tests:** 157 total (58 dashboard + 20 guidance panel + 14 state snapshot + 65 SAE) — all passing
 
 ## 2026-02-15 — Phase 2B: Guidance Inbox Enhancement (Lifecycle Intelligence Center)
 

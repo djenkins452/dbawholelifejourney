@@ -129,6 +129,13 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             # Quarterly Review tile - shows at start of each quarter
             context["quarterly_review"] = self._get_quarterly_review(user, prefs, user_data)
 
+            # State Awareness Engine (SAE) — current state snapshot for tile
+            try:
+                from apps.core.ai_state.state_engine import get_user_state
+                context["user_state"] = get_user_state(user)
+            except Exception:
+                context["user_state"] = {}
+
             # Proactive Guidance (PGE) — top items for dashboard tile
             try:
                 from apps.core.ai_guidance.guidance_engine import get_active_guidance

@@ -360,6 +360,111 @@
    TODAY'S GUIDANCE (PGE)
    ============================================================================= */
 
+/* =============================================================================
+   STATE SNAPSHOT (SAE Transparency Panel)
+   ============================================================================= */
+
+.state-snapshot-section {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+}
+
+.state-snapshot-header {
+    margin-bottom: var(--space-3);
+}
+
+.state-snapshot-title {
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    color: var(--color-text);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.state-snapshot-title-icon {
+    font-size: var(--font-size-lg);
+}
+
+.state-snapshot-domains {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.state-domain {
+    border-top: 1px solid var(--color-border);
+    padding-top: var(--space-3);
+}
+
+.state-domain:first-child {
+    border-top: none;
+    padding-top: 0;
+}
+
+.state-domain-label {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--color-accent);
+    margin: 0 0 var(--space-2) 0;
+}
+
+.state-rows {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.state-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-1) 0;
+    min-height: 28px;
+}
+
+.state-key {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.state-value {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text);
+    text-align: right;
+}
+
+.state-value-warn {
+    color: #dc2626;
+}
+
+.state-snapshot-empty {
+    text-align: center;
+    padding: var(--space-5) var(--space-3);
+    color: var(--color-text-muted);
+}
+
+.state-snapshot-empty-icon {
+    font-size: var(--font-size-2xl);
+    display: block;
+    margin-bottom: var(--space-2);
+}
+
+.state-snapshot-empty p {
+    margin: 0;
+    font-size: var(--font-size-sm);
+}
+
+/* =============================================================================
+   GUIDANCE (PGE Dashboard Tile)
+   ============================================================================= */
+
 .guidance-section {
     background: var(--color-surface);
     border: 1px solid var(--color-border);
@@ -1025,6 +1130,14 @@
 
     .nudge-card .btn {
         width: 100%;
+    }
+
+    .state-snapshot-section {
+        padding: var(--space-3);
+    }
+
+    .state-row {
+        min-height: 44px;
     }
 
     .guidance-card {

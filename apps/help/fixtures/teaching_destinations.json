@@ -1832,5 +1832,22 @@
             "created_at": "2026-02-15T00:00:00Z",
             "updated_at": "2026-02-15T00:00:00Z"
         }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 109,
+        "fields": {
+            "destination_id": "dashboard-state-snapshot",
+            "name": "Your Current State",
+            "path_description": "Dashboard - Your Current State",
+            "explanation": "Shows the current state WLJ uses to generate insights, predictions, and guidance.",
+            "url": "/dashboard/",
+            "keywords": "state,snapshot,current,weight,sleep,steps,goals,habits,journal,faith,transparency",
+            "module": "dashboard",
+            "sort_order": 109,
+            "is_active": true,
+            "created_at": "2026-02-15T00:00:00Z",
+            "updated_at": "2026-02-15T00:00:00Z"
+        }
     }
 ]

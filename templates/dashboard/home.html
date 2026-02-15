@@ -389,6 +389,8 @@ body.edit-mode .tile-name-label {
                 {% include "dashboard/tiles/upcoming_celebrations.html" with tile=tile %}
             {% elif tile_id == 'recurring_transactions' %}
                 {% include "dashboard/tiles/recurring_transactions.html" with tile=tile %}
+            {% elif tile_id == 'state_snapshot' %}
+                {% include "dashboard/tiles/state_snapshot.html" with tile=tile %}
             {% elif tile_id == 'guidance' %}
                 {% include "dashboard/tiles/guidance.html" with tile=tile %}
             {% endif %}

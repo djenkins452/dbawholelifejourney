@@ -361,6 +361,67 @@
    ============================================================================= */
 
 /* =============================================================================
+   DAILY BRIEFING (DBE Intelligence Summary)
+   ============================================================================= */
+
+.daily-briefing-section {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+}
+
+.daily-briefing-header {
+    margin-bottom: var(--space-3);
+}
+
+.daily-briefing-title {
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    color: var(--color-text);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.daily-briefing-title-icon {
+    font-size: var(--font-size-lg);
+}
+
+.daily-briefing-content {
+    line-height: 1.6;
+}
+
+.daily-briefing-summary {
+    font-size: var(--font-size-sm);
+    color: var(--color-text);
+    margin: 0 0 var(--space-2) 0;
+}
+
+.daily-briefing-timestamp {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.daily-briefing-empty {
+    text-align: center;
+    padding: var(--space-5) var(--space-3);
+    color: var(--color-text-muted);
+}
+
+.daily-briefing-empty-icon {
+    font-size: var(--font-size-2xl);
+    display: block;
+    margin-bottom: var(--space-2);
+}
+
+.daily-briefing-empty p {
+    margin: 0;
+    font-size: var(--font-size-sm);
+}
+
+/* =============================================================================
    STATE SNAPSHOT (SAE Transparency Panel)
    ============================================================================= */
 
@@ -1130,6 +1191,10 @@
 
     .nudge-card .btn {
         width: 100%;
+    }
+
+    .daily-briefing-section {
+        padding: var(--space-3);
     }
 
     .state-snapshot-section {

@@ -136,6 +136,13 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             except Exception:
                 context["user_state"] = {}
 
+            # Daily Briefing Engine (DBE) — today's intelligence summary
+            try:
+                from apps.core.ai_briefing.briefing_engine import get_todays_briefing
+                context["daily_briefing"] = get_todays_briefing(user)
+            except Exception:
+                context["daily_briefing"] = None
+
             # Proactive Guidance (PGE) — top items for dashboard tile
             try:
                 from apps.core.ai_guidance.guidance_engine import get_active_guidance

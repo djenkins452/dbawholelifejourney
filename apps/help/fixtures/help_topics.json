@@ -1368,5 +1368,21 @@
             "created_at": "2026-02-15T00:00:00Z",
             "updated_at": "2026-02-15T00:00:00Z"
         }
+    },
+    {
+        "model": "help.helptopic",
+        "pk": 87,
+        "fields": {
+            "context_id": "DASHBOARD_DAILY_BRIEFING",
+            "help_id": "dashboard-daily-briefing",
+            "title": "Daily Briefing",
+            "description": "Your daily intelligence summary.",
+            "content": "## Daily Briefing\n\nThe Daily Briefing is a concise intelligence summary generated each morning. It tells you the most important things WLJ's AI engines have detected about your life data.\n\n### What Is It?\nThe Daily Briefing aggregates intelligence from four engines:\n- **State Awareness Engine (SAE)** — Your current data snapshot\n- **Proactive Insight Engine (PIE)** — Detected patterns and trends\n- **Predictive Intelligence Engine (PRIE)** — Projected trajectories\n- **Proactive Guidance Engine (PGE)** — Actionable recommendations\n\nIt does not generate new intelligence — it summarizes and prioritizes what already exists.\n\n### How Are Items Selected?\nThe briefing includes up to 5 items, prioritized by:\n1. Critical guidance (highest priority)\n2. High-confidence predictions\n3. Warning or critical insights\n4. Remaining guidance items\n5. State changes and informational insights\n\n### When Is It Generated?\nBriefings are generated once per day, typically in the morning. If you visit your dashboard before the briefing runs, you'll see a message that it hasn't been generated yet.\n\n### Why Does It Matter?\nInstead of checking multiple panels, the Daily Briefing gives you a quick summary of what matters most — so you can start your day informed and focused.",
+            "app_name": "dashboard",
+            "order": 5,
+            "is_active": true,
+            "created_at": "2026-02-15T00:00:00Z",
+            "updated_at": "2026-02-15T00:00:00Z"
+        }
     }
 ]

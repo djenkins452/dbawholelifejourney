@@ -1,0 +1,32 @@
+{% comment %}
+Dashboard Tile: Daily Briefing (DBE)
+Shows today's intelligence summary aggregated from SAE, PIE, PRIE, and PGE.
+Server-side rendered. No actions — read-only summary.
+{% endcomment %}
+
+{% if ai_enabled %}
+<section class="daily-briefing-section tile-size-{{ tile.size|default:'medium' }}"
+         data-tile-id="daily_briefing"
+         id="daily-briefing-tile">
+    <div class="daily-briefing-header">
+        <h3 class="daily-briefing-title">
+            <span class="daily-briefing-title-icon">📋</span>
+            Daily Briefing
+        </h3>
+    </div>
+
+    <div class="daily-briefing-content">
+        {% if daily_briefing %}
+            <p class="daily-briefing-summary">{{ daily_briefing.summary }}</p>
+            <span class="daily-briefing-timestamp">
+                Generated {{ daily_briefing.created_at|timesince }} ago
+            </span>
+        {% else %}
+            <div class="daily-briefing-empty">
+                <span class="daily-briefing-empty-icon">☀️</span>
+                <p>No briefing yet today. Your briefing is generated each morning.</p>
+            </div>
+        {% endif %}
+    </div>
+</section>
+{% endif %}

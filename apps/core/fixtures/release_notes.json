@@ -590,5 +590,21 @@
             "created_at": "2026-02-15T00:00:00Z",
             "updated_at": "2026-02-15T00:00:00Z"
         }
+    },
+    {
+        "pk": 38,
+        "model": "core.releasenote",
+        "fields": {
+            "title": "Daily Briefing on Your Dashboard",
+            "description": "A new Daily Briefing tile summarizes the most important intelligence from your data each day. It combines insights, predictions, and guidance into one concise summary — so you can start your day informed.",
+            "entry_type": "feature",
+            "version": "",
+            "release_date": "2026-02-15",
+            "is_published": true,
+            "is_major": true,
+            "learn_more_url": "",
+            "created_at": "2026-02-15T00:00:00Z",
+            "updated_at": "2026-02-15T00:00:00Z"
+        }
     }
 ]

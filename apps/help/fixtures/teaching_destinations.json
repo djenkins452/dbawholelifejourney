@@ -1849,5 +1849,22 @@
             "created_at": "2026-02-15T00:00:00Z",
             "updated_at": "2026-02-15T00:00:00Z"
         }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 110,
+        "fields": {
+            "destination_id": "dashboard-daily-briefing",
+            "name": "Daily Briefing",
+            "path_description": "Dashboard - Daily Briefing",
+            "explanation": "Your daily intelligence summary combining insights, predictions, and guidance into one concise brief.",
+            "url": "/dashboard/",
+            "keywords": "briefing,daily,summary,morning,intelligence,report,overview",
+            "module": "dashboard",
+            "sort_order": 110,
+            "is_active": true,
+            "created_at": "2026-02-15T00:00:00Z",
+            "updated_at": "2026-02-15T00:00:00Z"
+        }
     }
 ]

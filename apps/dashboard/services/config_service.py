@@ -245,6 +245,17 @@ TILE_DEFINITIONS = {
         'mandatory': False,
         'default_order': 20,
     },
+    'daily_briefing': {
+        'id': 'daily_briefing',
+        'name': 'Daily Briefing',
+        'description': 'Your daily intelligence summary — key insights, predictions, and guidance in one place.',
+        'icon': 'clipboard',
+        'module_dependency': 'ai_enabled',
+        'default_visible': True,
+        'default_size': 'medium',
+        'mandatory': False,
+        'default_order': 2,  # Before state snapshot and guidance
+    },
     'state_snapshot': {
         'id': 'state_snapshot',
         'name': 'Your Current State',

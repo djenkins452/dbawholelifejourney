@@ -2213,3 +2213,6 @@ from apps.core.ai_semantics.semantic_models import SemanticDecisionLog  # noqa: 
 
 # Import ai_guidance models so Django discovers them for migrations
 from apps.core.ai_guidance.models import GuidanceItem  # noqa: E402, F401
+
+# Import ai_briefing models so Django discovers them for migrations
+from apps.core.ai_briefing.models import DailyBriefing  # noqa: E402, F401

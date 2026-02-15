@@ -4,10 +4,34 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-15 (State Snapshot Panel)
+# Last Updated: 2026-02-15 (Daily Briefing Engine)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-02-15 — Phase 3A: Daily Briefing Engine (DBE)
+
+**Feature:** Created the Daily Briefing Engine — a presentation-layer intelligence engine that aggregates from SAE, PIE, PRIE, and PGE to produce a daily intelligence summary for each user.
+
+- **Module:** `apps/core/ai_briefing/` — new engine with 7 files: `__init__.py`, `models.py`, `admin.py`, `briefing_engine.py`, `briefing_selector.py`, `briefing_ranker.py`, `briefing_logger.py`
+- **Model:** `DailyBriefing` — user, briefing_date, summary text, JSON snapshots of state/guidance/insights/predictions, unique constraint (user + date)
+- **Engine:** `generate_daily_briefing(user)` pipeline: gather intelligence → select top 5 items → rank by priority/confidence/type → generate summary → store with dedup
+- **Selector:** Priority order: critical guidance → high-confidence predictions → warning/critical insights → remaining guidance → informational items. Max 5 items.
+- **Ranker:** Composite score from priority level, confidence score (inverted), and type tiebreaker (guidance > prediction > insight)
+- **Logger:** Duplicate prevention per user per day, race condition safe via IntegrityError catch, JSON snapshot serialization
+- **Summary Generator:** Template-based natural language from ranked items and state (no AI call needed)
+- **Dashboard Tile:** `templates/dashboard/tiles/daily_briefing.html` — shows summary text or "No briefing yet today" empty state
+- **CSS:** `static/css/dashboard.css` — daily briefing section styles, responsive
+- **Tile Config:** `daily_briefing` tile registered (ai_enabled dependency, medium size, order 2)
+- **Management Command:** `python manage.py generate_daily_briefings` — loops active users with ai_enabled, `--user` for single user, `--dry-run` to count
+- **Migration:** `0060_daily_briefing` — creates DailyBriefing table with unique constraint
+- **Admin:** Read-only DailyBriefingAdmin (system-generated only)
+- **Fixtures:** Teaching destination (PK 110), help topic (PK 87, context_id=DASHBOARD_DAILY_BRIEFING), release note (PK 38)
+- **Loader:** One-time reset `_reset_dbe_briefing_fixtures` in `load_initial_data.py`
+- **Tests:** 27 new tests covering: model CRUD, unique constraint, JSON defaults, selector prioritization (max 5, critical first, mixed types), ranker ordering (priority, confidence, type tiebreaker), logger duplicate prevention and serialization, engine end-to-end (mocked), skip existing, state fallback summary, dashboard tile rendering, empty state, context, AI-disabled hiding
+- **Files created:** `apps/core/ai_briefing/` (8 files), `apps/core/ai_briefing/management/commands/generate_daily_briefings.py`, `apps/core/ai_briefing/migrations/0060_daily_briefing.py`, `templates/dashboard/tiles/daily_briefing.html`
+- **Files modified:** `apps/core/models.py`, `apps/dashboard/views.py`, `apps/dashboard/services/config_service.py`, `templates/dashboard/home.html`, `static/css/dashboard.css`, fixtures (3), `load_initial_data.py`, `docs/wlj_claude_changelog.md`
+- **Tests:** 119 total dashboard tests passing (58 dashboard + 20 guidance + 14 state snapshot + 27 briefing)
 
 ## 2026-02-15 — Phase 2C: State Snapshot Panel (SAE Transparency Interface)
 

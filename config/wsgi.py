@@ -225,9 +225,24 @@ def start_scheduler():
             replace_existing=True,
         )
 
+        # =====================================================================
+        # Intelligence Scheduler (ISE)
+        # =====================================================================
+
+        # Job 14: Intelligence Scheduler Engine every 5 minutes
+        # Orchestrates DBE (daily briefings), GLOE (learning profiles),
+        # PGE (guidance refresh) based on each task's configured interval
+        scheduler.add_job(
+            'apps.core.jobs:run_intelligence_scheduler',
+            trigger=IntervalTrigger(minutes=5),
+            id="run_intelligence_scheduler",
+            max_instances=1,
+            replace_existing=True,
+        )
+
         scheduler.start()
         logger.info("=" * 60)
-        logger.info("APScheduler STARTED successfully with 13 jobs:")
+        logger.info("APScheduler STARTED successfully with 14 jobs:")
         logger.info("  - SMS: schedule_daily_sms_reminders (daily at 00:00 UTC) [on hold]")
         logger.info("  - SMS: send_pending_sms (every 5 minutes) [on hold]")
         logger.info("  - Life: recalculate_task_priorities (daily at 06:00 UTC / 01:00 EST)")
@@ -241,6 +256,7 @@ def start_scheduler():
         logger.info("  - Core: compute_activity_patterns (daily at 07:00 UTC / 02:00 EST)")
         logger.info("  - Capture: send_expiration_reminders (daily at 08:00 UTC / 03:00 EST)")
         logger.info("  - Capture: send_pending_capture_reminders (hourly)")
+        logger.info("  - ISE: run_intelligence_scheduler (every 5 minutes)")
         logger.info("=" * 60)
 
         # Ensure scheduler shuts down on exit

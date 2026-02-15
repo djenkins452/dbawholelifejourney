@@ -167,3 +167,30 @@ def generate_birthday_reminders():
     except Exception as e:
         logger.exception(f"Birthday reminders job failed: {e}")
         raise
+
+
+def run_intelligence_scheduler():
+    """
+    Run one cycle of the Intelligence Scheduler Engine (ISE).
+
+    Checks all registered intelligence tasks (DBE, GLOE, PGE) and
+    executes any that are due. Each task tracks its own interval and
+    last run time in the database.
+
+    Scheduled: Every 5 minutes via APScheduler IntervalTrigger.
+    """
+    logger.info("Starting intelligence scheduler cycle...")
+
+    try:
+        from apps.core.ai_scheduler.scheduler_engine import run_scheduler_cycle
+
+        result = run_scheduler_cycle()
+        logger.info(
+            f"Intelligence scheduler cycle completed: "
+            f"executed={result['executed']}, "
+            f"skipped={result['skipped']}, "
+            f"failed={result['failed']}"
+        )
+    except Exception as e:
+        logger.exception(f"Intelligence scheduler cycle failed: {e}")
+        raise

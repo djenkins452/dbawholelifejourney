@@ -24,6 +24,8 @@
 - **Architecture:** Updated `docs/INTELLIGENCE_ARCHITECTURE.md` — eleven-engine cognitive stack, added Engine 11 (ISE) section
 - **Tests:** 32 tests (model, registry, engine, runners, management command)
 - **Safety:** Task failures isolated (never crash cycle), failed tasks advance next_run_at (no infinite loops), all imports ImportError-guarded
+- **APScheduler Integration:** Added Job 14 (`run_intelligence_scheduler`) as `IntervalTrigger(minutes=5)` in `config/wsgi.py`. ISE runs embedded in the Gunicorn process like all other scheduled jobs — no Railway cron needed.
+- **Job function:** `apps/core/jobs.py:run_intelligence_scheduler()` — thin wrapper calling `run_scheduler_cycle()`
 
 ## 2026-02-15 — Phase 3B: Guidance Learning Optimization Engine (GLOE)
 

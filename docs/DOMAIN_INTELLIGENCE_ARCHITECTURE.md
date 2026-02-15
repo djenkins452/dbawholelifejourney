@@ -1,6 +1,6 @@
 # Whole Life Journey — Domain Intelligence Architecture
 
-**Purpose:** Maps how each application domain (Health, Body Composition, Labs, Goals, Habits, Journal, Scripture) integrates with the five cognitive engines. Domain engines plug into the UAIO orchestrator and must never bypass cognitive engines.
+**Purpose:** Maps how each application domain (Health, Body Composition, Labs, Goals, Habits, Journal, Scripture) integrates with the six cognitive engines. Domain engines plug into the UAIO orchestrator and must never bypass cognitive engines.
 
 **Prerequisite:** Read `docs/INTELLIGENCE_ARCHITECTURE.md` first for engine contracts and pipeline.
 
@@ -16,12 +16,56 @@ User Action in Domain
     → SLCME resolves context ("my weight", "that goal")
     → HTIE resolves time ("yesterday", "last Tuesday")
     → Action Handler executes domain logic
-      → PIE evaluates insight rules for this domain
-        → PRIE runs prediction rules for this domain
+      → SAE updates user state for this domain
+        → PIE evaluates insight rules (enriched with SAE state)
+          → PRIE runs prediction rules for this domain
   → Response with temporal context
 ```
 
-**Rule:** Domain modules MUST NOT directly call `datetime.strptime()` on user input, hard-code context resolution, or generate insights/predictions outside the engine pipeline.
+**Rules:**
+- Domain modules MUST NOT directly call `datetime.strptime()` on user input, hard-code context resolution, or generate insights/predictions outside the engine pipeline.
+- Domain modules MUST NOT reconstruct full user state independently — use SAE via `get_user_state()` or `get_module_state()`.
+
+---
+
+## State Awareness Engine — Domain Integration
+
+**SAE is the authoritative source of current user state for all domains.** After every successful action, SAE updates the affected module's state snapshot. Intelligence engines (PIE, PRIE) receive enriched state data instead of re-querying the database for common lookups.
+
+### Domain → SAE State Mapping
+
+| Domain | SAE Module Key | State Builder | Key State Fields |
+|--------|----------------|---------------|------------------|
+| Health (Weight) | `health` | `build_health_state()` | weight_current, weight_trend, weight_entries_90d |
+| Body Composition | `health` | `build_health_state()` | body_fat_current, lean_mass_current |
+| Labs & Vitals | `health` | `build_health_state()` | bp_systolic, bp_diastolic, sleep_avg_duration_7d |
+| Goals | `goals` | `build_goal_state()` | active_goal_count, completion_rate, next_deadline |
+| Habits | `habits` | `build_habit_state()` | active_habit_count, longest_streak, avg_completion_rate |
+| Journal | `journal` | `build_journal_state()` | last_entry, entry_frequency, mood_distribution |
+| Scripture | `faith` | `build_faith_state()` | reading_streak, last_scripture_read, unanswered_prayers |
+
+### Reading State in Domain Code
+
+```python
+from apps.core.ai_state import get_user_state, get_module_state
+
+# Full state (all domains)
+state = get_user_state(user)
+weight = state.get("health", {}).get("weight_current")
+
+# Single module
+health = get_module_state(user, "health")
+trend = health.get("weight_trend")
+```
+
+### SAE Update Flow
+
+SAE updates happen automatically via the UAIO intelligence chain. No manual calls are needed for AI-initiated actions. For non-AI data changes (form submissions, API imports), call:
+
+```python
+from apps.core.ai_state import update_user_state
+update_user_state(user, "health", record_id=entry.id)
+```
 
 ---
 
@@ -253,16 +297,16 @@ No prediction rules currently registered for Scripture. Future candidates:
 
 ## Domain Integration Summary
 
-| Domain | PIE Rules | PRIE Rules | UAIO Intents | SLCME Context |
-|--------|-----------|------------|--------------|---------------|
-| Health (Weight) | 3 | 1 (3 horizons) | `update_weight` | `health_entry` |
-| Body Composition | 2 | 2 (6 horizons) | — | `health_entry` |
-| Labs & Vitals | 1 | 1 | — | — |
-| Goals | 2 | 1 | `save_goal`, `complete_goal` | `goal_page` |
-| Habits | 2 | 1 | `log_habit` | `habit_page` |
-| Journal | 2 | 0 | — | `journal_page` |
-| Scripture | 1 | 0 | `save_verse` | `scripture_page` |
-| **Total** | **13** | **6** | — | — |
+| Domain | SAE State | PIE Rules | PRIE Rules | UAIO Intents | SLCME Context |
+|--------|-----------|-----------|------------|--------------|---------------|
+| Health (Weight) | `health` | 3 | 1 (3 horizons) | `update_weight` | `health_entry` |
+| Body Composition | `health` | 2 | 2 (6 horizons) | — | `health_entry` |
+| Labs & Vitals | `health` | 1 | 1 | — | — |
+| Goals | `goals` | 2 | 1 | `save_goal`, `complete_goal` | `goal_page` |
+| Habits | `habits` | 2 | 1 | `log_habit` | `habit_page` |
+| Journal | `journal` | 2 | 0 | — | `journal_page` |
+| Scripture | `faith` | 1 | 0 | `save_verse` | `scripture_page` |
+| **Total** | **5 modules** | **13** | **6** | — | — |
 
 ---
 
@@ -274,12 +318,13 @@ When adding a new domain module to WLJ:
 2. **Wire into UAIO** — Add intents to `intent_engine.py` sets (TIME_AWARE_INTENTS, CONTEXT_AWARE_INTENTS)
 3. **Add action handlers** — Implement handlers in `action_handlers.py` using `_get_recorded_at(kwargs)`
 4. **Add SLCME context type** — Map module to context type in `context_pipeline.py:MODULE_TO_CONTEXT_TYPE`
-5. **Create PIE rules** — What patterns should the system detect? Create rules with `@register`
-6. **Create PRIE rules** — What trajectories can be projected? Create rules with `@register_prediction`
-7. **Import rules** — Add imports in `run_daily_insights.py` and `run_prediction_engine.py`
-8. **Update this document** — Add the new domain section
-9. **Update `INTELLIGENCE_ARCHITECTURE.md`** — Add to rule tables
+5. **Add SAE state builder** — Create `build_<domain>_state(user)` in `state_builder.py`, register in `MODULE_BUILDERS`
+6. **Create PIE rules** — What patterns should the system detect? Create rules with `@register`
+7. **Create PRIE rules** — What trajectories can be projected? Create rules with `@register_prediction`
+8. **Import rules** — Add imports in `run_daily_insights.py` and `run_prediction_engine.py`
+9. **Update this document** — Add the new domain section
+10. **Update `INTELLIGENCE_ARCHITECTURE.md`** — Add to rule tables
 
 ---
 
-*Last updated: 2026-02-15*
+*Last updated: 2026-02-15 — SAE integrated as authoritative state layer*

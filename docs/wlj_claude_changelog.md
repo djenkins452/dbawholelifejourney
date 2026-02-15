@@ -4,10 +4,22 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-15 (SAE: State Awareness Engine)
+# Last Updated: 2026-02-15 (SAE Architecture Governance)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-02-15 — SAE Architecture Governance Integration
+
+**Documentation Update:** Formally integrated SAE into all three architecture governance documents and CLAUDE.md.
+
+- **INTELLIGENCE_ARCHITECTURE.md:** Added compliance rules #13 (State Authority) and #14 (State Currency) making SAE mandatory for all state reads
+- **DOMAIN_INTELLIGENCE_ARCHITECTURE.md:** Updated from "five" to "six" engines, added SAE integration section with domain→state mapping table, added SAE to integration pattern, updated "Adding a New Domain" checklist with SAE step
+- **ENGINE_INTEGRATION_GUIDE.md:** Updated from "five" to "six" engines, added SAE column to integration matrix, added new Integration 4 (SAE State Builder) with code examples, added prohibited patterns #8 (SAE bypass) and #9 (missing SAE update), updated feature integration checklist with SAE requirements
+
+**Files:** `docs/INTELLIGENCE_ARCHITECTURE.md`, `docs/DOMAIN_INTELLIGENCE_ARCHITECTURE.md`, `docs/ENGINE_INTEGRATION_GUIDE.md`, `docs/wlj_claude_changelog.md`
+
+---
 
 ## 2026-02-15 — SAE: State Awareness Engine
 

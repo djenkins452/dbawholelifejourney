@@ -1,6 +1,6 @@
 # Whole Life Journey — Engine Integration Guide
 
-**Purpose:** Step-by-step guide for integrating new features with the five cognitive engines. Includes code examples, prohibited patterns, and checklists.
+**Purpose:** Step-by-step guide for integrating new features with the six cognitive engines. Includes code examples, prohibited patterns, and checklists.
 
 **Prerequisite:** Read `docs/INTELLIGENCE_ARCHITECTURE.md` and `docs/DOMAIN_INTELLIGENCE_ARCHITECTURE.md` first.
 
@@ -8,13 +8,13 @@
 
 ## When Integration is Required
 
-| Change Type | UAIO | SLCME | HTIE | PIE | PRIE |
-|-------------|------|-------|------|-----|------|
-| New AI assistant action | **YES** | **YES** | If time-aware | Consider | Consider |
-| New data logging feature | — | — | — | **YES** | Consider |
-| New page/view | — | Consider | — | — | — |
-| New model with trends | — | — | — | **YES** | **YES** |
-| Bug fix / CSS tweak | — | — | — | — | — |
+| Change Type | UAIO | SLCME | HTIE | SAE | PIE | PRIE |
+|-------------|------|-------|------|-----|-----|------|
+| New AI assistant action | **YES** | **YES** | If time-aware | **YES** | Consider | Consider |
+| New data logging feature | — | — | — | **YES** | **YES** | Consider |
+| New page/view | — | Consider | — | — | — | — |
+| New model with trends | — | — | — | **YES** | **YES** | **YES** |
+| Bug fix / CSS tweak | — | — | — | — | — | — |
 
 ---
 
@@ -263,21 +263,85 @@ Test with sufficient data (≥3 points), insufficient data (returns []), correct
 
 ---
 
-## Integration 4: Firing Events from Views/Signals
+## Integration 4: Adding a SAE State Builder
 
-When data is created/updated outside the AI assistant (e.g., form submissions), fire PIE events manually:
+When a new domain stores user data that should be part of the state snapshot, add a state builder.
+
+### Step 1 — Create the Builder Function
+
+**File:** `apps/core/ai_state/state_builder.py`
 
 ```python
-from apps.core.ai_insights.insight_engine import run_insights
-from django.utils import timezone
+def build_yourmodule_state(user):
+    """Build state for your module from actual database records."""
+    from apps.yourmodule.models import YourModel
+    from apps.core.time.system_clock import get_current_time
 
-# After saving a record
+    now = get_current_time()
+    state = {}
+
+    latest = YourModel.objects.filter(user=user).order_by("-created_at").first()
+    if latest:
+        state["latest_value"] = float(latest.value)
+        state["last_entry"] = latest.created_at.isoformat()
+
+    return state
+```
+
+### Step 2 — Register in MODULE_BUILDERS
+
+**File:** `apps/core/ai_state/state_builder.py`
+
+```python
+MODULE_BUILDERS = {
+    "health": build_health_state,
+    "goals": build_goal_state,
+    # ...
+    "yourmodule": build_yourmodule_state,  # ← Add here
+}
+```
+
+### Step 3 — Call SAE After Non-AI Data Changes
+
+For data created outside the AI assistant (form submissions, API imports):
+
+```python
+from apps.core.ai_state import update_user_state
+update_user_state(user, "yourmodule", record_id=entry.id)
+```
+
+AI-initiated actions update SAE automatically via the UAIO intelligence chain.
+
+### Step 4 — Read State Instead of Querying
+
+```python
+from apps.core.ai_state import get_module_state
+
+# Instead of: YourModel.objects.filter(user=user).last()
+state = get_module_state(user, "yourmodule")
+latest_value = state.get("latest_value")
+```
+
+---
+
+## Integration 5: Firing Events from Views/Signals
+
+When data is created/updated outside the AI assistant (e.g., form submissions), update SAE and fire PIE events:
+
+```python
+from apps.core.ai_state import update_user_state
+from apps.core.ai_insights.insight_engine import run_insights
+from apps.core.time.system_clock import get_current_time
+
+# After saving a record — update state first, then fire insights
+update_user_state(user, "health", record_id=weight_entry.id)
+
 run_insights(user, {
     "event_type": "record_created",
     "module": "health",
     "action": "update_weight",
     "record_id": weight_entry.id,
-    "timestamp_utc": timezone.now().isoformat(),
+    "timestamp_utc": get_current_time().isoformat(),
 })
 # This also triggers PRIE predictions automatically
 ```
@@ -386,6 +450,36 @@ key = build_dedupe_key(user.id, "my_rule", start_iso, end_iso)
 return [{"title": "...", "confidence_score": 0.8, "dedupe_key": key}]
 ```
 
+### 8. Bypassing SAE for Current State
+
+```python
+# WRONG — reconstructing user state by querying all models
+weight = WeightEntry.objects.filter(user=user).order_by("-recorded_at").first()
+goals = LifeGoal.objects.filter(user=user, status="active").count()
+habits = HabitGoal.objects.filter(user=user, status="active").count()
+# ... building state manually
+
+# CORRECT — read from SAE
+from apps.core.ai_state import get_user_state
+state = get_user_state(user)
+weight = state.get("health", {}).get("weight_current")
+goals = state.get("goals", {}).get("active_goal_count")
+habits = state.get("habits", {}).get("active_habit_count")
+```
+
+### 9. Forgetting SAE Update After Non-AI Data Changes
+
+```python
+# WRONG — saving data without updating SAE
+weight_entry = WeightEntry.objects.create(user=user, value=180.0)
+# State is now stale!
+
+# CORRECT — update SAE after saving
+weight_entry = WeightEntry.objects.create(user=user, value=180.0)
+from apps.core.ai_state import update_user_state
+update_user_state(user, "health", record_id=weight_entry.id)
+```
+
 ---
 
 ## New Feature Integration Checklist
@@ -395,6 +489,8 @@ Before marking a feature complete, verify:
 - [ ] **Time-aware actions** use `_get_recorded_at(kwargs)` not `timezone.now()`
 - [ ] **Context-aware actions** are in `CONTEXT_AWARE_INTENTS` set
 - [ ] **Time-aware intents** are in `TIME_AWARE_INTENTS` set
+- [ ] **SAE state builder** exists for new domain (registered in `MODULE_BUILDERS`)
+- [ ] **SAE update** called after non-AI data changes (`update_user_state()`)
 - [ ] **PIE rules** created for detectable patterns (if data model has trends)
 - [ ] **PRIE rules** created for projectable metrics (if numeric over time)
 - [ ] **Rule imports** added to management commands (`run_daily_insights.py`, `run_prediction_engine.py`)
@@ -403,8 +499,8 @@ Before marking a feature complete, verify:
 - [ ] **Docs updated** — `DOMAIN_INTELLIGENCE_ARCHITECTURE.md` and `INTELLIGENCE_ARCHITECTURE.md`
 - [ ] **All insights** have `confidence_score`, `explain_why`, `evidence`, `dedupe_key`
 - [ ] **All predictions** have `confidence_score`, `explanation`, `evidence`, `dedupe_key`
-- [ ] **No prohibited patterns** in new code
+- [ ] **No prohibited patterns** in new code (including SAE bypass)
 
 ---
 
-*Last updated: 2026-02-15*
+*Last updated: 2026-02-15 — SAE integration requirements added*

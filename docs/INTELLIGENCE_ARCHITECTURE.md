@@ -620,6 +620,8 @@ HTIE and UAIO are stateless — no database models required.
 10. **Evidence always:** Every insight and prediction must carry auditable evidence
 11. **Single time source:** All intelligence pipeline code uses `get_current_time()` from HTIE, never `datetime.now()` or `timezone.now()` directly
 12. **Single execution authority:** All post-action intelligence triggers (SAE, PIE, PRIE) flow through `execution_engine.py:_run_intelligence_chain()` only
+13. **State authority:** SAE is the authoritative source of current user state. No intelligence engine may reconstruct full user state independently — use `get_user_state()` or `get_module_state()`. Direct database queries for current state summaries are prohibited when SAE state is available.
+14. **State currency:** All features that modify user data must ensure SAE is updated. AI-initiated actions update SAE automatically via the intelligence chain. Non-AI data changes must call `update_user_state()` explicitly.
 
 ---
 

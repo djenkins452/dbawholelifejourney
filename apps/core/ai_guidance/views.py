@@ -116,10 +116,12 @@ class GuidanceActionView(View):
 
         elif action == "acknowledge":
             item.acknowledge()
+            _log_gloe_event(request.user, item, "acknowledged")
             return JsonResponse({"success": True, "status": "acknowledged"})
 
         elif action == "dismiss":
             item.dismiss()
+            _log_gloe_event(request.user, item, "dismissed")
             return JsonResponse({"success": True, "status": "dismissed"})
 
         elif action == "snooze":
@@ -136,6 +138,7 @@ class GuidanceActionView(View):
         elif action == "acted":
             action_type = request.POST.get("action_type", "")
             item.mark_acted_upon(action_type=action_type or None)
+            _log_gloe_event(request.user, item, "acted")
             return JsonResponse({"success": True, "status": "acted_upon"})
 
         elif action == "feedback":
@@ -153,6 +156,15 @@ class GuidanceActionView(View):
                 {"success": False, "error": f"Unknown action: {action}"},
                 status=400,
             )
+
+
+def _log_gloe_event(user, guidance_item, event_type):
+    """Fire-and-forget GLOE learning event. Never blocks the response."""
+    try:
+        from apps.core.ai_guidance_learning.learning_logger import log_learning_event
+        log_learning_event(user, guidance_item, event_type)
+    except Exception:
+        pass  # GLOE failure must never break guidance actions
 
 
 @method_decorator(login_required, name="dispatch")

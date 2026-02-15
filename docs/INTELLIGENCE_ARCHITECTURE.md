@@ -1,6 +1,6 @@
 # Whole Life Journey — Intelligence Architecture
 
-**Purpose:** Permanent architectural authority defining the eight-engine cognitive stack that powers all AI-driven features in WLJ. Claude Code must read this document before implementing any feature that touches AI, data logging, insights, predictions, or user interactions.
+**Purpose:** Permanent architectural authority defining the ten-engine cognitive stack that powers all AI-driven features in WLJ. Claude Code must read this document before implementing any feature that touches AI, data logging, insights, predictions, or user interactions.
 
 **Status:** Active — All engines implemented and deployed.
 
@@ -42,8 +42,10 @@ The WLJ intelligence system operates in **three distinct phases**. Every engine 
 | **PIE** — Proactive Insight Engine | `apps/core/ai_insights/` | Evaluate patterns and detect factual insights |
 | **PRIE** — Predictive Intelligence Engine | `apps/core/ai_predictions/` | Project future trajectory via linear regression |
 | **PGE** — Proactive Guidance Engine | `apps/core/ai_guidance/` | Surface evidence-based proactive guidance |
+| **GLOE** — Guidance Learning Optimization Engine | `apps/core/ai_guidance_learning/` | Learn from user guidance interactions to improve PGE ranking |
+| **DBE** — Daily Briefing Engine | `apps/core/ai_briefing/` | Aggregate daily intelligence summaries from all engines |
 
-**Execution order within Phase 3:** SAE → PIE → PRIE → PGE (PGE runs scheduled/on-demand)
+**Execution order within Phase 3:** SAE → PIE → PRIE → PGE → GLOE (on interaction) → DBE (scheduled daily)
 
 **These engines do NOT execute actions. They observe and interpret system state.**
 
@@ -99,12 +101,22 @@ The WLJ intelligence system operates in **three distinct phases**. Every engine 
               ║              │     PGE      │            ║
               ║              │  Guidance    │            ║
               ║              └──────┬───────┘            ║
+              ║              ┌──────▼───────┐            ║
+              ║              │    GLOE      │            ║
+              ║              │  Learning    │◄── User    ║
+              ║              │  (on action) │   Actions  ║
+              ║              └──────┬───────┘            ║
+              ║              ┌──────▼───────┐            ║
+              ║              │     DBE      │            ║
+              ║              │  Briefing    │            ║
+              ║              │  (daily)     │            ║
+              ║              └──────┬───────┘            ║
               ╚═════════════════════╪════════════════════╝
                                     │
                           ┌─────────▼──────────┐
                           │ Guidance, Insights, │
                           │ Predictions,        │
-                          │ Response            │
+                          │ Briefings, Response │
                           └────────────────────┘
 ```
 
@@ -134,6 +146,8 @@ User Input
     → PIE (run_insights — generate factual insights, enriched with SAE state)
       → PRIE (generate_predictions — trajectory projections)
     → PGE (generate_guidance — scheduled/on-demand, reads SAE + PIE + PRIE)
+    → GLOE (update_learning_profile — triggered on guidance interactions)
+    → DBE (generate_daily_briefing — scheduled daily, reads SAE + PIE + PRIE + PGE)
   → Response Builder (enhance with temporal context)
   → Response to User
 ```
@@ -1084,6 +1098,143 @@ Action API at `/guidance/<pk>/action/` — POST with `action` = read/acknowledge
 
 ---
 
+## Engine 9: GLOE — Guidance Learning Optimization Engine
+
+**Location:** `apps/core/ai_guidance_learning/`
+**Responsibility:** Learn from user interactions with guidance items (acknowledge, dismiss, act) to compute a per-user responsiveness score that gently adjusts PGE ranking. Users who engage more with guidance get slightly boosted relevance; users who dismiss frequently get slightly reduced volume emphasis.
+
+### Public API
+
+```python
+from apps.core.ai_guidance_learning import update_learning_profile, log_learning_event
+
+# Log a lifecycle event (called automatically by GuidanceActionView)
+event = log_learning_event(user, guidance_item, "acknowledged")  # or "dismissed", "acted"
+
+# Manually trigger profile recalculation
+profile = update_learning_profile(user)
+
+# Get current responsiveness score (0.0-1.0, 0.5 = neutral)
+from apps.core.ai_guidance_learning.learning_engine import get_responsiveness_score
+score = get_responsiveness_score(user)  # Returns 0.5 for new users
+```
+
+### Scoring Formula
+
+```
+responsiveness_score = (
+    acted_rate × 0.40           # Highest weight — user takes action
+  + acknowledged_rate × 0.25    # User reads and acknowledges
+  - dismissed_rate × 0.20       # Negative — user finds guidance unhelpful
+  + response_speed × 0.15       # Faster response = more engaged
+)
+```
+
+Response speed: < 1 hour = 1.0, > 3 days = 0.0, linear interpolation between.
+
+### PGE Ranker Integration
+
+```
+final_score = base_score × (1 + (responsiveness - 0.5) × 2 × 0.25)
+```
+
+At neutral (0.5), no adjustment. Maximum ±25% influence. Priority ordering is never overridden.
+
+### Files
+
+| File | Purpose |
+|------|---------|
+| `learning_models.py` | GuidanceLearningProfile (per-user aggregate), GuidanceLearningEvent (individual events) |
+| `learning_calculator.py` | Weighted responsiveness score computation |
+| `learning_logger.py` | Log events and trigger profile updates |
+| `learning_engine.py` | Aggregate events into profile, public score API |
+| `admin.py` | Read-only admin views for both models |
+
+### Cross-Engine Dependencies
+
+| From | To | Mechanism |
+|------|----|-----------|
+| GLOE → PGE | Adjust ranking scores | `guidance_ranker.py:_get_responsiveness()` |
+| PGE → GLOE | Log lifecycle events | `views.py:_log_gloe_event()` |
+
+### Safety Requirements
+
+- GLOE failures never break guidance actions (fire-and-forget)
+- GLOE failures never break PGE ranking (returns None → no adjustment)
+- Score is clamped to [0.0, 1.0]
+- Adjustment is proportional (never overrides priority)
+
+### Tests
+
+40 tests in `apps/core/ai_guidance_learning/tests.py`
+
+---
+
+## Engine 10: DBE — Daily Briefing Engine
+
+**Location:** `apps/core/ai_briefing/`
+**Responsibility:** Aggregate intelligence from SAE, PIE, PRIE, and PGE into a single daily briefing per user. Surfaces the most important items across all engines in a prioritized summary.
+
+### Public API
+
+```python
+from apps.core.ai_briefing import generate_daily_briefing
+
+# Generate today's briefing for a user
+briefing = generate_daily_briefing(user)
+
+# Get today's briefing (read-only, no generation)
+from apps.core.ai_briefing.briefing_engine import get_todays_briefing
+briefing = get_todays_briefing(user)  # Returns None if not generated yet
+```
+
+### Pipeline
+
+```
+gather (SAE + PIE + PRIE + PGE) → select (max 5, priority-ordered) → rank → summarize → store
+```
+
+### Selection Priority
+
+1. Critical guidance items
+2. High-confidence predictions
+3. Warning/critical insights
+4. Remaining items by composite score
+
+### Files
+
+| File | Purpose |
+|------|---------|
+| `models.py` | DailyBriefing model (unique per user per day) |
+| `briefing_engine.py` | Main pipeline: gather → select → rank → summarize → store |
+| `briefing_selector.py` | Select and prioritize items (max 5) |
+| `briefing_ranker.py` | Composite score from priority, confidence, type |
+| `briefing_logger.py` | Dedup per user per day, race-condition safe |
+| `admin.py` | Read-only admin view |
+| `management/commands/generate_daily_briefings.py` | Cron command with `--user` and `--dry-run` |
+
+### Cross-Engine Dependencies
+
+| From | To | Mechanism |
+|------|----|-----------|
+| DBE → SAE | Read user state | `briefing_engine.py:_gather_state()` |
+| DBE → PIE | Read recent insights | `briefing_engine.py:_gather_insights()` |
+| DBE → PRIE | Read active predictions | `briefing_engine.py:_gather_predictions()` |
+| DBE → PGE | Read active guidance | `briefing_engine.py:_gather_guidance()` |
+
+### Safety Requirements
+
+- DBE is read-only — never creates insights, predictions, or guidance
+- One briefing per user per day (unique constraint + dedup)
+- Race-condition safe (IntegrityError → return existing)
+- All engine reads are ImportError-guarded
+
+### Tests
+
+27 tests in `apps/core/ai_briefing/tests.py`
+
+---
+
 ## Adding New Intelligence
 
 ### New Insight Rule
@@ -1114,4 +1265,4 @@ Action API at `/guidance/<pk>/action/` — POST with `action` = read/acknowledge
 
 ---
 
-*Last updated: 2026-02-15 — Three-phase intelligence execution model established*
+*Last updated: 2026-02-15 — Ten-engine cognitive stack (added GLOE + DBE)*

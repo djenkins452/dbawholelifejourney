@@ -4,10 +4,27 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-15 (Daily Briefing Engine)
+# Last Updated: 2026-02-15 (Guidance Learning Optimization Engine)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-02-15 — Phase 3B: Guidance Learning Optimization Engine (GLOE)
+
+**Feature:** Created the Guidance Learning Optimization Engine — learns from user guidance interactions to improve future PGE ranking with a per-user responsiveness score.
+
+- **Module:** `apps/core/ai_guidance_learning/` — new engine with 6 files: `__init__.py`, `learning_models.py`, `learning_calculator.py`, `learning_logger.py`, `learning_engine.py`, `admin.py`
+- **Models:** `GuidanceLearningProfile` (per-user aggregate: seen/acknowledged/dismissed/acted counts, avg response time, responsiveness score), `GuidanceLearningEvent` (individual event records with timing)
+- **Calculator:** Weighted responsiveness score: acted 40%, acknowledged 25%, dismissed -20%, response speed 15%. Score range [0.0, 1.0], neutral default 0.5
+- **Logger:** `log_learning_event(user, item, event_type)` — calculates response time from guidance creation, creates event, triggers profile recalculation
+- **Engine:** `update_learning_profile(user)` — aggregates all events via Count/Avg queries, computes composite score. `get_responsiveness_score(user)` returns 0.5 if no profile.
+- **Lifecycle Hooks:** `GuidanceActionView` fires GLOE events on acknowledge, dismiss, and acted actions (fire-and-forget, never blocks response)
+- **PGE Ranker Integration:** `rank_guidance()` now accepts optional `user` parameter. `_compute_rank_score()` applies `final_score = base_score * (1 + (responsiveness - 0.5) * 2 * 0.25)`. Maximum ±25% adjustment, never overrides priority ordering.
+- **Migration:** `0061_guidance_learning` — creates both tables
+- **Admin:** Read-only admin views for GuidanceLearningProfile and GuidanceLearningEvent
+- **Architecture:** Updated `docs/INTELLIGENCE_ARCHITECTURE.md` — ten-engine cognitive stack, added Engine 9 (GLOE) and Engine 10 (DBE) sections
+- **Tests:** 40 GLOE tests (models, calculator, logger, engine, PGE ranker integration). All 129 existing PGE tests pass unchanged.
+- **Files modified:** `apps/core/ai_guidance/guidance_ranker.py`, `apps/core/ai_guidance/guidance_engine.py`, `apps/core/ai_guidance/views.py`, `apps/core/models.py`
 
 ## 2026-02-15 — Phase 3A: Daily Briefing Engine (DBE)
 

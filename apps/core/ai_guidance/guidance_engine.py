@@ -45,8 +45,8 @@ def generate_guidance(user):
             logger.debug(f"PGE: No guidance candidates for user {user.id}")
             return []
 
-        # Step 3: Rank and limit
-        ranked = rank_guidance(candidates)
+        # Step 3: Rank and limit (GLOE responsiveness applied if available)
+        ranked = rank_guidance(candidates, user=user)
 
         # Step 4: Store with deduplication
         from apps.core.ai_guidance.guidance_logger import log_guidance

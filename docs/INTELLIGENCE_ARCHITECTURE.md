@@ -1,6 +1,6 @@
 # Whole Life Journey — Intelligence Architecture
 
-**Purpose:** Permanent architectural authority defining the ten-engine cognitive stack that powers all AI-driven features in WLJ. Claude Code must read this document before implementing any feature that touches AI, data logging, insights, predictions, or user interactions.
+**Purpose:** Permanent architectural authority defining the eleven-engine cognitive stack that powers all AI-driven features in WLJ. Claude Code must read this document before implementing any feature that touches AI, data logging, insights, predictions, or user interactions.
 
 **Status:** Active — All engines implemented and deployed.
 
@@ -44,8 +44,10 @@ The WLJ intelligence system operates in **three distinct phases**. Every engine 
 | **PGE** — Proactive Guidance Engine | `apps/core/ai_guidance/` | Surface evidence-based proactive guidance |
 | **GLOE** — Guidance Learning Optimization Engine | `apps/core/ai_guidance_learning/` | Learn from user guidance interactions to improve PGE ranking |
 | **DBE** — Daily Briefing Engine | `apps/core/ai_briefing/` | Aggregate daily intelligence summaries from all engines |
+| **ISE** — Intelligence Scheduler Engine | `apps/core/ai_scheduler/` | Centrally manage scheduled execution of all intelligence engines |
 
 **Execution order within Phase 3:** SAE → PIE → PRIE → PGE → GLOE (on interaction) → DBE (scheduled daily)
+**Scheduling:** ISE orchestrates when engines run (cron-triggered every 5 minutes)
 
 **These engines do NOT execute actions. They observe and interpret system state.**
 
@@ -110,8 +112,14 @@ The WLJ intelligence system operates in **three distinct phases**. Every engine 
               ║              │     DBE      │            ║
               ║              │  Briefing    │            ║
               ║              │  (daily)     │            ║
-              ║              └──────┬───────┘            ║
-              ╚═════════════════════╪════════════════════╝
+              ║              └──────────────┘            ║
+              ║                                          ║
+              ║    ┌────────────────────────────────┐    ║
+              ║    │           ISE                  │    ║
+              ║    │  Scheduler (cron, every 5min)  │    ║
+              ║    │  Orchestrates: DBE, PGE, GLOE  │    ║
+              ║    └────────────────────────────────┘    ║
+              ╚══════════════════════════════════════════╝
                                     │
                           ┌─────────▼──────────┐
                           │ Guidance, Insights, │
@@ -148,6 +156,7 @@ User Input
     → PGE (generate_guidance — scheduled/on-demand, reads SAE + PIE + PRIE)
     → GLOE (update_learning_profile — triggered on guidance interactions)
     → DBE (generate_daily_briefing — scheduled daily, reads SAE + PIE + PRIE + PGE)
+    → ISE (run_scheduler_cycle — cron every 5min, orchestrates DBE/PGE/GLOE)
   → Response Builder (enhance with temporal context)
   → Response to User
 ```
@@ -1235,6 +1244,77 @@ gather (SAE + PIE + PRIE + PGE) → select (max 5, priority-ordered) → rank �
 
 ---
 
+## Engine 11: ISE — Intelligence Scheduler Engine
+
+**Location:** `apps/core/ai_scheduler/`
+**Responsibility:** Centrally manage scheduled execution of all intelligence engines. ISE does NOT generate intelligence — it orchestrates when engines run. Triggered via Railway cron every 5 minutes.
+
+### Public API
+
+```python
+from apps.core.ai_scheduler import run_scheduler_cycle
+
+# Execute one scheduler cycle (checks all due tasks)
+result = run_scheduler_cycle()
+# result = {"executed": 2, "skipped": 1, "failed": 0}
+```
+
+### Management Command
+
+```bash
+# Run one scheduler cycle (Railway cron calls this every 5 minutes)
+python manage.py run_intelligence_scheduler
+
+# Dry run — show task status without executing
+python manage.py run_intelligence_scheduler --dry-run
+```
+
+### Registered Tasks
+
+| Task Name | Engine | Interval | Description |
+|-----------|--------|----------|-------------|
+| `generate_daily_briefings` | DBE | 24 hours | Daily briefings for all active users |
+| `update_learning_profiles` | GLOE | 6 hours | Recalculate responsiveness profiles |
+| `refresh_guidance` | PGE | 6 hours | Refresh guidance + expire old items |
+
+### Files
+
+| File | Purpose |
+|------|---------|
+| `scheduler_models.py` | ScheduledIntelligenceTask model (per-task state tracking) |
+| `scheduler_registry.py` | Task registry: name → function path + interval |
+| `scheduler_engine.py` | Core scheduler: check due tasks, execute, update state |
+| `scheduler_runner.py` | Task functions wrapping existing engine APIs |
+| `admin.py` | Read-only admin (allow toggling is_active) |
+
+Command: `apps/core/management/commands/run_intelligence_scheduler.py`
+
+### Auto-Seeding
+
+On first run, ISE auto-creates `ScheduledIntelligenceTask` records for all registered tasks. No manual setup required.
+
+### Cross-Engine Dependencies
+
+| From | To | Mechanism |
+|------|----|-----------|
+| ISE → DBE | Schedule daily briefings | `scheduler_runner.run_daily_briefings()` |
+| ISE → GLOE | Schedule profile updates | `scheduler_runner.run_learning_profile_updates()` |
+| ISE → PGE | Schedule guidance refresh | `scheduler_runner.run_guidance_refresh()` |
+
+### Safety Requirements
+
+- ISE never generates intelligence directly — only calls existing engine APIs
+- Each task failure is isolated (never crashes the cycle)
+- Failed tasks still advance `next_run_at` to prevent infinite retry loops
+- All engine imports are guarded against ImportError
+- Errors are logged with full context
+
+### Tests
+
+32 tests in `apps/core/ai_scheduler/tests.py`
+
+---
+
 ## Adding New Intelligence
 
 ### New Insight Rule
@@ -1265,4 +1345,4 @@ gather (SAE + PIE + PRIE + PGE) → select (max 5, priority-ordered) → rank �
 
 ---
 
-*Last updated: 2026-02-15 — Ten-engine cognitive stack (added GLOE + DBE)*
+*Last updated: 2026-02-15 — Eleven-engine cognitive stack (added GLOE + DBE + ISE)*

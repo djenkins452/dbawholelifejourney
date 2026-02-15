@@ -4,10 +4,26 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-15 (Guidance Learning Optimization Engine)
+# Last Updated: 2026-02-15 (Intelligence Scheduler Engine)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-02-15 — Phase 3C: Intelligence Scheduler Engine (ISE)
+
+**Feature:** Created the Intelligence Scheduler Engine — centrally manages scheduled execution of all intelligence engines. ISE orchestrates when engines run, enabling continuous autonomous intelligence operation.
+
+- **Module:** `apps/core/ai_scheduler/` — 5 source files: `__init__.py`, `scheduler_models.py`, `scheduler_registry.py`, `scheduler_engine.py`, `scheduler_runner.py`, `admin.py`
+- **Model:** `ScheduledIntelligenceTask` — task_name (unique), last_run_at, next_run_at, run_interval_seconds, is_active, last_status, last_error, run_count
+- **Registry:** 3 registered tasks: `generate_daily_briefings` (24h, DBE), `update_learning_profiles` (6h, GLOE), `refresh_guidance` (6h, PGE)
+- **Engine:** `run_scheduler_cycle()` — loads active tasks, executes due ones, updates state, handles errors safely. Auto-seeds task records on first run.
+- **Runners:** Thin wrappers calling existing engine APIs — no logic duplication. Each iterates active AI users.
+- **Management Command:** `python manage.py run_intelligence_scheduler` with `--dry-run` flag. Designed for Railway cron every 5 minutes.
+- **Admin:** Read-only admin with is_active toggle for monitoring scheduler health
+- **Migration:** `0062_scheduled_intelligence_task`
+- **Architecture:** Updated `docs/INTELLIGENCE_ARCHITECTURE.md` — eleven-engine cognitive stack, added Engine 11 (ISE) section
+- **Tests:** 32 tests (model, registry, engine, runners, management command)
+- **Safety:** Task failures isolated (never crash cycle), failed tasks advance next_run_at (no infinite loops), all imports ImportError-guarded
 
 ## 2026-02-15 — Phase 3B: Guidance Learning Optimization Engine (GLOE)
 

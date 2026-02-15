@@ -706,5 +706,21 @@
             "created_at": "2026-02-15T00:00:00Z",
             "updated_at": "2026-02-15T00:00:00Z"
         }
+    },
+    {
+        "model": "core.releasenote",
+        "pk": 46,
+        "fields": {
+            "title": "Intelligence Observability Dashboard",
+            "description": "Staff administrators now have access to the Intelligence Observability Dashboard, providing daily metrics snapshots on guidance effectiveness, prediction confidence, delivery performance, user engagement, system quality, and persona effectiveness. Includes 7-day trend indicators and automatic daily snapshots via the scheduler.",
+            "entry_type": "feature",
+            "version": "",
+            "release_date": "2026-02-15",
+            "is_published": true,
+            "is_major": false,
+            "learn_more_url": "",
+            "created_at": "2026-02-15T00:00:00Z",
+            "updated_at": "2026-02-15T00:00:00Z"
+        }
     }
 ]

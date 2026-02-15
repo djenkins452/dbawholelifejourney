@@ -20,6 +20,7 @@
 - ISE scheduler registration for daily automated snapshot generation
 - Management command `generate_observability_snapshots --days N` for backfilling
 - Persona effectiveness scores grouped by ai_coaching_style (action/dismiss rates)
+- 30-day backfill on first deploy via `load_initial_data.py` (with table existence check)
 
 **Files created:**
 - `apps/core/ai_observability/__init__.py`
@@ -40,6 +41,10 @@
 - `templates/intelligence/command_center.html` — added observability ICC section
 - `apps/core/ai_scheduler/scheduler_registry.py` — registered daily snapshot task
 - `apps/core/ai_scheduler/scheduler_runner.py` — added run_observability_snapshot runner
+- `apps/core/management/commands/load_initial_data.py` — added _backfill_observability_snapshots (30 days) + _reset_iocd_fixtures
+- `apps/core/fixtures/release_notes.json` — added PK 46 (IOCD)
+- `apps/help/fixtures/teaching_destinations.json` — added PK 116 (Observability Dashboard)
+- `apps/help/fixtures/help_topics.json` — added PK 93 (INTELLIGENCE_OBSERVABILITY)
 
 ## 2026-02-15 — Phase 6B: Persona Intelligence Layer (PIL)
 

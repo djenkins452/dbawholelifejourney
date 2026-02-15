@@ -617,6 +617,12 @@ class Command(BaseCommand):
         # One-time: Reset fixtures for Persona Intelligence Layer
         self._reset_pil_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset fixtures for Intelligence Observability Dashboard
+        self._reset_iocd_fixtures(DataLoadConfig, force, verbosity)
+
+        # One-time: Backfill 30 days of observability snapshots
+        self._backfill_observability_snapshots(DataLoadConfig, force, verbosity)
+
         # Only output summary if something loaded or if verbose
         if verbosity >= 1 and loaded_count > 0:
             self.stdout.write(self.style.SUCCESS(f'Initial data: loaded {loaded_count} items'))
@@ -1728,3 +1734,110 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset PIL fixtures FAILED: {e}'))
+
+    def _reset_iocd_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload fixtures for Intelligence Observability Dashboard.
+        Adds release_notes (PK 46), teaching_destinations (PK 116), help_topics (PK 93).
+        """
+        reset_tracker_name = 'reset_iocd_fixtures_2026_02_15'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            for loader_name in ('release_notes', 'teaching_destinations', 'help_topics'):
+                try:
+                    config = DataLoadConfig.objects.get(loader_name=loader_name)
+                    config.reset()
+                    if verbosity >= 1:
+                        self.stdout.write(f'  Reset {loader_name} loader for IOCD')
+                except DataLoadConfig.DoesNotExist:
+                    pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for Intelligence Observability Dashboard (Feb 2026)',
+                'command', 'One-time reset to reload release notes, teaching destinations, and help topics for IOCD'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset IOCD fixtures FAILED: {e}'))
+
+    def _backfill_observability_snapshots(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time backfill of 30 days of observability snapshots.
+
+        Generates IntelligenceMetricsSnapshot records for the last 30 days.
+        First verifies the table exists to prevent deploy failures before migration runs.
+        Each day is independently try/excepted — partial backfill is fine.
+        Only runs once (tracked via DataLoadConfig) unless force=True.
+        """
+        loader_name = 'backfill_observability_snapshots_2026_02'
+
+        if not force and self._is_loader_complete(DataLoadConfig, loader_name):
+            return
+
+        try:
+            # Verify the table exists before attempting backfill
+            from django.db import connection
+            table_names = connection.introspection.table_names()
+            if 'core_intelligencemetricssnapshot' not in table_names:
+                if verbosity >= 1:
+                    self.stdout.write(
+                        '  Skipping observability backfill: table not yet created'
+                    )
+                return
+
+            from datetime import timedelta
+            from django.utils import timezone
+            from apps.core.ai_observability.observability_engine import (
+                generate_daily_snapshot,
+            )
+
+            yesterday = timezone.now().date() - timedelta(days=1)
+            start_date = yesterday - timedelta(days=29)  # 30 days total
+            generated = 0
+            errors = 0
+
+            if verbosity >= 1:
+                self.stdout.write(
+                    f'  Backfilling observability snapshots '
+                    f'({start_date} to {yesterday})...'
+                )
+
+            current = start_date
+            while current <= yesterday:
+                try:
+                    result = generate_daily_snapshot(target_date=current)
+                    if result:
+                        generated += 1
+                except Exception as e:
+                    errors += 1
+                    if verbosity >= 2:
+                        self.stdout.write(
+                            self.style.WARNING(
+                                f'    Snapshot for {current} failed: {e}'
+                            )
+                        )
+                current += timedelta(days=1)
+
+            if verbosity >= 1:
+                self.stdout.write(self.style.SUCCESS(
+                    f'  Observability backfill: {generated} snapshots generated'
+                    f'{f", {errors} errors" if errors else ""}'
+                ))
+
+            self._mark_loader_complete(
+                DataLoadConfig, loader_name,
+                'Backfill Observability Snapshots (Feb 2026)',
+                'command',
+                f'One-time backfill of 30 days of observability snapshots ({generated} generated)'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(
+                    f'Observability backfill FAILED: {e}'
+                ))

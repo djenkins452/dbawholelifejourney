@@ -1948,5 +1948,22 @@
       "module": "ai",
       "sort_order": 10
     }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 116,
+    "fields": {
+      "destination_id": "intelligence-observability",
+      "name": "Intelligence Observability",
+      "path_description": "Intelligence - Observability",
+      "explanation": "Staff-only dashboard showing system-wide intelligence metrics: guidance effectiveness, prediction confidence, delivery performance, user engagement, quality scores, and persona effectiveness with 7-day trends.",
+      "url": "/intelligence/observability/",
+      "keywords": "observability,metrics,intelligence,admin,staff,guidance effectiveness,delivery performance,persona,trends,dashboard",
+      "module": "ai",
+      "sort_order": 116,
+      "is_active": true,
+      "created_at": "2026-02-15T00:00:00Z",
+      "updated_at": "2026-02-15T00:00:00Z"
+    }
   }
 ]

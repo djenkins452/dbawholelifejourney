@@ -558,5 +558,21 @@
             "created_at": "2026-02-15T00:00:00Z",
             "updated_at": "2026-02-15T00:00:00Z"
         }
+    },
+    {
+        "pk": 36,
+        "model": "core.releasenote",
+        "fields": {
+            "title": "Enhanced Guidance Inbox",
+            "description": "The Guidance Inbox now lets you filter by lifecycle state — view active, acknowledged, dismissed, snoozed, and acted items. Each card shows source badges, priority indicators, confidence scores for predictions, and lifecycle timestamps. Manage your guidance with inline actions directly from the inbox.",
+            "entry_type": "feature",
+            "version": "",
+            "release_date": "2026-02-15",
+            "is_published": true,
+            "is_major": false,
+            "learn_more_url": "",
+            "created_at": "2026-02-15T00:00:00Z",
+            "updated_at": "2026-02-15T00:00:00Z"
+        }
     }
 ]

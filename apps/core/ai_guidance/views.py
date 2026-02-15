@@ -24,34 +24,71 @@ logger = logging.getLogger(__name__)
 
 @method_decorator(login_required, name="dispatch")
 class GuidanceInboxView(ListView):
-    """Display active guidance items for the current user."""
+    """
+    Guidance Lifecycle Intelligence Center.
+
+    Displays all guidance items with full lifecycle filtering:
+    active, acknowledged, dismissed, snoozed, acted, all.
+    """
 
     template_name = "ai_guidance/inbox.html"
     context_object_name = "guidance_items"
-    paginate_by = 10
+    paginate_by = 20
+
+    VALID_FILTERS = {"active", "acknowledged", "dismissed", "snoozed", "acted", "all"}
 
     def get_queryset(self):
         status_filter = self.request.GET.get("filter", "active")
+        if status_filter not in self.VALID_FILTERS:
+            status_filter = "active"
 
+        now = timezone.now()
         qs = GuidanceItem.objects.filter(user=self.request.user)
 
         if status_filter == "active":
-            qs = qs.filter(is_active=True)
-        elif status_filter == "read":
-            qs = qs.filter(is_read=True)
-        elif status_filter == "all":
-            pass  # No additional filtering
-        else:
-            qs = qs.filter(is_active=True)
+            qs = qs.filter(
+                is_active=True,
+                dismissed_at__isnull=True,
+            ).exclude(snoozed_until__gt=now)
+        elif status_filter == "acknowledged":
+            qs = qs.filter(acknowledged_at__isnull=False)
+        elif status_filter == "dismissed":
+            qs = qs.filter(dismissed_at__isnull=False)
+        elif status_filter == "snoozed":
+            qs = qs.filter(snoozed_until__gt=now)
+        elif status_filter == "acted":
+            qs = qs.filter(acted_upon_at__isnull=False)
+        # "all" — no additional filtering
 
         return qs.order_by("priority", "-created_at")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["current_filter"] = self.request.GET.get("filter", "active")
-        context["active_count"] = GuidanceItem.objects.filter(
-            user=self.request.user, is_active=True
+        current_filter = self.request.GET.get("filter", "active")
+        if current_filter not in self.VALID_FILTERS:
+            current_filter = "active"
+        context["current_filter"] = current_filter
+
+        # Lifecycle counts for filter badges
+        user_qs = GuidanceItem.objects.filter(user=self.request.user)
+        now = timezone.now()
+        context["active_count"] = user_qs.filter(
+            is_active=True, dismissed_at__isnull=True,
+        ).exclude(snoozed_until__gt=now).count()
+        context["acknowledged_count"] = user_qs.filter(
+            acknowledged_at__isnull=False,
         ).count()
+        context["dismissed_count"] = user_qs.filter(
+            dismissed_at__isnull=False,
+        ).count()
+        context["snoozed_count"] = user_qs.filter(
+            snoozed_until__gt=now,
+        ).count()
+        context["acted_count"] = user_qs.filter(
+            acted_upon_at__isnull=False,
+        ).count()
+        context["total_count"] = user_qs.count()
+
         context["app_name"] = "guidance"
         context["help_context_id"] = "GUIDANCE_INBOX"
         return context

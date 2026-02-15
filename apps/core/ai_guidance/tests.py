@@ -1502,3 +1502,219 @@ class GuidanceAPILifecycleTest(PGETestMixin, TestCase):
         resp = self.client.get("/guidance/api/")
         data = resp.json()
         self.assertEqual(data["count"], 0)
+
+
+# ---------------------------------------------------------------------------
+# Enhanced Inbox Lifecycle Filter Tests
+# ---------------------------------------------------------------------------
+
+
+class GuidanceInboxFilterTest(PGETestMixin, TestCase):
+    """Tests for the enhanced inbox lifecycle filtering."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.login(email="pge_test@example.com", password="testpass123")
+        # Create items in different lifecycle states
+        self.active_item = GuidanceItem.objects.create(
+            user=self.user,
+            title="ActiveGuidance",
+            message="Active item",
+            dedupe_key="filter_active",
+            is_active=True,
+            source="sae_state",
+        )
+        self.dismissed_item = GuidanceItem.objects.create(
+            user=self.user,
+            title="DismissedGuidance",
+            message="Dismissed item",
+            dedupe_key="filter_dismissed",
+            is_active=False,
+            source="pie_insight",
+        )
+        self.dismissed_item.dismiss()
+
+        self.snoozed_item = GuidanceItem.objects.create(
+            user=self.user,
+            title="SnoozedGuidance",
+            message="Snoozed item",
+            dedupe_key="filter_snoozed",
+            is_active=True,
+            source="prie_prediction",
+            confidence_score=0.85,
+        )
+        self.snoozed_item.snooze(timezone.now() + timedelta(hours=24))
+
+        self.acted_item = GuidanceItem.objects.create(
+            user=self.user,
+            title="ActedGuidance",
+            message="Acted item",
+            dedupe_key="filter_acted",
+            is_active=True,
+            source="composite",
+        )
+        self.acted_item.mark_acted_upon(action_type="navigated")
+
+        self.acked_item = GuidanceItem.objects.create(
+            user=self.user,
+            title="AcknowledgedGuidance",
+            message="Acknowledged item",
+            dedupe_key="filter_acked",
+            is_active=True,
+            source="sae_state",
+        )
+        self.acked_item.acknowledge()
+
+    def test_active_filter_shows_only_active(self):
+        response = self.client.get("/guidance/?filter=active")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "ActiveGuidance")
+        self.assertNotContains(response, "DismissedGuidance")
+        self.assertNotContains(response, "SnoozedGuidance")
+
+    def test_dismissed_filter(self):
+        response = self.client.get("/guidance/?filter=dismissed")
+        self.assertContains(response, "DismissedGuidance")
+        self.assertNotContains(response, "ActiveGuidance")
+
+    def test_snoozed_filter(self):
+        response = self.client.get("/guidance/?filter=snoozed")
+        self.assertContains(response, "SnoozedGuidance")
+        self.assertNotContains(response, "ActiveGuidance")
+
+    def test_acted_filter(self):
+        response = self.client.get("/guidance/?filter=acted")
+        self.assertContains(response, "ActedGuidance")
+        self.assertNotContains(response, "DismissedGuidance")
+
+    def test_acknowledged_filter(self):
+        response = self.client.get("/guidance/?filter=acknowledged")
+        self.assertContains(response, "AcknowledgedGuidance")
+        self.assertNotContains(response, "DismissedGuidance")
+
+    def test_all_filter_shows_everything(self):
+        response = self.client.get("/guidance/?filter=all")
+        self.assertContains(response, "ActiveGuidance")
+        self.assertContains(response, "DismissedGuidance")
+        self.assertContains(response, "SnoozedGuidance")
+        self.assertContains(response, "ActedGuidance")
+        self.assertContains(response, "AcknowledgedGuidance")
+
+    def test_invalid_filter_defaults_to_active(self):
+        response = self.client.get("/guidance/?filter=bogus")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "ActiveGuidance")
+
+    def test_context_has_lifecycle_counts(self):
+        response = self.client.get("/guidance/?filter=all")
+        self.assertIn("active_count", response.context)
+        self.assertIn("dismissed_count", response.context)
+        self.assertIn("snoozed_count", response.context)
+        self.assertIn("acted_count", response.context)
+        self.assertIn("acknowledged_count", response.context)
+        self.assertIn("total_count", response.context)
+        self.assertGreater(response.context["total_count"], 0)
+
+    def test_filter_tabs_render(self):
+        response = self.client.get("/guidance/?filter=active")
+        self.assertContains(response, "guidance-filter-tab")
+        self.assertContains(response, "?filter=dismissed")
+        self.assertContains(response, "?filter=snoozed")
+        self.assertContains(response, "?filter=acted")
+        self.assertContains(response, "?filter=acknowledged")
+        self.assertContains(response, "?filter=all")
+
+    def test_source_badges_display(self):
+        response = self.client.get("/guidance/?filter=all")
+        self.assertContains(response, "guidance-inbox-source-sae_state")
+        self.assertContains(response, "guidance-inbox-source-pie_insight")
+        self.assertContains(response, "guidance-inbox-source-prie_prediction")
+        self.assertContains(response, "guidance-inbox-source-composite")
+
+    def test_confidence_shown_for_prediction(self):
+        response = self.client.get("/guidance/?filter=snoozed")
+        self.assertContains(response, "Confidence: 0.85")
+
+    def test_confidence_not_shown_for_state(self):
+        response = self.client.get("/guidance/?filter=active")
+        # The CSS style block contains the class name, so check for the
+        # rendered text "Confidence:" which only appears in actual card HTML
+        self.assertNotContains(response, "Confidence:")
+
+    def test_lifecycle_timestamps_display(self):
+        response = self.client.get("/guidance/?filter=all")
+        self.assertContains(response, "guidance-inbox-ts-dismissed")
+        self.assertContains(response, "guidance-inbox-ts-snoozed")
+        self.assertContains(response, "guidance-inbox-ts-acted")
+        self.assertContains(response, "guidance-inbox-ts-acknowledged")
+
+    def test_actions_available_on_active_items(self):
+        response = self.client.get("/guidance/?filter=active")
+        self.assertContains(response, "guidance-inbox-btn-dismiss")
+        self.assertContains(response, "guidance-inbox-btn-snooze")
+        self.assertContains(response, "guidance-inbox-btn-acted")
+
+    def test_actions_hidden_on_dismissed_items(self):
+        response = self.client.get("/guidance/?filter=dismissed")
+        # The CSS style block contains the class name, so check for the
+        # action buttons specifically rather than the class name
+        self.assertNotContains(response, "guidance-inbox-btn-dismiss")
+
+    def test_empty_state_per_filter(self):
+        # Create a fresh user with no items
+        fresh_user = User.objects.create_user(
+            email="fresh@example.com", password="testpass123"
+        )
+        TermsAcceptance.objects.create(
+            user=fresh_user,
+            terms_version=settings.WLJ_SETTINGS.get("TERMS_VERSION", "1.0"),
+        )
+        fresh_user.preferences.has_completed_onboarding = True
+        fresh_user.preferences.save()
+        self.client.login(email="fresh@example.com", password="testpass123")
+        response = self.client.get("/guidance/?filter=dismissed")
+        self.assertContains(response, "No dismissed items")
+
+    def test_action_from_inbox_dismiss(self):
+        """Dismiss action from inbox removes item from active filter."""
+        response = self.client.post(
+            f"/guidance/{self.active_item.pk}/action/",
+            {"action": "dismiss"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.active_item.refresh_from_db()
+        self.assertTrue(self.active_item.is_dismissed)
+
+    def test_action_from_inbox_acknowledge(self):
+        """Acknowledge action from inbox."""
+        item = GuidanceItem.objects.create(
+            user=self.user,
+            title="AckMe",
+            message="Test",
+            dedupe_key="inbox_ack_1",
+        )
+        response = self.client.post(
+            f"/guidance/{item.pk}/action/",
+            {"action": "acknowledge"},
+        )
+        self.assertEqual(response.status_code, 200)
+        item.refresh_from_db()
+        self.assertTrue(item.is_acknowledged)
+
+    def test_pagination_at_20(self):
+        """Verify pagination is set to 20 items per page."""
+        for i in range(25):
+            GuidanceItem.objects.create(
+                user=self.user,
+                title=f"Paginate {i}",
+                message="Test",
+                dedupe_key=f"paginate_{i}",
+                is_active=True,
+            )
+        response = self.client.get("/guidance/?filter=all")
+        self.assertTrue(response.context["is_paginated"])
+        self.assertEqual(len(response.context["guidance_items"]), 20)
+
+    def test_back_to_dashboard_link(self):
+        response = self.client.get("/guidance/")
+        self.assertContains(response, "Dashboard")

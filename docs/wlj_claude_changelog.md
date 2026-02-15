@@ -4,10 +4,23 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-15 (Dashboard Guidance Panel)
+# Last Updated: 2026-02-15 (Guidance Inbox Enhancement)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-02-15 — Phase 2B: Guidance Inbox Enhancement (Lifecycle Intelligence Center)
+
+**Feature:** Enhanced the guidance inbox at `/guidance/` from a basic list into a full lifecycle intelligence center with filtering, source badges, and inline actions.
+
+- **View:** `GuidanceInboxView` enhanced with 6 lifecycle filters (active, acknowledged, dismissed, snoozed, acted, all), lifecycle count context variables, pagination increased to 20
+- **Template:** `templates/ai_guidance/inbox.html` — complete rewrite from Bootstrap to WLJ design system with inline CSS using CSS custom properties. Filter tabs with count badges, priority-colored left bars, source badges, module/rule-type badges, lifecycle timestamps (color-coded), confidence display for predictions, full action buttons with optimistic UI, per-filter empty states, responsive mobile-first layout (44px touch targets)
+- **Actions:** JavaScript `guidanceInboxAction()` with fetch-based lifecycle actions (read, acknowledge, acted, snooze, dismiss), smooth card removal animation, filter count updates
+- **Fixtures:** Help topic (PK 85, context_id=GUIDANCE_INBOX), release note (PK 36)
+- **Loader:** One-time reset `_reset_pge_inbox_fixtures` in `load_initial_data.py`
+- **Tests:** 20 new tests in `GuidanceInboxFilterTest` class covering: all 6 filters, invalid filter defaults, lifecycle counts in context, filter tabs rendering, source badges, confidence display, lifecycle timestamps, actions available/hidden by state, per-filter empty states, action handlers from inbox, pagination at 20, back-to-dashboard link
+- **Files modified:** `apps/core/ai_guidance/views.py`, `templates/ai_guidance/inbox.html`, `apps/core/ai_guidance/tests.py`, `apps/help/fixtures/help_topics.json`, `apps/core/fixtures/release_notes.json`, `apps/core/management/commands/load_initial_data.py`
+- **Tests:** 149 total (129 PGE + 20 dashboard guidance panel) — all passing
 
 ## 2026-02-15 — Phase 2A: Dashboard Guidance Panel (User Intelligence Interface)
 

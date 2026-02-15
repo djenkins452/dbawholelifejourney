@@ -4,10 +4,41 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-15 (AI Intelligence Layer: HTIE + SLCME + UAIO + PIE)
+# Last Updated: 2026-02-15 (PRIE: Predictive Intelligence Engine)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-02-15 — PRIE: Predictive Intelligence Engine
+
+**Major Feature:** Trajectory projection system that forecasts likely future outcomes based on historical patterns using deterministic math (linear regression). Never hallucinated — always explainable with confidence scores.
+
+### Module: `apps/core/ai_predictions/`
+
+**Projection Math:** Pure Python linear regression with R² goodness-of-fit, rate of change descriptions, and projected value calculations. No external ML libraries required.
+
+**Confidence Engine:** Multi-factor scoring based on data volume (points count), trend consistency (R²), history-to-projection ratio, and projection distance.
+
+**5 Prediction Rules across 3 modules:**
+- **Health:** Weight projection at 30/60/90 days based on recent trend
+- **Body Comp:** Body fat % and lean mass projection at 30/60/90 days
+- **Goals:** Predicted goal completion date based on milestone velocity
+- **Habits:** Habit continuation probability (completion rate + trend analysis)
+- **Labs:** Lab marker trend direction with out-of-range projection warnings
+
+**Integration:** Wired into PIE insight engine — `run_insights()` now triggers `generate_predictions()` after insight generation. Predictions also run via `run_prediction_engine` management command.
+
+**Features:** Dedupe via SHA-256 key, supersede pattern (old predictions marked "superseded"), admin panel (read-only).
+
+**Files:** `models.py`, `projection_math.py`, `trajectory_engine.py`, `confidence_engine.py`, `prediction_engine.py`, `prediction_registry.py`, `base_prediction_rule.py`, 5 rule files, `scheduler.py`, `admin.py`, `tests.py` (32 tests)
+
+**Migration:** `0055_add_prie_prediction_model`
+
+**Modified:** `apps/core/ai_insights/insight_engine.py` (added `_trigger_predictions`), `apps/core/models.py` (added Prediction import)
+
+**Test Results:** 32 new tests + 226 combined module tests + 299 AI tests pass.
+
+---
 
 ## 2026-02-15 — AI Intelligence Layer: HTIE + SLCME + UAIO + PIE
 

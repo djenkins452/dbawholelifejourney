@@ -69,7 +69,28 @@ def run_insights(user, event):
                 exc_info=True,
             )
 
+    # Fire prediction generation after insight generation
+    _trigger_predictions(user, event)
+
     return created
+
+
+def _trigger_predictions(user, event):
+    """
+    Fire prediction generation after insight processing.
+    Failures must never break the insight pipeline.
+    """
+    try:
+        from apps.core.ai_predictions.prediction_engine import generate_predictions
+
+        module = event.get("module")
+        record_id = event.get("record_id")
+        generate_predictions(user, module=module, record_id=record_id)
+    except Exception as e:
+        logger.error(
+            f"Prediction generation failed for user {user.id}: {e}",
+            exc_info=True,
+        )
 
 
 def _upsert_insight(user, rule, insight_data):

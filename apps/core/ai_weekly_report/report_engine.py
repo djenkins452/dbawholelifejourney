@@ -70,6 +70,9 @@ def generate_weekly_report(user):
         # Step 4: Generate summary
         summary = _generate_summary(ranked, current_state, learning)
 
+        # Step 4.5: Apply persona rendering (non-blocking)
+        summary = _apply_persona(user, summary)
+
         # Step 5: Store
         report = store_weekly_report(
             user=user,
@@ -430,3 +433,19 @@ def _generate_summary(ranked_items, state, learning):
             lines.append("\nConsider reviewing your pending guidance items.")
 
     return "\n".join(lines)
+
+
+def _apply_persona(user, summary):
+    """Apply PIL persona rendering to weekly summary (non-blocking)."""
+    if not summary:
+        return summary
+    try:
+        from apps.core.ai_persona.persona_engine import render_with_persona
+
+        return render_with_persona(
+            user=user,
+            base_message=summary,
+            message_type="weekly_report",
+        )
+    except Exception:
+        return summary  # fail-safe

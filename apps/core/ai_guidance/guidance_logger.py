@@ -81,7 +81,9 @@ def _upsert_guidance(user, candidate, default_expiry):
     if existing:
         # Update existing — refresh message/priority/evidence
         existing.title = candidate.get("title", existing.title)
-        existing.message = candidate.get("message", existing.message)
+        existing.message = _apply_persona(
+            user, candidate.get("message", existing.message), candidate
+        )
         existing.priority = candidate.get("priority", existing.priority)
         existing.confidence_score = candidate.get(
             "confidence_score", existing.confidence_score
@@ -106,7 +108,7 @@ def _upsert_guidance(user, candidate, default_expiry):
     item = GuidanceItem.objects.create(
         user=user,
         title=candidate.get("title", ""),
-        message=candidate.get("message", ""),
+        message=_apply_persona(user, candidate.get("message", ""), candidate),
         priority=candidate.get("priority", 3),
         guidance_type=candidate.get("guidance_type", ""),
         source=candidate.get("source", "composite"),
@@ -126,3 +128,21 @@ def _upsert_guidance(user, candidate, default_expiry):
     )
     logger.debug(f"PGE: Created guidance {item.id} ({dedupe_key[:16]}...)")
     return item
+
+
+def _apply_persona(user, message, candidate):
+    """Apply PIL persona rendering to guidance message (non-blocking)."""
+    if not message:
+        return message
+    try:
+        from apps.core.ai_persona.persona_engine import render_with_persona
+
+        return render_with_persona(
+            user=user,
+            base_message=message,
+            message_type="guidance",
+            domain=candidate.get("module"),
+            priority=candidate.get("priority"),
+        )
+    except Exception:
+        return message  # fail-safe

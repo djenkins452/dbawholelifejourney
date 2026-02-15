@@ -68,6 +68,9 @@ def generate_daily_briefing(user):
     # Step 4: Generate summary
     summary = _generate_summary(ranked, state)
 
+    # Step 4.5: Apply persona rendering (non-blocking)
+    summary = _apply_persona(user, summary)
+
     # Step 5: Store
     briefing = store_briefing(
         user=user,
@@ -228,3 +231,19 @@ def _state_summary_parts(state):
         parts.append(f"You haven't journaled in {journal['days_since_entry']} days.")
 
     return parts
+
+
+def _apply_persona(user, summary):
+    """Apply PIL persona rendering to briefing summary (non-blocking)."""
+    if not summary:
+        return summary
+    try:
+        from apps.core.ai_persona.persona_engine import render_with_persona
+
+        return render_with_persona(
+            user=user,
+            base_message=summary,
+            message_type="briefing",
+        )
+    except Exception:
+        return summary  # fail-safe

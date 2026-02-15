@@ -4,10 +4,27 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-15 (Push Notification Delivery)
+# Last Updated: 2026-02-15 (Persona Intelligence Layer)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-02-15 — Phase 6B: Persona Intelligence Layer (PIL)
+
+**Feature:** Added adaptive coaching personas that apply user-selected coaching style voice to intelligence engine outputs (PGE guidance, DBE briefings, WIRE weekly reports).
+
+- **Module:** `apps/core/ai_persona/` — new rendering layer (NOT an intelligence engine)
+- **PersonaProfile dataclass:** `persona_profiles.py` — greeting_patterns, encouragement/warning/urgency frames, closing_patterns, flavor_expressions, adaptation settings
+- **Persona Registry:** `persona_registry.py` — 8 explicit profiles (gentle, supportive, direct, new_york, southern_belle, texas_rancher, california_chill, drill_sergeant) + generic fallback adapter for all other styles
+- **Persona Adaptation:** `persona_adaptation.py` — calculates tone intensity 0.6-1.4 from GLOE responsiveness (30%), ICQG usefulness (20%), SAE severity (20%), message priority/type (30%)
+- **Persona Renderer:** `persona_renderer.py` — pure template-based tone transformation, zero DB access, deterministic output via seeded RNG
+- **Persona Engine:** `persona_engine.py` — single public API `render_with_persona()`, fail-safe returns base_message on any error
+- **PGE Integration:** `guidance_logger.py` — persona rendering applied to guidance messages before storage (both create and update paths)
+- **DBE Integration:** `briefing_engine.py` — persona rendering applied to daily briefing summaries before storage
+- **WIRE Integration:** `report_engine.py` — persona rendering applied to weekly report summaries before storage
+- **DNE:** No change — reads already-rendered text, no double-rendering
+- **Tests:** 42 PIL tests + 263 existing engine tests passing (305 total)
+- **Docs:** Release note PK 45, fixture reset
 
 ## 2026-02-15 — Phase 6A: Push Notification Delivery (PND) via DNE
 

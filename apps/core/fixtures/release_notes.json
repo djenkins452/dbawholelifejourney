@@ -690,5 +690,21 @@
             "created_at": "2026-02-15T00:00:00Z",
             "updated_at": "2026-02-15T00:00:00Z"
         }
+    },
+    {
+        "model": "core.releasenote",
+        "pk": 45,
+        "fields": {
+            "title": "Adaptive Coaching Personas",
+            "description": "Your coaching style now intelligently adapts to your context and responsiveness. Guidance, daily briefings, and weekly reports are rendered in your chosen persona voice \u2014 with tone intensity that adjusts based on how you engage with guidance, the urgency of the message, and your current state. All 14 coaching styles are supported.",
+            "entry_type": "feature",
+            "version": "",
+            "release_date": "2026-02-15",
+            "is_published": true,
+            "is_major": true,
+            "learn_more_url": "",
+            "created_at": "2026-02-15T00:00:00Z",
+            "updated_at": "2026-02-15T00:00:00Z"
+        }
     }
 ]

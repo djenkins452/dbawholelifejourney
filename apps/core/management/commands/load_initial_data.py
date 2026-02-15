@@ -614,6 +614,9 @@ class Command(BaseCommand):
         # One-time: Reset fixtures for Push Notification Delivery
         self._reset_push_notification_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset fixtures for Persona Intelligence Layer
+        self._reset_pil_fixtures(DataLoadConfig, force, verbosity)
+
         # Only output summary if something loaded or if verbose
         if verbosity >= 1 and loaded_count > 0:
             self.stdout.write(self.style.SUCCESS(f'Initial data: loaded {loaded_count} items'))
@@ -1696,3 +1699,32 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset push notification fixtures FAILED: {e}'))
+
+    def _reset_pil_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload fixtures for Persona Intelligence Layer.
+        Adds release_notes (PK 45).
+        """
+        reset_tracker_name = 'reset_pil_fixtures_2026_02_15'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                config.reset()
+                if verbosity >= 1:
+                    self.stdout.write('  Reset release_notes loader for Persona Intelligence Layer')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for Persona Intelligence Layer (Feb 2026)',
+                'command', 'One-time reset to reload release notes for adaptive personas'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset PIL fixtures FAILED: {e}'))

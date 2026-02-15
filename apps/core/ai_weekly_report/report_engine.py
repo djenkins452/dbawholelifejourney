@@ -76,6 +76,14 @@ def generate_weekly_report(user):
             learning_snapshot=learning,
         )
 
+        # E3: Create explain record (non-blocking)
+        if report:
+            try:
+                from apps.core.ai_explain.explain_engine import ensure_explain_record
+                ensure_explain_record(user, "WIRE", report)
+            except Exception:
+                pass  # E3 failure must never block WIRE
+
         logger.info(f"WIRE: Generated weekly report for user {user.id}, week {week_start}")
         return report
 

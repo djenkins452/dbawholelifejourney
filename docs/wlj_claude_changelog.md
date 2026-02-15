@@ -4,10 +4,30 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-15 (Weekly Intelligence Report Engine)
+# Last Updated: 2026-02-15 (Evidence & Explainability Engine)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-02-15 — Phase 4B: Evidence & Explainability Engine (E3)
+
+**Feature:** Created the Evidence & Explainability Engine — attaches evidence chains and human-readable explanations to all intelligence outputs so WLJ can answer "Why are you saying this?", "What data is that based on?", and "How sure are you, and why?"
+
+- **Module:** `apps/core/ai_explain/` — 8 source files: `__init__.py`, `models.py`, `explain_engine.py`, `evidence_builder.py`, `explain_templates.py`, `explain_logger.py`, `views.py`, `urls.py`, `admin.py`
+- **Model:** `ExplainRecord` — links to source object via (source_engine, source_object_type, source_object_id), stores explanation + confidence explanation + evidence JSON
+- **Evidence builders:** Three builders for guidance (PGE), briefings (DBE), and weekly reports (WIRE) — extract data points, source references, module links
+- **Explain templates:** Template-based explanation generators (no AI call) — vary by engine type and confidence level
+- **Engine entry point:** `ensure_explain_record()` with handler dispatch and dedup; `get_explain_record()` for read-only lookup
+- **Logger:** Store records with deduplication check + IntegrityError race-condition safety
+- **Pipeline hooks (non-blocking):** Hooked into PGE (`guidance_logger.py`), DBE (`briefing_engine.py`), WIRE (`report_engine.py`) — all wrapped in `try/except: pass`
+- **On-demand creation:** `ExplainDetailView` creates records on-demand if user clicks "Why?" and no record exists
+- **UI:** "Why?" links added to guidance inbox, daily briefing tile, weekly report detail page
+- **Detail page:** `/intelligence/explain/<engine>/<type>/<id>/` — shows explanation, confidence reasoning, evidence list with icons and links
+- **Admin:** Read-only ExplainRecord admin
+- **Fixtures:** Release note PK 40, teaching destination PK 112, help topic PK 89
+- **Migration:** `0065_explain_record`
+- **Architecture:** Updated `docs/INTELLIGENCE_ARCHITECTURE.md` — thirteen-engine cognitive stack, added Engine 13 (E3) section
+- **Tests:** 37 tests (model, evidence builders, explain templates, engine dedup, logger, detail view with on-demand creation, Why? link rendering, evidence format compliance)
 
 ## 2026-02-15 — Phase 4A: Weekly Intelligence Report Engine (WIRE)
 

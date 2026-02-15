@@ -2233,3 +2233,8 @@ from apps.core.ai_scheduler.scheduler_models import (  # noqa: E402, F401
 from apps.core.ai_weekly_report.models import (  # noqa: E402, F401
     WeeklyIntelligenceReport,
 )
+
+# Import ai_explain models so Django discovers them for migrations
+from apps.core.ai_explain.models import (  # noqa: E402, F401
+    ExplainRecord,
+)

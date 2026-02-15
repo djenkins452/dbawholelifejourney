@@ -64,6 +64,7 @@ All intelligence must flow through these engines — no module may bypass them:
 | **DBE** — Daily Briefing Engine | 3 | `apps/core/ai_briefing/` | Aggregate daily intelligence summaries from all engines |
 | **ISE** — Intelligence Scheduler Engine | 3 | `apps/core/ai_scheduler/` | Centrally manage scheduled execution of all intelligence engines |
 | **WIRE** — Weekly Intelligence Report Engine | 3 | `apps/core/ai_weekly_report/` | Generate weekly longitudinal intelligence summaries |
+| **E3** — Evidence & Explainability Engine | 3 | `apps/core/ai_explain/` | Attach evidence and explanations to PGE, DBE, WIRE outputs |
 
 ### Intelligence Execution Pipeline
 

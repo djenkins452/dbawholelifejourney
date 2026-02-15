@@ -599,6 +599,9 @@ class Command(BaseCommand):
         # One-time: Reset fixtures for Weekly Intelligence Report Engine
         self._reset_wire_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset fixtures for Evidence & Explainability Engine
+        self._reset_e3_fixtures(DataLoadConfig, force, verbosity)
+
         # Only output summary if something loaded or if verbose
         if verbosity >= 1 and loaded_count > 0:
             self.stdout.write(self.style.SUCCESS(f'Initial data: loaded {loaded_count} items'))
@@ -1533,3 +1536,33 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset WIRE fixtures FAILED: {e}'))
+
+    def _reset_e3_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload fixtures for Evidence & Explainability Engine.
+        Adds release_notes (PK 40), teaching_destinations (PK 112), help_topics (PK 89).
+        """
+        reset_tracker_name = 'reset_e3_fixtures_2026_02_15'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            for loader_name in ('release_notes', 'teaching_destinations', 'help_topics'):
+                try:
+                    config = DataLoadConfig.objects.get(loader_name=loader_name)
+                    config.reset()
+                    if verbosity >= 1:
+                        self.stdout.write(f'  Reset {loader_name} loader for E3')
+                except DataLoadConfig.DoesNotExist:
+                    pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for Evidence & Explainability Engine (Feb 2026)',
+                'command', 'One-time reset to reload release notes, teaching destinations, and help topics for E3'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset E3 fixtures FAILED: {e}'))

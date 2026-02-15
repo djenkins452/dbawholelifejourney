@@ -622,5 +622,17 @@
       "created_at": "2026-02-15T00:00:00Z",
       "updated_at": "2026-02-15T00:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 40,
+    "fields": {
+      "title": "Evidence & Explainability Engine",
+      "description": "Every intelligence output now has a \"Why?\" link explaining what data drove the recommendation, with evidence links and confidence assessments. See it on guidance cards, daily briefings, and weekly reports.",
+      "version": "2026.02.15e",
+      "is_major": true,
+      "created_at": "2026-02-15T20:00:00Z",
+      "updated_at": "2026-02-15T20:00:00Z"
+    }
   }
 ]

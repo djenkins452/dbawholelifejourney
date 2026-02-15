@@ -72,6 +72,14 @@ def generate_daily_briefing(user):
         predictions=predictions,
     )
 
+    # E3: Create explain record (non-blocking)
+    if briefing:
+        try:
+            from apps.core.ai_explain.explain_engine import ensure_explain_record
+            ensure_explain_record(user, "DBE", briefing)
+        except Exception:
+            pass  # E3 failure must never block DBE
+
     return briefing
 
 

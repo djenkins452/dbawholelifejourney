@@ -1883,5 +1883,22 @@
       "created_at": "2026-02-15T00:00:00Z",
       "updated_at": "2026-02-15T00:00:00Z"
     }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 112,
+    "fields": {
+      "destination_id": "explain-detail",
+      "name": "Evidence & Explainability",
+      "path_description": "Intelligence - Why?",
+      "explanation": "See why the system generated a specific guidance item, briefing, or report. Includes evidence links and confidence explanations.",
+      "url": "/intelligence/explain/",
+      "keywords": "why, evidence, explain, explainability, confidence, trust, transparency",
+      "module": "intelligence",
+      "sort_order": 42,
+      "is_active": true,
+      "created_at": "2026-02-15T20:00:00Z",
+      "updated_at": "2026-02-15T20:00:00Z"
+    }
   }
 ]

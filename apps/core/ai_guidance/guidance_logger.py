@@ -43,6 +43,12 @@ def log_guidance(user, ranked_candidates):
             item = _upsert_guidance(user, candidate, default_expiry)
             if item:
                 stored.append(item)
+                # E3: Create explain record (non-blocking)
+                try:
+                    from apps.core.ai_explain.explain_engine import ensure_explain_record
+                    ensure_explain_record(user, "PGE", item)
+                except Exception:
+                    pass  # E3 failure must never block PGE
         except Exception as e:
             logger.error(
                 f"PGE: Failed to store guidance '{candidate.get('title', '?')}' "

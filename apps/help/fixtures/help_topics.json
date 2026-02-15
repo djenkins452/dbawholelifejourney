@@ -1400,5 +1400,17 @@
       "created_at": "2026-02-15T00:00:00Z",
       "updated_at": "2026-02-15T00:00:00Z"
     }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 89,
+    "fields": {
+      "context_id": "EXPLAIN_DETAIL",
+      "title": "Evidence & Explainability",
+      "content": "The Evidence & Explainability page shows you exactly why a piece of intelligence was generated. You will see:\n\n- **Explanation**: A human-readable description of why this was generated, including which rules and data sources were used.\n- **Confidence Assessment**: For predictive guidance, an explanation of the confidence score.\n- **Supporting Evidence**: A list of specific data points that contributed to the recommendation, with links to the source data when available.\n\nEvery guidance card, daily briefing, and weekly report has a \"Why?\" link that takes you here.",
+      "is_active": true,
+      "created_at": "2026-02-15T20:00:00Z",
+      "updated_at": "2026-02-15T20:00:00Z"
+    }
   }
 ]

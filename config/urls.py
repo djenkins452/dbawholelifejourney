@@ -115,6 +115,8 @@ urlpatterns = [
     path('guidance/', include('apps.core.ai_guidance.urls', namespace='ai_guidance')),
     # Weekly Intelligence Reports (WIRE)
     path('intelligence/weekly/', include('apps.core.ai_weekly_report.urls', namespace='ai_weekly_report')),
+    # Evidence & Explainability (E3)
+    path('intelligence/explain/', include('apps.core.ai_explain.urls', namespace='ai_explain')),
     # Referral link redirect (short URL)
     path('join', include([
         path('', lambda r: __import__('django.shortcuts', fromlist=['redirect']).redirect('billing:capture_referral') if r.GET.get('ref') else __import__('django.shortcuts', fromlist=['redirect']).redirect('account_signup')),

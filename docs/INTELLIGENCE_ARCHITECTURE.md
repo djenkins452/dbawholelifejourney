@@ -1,6 +1,6 @@
 # Whole Life Journey — Intelligence Architecture
 
-**Purpose:** Permanent architectural authority defining the twelve-engine cognitive stack that powers all AI-driven features in WLJ. Claude Code must read this document before implementing any feature that touches AI, data logging, insights, predictions, or user interactions.
+**Purpose:** Permanent architectural authority defining the thirteen-engine cognitive stack that powers all AI-driven features in WLJ. Claude Code must read this document before implementing any feature that touches AI, data logging, insights, predictions, or user interactions.
 
 **Status:** Active — All engines implemented and deployed.
 
@@ -46,9 +46,11 @@ The WLJ intelligence system operates in **three distinct phases**. Every engine 
 | **DBE** — Daily Briefing Engine | `apps/core/ai_briefing/` | Aggregate daily intelligence summaries from all engines |
 | **ISE** — Intelligence Scheduler Engine | `apps/core/ai_scheduler/` | Centrally manage scheduled execution of all intelligence engines |
 | **WIRE** — Weekly Intelligence Report Engine | `apps/core/ai_weekly_report/` | Generate weekly longitudinal intelligence summaries from all engines |
+| **E3** — Evidence & Explainability Engine | `apps/core/ai_explain/` | Attach evidence and explanations to all intelligence outputs (PGE, DBE, WIRE) |
 
-**Execution order within Phase 3:** SAE → PIE → PRIE → PGE → GLOE (on interaction) → DBE (scheduled daily) → WIRE (scheduled weekly)
+**Execution order within Phase 3:** SAE → PIE → PRIE → PGE (+E3) → GLOE (on interaction) → DBE (+E3, scheduled daily) → WIRE (+E3, scheduled weekly)
 **Scheduling:** ISE orchestrates when engines run (cron-triggered every 5 minutes)
+**Enrichment:** E3 hooks into PGE, DBE, and WIRE post-store (non-blocking)
 
 **These engines do NOT execute actions. They observe and interpret system state.**
 
@@ -121,6 +123,12 @@ The WLJ intelligence system operates in **three distinct phases**. Every engine 
               ║              └──────────────┘            ║
               ║                                          ║
               ║    ┌─────────────────────────────────┐   ║
+              ║    │           E3                    │   ║
+              ║    │  Evidence & Explainability      │   ║
+              ║    │  (hooks into PGE, DBE, WIRE)    │   ║
+              ║    └─────────────────────────────────┘   ║
+              ║                                          ║
+              ║    ┌─────────────────────────────────┐   ║
               ║    │           ISE                   │   ║
               ║    │  Scheduler (cron, every 5min)   │   ║
               ║    │  Orchestrates: DBE, PGE, GLOE,  │   ║
@@ -161,8 +169,12 @@ User Input
     → PIE (run_insights — generate factual insights, enriched with SAE state)
       → PRIE (generate_predictions — trajectory projections)
     → PGE (generate_guidance — scheduled/on-demand, reads SAE + PIE + PRIE)
+      → E3 (ensure_explain_record — evidence + explanation, non-blocking)
     → GLOE (update_learning_profile — triggered on guidance interactions)
     → DBE (generate_daily_briefing — scheduled daily, reads SAE + PIE + PRIE + PGE)
+      → E3 (ensure_explain_record — evidence + explanation, non-blocking)
+    → WIRE (generate_weekly_report — scheduled weekly)
+      → E3 (ensure_explain_record — evidence + explanation, non-blocking)
     → ISE (run_scheduler_cycle — cron every 5min, orchestrates DBE/PGE/GLOE)
   → Response Builder (enhance with temporal context)
   → Response to User
@@ -651,6 +663,9 @@ Supported data types: `weight_entries`, `body_fat_entries`, `lean_mass_entries`,
 | PGE → PIE | Read recent insights | `guidance_engine.py:_get_recent_insights()` |
 | PGE → PRIE | Read active predictions | `guidance_engine.py:_get_active_predictions()` |
 | All Engines → HTIE | System time | `system_clock.py:get_current_time()` |
+| PGE → E3 | Evidence enrichment | `guidance_logger.py` (post-store hook) |
+| DBE → E3 | Evidence enrichment | `briefing_engine.py` (post-store hook) |
+| WIRE → E3 | Evidence enrichment | `report_engine.py` (post-store hook) |
 
 ### Phase 3 — Post-Execution Intelligence Chain
 
@@ -688,6 +703,8 @@ PGE runs separately (daily scheduler or on-demand) and reads the outputs of all 
 | `core.0057` | SUE | SemanticDecisionLog |
 | `core.0058` | PGE | GuidanceItem |
 | `core.0059` | PGE | GuidanceItem lifecycle fields (acknowledged_at, dismissed_at, snoozed_until, acted_upon_at, action_type, feedback) |
+| `core.0064` | WIRE | WeeklyIntelligenceReport |
+| `core.0065` | E3 | ExplainRecord |
 
 HTIE and UAIO are stateless — no database models required.
 
@@ -1389,6 +1406,87 @@ ISE runs WIRE every 7 days (604800 seconds). Registry entry: `generate_weekly_re
 ### Tests
 
 54 tests in `apps/core/ai_weekly_report/tests.py`
+
+---
+
+## Engine 13: E3 — Evidence & Explainability Engine
+
+**Phase:** 3 — Post-Execution (enrichment layer)
+**Location:** `apps/core/ai_explain/`
+**Purpose:** Attach evidence and human-readable explanations to all intelligence outputs so WLJ can answer "Why are you saying this?", "What data is that based on?", "How sure are you, and why?"
+
+### Architecture
+
+E3 does NOT generate new intelligence — it enriches existing outputs from PGE, DBE, and WIRE with explanations and evidence chains. E3 failures must never block core intelligence generation.
+
+**Pipeline:** Source object stored → E3 hook (non-blocking) → Build evidence → Generate explanation → Store ExplainRecord
+
+| Component | File | Responsibility |
+|-----------|------|----------------|
+| Engine | `explain_engine.py` | Entry point: `ensure_explain_record()`, handler dispatch, dedup |
+| Evidence Builder | `evidence_builder.py` | Build evidence lists for guidance, briefings, weekly reports |
+| Templates | `explain_templates.py` | Template-based explanation generators (no AI call) |
+| Logger | `explain_logger.py` | Store records with dedup + IntegrityError safety |
+| Model | `models.py` | `ExplainRecord` — links to source object via engine + type + ID |
+
+### ExplainRecord Model
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| `user` | FK(User) | Owner |
+| `source_engine` | CharField(10) | PIE, PRIE, PGE, DBE, or WIRE |
+| `source_object_type` | CharField(100) | Model name (e.g., GuidanceItem) |
+| `source_object_id` | IntegerField | PK of source object |
+| `title` | CharField(255) | Short title |
+| `explanation` | TextField | Human-readable explanation |
+| `confidence_explanation` | TextField (nullable) | Why the confidence score is what it is |
+| `evidence` | JSONField | List of evidence objects |
+| `created_at` | DateTimeField | Auto-set |
+
+**Indexes:** `(user, source_engine)`, `(user, source_object_type, source_object_id)`
+
+### Evidence Format
+
+```json
+[
+  {"type": "state", "id": null, "date": "2026-02-15", "summary": "Weight trend: decreasing", "url": null},
+  {"type": "insight", "id": 42, "date": "2026-02-14", "summary": "3-day workout streak", "url": "/insights/42/"},
+  {"type": "prediction", "id": 7, "date": "2026-02-13", "summary": "Weight projected: 195 lbs in 30d", "url": null}
+]
+```
+
+### Pipeline Hooks (Non-Blocking)
+
+| Engine | Hook Location | Trigger |
+|--------|---------------|---------|
+| PGE | `guidance_logger.py:log_guidance()` | After `_upsert_guidance` creates/updates item |
+| DBE | `briefing_engine.py:generate_daily_briefing()` | After `store_briefing()` returns briefing |
+| WIRE | `report_engine.py:generate_weekly_report()` | After `store_weekly_report()` returns report |
+
+All hooks use: `try: ensure_explain_record(user, engine, obj) except Exception: pass`
+
+### Handler Mapping
+
+```python
+_HANDLERS = {
+    "GuidanceItem": {"engine": "PGE", "explain_fn": explain_guidance, "evidence_fn": build_evidence_for_guidance},
+    "DailyBriefing": {"engine": "DBE", "explain_fn": explain_briefing, "evidence_fn": build_evidence_for_briefing},
+    "WeeklyIntelligenceReport": {"engine": "WIRE", "explain_fn": explain_weekly_report, "evidence_fn": build_evidence_for_weekly_report},
+}
+```
+
+### On-Demand Creation
+
+The `ExplainDetailView` creates records on-demand if they don't exist. When a user clicks "Why?" and no record exists, the view loads the source object and creates the record in real-time.
+
+### UI
+
+- **Detail page:** `/intelligence/explain/<engine>/<type>/<id>/` — shows explanation, confidence, evidence list
+- **"Why?" links:** Added to guidance inbox, daily briefing tile, weekly report detail
+
+### Tests
+
+37 tests in `apps/core/ai_explain/tests.py`
 
 ---
 

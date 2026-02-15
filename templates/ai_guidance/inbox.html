@@ -101,6 +101,11 @@
             </span>
             {% endif %}
 
+            <!-- E3: Why? link -->
+            <a href="{% url 'ai_explain:detail' source_engine='PGE' object_type='GuidanceItem' object_id=item.id %}"
+               class="guidance-inbox-why-link"
+               title="Why am I seeing this?">🔍 Why?</a>
+
             <!-- Lifecycle timestamps -->
             <div class="guidance-inbox-timestamps">
                 <span class="guidance-inbox-timestamp">
@@ -526,6 +531,22 @@
     padding: 2px 8px;
     border-radius: var(--radius-full, 9999px);
     margin-bottom: var(--space-2);
+}
+
+/* E3: Why? link */
+.guidance-inbox-why-link {
+    display: inline-block;
+    font-size: var(--font-size-xs);
+    color: var(--color-accent);
+    text-decoration: none;
+    padding: 2px 8px;
+    border-radius: var(--radius-full, 9999px);
+    background: var(--color-accent-subtle, #e0f0ff);
+    margin-bottom: var(--space-2);
+    font-weight: 500;
+}
+.guidance-inbox-why-link:hover {
+    text-decoration: underline;
 }
 
 /* Lifecycle timestamps */

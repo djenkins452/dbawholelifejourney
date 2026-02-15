@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Why? — {{ record.title|truncatechars:50 }} — Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="e3-detail">
+    <div class="e3-detail-header">
+        <div class="e3-detail-title-row">
+            <h1 class="e3-detail-title">
+                <span class="e3-detail-icon">🔍</span>
+                Why this intelligence?
+            </h1>
+            <span class="e3-detail-engine-badge e3-engine-{{ record.source_engine|lower }}">
+                {{ record.source_engine }}
+            </span>
+        </div>
+        <p class="e3-detail-subtitle">{{ record.title }}</p>
+    </div>
+
+    <!-- Explanation -->
+    <div class="e3-section">
+        <h3 class="e3-section-title">Explanation</h3>
+        <p class="e3-explanation">{{ record.explanation }}</p>
+    </div>
+
+    <!-- Confidence -->
+    {% if record.confidence_explanation %}
+    <div class="e3-section">
+        <h3 class="e3-section-title">Confidence Assessment</h3>
+        <p class="e3-confidence">{{ record.confidence_explanation }}</p>
+    </div>
+    {% endif %}
+
+    <!-- Evidence List -->
+    {% if record.evidence %}
+    <div class="e3-section">
+        <h3 class="e3-section-title">Supporting Evidence</h3>
+        <div class="e3-evidence-list">
+            {% for item in record.evidence %}
+            <div class="e3-evidence-item">
+                <span class="e3-evidence-type e3-type-{{ item.type }}">
+                    {% if item.type == "prediction" %}📈
+                    {% elif item.type == "insight" %}💡
+                    {% elif item.type == "state_change" %}🔄
+                    {% elif item.type == "state_snapshot" %}📊
+                    {% elif item.type == "guidance_item" %}🎯
+                    {% elif item.type == "guidance_interaction" %}✅
+                    {% elif item.type == "learning_profile" %}🧠
+                    {% elif item.type == "module_link" %}📂
+                    {% else %}📎{% endif %}
+                </span>
+                <div class="e3-evidence-content">
+                    <span class="e3-evidence-summary">{{ item.summary }}</span>
+                    {% if item.date %}
+                    <span class="e3-evidence-date">{{ item.date }}</span>
+                    {% endif %}
+                </div>
+                {% if item.url %}
+                <a href="{{ item.url }}" class="e3-evidence-link" title="View source">→</a>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="e3-detail-footer">
+        <span class="e3-detail-meta">
+            Generated {{ record.created_at|timesince }} ago
+        </span>
+    </div>
+</div>
+
+<style>
+.e3-detail {
+    max-width: 700px;
+    margin: 0 auto;
+    padding: var(--space-4);
+}
+.e3-detail-header {
+    margin-bottom: var(--space-5);
+}
+.e3-detail-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+}
+.e3-detail-title {
+    font-size: var(--font-size-xl);
+    font-weight: 700;
+    color: var(--color-text);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+.e3-detail-icon { font-size: var(--font-size-2xl); }
+.e3-detail-subtitle {
+    font-size: var(--font-size-base);
+    color: var(--color-text-muted);
+    margin: 0;
+}
+.e3-detail-engine-badge {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-md);
+    background: var(--color-accent-subtle, #e0f0ff);
+    color: var(--color-accent);
+}
+.e3-section {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    margin-bottom: var(--space-4);
+}
+.e3-section-title {
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    color: var(--color-text);
+    margin: 0 0 var(--space-3);
+}
+.e3-explanation, .e3-confidence {
+    font-size: var(--font-size-sm);
+    line-height: 1.6;
+    color: var(--color-text);
+    margin: 0;
+}
+.e3-evidence-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+.e3-evidence-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-bg, #fafafa);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border-light, var(--color-border));
+}
+.e3-evidence-type {
+    font-size: var(--font-size-lg);
+    flex-shrink: 0;
+}
+.e3-evidence-content {
+    flex: 1;
+    min-width: 0;
+}
+.e3-evidence-summary {
+    display: block;
+    font-size: var(--font-size-sm);
+    color: var(--color-text);
+}
+.e3-evidence-date {
+    display: block;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    margin-top: 2px;
+}
+.e3-evidence-link {
+    font-size: var(--font-size-base);
+    color: var(--color-accent);
+    text-decoration: none;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+.e3-evidence-link:hover { text-decoration: underline; }
+.e3-detail-footer {
+    margin-top: var(--space-4);
+    text-align: center;
+}
+.e3-detail-meta {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+@media (max-width: 480px) {
+    .e3-detail { padding: var(--space-3); }
+    .e3-section { padding: var(--space-3); }
+    .e3-detail-title-row { flex-direction: column; align-items: flex-start; }
+}
+</style>
+{% endblock %}

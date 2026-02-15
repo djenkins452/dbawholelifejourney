@@ -54,8 +54,8 @@ resend>=2.4.0
 # AI Integration
 openai>=1.0.0
 
-# SMS Notifications (Twilio)
-twilio>=9.0.0
+# SMS Notifications (Twilio) — removed: no longer in use
+# twilio>=9.0.0
 
 # Bank Integration (Plaid)
 plaid-python>=23.0.0
@@ -88,4 +88,4 @@ apns2>=0.7.2
 stripe>=7.0.0
 dj-stripe>=2.8.0
 
-# Force rebuild: 2026-01-14-v3 (Clean nixpacks build, no WeasyPrint)
+# Force rebuild: 2026-02-15-v1 (Removed twilio, fixed apns2 PyJWT conflict)

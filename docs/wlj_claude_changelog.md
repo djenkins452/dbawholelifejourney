@@ -9,6 +9,18 @@
 
 # WLJ Change History
 
+## 2026-02-15 — Intelligence Architecture Documentation Suite
+
+**Created:** Three architectural authority documents defining the WLJ cognitive stack.
+
+1. **`docs/INTELLIGENCE_ARCHITECTURE.md`** — Engine inventory (HTIE, SLCME, UAIO, PIE, PRIE), full pipeline diagram, public APIs, model schemas, confidence scoring, rule contracts, cross-engine integration map, 10 compliance rules, and instructions for adding new intelligence.
+2. **`docs/DOMAIN_INTELLIGENCE_ARCHITECTURE.md`** — Per-module integration map for all 7 domains (Health, Body Comp, Labs, Goals, Habits, Journal, Scripture) showing how each domain connects to the cognitive engines.
+3. **`docs/ENGINE_INTEGRATION_GUIDE.md`** — Step-by-step integration patterns with code examples, prohibited patterns, and checklists for new features.
+
+**Files:** `docs/INTELLIGENCE_ARCHITECTURE.md`, `docs/DOMAIN_INTELLIGENCE_ARCHITECTURE.md`, `docs/ENGINE_INTEGRATION_GUIDE.md`, `docs/wlj_claude_changelog.md`
+
+---
+
 ## 2026-02-15 — Rewrite CLAUDE.md as System Bootloader
 
 **Change:** Rewrote CLAUDE.md to serve as the permanent system bootloader. Added intelligence architecture governance (boot sequence, engine table, execution pipeline, architectural authority). All existing operational content preserved. Test count updated to ~4,400. Architecture docs referenced for future creation.

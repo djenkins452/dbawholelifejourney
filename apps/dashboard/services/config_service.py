@@ -278,6 +278,17 @@ TILE_DEFINITIONS = {
         'mandatory': False,
         'default_order': 4,  # After memory_verse, before celebrations
     },
+    'weekly_report': {
+        'id': 'weekly_report',
+        'name': 'Weekly Report',
+        'description': 'Your weekly intelligence summary — state changes, insights, predictions, and guidance engagement.',
+        'icon': 'chart_bar',
+        'module_dependency': 'ai_enabled',
+        'default_visible': True,
+        'default_size': 'medium',
+        'mandatory': False,
+        'default_order': 5,  # After guidance
+    },
     'getting_started': {
         'id': 'getting_started',
         'name': 'Getting Started',

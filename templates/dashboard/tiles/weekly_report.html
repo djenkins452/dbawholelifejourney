@@ -1,0 +1,129 @@
+{% comment %}
+Dashboard Tile: Weekly Intelligence Report (WIRE)
+Shows the most recent weekly intelligence summary.
+Server-side rendered. Read-only with link to history.
+{% endcomment %}
+
+{% if ai_enabled %}
+<section class="weekly-report-section tile-size-{{ tile.size|default:'medium' }}"
+         data-tile-id="weekly_report"
+         id="weekly-report-tile">
+    <div class="weekly-report-header">
+        <h3 class="weekly-report-title">
+            <span class="weekly-report-title-icon">📊</span>
+            Weekly Intelligence Report
+        </h3>
+        {% if weekly_report %}
+            <span class="weekly-report-date">
+                {{ weekly_report.week_start_date|date:"M j" }} — {{ weekly_report.week_end_date|date:"M j" }}
+            </span>
+        {% endif %}
+    </div>
+
+    <div class="weekly-report-content">
+        {% if weekly_report %}
+            <p class="weekly-report-summary">{{ weekly_report.summary|linebreaksbr }}</p>
+            <div class="weekly-report-footer">
+                <span class="weekly-report-timestamp">
+                    Generated {{ weekly_report.created_at|timesince }} ago
+                </span>
+                <a href="{% url 'ai_weekly_report:history' %}" class="weekly-report-history-link">
+                    View all reports →
+                </a>
+            </div>
+        {% else %}
+            <div class="weekly-report-empty">
+                <span class="weekly-report-empty-icon">📈</span>
+                <p>Your first weekly report will appear after 7 days of activity.</p>
+            </div>
+        {% endif %}
+    </div>
+</section>
+
+<style>
+.weekly-report-section {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+}
+.weekly-report-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-3);
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+.weekly-report-title {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--color-text);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+.weekly-report-title-icon {
+    font-size: var(--font-size-xl);
+}
+.weekly-report-date {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    background: var(--color-bg, #f5f5f5);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-md);
+}
+.weekly-report-summary {
+    font-size: var(--font-size-sm);
+    color: var(--color-text);
+    line-height: 1.6;
+    white-space: pre-line;
+    margin: 0 0 var(--space-3);
+}
+.weekly-report-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+.weekly-report-timestamp {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+.weekly-report-history-link {
+    font-size: var(--font-size-sm);
+    color: var(--color-accent);
+    text-decoration: none;
+    font-weight: 500;
+}
+.weekly-report-history-link:hover {
+    text-decoration: underline;
+}
+.weekly-report-empty {
+    text-align: center;
+    padding: var(--space-4) 0;
+}
+.weekly-report-empty-icon {
+    font-size: var(--font-size-2xl);
+    display: block;
+    margin-bottom: var(--space-2);
+}
+.weekly-report-empty p {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    margin: 0;
+}
+
+@media (max-width: 480px) {
+    .weekly-report-section {
+        padding: var(--space-3);
+    }
+    .weekly-report-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+</style>
+{% endif %}

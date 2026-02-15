@@ -27,6 +27,11 @@ SCHEDULED_TASKS = {
         "interval_seconds": 21600,  # 6 hours
         "description": "Refresh proactive guidance for all active users (PGE).",
     },
+    "generate_weekly_reports": {
+        "function_path": "apps.core.ai_scheduler.scheduler_runner.run_weekly_reports",
+        "interval_seconds": 604800,  # 7 days
+        "description": "Generate weekly intelligence reports for all active users (WIRE).",
+    },
 }
 
 

@@ -1,6 +1,6 @@
 # Whole Life Journey — Intelligence Architecture
 
-**Purpose:** Permanent architectural authority defining the eleven-engine cognitive stack that powers all AI-driven features in WLJ. Claude Code must read this document before implementing any feature that touches AI, data logging, insights, predictions, or user interactions.
+**Purpose:** Permanent architectural authority defining the twelve-engine cognitive stack that powers all AI-driven features in WLJ. Claude Code must read this document before implementing any feature that touches AI, data logging, insights, predictions, or user interactions.
 
 **Status:** Active — All engines implemented and deployed.
 
@@ -45,8 +45,9 @@ The WLJ intelligence system operates in **three distinct phases**. Every engine 
 | **GLOE** — Guidance Learning Optimization Engine | `apps/core/ai_guidance_learning/` | Learn from user guidance interactions to improve PGE ranking |
 | **DBE** — Daily Briefing Engine | `apps/core/ai_briefing/` | Aggregate daily intelligence summaries from all engines |
 | **ISE** — Intelligence Scheduler Engine | `apps/core/ai_scheduler/` | Centrally manage scheduled execution of all intelligence engines |
+| **WIRE** — Weekly Intelligence Report Engine | `apps/core/ai_weekly_report/` | Generate weekly longitudinal intelligence summaries from all engines |
 
-**Execution order within Phase 3:** SAE → PIE → PRIE → PGE → GLOE (on interaction) → DBE (scheduled daily)
+**Execution order within Phase 3:** SAE → PIE → PRIE → PGE → GLOE (on interaction) → DBE (scheduled daily) → WIRE (scheduled weekly)
 **Scheduling:** ISE orchestrates when engines run (cron-triggered every 5 minutes)
 
 **These engines do NOT execute actions. They observe and interpret system state.**
@@ -112,19 +113,25 @@ The WLJ intelligence system operates in **three distinct phases**. Every engine 
               ║              │     DBE      │            ║
               ║              │  Briefing    │            ║
               ║              │  (daily)     │            ║
+              ║              └──────┬───────┘            ║
+              ║              ┌──────▼───────┐            ║
+              ║              │    WIRE      │            ║
+              ║              │  Weekly      │            ║
+              ║              │  Report      │            ║
               ║              └──────────────┘            ║
               ║                                          ║
-              ║    ┌────────────────────────────────┐    ║
-              ║    │           ISE                  │    ║
-              ║    │  Scheduler (cron, every 5min)  │    ║
-              ║    │  Orchestrates: DBE, PGE, GLOE  │    ║
-              ║    └────────────────────────────────┘    ║
+              ║    ┌─────────────────────────────────┐   ║
+              ║    │           ISE                   │   ║
+              ║    │  Scheduler (cron, every 5min)   │   ║
+              ║    │  Orchestrates: DBE, PGE, GLOE,  │   ║
+              ║    │               WIRE              │   ║
+              ║    └─────────────────────────────────┘   ║
               ╚══════════════════════════════════════════╝
                                     │
                           ┌─────────▼──────────┐
                           │ Guidance, Insights, │
-                          │ Predictions,        │
-                          │ Briefings, Response │
+                          │ Predictions, Weekly │
+                          │ Reports, Briefings  │
                           └────────────────────┘
 ```
 
@@ -1300,6 +1307,7 @@ On first run, ISE auto-creates `ScheduledIntelligenceTask` records for all regis
 | ISE → DBE | Schedule daily briefings | `scheduler_runner.run_daily_briefings()` |
 | ISE → GLOE | Schedule profile updates | `scheduler_runner.run_learning_profile_updates()` |
 | ISE → PGE | Schedule guidance refresh | `scheduler_runner.run_guidance_refresh()` |
+| ISE → WIRE | Schedule weekly reports | `scheduler_runner.run_weekly_reports()` |
 
 ### Safety Requirements
 
@@ -1312,6 +1320,75 @@ On first run, ISE auto-creates `ScheduledIntelligenceTask` records for all regis
 ### Tests
 
 32 tests in `apps/core/ai_scheduler/tests.py`
+
+---
+
+## Engine 12: WIRE — Weekly Intelligence Report Engine
+
+**Phase:** 3 — Post-Execution
+**Location:** `apps/core/ai_weekly_report/`
+**Purpose:** Generate weekly longitudinal intelligence summaries aggregating SAE, PIE, PRIE, PGE, and GLOE data.
+
+### Architecture
+
+WIRE produces one report per user per week (Monday-Sunday). It reads from all Phase 3 engines but never executes actions.
+
+**Pipeline:** Gather → Compute Deltas → Select → Rank → Summarize → Store
+
+| Component | File | Responsibility |
+|-----------|------|----------------|
+| Engine | `report_engine.py` | Main pipeline: gather data, orchestrate processing, generate summary |
+| Selector | `report_selector.py` | Priority-based item selection (critical predictions → insights → state changes → guidance) |
+| Ranker | `report_ranker.py` | Score items by priority, confidence, and type bonus |
+| Logger | `report_logger.py` | Store reports with deduplication and race-condition safety |
+| Model | `models.py` | `WeeklyIntelligenceReport` — unique per (user, week_start_date) |
+
+### Data Sources
+
+| Source Engine | Data Gathered | Method |
+|---------------|---------------|--------|
+| SAE | Current user state + deltas | `get_user_state()` |
+| PIE | Week's insights (severity, confidence) | Query `Insight` model |
+| PRIE | Week's predictions (confidence, status) | Query `Prediction` model |
+| PGE | Week's guidance (acknowledged, acted, dismissed) | Query `GuidanceItem` model |
+| GLOE | Learning profile snapshot | Query `GuidanceLearningProfile` model |
+
+### Selection Priority
+
+1. Critical predictions (confidence ≥ 0.8) — priority 1
+2. Critical insights — priority 2
+3. Warning insights — priority 3
+4. Significant state changes — priority 3
+5. Guidance acted items — priority 4
+6. Remaining predictions/insights — priority 5
+
+Maximum 10 items per report.
+
+### Ranking Score
+
+- Priority: `(6 - priority) × 10` → 10–50 points
+- Confidence: `confidence × 8` → 0–8 points
+- Type bonus: prediction=5, insight=3, state_change=2, guidance=1
+
+### Summary Generation
+
+Template-based (no AI call). Groups items by type and includes learning engagement assessment:
+- High responsiveness (≥ 0.7): "highly engaged" message
+- Low responsiveness (≤ 0.3): "review guidance" suggestion
+
+### Scheduling
+
+ISE runs WIRE every 7 days (604800 seconds). Registry entry: `generate_weekly_reports`.
+
+### UI
+
+- **Dashboard tile:** `templates/dashboard/tiles/weekly_report.html` — shows latest summary with date range
+- **History page:** `/intelligence/weekly/` — paginated list of past reports
+- **Detail page:** `/intelligence/weekly/<pk>/` — full report with learning engagement stats
+
+### Tests
+
+54 tests in `apps/core/ai_weekly_report/tests.py`
 
 ---
 
@@ -1345,4 +1422,4 @@ On first run, ISE auto-creates `ScheduledIntelligenceTask` records for all regis
 
 ---
 
-*Last updated: 2026-02-15 — Eleven-engine cognitive stack (added GLOE + DBE + ISE)*
+*Last updated: 2026-02-15 — Twelve-engine cognitive stack (added GLOE + DBE + ISE + WIRE)*

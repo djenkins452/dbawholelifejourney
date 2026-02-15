@@ -60,6 +60,10 @@ All intelligence must flow through these engines — no module may bypass them:
 | **PIE** — Proactive Insight Engine | 3 | `apps/core/ai_insights/` | Event-driven + scheduled factual insights |
 | **PRIE** — Predictive Intelligence Engine | 3 | `apps/core/ai_predictions/` | Trajectory projection using linear regression |
 | **PGE** — Proactive Guidance Engine | 3 | `apps/core/ai_guidance/` | Surface evidence-based guidance from state/insights/predictions |
+| **GLOE** — Guidance Learning Optimization Engine | 3 | `apps/core/ai_guidance_learning/` | Learn from user guidance interactions to improve PGE ranking |
+| **DBE** — Daily Briefing Engine | 3 | `apps/core/ai_briefing/` | Aggregate daily intelligence summaries from all engines |
+| **ISE** — Intelligence Scheduler Engine | 3 | `apps/core/ai_scheduler/` | Centrally manage scheduled execution of all intelligence engines |
+| **WIRE** — Weekly Intelligence Report Engine | 3 | `apps/core/ai_weekly_report/` | Generate weekly longitudinal intelligence summaries |
 
 ### Intelligence Execution Pipeline
 
@@ -76,6 +80,10 @@ User Input
     → PIE (Insight Generation)
     → PRIE (Prediction Generation)
     → PGE (Guidance Generation — scheduled/on-demand)
+    → GLOE (Learning Optimization — on user interaction)
+    → DBE (Daily Briefing — scheduled daily)
+    → WIRE (Weekly Report — scheduled weekly)
+    → ISE (Scheduler — orchestrates all scheduled engines)
   → Response
 ```
 

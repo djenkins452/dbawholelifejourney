@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Weekly Report {{ report.week_start_date|date:"M j" }} — {{ report.week_end_date|date:"M j" }} - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="wire-detail">
+    <div class="wire-detail-header">
+        <div class="wire-detail-title-row">
+            <h1 class="wire-detail-title">
+                <span class="wire-detail-icon">📊</span>
+                Weekly Report
+            </h1>
+            <a href="{% url 'ai_weekly_report:history' %}" class="wire-detail-back-link">← All Reports</a>
+        </div>
+        <div class="wire-detail-meta">
+            <span class="wire-detail-dates">
+                {{ report.week_start_date|date:"M j" }} — {{ report.week_end_date|date:"M j, Y" }}
+            </span>
+            <span class="wire-detail-generated">
+                Generated {{ report.created_at|timesince }} ago
+            </span>
+        </div>
+    </div>
+
+    <div class="wire-detail-content">
+        <div class="wire-detail-summary">
+            {{ report.summary|linebreaksbr }}
+        </div>
+    </div>
+
+    {% if report.learning_snapshot.responsiveness_score is not None %}
+        <div class="wire-detail-section">
+            <h3>Guidance Engagement</h3>
+            <div class="wire-detail-stats">
+                {% with ls=report.learning_snapshot %}
+                    <div class="wire-stat">
+                        <span class="wire-stat-value">{{ ls.total_guidance_seen|default:"0" }}</span>
+                        <span class="wire-stat-label">Seen</span>
+                    </div>
+                    <div class="wire-stat">
+                        <span class="wire-stat-value">{{ ls.total_acted|default:"0" }}</span>
+                        <span class="wire-stat-label">Acted</span>
+                    </div>
+                    <div class="wire-stat">
+                        <span class="wire-stat-value">{{ ls.total_acknowledged|default:"0" }}</span>
+                        <span class="wire-stat-label">Acknowledged</span>
+                    </div>
+                    <div class="wire-stat">
+                        <span class="wire-stat-value">{{ ls.total_dismissed|default:"0" }}</span>
+                        <span class="wire-stat-label">Dismissed</span>
+                    </div>
+                {% endwith %}
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+<style>
+.wire-detail {
+    max-width: 700px;
+    margin: 0 auto;
+    padding: var(--space-4);
+}
+.wire-detail-header {
+    margin-bottom: var(--space-6);
+}
+.wire-detail-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+}
+.wire-detail-title {
+    font-size: var(--font-size-xl);
+    font-weight: 700;
+    color: var(--color-text);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+.wire-detail-icon { font-size: var(--font-size-2xl); }
+.wire-detail-back-link {
+    font-size: var(--font-size-sm);
+    color: var(--color-accent);
+    text-decoration: none;
+}
+.wire-detail-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+}
+.wire-detail-dates {
+    font-weight: 600;
+    color: var(--color-text);
+}
+.wire-detail-generated {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+.wire-detail-content {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    margin-bottom: var(--space-4);
+}
+.wire-detail-summary {
+    font-size: var(--font-size-sm);
+    line-height: 1.7;
+    color: var(--color-text);
+    white-space: pre-line;
+}
+.wire-detail-section {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    margin-bottom: var(--space-4);
+}
+.wire-detail-section h3 {
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    color: var(--color-text);
+    margin: 0 0 var(--space-3);
+}
+.wire-detail-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--space-3);
+}
+.wire-stat {
+    text-align: center;
+}
+.wire-stat-value {
+    display: block;
+    font-size: var(--font-size-xl);
+    font-weight: 700;
+    color: var(--color-accent);
+}
+.wire-stat-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+@media (max-width: 480px) {
+    .wire-detail { padding: var(--space-3); }
+    .wire-detail-content { padding: var(--space-3); }
+    .wire-detail-title-row { flex-direction: column; align-items: flex-start; }
+    .wire-detail-stats { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+{% endblock %}

@@ -129,3 +129,35 @@ def run_guidance_refresh():
         f"expired={expired}, errors={errors}"
     )
     return {"refreshed": refreshed, "expired": expired or 0, "errors": errors}
+
+
+def run_weekly_reports():
+    """
+    Generate weekly intelligence reports for all active AI users.
+
+    Calls WIRE generate_weekly_report() for each user.
+
+    Returns:
+        dict — {generated: int, errors: int}
+    """
+    try:
+        from apps.core.ai_weekly_report.report_engine import generate_weekly_report
+    except ImportError:
+        logger.error("ISE: WIRE not available (import failed)")
+        return {"generated": 0, "errors": 0}
+
+    users = _get_active_ai_users()
+    generated = 0
+    errors = 0
+
+    for user in users:
+        try:
+            result = generate_weekly_report(user)
+            if result:
+                generated += 1
+        except Exception as e:
+            errors += 1
+            logger.error(f"ISE: WIRE failed for user {user.id}: {e}")
+
+    logger.info(f"ISE: Weekly reports — generated={generated}, errors={errors}")
+    return {"generated": generated, "errors": errors}

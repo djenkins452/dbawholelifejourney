@@ -1,610 +1,626 @@
 [
-    {
-        "model": "core.releasenote",
-        "pk": 33,
-        "fields": {
-            "title": "AI Insights Inbox",
-            "description": "Your AI assistant now proactively generates insights about your health, goals, habits, scripture reading, and journaling patterns. Get notified about weight trends, approaching deadlines, broken habit streaks, and more. View all insights in your new Insights Inbox, where you can filter by status and mark them as read or dismissed.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-15",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-15T00:00:00Z",
-            "updated_at": "2026-02-15T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 34,
-        "fields": {
-            "title": "Smarter AI: Time Understanding & Memory",
-            "description": "The AI assistant now understands natural language time expressions like '3 days ago', 'next Friday at 2pm', and 'last month on the 15th'. It also learns from your clarifications — the more you use it, the better it understands your preferences.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-15",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-15T00:00:00Z",
-            "updated_at": "2026-02-15T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 30,
-        "fields": {
-            "title": "Goal Engine: Measurement-Driven Habits",
-            "description": "Habit goals now support four measurement types: Binary (daily check-off), Duration (timed sessions with built-in timer), Count (track repetitions), and Target (hit numeric goals). Each type gets its own logging UI, progress tracking, and analytics. Existing habits continue working unchanged. Find them under Goals > Habits.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-14",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-14T00:00:00Z",
-            "updated_at": "2026-02-14T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 29,
-        "fields": {
-            "title": "Habit Streaks & Smart Insights",
-            "description": "Track your habit streaks with daily, weekly, or monthly frequency. Get smart insights when you hit milestones (7, 30, 90 days), when completion rates are unusually high or low, and when day-of-week patterns emerge. Insights can be applied or dismissed. View your streak on the habit detail page and dashboard tile.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-14",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-14T00:00:00Z",
-            "updated_at": "2026-02-14T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 28,
-        "fields": {
-            "title": "Clickable Habit Calendar & Undo",
-            "description": "Click any day on your habit's progress matrix or calendar to instantly log it. Use Shift+Click for date ranges and Ctrl/Cmd+Click for multi-select. Every action shows an undo toast with an 8-second countdown so you can reverse mistakes instantly.",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2026-02-14",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-14T00:00:00Z",
-            "updated_at": "2026-02-14T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 27,
-        "fields": {
-            "title": "Labs & Vitals",
-            "description": "Upload lab result PDFs and get automatic parsing of blood work panels. View results with color-coded flags (normal, high, low), track trends over time with charts, and learn what each test measures with built-in education content. Find it under Health > Labs & Vitals.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-13",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-13T00:00:00Z",
-            "updated_at": "2026-02-13T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 26,
-        "fields": {
-            "title": "Lab Test Education",
-            "description": "Tap the info icon next to any lab test to learn what it measures, what high or low values may indicate, and what factors can influence results. Education content available for all 57 standard lab tests. Includes required medical disclaimers.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-13",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-13T00:00:00Z",
-            "updated_at": "2026-02-13T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 25,
-        "fields": {
-            "title": "Quick Links",
-            "description": "Save your frequently used external links (patient portal, bank login, etc.) and access them from the profile dropdown menu. Add up to 10 links in Preferences > Quick Links. Links open in a new tab.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-11",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-11T00:00:00Z",
-            "updated_at": "2026-02-11T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 24,
-        "fields": {
-            "title": "Smarter AI Assistant",
-            "description": "The AI assistant now threads conversations naturally, remembers what you discussed earlier in the chat, and gives data-driven answers instead of generic advice. It can read your recent journal entries to answer date-specific questions like 'how was I feeling last Tuesday?'",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2026-02-11",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-11T00:00:00Z",
-            "updated_at": "2026-02-11T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 23,
-        "fields": {
-            "title": "Scroll Position Preserved",
-            "description": "Pages with repeated actions (medicine doses, task checkboxes, prayer answers, water logging) no longer jump to the top after each action. Your scroll position is saved and restored automatically.",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2026-02-11",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-11T00:00:00Z",
-            "updated_at": "2026-02-11T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 22,
-        "fields": {
-            "title": "New Character Study: Daniel",
-            "description": "Explore Daniel: Faith in Exile - a 12-day journey through the Book of Daniel. Study Daniel's faithfulness in Babylon, the fiery furnace, the lions' den, and prophetic visions. Available in Beginner, Intermediate, and Advanced levels. Find it under Faith > Reading Plans.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-01-21",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-01-21T00:00:00Z",
-            "updated_at": "2026-01-21T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 21,
-        "fields": {
-            "title": "Recurring Transactions",
-            "description": "Track subscriptions, bills, and regular income automatically. Set up recurring transactions with flexible frequencies (daily to yearly), auto-post or reminder-only modes, and view upcoming bills on your finance dashboard. Find it under Finance > Recurring.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-01-20",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-01-20T00:00:00Z",
-            "updated_at": "2026-01-20T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 20,
-        "fields": {
-            "title": "Sleep Tracking",
-            "description": "Track your sleep with detailed logging or quick entry. Log bedtime, wake time, quality rating, and sleep stages. View your sleep history with charts and averages. Designed for future wearable sync with Apple Health, Fitbit, and more. Find it under Health > Sleep.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-01-20",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-01-20T00:00:00Z",
-            "updated_at": "2026-01-20T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 19,
-        "fields": {
-            "title": "Dashboard Weather Widget",
-            "description": "Your dashboard now shows current weather conditions and a 3-day forecast. Get prominent alerts for extreme heat, cold, high winds, or severe weather. Set your location in Preferences to enable this feature.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-01-19",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-01-19T00:00:00Z",
-            "updated_at": "2026-01-19T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 18,
-        "fields": {
-            "title": "Inline Scripture in Reading Plans",
-            "description": "Scripture references in reading plans now expand inline when clicked. Read verses without leaving your current page. Click again to collapse. Uses your preferred Bible translation from settings.",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2026-01-19",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-01-19T00:00:00Z",
-            "updated_at": "2026-01-19T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 17,
-        "fields": {
-            "title": "Menstrual Cycle Tracking",
-            "description": "Comprehensive cycle tracking with daily logging for flow, symptoms, mood, and energy. AI-powered predictions for your next period and fertile window. View cycle statistics, trends, and phase information. Auto-enabled for female users during onboarding.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-01-15",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-01-15T00:00:00Z",
-            "updated_at": "2026-01-15T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 16,
-        "fields": {
-            "title": "Dexcom CGM Integration",
-            "description": "Connect your Dexcom CGM account to automatically sync blood glucose readings. View current glucose with trend arrows, time-in-range stats, 24-hour charts, and automatic background syncing.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-01-01",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-01-01T00:00:00Z",
-            "updated_at": "2026-01-01T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 15,
-        "fields": {
-            "title": "Barcode Scanner for Food",
-            "description": "Scan food product barcodes with your phone camera for instant nutrition info. Lookup uses local database first, then AI for unknown products. Pre-fills your food entry form with all nutritional data.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2025-12-31",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2025-12-31T00:00:00Z",
-            "updated_at": "2025-12-31T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 1,
-        "fields": {
-            "title": "AI Camera Scanning",
-            "description": "Point your phone at food, medicine, documents, or workout equipment and let AI identify it and suggest actions. Supports 8 categories with smart routing to the right module.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2025-12-28",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2025-12-28T00:00:00Z",
-            "updated_at": "2025-12-28T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 2,
-        "fields": {
-            "title": "Medicine Tracking",
-            "description": "Comprehensive medicine management with daily tracker, schedules, adherence stats, refill alerts, and PRN support. One-tap check-off for doses.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2025-12-28",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2025-12-28T00:00:00Z",
-            "updated_at": "2025-12-28T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 3,
-        "fields": {
-            "title": "Nutrition & Food Tracking",
-            "description": "Log meals with macro tracking, daily summaries, and nutrition goals. Includes custom foods, meal type categorization, and eating context tracking.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2025-12-28",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2025-12-28T00:00:00Z",
-            "updated_at": "2025-12-28T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 4,
-        "fields": {
-            "title": "Enhanced Dashboard",
-            "description": "Dashboard now shows Today's Medicine Schedule with status badges, Recent Workouts with PR highlights, and Quick Stats for medicine doses and workout counts.",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2025-12-28",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2025-12-28T00:00:00Z",
-            "updated_at": "2025-12-28T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 5,
-        "fields": {
-            "title": "AI Camera Source Tracking",
-            "description": "Entries created via AI Camera now show a camera badge on detail pages. Track which entries came from AI-powered scanning.",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2025-12-28",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2025-12-28T00:00:00Z",
-            "updated_at": "2025-12-28T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 6,
-        "fields": {
-            "title": "Security Improvements",
-            "description": "Enhanced security with rate limiting, secure admin URL, improved cookie settings, and server-side API key handling for Bible lookups.",
-            "entry_type": "security",
-            "version": "",
-            "release_date": "2025-12-28",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2025-12-28T00:00:00Z",
-            "updated_at": "2025-12-28T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 7,
-        "fields": {
-            "title": "Onboarding Wizard",
-            "description": "New users are guided through a friendly 6-step wizard to personalize their experience - choose theme, enable modules, configure AI coaching, and set location.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2025-12-20",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2025-12-20T00:00:00Z",
-            "updated_at": "2025-12-20T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 8,
-        "fields": {
-            "title": "Scripture Library",
-            "description": "Save, edit, and organize your favorite Scripture verses in a personal library. Add themes and personal notes to each verse.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2025-12-18",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2025-12-18T00:00:00Z",
-            "updated_at": "2025-12-18T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 9,
-        "fields": {
-            "title": "AI Coaching Styles",
-            "description": "Choose how the AI communicates with you. Pick from 7 styles including Supportive Partner, Direct Coach, Gentle Guide, and more.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2025-12-15",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2025-12-15T00:00:00Z",
-            "updated_at": "2025-12-15T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 10,
-        "fields": {
-            "title": "Task Undo",
-            "description": "Accidentally marked a task complete? Now you can easily undo with a single click using the new Undo link.",
-            "entry_type": "enhancement",
-            "version": "",
-            "release_date": "2025-12-12",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2025-12-12T00:00:00Z",
-            "updated_at": "2025-12-12T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 11,
-        "fields": {
-            "title": "Fitness Tracking",
-            "description": "Track workouts, log exercises, and monitor your fitness journey with comprehensive workout logging.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2025-12-10",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2025-12-10T00:00:00Z",
-            "updated_at": "2025-12-10T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 12,
-        "fields": {
-            "title": "Journal Prompts",
-            "description": "20 curated writing prompts across 8 categories to inspire your daily reflections. Get a random prompt with one click.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2025-12-08",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2025-12-08T00:00:00Z",
-            "updated_at": "2025-12-08T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 13,
-        "fields": {
-            "title": "Life Module",
-            "description": "Manage your whole life with Projects, Tasks, Calendar, Inventory, Pets, Recipes, Maintenance logs, and Document storage.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2025-12-05",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2025-12-05T00:00:00Z",
-            "updated_at": "2025-12-05T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 14,
-        "fields": {
-            "title": "Purpose Module",
-            "description": "Set your annual direction with Word of the Year, life goals, change intentions, and seasonal reflections.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2025-12-03",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2025-12-03T00:00:00Z",
-            "updated_at": "2025-12-03T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 31,
-        "fields": {
-            "title": "Body Composition Tracking",
-            "description": "Track body fat %, lean mass, measurements, and more from gym scans or smart scales. Flexible metric storage supports unlimited measurement types. Find it under Health > Body Composition.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-14",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-14T00:00:00Z",
-            "updated_at": "2026-02-14T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 32,
-        "fields": {
-            "title": "Health Insights Engine",
-            "description": "A new cross-domain insight engine analyzes patterns across weight, body composition, goals, habits, and journal entries. Generates observational insights like trends, consistency patterns, and logging gaps. Find it under Health > Insights.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-14",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-14T00:00:00Z",
-            "updated_at": "2026-02-14T00:00:00Z"
-        }
-    },
-    {
-        "model": "core.releasenote",
-        "pk": 35,
-        "fields": {
-            "title": "Today's Guidance on Your Dashboard",
-            "description": "Your dashboard now shows personalized guidance items — evidence-based insights, warnings, and encouragement generated from your health trends, goal progress, and life patterns. Quickly act on suggestions, snooze them for later, or dismiss items you don't need.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-15",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-15T00:00:00Z",
-            "updated_at": "2026-02-15T00:00:00Z"
-        }
-    },
-    {
-        "pk": 36,
-        "model": "core.releasenote",
-        "fields": {
-            "title": "Enhanced Guidance Inbox",
-            "description": "The Guidance Inbox now lets you filter by lifecycle state — view active, acknowledged, dismissed, snoozed, and acted items. Each card shows source badges, priority indicators, confidence scores for predictions, and lifecycle timestamps. Manage your guidance with inline actions directly from the inbox.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-15",
-            "is_published": true,
-            "is_major": false,
-            "learn_more_url": "",
-            "created_at": "2026-02-15T00:00:00Z",
-            "updated_at": "2026-02-15T00:00:00Z"
-        }
-    },
-    {
-        "pk": 37,
-        "model": "core.releasenote",
-        "fields": {
-            "title": "Your Current State on the Dashboard",
-            "description": "A new dashboard tile shows exactly what WLJ knows about you — your current weight, sleep, steps, goals, habits, journal activity, and faith data. All values come directly from the State Awareness Engine, giving you full transparency into the data that powers your insights and guidance.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-15",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-15T00:00:00Z",
-            "updated_at": "2026-02-15T00:00:00Z"
-        }
-    },
-    {
-        "pk": 38,
-        "model": "core.releasenote",
-        "fields": {
-            "title": "Daily Briefing on Your Dashboard",
-            "description": "A new Daily Briefing tile summarizes the most important intelligence from your data each day. It combines insights, predictions, and guidance into one concise summary — so you can start your day informed.",
-            "entry_type": "feature",
-            "version": "",
-            "release_date": "2026-02-15",
-            "is_published": true,
-            "is_major": true,
-            "learn_more_url": "",
-            "created_at": "2026-02-15T00:00:00Z",
-            "updated_at": "2026-02-15T00:00:00Z"
-        }
+  {
+    "model": "core.releasenote",
+    "pk": 33,
+    "fields": {
+      "title": "AI Insights Inbox",
+      "description": "Your AI assistant now proactively generates insights about your health, goals, habits, scripture reading, and journaling patterns. Get notified about weight trends, approaching deadlines, broken habit streaks, and more. View all insights in your new Insights Inbox, where you can filter by status and mark them as read or dismissed.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-15",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-15T00:00:00Z",
+      "updated_at": "2026-02-15T00:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 34,
+    "fields": {
+      "title": "Smarter AI: Time Understanding & Memory",
+      "description": "The AI assistant now understands natural language time expressions like '3 days ago', 'next Friday at 2pm', and 'last month on the 15th'. It also learns from your clarifications \u2014 the more you use it, the better it understands your preferences.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-15",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-15T00:00:00Z",
+      "updated_at": "2026-02-15T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 30,
+    "fields": {
+      "title": "Goal Engine: Measurement-Driven Habits",
+      "description": "Habit goals now support four measurement types: Binary (daily check-off), Duration (timed sessions with built-in timer), Count (track repetitions), and Target (hit numeric goals). Each type gets its own logging UI, progress tracking, and analytics. Existing habits continue working unchanged. Find them under Goals > Habits.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-14",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 29,
+    "fields": {
+      "title": "Habit Streaks & Smart Insights",
+      "description": "Track your habit streaks with daily, weekly, or monthly frequency. Get smart insights when you hit milestones (7, 30, 90 days), when completion rates are unusually high or low, and when day-of-week patterns emerge. Insights can be applied or dismissed. View your streak on the habit detail page and dashboard tile.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-14",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 28,
+    "fields": {
+      "title": "Clickable Habit Calendar & Undo",
+      "description": "Click any day on your habit's progress matrix or calendar to instantly log it. Use Shift+Click for date ranges and Ctrl/Cmd+Click for multi-select. Every action shows an undo toast with an 8-second countdown so you can reverse mistakes instantly.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-02-14",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 27,
+    "fields": {
+      "title": "Labs & Vitals",
+      "description": "Upload lab result PDFs and get automatic parsing of blood work panels. View results with color-coded flags (normal, high, low), track trends over time with charts, and learn what each test measures with built-in education content. Find it under Health > Labs & Vitals.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-13",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-13T00:00:00Z",
+      "updated_at": "2026-02-13T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 26,
+    "fields": {
+      "title": "Lab Test Education",
+      "description": "Tap the info icon next to any lab test to learn what it measures, what high or low values may indicate, and what factors can influence results. Education content available for all 57 standard lab tests. Includes required medical disclaimers.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-13",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-13T00:00:00Z",
+      "updated_at": "2026-02-13T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 25,
+    "fields": {
+      "title": "Quick Links",
+      "description": "Save your frequently used external links (patient portal, bank login, etc.) and access them from the profile dropdown menu. Add up to 10 links in Preferences > Quick Links. Links open in a new tab.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-11",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-11T00:00:00Z",
+      "updated_at": "2026-02-11T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 24,
+    "fields": {
+      "title": "Smarter AI Assistant",
+      "description": "The AI assistant now threads conversations naturally, remembers what you discussed earlier in the chat, and gives data-driven answers instead of generic advice. It can read your recent journal entries to answer date-specific questions like 'how was I feeling last Tuesday?'",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-02-11",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-11T00:00:00Z",
+      "updated_at": "2026-02-11T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 23,
+    "fields": {
+      "title": "Scroll Position Preserved",
+      "description": "Pages with repeated actions (medicine doses, task checkboxes, prayer answers, water logging) no longer jump to the top after each action. Your scroll position is saved and restored automatically.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-02-11",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-11T00:00:00Z",
+      "updated_at": "2026-02-11T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 22,
+    "fields": {
+      "title": "New Character Study: Daniel",
+      "description": "Explore Daniel: Faith in Exile - a 12-day journey through the Book of Daniel. Study Daniel's faithfulness in Babylon, the fiery furnace, the lions' den, and prophetic visions. Available in Beginner, Intermediate, and Advanced levels. Find it under Faith > Reading Plans.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-01-21",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-01-21T00:00:00Z",
+      "updated_at": "2026-01-21T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 21,
+    "fields": {
+      "title": "Recurring Transactions",
+      "description": "Track subscriptions, bills, and regular income automatically. Set up recurring transactions with flexible frequencies (daily to yearly), auto-post or reminder-only modes, and view upcoming bills on your finance dashboard. Find it under Finance > Recurring.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-01-20",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-01-20T00:00:00Z",
+      "updated_at": "2026-01-20T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 20,
+    "fields": {
+      "title": "Sleep Tracking",
+      "description": "Track your sleep with detailed logging or quick entry. Log bedtime, wake time, quality rating, and sleep stages. View your sleep history with charts and averages. Designed for future wearable sync with Apple Health, Fitbit, and more. Find it under Health > Sleep.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-01-20",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-01-20T00:00:00Z",
+      "updated_at": "2026-01-20T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 19,
+    "fields": {
+      "title": "Dashboard Weather Widget",
+      "description": "Your dashboard now shows current weather conditions and a 3-day forecast. Get prominent alerts for extreme heat, cold, high winds, or severe weather. Set your location in Preferences to enable this feature.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-01-19",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-01-19T00:00:00Z",
+      "updated_at": "2026-01-19T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 18,
+    "fields": {
+      "title": "Inline Scripture in Reading Plans",
+      "description": "Scripture references in reading plans now expand inline when clicked. Read verses without leaving your current page. Click again to collapse. Uses your preferred Bible translation from settings.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-01-19",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-01-19T00:00:00Z",
+      "updated_at": "2026-01-19T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 17,
+    "fields": {
+      "title": "Menstrual Cycle Tracking",
+      "description": "Comprehensive cycle tracking with daily logging for flow, symptoms, mood, and energy. AI-powered predictions for your next period and fertile window. View cycle statistics, trends, and phase information. Auto-enabled for female users during onboarding.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-01-15",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-01-15T00:00:00Z",
+      "updated_at": "2026-01-15T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 16,
+    "fields": {
+      "title": "Dexcom CGM Integration",
+      "description": "Connect your Dexcom CGM account to automatically sync blood glucose readings. View current glucose with trend arrows, time-in-range stats, 24-hour charts, and automatic background syncing.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-01-01",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 15,
+    "fields": {
+      "title": "Barcode Scanner for Food",
+      "description": "Scan food product barcodes with your phone camera for instant nutrition info. Lookup uses local database first, then AI for unknown products. Pre-fills your food entry form with all nutritional data.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2025-12-31",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2025-12-31T00:00:00Z",
+      "updated_at": "2025-12-31T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 1,
+    "fields": {
+      "title": "AI Camera Scanning",
+      "description": "Point your phone at food, medicine, documents, or workout equipment and let AI identify it and suggest actions. Supports 8 categories with smart routing to the right module.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2025-12-28",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2025-12-28T00:00:00Z",
+      "updated_at": "2025-12-28T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 2,
+    "fields": {
+      "title": "Medicine Tracking",
+      "description": "Comprehensive medicine management with daily tracker, schedules, adherence stats, refill alerts, and PRN support. One-tap check-off for doses.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2025-12-28",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2025-12-28T00:00:00Z",
+      "updated_at": "2025-12-28T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 3,
+    "fields": {
+      "title": "Nutrition & Food Tracking",
+      "description": "Log meals with macro tracking, daily summaries, and nutrition goals. Includes custom foods, meal type categorization, and eating context tracking.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2025-12-28",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2025-12-28T00:00:00Z",
+      "updated_at": "2025-12-28T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 4,
+    "fields": {
+      "title": "Enhanced Dashboard",
+      "description": "Dashboard now shows Today's Medicine Schedule with status badges, Recent Workouts with PR highlights, and Quick Stats for medicine doses and workout counts.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2025-12-28",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2025-12-28T00:00:00Z",
+      "updated_at": "2025-12-28T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 5,
+    "fields": {
+      "title": "AI Camera Source Tracking",
+      "description": "Entries created via AI Camera now show a camera badge on detail pages. Track which entries came from AI-powered scanning.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2025-12-28",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2025-12-28T00:00:00Z",
+      "updated_at": "2025-12-28T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 6,
+    "fields": {
+      "title": "Security Improvements",
+      "description": "Enhanced security with rate limiting, secure admin URL, improved cookie settings, and server-side API key handling for Bible lookups.",
+      "entry_type": "security",
+      "version": "",
+      "release_date": "2025-12-28",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2025-12-28T00:00:00Z",
+      "updated_at": "2025-12-28T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 7,
+    "fields": {
+      "title": "Onboarding Wizard",
+      "description": "New users are guided through a friendly 6-step wizard to personalize their experience - choose theme, enable modules, configure AI coaching, and set location.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2025-12-20",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2025-12-20T00:00:00Z",
+      "updated_at": "2025-12-20T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 8,
+    "fields": {
+      "title": "Scripture Library",
+      "description": "Save, edit, and organize your favorite Scripture verses in a personal library. Add themes and personal notes to each verse.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2025-12-18",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2025-12-18T00:00:00Z",
+      "updated_at": "2025-12-18T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 9,
+    "fields": {
+      "title": "AI Coaching Styles",
+      "description": "Choose how the AI communicates with you. Pick from 7 styles including Supportive Partner, Direct Coach, Gentle Guide, and more.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2025-12-15",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2025-12-15T00:00:00Z",
+      "updated_at": "2025-12-15T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 10,
+    "fields": {
+      "title": "Task Undo",
+      "description": "Accidentally marked a task complete? Now you can easily undo with a single click using the new Undo link.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2025-12-12",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2025-12-12T00:00:00Z",
+      "updated_at": "2025-12-12T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 11,
+    "fields": {
+      "title": "Fitness Tracking",
+      "description": "Track workouts, log exercises, and monitor your fitness journey with comprehensive workout logging.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2025-12-10",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2025-12-10T00:00:00Z",
+      "updated_at": "2025-12-10T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 12,
+    "fields": {
+      "title": "Journal Prompts",
+      "description": "20 curated writing prompts across 8 categories to inspire your daily reflections. Get a random prompt with one click.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2025-12-08",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2025-12-08T00:00:00Z",
+      "updated_at": "2025-12-08T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 13,
+    "fields": {
+      "title": "Life Module",
+      "description": "Manage your whole life with Projects, Tasks, Calendar, Inventory, Pets, Recipes, Maintenance logs, and Document storage.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2025-12-05",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2025-12-05T00:00:00Z",
+      "updated_at": "2025-12-05T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 14,
+    "fields": {
+      "title": "Purpose Module",
+      "description": "Set your annual direction with Word of the Year, life goals, change intentions, and seasonal reflections.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2025-12-03",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2025-12-03T00:00:00Z",
+      "updated_at": "2025-12-03T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 31,
+    "fields": {
+      "title": "Body Composition Tracking",
+      "description": "Track body fat %, lean mass, measurements, and more from gym scans or smart scales. Flexible metric storage supports unlimited measurement types. Find it under Health > Body Composition.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-14",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 32,
+    "fields": {
+      "title": "Health Insights Engine",
+      "description": "A new cross-domain insight engine analyzes patterns across weight, body composition, goals, habits, and journal entries. Generates observational insights like trends, consistency patterns, and logging gaps. Find it under Health > Insights.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-14",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 35,
+    "fields": {
+      "title": "Today's Guidance on Your Dashboard",
+      "description": "Your dashboard now shows personalized guidance items \u2014 evidence-based insights, warnings, and encouragement generated from your health trends, goal progress, and life patterns. Quickly act on suggestions, snooze them for later, or dismiss items you don't need.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-15",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-15T00:00:00Z",
+      "updated_at": "2026-02-15T00:00:00Z"
+    }
+  },
+  {
+    "pk": 36,
+    "model": "core.releasenote",
+    "fields": {
+      "title": "Enhanced Guidance Inbox",
+      "description": "The Guidance Inbox now lets you filter by lifecycle state \u2014 view active, acknowledged, dismissed, snoozed, and acted items. Each card shows source badges, priority indicators, confidence scores for predictions, and lifecycle timestamps. Manage your guidance with inline actions directly from the inbox.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-15",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-02-15T00:00:00Z",
+      "updated_at": "2026-02-15T00:00:00Z"
+    }
+  },
+  {
+    "pk": 37,
+    "model": "core.releasenote",
+    "fields": {
+      "title": "Your Current State on the Dashboard",
+      "description": "A new dashboard tile shows exactly what WLJ knows about you \u2014 your current weight, sleep, steps, goals, habits, journal activity, and faith data. All values come directly from the State Awareness Engine, giving you full transparency into the data that powers your insights and guidance.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-15",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-15T00:00:00Z",
+      "updated_at": "2026-02-15T00:00:00Z"
+    }
+  },
+  {
+    "pk": 38,
+    "model": "core.releasenote",
+    "fields": {
+      "title": "Daily Briefing on Your Dashboard",
+      "description": "A new Daily Briefing tile summarizes the most important intelligence from your data each day. It combines insights, predictions, and guidance into one concise summary \u2014 so you can start your day informed.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-15",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-15T00:00:00Z",
+      "updated_at": "2026-02-15T00:00:00Z"
+    }
+  },
+  {
+    "pk": 39,
+    "model": "core.releasenote",
+    "fields": {
+      "title": "Weekly Intelligence Reports",
+      "description": "A new Weekly Intelligence Report summarizes your state changes, insights, predictions, and guidance engagement over the past week. View your latest report on the dashboard or browse all historical reports.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-02-15",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-02-15T00:00:00Z",
+      "updated_at": "2026-02-15T00:00:00Z"
+    }
+  }
 ]

@@ -4,10 +4,30 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-15 (Intelligence Scheduler Engine)
+# Last Updated: 2026-02-15 (Weekly Intelligence Report Engine)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-02-15 — Phase 4A: Weekly Intelligence Report Engine (WIRE)
+
+**Feature:** Created the Weekly Intelligence Report Engine — generates one longitudinal intelligence summary per user per week, aggregating data from SAE, PIE, PRIE, PGE, and GLOE. Enables users to track intelligence trends over time.
+
+- **Module:** `apps/core/ai_weekly_report/` — 8 source files: `__init__.py`, `models.py`, `report_engine.py`, `report_selector.py`, `report_ranker.py`, `report_logger.py`, `views.py`, `urls.py`, `admin.py`
+- **Model:** `WeeklyIntelligenceReport` — unique per (user, week_start_date), stores JSON snapshots of each intelligence source
+- **Pipeline:** Gather → Compute Deltas → Select → Rank → Summarize → Store (template-based, no AI call)
+- **Selector:** Priority order: critical predictions → critical/warning insights → significant state changes → guidance acted items → remaining. Max 10 items.
+- **Ranker:** Score by priority, confidence, and type bonus (prediction=5, insight=3, state_change=2, guidance=1)
+- **Logger:** Dedup per user per week with IntegrityError race-condition safety
+- **Dashboard tile:** `templates/dashboard/tiles/weekly_report.html` — shows latest summary with date range, links to history
+- **History page:** `/intelligence/weekly/` — paginated report list (12 per page)
+- **Detail page:** `/intelligence/weekly/<pk>/` — full report with learning engagement stats
+- **ISE integration:** Registered as `generate_weekly_reports` (604800s / 7 days) in scheduler registry
+- **Fixtures:** Release note PK 39, teaching destination PK 111, help topic PK 88
+- **Migration:** `0064_weekly_intelligence_report`
+- **Architecture:** Updated `docs/INTELLIGENCE_ARCHITECTURE.md` — twelve-engine cognitive stack, added Engine 12 (WIRE) section
+- **Tests:** 54 tests (model, selector, ranker, logger, engine, dashboard tile, history page, detail page, scheduler integration)
+- **Bug fix:** Fixed `_get_report_week()` — corrected week boundary calculation (was computing wrong "last Sunday" for non-Monday days)
 
 ## 2026-02-15 — Phase 3C-Hardening: Scheduler Singleton Protection
 

@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Weekly Intelligence Reports - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="wire-history">
+    <div class="wire-header">
+        <div class="wire-title-row">
+            <h1 class="wire-title">
+                <span class="wire-icon">📊</span>
+                Weekly Intelligence Reports
+            </h1>
+            <a href="{% url 'dashboard:home' %}" class="wire-back-link">← Dashboard</a>
+        </div>
+        <p class="wire-description">
+            Your weekly intelligence summaries — tracking state changes, insights, predictions, and guidance engagement over time.
+        </p>
+    </div>
+
+    {% if reports %}
+        <div class="wire-list">
+            {% for report in reports %}
+                <a href="{% url 'ai_weekly_report:detail' report.pk %}" class="wire-card">
+                    <div class="wire-card-header">
+                        <span class="wire-card-dates">
+                            {{ report.week_start_date|date:"M j" }} — {{ report.week_end_date|date:"M j, Y" }}
+                        </span>
+                        <span class="wire-card-generated">
+                            {{ report.created_at|timesince }} ago
+                        </span>
+                    </div>
+                    <p class="wire-card-summary">
+                        {{ report.summary|truncatewords:40 }}
+                    </p>
+                </a>
+            {% endfor %}
+        </div>
+
+        {% if is_paginated %}
+            <div class="wire-pagination">
+                {% if page_obj.has_previous %}
+                    <a href="?page={{ page_obj.previous_page_number }}" class="wire-page-link">← Newer</a>
+                {% endif %}
+                <span class="wire-page-info">
+                    Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                </span>
+                {% if page_obj.has_next %}
+                    <a href="?page={{ page_obj.next_page_number }}" class="wire-page-link">Older →</a>
+                {% endif %}
+            </div>
+        {% endif %}
+    {% else %}
+        <div class="wire-empty">
+            <span class="wire-empty-icon">📈</span>
+            <h3>No reports yet</h3>
+            <p>Your first weekly report will be generated after 7 days of activity. Keep logging!</p>
+        </div>
+    {% endif %}
+</div>
+
+<style>
+.wire-history {
+    max-width: 700px;
+    margin: 0 auto;
+    padding: var(--space-4);
+}
+.wire-header {
+    margin-bottom: var(--space-6);
+}
+.wire-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+}
+.wire-title {
+    font-size: var(--font-size-xl);
+    font-weight: 700;
+    color: var(--color-text);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+.wire-icon { font-size: var(--font-size-2xl); }
+.wire-back-link {
+    font-size: var(--font-size-sm);
+    color: var(--color-accent);
+    text-decoration: none;
+}
+.wire-description {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    margin: 0;
+}
+.wire-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+.wire-card {
+    display: block;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    text-decoration: none;
+    color: inherit;
+    transition: border-color 0.15s;
+}
+.wire-card:hover {
+    border-color: var(--color-accent);
+}
+.wire-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-2);
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+.wire-card-dates {
+    font-weight: 600;
+    font-size: var(--font-size-base);
+    color: var(--color-text);
+}
+.wire-card-generated {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+.wire-card-summary {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    line-height: 1.5;
+    margin: 0;
+}
+.wire-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-4);
+    margin-top: var(--space-6);
+}
+.wire-page-link {
+    color: var(--color-accent);
+    text-decoration: none;
+    font-size: var(--font-size-sm);
+}
+.wire-page-info {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+.wire-empty {
+    text-align: center;
+    padding: var(--space-8) var(--space-4);
+}
+.wire-empty-icon { font-size: 3rem; display: block; margin-bottom: var(--space-3); }
+.wire-empty h3 { color: var(--color-text); margin: 0 0 var(--space-2); }
+.wire-empty p { color: var(--color-text-muted); font-size: var(--font-size-sm); margin: 0; }
+
+@media (max-width: 480px) {
+    .wire-history { padding: var(--space-3); }
+    .wire-card { padding: var(--space-3); }
+    .wire-title-row { flex-direction: column; align-items: flex-start; }
+}
+</style>
+{% endblock %}

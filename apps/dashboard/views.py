@@ -143,6 +143,13 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             except Exception:
                 context["daily_briefing"] = None
 
+            # Weekly Intelligence Report (WIRE) — latest weekly summary
+            try:
+                from apps.core.ai_weekly_report.report_engine import get_latest_weekly_report
+                context["weekly_report"] = get_latest_weekly_report(user)
+            except Exception:
+                context["weekly_report"] = None
+
             # Proactive Guidance (PGE) — top items for dashboard tile
             try:
                 from apps.core.ai_guidance.guidance_engine import get_active_guidance

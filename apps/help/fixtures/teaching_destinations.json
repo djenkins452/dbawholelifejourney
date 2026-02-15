@@ -1,1870 +1,1887 @@
 [
-    {
-        "model": "help.teachingdestination",
-        "pk": 1,
-        "fields": {
-            "destination_id": "weight-tracking",
-            "name": "Weight Tracking",
-            "path_description": "Health - Physical - Weight",
-            "explanation": "Log your daily weight and view trends over time.",
-            "url": "/health/physical/weight/",
-            "keywords": "weight, log weight, track weight, weigh myself, weigh in, weight history, weight loss, weight gain, body weight",
-            "module": "health",
-            "sort_order": 1,
-            "is_active": true,
-            "created_at": "2026-01-13T00:00:00Z",
-            "updated_at": "2026-01-13T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 2,
-        "fields": {
-            "destination_id": "journal-new-entry",
-            "name": "New Journal Entry",
-            "path_description": "Journal - New Entry",
-            "explanation": "Write a new journal entry to capture your thoughts and reflections.",
-            "url": "/journal/new/",
-            "keywords": "journal, write journal, new entry, journal entry, write entry, diary, write in my journal, journaling, capture thoughts",
-            "module": "journal",
-            "sort_order": 2,
-            "is_active": true,
-            "created_at": "2026-01-13T00:00:00Z",
-            "updated_at": "2026-01-13T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 3,
-        "fields": {
-            "destination_id": "task-list",
-            "name": "Task List",
-            "path_description": "Organize - Tasks",
-            "explanation": "View, create, and manage your to-do list and tasks.",
-            "url": "/life/tasks/",
-            "keywords": "tasks, task list, to do, todo, to-do list, my tasks, things to do, checklist, task management",
-            "module": "life",
-            "sort_order": 3,
-            "is_active": true,
-            "created_at": "2026-01-13T00:00:00Z",
-            "updated_at": "2026-01-13T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 4,
-        "fields": {
-            "destination_id": "ai-assistant",
-            "name": "AI Assistant",
-            "path_description": "Assistant",
-            "explanation": "Chat with your personal AI assistant for guidance and support.",
-            "url": "/assistant/",
-            "keywords": "ai coach, ai assistant, coach, assistant, ai, talk to ai, chat, personal assistant, help me, guidance",
-            "module": "ai",
-            "sort_order": 4,
-            "is_active": true,
-            "created_at": "2026-01-13T00:00:00Z",
-            "updated_at": "2026-01-13T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 5,
-        "fields": {
-            "destination_id": "goals",
-            "name": "My Goals",
-            "path_description": "Goals - My Goals",
-            "explanation": "Set, track, and review your personal goals.",
-            "url": "/purpose/goals/",
-            "keywords": "goals, my goals, set goals, goal setting, goal list, personal goals, track goals, objectives, targets",
-            "module": "purpose",
-            "sort_order": 5,
-            "is_active": true,
-            "created_at": "2026-01-13T00:00:00Z",
-            "updated_at": "2026-01-13T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 6,
-        "fields": {
-            "destination_id": "workout-logging",
-            "name": "Log a Workout",
-            "path_description": "Health - Physical - Fitness - New Workout",
-            "explanation": "Log a new workout session with exercises, sets, and reps.",
-            "url": "/health/physical/fitness/workout/new/",
-            "keywords": "workout, log workout, exercise, fitness, gym, training, strength training, cardio, workout log, exercise log",
-            "module": "health",
-            "sort_order": 6,
-            "is_active": true,
-            "created_at": "2026-01-13T00:00:00Z",
-            "updated_at": "2026-01-13T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 7,
-        "fields": {
-            "destination_id": "medication-tracking",
-            "name": "Medication Tracker",
-            "path_description": "Health - Physical - Medicine",
-            "explanation": "Track your medications, schedules, and adherence.",
-            "url": "/health/physical/medicine/",
-            "keywords": "medicine, medication, meds, pills, prescriptions, drug, medicine tracker, take medicine, medication schedule",
-            "module": "health",
-            "sort_order": 7,
-            "is_active": true,
-            "created_at": "2026-01-13T00:00:00Z",
-            "updated_at": "2026-01-13T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 8,
-        "fields": {
-            "destination_id": "food-logging",
-            "name": "Log Food",
-            "path_description": "Health - Physical - Nutrition",
-            "explanation": "Track your meals, calories, and nutrition.",
-            "url": "/health/physical/nutrition/",
-            "keywords": "food, nutrition, log food, meals, calories, diet, eating, what i ate, food diary, calorie tracking, macros",
-            "module": "health",
-            "sort_order": 8,
-            "is_active": true,
-            "created_at": "2026-01-13T00:00:00Z",
-            "updated_at": "2026-01-13T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 9,
-        "fields": {
-            "destination_id": "fasting-tracker",
-            "name": "Fasting Tracker",
-            "path_description": "Health - Physical - Fasting",
-            "explanation": "Start, track, and manage your intermittent fasting sessions.",
-            "url": "/health/physical/fasting/",
-            "keywords": "fasting, fast, intermittent fasting, start fast, fasting tracker, IF, time restricted eating",
-            "module": "health",
-            "sort_order": 9,
-            "is_active": true,
-            "created_at": "2026-01-13T00:00:00Z",
-            "updated_at": "2026-01-13T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 10,
-        "fields": {
-            "destination_id": "prayer-requests",
-            "name": "Prayer Requests",
-            "path_description": "Faith - Prayers",
-            "explanation": "Add and manage your prayer requests and answered prayers.",
-            "url": "/faith/prayers/",
-            "keywords": "prayer, prayers, prayer request, pray, praying, prayer list, faith, spiritual",
-            "module": "faith",
-            "sort_order": 10,
-            "is_active": true,
-            "created_at": "2026-01-13T00:00:00Z",
-            "updated_at": "2026-01-13T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 11,
-        "fields": {
-            "destination_id": "habits",
-            "name": "Habit Tracking",
-            "path_description": "Goals - Habits",
-            "explanation": "Track daily habits and build consistent routines.",
-            "url": "/purpose/habits/",
-            "keywords": "habits, habit tracker, daily habits, routine, streak, habit tracking, build habits",
-            "module": "purpose",
-            "sort_order": 11,
-            "is_active": true,
-            "created_at": "2026-01-13T00:00:00Z",
-            "updated_at": "2026-01-13T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 12,
-        "fields": {
-            "destination_id": "calendar",
-            "name": "Calendar",
-            "path_description": "Organize - Calendar",
-            "explanation": "View your calendar and manage events.",
-            "url": "/life/calendar/",
-            "keywords": "calendar, events, schedule, appointments, upcoming, what's on my calendar",
-            "module": "life",
-            "sort_order": 12,
-            "is_active": true,
-            "created_at": "2026-01-13T00:00:00Z",
-            "updated_at": "2026-01-13T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 13,
-        "fields": {
-            "destination_id": "dashboard",
-            "name": "Dashboard",
-            "path_description": "Dashboard",
-            "explanation": "Your personal dashboard with an overview of your wellness journey.",
-            "url": "/dashboard/",
-            "keywords": "dashboard, home, overview, main page, start, summary",
-            "module": "dashboard",
-            "sort_order": 13,
-            "is_active": true,
-            "created_at": "2026-01-13T00:00:00Z",
-            "updated_at": "2026-01-13T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 14,
-        "fields": {
-            "destination_id": "settings",
-            "name": "Settings",
-            "path_description": "User - Preferences",
-            "explanation": "Customize your app settings, theme, and preferences.",
-            "url": "/user/preferences/",
-            "keywords": "settings, preferences, options, customize, theme, profile, account settings, configuration",
-            "module": "users",
-            "sort_order": 14,
-            "is_active": true,
-            "created_at": "2026-01-13T00:00:00Z",
-            "updated_at": "2026-01-13T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 15,
-        "fields": {
-            "destination_id": "recipes",
-            "name": "Recipes",
-            "path_description": "Organize - Recipes",
-            "explanation": "Store and manage your favorite recipes.",
-            "url": "/life/recipes/",
-            "keywords": "recipes, recipe, cooking, meals, food ideas, recipe book, cookbook",
-            "module": "life",
-            "sort_order": 15,
-            "is_active": true,
-            "created_at": "2026-01-13T00:00:00Z",
-            "updated_at": "2026-01-13T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 16,
-        "fields": {
-            "destination_id": "help-center",
-            "name": "Help Center",
-            "path_description": "Help",
-            "explanation": "Browse help articles and get answers to your questions.",
-            "url": "/help/",
-            "keywords": "help, support, help center, faq, questions, how to, documentation, guides",
-            "module": "help",
-            "sort_order": 16,
-            "is_active": true,
-            "created_at": "2026-01-13T00:00:00Z",
-            "updated_at": "2026-01-13T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 17,
-        "fields": {
-            "destination_id": "reading-plans",
-            "name": "Bible Reading Plans",
-            "path_description": "Faith - Reading Plans",
-            "explanation": "Follow Bible reading plans and track your progress.",
-            "url": "/faith/reading-plans/",
-            "keywords": "bible, reading plan, scripture, bible study, devotional, daily reading, bible reading",
-            "module": "faith",
-            "sort_order": 17,
-            "is_active": true,
-            "created_at": "2026-01-13T00:00:00Z",
-            "updated_at": "2026-01-13T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 18,
-        "fields": {
-            "destination_id": "glucose-tracking",
-            "name": "Glucose Tracking",
-            "path_description": "Health - Physical - Glucose",
-            "explanation": "Log and monitor your blood glucose levels.",
-            "url": "/health/physical/glucose/",
-            "keywords": "glucose, blood sugar, sugar levels, diabetes, cgm, dexcom, blood glucose",
-            "module": "health",
-            "sort_order": 18,
-            "is_active": true,
-            "created_at": "2026-01-13T00:00:00Z",
-            "updated_at": "2026-01-13T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 19,
-        "fields": {
-            "destination_id": "projects",
-            "name": "Projects",
-            "path_description": "Organize - Projects",
-            "explanation": "Manage your projects and organize tasks by project.",
-            "url": "/life/projects/",
-            "keywords": "projects, project list, project management, organize projects",
-            "module": "life",
-            "sort_order": 19,
-            "is_active": true,
-            "created_at": "2026-01-13T00:00:00Z",
-            "updated_at": "2026-01-13T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 20,
-        "fields": {
-            "destination_id": "journal-entries",
-            "name": "Journal Entries",
-            "path_description": "Journal - Entries",
-            "explanation": "Browse and search your journal entries.",
-            "url": "/journal/entries/",
-            "keywords": "journal entries, past entries, journal history, read journal, my journals",
-            "module": "journal",
-            "sort_order": 20,
-            "is_active": true,
-            "created_at": "2026-01-13T00:00:00Z",
-            "updated_at": "2026-01-13T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 21,
-        "fields": {
-            "destination_id": "capture-list",
-            "name": "Audio Capture",
-            "path_description": "Capture",
-            "explanation": "View your audio recordings, transcripts, and AI-generated summaries.",
-            "url": "/capture/",
-            "keywords": "capture, audio, recordings, transcripts, summaries, voice notes, sermon notes, meeting notes",
-            "module": "capture",
-            "sort_order": 21,
-            "is_active": true,
-            "created_at": "2026-01-14T00:00:00Z",
-            "updated_at": "2026-01-14T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 22,
-        "fields": {
-            "destination_id": "capture-record",
-            "name": "Record Audio",
-            "path_description": "Capture - Record",
-            "explanation": "Record audio directly in the app for transcription and AI summarization.",
-            "url": "/capture/record/",
-            "keywords": "record, record audio, voice recording, microphone, record sermon, record meeting, voice memo",
-            "module": "capture",
-            "sort_order": 22,
-            "is_active": true,
-            "created_at": "2026-01-14T00:00:00Z",
-            "updated_at": "2026-01-14T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 23,
-        "fields": {
-            "destination_id": "capture-upload",
-            "name": "Upload Audio",
-            "path_description": "Capture - Upload",
-            "explanation": "Upload existing audio files for transcription and AI summarization.",
-            "url": "/capture/upload/",
-            "keywords": "upload, upload audio, audio file, mp3, wav, upload recording, import audio",
-            "module": "capture",
-            "sort_order": 23,
-            "is_active": true,
-            "created_at": "2026-01-14T00:00:00Z",
-            "updated_at": "2026-01-14T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 24,
-        "fields": {
-            "destination_id": "cycle-tracking",
-            "name": "Cycle Tracking",
-            "path_description": "Health - Physical - Cycle",
-            "explanation": "Track your menstrual cycle, log daily symptoms, moods, and flow levels. View predictions and statistics.",
-            "url": "/health/physical/cycle/",
-            "keywords": "cycle, period, menstrual, menstruation, period tracker, cycle tracker, fertility, ovulation, flow, symptoms, cramps, pms",
-            "module": "health",
-            "sort_order": 24,
-            "is_active": true,
-            "created_at": "2026-01-15T00:00:00Z",
-            "updated_at": "2026-01-15T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 25,
-        "fields": {
-            "destination_id": "cycle-daily-log",
-            "name": "Log Cycle Day",
-            "path_description": "Health - Physical - Cycle - Daily Log",
-            "explanation": "Record daily cycle data including flow level, symptoms, mood, and energy levels.",
-            "url": "/health/physical/cycle/log/",
-            "keywords": "log cycle, log period, daily log, track flow, cycle symptoms, period symptoms, log cramps, mood tracker, energy level",
-            "module": "health",
-            "sort_order": 25,
-            "is_active": true,
-            "created_at": "2026-01-15T00:00:00Z",
-            "updated_at": "2026-01-15T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 26,
-        "fields": {
-            "destination_id": "cycle-predictions",
-            "name": "Cycle Predictions",
-            "path_description": "Health - Cycle - Predictions",
-            "explanation": "View AI-powered predictions for your next period and fertile window based on your cycle history.",
-            "url": "/health/physical/cycle/predictions/",
-            "keywords": "cycle prediction, period prediction, when is my period, predict period, fertile window, ovulation prediction, next period",
-            "module": "health",
-            "sort_order": 26,
-            "is_active": true,
-            "created_at": "2026-01-15T00:00:00Z",
-            "updated_at": "2026-01-15T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 27,
-        "fields": {
-            "destination_id": "cycle-history",
-            "name": "Cycle History",
-            "path_description": "Health - Cycle - History",
-            "explanation": "View your past cycles, cycle lengths, period lengths, and track patterns over time.",
-            "url": "/health/physical/cycle/history/",
-            "keywords": "cycle history, past cycles, period history, cycle patterns, cycle length, period length, cycle statistics",
-            "module": "health",
-            "sort_order": 27,
-            "is_active": true,
-            "created_at": "2026-01-15T00:00:00Z",
-            "updated_at": "2026-01-15T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 28,
-        "fields": {
-            "destination_id": "scan-camera",
-            "name": "Camera Scan",
-            "path_description": "Scan",
-            "explanation": "Use your camera to scan food, medicine, products, and more. AI identifies items and suggests actions like logging nutrition.",
-            "url": "/scan/",
-            "keywords": "scan, camera, barcode, food scan, medicine scan, take photo, photograph, identify, ai scan, food recognition",
-            "module": "scan",
-            "sort_order": 28,
-            "is_active": true,
-            "created_at": "2026-01-16T00:00:00Z",
-            "updated_at": "2026-01-16T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 29,
-        "fields": {
-            "destination_id": "finance-dashboard",
-            "name": "Finance Dashboard",
-            "path_description": "Finance",
-            "explanation": "Track your finances, bank accounts, transactions, budgets, and savings goals.",
-            "url": "/finance/",
-            "keywords": "finance, money, budget, bank account, transactions, spending, savings, financial, bills, expenses",
-            "module": "finance",
-            "sort_order": 29,
-            "is_active": true,
-            "created_at": "2026-01-16T00:00:00Z",
-            "updated_at": "2026-01-16T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 30,
-        "fields": {
-            "destination_id": "finance-budgets",
-            "name": "Budgets",
-            "path_description": "Finance - Budgets",
-            "explanation": "Create and manage budgets to track spending by category and stay on target.",
-            "url": "/finance/budgets/",
-            "keywords": "budget, budgets, spending limit, expense tracking, budget tracking, budget categories, financial planning",
-            "module": "finance",
-            "sort_order": 30,
-            "is_active": true,
-            "created_at": "2026-01-16T00:00:00Z",
-            "updated_at": "2026-01-16T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 31,
-        "fields": {
-            "destination_id": "finance-goals",
-            "name": "Savings Goals",
-            "path_description": "Finance - Goals",
-            "explanation": "Set and track savings goals like emergency funds, vacations, or major purchases.",
-            "url": "/finance/goals/",
-            "keywords": "savings, savings goal, save money, financial goal, emergency fund, save for, money goal",
-            "module": "finance",
-            "sort_order": 31,
-            "is_active": true,
-            "created_at": "2026-01-16T00:00:00Z",
-            "updated_at": "2026-01-16T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 58,
-        "fields": {
-            "destination_id": "finance-recurring",
-            "name": "Recurring Transactions",
-            "path_description": "Finance - Recurring",
-            "explanation": "Manage subscriptions, bills, and regular income. Set up auto-posting or reminders for recurring expenses.",
-            "url": "/finance/recurring/",
-            "keywords": "recurring, subscription, subscriptions, bills, monthly bills, rent, netflix, automatic payments, auto pay, regular income, paycheck",
-            "module": "finance",
-            "sort_order": 32,
-            "is_active": true,
-            "created_at": "2026-01-20T00:00:00Z",
-            "updated_at": "2026-01-20T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 32,
-        "fields": {
-            "destination_id": "inventory",
-            "name": "Home Inventory",
-            "path_description": "Organize - Inventory",
-            "explanation": "Track your belongings, valuables, and household items with photos and details for insurance or organization.",
-            "url": "/life/inventory/",
-            "keywords": "inventory, belongings, valuables, home inventory, insurance, items, possessions, household items, track items",
-            "module": "life",
-            "sort_order": 33,
-            "is_active": true,
-            "created_at": "2026-01-16T00:00:00Z",
-            "updated_at": "2026-01-16T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 33,
-        "fields": {
-            "destination_id": "pets",
-            "name": "Pet Management",
-            "path_description": "Organize - Pets",
-            "explanation": "Track your pets' information, vet visits, medications, and important records.",
-            "url": "/life/pets/",
-            "keywords": "pets, pet, dog, cat, vet, veterinarian, pet records, pet health, animal, pet care",
-            "module": "life",
-            "sort_order": 33,
-            "is_active": true,
-            "created_at": "2026-01-16T00:00:00Z",
-            "updated_at": "2026-01-16T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 34,
-        "fields": {
-            "destination_id": "documents",
-            "name": "Document Storage",
-            "path_description": "Organize - Documents",
-            "explanation": "Store and organize important documents like IDs, insurance cards, and records.",
-            "url": "/life/documents/",
-            "keywords": "documents, files, upload, storage, important documents, insurance card, id card, passport, records",
-            "module": "life",
-            "sort_order": 34,
-            "is_active": true,
-            "created_at": "2026-01-16T00:00:00Z",
-            "updated_at": "2026-01-16T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 35,
-        "fields": {
-            "destination_id": "significant-events",
-            "name": "Birthdays & Anniversaries",
-            "path_description": "Organize - Significant Events",
-            "explanation": "Track birthdays, anniversaries, and other important dates for family and friends.",
-            "url": "/life/significant-events/",
-            "keywords": "birthday, birthdays, anniversary, anniversaries, important dates, special dates, remember dates, celebrations",
-            "module": "life",
-            "sort_order": 35,
-            "is_active": true,
-            "created_at": "2026-01-16T00:00:00Z",
-            "updated_at": "2026-01-16T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 36,
-        "fields": {
-            "destination_id": "maintenance-logs",
-            "name": "Maintenance Logs",
-            "path_description": "Organize - Maintenance",
-            "explanation": "Track home and vehicle maintenance like oil changes, HVAC service, and repairs.",
-            "url": "/life/maintenance/",
-            "keywords": "maintenance, home maintenance, vehicle maintenance, car maintenance, oil change, hvac, repairs, service records",
-            "module": "life",
-            "sort_order": 36,
-            "is_active": true,
-            "created_at": "2026-01-16T00:00:00Z",
-            "updated_at": "2026-01-16T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 37,
-        "fields": {
-            "destination_id": "blood-pressure",
-            "name": "Blood Pressure",
-            "path_description": "Health - Physical - Blood Pressure",
-            "explanation": "Log and monitor your blood pressure readings over time.",
-            "url": "/health/physical/blood-pressure/",
-            "keywords": "blood pressure, bp, systolic, diastolic, hypertension, heart health, log blood pressure",
-            "module": "health",
-            "sort_order": 37,
-            "is_active": true,
-            "created_at": "2026-01-16T00:00:00Z",
-            "updated_at": "2026-01-16T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 38,
-        "fields": {
-            "destination_id": "heart-rate",
-            "name": "Heart Rate",
-            "path_description": "Health - Physical - Heart Rate",
-            "explanation": "Log and track your heart rate and resting heart rate over time.",
-            "url": "/health/physical/heart-rate/",
-            "keywords": "heart rate, pulse, bpm, resting heart rate, heart health, log heart rate",
-            "module": "health",
-            "sort_order": 38,
-            "is_active": true,
-            "created_at": "2026-01-16T00:00:00Z",
-            "updated_at": "2026-01-16T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 39,
-        "fields": {
-            "destination_id": "steps-tracking",
-            "name": "Steps Tracking",
-            "path_description": "Health - Physical - Steps",
-            "explanation": "Log your daily steps and track your activity levels over time.",
-            "url": "/health/physical/steps/",
-            "keywords": "steps, step count, walking, activity, pedometer, daily steps, step tracking",
-            "module": "health",
-            "sort_order": 39,
-            "is_active": true,
-            "created_at": "2026-01-16T00:00:00Z",
-            "updated_at": "2026-01-16T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 40,
-        "fields": {
-            "destination_id": "blood-oxygen",
-            "name": "Blood Oxygen",
-            "path_description": "Health - Physical - Blood Oxygen",
-            "explanation": "Track your blood oxygen saturation (SpO2) levels.",
-            "url": "/health/physical/blood-oxygen/",
-            "keywords": "blood oxygen, spo2, oxygen saturation, pulse ox, oxygen level",
-            "module": "health",
-            "sort_order": 40,
-            "is_active": true,
-            "created_at": "2026-01-16T00:00:00Z",
-            "updated_at": "2026-01-16T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 41,
-        "fields": {
-            "destination_id": "medical-providers",
-            "name": "Medical Providers",
-            "path_description": "Health - Physical - Providers",
-            "explanation": "Store your doctors, specialists, and healthcare provider contact information.",
-            "url": "/health/physical/providers/",
-            "keywords": "doctor, doctors, provider, providers, specialist, physician, healthcare, medical, dentist, therapist",
-            "module": "health",
-            "sort_order": 41,
-            "is_active": true,
-            "created_at": "2026-01-16T00:00:00Z",
-            "updated_at": "2026-01-16T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 42,
-        "fields": {
-            "destination_id": "workout-templates",
-            "name": "Workout Templates",
-            "path_description": "Health - Physical - Fitness - Templates",
-            "explanation": "Create and manage workout templates for quick logging of your regular routines.",
-            "url": "/health/physical/fitness/templates/",
-            "keywords": "workout template, exercise template, routine, workout plan, exercise routine, gym routine",
-            "module": "health",
-            "sort_order": 42,
-            "is_active": true,
-            "created_at": "2026-01-16T00:00:00Z",
-            "updated_at": "2026-01-16T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 43,
-        "fields": {
-            "destination_id": "personal-records",
-            "name": "Personal Records",
-            "path_description": "Health - Physical - Fitness - PRs",
-            "explanation": "View and track your personal best records for exercises like bench press, squat, and deadlift.",
-            "url": "/health/physical/fitness/prs/",
-            "keywords": "personal records, pr, prs, personal best, max lift, one rep max, fitness records, strength records",
-            "module": "health",
-            "sort_order": 43,
-            "is_active": true,
-            "created_at": "2026-01-16T00:00:00Z",
-            "updated_at": "2026-01-16T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 44,
-        "fields": {
-            "destination_id": "daily-verse",
-            "name": "Daily Verse",
-            "path_description": "Faith - Daily Verse",
-            "explanation": "Read today's Bible verse with reflection and share it with others.",
-            "url": "/faith/verse/",
-            "keywords": "verse, daily verse, bible verse, scripture, today's verse, verse of the day",
-            "module": "faith",
-            "sort_order": 44,
-            "is_active": true,
-            "created_at": "2026-01-16T00:00:00Z",
-            "updated_at": "2026-01-16T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 45,
-        "fields": {
-            "destination_id": "saved-scripture",
-            "name": "Saved Scripture",
-            "path_description": "Faith - Scripture",
-            "explanation": "View and manage your saved scripture verses and memory verses.",
-            "url": "/faith/scripture/",
-            "keywords": "saved scripture, saved verses, memory verse, memorize, scripture collection, saved bible verses",
-            "module": "faith",
-            "sort_order": 45,
-            "is_active": true,
-            "created_at": "2026-01-16T00:00:00Z",
-            "updated_at": "2026-01-16T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 46,
-        "fields": {
-            "destination_id": "faith-milestones",
-            "name": "Faith Milestones",
-            "path_description": "Faith - Milestones",
-            "explanation": "Record significant spiritual milestones like baptism, conversions, and meaningful moments.",
-            "url": "/faith/milestones/",
-            "keywords": "milestones, faith milestone, baptism, saved, conversion, spiritual journey, testimony",
-            "module": "faith",
-            "sort_order": 46,
-            "is_active": true,
-            "created_at": "2026-01-16T00:00:00Z",
-            "updated_at": "2026-01-16T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 47,
-        "fields": {
-            "destination_id": "study-tools",
-            "name": "Bible Study Tools",
-            "path_description": "Faith - Study Tools",
-            "explanation": "Access your Bible study highlights, bookmarks, and notes all in one place.",
-            "url": "/faith/study-tools/",
-            "keywords": "study tools, bible study, highlights, bookmarks, notes, study notes, bible notes",
-            "module": "faith",
-            "sort_order": 47,
-            "is_active": true,
-            "created_at": "2026-01-16T00:00:00Z",
-            "updated_at": "2026-01-16T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 48,
-        "fields": {
-            "destination_id": "annual-direction",
-            "name": "Annual Direction",
-            "path_description": "Goals - Annual Direction",
-            "explanation": "Set your annual vision, word of the year, and long-term life direction.",
-            "url": "/purpose/direction/",
-            "keywords": "annual direction, word of the year, yearly goals, vision, life direction, annual planning, year plan",
-            "module": "purpose",
-            "sort_order": 48,
-            "is_active": true,
-            "created_at": "2026-01-16T00:00:00Z",
-            "updated_at": "2026-01-16T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 49,
-        "fields": {
-            "destination_id": "intentions",
-            "name": "Daily Intentions",
-            "path_description": "Goals - Intentions",
-            "explanation": "Set daily or weekly intentions to focus your energy and attention.",
-            "url": "/purpose/intentions/",
-            "keywords": "intentions, daily intention, weekly intention, focus, mindfulness, set intention, today's intention",
-            "module": "purpose",
-            "sort_order": 49,
-            "is_active": true,
-            "created_at": "2026-01-16T00:00:00Z",
-            "updated_at": "2026-01-16T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 50,
-        "fields": {
-            "destination_id": "reflections",
-            "name": "Purpose Reflections",
-            "path_description": "Goals - Reflections",
-            "explanation": "Reflect on your progress, growth, and life experiences.",
-            "url": "/purpose/reflections/",
-            "keywords": "reflections, reflect, life reflection, growth, progress reflection, self reflection",
-            "module": "purpose",
-            "sort_order": 50,
-            "is_active": true,
-            "created_at": "2026-01-16T00:00:00Z",
-            "updated_at": "2026-01-16T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 51,
-        "fields": {
-            "destination_id": "whats-new",
-            "name": "What's New",
-            "path_description": "What's New",
-            "explanation": "See the latest features, improvements, and updates to the app.",
-            "url": "/whats-new/",
-            "keywords": "what's new, updates, new features, release notes, changelog, improvements, app updates",
-            "module": "core",
-            "sort_order": 51,
-            "is_active": true,
-            "created_at": "2026-01-16T00:00:00Z",
-            "updated_at": "2026-01-16T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 52,
-        "fields": {
-            "destination_id": "quick-log",
-            "name": "Quick Log",
-            "path_description": "Health - Physical - Quick Log",
-            "explanation": "Quickly log multiple health metrics in one place - weight, steps, heart rate, and more.",
-            "url": "/health/physical/quick-log/",
-            "keywords": "quick log, fast log, quick entry, log health, log metrics, quick health log",
-            "module": "health",
-            "sort_order": 52,
-            "is_active": true,
-            "created_at": "2026-01-16T00:00:00Z",
-            "updated_at": "2026-01-16T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 53,
-        "fields": {
-            "destination_id": "journal-prompts",
-            "name": "Journal Prompts",
-            "path_description": "Journal - Prompts",
-            "explanation": "Browse journal prompts for inspiration when you don't know what to write.",
-            "url": "/journal/prompts/",
-            "keywords": "prompts, journal prompts, writing prompts, inspiration, what to write, journal ideas",
-            "module": "journal",
-            "sort_order": 53,
-            "is_active": true,
-            "created_at": "2026-01-16T00:00:00Z",
-            "updated_at": "2026-01-16T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 54,
-        "fields": {
-            "destination_id": "sms-history",
-            "name": "SMS History",
-            "path_description": "User - SMS History",
-            "explanation": "View your SMS message history including reminders and notifications.",
-            "url": "/sms/history/",
-            "keywords": "sms, text messages, notifications, reminders, message history, text history",
-            "module": "users",
-            "sort_order": 54,
-            "is_active": true,
-            "created_at": "2026-01-16T00:00:00Z",
-            "updated_at": "2026-01-16T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 55,
-        "fields": {
-            "destination_id": "billing",
-            "name": "Subscription & Billing",
-            "path_description": "Billing",
-            "explanation": "Manage your subscription plan, view billing history, and update payment methods.",
-            "url": "/billing/plans/",
-            "keywords": "billing, subscription, payment, plan, upgrade, premium, subscription management, pricing",
-            "module": "billing",
-            "sort_order": 55,
-            "is_active": true,
-            "created_at": "2026-01-16T00:00:00Z",
-            "updated_at": "2026-01-16T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 56,
-        "fields": {
-            "destination_id": "water-tracking",
-            "name": "Water Intake",
-            "path_description": "Health - Physical - Water",
-            "explanation": "Log and track your daily water intake to stay hydrated.",
-            "url": "/health/physical/water/",
-            "keywords": "water, hydration, water intake, drink water, log water, track water, hydrated, dehydrated, fluids, water goal, water consumption, glasses of water",
-            "module": "health",
-            "sort_order": 56,
-            "is_active": true,
-            "created_at": "2026-01-17T00:00:00Z",
-            "updated_at": "2026-01-17T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 57,
-        "fields": {
-            "destination_id": "sleep-tracking",
-            "name": "Sleep Tracking",
-            "path_description": "Health - Physical - Sleep",
-            "explanation": "Log and track your sleep patterns, including bedtime, wake time, quality, and sleep stages.",
-            "url": "/health/physical/sleep/",
-            "keywords": "sleep, track sleep, log sleep, sleep history, bedtime, wake time, sleep quality, hours slept, insomnia, rest, sleep patterns, sleep stages, rem sleep, deep sleep",
-            "module": "health",
-            "sort_order": 57,
-            "is_active": true,
-            "created_at": "2026-01-20T00:00:00Z",
-            "updated_at": "2026-01-20T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 58,
-        "fields": {
-            "destination_id": "notification-center",
-            "name": "Notification Center",
-            "path_description": "Notifications",
-            "explanation": "View all your notifications including reminders, alerts, and updates.",
-            "url": "/notifications/",
-            "keywords": "notifications, alerts, reminders, notification center, notification history, bell, unread notifications, view notifications",
-            "module": "core",
-            "sort_order": 58,
-            "is_active": true,
-            "created_at": "2026-01-20T00:00:00Z",
-            "updated_at": "2026-01-20T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 59,
-        "fields": {
-            "destination_id": "notification-preferences",
-            "name": "Notification Preferences",
-            "path_description": "Settings - Preferences - Notifications",
-            "explanation": "Configure which notifications you receive via in-app, email, or SMS.",
-            "url": "/settings/preferences/#notifications",
-            "keywords": "notification settings, notification preferences, turn off notifications, disable notifications, email notifications, sms notifications, configure alerts, notification options",
-            "module": "settings",
-            "sort_order": 59,
-            "is_active": true,
-            "created_at": "2026-01-20T00:00:00Z",
-            "updated_at": "2026-01-20T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 60,
-        "fields": {
-            "destination_id": "dashboard-customize",
-            "name": "Customize Dashboard",
-            "path_description": "Dashboard - Customize",
-            "explanation": "Rearrange, resize, and show/hide dashboard tiles to create your perfect layout.",
-            "url": "/dashboard/configure/",
-            "keywords": "customize dashboard, dashboard settings, dashboard layout, rearrange dashboard, hide tiles, show tiles, tile size, dashboard configuration, personalize dashboard, drag and drop tiles",
-            "module": "dashboard",
-            "sort_order": 60,
-            "is_active": true,
-            "created_at": "2026-01-20T00:00:00Z",
-            "updated_at": "2026-01-20T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 61,
-        "fields": {
-            "destination_id": "blood-pressure-dashboard",
-            "name": "Blood Pressure Dashboard",
-            "path_description": "Health - Physical - Blood Pressure",
-            "explanation": "View your blood pressure trends with charts, statistics, and AHA category tracking for systolic and diastolic readings.",
-            "url": "/health/physical/blood-pressure/dashboard/",
-            "keywords": "blood pressure, bp, systolic, diastolic, blood pressure chart, blood pressure stats, blood pressure trends, blood pressure dashboard, hypertension, blood pressure history",
-            "module": "health",
-            "sort_order": 61,
-            "is_active": true,
-            "created_at": "2026-01-24T00:00:00Z",
-            "updated_at": "2026-01-24T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 62,
-        "fields": {
-            "destination_id": "blood-oxygen-dashboard",
-            "name": "Blood Oxygen Dashboard",
-            "path_description": "Health - Physical - Blood Oxygen",
-            "explanation": "Track your blood oxygen (SpO2) levels with charts, statistics, and health status indicators.",
-            "url": "/health/physical/blood-oxygen/dashboard/",
-            "keywords": "blood oxygen, spo2, oxygen saturation, oxygen levels, blood oxygen chart, blood oxygen stats, blood oxygen dashboard, pulse oximeter, oxygen tracking",
-            "module": "health",
-            "sort_order": 62,
-            "is_active": true,
-            "created_at": "2026-01-24T00:00:00Z",
-            "updated_at": "2026-01-24T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 63,
-        "fields": {
-            "destination_id": "heart-rate-dashboard",
-            "name": "Heart Rate Dashboard",
-            "path_description": "Health - Physical - Heart Rate",
-            "explanation": "View your heart rate trends with charts, statistics, and context-based analysis for resting and active readings.",
-            "url": "/health/physical/heart-rate/dashboard/",
-            "keywords": "heart rate, pulse, bpm, heart rate chart, heart rate stats, heart rate dashboard, resting heart rate, heart health, heart rate trends",
-            "module": "health",
-            "sort_order": 63,
-            "is_active": true,
-            "created_at": "2026-01-24T00:00:00Z",
-            "updated_at": "2026-01-24T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 64,
-        "fields": {
-            "destination_id": "hrv-dashboard",
-            "name": "HRV Dashboard",
-            "path_description": "Health - Physical - Heart Rate Variability",
-            "explanation": "Track your Heart Rate Variability (HRV) from wearable devices. Higher HRV generally indicates better recovery and fitness.",
-            "url": "/health/physical/hrv/dashboard/",
-            "keywords": "hrv, heart rate variability, hrv chart, hrv stats, hrv dashboard, recovery, fitness, stress, hrv tracking, sdnn",
-            "module": "health",
-            "sort_order": 64,
-            "is_active": true,
-            "created_at": "2026-01-24T00:00:00Z",
-            "updated_at": "2026-01-24T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 65,
-        "fields": {
-            "destination_id": "vo2-max-dashboard",
-            "name": "VO2 Max Dashboard",
-            "path_description": "Health - Physical - VO2 Max",
-            "explanation": "Track your VO2 Max (cardiorespiratory fitness) from wearable devices. Higher values indicate better cardiovascular fitness.",
-            "url": "/health/physical/vo2-max/dashboard/",
-            "keywords": "vo2 max, vo2max, cardio fitness, cardiovascular fitness, fitness level, aerobic capacity, vo2 max chart, vo2 max stats",
-            "module": "health",
-            "sort_order": 65,
-            "is_active": true,
-            "created_at": "2026-01-24T00:00:00Z",
-            "updated_at": "2026-01-24T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 66,
-        "fields": {
-            "destination_id": "respiratory-rate-dashboard",
-            "name": "Respiratory Rate Dashboard",
-            "path_description": "Health - Physical - Respiratory Rate",
-            "explanation": "Track your respiratory rate (breaths per minute) measured during sleep. Normal adult range is 12-20 breaths per minute.",
-            "url": "/health/physical/respiratory-rate/dashboard/",
-            "keywords": "respiratory rate, breathing rate, breaths per minute, brpm, respiratory dashboard, sleep breathing, breathing patterns",
-            "module": "health",
-            "sort_order": 66,
-            "is_active": true,
-            "created_at": "2026-01-24T00:00:00Z",
-            "updated_at": "2026-01-24T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 67,
-        "fields": {
-            "destination_id": "body-temperature-dashboard",
-            "name": "Body Temperature Dashboard",
-            "path_description": "Health - Physical - Body Temperature",
-            "explanation": "Track your body temperature readings with fever detection and trend analysis.",
-            "url": "/health/physical/body-temperature/dashboard/",
-            "keywords": "body temperature, temperature, fever, temp, thermometer, temperature chart, temperature tracking, fever tracking",
-            "module": "health",
-            "sort_order": 67,
-            "is_active": true,
-            "created_at": "2026-01-24T00:00:00Z",
-            "updated_at": "2026-01-24T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 68,
-        "fields": {
-            "destination_id": "caffeine-dashboard",
-            "name": "Caffeine Dashboard",
-            "path_description": "Health - Physical - Caffeine",
-            "explanation": "Track your daily caffeine intake from synced devices. FDA recommends no more than 400mg per day for healthy adults.",
-            "url": "/health/physical/caffeine/dashboard/",
-            "keywords": "caffeine, coffee, caffeine tracking, caffeine intake, daily caffeine, coffee consumption, caffeine chart",
-            "module": "health",
-            "sort_order": 68,
-            "is_active": true,
-            "created_at": "2026-01-24T00:00:00Z",
-            "updated_at": "2026-01-24T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 69,
-        "fields": {
-            "destination_id": "mindful-minutes-dashboard",
-            "name": "Mindful Minutes Dashboard",
-            "path_description": "Health - Physical - Mindful Minutes",
-            "explanation": "Track your meditation and breathing exercise sessions from synced devices. Regular practice helps reduce stress.",
-            "url": "/health/physical/mindful-minutes/dashboard/",
-            "keywords": "mindful minutes, meditation, mindfulness, breathing exercises, stress relief, mindful, meditation tracking, mindfulness tracking",
-            "module": "health",
-            "sort_order": 69,
-            "is_active": true,
-            "created_at": "2026-01-24T00:00:00Z",
-            "updated_at": "2026-01-24T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 70,
-        "fields": {
-            "destination_id": "activity-dashboard",
-            "name": "Activity Dashboard",
-            "path_description": "Health - Physical - Activity",
-            "explanation": "View your combined activity metrics including steps, calories burned, distance walked, and flights climbed.",
-            "url": "/health/physical/activity/dashboard/",
-            "keywords": "activity, steps, calories, distance, activity dashboard, activity tracking, daily activity, fitness activity, calories burned, exercise",
-            "module": "health",
-            "sort_order": 70,
-            "is_active": true,
-            "created_at": "2026-01-24T00:00:00Z",
-            "updated_at": "2026-01-24T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 72,
-        "fields": {
-            "destination_id": "more-menu",
-            "name": "More Menu",
-            "path_description": "Navigation - More",
-            "explanation": "Access additional modules and quick links including Profile, Preferences, Help, Notifications, and Sign Out.",
-            "url": "/more/",
-            "keywords": "more, menu, additional options, overflow, settings, profile, preferences, help, sign out, logout",
-            "module": "core",
-            "sort_order": 72,
-            "is_active": true,
-            "created_at": "2026-01-25T00:00:00Z",
-            "updated_at": "2026-01-25T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 73,
-        "fields": {
-            "destination_id": "favorites-hub",
-            "name": "Favorites",
-            "path_description": "Navigation - Favorites",
-            "explanation": "View and access your starred pages for quick navigation. Tap the star icon on any page to add it to favorites.",
-            "url": "/favorites/",
-            "keywords": "favorites, starred, bookmarks, favorite pages, starred pages, quick access, shortcuts",
-            "module": "core",
-            "sort_order": 73,
-            "is_active": true,
-            "created_at": "2026-01-25T00:00:00Z",
-            "updated_at": "2026-01-25T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 74,
-        "fields": {
-            "destination_id": "profile",
-            "name": "Profile",
-            "path_description": "User - Profile",
-            "explanation": "View and edit your profile information, including name, email, and avatar. You can also delete your account from this page.",
-            "url": "/user/profile/",
-            "keywords": "profile, my profile, account, edit profile, change name, change email, user profile, personal info, delete account, remove account, close account",
-            "module": "users",
-            "sort_order": 74,
-            "is_active": true,
-            "created_at": "2026-01-25T00:00:00Z",
-            "updated_at": "2026-01-25T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 75,
-        "fields": {
-            "destination_id": "delete-account",
-            "name": "Delete Account",
-            "path_description": "Settings - Profile - Delete Account",
-            "explanation": "Permanently delete your Whole Life Journey account and all associated data. You can export your data first before deletion. This action cannot be undone.",
-            "url": "/user/delete-account/",
-            "keywords": "delete account, remove account, close account, cancel account, deactivate account, delete my account, permanently delete, account deletion, erase account, terminate account, leave, quit",
-            "module": "users",
-            "sort_order": 75,
-            "is_active": true,
-            "created_at": "2026-01-25T00:00:00Z",
-            "updated_at": "2026-01-25T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 76,
-        "fields": {
-            "destination_id": "data-export",
-            "name": "Export Your Data",
-            "path_description": "Settings - Export Data",
-            "explanation": "Download a complete copy of all your personal data (journal entries, health records, goals, etc.) in JSON or CSV format.",
-            "url": "/user/data-export/",
-            "keywords": "data export, download data, export data, gdpr, my data, download my information, backup data, data portability",
-            "module": "users",
-            "sort_order": 76,
-            "is_active": true,
-            "created_at": "2026-01-25T00:00:00Z",
-            "updated_at": "2026-01-25T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 77,
-        "fields": {
-            "destination_id": "brain-training",
-            "name": "Brain Training",
-            "path_description": "Health - Cognitive Health - Brain Training",
-            "explanation": "Exercise your mind with cognitive challenges like Sudoku, KenKen, Nonogram, Word Ladder, and Memory Matrix. Regular mental exercise strengthens neural pathways, improves memory, and helps maintain cognitive function as you age.",
-            "url": "/health/cognitive/",
-            "keywords": "brain training, puzzles, sudoku, kenken, nonogram, word ladder, memory, cognitive, logic puzzles, brain exercise, mental fitness, cognitive health",
-            "module": "health",
-            "sort_order": 77,
-            "is_active": true,
-            "created_at": "2026-01-26T00:00:00Z",
-            "updated_at": "2026-01-26T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 78,
-        "fields": {
-            "destination_id": "brain-training-stats",
-            "name": "Brain Training Stats",
-            "path_description": "Health - Cognitive Health - Brain Training - Stats",
-            "explanation": "View your cognitive training statistics, improvement trends, and performance across all exercises. Track your progress over time to see how regular practice strengthens your mental abilities.",
-            "url": "/health/cognitive/stats/",
-            "keywords": "brain stats, brain training stats, cognitive stats, exercise stats, improvement, progress, brain performance, mental fitness tracking",
-            "module": "health",
-            "sort_order": 78,
-            "is_active": true,
-            "created_at": "2026-01-26T00:00:00Z",
-            "updated_at": "2026-01-26T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 79,
-        "fields": {
-            "destination_id": "health-landing",
-            "name": "Health",
-            "path_description": "Health",
-            "explanation": "Your health hub with two main areas: Physical Health for body metrics, fitness, sleep, and nutrition; and Cognitive Health for brain training and mental wellness.",
-            "url": "/health/",
-            "keywords": "health, wellness, physical health, cognitive health, body, mind, fitness, brain, health home",
-            "module": "health",
-            "sort_order": 79,
-            "is_active": true,
-            "created_at": "2026-01-26T00:00:00Z",
-            "updated_at": "2026-01-26T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 80,
-        "fields": {
-            "destination_id": "physical-health-home",
-            "name": "Physical Health",
-            "path_description": "Health - Physical Health",
-            "explanation": "Track your physical wellness including weight, heart rate, blood pressure, sleep, steps, water intake, fitness, nutrition, and medications.",
-            "url": "/health/physical/",
-            "keywords": "physical health, body health, fitness, weight, heart rate, sleep, steps, water, nutrition, medicine, physical wellness",
-            "module": "health",
-            "sort_order": 80,
-            "is_active": true,
-            "created_at": "2026-01-26T00:00:00Z",
-            "updated_at": "2026-01-26T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 81,
-        "fields": {
-            "destination_id": "brain-training-sudoku",
-            "name": "Sudoku",
-            "path_description": "Health - Cognitive - Brain Training - Sudoku",
-            "explanation": "A classic logic puzzle that strengthens concentration, logical thinking, and pattern recognition. Fill each row, column, and 3x3 box with digits 1-9 without repeating any number. Use pencil marks to track possibilities, and watch as your solving speed improves with practice.",
-            "url": "/health/cognitive/sudoku/play/",
-            "keywords": "sudoku, number puzzle, logic puzzle, 9x9, sudoku puzzle, concentration, logical thinking, pattern recognition, cognitive exercise",
-            "module": "health",
-            "sort_order": 81,
-            "is_active": true,
-            "created_at": "2026-01-26T00:00:00Z",
-            "updated_at": "2026-01-26T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 82,
-        "fields": {
-            "destination_id": "brain-training-kenken",
-            "name": "KenKen",
-            "path_description": "Health - Cognitive - Brain Training - KenKen",
-            "explanation": "A math-logic puzzle that exercises arithmetic skills and reasoning. Each cage shows a target number and operation\u2014fill cells so the operation produces that result, with no repeated numbers in any row or column. Strengthens mental math, working memory, and logical deduction.",
-            "url": "/health/cognitive/kenken/play/",
-            "keywords": "kenken, math puzzle, arithmetic, cage puzzle, ken ken, calcudoku, mental math, working memory, logical deduction, cognitive exercise",
-            "module": "health",
-            "sort_order": 82,
-            "is_active": true,
-            "created_at": "2026-01-26T00:00:00Z",
-            "updated_at": "2026-01-26T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 83,
-        "fields": {
-            "destination_id": "brain-training-nonogram",
-            "name": "Nonogram",
-            "path_description": "Health - Cognitive - Brain Training - Nonogram",
-            "explanation": "A visual logic puzzle that builds spatial reasoning and attention to detail. Number clues indicate consecutive filled cells in each row and column\u2014use deduction to reveal a hidden picture. Enhances visual processing, planning skills, and systematic thinking.",
-            "url": "/health/cognitive/nonogram/play/",
-            "keywords": "nonogram, picross, picture puzzle, grid puzzle, pixel puzzle, griddler, spatial reasoning, visual processing, cognitive exercise",
-            "module": "health",
-            "sort_order": 83,
-            "is_active": true,
-            "created_at": "2026-01-26T00:00:00Z",
-            "updated_at": "2026-01-26T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 84,
-        "fields": {
-            "destination_id": "brain-training-word-ladder",
-            "name": "Word Ladder",
-            "path_description": "Health - Cognitive - Brain Training - Word Ladder",
-            "explanation": "A vocabulary puzzle that strengthens language processing and creative thinking. Transform one word into another by changing one letter at a time, with each step forming a valid word. Builds verbal fluency, mental flexibility, and word association skills.",
-            "url": "/health/cognitive/word_ladder/play/",
-            "keywords": "word ladder, word puzzle, letter change, vocabulary, word chain, verbal fluency, language processing, cognitive exercise",
-            "module": "health",
-            "sort_order": 84,
-            "is_active": true,
-            "created_at": "2026-01-26T00:00:00Z",
-            "updated_at": "2026-01-26T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 85,
-        "fields": {
-            "destination_id": "brain-training-memory-matrix",
-            "name": "Memory Matrix",
-            "path_description": "Health - Cognitive - Brain Training - Memory Matrix",
-            "explanation": "A visual memory exercise that strengthens short-term recall and attention. Watch a pattern of highlighted cells, then recreate it from memory. Regular practice improves working memory capacity, visual attention, and concentration\u2014essential cognitive skills that support daily life.",
-            "url": "/health/cognitive/memory_matrix/play/",
-            "keywords": "memory matrix, pattern memory, visual memory, recall, memory exercise, working memory, visual attention, concentration, cognitive exercise",
-            "module": "health",
-            "sort_order": 85,
-            "is_active": true,
-            "created_at": "2026-01-26T00:00:00Z",
-            "updated_at": "2026-01-26T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 86,
-        "fields": {
-            "destination_id": "ai-data-search",
-            "name": "Search My Data",
-            "path_description": "Assistant - Data Search",
-            "explanation": "Use natural language to search across all your WLJ data. Ask questions like 'What did I journal about last week?' or 'Show my weight from January' and get instant answers.",
-            "url": "/assistant/",
-            "keywords": "search data, find entries, lookup, query my data, search journal, search health, natural language search, ask about my data",
-            "module": "ai",
-            "sort_order": 86,
-            "is_active": true,
-            "created_at": "2026-02-01T00:00:00Z",
-            "updated_at": "2026-02-01T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 87,
-        "fields": {
-            "destination_id": "ai-insights",
-            "name": "AI Insights",
-            "path_description": "Assistant - Insights",
-            "explanation": "Get AI-powered analysis of your patterns and trends. Ask about mood patterns, health trends, productivity, and receive personalized observations based on your data.",
-            "url": "/assistant/",
-            "keywords": "ai insights, patterns, trends, analysis, mood patterns, health trends, ai analysis, personalized insights",
-            "module": "ai",
-            "sort_order": 87,
-            "is_active": true,
-            "created_at": "2026-02-01T00:00:00Z",
-            "updated_at": "2026-02-01T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 88,
-        "fields": {
-            "destination_id": "ai-coaching",
-            "name": "AI Coaching",
-            "path_description": "Assistant - Coaching",
-            "explanation": "Receive personalized guidance and recommendations from your AI coach. Get help with goal setting, habit building, and daily priorities based on your actual data and preferences.",
-            "url": "/assistant/",
-            "keywords": "ai coaching, personal coach, guidance, advice, recommendations, help me, what should I do, priorities",
-            "module": "ai",
-            "sort_order": 88,
-            "is_active": true,
-            "created_at": "2026-02-01T00:00:00Z",
-            "updated_at": "2026-02-01T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 89,
-        "fields": {
-            "destination_id": "ai-settings",
-            "name": "AI Settings",
-            "path_description": "Preferences - AI Settings",
-            "explanation": "Configure your AI experience including enabling AI features, choosing your coaching style, and managing data consent for personalized insights.",
-            "url": "/preferences/#ai",
-            "keywords": "ai settings, enable ai, coaching style, ai preferences, ai consent, configure ai",
-            "module": "ai",
-            "sort_order": 89,
-            "is_active": true,
-            "created_at": "2026-02-01T00:00:00Z",
-            "updated_at": "2026-02-01T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 90,
-        "fields": {
-            "destination_id": "finance-budgets-overview",
-            "name": "Budget Tracking",
-            "path_description": "Finance - Budgets",
-            "explanation": "Set monthly spending limits by category and track your progress. See how much you've spent versus your budget in real-time.",
-            "url": "/finance/budgets/",
-            "keywords": "budget, spending limit, monthly budget, track spending, budget categories, money management",
-            "module": "finance",
-            "sort_order": 90,
-            "is_active": true,
-            "created_at": "2026-02-01T00:00:00Z",
-            "updated_at": "2026-02-01T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 91,
-        "fields": {
-            "destination_id": "finance-transactions",
-            "name": "Log Transaction",
-            "path_description": "Finance - Transactions",
-            "explanation": "Record income and expenses to track where your money goes. Categorize transactions for budget tracking and financial insights.",
-            "url": "/finance/transactions/",
-            "keywords": "transaction, expense, income, log money, record spending, financial entry, add transaction",
-            "module": "finance",
-            "sort_order": 91,
-            "is_active": true,
-            "created_at": "2026-02-01T00:00:00Z",
-            "updated_at": "2026-02-01T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 92,
-        "fields": {
-            "destination_id": "finance-savings-goals",
-            "name": "Savings Goals",
-            "path_description": "Finance - Savings Goals",
-            "explanation": "Set savings targets with deadlines and track your progress. Great for emergency funds, vacation savings, or major purchases.",
-            "url": "/finance/goals/",
-            "keywords": "savings, savings goal, save money, financial goal, emergency fund, vacation fund, target savings",
-            "module": "finance",
-            "sort_order": 92,
-            "is_active": true,
-            "created_at": "2026-02-01T00:00:00Z",
-            "updated_at": "2026-02-01T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 93,
-        "fields": {
-            "destination_id": "capture-transcriptions",
-            "name": "View Transcriptions",
-            "path_description": "Capture - My Recordings",
-            "explanation": "View all your voice recordings with their transcriptions and AI-generated summaries. Search, edit, and organize your audio captures.",
-            "url": "/capture/",
-            "keywords": "transcriptions, voice recordings, audio, my captures, view recordings, transcribed audio",
-            "module": "capture",
-            "sort_order": 93,
-            "is_active": true,
-            "created_at": "2026-02-01T00:00:00Z",
-            "updated_at": "2026-02-01T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 94,
-        "fields": {
-            "destination_id": "scan-food",
-            "name": "Scan Food",
-            "path_description": "Scan - Food Recognition",
-            "explanation": "Take a photo of your meal and let AI identify the food and estimate nutrition. Much faster than manual entry for logging what you eat.",
-            "url": "/scan/",
-            "keywords": "scan food, food photo, food recognition, nutrition scan, photograph meal, ai food, calorie scan",
-            "module": "scan",
-            "sort_order": 94,
-            "is_active": true,
-            "created_at": "2026-02-01T00:00:00Z",
-            "updated_at": "2026-02-01T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 95,
-        "fields": {
-            "destination_id": "scan-medicine",
-            "name": "Scan Medicine",
-            "path_description": "Scan - Medicine Recognition",
-            "explanation": "Photograph a medicine bottle or package to automatically add it to your medicine tracker. AI extracts the name, dosage, and pharmacy information.",
-            "url": "/scan/",
-            "keywords": "scan medicine, medicine photo, pill bottle, prescription scan, add medicine, ai medicine",
-            "module": "scan",
-            "sort_order": 95,
-            "is_active": true,
-            "created_at": "2026-02-01T00:00:00Z",
-            "updated_at": "2026-02-01T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 96,
-        "fields": {
-            "destination_id": "data-export-preferences",
-            "name": "Export My Data",
-            "path_description": "Preferences - Data Export",
-            "explanation": "Download a complete copy of all your WLJ data in JSON or CSV format. Your data belongs to you and you can take it anywhere.",
-            "url": "/preferences/#data",
-            "keywords": "export data, download data, backup, my data, data portability, export json, export csv",
-            "module": "users",
-            "sort_order": 96,
-            "is_active": true,
-            "created_at": "2026-02-01T00:00:00Z",
-            "updated_at": "2026-02-01T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 97,
-        "fields": {
-            "destination_id": "habit-goal-create",
-            "name": "Create Habit Goal",
-            "path_description": "Goals - Habits - New Habit",
-            "explanation": "Create a new habit goal with four measurement types: Binary (daily yes/no), Duration (timed sessions), Count (track repetitions), or Target (hit a numeric goal). Set frequency, targets, and start tracking.",
-            "url": "/purpose/habits/create/",
-            "keywords": "create habit, new habit, add habit, habit goal, start habit, build habit, track habit, measurement type, duration, count, target, binary",
-            "module": "purpose",
-            "sort_order": 97,
-            "is_active": true,
-            "created_at": "2026-02-14T00:00:00Z",
-            "updated_at": "2026-02-14T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 98,
-        "fields": {
-            "destination_id": "habit-goal-timer",
-            "name": "Habit Timer",
-            "path_description": "Goals - Habits - Timer",
-            "explanation": "Use the built-in timer for duration-based habits. Start, pause, and stop sessions with a circular progress ring. Your timer state is saved locally so you can close the browser and come back.",
-            "url": "/purpose/habits/",
-            "keywords": "habit timer, duration timer, start timer, stop timer, timed session, meditation timer, exercise timer, practice timer",
-            "module": "purpose",
-            "sort_order": 98,
-            "is_active": true,
-            "created_at": "2026-02-14T00:00:00Z",
-            "updated_at": "2026-02-14T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 99,
-        "fields": {
-            "destination_id": "habit-streaks",
-            "name": "Habit Streaks",
-            "path_description": "Goals - Habits - Streaks",
-            "explanation": "Track your consistency with daily, weekly, or monthly streaks. See your current and longest streaks, get at-risk warnings before you break a streak, and celebrate milestones at 7, 30, 90, and 365 days.",
-            "url": "/purpose/habits/",
-            "keywords": "streak, habit streak, consecutive days, streak count, don't break the chain, consistency, at risk, streak milestone",
-            "module": "purpose",
-            "sort_order": 99,
-            "is_active": true,
-            "created_at": "2026-02-14T00:00:00Z",
-            "updated_at": "2026-02-14T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 100,
-        "fields": {
-            "destination_id": "labs-upload",
-            "name": "Upload Lab Results",
-            "path_description": "Health - Labs & Vitals - Upload",
-            "explanation": "Upload your lab result PDFs for automatic parsing. The system extracts test names, values, reference ranges, and flags. View results organized by panel with color-coded status indicators.",
-            "url": "/medical/upload/",
-            "keywords": "upload labs, lab results, blood work, blood test, lab report, medical labs, upload pdf, lab panel, cbc, cmp, lipid panel, thyroid",
-            "module": "medical",
-            "sort_order": 100,
-            "is_active": true,
-            "created_at": "2026-02-14T00:00:00Z",
-            "updated_at": "2026-02-14T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 101,
-        "fields": {
-            "destination_id": "labs-summary",
-            "name": "Labs Summary",
-            "path_description": "Health - Labs & Vitals - Summary",
-            "explanation": "View all your lab results organized by test type. See current values, reference ranges, flags (normal/high/low), and trends over time. Tap the info icon to learn what each test measures.",
-            "url": "/medical/labs/",
-            "keywords": "labs summary, lab results, blood work results, test results, normal range, high, low, abnormal, lab values, lab history",
-            "module": "medical",
-            "sort_order": 101,
-            "is_active": true,
-            "created_at": "2026-02-14T00:00:00Z",
-            "updated_at": "2026-02-14T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 102,
-        "fields": {
-            "destination_id": "quick-links",
-            "name": "Quick Links",
-            "path_description": "Preferences - Quick Links",
-            "explanation": "Save your frequently used external links (patient portal, bank login, etc.) and access them from the profile dropdown menu. Add up to 10 links.",
-            "url": "/preferences/#quick-links",
-            "keywords": "quick links, external links, bookmarks, patient portal, bank login, saved links, profile links, shortcuts",
-            "module": "users",
-            "sort_order": 102,
-            "is_active": true,
-            "created_at": "2026-02-14T00:00:00Z",
-            "updated_at": "2026-02-14T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 103,
-        "fields": {
-            "destination_id": "body-composition",
-            "name": "Body Composition",
-            "path_description": "Health - Body Composition",
-            "explanation": "Track body fat %, lean mass, skeletal muscle mass, waist, chest, and other measurements from gym scans, smart scales, or manual entry.",
-            "url": "/health/physical/body-composition/",
-            "keywords": "body composition, body fat, lean mass, fat mass, muscle mass, waist, chest, hips, measurements, dexa scan, inbody, smart scale",
-            "module": "health",
-            "sort_order": 103,
-            "is_active": true,
-            "created_at": "2026-02-14T00:00:00Z",
-            "updated_at": "2026-02-14T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 104,
-        "fields": {
-            "destination_id": "health-profile",
-            "name": "Health Profile",
-            "path_description": "Health - Health Profile",
-            "explanation": "Set your height and activity level for use in goal projections and body composition modeling calculations.",
-            "url": "/health/physical/profile/",
-            "keywords": "health profile, height, activity level, modeling, projections, sedentary, active",
-            "module": "health",
-            "sort_order": 104,
-            "is_active": true,
-            "created_at": "2026-02-14T00:00:00Z",
-            "updated_at": "2026-02-14T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 105,
-        "fields": {
-            "destination_id": "health-insights",
-            "name": "Health Insights",
-            "path_description": "Health - Insights",
-            "explanation": "View observational insights generated from your health data across weight, body composition, goals, habits, and journal entries.",
-            "url": "/health/physical/insights/",
-            "keywords": "health insights, trends, patterns, analysis, weight trend, body composition trend, logging gaps, correlations",
-            "module": "health",
-            "sort_order": 105,
-            "is_active": true,
-            "created_at": "2026-02-14T00:00:00Z",
-            "updated_at": "2026-02-14T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 106,
-        "fields": {
-            "destination_id": "insights-inbox",
-            "name": "Insights Inbox",
-            "path_description": "Insights",
-            "explanation": "View AI-generated insights about your health trends, goal progress, habit streaks, and more. Filter by status and dismiss or mark insights as read.",
-            "url": "/insights/",
-            "keywords": "insights,ai,trends,notifications,proactive,weight,goals,habits,patterns",
-            "module": "core",
-            "sort_order": 106,
-            "is_active": true
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 107,
-        "fields": {
-            "destination_id": "dashboard-guidance",
-            "name": "Today's Guidance",
-            "path_description": "Dashboard - Today's Guidance",
-            "explanation": "See the most important insights, warnings, and encouragement WLJ generated for you today. Take actions like snooze, dismiss, or mark as done right from the dashboard.",
-            "url": "/dashboard/",
-            "keywords": "guidance,insights,predictions,today,dashboard,goals,habits,proactive,warnings,encouragement",
-            "module": "dashboard",
-            "sort_order": 107,
-            "is_active": true,
-            "created_at": "2026-02-15T00:00:00Z",
-            "updated_at": "2026-02-15T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 108,
-        "fields": {
-            "destination_id": "guidance-inbox",
-            "name": "Guidance Inbox",
-            "path_description": "Guidance",
-            "explanation": "View all proactive guidance items generated by your intelligence engines. Filter active, read, or all items and manage their lifecycle.",
-            "url": "/guidance/",
-            "keywords": "guidance,inbox,proactive,all,history,predictions,insights,state",
-            "module": "core",
-            "sort_order": 108,
-            "is_active": true,
-            "created_at": "2026-02-15T00:00:00Z",
-            "updated_at": "2026-02-15T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 109,
-        "fields": {
-            "destination_id": "dashboard-state-snapshot",
-            "name": "Your Current State",
-            "path_description": "Dashboard - Your Current State",
-            "explanation": "Shows the current state WLJ uses to generate insights, predictions, and guidance.",
-            "url": "/dashboard/",
-            "keywords": "state,snapshot,current,weight,sleep,steps,goals,habits,journal,faith,transparency",
-            "module": "dashboard",
-            "sort_order": 109,
-            "is_active": true,
-            "created_at": "2026-02-15T00:00:00Z",
-            "updated_at": "2026-02-15T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.teachingdestination",
-        "pk": 110,
-        "fields": {
-            "destination_id": "dashboard-daily-briefing",
-            "name": "Daily Briefing",
-            "path_description": "Dashboard - Daily Briefing",
-            "explanation": "Your daily intelligence summary combining insights, predictions, and guidance into one concise brief.",
-            "url": "/dashboard/",
-            "keywords": "briefing,daily,summary,morning,intelligence,report,overview",
-            "module": "dashboard",
-            "sort_order": 110,
-            "is_active": true,
-            "created_at": "2026-02-15T00:00:00Z",
-            "updated_at": "2026-02-15T00:00:00Z"
-        }
+  {
+    "model": "help.teachingdestination",
+    "pk": 1,
+    "fields": {
+      "destination_id": "weight-tracking",
+      "name": "Weight Tracking",
+      "path_description": "Health - Physical - Weight",
+      "explanation": "Log your daily weight and view trends over time.",
+      "url": "/health/physical/weight/",
+      "keywords": "weight, log weight, track weight, weigh myself, weigh in, weight history, weight loss, weight gain, body weight",
+      "module": "health",
+      "sort_order": 1,
+      "is_active": true,
+      "created_at": "2026-01-13T00:00:00Z",
+      "updated_at": "2026-01-13T00:00:00Z"
     }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 2,
+    "fields": {
+      "destination_id": "journal-new-entry",
+      "name": "New Journal Entry",
+      "path_description": "Journal - New Entry",
+      "explanation": "Write a new journal entry to capture your thoughts and reflections.",
+      "url": "/journal/new/",
+      "keywords": "journal, write journal, new entry, journal entry, write entry, diary, write in my journal, journaling, capture thoughts",
+      "module": "journal",
+      "sort_order": 2,
+      "is_active": true,
+      "created_at": "2026-01-13T00:00:00Z",
+      "updated_at": "2026-01-13T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 3,
+    "fields": {
+      "destination_id": "task-list",
+      "name": "Task List",
+      "path_description": "Organize - Tasks",
+      "explanation": "View, create, and manage your to-do list and tasks.",
+      "url": "/life/tasks/",
+      "keywords": "tasks, task list, to do, todo, to-do list, my tasks, things to do, checklist, task management",
+      "module": "life",
+      "sort_order": 3,
+      "is_active": true,
+      "created_at": "2026-01-13T00:00:00Z",
+      "updated_at": "2026-01-13T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 4,
+    "fields": {
+      "destination_id": "ai-assistant",
+      "name": "AI Assistant",
+      "path_description": "Assistant",
+      "explanation": "Chat with your personal AI assistant for guidance and support.",
+      "url": "/assistant/",
+      "keywords": "ai coach, ai assistant, coach, assistant, ai, talk to ai, chat, personal assistant, help me, guidance",
+      "module": "ai",
+      "sort_order": 4,
+      "is_active": true,
+      "created_at": "2026-01-13T00:00:00Z",
+      "updated_at": "2026-01-13T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 5,
+    "fields": {
+      "destination_id": "goals",
+      "name": "My Goals",
+      "path_description": "Goals - My Goals",
+      "explanation": "Set, track, and review your personal goals.",
+      "url": "/purpose/goals/",
+      "keywords": "goals, my goals, set goals, goal setting, goal list, personal goals, track goals, objectives, targets",
+      "module": "purpose",
+      "sort_order": 5,
+      "is_active": true,
+      "created_at": "2026-01-13T00:00:00Z",
+      "updated_at": "2026-01-13T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 6,
+    "fields": {
+      "destination_id": "workout-logging",
+      "name": "Log a Workout",
+      "path_description": "Health - Physical - Fitness - New Workout",
+      "explanation": "Log a new workout session with exercises, sets, and reps.",
+      "url": "/health/physical/fitness/workout/new/",
+      "keywords": "workout, log workout, exercise, fitness, gym, training, strength training, cardio, workout log, exercise log",
+      "module": "health",
+      "sort_order": 6,
+      "is_active": true,
+      "created_at": "2026-01-13T00:00:00Z",
+      "updated_at": "2026-01-13T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 7,
+    "fields": {
+      "destination_id": "medication-tracking",
+      "name": "Medication Tracker",
+      "path_description": "Health - Physical - Medicine",
+      "explanation": "Track your medications, schedules, and adherence.",
+      "url": "/health/physical/medicine/",
+      "keywords": "medicine, medication, meds, pills, prescriptions, drug, medicine tracker, take medicine, medication schedule",
+      "module": "health",
+      "sort_order": 7,
+      "is_active": true,
+      "created_at": "2026-01-13T00:00:00Z",
+      "updated_at": "2026-01-13T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 8,
+    "fields": {
+      "destination_id": "food-logging",
+      "name": "Log Food",
+      "path_description": "Health - Physical - Nutrition",
+      "explanation": "Track your meals, calories, and nutrition.",
+      "url": "/health/physical/nutrition/",
+      "keywords": "food, nutrition, log food, meals, calories, diet, eating, what i ate, food diary, calorie tracking, macros",
+      "module": "health",
+      "sort_order": 8,
+      "is_active": true,
+      "created_at": "2026-01-13T00:00:00Z",
+      "updated_at": "2026-01-13T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 9,
+    "fields": {
+      "destination_id": "fasting-tracker",
+      "name": "Fasting Tracker",
+      "path_description": "Health - Physical - Fasting",
+      "explanation": "Start, track, and manage your intermittent fasting sessions.",
+      "url": "/health/physical/fasting/",
+      "keywords": "fasting, fast, intermittent fasting, start fast, fasting tracker, IF, time restricted eating",
+      "module": "health",
+      "sort_order": 9,
+      "is_active": true,
+      "created_at": "2026-01-13T00:00:00Z",
+      "updated_at": "2026-01-13T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 10,
+    "fields": {
+      "destination_id": "prayer-requests",
+      "name": "Prayer Requests",
+      "path_description": "Faith - Prayers",
+      "explanation": "Add and manage your prayer requests and answered prayers.",
+      "url": "/faith/prayers/",
+      "keywords": "prayer, prayers, prayer request, pray, praying, prayer list, faith, spiritual",
+      "module": "faith",
+      "sort_order": 10,
+      "is_active": true,
+      "created_at": "2026-01-13T00:00:00Z",
+      "updated_at": "2026-01-13T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 11,
+    "fields": {
+      "destination_id": "habits",
+      "name": "Habit Tracking",
+      "path_description": "Goals - Habits",
+      "explanation": "Track daily habits and build consistent routines.",
+      "url": "/purpose/habits/",
+      "keywords": "habits, habit tracker, daily habits, routine, streak, habit tracking, build habits",
+      "module": "purpose",
+      "sort_order": 11,
+      "is_active": true,
+      "created_at": "2026-01-13T00:00:00Z",
+      "updated_at": "2026-01-13T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 12,
+    "fields": {
+      "destination_id": "calendar",
+      "name": "Calendar",
+      "path_description": "Organize - Calendar",
+      "explanation": "View your calendar and manage events.",
+      "url": "/life/calendar/",
+      "keywords": "calendar, events, schedule, appointments, upcoming, what's on my calendar",
+      "module": "life",
+      "sort_order": 12,
+      "is_active": true,
+      "created_at": "2026-01-13T00:00:00Z",
+      "updated_at": "2026-01-13T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 13,
+    "fields": {
+      "destination_id": "dashboard",
+      "name": "Dashboard",
+      "path_description": "Dashboard",
+      "explanation": "Your personal dashboard with an overview of your wellness journey.",
+      "url": "/dashboard/",
+      "keywords": "dashboard, home, overview, main page, start, summary",
+      "module": "dashboard",
+      "sort_order": 13,
+      "is_active": true,
+      "created_at": "2026-01-13T00:00:00Z",
+      "updated_at": "2026-01-13T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 14,
+    "fields": {
+      "destination_id": "settings",
+      "name": "Settings",
+      "path_description": "User - Preferences",
+      "explanation": "Customize your app settings, theme, and preferences.",
+      "url": "/user/preferences/",
+      "keywords": "settings, preferences, options, customize, theme, profile, account settings, configuration",
+      "module": "users",
+      "sort_order": 14,
+      "is_active": true,
+      "created_at": "2026-01-13T00:00:00Z",
+      "updated_at": "2026-01-13T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 15,
+    "fields": {
+      "destination_id": "recipes",
+      "name": "Recipes",
+      "path_description": "Organize - Recipes",
+      "explanation": "Store and manage your favorite recipes.",
+      "url": "/life/recipes/",
+      "keywords": "recipes, recipe, cooking, meals, food ideas, recipe book, cookbook",
+      "module": "life",
+      "sort_order": 15,
+      "is_active": true,
+      "created_at": "2026-01-13T00:00:00Z",
+      "updated_at": "2026-01-13T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 16,
+    "fields": {
+      "destination_id": "help-center",
+      "name": "Help Center",
+      "path_description": "Help",
+      "explanation": "Browse help articles and get answers to your questions.",
+      "url": "/help/",
+      "keywords": "help, support, help center, faq, questions, how to, documentation, guides",
+      "module": "help",
+      "sort_order": 16,
+      "is_active": true,
+      "created_at": "2026-01-13T00:00:00Z",
+      "updated_at": "2026-01-13T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 17,
+    "fields": {
+      "destination_id": "reading-plans",
+      "name": "Bible Reading Plans",
+      "path_description": "Faith - Reading Plans",
+      "explanation": "Follow Bible reading plans and track your progress.",
+      "url": "/faith/reading-plans/",
+      "keywords": "bible, reading plan, scripture, bible study, devotional, daily reading, bible reading",
+      "module": "faith",
+      "sort_order": 17,
+      "is_active": true,
+      "created_at": "2026-01-13T00:00:00Z",
+      "updated_at": "2026-01-13T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 18,
+    "fields": {
+      "destination_id": "glucose-tracking",
+      "name": "Glucose Tracking",
+      "path_description": "Health - Physical - Glucose",
+      "explanation": "Log and monitor your blood glucose levels.",
+      "url": "/health/physical/glucose/",
+      "keywords": "glucose, blood sugar, sugar levels, diabetes, cgm, dexcom, blood glucose",
+      "module": "health",
+      "sort_order": 18,
+      "is_active": true,
+      "created_at": "2026-01-13T00:00:00Z",
+      "updated_at": "2026-01-13T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 19,
+    "fields": {
+      "destination_id": "projects",
+      "name": "Projects",
+      "path_description": "Organize - Projects",
+      "explanation": "Manage your projects and organize tasks by project.",
+      "url": "/life/projects/",
+      "keywords": "projects, project list, project management, organize projects",
+      "module": "life",
+      "sort_order": 19,
+      "is_active": true,
+      "created_at": "2026-01-13T00:00:00Z",
+      "updated_at": "2026-01-13T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 20,
+    "fields": {
+      "destination_id": "journal-entries",
+      "name": "Journal Entries",
+      "path_description": "Journal - Entries",
+      "explanation": "Browse and search your journal entries.",
+      "url": "/journal/entries/",
+      "keywords": "journal entries, past entries, journal history, read journal, my journals",
+      "module": "journal",
+      "sort_order": 20,
+      "is_active": true,
+      "created_at": "2026-01-13T00:00:00Z",
+      "updated_at": "2026-01-13T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 21,
+    "fields": {
+      "destination_id": "capture-list",
+      "name": "Audio Capture",
+      "path_description": "Capture",
+      "explanation": "View your audio recordings, transcripts, and AI-generated summaries.",
+      "url": "/capture/",
+      "keywords": "capture, audio, recordings, transcripts, summaries, voice notes, sermon notes, meeting notes",
+      "module": "capture",
+      "sort_order": 21,
+      "is_active": true,
+      "created_at": "2026-01-14T00:00:00Z",
+      "updated_at": "2026-01-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 22,
+    "fields": {
+      "destination_id": "capture-record",
+      "name": "Record Audio",
+      "path_description": "Capture - Record",
+      "explanation": "Record audio directly in the app for transcription and AI summarization.",
+      "url": "/capture/record/",
+      "keywords": "record, record audio, voice recording, microphone, record sermon, record meeting, voice memo",
+      "module": "capture",
+      "sort_order": 22,
+      "is_active": true,
+      "created_at": "2026-01-14T00:00:00Z",
+      "updated_at": "2026-01-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 23,
+    "fields": {
+      "destination_id": "capture-upload",
+      "name": "Upload Audio",
+      "path_description": "Capture - Upload",
+      "explanation": "Upload existing audio files for transcription and AI summarization.",
+      "url": "/capture/upload/",
+      "keywords": "upload, upload audio, audio file, mp3, wav, upload recording, import audio",
+      "module": "capture",
+      "sort_order": 23,
+      "is_active": true,
+      "created_at": "2026-01-14T00:00:00Z",
+      "updated_at": "2026-01-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 24,
+    "fields": {
+      "destination_id": "cycle-tracking",
+      "name": "Cycle Tracking",
+      "path_description": "Health - Physical - Cycle",
+      "explanation": "Track your menstrual cycle, log daily symptoms, moods, and flow levels. View predictions and statistics.",
+      "url": "/health/physical/cycle/",
+      "keywords": "cycle, period, menstrual, menstruation, period tracker, cycle tracker, fertility, ovulation, flow, symptoms, cramps, pms",
+      "module": "health",
+      "sort_order": 24,
+      "is_active": true,
+      "created_at": "2026-01-15T00:00:00Z",
+      "updated_at": "2026-01-15T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 25,
+    "fields": {
+      "destination_id": "cycle-daily-log",
+      "name": "Log Cycle Day",
+      "path_description": "Health - Physical - Cycle - Daily Log",
+      "explanation": "Record daily cycle data including flow level, symptoms, mood, and energy levels.",
+      "url": "/health/physical/cycle/log/",
+      "keywords": "log cycle, log period, daily log, track flow, cycle symptoms, period symptoms, log cramps, mood tracker, energy level",
+      "module": "health",
+      "sort_order": 25,
+      "is_active": true,
+      "created_at": "2026-01-15T00:00:00Z",
+      "updated_at": "2026-01-15T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 26,
+    "fields": {
+      "destination_id": "cycle-predictions",
+      "name": "Cycle Predictions",
+      "path_description": "Health - Cycle - Predictions",
+      "explanation": "View AI-powered predictions for your next period and fertile window based on your cycle history.",
+      "url": "/health/physical/cycle/predictions/",
+      "keywords": "cycle prediction, period prediction, when is my period, predict period, fertile window, ovulation prediction, next period",
+      "module": "health",
+      "sort_order": 26,
+      "is_active": true,
+      "created_at": "2026-01-15T00:00:00Z",
+      "updated_at": "2026-01-15T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 27,
+    "fields": {
+      "destination_id": "cycle-history",
+      "name": "Cycle History",
+      "path_description": "Health - Cycle - History",
+      "explanation": "View your past cycles, cycle lengths, period lengths, and track patterns over time.",
+      "url": "/health/physical/cycle/history/",
+      "keywords": "cycle history, past cycles, period history, cycle patterns, cycle length, period length, cycle statistics",
+      "module": "health",
+      "sort_order": 27,
+      "is_active": true,
+      "created_at": "2026-01-15T00:00:00Z",
+      "updated_at": "2026-01-15T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 28,
+    "fields": {
+      "destination_id": "scan-camera",
+      "name": "Camera Scan",
+      "path_description": "Scan",
+      "explanation": "Use your camera to scan food, medicine, products, and more. AI identifies items and suggests actions like logging nutrition.",
+      "url": "/scan/",
+      "keywords": "scan, camera, barcode, food scan, medicine scan, take photo, photograph, identify, ai scan, food recognition",
+      "module": "scan",
+      "sort_order": 28,
+      "is_active": true,
+      "created_at": "2026-01-16T00:00:00Z",
+      "updated_at": "2026-01-16T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 29,
+    "fields": {
+      "destination_id": "finance-dashboard",
+      "name": "Finance Dashboard",
+      "path_description": "Finance",
+      "explanation": "Track your finances, bank accounts, transactions, budgets, and savings goals.",
+      "url": "/finance/",
+      "keywords": "finance, money, budget, bank account, transactions, spending, savings, financial, bills, expenses",
+      "module": "finance",
+      "sort_order": 29,
+      "is_active": true,
+      "created_at": "2026-01-16T00:00:00Z",
+      "updated_at": "2026-01-16T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 30,
+    "fields": {
+      "destination_id": "finance-budgets",
+      "name": "Budgets",
+      "path_description": "Finance - Budgets",
+      "explanation": "Create and manage budgets to track spending by category and stay on target.",
+      "url": "/finance/budgets/",
+      "keywords": "budget, budgets, spending limit, expense tracking, budget tracking, budget categories, financial planning",
+      "module": "finance",
+      "sort_order": 30,
+      "is_active": true,
+      "created_at": "2026-01-16T00:00:00Z",
+      "updated_at": "2026-01-16T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 31,
+    "fields": {
+      "destination_id": "finance-goals",
+      "name": "Savings Goals",
+      "path_description": "Finance - Goals",
+      "explanation": "Set and track savings goals like emergency funds, vacations, or major purchases.",
+      "url": "/finance/goals/",
+      "keywords": "savings, savings goal, save money, financial goal, emergency fund, save for, money goal",
+      "module": "finance",
+      "sort_order": 31,
+      "is_active": true,
+      "created_at": "2026-01-16T00:00:00Z",
+      "updated_at": "2026-01-16T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 58,
+    "fields": {
+      "destination_id": "finance-recurring",
+      "name": "Recurring Transactions",
+      "path_description": "Finance - Recurring",
+      "explanation": "Manage subscriptions, bills, and regular income. Set up auto-posting or reminders for recurring expenses.",
+      "url": "/finance/recurring/",
+      "keywords": "recurring, subscription, subscriptions, bills, monthly bills, rent, netflix, automatic payments, auto pay, regular income, paycheck",
+      "module": "finance",
+      "sort_order": 32,
+      "is_active": true,
+      "created_at": "2026-01-20T00:00:00Z",
+      "updated_at": "2026-01-20T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 32,
+    "fields": {
+      "destination_id": "inventory",
+      "name": "Home Inventory",
+      "path_description": "Organize - Inventory",
+      "explanation": "Track your belongings, valuables, and household items with photos and details for insurance or organization.",
+      "url": "/life/inventory/",
+      "keywords": "inventory, belongings, valuables, home inventory, insurance, items, possessions, household items, track items",
+      "module": "life",
+      "sort_order": 33,
+      "is_active": true,
+      "created_at": "2026-01-16T00:00:00Z",
+      "updated_at": "2026-01-16T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 33,
+    "fields": {
+      "destination_id": "pets",
+      "name": "Pet Management",
+      "path_description": "Organize - Pets",
+      "explanation": "Track your pets' information, vet visits, medications, and important records.",
+      "url": "/life/pets/",
+      "keywords": "pets, pet, dog, cat, vet, veterinarian, pet records, pet health, animal, pet care",
+      "module": "life",
+      "sort_order": 33,
+      "is_active": true,
+      "created_at": "2026-01-16T00:00:00Z",
+      "updated_at": "2026-01-16T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 34,
+    "fields": {
+      "destination_id": "documents",
+      "name": "Document Storage",
+      "path_description": "Organize - Documents",
+      "explanation": "Store and organize important documents like IDs, insurance cards, and records.",
+      "url": "/life/documents/",
+      "keywords": "documents, files, upload, storage, important documents, insurance card, id card, passport, records",
+      "module": "life",
+      "sort_order": 34,
+      "is_active": true,
+      "created_at": "2026-01-16T00:00:00Z",
+      "updated_at": "2026-01-16T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 35,
+    "fields": {
+      "destination_id": "significant-events",
+      "name": "Birthdays & Anniversaries",
+      "path_description": "Organize - Significant Events",
+      "explanation": "Track birthdays, anniversaries, and other important dates for family and friends.",
+      "url": "/life/significant-events/",
+      "keywords": "birthday, birthdays, anniversary, anniversaries, important dates, special dates, remember dates, celebrations",
+      "module": "life",
+      "sort_order": 35,
+      "is_active": true,
+      "created_at": "2026-01-16T00:00:00Z",
+      "updated_at": "2026-01-16T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 36,
+    "fields": {
+      "destination_id": "maintenance-logs",
+      "name": "Maintenance Logs",
+      "path_description": "Organize - Maintenance",
+      "explanation": "Track home and vehicle maintenance like oil changes, HVAC service, and repairs.",
+      "url": "/life/maintenance/",
+      "keywords": "maintenance, home maintenance, vehicle maintenance, car maintenance, oil change, hvac, repairs, service records",
+      "module": "life",
+      "sort_order": 36,
+      "is_active": true,
+      "created_at": "2026-01-16T00:00:00Z",
+      "updated_at": "2026-01-16T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 37,
+    "fields": {
+      "destination_id": "blood-pressure",
+      "name": "Blood Pressure",
+      "path_description": "Health - Physical - Blood Pressure",
+      "explanation": "Log and monitor your blood pressure readings over time.",
+      "url": "/health/physical/blood-pressure/",
+      "keywords": "blood pressure, bp, systolic, diastolic, hypertension, heart health, log blood pressure",
+      "module": "health",
+      "sort_order": 37,
+      "is_active": true,
+      "created_at": "2026-01-16T00:00:00Z",
+      "updated_at": "2026-01-16T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 38,
+    "fields": {
+      "destination_id": "heart-rate",
+      "name": "Heart Rate",
+      "path_description": "Health - Physical - Heart Rate",
+      "explanation": "Log and track your heart rate and resting heart rate over time.",
+      "url": "/health/physical/heart-rate/",
+      "keywords": "heart rate, pulse, bpm, resting heart rate, heart health, log heart rate",
+      "module": "health",
+      "sort_order": 38,
+      "is_active": true,
+      "created_at": "2026-01-16T00:00:00Z",
+      "updated_at": "2026-01-16T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 39,
+    "fields": {
+      "destination_id": "steps-tracking",
+      "name": "Steps Tracking",
+      "path_description": "Health - Physical - Steps",
+      "explanation": "Log your daily steps and track your activity levels over time.",
+      "url": "/health/physical/steps/",
+      "keywords": "steps, step count, walking, activity, pedometer, daily steps, step tracking",
+      "module": "health",
+      "sort_order": 39,
+      "is_active": true,
+      "created_at": "2026-01-16T00:00:00Z",
+      "updated_at": "2026-01-16T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 40,
+    "fields": {
+      "destination_id": "blood-oxygen",
+      "name": "Blood Oxygen",
+      "path_description": "Health - Physical - Blood Oxygen",
+      "explanation": "Track your blood oxygen saturation (SpO2) levels.",
+      "url": "/health/physical/blood-oxygen/",
+      "keywords": "blood oxygen, spo2, oxygen saturation, pulse ox, oxygen level",
+      "module": "health",
+      "sort_order": 40,
+      "is_active": true,
+      "created_at": "2026-01-16T00:00:00Z",
+      "updated_at": "2026-01-16T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 41,
+    "fields": {
+      "destination_id": "medical-providers",
+      "name": "Medical Providers",
+      "path_description": "Health - Physical - Providers",
+      "explanation": "Store your doctors, specialists, and healthcare provider contact information.",
+      "url": "/health/physical/providers/",
+      "keywords": "doctor, doctors, provider, providers, specialist, physician, healthcare, medical, dentist, therapist",
+      "module": "health",
+      "sort_order": 41,
+      "is_active": true,
+      "created_at": "2026-01-16T00:00:00Z",
+      "updated_at": "2026-01-16T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 42,
+    "fields": {
+      "destination_id": "workout-templates",
+      "name": "Workout Templates",
+      "path_description": "Health - Physical - Fitness - Templates",
+      "explanation": "Create and manage workout templates for quick logging of your regular routines.",
+      "url": "/health/physical/fitness/templates/",
+      "keywords": "workout template, exercise template, routine, workout plan, exercise routine, gym routine",
+      "module": "health",
+      "sort_order": 42,
+      "is_active": true,
+      "created_at": "2026-01-16T00:00:00Z",
+      "updated_at": "2026-01-16T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 43,
+    "fields": {
+      "destination_id": "personal-records",
+      "name": "Personal Records",
+      "path_description": "Health - Physical - Fitness - PRs",
+      "explanation": "View and track your personal best records for exercises like bench press, squat, and deadlift.",
+      "url": "/health/physical/fitness/prs/",
+      "keywords": "personal records, pr, prs, personal best, max lift, one rep max, fitness records, strength records",
+      "module": "health",
+      "sort_order": 43,
+      "is_active": true,
+      "created_at": "2026-01-16T00:00:00Z",
+      "updated_at": "2026-01-16T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 44,
+    "fields": {
+      "destination_id": "daily-verse",
+      "name": "Daily Verse",
+      "path_description": "Faith - Daily Verse",
+      "explanation": "Read today's Bible verse with reflection and share it with others.",
+      "url": "/faith/verse/",
+      "keywords": "verse, daily verse, bible verse, scripture, today's verse, verse of the day",
+      "module": "faith",
+      "sort_order": 44,
+      "is_active": true,
+      "created_at": "2026-01-16T00:00:00Z",
+      "updated_at": "2026-01-16T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 45,
+    "fields": {
+      "destination_id": "saved-scripture",
+      "name": "Saved Scripture",
+      "path_description": "Faith - Scripture",
+      "explanation": "View and manage your saved scripture verses and memory verses.",
+      "url": "/faith/scripture/",
+      "keywords": "saved scripture, saved verses, memory verse, memorize, scripture collection, saved bible verses",
+      "module": "faith",
+      "sort_order": 45,
+      "is_active": true,
+      "created_at": "2026-01-16T00:00:00Z",
+      "updated_at": "2026-01-16T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 46,
+    "fields": {
+      "destination_id": "faith-milestones",
+      "name": "Faith Milestones",
+      "path_description": "Faith - Milestones",
+      "explanation": "Record significant spiritual milestones like baptism, conversions, and meaningful moments.",
+      "url": "/faith/milestones/",
+      "keywords": "milestones, faith milestone, baptism, saved, conversion, spiritual journey, testimony",
+      "module": "faith",
+      "sort_order": 46,
+      "is_active": true,
+      "created_at": "2026-01-16T00:00:00Z",
+      "updated_at": "2026-01-16T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 47,
+    "fields": {
+      "destination_id": "study-tools",
+      "name": "Bible Study Tools",
+      "path_description": "Faith - Study Tools",
+      "explanation": "Access your Bible study highlights, bookmarks, and notes all in one place.",
+      "url": "/faith/study-tools/",
+      "keywords": "study tools, bible study, highlights, bookmarks, notes, study notes, bible notes",
+      "module": "faith",
+      "sort_order": 47,
+      "is_active": true,
+      "created_at": "2026-01-16T00:00:00Z",
+      "updated_at": "2026-01-16T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 48,
+    "fields": {
+      "destination_id": "annual-direction",
+      "name": "Annual Direction",
+      "path_description": "Goals - Annual Direction",
+      "explanation": "Set your annual vision, word of the year, and long-term life direction.",
+      "url": "/purpose/direction/",
+      "keywords": "annual direction, word of the year, yearly goals, vision, life direction, annual planning, year plan",
+      "module": "purpose",
+      "sort_order": 48,
+      "is_active": true,
+      "created_at": "2026-01-16T00:00:00Z",
+      "updated_at": "2026-01-16T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 49,
+    "fields": {
+      "destination_id": "intentions",
+      "name": "Daily Intentions",
+      "path_description": "Goals - Intentions",
+      "explanation": "Set daily or weekly intentions to focus your energy and attention.",
+      "url": "/purpose/intentions/",
+      "keywords": "intentions, daily intention, weekly intention, focus, mindfulness, set intention, today's intention",
+      "module": "purpose",
+      "sort_order": 49,
+      "is_active": true,
+      "created_at": "2026-01-16T00:00:00Z",
+      "updated_at": "2026-01-16T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 50,
+    "fields": {
+      "destination_id": "reflections",
+      "name": "Purpose Reflections",
+      "path_description": "Goals - Reflections",
+      "explanation": "Reflect on your progress, growth, and life experiences.",
+      "url": "/purpose/reflections/",
+      "keywords": "reflections, reflect, life reflection, growth, progress reflection, self reflection",
+      "module": "purpose",
+      "sort_order": 50,
+      "is_active": true,
+      "created_at": "2026-01-16T00:00:00Z",
+      "updated_at": "2026-01-16T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 51,
+    "fields": {
+      "destination_id": "whats-new",
+      "name": "What's New",
+      "path_description": "What's New",
+      "explanation": "See the latest features, improvements, and updates to the app.",
+      "url": "/whats-new/",
+      "keywords": "what's new, updates, new features, release notes, changelog, improvements, app updates",
+      "module": "core",
+      "sort_order": 51,
+      "is_active": true,
+      "created_at": "2026-01-16T00:00:00Z",
+      "updated_at": "2026-01-16T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 52,
+    "fields": {
+      "destination_id": "quick-log",
+      "name": "Quick Log",
+      "path_description": "Health - Physical - Quick Log",
+      "explanation": "Quickly log multiple health metrics in one place - weight, steps, heart rate, and more.",
+      "url": "/health/physical/quick-log/",
+      "keywords": "quick log, fast log, quick entry, log health, log metrics, quick health log",
+      "module": "health",
+      "sort_order": 52,
+      "is_active": true,
+      "created_at": "2026-01-16T00:00:00Z",
+      "updated_at": "2026-01-16T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 53,
+    "fields": {
+      "destination_id": "journal-prompts",
+      "name": "Journal Prompts",
+      "path_description": "Journal - Prompts",
+      "explanation": "Browse journal prompts for inspiration when you don't know what to write.",
+      "url": "/journal/prompts/",
+      "keywords": "prompts, journal prompts, writing prompts, inspiration, what to write, journal ideas",
+      "module": "journal",
+      "sort_order": 53,
+      "is_active": true,
+      "created_at": "2026-01-16T00:00:00Z",
+      "updated_at": "2026-01-16T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 54,
+    "fields": {
+      "destination_id": "sms-history",
+      "name": "SMS History",
+      "path_description": "User - SMS History",
+      "explanation": "View your SMS message history including reminders and notifications.",
+      "url": "/sms/history/",
+      "keywords": "sms, text messages, notifications, reminders, message history, text history",
+      "module": "users",
+      "sort_order": 54,
+      "is_active": true,
+      "created_at": "2026-01-16T00:00:00Z",
+      "updated_at": "2026-01-16T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 55,
+    "fields": {
+      "destination_id": "billing",
+      "name": "Subscription & Billing",
+      "path_description": "Billing",
+      "explanation": "Manage your subscription plan, view billing history, and update payment methods.",
+      "url": "/billing/plans/",
+      "keywords": "billing, subscription, payment, plan, upgrade, premium, subscription management, pricing",
+      "module": "billing",
+      "sort_order": 55,
+      "is_active": true,
+      "created_at": "2026-01-16T00:00:00Z",
+      "updated_at": "2026-01-16T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 56,
+    "fields": {
+      "destination_id": "water-tracking",
+      "name": "Water Intake",
+      "path_description": "Health - Physical - Water",
+      "explanation": "Log and track your daily water intake to stay hydrated.",
+      "url": "/health/physical/water/",
+      "keywords": "water, hydration, water intake, drink water, log water, track water, hydrated, dehydrated, fluids, water goal, water consumption, glasses of water",
+      "module": "health",
+      "sort_order": 56,
+      "is_active": true,
+      "created_at": "2026-01-17T00:00:00Z",
+      "updated_at": "2026-01-17T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 57,
+    "fields": {
+      "destination_id": "sleep-tracking",
+      "name": "Sleep Tracking",
+      "path_description": "Health - Physical - Sleep",
+      "explanation": "Log and track your sleep patterns, including bedtime, wake time, quality, and sleep stages.",
+      "url": "/health/physical/sleep/",
+      "keywords": "sleep, track sleep, log sleep, sleep history, bedtime, wake time, sleep quality, hours slept, insomnia, rest, sleep patterns, sleep stages, rem sleep, deep sleep",
+      "module": "health",
+      "sort_order": 57,
+      "is_active": true,
+      "created_at": "2026-01-20T00:00:00Z",
+      "updated_at": "2026-01-20T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 58,
+    "fields": {
+      "destination_id": "notification-center",
+      "name": "Notification Center",
+      "path_description": "Notifications",
+      "explanation": "View all your notifications including reminders, alerts, and updates.",
+      "url": "/notifications/",
+      "keywords": "notifications, alerts, reminders, notification center, notification history, bell, unread notifications, view notifications",
+      "module": "core",
+      "sort_order": 58,
+      "is_active": true,
+      "created_at": "2026-01-20T00:00:00Z",
+      "updated_at": "2026-01-20T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 59,
+    "fields": {
+      "destination_id": "notification-preferences",
+      "name": "Notification Preferences",
+      "path_description": "Settings - Preferences - Notifications",
+      "explanation": "Configure which notifications you receive via in-app, email, or SMS.",
+      "url": "/settings/preferences/#notifications",
+      "keywords": "notification settings, notification preferences, turn off notifications, disable notifications, email notifications, sms notifications, configure alerts, notification options",
+      "module": "settings",
+      "sort_order": 59,
+      "is_active": true,
+      "created_at": "2026-01-20T00:00:00Z",
+      "updated_at": "2026-01-20T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 60,
+    "fields": {
+      "destination_id": "dashboard-customize",
+      "name": "Customize Dashboard",
+      "path_description": "Dashboard - Customize",
+      "explanation": "Rearrange, resize, and show/hide dashboard tiles to create your perfect layout.",
+      "url": "/dashboard/configure/",
+      "keywords": "customize dashboard, dashboard settings, dashboard layout, rearrange dashboard, hide tiles, show tiles, tile size, dashboard configuration, personalize dashboard, drag and drop tiles",
+      "module": "dashboard",
+      "sort_order": 60,
+      "is_active": true,
+      "created_at": "2026-01-20T00:00:00Z",
+      "updated_at": "2026-01-20T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 61,
+    "fields": {
+      "destination_id": "blood-pressure-dashboard",
+      "name": "Blood Pressure Dashboard",
+      "path_description": "Health - Physical - Blood Pressure",
+      "explanation": "View your blood pressure trends with charts, statistics, and AHA category tracking for systolic and diastolic readings.",
+      "url": "/health/physical/blood-pressure/dashboard/",
+      "keywords": "blood pressure, bp, systolic, diastolic, blood pressure chart, blood pressure stats, blood pressure trends, blood pressure dashboard, hypertension, blood pressure history",
+      "module": "health",
+      "sort_order": 61,
+      "is_active": true,
+      "created_at": "2026-01-24T00:00:00Z",
+      "updated_at": "2026-01-24T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 62,
+    "fields": {
+      "destination_id": "blood-oxygen-dashboard",
+      "name": "Blood Oxygen Dashboard",
+      "path_description": "Health - Physical - Blood Oxygen",
+      "explanation": "Track your blood oxygen (SpO2) levels with charts, statistics, and health status indicators.",
+      "url": "/health/physical/blood-oxygen/dashboard/",
+      "keywords": "blood oxygen, spo2, oxygen saturation, oxygen levels, blood oxygen chart, blood oxygen stats, blood oxygen dashboard, pulse oximeter, oxygen tracking",
+      "module": "health",
+      "sort_order": 62,
+      "is_active": true,
+      "created_at": "2026-01-24T00:00:00Z",
+      "updated_at": "2026-01-24T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 63,
+    "fields": {
+      "destination_id": "heart-rate-dashboard",
+      "name": "Heart Rate Dashboard",
+      "path_description": "Health - Physical - Heart Rate",
+      "explanation": "View your heart rate trends with charts, statistics, and context-based analysis for resting and active readings.",
+      "url": "/health/physical/heart-rate/dashboard/",
+      "keywords": "heart rate, pulse, bpm, heart rate chart, heart rate stats, heart rate dashboard, resting heart rate, heart health, heart rate trends",
+      "module": "health",
+      "sort_order": 63,
+      "is_active": true,
+      "created_at": "2026-01-24T00:00:00Z",
+      "updated_at": "2026-01-24T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 64,
+    "fields": {
+      "destination_id": "hrv-dashboard",
+      "name": "HRV Dashboard",
+      "path_description": "Health - Physical - Heart Rate Variability",
+      "explanation": "Track your Heart Rate Variability (HRV) from wearable devices. Higher HRV generally indicates better recovery and fitness.",
+      "url": "/health/physical/hrv/dashboard/",
+      "keywords": "hrv, heart rate variability, hrv chart, hrv stats, hrv dashboard, recovery, fitness, stress, hrv tracking, sdnn",
+      "module": "health",
+      "sort_order": 64,
+      "is_active": true,
+      "created_at": "2026-01-24T00:00:00Z",
+      "updated_at": "2026-01-24T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 65,
+    "fields": {
+      "destination_id": "vo2-max-dashboard",
+      "name": "VO2 Max Dashboard",
+      "path_description": "Health - Physical - VO2 Max",
+      "explanation": "Track your VO2 Max (cardiorespiratory fitness) from wearable devices. Higher values indicate better cardiovascular fitness.",
+      "url": "/health/physical/vo2-max/dashboard/",
+      "keywords": "vo2 max, vo2max, cardio fitness, cardiovascular fitness, fitness level, aerobic capacity, vo2 max chart, vo2 max stats",
+      "module": "health",
+      "sort_order": 65,
+      "is_active": true,
+      "created_at": "2026-01-24T00:00:00Z",
+      "updated_at": "2026-01-24T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 66,
+    "fields": {
+      "destination_id": "respiratory-rate-dashboard",
+      "name": "Respiratory Rate Dashboard",
+      "path_description": "Health - Physical - Respiratory Rate",
+      "explanation": "Track your respiratory rate (breaths per minute) measured during sleep. Normal adult range is 12-20 breaths per minute.",
+      "url": "/health/physical/respiratory-rate/dashboard/",
+      "keywords": "respiratory rate, breathing rate, breaths per minute, brpm, respiratory dashboard, sleep breathing, breathing patterns",
+      "module": "health",
+      "sort_order": 66,
+      "is_active": true,
+      "created_at": "2026-01-24T00:00:00Z",
+      "updated_at": "2026-01-24T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 67,
+    "fields": {
+      "destination_id": "body-temperature-dashboard",
+      "name": "Body Temperature Dashboard",
+      "path_description": "Health - Physical - Body Temperature",
+      "explanation": "Track your body temperature readings with fever detection and trend analysis.",
+      "url": "/health/physical/body-temperature/dashboard/",
+      "keywords": "body temperature, temperature, fever, temp, thermometer, temperature chart, temperature tracking, fever tracking",
+      "module": "health",
+      "sort_order": 67,
+      "is_active": true,
+      "created_at": "2026-01-24T00:00:00Z",
+      "updated_at": "2026-01-24T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 68,
+    "fields": {
+      "destination_id": "caffeine-dashboard",
+      "name": "Caffeine Dashboard",
+      "path_description": "Health - Physical - Caffeine",
+      "explanation": "Track your daily caffeine intake from synced devices. FDA recommends no more than 400mg per day for healthy adults.",
+      "url": "/health/physical/caffeine/dashboard/",
+      "keywords": "caffeine, coffee, caffeine tracking, caffeine intake, daily caffeine, coffee consumption, caffeine chart",
+      "module": "health",
+      "sort_order": 68,
+      "is_active": true,
+      "created_at": "2026-01-24T00:00:00Z",
+      "updated_at": "2026-01-24T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 69,
+    "fields": {
+      "destination_id": "mindful-minutes-dashboard",
+      "name": "Mindful Minutes Dashboard",
+      "path_description": "Health - Physical - Mindful Minutes",
+      "explanation": "Track your meditation and breathing exercise sessions from synced devices. Regular practice helps reduce stress.",
+      "url": "/health/physical/mindful-minutes/dashboard/",
+      "keywords": "mindful minutes, meditation, mindfulness, breathing exercises, stress relief, mindful, meditation tracking, mindfulness tracking",
+      "module": "health",
+      "sort_order": 69,
+      "is_active": true,
+      "created_at": "2026-01-24T00:00:00Z",
+      "updated_at": "2026-01-24T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 70,
+    "fields": {
+      "destination_id": "activity-dashboard",
+      "name": "Activity Dashboard",
+      "path_description": "Health - Physical - Activity",
+      "explanation": "View your combined activity metrics including steps, calories burned, distance walked, and flights climbed.",
+      "url": "/health/physical/activity/dashboard/",
+      "keywords": "activity, steps, calories, distance, activity dashboard, activity tracking, daily activity, fitness activity, calories burned, exercise",
+      "module": "health",
+      "sort_order": 70,
+      "is_active": true,
+      "created_at": "2026-01-24T00:00:00Z",
+      "updated_at": "2026-01-24T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 72,
+    "fields": {
+      "destination_id": "more-menu",
+      "name": "More Menu",
+      "path_description": "Navigation - More",
+      "explanation": "Access additional modules and quick links including Profile, Preferences, Help, Notifications, and Sign Out.",
+      "url": "/more/",
+      "keywords": "more, menu, additional options, overflow, settings, profile, preferences, help, sign out, logout",
+      "module": "core",
+      "sort_order": 72,
+      "is_active": true,
+      "created_at": "2026-01-25T00:00:00Z",
+      "updated_at": "2026-01-25T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 73,
+    "fields": {
+      "destination_id": "favorites-hub",
+      "name": "Favorites",
+      "path_description": "Navigation - Favorites",
+      "explanation": "View and access your starred pages for quick navigation. Tap the star icon on any page to add it to favorites.",
+      "url": "/favorites/",
+      "keywords": "favorites, starred, bookmarks, favorite pages, starred pages, quick access, shortcuts",
+      "module": "core",
+      "sort_order": 73,
+      "is_active": true,
+      "created_at": "2026-01-25T00:00:00Z",
+      "updated_at": "2026-01-25T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 74,
+    "fields": {
+      "destination_id": "profile",
+      "name": "Profile",
+      "path_description": "User - Profile",
+      "explanation": "View and edit your profile information, including name, email, and avatar. You can also delete your account from this page.",
+      "url": "/user/profile/",
+      "keywords": "profile, my profile, account, edit profile, change name, change email, user profile, personal info, delete account, remove account, close account",
+      "module": "users",
+      "sort_order": 74,
+      "is_active": true,
+      "created_at": "2026-01-25T00:00:00Z",
+      "updated_at": "2026-01-25T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 75,
+    "fields": {
+      "destination_id": "delete-account",
+      "name": "Delete Account",
+      "path_description": "Settings - Profile - Delete Account",
+      "explanation": "Permanently delete your Whole Life Journey account and all associated data. You can export your data first before deletion. This action cannot be undone.",
+      "url": "/user/delete-account/",
+      "keywords": "delete account, remove account, close account, cancel account, deactivate account, delete my account, permanently delete, account deletion, erase account, terminate account, leave, quit",
+      "module": "users",
+      "sort_order": 75,
+      "is_active": true,
+      "created_at": "2026-01-25T00:00:00Z",
+      "updated_at": "2026-01-25T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 76,
+    "fields": {
+      "destination_id": "data-export",
+      "name": "Export Your Data",
+      "path_description": "Settings - Export Data",
+      "explanation": "Download a complete copy of all your personal data (journal entries, health records, goals, etc.) in JSON or CSV format.",
+      "url": "/user/data-export/",
+      "keywords": "data export, download data, export data, gdpr, my data, download my information, backup data, data portability",
+      "module": "users",
+      "sort_order": 76,
+      "is_active": true,
+      "created_at": "2026-01-25T00:00:00Z",
+      "updated_at": "2026-01-25T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 77,
+    "fields": {
+      "destination_id": "brain-training",
+      "name": "Brain Training",
+      "path_description": "Health - Cognitive Health - Brain Training",
+      "explanation": "Exercise your mind with cognitive challenges like Sudoku, KenKen, Nonogram, Word Ladder, and Memory Matrix. Regular mental exercise strengthens neural pathways, improves memory, and helps maintain cognitive function as you age.",
+      "url": "/health/cognitive/",
+      "keywords": "brain training, puzzles, sudoku, kenken, nonogram, word ladder, memory, cognitive, logic puzzles, brain exercise, mental fitness, cognitive health",
+      "module": "health",
+      "sort_order": 77,
+      "is_active": true,
+      "created_at": "2026-01-26T00:00:00Z",
+      "updated_at": "2026-01-26T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 78,
+    "fields": {
+      "destination_id": "brain-training-stats",
+      "name": "Brain Training Stats",
+      "path_description": "Health - Cognitive Health - Brain Training - Stats",
+      "explanation": "View your cognitive training statistics, improvement trends, and performance across all exercises. Track your progress over time to see how regular practice strengthens your mental abilities.",
+      "url": "/health/cognitive/stats/",
+      "keywords": "brain stats, brain training stats, cognitive stats, exercise stats, improvement, progress, brain performance, mental fitness tracking",
+      "module": "health",
+      "sort_order": 78,
+      "is_active": true,
+      "created_at": "2026-01-26T00:00:00Z",
+      "updated_at": "2026-01-26T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 79,
+    "fields": {
+      "destination_id": "health-landing",
+      "name": "Health",
+      "path_description": "Health",
+      "explanation": "Your health hub with two main areas: Physical Health for body metrics, fitness, sleep, and nutrition; and Cognitive Health for brain training and mental wellness.",
+      "url": "/health/",
+      "keywords": "health, wellness, physical health, cognitive health, body, mind, fitness, brain, health home",
+      "module": "health",
+      "sort_order": 79,
+      "is_active": true,
+      "created_at": "2026-01-26T00:00:00Z",
+      "updated_at": "2026-01-26T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 80,
+    "fields": {
+      "destination_id": "physical-health-home",
+      "name": "Physical Health",
+      "path_description": "Health - Physical Health",
+      "explanation": "Track your physical wellness including weight, heart rate, blood pressure, sleep, steps, water intake, fitness, nutrition, and medications.",
+      "url": "/health/physical/",
+      "keywords": "physical health, body health, fitness, weight, heart rate, sleep, steps, water, nutrition, medicine, physical wellness",
+      "module": "health",
+      "sort_order": 80,
+      "is_active": true,
+      "created_at": "2026-01-26T00:00:00Z",
+      "updated_at": "2026-01-26T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 81,
+    "fields": {
+      "destination_id": "brain-training-sudoku",
+      "name": "Sudoku",
+      "path_description": "Health - Cognitive - Brain Training - Sudoku",
+      "explanation": "A classic logic puzzle that strengthens concentration, logical thinking, and pattern recognition. Fill each row, column, and 3x3 box with digits 1-9 without repeating any number. Use pencil marks to track possibilities, and watch as your solving speed improves with practice.",
+      "url": "/health/cognitive/sudoku/play/",
+      "keywords": "sudoku, number puzzle, logic puzzle, 9x9, sudoku puzzle, concentration, logical thinking, pattern recognition, cognitive exercise",
+      "module": "health",
+      "sort_order": 81,
+      "is_active": true,
+      "created_at": "2026-01-26T00:00:00Z",
+      "updated_at": "2026-01-26T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 82,
+    "fields": {
+      "destination_id": "brain-training-kenken",
+      "name": "KenKen",
+      "path_description": "Health - Cognitive - Brain Training - KenKen",
+      "explanation": "A math-logic puzzle that exercises arithmetic skills and reasoning. Each cage shows a target number and operation\u2014fill cells so the operation produces that result, with no repeated numbers in any row or column. Strengthens mental math, working memory, and logical deduction.",
+      "url": "/health/cognitive/kenken/play/",
+      "keywords": "kenken, math puzzle, arithmetic, cage puzzle, ken ken, calcudoku, mental math, working memory, logical deduction, cognitive exercise",
+      "module": "health",
+      "sort_order": 82,
+      "is_active": true,
+      "created_at": "2026-01-26T00:00:00Z",
+      "updated_at": "2026-01-26T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 83,
+    "fields": {
+      "destination_id": "brain-training-nonogram",
+      "name": "Nonogram",
+      "path_description": "Health - Cognitive - Brain Training - Nonogram",
+      "explanation": "A visual logic puzzle that builds spatial reasoning and attention to detail. Number clues indicate consecutive filled cells in each row and column\u2014use deduction to reveal a hidden picture. Enhances visual processing, planning skills, and systematic thinking.",
+      "url": "/health/cognitive/nonogram/play/",
+      "keywords": "nonogram, picross, picture puzzle, grid puzzle, pixel puzzle, griddler, spatial reasoning, visual processing, cognitive exercise",
+      "module": "health",
+      "sort_order": 83,
+      "is_active": true,
+      "created_at": "2026-01-26T00:00:00Z",
+      "updated_at": "2026-01-26T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 84,
+    "fields": {
+      "destination_id": "brain-training-word-ladder",
+      "name": "Word Ladder",
+      "path_description": "Health - Cognitive - Brain Training - Word Ladder",
+      "explanation": "A vocabulary puzzle that strengthens language processing and creative thinking. Transform one word into another by changing one letter at a time, with each step forming a valid word. Builds verbal fluency, mental flexibility, and word association skills.",
+      "url": "/health/cognitive/word_ladder/play/",
+      "keywords": "word ladder, word puzzle, letter change, vocabulary, word chain, verbal fluency, language processing, cognitive exercise",
+      "module": "health",
+      "sort_order": 84,
+      "is_active": true,
+      "created_at": "2026-01-26T00:00:00Z",
+      "updated_at": "2026-01-26T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 85,
+    "fields": {
+      "destination_id": "brain-training-memory-matrix",
+      "name": "Memory Matrix",
+      "path_description": "Health - Cognitive - Brain Training - Memory Matrix",
+      "explanation": "A visual memory exercise that strengthens short-term recall and attention. Watch a pattern of highlighted cells, then recreate it from memory. Regular practice improves working memory capacity, visual attention, and concentration\u2014essential cognitive skills that support daily life.",
+      "url": "/health/cognitive/memory_matrix/play/",
+      "keywords": "memory matrix, pattern memory, visual memory, recall, memory exercise, working memory, visual attention, concentration, cognitive exercise",
+      "module": "health",
+      "sort_order": 85,
+      "is_active": true,
+      "created_at": "2026-01-26T00:00:00Z",
+      "updated_at": "2026-01-26T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 86,
+    "fields": {
+      "destination_id": "ai-data-search",
+      "name": "Search My Data",
+      "path_description": "Assistant - Data Search",
+      "explanation": "Use natural language to search across all your WLJ data. Ask questions like 'What did I journal about last week?' or 'Show my weight from January' and get instant answers.",
+      "url": "/assistant/",
+      "keywords": "search data, find entries, lookup, query my data, search journal, search health, natural language search, ask about my data",
+      "module": "ai",
+      "sort_order": 86,
+      "is_active": true,
+      "created_at": "2026-02-01T00:00:00Z",
+      "updated_at": "2026-02-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 87,
+    "fields": {
+      "destination_id": "ai-insights",
+      "name": "AI Insights",
+      "path_description": "Assistant - Insights",
+      "explanation": "Get AI-powered analysis of your patterns and trends. Ask about mood patterns, health trends, productivity, and receive personalized observations based on your data.",
+      "url": "/assistant/",
+      "keywords": "ai insights, patterns, trends, analysis, mood patterns, health trends, ai analysis, personalized insights",
+      "module": "ai",
+      "sort_order": 87,
+      "is_active": true,
+      "created_at": "2026-02-01T00:00:00Z",
+      "updated_at": "2026-02-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 88,
+    "fields": {
+      "destination_id": "ai-coaching",
+      "name": "AI Coaching",
+      "path_description": "Assistant - Coaching",
+      "explanation": "Receive personalized guidance and recommendations from your AI coach. Get help with goal setting, habit building, and daily priorities based on your actual data and preferences.",
+      "url": "/assistant/",
+      "keywords": "ai coaching, personal coach, guidance, advice, recommendations, help me, what should I do, priorities",
+      "module": "ai",
+      "sort_order": 88,
+      "is_active": true,
+      "created_at": "2026-02-01T00:00:00Z",
+      "updated_at": "2026-02-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 89,
+    "fields": {
+      "destination_id": "ai-settings",
+      "name": "AI Settings",
+      "path_description": "Preferences - AI Settings",
+      "explanation": "Configure your AI experience including enabling AI features, choosing your coaching style, and managing data consent for personalized insights.",
+      "url": "/preferences/#ai",
+      "keywords": "ai settings, enable ai, coaching style, ai preferences, ai consent, configure ai",
+      "module": "ai",
+      "sort_order": 89,
+      "is_active": true,
+      "created_at": "2026-02-01T00:00:00Z",
+      "updated_at": "2026-02-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 90,
+    "fields": {
+      "destination_id": "finance-budgets-overview",
+      "name": "Budget Tracking",
+      "path_description": "Finance - Budgets",
+      "explanation": "Set monthly spending limits by category and track your progress. See how much you've spent versus your budget in real-time.",
+      "url": "/finance/budgets/",
+      "keywords": "budget, spending limit, monthly budget, track spending, budget categories, money management",
+      "module": "finance",
+      "sort_order": 90,
+      "is_active": true,
+      "created_at": "2026-02-01T00:00:00Z",
+      "updated_at": "2026-02-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 91,
+    "fields": {
+      "destination_id": "finance-transactions",
+      "name": "Log Transaction",
+      "path_description": "Finance - Transactions",
+      "explanation": "Record income and expenses to track where your money goes. Categorize transactions for budget tracking and financial insights.",
+      "url": "/finance/transactions/",
+      "keywords": "transaction, expense, income, log money, record spending, financial entry, add transaction",
+      "module": "finance",
+      "sort_order": 91,
+      "is_active": true,
+      "created_at": "2026-02-01T00:00:00Z",
+      "updated_at": "2026-02-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 92,
+    "fields": {
+      "destination_id": "finance-savings-goals",
+      "name": "Savings Goals",
+      "path_description": "Finance - Savings Goals",
+      "explanation": "Set savings targets with deadlines and track your progress. Great for emergency funds, vacation savings, or major purchases.",
+      "url": "/finance/goals/",
+      "keywords": "savings, savings goal, save money, financial goal, emergency fund, vacation fund, target savings",
+      "module": "finance",
+      "sort_order": 92,
+      "is_active": true,
+      "created_at": "2026-02-01T00:00:00Z",
+      "updated_at": "2026-02-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 93,
+    "fields": {
+      "destination_id": "capture-transcriptions",
+      "name": "View Transcriptions",
+      "path_description": "Capture - My Recordings",
+      "explanation": "View all your voice recordings with their transcriptions and AI-generated summaries. Search, edit, and organize your audio captures.",
+      "url": "/capture/",
+      "keywords": "transcriptions, voice recordings, audio, my captures, view recordings, transcribed audio",
+      "module": "capture",
+      "sort_order": 93,
+      "is_active": true,
+      "created_at": "2026-02-01T00:00:00Z",
+      "updated_at": "2026-02-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 94,
+    "fields": {
+      "destination_id": "scan-food",
+      "name": "Scan Food",
+      "path_description": "Scan - Food Recognition",
+      "explanation": "Take a photo of your meal and let AI identify the food and estimate nutrition. Much faster than manual entry for logging what you eat.",
+      "url": "/scan/",
+      "keywords": "scan food, food photo, food recognition, nutrition scan, photograph meal, ai food, calorie scan",
+      "module": "scan",
+      "sort_order": 94,
+      "is_active": true,
+      "created_at": "2026-02-01T00:00:00Z",
+      "updated_at": "2026-02-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 95,
+    "fields": {
+      "destination_id": "scan-medicine",
+      "name": "Scan Medicine",
+      "path_description": "Scan - Medicine Recognition",
+      "explanation": "Photograph a medicine bottle or package to automatically add it to your medicine tracker. AI extracts the name, dosage, and pharmacy information.",
+      "url": "/scan/",
+      "keywords": "scan medicine, medicine photo, pill bottle, prescription scan, add medicine, ai medicine",
+      "module": "scan",
+      "sort_order": 95,
+      "is_active": true,
+      "created_at": "2026-02-01T00:00:00Z",
+      "updated_at": "2026-02-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 96,
+    "fields": {
+      "destination_id": "data-export-preferences",
+      "name": "Export My Data",
+      "path_description": "Preferences - Data Export",
+      "explanation": "Download a complete copy of all your WLJ data in JSON or CSV format. Your data belongs to you and you can take it anywhere.",
+      "url": "/preferences/#data",
+      "keywords": "export data, download data, backup, my data, data portability, export json, export csv",
+      "module": "users",
+      "sort_order": 96,
+      "is_active": true,
+      "created_at": "2026-02-01T00:00:00Z",
+      "updated_at": "2026-02-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 97,
+    "fields": {
+      "destination_id": "habit-goal-create",
+      "name": "Create Habit Goal",
+      "path_description": "Goals - Habits - New Habit",
+      "explanation": "Create a new habit goal with four measurement types: Binary (daily yes/no), Duration (timed sessions), Count (track repetitions), or Target (hit a numeric goal). Set frequency, targets, and start tracking.",
+      "url": "/purpose/habits/create/",
+      "keywords": "create habit, new habit, add habit, habit goal, start habit, build habit, track habit, measurement type, duration, count, target, binary",
+      "module": "purpose",
+      "sort_order": 97,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 98,
+    "fields": {
+      "destination_id": "habit-goal-timer",
+      "name": "Habit Timer",
+      "path_description": "Goals - Habits - Timer",
+      "explanation": "Use the built-in timer for duration-based habits. Start, pause, and stop sessions with a circular progress ring. Your timer state is saved locally so you can close the browser and come back.",
+      "url": "/purpose/habits/",
+      "keywords": "habit timer, duration timer, start timer, stop timer, timed session, meditation timer, exercise timer, practice timer",
+      "module": "purpose",
+      "sort_order": 98,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 99,
+    "fields": {
+      "destination_id": "habit-streaks",
+      "name": "Habit Streaks",
+      "path_description": "Goals - Habits - Streaks",
+      "explanation": "Track your consistency with daily, weekly, or monthly streaks. See your current and longest streaks, get at-risk warnings before you break a streak, and celebrate milestones at 7, 30, 90, and 365 days.",
+      "url": "/purpose/habits/",
+      "keywords": "streak, habit streak, consecutive days, streak count, don't break the chain, consistency, at risk, streak milestone",
+      "module": "purpose",
+      "sort_order": 99,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 100,
+    "fields": {
+      "destination_id": "labs-upload",
+      "name": "Upload Lab Results",
+      "path_description": "Health - Labs & Vitals - Upload",
+      "explanation": "Upload your lab result PDFs for automatic parsing. The system extracts test names, values, reference ranges, and flags. View results organized by panel with color-coded status indicators.",
+      "url": "/medical/upload/",
+      "keywords": "upload labs, lab results, blood work, blood test, lab report, medical labs, upload pdf, lab panel, cbc, cmp, lipid panel, thyroid",
+      "module": "medical",
+      "sort_order": 100,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 101,
+    "fields": {
+      "destination_id": "labs-summary",
+      "name": "Labs Summary",
+      "path_description": "Health - Labs & Vitals - Summary",
+      "explanation": "View all your lab results organized by test type. See current values, reference ranges, flags (normal/high/low), and trends over time. Tap the info icon to learn what each test measures.",
+      "url": "/medical/labs/",
+      "keywords": "labs summary, lab results, blood work results, test results, normal range, high, low, abnormal, lab values, lab history",
+      "module": "medical",
+      "sort_order": 101,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 102,
+    "fields": {
+      "destination_id": "quick-links",
+      "name": "Quick Links",
+      "path_description": "Preferences - Quick Links",
+      "explanation": "Save your frequently used external links (patient portal, bank login, etc.) and access them from the profile dropdown menu. Add up to 10 links.",
+      "url": "/preferences/#quick-links",
+      "keywords": "quick links, external links, bookmarks, patient portal, bank login, saved links, profile links, shortcuts",
+      "module": "users",
+      "sort_order": 102,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 103,
+    "fields": {
+      "destination_id": "body-composition",
+      "name": "Body Composition",
+      "path_description": "Health - Body Composition",
+      "explanation": "Track body fat %, lean mass, skeletal muscle mass, waist, chest, and other measurements from gym scans, smart scales, or manual entry.",
+      "url": "/health/physical/body-composition/",
+      "keywords": "body composition, body fat, lean mass, fat mass, muscle mass, waist, chest, hips, measurements, dexa scan, inbody, smart scale",
+      "module": "health",
+      "sort_order": 103,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 104,
+    "fields": {
+      "destination_id": "health-profile",
+      "name": "Health Profile",
+      "path_description": "Health - Health Profile",
+      "explanation": "Set your height and activity level for use in goal projections and body composition modeling calculations.",
+      "url": "/health/physical/profile/",
+      "keywords": "health profile, height, activity level, modeling, projections, sedentary, active",
+      "module": "health",
+      "sort_order": 104,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 105,
+    "fields": {
+      "destination_id": "health-insights",
+      "name": "Health Insights",
+      "path_description": "Health - Insights",
+      "explanation": "View observational insights generated from your health data across weight, body composition, goals, habits, and journal entries.",
+      "url": "/health/physical/insights/",
+      "keywords": "health insights, trends, patterns, analysis, weight trend, body composition trend, logging gaps, correlations",
+      "module": "health",
+      "sort_order": 105,
+      "is_active": true,
+      "created_at": "2026-02-14T00:00:00Z",
+      "updated_at": "2026-02-14T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 106,
+    "fields": {
+      "destination_id": "insights-inbox",
+      "name": "Insights Inbox",
+      "path_description": "Insights",
+      "explanation": "View AI-generated insights about your health trends, goal progress, habit streaks, and more. Filter by status and dismiss or mark insights as read.",
+      "url": "/insights/",
+      "keywords": "insights,ai,trends,notifications,proactive,weight,goals,habits,patterns",
+      "module": "core",
+      "sort_order": 106,
+      "is_active": true
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 107,
+    "fields": {
+      "destination_id": "dashboard-guidance",
+      "name": "Today's Guidance",
+      "path_description": "Dashboard - Today's Guidance",
+      "explanation": "See the most important insights, warnings, and encouragement WLJ generated for you today. Take actions like snooze, dismiss, or mark as done right from the dashboard.",
+      "url": "/dashboard/",
+      "keywords": "guidance,insights,predictions,today,dashboard,goals,habits,proactive,warnings,encouragement",
+      "module": "dashboard",
+      "sort_order": 107,
+      "is_active": true,
+      "created_at": "2026-02-15T00:00:00Z",
+      "updated_at": "2026-02-15T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 108,
+    "fields": {
+      "destination_id": "guidance-inbox",
+      "name": "Guidance Inbox",
+      "path_description": "Guidance",
+      "explanation": "View all proactive guidance items generated by your intelligence engines. Filter active, read, or all items and manage their lifecycle.",
+      "url": "/guidance/",
+      "keywords": "guidance,inbox,proactive,all,history,predictions,insights,state",
+      "module": "core",
+      "sort_order": 108,
+      "is_active": true,
+      "created_at": "2026-02-15T00:00:00Z",
+      "updated_at": "2026-02-15T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 109,
+    "fields": {
+      "destination_id": "dashboard-state-snapshot",
+      "name": "Your Current State",
+      "path_description": "Dashboard - Your Current State",
+      "explanation": "Shows the current state WLJ uses to generate insights, predictions, and guidance.",
+      "url": "/dashboard/",
+      "keywords": "state,snapshot,current,weight,sleep,steps,goals,habits,journal,faith,transparency",
+      "module": "dashboard",
+      "sort_order": 109,
+      "is_active": true,
+      "created_at": "2026-02-15T00:00:00Z",
+      "updated_at": "2026-02-15T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 110,
+    "fields": {
+      "destination_id": "dashboard-daily-briefing",
+      "name": "Daily Briefing",
+      "path_description": "Dashboard - Daily Briefing",
+      "explanation": "Your daily intelligence summary combining insights, predictions, and guidance into one concise brief.",
+      "url": "/dashboard/",
+      "keywords": "briefing,daily,summary,morning,intelligence,report,overview",
+      "module": "dashboard",
+      "sort_order": 110,
+      "is_active": true,
+      "created_at": "2026-02-15T00:00:00Z",
+      "updated_at": "2026-02-15T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 111,
+    "fields": {
+      "destination_id": "weekly-intelligence-reports",
+      "name": "Weekly Intelligence Reports",
+      "path_description": "Intelligence - Weekly Reports",
+      "explanation": "View your weekly intelligence summaries tracking state changes, insights, predictions, and guidance engagement over time.",
+      "url": "/intelligence/weekly/",
+      "keywords": "weekly,report,intelligence,summary,history,trends,progress",
+      "module": "dashboard",
+      "sort_order": 111,
+      "is_active": true,
+      "created_at": "2026-02-15T00:00:00Z",
+      "updated_at": "2026-02-15T00:00:00Z"
+    }
+  }
 ]

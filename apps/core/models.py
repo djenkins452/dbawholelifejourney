@@ -2228,3 +2228,8 @@ from apps.core.ai_scheduler.scheduler_models import (  # noqa: E402, F401
     ScheduledIntelligenceTask,
     SchedulerLock,
 )
+
+# Import ai_weekly_report models so Django discovers them for migrations
+from apps.core.ai_weekly_report.models import (  # noqa: E402, F401
+    WeeklyIntelligenceReport,
+)

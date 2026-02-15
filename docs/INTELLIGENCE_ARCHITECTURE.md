@@ -682,6 +682,19 @@ HTIE and UAIO are stateless — no database models required.
 15. **Semantic understanding:** SUE provides pre-intent semantic analysis (intent candidates, entity extraction, ambiguity detection). SUE does NOT execute actions — UAIO remains execution authority. SUE failures must never break the pipeline.
 16. **Guidance authority:** PGE is the sole authority for proactive guidance. Guidance must always be evidence-based (backed by SAE state, PIE insights, or PRIE predictions). PGE does NOT execute actions or generate insights — it surfaces existing intelligence. PGE failures must never break any other engine.
 17. **Phase integrity:** Each engine operates only within its designated phase. Interpretation engines (SUE, SLCME, HTIE) may not execute actions. The execution engine (UAIO) may not interpret meaning independently. Post-execution engines (SAE, PIE, PRIE, PGE) may not execute actions. Violating phase boundaries is a critical architectural error.
+18. **State-first for current values:** Any code that needs "current" scalar values (current weight, active goal count, days since last entry, etc.) MUST read from SAE via `get_user_state()`, `get_module_state()`, or `get_state_value()`. Direct database queries are allowed ONLY for: (a) historical time-series data (charts, regressions, trend windows), (b) display-specific objects that SAE doesn't store (recent entry lists, medicine schedules, goal progress objects). Use `@state_first` decorator or `require_state_first()` to document state-first intent.
+
+### State Authority Rules
+
+| Rule | Allowed | Prohibited |
+|------|---------|------------|
+| **Current scalar values** | `get_state_value(user, "health.weight_current")` | `WeightEntry.objects.filter(user=user).first().value` |
+| **Historical time-series** | `WeightEntry.objects.filter(recorded_at__gte=cutoff)` | N/A — DB queries for history are correct |
+| **Display object lists** | `JournalEntry.objects.order_by('-date')[:5]` | N/A — SAE doesn't store display objects |
+| **Trend direction** | `get_state_value(user, "health.weight_trend")` | Re-computing trend from DB when SAE has it |
+| **Counts** | `get_state_value(user, "goals.active_goal_count", 0)` | `LifeGoal.objects.filter(status='active').count()` for display |
+
+**Enforcement:** `apps/core/ai_state/state_guards.py` provides `@state_first(reason)` decorator and `require_state_first(path, reason)` for documenting state-first intent. These are audit markers, not runtime blockers.
 
 ---
 
@@ -696,6 +709,7 @@ HTIE and UAIO are stateless — no database models required.
 from apps.core.ai_state import (
     get_user_state,      # Full state snapshot
     get_module_state,    # Single module state
+    get_state_value,     # Single value by dot-path
     update_user_state,   # Incremental update after action
     rebuild_user_state,  # Full rebuild from database
     get_cached_data,     # Data access for PRIE predictions
@@ -709,6 +723,10 @@ state = get_user_state(user)
 
 # Read single module
 health = get_module_state(user, "health")
+
+# Read single value (preferred for point lookups)
+weight = get_state_value(user, "health.weight_current")
+goal_count = get_state_value(user, "goals.active_goal_count", 0)
 
 # Update after action (called by UAIO automatically)
 update_user_state(user, "health", record_id=42)

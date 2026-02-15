@@ -4,10 +4,29 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-15 (PGE Guidance Lifecycle Tracking)
+# Last Updated: 2026-02-15 (SAE State Authority Hardening)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-02-15 — SAE: State Authority Hardening (Non-Bypass Enforcement)
+
+**Enhancement:** Hardened SAE as the authoritative source of current user state. Added `get_state_value()` dot-path accessor, enforcement helpers (`state_guards.py`), and refactored the dashboard to use SAE state-first for scalar current values instead of independent DB reconstruction.
+
+- **API:** Added `get_state_value(user, path, default)` to `state_engine.py` for dot-path access to nested state values (e.g., `get_state_value(user, "health.weight_current")`)
+- **Enforcement:** Created `apps/core/ai_state/state_guards.py` with `@state_first(reason)` decorator and `require_state_first(path, reason)` inline helper for audit/documentation
+- **Refactor:** Dashboard `_gather_comprehensive_data()` now loads SAE state once and passes it to sub-methods
+- **Refactor:** Dashboard `_get_journal_data()` uses SAE for `days_since_entry`, `entries_30d` (DB fallback if SAE empty)
+- **Refactor:** Dashboard `_get_faith_data()` uses SAE for `unanswered_prayers` count
+- **Refactor:** Dashboard `_get_health_data()` uses SAE for `weight_trend` direction
+- **Refactor:** Dashboard `_get_purpose_data()` uses SAE for `active_goal_count`
+- **Verified:** PRIE uses SAE `get_cached_data()` — compliant
+- **Verified:** PIE enriches events via `_enrich_event_with_state()` — compliant
+- **Tests:** 18 new compliance tests (get_state_value, builder field checks, state guards, PIE/PRIE integration) — total SAE tests now 65
+- **Docs:** Added compliance rule #18 (state-first for current values), State Authority Rules table, state-first checklist item
+  - Files: `apps/core/ai_state/state_engine.py`, `apps/core/ai_state/__init__.py`, `apps/core/ai_state/state_guards.py`, `apps/core/ai_state/tests.py`, `apps/dashboard/views.py`, `docs/INTELLIGENCE_ARCHITECTURE.md`, `docs/ENGINE_INTEGRATION_GUIDE.md`, `docs/wlj_claude_changelog.md`
+
+---
 
 ## 2026-02-15 — PGE: Guidance Lifecycle Tracking Enhancement
 

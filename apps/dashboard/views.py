@@ -187,7 +187,14 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         return None
     
     def _gather_comprehensive_data(self, user, prefs):
-        """Gather all user data for AI analysis."""
+        """
+        Gather all user data for AI analysis.
+
+        Uses SAE state-first for current scalar values (weight trend,
+        days since journal, active goal count, prayer counts, etc.).
+        Only queries DB directly for display-specific data that SAE
+        doesn't provide (recent entries, medicine schedules, etc.).
+        """
         from apps.core.utils import get_user_today, get_user_now
 
         now = get_user_now(user)
@@ -195,30 +202,37 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         week_ago = now - timedelta(days=7)
         month_ago = now - timedelta(days=30)
 
+        # Load SAE state once — authoritative source for current values
+        try:
+            from apps.core.ai_state import get_user_state
+            sae_state = get_user_state(user)
+        except Exception:
+            sae_state = {}
+
         data = {
             "today": today,
             "week_ago": week_ago,
         }
 
-        # Journal data
+        # Journal data (SAE provides: days_since_entry, entries_30d, last_mood)
         if prefs.journal_enabled:
-            data.update(self._get_journal_data(user, today, week_ago, month_ago))
+            data.update(self._get_journal_data(user, today, week_ago, month_ago, sae_state))
 
-        # Faith data
+        # Faith data (SAE provides: unanswered_prayers)
         if prefs.faith_enabled:
-            data.update(self._get_faith_data(user))
+            data.update(self._get_faith_data(user, sae_state))
 
-        # Health data
+        # Health data (SAE provides: weight_trend, weight_current)
         if prefs.health_enabled:
-            data.update(self._get_health_data(user, today, month_ago))
+            data.update(self._get_health_data(user, today, month_ago, sae_state))
 
         # Life data
         if prefs.life_enabled:
             data.update(self._get_life_data(user, today))
 
-        # Purpose data
+        # Purpose data (SAE provides: active_goal_count, completion_rate)
         if prefs.purpose_enabled:
-            data.update(self._get_purpose_data(user))
+            data.update(self._get_purpose_data(user, sae_state))
 
         # Scan data (if AI enabled - scan requires AI)
         if prefs.ai_enabled:
@@ -230,37 +244,66 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
 
         return data
     
-    def _get_journal_data(self, user, today, week_ago, month_ago):
-        """Get journal-related data."""
+    def _get_journal_data(self, user, today, week_ago, month_ago, sae_state=None):
+        """
+        Get journal-related data.
+
+        Uses SAE state for: days_since_entry, entries_30d, last_mood.
+        Queries DB for: recent entries (display), mood distribution, streaks.
+        """
         from apps.journal.models import JournalEntry
-        
+        from apps.core.ai_state.state_guards import require_state_first
+
+        journal_state = (sae_state or {}).get("journal", {})
+
         entries = JournalEntry.objects.filter(user=user)
         entries_week = entries.filter(created_at__gte=week_ago)
-        
-        last_entry = entries.order_by('-entry_date').first()
-        days_since_journal = None
-        if last_entry:
-            days_since_journal = (today - last_entry.entry_date).days
-        
-        # Calculate streak
+
+        # SAE state-first: days since journal entry
+        require_state_first("journal.days_since_entry", "Dashboard journal gap nudge")
+        days_since_journal = journal_state.get("days_since_entry")
+        last_journal_date = None
+        if days_since_journal is None:
+            # Fallback: compute from DB
+            last_entry = entries.order_by('-entry_date').first()
+            if last_entry:
+                days_since_journal = (today - last_entry.entry_date).days
+                last_journal_date = last_entry.entry_date
+        else:
+            # Derive last_journal_date from SAE last_entry
+            last_entry_str = journal_state.get("last_entry")
+            if last_entry_str:
+                from datetime import date as date_type
+                try:
+                    last_journal_date = date_type.fromisoformat(last_entry_str)
+                except (ValueError, TypeError):
+                    last_journal_date = None
+
+        # Calculate streak (requires full history scan — legitimate DB access)
         streak = self._calculate_journal_streak(user, today)
-        
-        # Get mood distribution this week
+
+        # Get mood distribution this week (display-specific — DB ok)
         moods = entries_week.exclude(mood='').values('mood').annotate(
             count=Count('mood')
         ).order_by('-count')
         top_mood = moods[0]['mood'] if moods else None
-        
-        # Recent entries for context
+
+        # Recent entries for context (display objects — DB ok)
         recent_entries = list(entries.order_by('-entry_date')[:5].values(
             'title', 'entry_date', 'mood', 'body'
         ))
-        
+
+        # SAE state-first: entries_30d count
+        require_state_first("journal.entries_30d", "Dashboard journal stats")
+        entries_30d = journal_state.get("entries_30d")
+        if entries_30d is None:
+            entries_30d = entries.filter(created_at__gte=month_ago).count()
+
         return {
             "journal_total": entries.count(),
             "journal_this_week": entries_week.count(),
-            "journal_this_month": entries.filter(created_at__gte=month_ago).count(),
-            "last_journal_date": last_entry.entry_date if last_entry else None,
+            "journal_this_month": entries_30d,
+            "last_journal_date": last_journal_date,
             "days_since_journal": days_since_journal,
             "journal_streak": streak,
             "top_mood_this_week": top_mood,
@@ -291,54 +334,82 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
 
         return streak
     
-    def _get_faith_data(self, user):
-        """Get faith-related data."""
+    def _get_faith_data(self, user, sae_state=None):
+        """
+        Get faith-related data.
+
+        Uses SAE state for: unanswered_prayers count.
+        Queries DB for: display objects (recent answered prayer, memory verse).
+        """
         from apps.faith.models import PrayerRequest, FaithMilestone, SavedVerse
+        from apps.core.ai_state.state_guards import require_state_first
+
+        faith_state = (sae_state or {}).get("faith", {})
 
         prayers = PrayerRequest.objects.filter(user=user)
-        active_prayers = prayers.filter(is_answered=False)
         answered_prayers = prayers.filter(is_answered=True)
 
-        # Recent answered prayers
-        recent_answered = answered_prayers.order_by('-answered_at').first()
+        # SAE state-first: active prayer count
+        require_state_first("faith.unanswered_prayers", "Dashboard prayer count")
+        active_prayer_count = faith_state.get("unanswered_prayers")
+        if active_prayer_count is None:
+            active_prayer_count = prayers.filter(is_answered=False).count()
 
-        # Get the user's memory verse (if any)
+        # Display-specific queries (DB ok — need actual objects)
+        recent_answered = answered_prayers.order_by('-answered_at').first()
         memory_verse = SavedVerse.objects.filter(
             user=user,
             is_memory_verse=True
         ).first()
 
         return {
-            "active_prayers": active_prayers.count(),
+            "active_prayers": active_prayer_count,
             "answered_prayers": answered_prayers.count(),
             "total_milestones": FaithMilestone.objects.filter(user=user).count(),
             "recent_answered_prayer": recent_answered,
             "memory_verse": memory_verse,
         }
     
-    def _get_health_data(self, user, today, month_ago):
+    def _get_health_data(self, user, today, month_ago, sae_state=None):
         """
         Get health-related data with optimized caching.
 
-        Uses DashboardCacheService to:
-        - Cache expensive medicine/workout queries
-        - Fix N+1 query problem with prefetch_related
-        - Use aggregation instead of multiple COUNT queries
+        Uses SAE state for: weight_trend scalar.
+        Uses DashboardCacheService for: medicine/workout display data.
+        Queries DB for: weight change amount, fasting, cycle tracking.
         """
         from apps.health.models import (
             WeightEntry, FastingWindow, GlucoseEntry,
             CycleSettings, Cycle, CycleDailyLog
         )
         from apps.dashboard.cache import DashboardCacheService
+        from apps.core.ai_state.state_guards import require_state_first
+
+        health_state = (sae_state or {}).get("health", {})
 
         # Use cache service for optimized medicine/workout queries
         cache_service = DashboardCacheService(user)
         cached = cache_service.get_health_data(today, month_ago)
 
-        # Weight trend calculation (not in cache - needs comparison)
+        # SAE state-first: weight trend direction
+        require_state_first("health.weight_trend", "Dashboard weight trend display")
         latest_weight = cached.get('latest_weight')
         weight_change = None
-        weight_trend = None
+        weight_trend = health_state.get("weight_trend")
+
+        # Convert SAE trend names to dashboard display names
+        if weight_trend == "increasing":
+            weight_trend = "up"
+        elif weight_trend == "decreasing":
+            weight_trend = "down"
+        elif weight_trend == "stable":
+            weight_trend = "stable"
+        elif weight_trend == "insufficient_data":
+            weight_trend = None
+        else:
+            weight_trend = None
+
+        # Weight change amount still needs comparison (for display: "down 3.2 lbs")
         weights = WeightEntry.objects.filter(user=user)
         if latest_weight and weights.count() >= 2:
             month_ago_weight = weights.filter(
@@ -347,7 +418,9 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             ).order_by('-recorded_at').first()
             if month_ago_weight:
                 weight_change = round(latest_weight.value_in_lb - month_ago_weight.value_in_lb, 1)
-                weight_trend = 'down' if weight_change < 0 else 'up' if weight_change > 0 else 'stable'
+                # If SAE didn't provide trend, compute it here as fallback
+                if weight_trend is None:
+                    weight_trend = 'down' if weight_change < 0 else 'up' if weight_change > 0 else 'stable'
 
         # Fasting (simple queries - not worth caching separately)
         fasting = FastingWindow.objects.filter(user=user)
@@ -690,10 +763,18 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             "upcoming_significant_count": len(upcoming_significant),
         }
     
-    def _get_purpose_data(self, user):
-        """Get purpose-related data."""
+    def _get_purpose_data(self, user, sae_state=None):
+        """
+        Get purpose-related data.
+
+        Uses SAE state for: active_goal_count scalar.
+        Queries DB for: display objects (goals with progress, habits with streaks).
+        """
         from apps.purpose.models import AnnualDirection, LifeGoal, ChangeIntention, HabitGoal
         from apps.purpose.services import streak_service
+        from apps.core.ai_state.state_guards import require_state_first
+
+        goals_state = (sae_state or {}).get("goals", {})
 
         current_year = timezone.now().year
 
@@ -719,7 +800,13 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                 'next_milestone': goal.next_milestone,
             })
 
-        # Active habit goals for dashboard tile (limit to 5)
+        # SAE state-first: active goal count
+        require_state_first("goals.active_goal_count", "Dashboard goal count")
+        active_goal_count = goals_state.get("active_goal_count")
+        if active_goal_count is None:
+            active_goal_count = active_goals.count()
+
+        # Active habit goals for dashboard tile (limit to 5, display objects — DB ok)
         from apps.core.utils import get_user_today
         today = get_user_today(user)
         active_habit_goals = HabitGoal.objects.filter(
@@ -745,7 +832,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         return {
             "word_of_year": direction.word_of_year if direction else None,
             "annual_direction": direction,
-            "active_goals": active_goals.count(),
+            "active_goals": active_goal_count,
             "active_goals_list": goals_with_progress,
             "completed_goals": goals.filter(status='completed').count(),
             "active_intentions": intentions.count(),

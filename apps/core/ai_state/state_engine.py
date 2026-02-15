@@ -90,6 +90,52 @@ def rebuild_user_state(user):
     return state
 
 
+def get_state_value(user, path, default=None):
+    """
+    Get a specific value from the user's state using dot-path notation.
+
+    This is the preferred way to access individual state values without
+    fetching the full state snapshot.
+
+    Args:
+        user: Django User instance.
+        path: Dot-separated path (e.g., "health.weight_current",
+              "goals.active_goal_count", "journal.days_since_entry").
+        default: Value to return if path not found.
+
+    Returns:
+        The value at the given path, or default if not found.
+
+    Examples:
+        >>> get_state_value(user, "health.weight_current")
+        180.5
+        >>> get_state_value(user, "goals.active_goal_count", 0)
+        3
+        >>> get_state_value(user, "journal.last_mood", "")
+        "great"
+    """
+    parts = path.split(".")
+    if len(parts) < 2:
+        return default
+
+    module = parts[0]
+    field_path = parts[1:]
+
+    state = get_module_state(user, module)
+    if not state:
+        return default
+
+    # Walk the nested path
+    current = state
+    for part in field_path:
+        if isinstance(current, dict) and part in current:
+            current = current[part]
+        else:
+            return default
+
+    return current
+
+
 def _canonical_module(module):
     """Map module aliases to canonical keys."""
     aliases = {

@@ -518,6 +518,7 @@ Before marking a feature complete, verify:
 - [ ] **All insights** have `confidence_score`, `explain_why`, `evidence`, `dedupe_key`
 - [ ] **All predictions** have `confidence_score`, `explanation`, `evidence`, `dedupe_key`
 - [ ] **No prohibited patterns** in new code (including SAE bypass)
+- [ ] **State-first for current values** — if you need "current" scalars (weight, goal count, days since entry), use SAE: `get_state_value(user, "health.weight_current")`. DB queries are for history/time-series only.
 - [ ] **SUE parser patterns** added for new intents in `semantic_parser.py:INTENT_PATTERNS` (if new AI action)
 - [ ] **PGE guidance rules** considered for surfacing important patterns to users (if new module has actionable trends)
 
@@ -554,4 +555,4 @@ item.set_feedback("Very helpful!")
 
 ---
 
-*Last updated: 2026-02-15 — PGE Guidance Lifecycle Tracking added*
+*Last updated: 2026-02-15 — SAE State Authority Hardening added*

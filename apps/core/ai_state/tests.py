@@ -732,3 +732,181 @@ class TestAdminRegistration(TestCase):
         self.assertFalse(admin_class.has_add_permission(None))
         self.assertFalse(admin_class.has_change_permission(None))
         self.assertFalse(admin_class.has_delete_permission(None))
+
+
+# ---------------------------------------------------------------------------
+# State Authority Compliance Tests
+# ---------------------------------------------------------------------------
+
+
+class TestGetStateValue(TestCase):
+    """Test the get_state_value() dot-path accessor."""
+
+    def setUp(self):
+        self.user = _create_test_user("state_value@test.com")
+
+    def test_simple_path(self):
+        from apps.core.ai_state.models import UserState
+        from apps.core.ai_state.state_engine import get_state_value
+
+        UserState.objects.create(
+            user=self.user,
+            state_data={"health": {"weight_current": 180.5}},
+        )
+        result = get_state_value(self.user, "health.weight_current")
+        self.assertEqual(result, 180.5)
+
+    def test_nested_path(self):
+        from apps.core.ai_state.models import UserState
+        from apps.core.ai_state.state_engine import get_state_value
+
+        UserState.objects.create(
+            user=self.user,
+            state_data={
+                "journal": {"mood_distribution": {"great": 5, "okay": 3}}
+            },
+        )
+        result = get_state_value(self.user, "journal.mood_distribution.great")
+        self.assertEqual(result, 5)
+
+    def test_missing_path_returns_default(self):
+        from apps.core.ai_state.models import UserState
+        from apps.core.ai_state.state_engine import get_state_value
+
+        UserState.objects.create(
+            user=self.user, state_data={"health": {}}
+        )
+        result = get_state_value(self.user, "health.weight_current", 0)
+        self.assertEqual(result, 0)
+
+    def test_missing_module_returns_default(self):
+        from apps.core.ai_state.models import UserState
+        from apps.core.ai_state.state_engine import get_state_value
+
+        UserState.objects.create(
+            user=self.user, state_data={}
+        )
+        result = get_state_value(self.user, "goals.active_goal_count", 0)
+        self.assertEqual(result, 0)
+
+    def test_invalid_path_returns_default(self):
+        from apps.core.ai_state.state_engine import get_state_value
+
+        result = get_state_value(self.user, "x", "default")
+        self.assertEqual(result, "default")
+
+    def test_module_alias_resolved(self):
+        from apps.core.ai_state.models import UserState
+        from apps.core.ai_state.state_engine import get_state_value
+
+        UserState.objects.create(
+            user=self.user,
+            state_data={"goals": {"active_goal_count": 3}},
+        )
+        # "purpose" should resolve to "goals"
+        result = get_state_value(self.user, "purpose.active_goal_count")
+        self.assertEqual(result, 3)
+
+
+class TestStateAuthorityCompliance(TestCase):
+    """
+    Verify that SAE state builders produce the fields that
+    consumers expect, and that key state paths are authoritative.
+    """
+
+    def setUp(self):
+        self.user = _create_test_user("compliance@test.com")
+
+    def test_health_builder_produces_expected_fields(self):
+        """Health builder must produce weight_current, weight_trend, etc."""
+        from decimal import Decimal
+        from apps.health.models import WeightEntry
+        from apps.core.ai_state.state_builder import build_health_state
+
+        WeightEntry.objects.create(
+            user=self.user, value=Decimal("175.0"), unit="lb"
+        )
+        state = build_health_state(self.user)
+        self.assertIn("weight_current", state)
+        self.assertIn("weight_unit", state)
+        self.assertIn("weight_trend", state)
+        self.assertIn("last_weight_entry", state)
+
+    def test_journal_builder_produces_expected_fields(self):
+        """Journal builder must produce days_since_entry, entries_30d."""
+        from apps.journal.models import JournalEntry
+        from apps.core.ai_state.state_builder import build_journal_state
+
+        JournalEntry.objects.create(
+            user=self.user,
+            title="Test",
+            body="Content",
+            entry_date=date.today(),
+        )
+        state = build_journal_state(self.user)
+        self.assertIn("last_entry", state)
+        self.assertIn("days_since_entry", state)
+        self.assertIn("entries_30d", state)
+        self.assertIn("entry_frequency", state)
+
+    def test_goals_builder_produces_expected_fields(self):
+        """Goals builder must produce active_goal_count."""
+        from apps.core.ai_state.state_builder import build_goal_state
+
+        state = build_goal_state(self.user)
+        self.assertIn("active_goal_count", state)
+
+    def test_faith_builder_produces_expected_fields(self):
+        """Faith builder must produce unanswered_prayers."""
+        from apps.core.ai_state.state_builder import build_faith_state
+
+        state = build_faith_state(self.user)
+        self.assertIn("unanswered_prayers", state)
+        self.assertIn("active_reading_plans", state)
+        self.assertIn("reading_streak", state)
+
+    def test_pie_enriches_events_with_sae(self):
+        """PIE must enrich events with SAE state — not reconstruct."""
+        from apps.core.ai_insights.insight_engine import _enrich_event_with_state
+
+        event = {"event_type": "record_created", "module": "health"}
+        enriched = _enrich_event_with_state(self.user, event)
+        self.assertIn("user_state", enriched)
+        self.assertIsInstance(enriched["user_state"], dict)
+
+    def test_prie_uses_sae_reader(self):
+        """PRIE's get_cached_data must be importable from SAE."""
+        from apps.core.ai_state.state_reader import get_cached_data
+
+        # Should return None for time-series (falls back to DB — correct)
+        result = get_cached_data(self.user, "health", "weight_entries")
+        self.assertIsNone(result)
+
+    def test_get_state_value_public_api(self):
+        """get_state_value must be importable from the public API."""
+        from apps.core.ai_state import get_state_value
+
+        self.assertTrue(callable(get_state_value))
+
+
+class TestStateGuards(TestCase):
+    """Test state guard enforcement helpers."""
+
+    def test_state_first_decorator(self):
+        """@state_first should not alter function behavior."""
+        from apps.core.ai_state.state_guards import state_first
+
+        @state_first("test reason")
+        def sample_func(x):
+            return x * 2
+
+        self.assertEqual(sample_func(5), 10)
+        self.assertEqual(sample_func._state_first_reason, "test reason")
+
+    def test_require_state_first_is_noop(self):
+        """require_state_first is a no-op for documentation."""
+        from apps.core.ai_state.state_guards import require_state_first
+
+        # Should not raise
+        require_state_first("health.weight_current", "test")
+        require_state_first("journal.days_since_entry")

@@ -1,7 +1,72 @@
-# Whole Life Journey - Claude Code Context
+# Whole Life Journey — System Bootloader
 
 **Project:** Django 5.x personal wellness/journaling app
 **Repo:** C:\dbawholelifejourney | GitHub: djenkins452/dbawholelifejourney
+
+---
+
+## System Boot Sequence
+
+When Claude Code begins any session, it must operate in this order:
+
+1. **Load CLAUDE.md** — This file (system bootloader and operational authority)
+2. **Load `docs/INTELLIGENCE_ARCHITECTURE.md`** — Engine inventory, pipeline, and contracts
+3. **Load `docs/DOMAIN_INTELLIGENCE_ARCHITECTURE.md`** — Per-module intelligence integration map
+4. **Load `docs/ENGINE_INTEGRATION_GUIDE.md`** — Step-by-step integration patterns for new features
+5. **Load relevant module code** — As needed for the current task
+6. **Execute tasks** — In compliance with architecture
+
+This ensures system-wide architectural integrity across every session.
+
+---
+
+## Intelligence Architecture Compliance (MANDATORY)
+
+Whole Life Journey uses a layered intelligence architecture defined in:
+
+| Document | Purpose |
+|----------|---------|
+| `docs/INTELLIGENCE_ARCHITECTURE.md` | Engine inventory, execution pipeline, adding rules |
+| `docs/DOMAIN_INTELLIGENCE_ARCHITECTURE.md` | Per-module integration map |
+| `docs/ENGINE_INTEGRATION_GUIDE.md` | Step-by-step guide for wiring new features into engines |
+
+Claude Code **MUST** read and follow these documents before implementing any feature that touches AI, data logging, insights, predictions, or user interactions.
+
+### Intelligence Engines
+
+All intelligence must flow through these engines — no module may bypass them:
+
+| Engine | Location | Purpose |
+|--------|----------|---------|
+| **HTIE** — Human Temporal Intelligence Engine | `apps/core/time/` | Parse natural language time → precise timestamps |
+| **SLCME** — Self-Learning Context Memory Engine | `apps/core/ai_memory/` | Learn from clarifications, auto-reuse with confidence |
+| **UAIO** — Unified AI Orchestrator | `apps/core/ai_orchestrator/` | Central brain connecting HTIE + SLCME to AI pipeline |
+| **PIE** — Proactive Insight Engine | `apps/core/ai_insights/` | Event-driven + scheduled factual insights |
+| **PRIE** — Predictive Intelligence Engine | `apps/core/ai_predictions/` | Trajectory projection using linear regression |
+
+### Intelligence Execution Pipeline
+
+All AI execution follows this pipeline:
+
+```
+User Input
+  → UAIO (Orchestrator)
+    → SLCME (Memory Resolution)
+    → HTIE (Time Resolution)
+      → Module Execution (Action Handlers)
+        → PIE (Insight Generation)
+          → PRIE (Prediction Generation)
+            → Response
+```
+
+This pipeline must never be bypassed.
+
+### Architectural Authority
+
+- The intelligence architecture documents are **system authority**
+- If existing code violates architecture, Claude Code must refactor it to comply
+- All new features must integrate with intelligence engines
+- New data-logging features must fire PIE events and PRIE predictions
 
 ---
 
@@ -85,7 +150,7 @@ When adding **new features, pages, or significant enhancements**, update ALL of 
 | **API Key** | Set `WLJ_CLAUDE_API_KEY` in your `.env` file (see `.env.example`) |
 | **Ready Tasks** | `GET /admin-console/api/claude/ready-tasks/?auto_start=true` |
 | **Update Status** | `POST /admin-console/api/claude/tasks/<id>/status/` |
-| **Test Count** | ~3,450 tests |
+| **Test Count** | ~4,400 tests |
 | **Push From** | Main repo (C:\dbawholelifejourney), NOT worktrees |
 
 **Commands:**
@@ -173,6 +238,9 @@ python manage.py migrate
 
 | Doc | Purpose |
 |-----|---------|
+| `docs/INTELLIGENCE_ARCHITECTURE.md` | **Intelligence engine inventory and pipeline** |
+| `docs/DOMAIN_INTELLIGENCE_ARCHITECTURE.md` | **Per-module intelligence integration map** |
+| `docs/ENGINE_INTEGRATION_GUIDE.md` | **Integration patterns for new features** |
 | `.claude/commands/README.md` | **Slash commands** (`/next`, `/run-task`, `/troubleshoot`, `/log-change`, `/close`, `/process-emails`) |
 | `docs/wlj_claude_troubleshoot.md` | Known issues & solutions (CHECK FIRST) |
 | `docs/wlj_claude_deploy.md` | Railway deployment, Nixpacks, migrations |
@@ -407,4 +475,4 @@ See `docs/ios-app-store-submission.md` for complete guide including:
 
 ---
 
-*Last updated: 2026-02-14*
+*Last updated: 2026-02-15*

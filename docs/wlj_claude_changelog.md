@@ -9,6 +9,14 @@
 
 # WLJ Change History
 
+## 2026-02-15 — Rewrite CLAUDE.md as System Bootloader
+
+**Change:** Rewrote CLAUDE.md to serve as the permanent system bootloader. Added intelligence architecture governance (boot sequence, engine table, execution pipeline, architectural authority). All existing operational content preserved. Test count updated to ~4,400. Architecture docs referenced for future creation.
+
+**Files:** `CLAUDE.md`, `docs/wlj_claude_changelog.md`
+
+---
+
 ## 2026-02-15 — PRIE: Predictive Intelligence Engine
 
 **Major Feature:** Trajectory projection system that forecasts likely future outcomes based on historical patterns using deterministic math (linear regression). Never hallucinated — always explainable with confidence scores.

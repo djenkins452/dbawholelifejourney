@@ -4,9 +4,8 @@ PIE Scheduler — Run daily insight checks.
 
 import logging
 
-from django.utils import timezone
-
 from apps.core.ai_insights.insight_engine import run_insights
+from apps.core.time.system_clock import get_current_time
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +21,7 @@ def run_daily_insights_for_user(user):
         "event_type": "scheduled_check",
         "module": "all",
         "action": "scheduled_check",
-        "timestamp_utc": timezone.now().isoformat(),
+        "timestamp_utc": get_current_time().isoformat(),
     }
 
     try:

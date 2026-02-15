@@ -7,7 +7,7 @@ Uses Django's structured logging to output JSON-formatted entries.
 
 import logging
 
-from django.utils import timezone
+from apps.core.time.system_clock import get_current_time
 
 logger = logging.getLogger("apps.ai.orchestrator.audit")
 
@@ -29,7 +29,7 @@ def log_interaction(user, user_input, orchestrator_result):
             "time_resolved": orchestrator_result.time_resolved,
             "context_resolved": orchestrator_result.context_resolved,
             "needs_clarification": orchestrator_result.needs_clarification,
-            "timestamp": timezone.now().isoformat(),
+            "timestamp": get_current_time().isoformat(),
         }
 
         if orchestrator_result.actions_enriched:

@@ -5,13 +5,14 @@ Predictions:
 - Projected weight at 30, 60, 90 days
 """
 
-from django.utils import timezone
+from datetime import timedelta
 
 from apps.core.ai_predictions.base_prediction_rule import BasePredictionRule
 from apps.core.ai_predictions.confidence_engine import confidence_label
 from apps.core.ai_predictions.models import build_prediction_dedupe_key
 from apps.core.ai_predictions.prediction_registry import register_prediction
 from apps.core.ai_predictions.trajectory_engine import calculate_linear_projection
+from apps.core.time.system_clock import get_current_time
 
 
 @register_prediction
@@ -33,7 +34,7 @@ class WeightProjectionRule(BasePredictionRule):
     def predict(self, user, event):
         from apps.health.models import WeightEntry
 
-        cutoff = timezone.now() - timezone.timedelta(days=self.LOOKBACK_DAYS)
+        cutoff = get_current_time() - timedelta(days=self.LOOKBACK_DAYS)
         entries = (
             WeightEntry.objects.filter(
                 user=user,

@@ -4,12 +4,11 @@ Goals Insight Rules — Deadline risk and stagnation detection.
 
 from datetime import date, timedelta
 
-from django.utils import timezone
-
 from apps.core.ai_insights.base_rules import BaseInsightRule
 from apps.core.ai_insights.models import build_dedupe_key
 from apps.core.ai_insights.pattern_utils import get_time_window
 from apps.core.ai_insights.rule_registry import register
+from apps.core.time.system_clock import get_current_time
 
 
 @register
@@ -90,7 +89,7 @@ class GoalStagnationRule(BaseInsightRule):
     def evaluate(self, user, event):
         from apps.purpose.models import LifeGoal
 
-        stale_threshold = timezone.now() - timedelta(days=14)
+        stale_threshold = get_current_time() - timedelta(days=14)
 
         goals = LifeGoal.objects.filter(
             user=user,
@@ -102,7 +101,7 @@ class GoalStagnationRule(BaseInsightRule):
         window_start, window_end = get_time_window(days=14)
 
         for goal in goals:
-            days_stale = (timezone.now() - goal.updated_at).days
+            days_stale = (get_current_time() - goal.updated_at).days
 
             insights.append(
                 {

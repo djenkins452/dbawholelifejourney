@@ -13,6 +13,7 @@ from apps.core.ai_predictions.base_prediction_rule import BasePredictionRule
 from apps.core.ai_predictions.confidence_engine import confidence_label
 from apps.core.ai_predictions.models import build_prediction_dedupe_key
 from apps.core.ai_predictions.prediction_registry import register_prediction
+from apps.core.time.system_clock import get_current_time
 
 
 @register_prediction
@@ -41,7 +42,7 @@ class GoalCompletionDateRule(BasePredictionRule):
         )
 
         predictions = []
-        now = timezone.now()
+        now = get_current_time()
 
         for goal in goals:
             # Calculate progress based on milestone completions

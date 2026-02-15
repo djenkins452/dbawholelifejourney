@@ -5,8 +5,6 @@ Predictions:
 - Lab marker trend direction (up/down/stable) based on historical results
 """
 
-from django.utils import timezone
-
 from apps.core.ai_predictions.base_prediction_rule import BasePredictionRule
 from apps.core.ai_predictions.confidence_engine import confidence_label
 from apps.core.ai_predictions.models import build_prediction_dedupe_key

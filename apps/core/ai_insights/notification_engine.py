@@ -11,9 +11,8 @@ Rules:
 import logging
 from datetime import timedelta
 
-from django.utils import timezone
-
 from apps.core.ai_insights.models import Insight
+from apps.core.time.system_clock import get_current_time
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +38,7 @@ def maybe_notify(user, insight):
         return False
 
     # Rate limit: max notifications per day
-    today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start = get_current_time().replace(hour=0, minute=0, second=0, microsecond=0)
     today_count = Insight.objects.filter(
         user=user,
         notified_at__gte=today_start,
@@ -53,7 +52,7 @@ def maybe_notify(user, insight):
         return False
 
     # Mark as notified (in-app badge)
-    insight.notified_at = timezone.now()
+    insight.notified_at = get_current_time()
     insight.save(update_fields=["notified_at", "updated_at"])
 
     logger.info(

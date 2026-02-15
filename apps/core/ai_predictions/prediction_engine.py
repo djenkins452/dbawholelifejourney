@@ -3,19 +3,124 @@ PRIE — Prediction Engine.
 
 Main entry point for generating predictions. Iterates registered
 prediction rules, deduplicates, and persists results.
+
+Data Abstraction Layer:
+    get_prediction_input_data() provides a single data-access gateway for
+    prediction rules. When SAE (State Awareness Engine) is installed, this
+    function will read from cached user state instead of hitting the database
+    directly, improving performance and enabling state-aware predictions.
 """
 
 import logging
 
-from django.utils import timezone
-
 from apps.core.ai_predictions.models import Prediction, build_prediction_dedupe_key
 from apps.core.ai_predictions.prediction_registry import get_prediction_rules
+from apps.core.time.system_clock import get_current_time
 
 logger = logging.getLogger(__name__)
 
 # Minimum confidence to persist a prediction
 MIN_CONFIDENCE_TO_STORE = 0.30
+
+
+def get_prediction_input_data(user, module, data_type, lookback_days=90):
+    """
+    Abstraction layer for prediction data access.
+
+    When SAE (State Awareness Engine) is installed, this reads from cached
+    user state. Otherwise, falls back to direct database queries.
+
+    Args:
+        user: Django User instance.
+        module: Module name (e.g., "health", "goals", "habits").
+        data_type: Type of data to retrieve (e.g., "weight_entries",
+                   "body_fat_entries", "habit_entries", "goal_milestones",
+                   "lab_results").
+        lookback_days: Number of days to look back for data.
+
+    Returns:
+        QuerySet or list of data appropriate for the requested data_type.
+        Returns empty list if SAE lookup fails and no fallback available.
+    """
+    # ── Step 1: Try SAE (State Awareness Engine) if installed ──────────
+    try:
+        from apps.core.ai_state.state_reader import get_cached_data  # noqa: F401
+
+        cached = get_cached_data(user, module, data_type, lookback_days)
+        if cached is not None:
+            return cached
+    except ImportError:
+        pass  # SAE not yet installed — expected
+    except Exception as e:
+        logger.warning(
+            f"SAE data read failed for user {user.id}, module={module}, "
+            f"type={data_type}: {e}. Falling back to database."
+        )
+
+    # ── Step 2: Direct database fallback ───────────────────────────────
+    now = get_current_time()
+    cutoff = now - __import__("datetime").timedelta(days=lookback_days)
+
+    if module == "health" and data_type == "weight_entries":
+        from apps.health.models import WeightEntry
+
+        return (
+            WeightEntry.objects.filter(
+                user=user,
+                recorded_at__gte=cutoff,
+            )
+            .order_by("recorded_at")
+            .values_list("recorded_at", "value")
+        )
+
+    if module == "health" and data_type in ("body_fat_entries", "lean_mass_entries"):
+        from apps.health.models import BodyCompositionEntry
+
+        metric = "body_fat_pct" if data_type == "body_fat_entries" else "lean_mass"
+        return (
+            BodyCompositionEntry.objects.filter(
+                user=user,
+                metric_name=metric,
+                measurement_date__gte=cutoff.date(),
+            )
+            .order_by("measurement_date")
+            .values_list("measurement_date", "value")
+        )
+
+    if module in ("goals", "purpose") and data_type == "active_goals":
+        from apps.purpose.models import LifeGoal
+
+        return LifeGoal.objects.filter(
+            user=user,
+            status="active",
+            target_date__isnull=False,
+        )
+
+    if module in ("habits", "purpose") and data_type == "active_habits":
+        from apps.purpose.models import HabitGoal
+
+        return HabitGoal.objects.filter(user=user, status="active")
+
+    if module in ("labs", "medical") and data_type == "lab_results":
+        from apps.medical.models import LabResult
+
+        return (
+            LabResult.objects.filter(
+                user=user,
+                value_numeric__isnull=False,
+            )
+            .order_by("raw_test_name", "collected_at")
+            .values_list(
+                "raw_test_name", "collected_at", "value_numeric",
+                "unit", "range_low", "range_high",
+            )
+        )
+
+    # Unknown data_type — return empty list
+    logger.warning(
+        f"Unknown prediction data type: module={module}, type={data_type}"
+    )
+    return []
 
 
 def generate_predictions(user, module=None, record_id=None):
@@ -30,11 +135,12 @@ def generate_predictions(user, module=None, record_id=None):
     Returns:
         List of Prediction instances created/updated.
     """
+    now = get_current_time()
     event = {
         "event_type": "prediction_check",
         "module": module or "all",
         "record_id": record_id,
-        "timestamp_utc": timezone.now().isoformat(),
+        "timestamp_utc": now.isoformat(),
     }
 
     rules = get_prediction_rules()
@@ -91,7 +197,7 @@ def _upsert_prediction(user, pred_data):
         user=user,
         dedupe_key=dedupe_key,
         status="active",
-    ).update(status="superseded", updated_at=timezone.now())
+    ).update(status="superseded", updated_at=get_current_time())
 
     # Create new prediction
     prediction = Prediction.objects.create(

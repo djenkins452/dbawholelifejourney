@@ -7,7 +7,7 @@ Validates actions before execution. Requires clarification if uncertain.
 import logging
 from datetime import timedelta
 
-from django.utils import timezone
+from apps.core.time.system_clock import get_current_time
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,7 @@ def validate_action(enriched_action):
     # Check timestamp bounds if time was resolved
     if params.get("_time_resolved") and "recorded_at" in params:
         recorded_at = params["recorded_at"]
-        now = timezone.now()
+        now = get_current_time()
 
         # Check if too far in the past
         max_past = now - timedelta(days=MAX_BACKDATE_DAYS)

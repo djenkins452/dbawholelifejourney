@@ -16,11 +16,10 @@ It enhances the existing pipeline by being called at the right points:
 
 import logging
 
-from apps.core.ai_orchestrator.action_router import EnrichedAction, route_action
+from apps.core.ai_orchestrator.action_router import route_action
 from apps.core.ai_orchestrator.audit_logger import log_interaction
 from apps.core.ai_orchestrator.context_pipeline import resolve_context_pipeline
 from apps.core.ai_orchestrator.execution_engine import execute_action
-from apps.core.ai_orchestrator.intent_engine import is_time_aware
 from apps.core.ai_orchestrator.learning_pipeline import learn_from_interaction
 from apps.core.ai_orchestrator.response_builder import build_response
 from apps.core.ai_orchestrator.time_pipeline import (
@@ -196,7 +195,9 @@ def enrich_and_execute(user, intent_results, orchestrator_result):
         result = execute_action(user, enriched)
         action_results.append(result)
 
-        # Learn from successful execution + run insights
+        # Learn from successful execution
+        # Note: Intelligence chain (SAE → PIE → PRIE) is now centralized
+        # in execute_action() and fires automatically on success.
         if result and result.success:
             learn_from_interaction(
                 user=user,
@@ -204,9 +205,6 @@ def enrich_and_execute(user, intent_results, orchestrator_result):
                 action_result=result,
                 enriched_action=enriched,
             )
-
-            # Fire PIE event for proactive insights
-            _fire_insight_event(user, enriched, result)
 
     # Update orchestrator result
     orchestrator_result.actions_enriched = enriched_actions
@@ -219,43 +217,3 @@ def enrich_and_execute(user, intent_results, orchestrator_result):
     log_interaction(user, orchestrator_result.original_input, orchestrator_result)
 
     return action_results
-
-
-def _fire_insight_event(user, enriched_action, action_result):
-    """
-    Fire a PIE event after a successful action.
-
-    Wrapped in try/except so insight failures never break the main flow.
-    """
-    try:
-        from django.conf import settings as django_settings
-
-        if not getattr(django_settings, "AI_INSIGHTS_ENABLED", True):
-            return
-
-        # Import rule modules to ensure they're registered
-        import apps.core.ai_insights.rules_health  # noqa: F401
-        import apps.core.ai_insights.rules_body_composition  # noqa: F401
-        import apps.core.ai_insights.rules_goals  # noqa: F401
-        import apps.core.ai_insights.rules_habits  # noqa: F401
-        import apps.core.ai_insights.rules_journal  # noqa: F401
-
-        from django.utils import timezone as tz
-        from apps.core.ai_insights.insight_engine import run_insights
-
-        event = {
-            "event_type": "record_created",
-            "module": enriched_action.module,
-            "action": enriched_action.intent_type,
-            "record_id": (
-                action_result.created_object.get("id")
-                if action_result.created_object
-                else None
-            ),
-            "timestamp_utc": tz.now().isoformat(),
-        }
-
-        run_insights(user, event)
-
-    except Exception as e:
-        logger.error(f"PIE event fire error: {e}", exc_info=True)

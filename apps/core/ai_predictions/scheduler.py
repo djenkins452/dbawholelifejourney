@@ -6,8 +6,6 @@ Daily prediction generation for all active users.
 
 import logging
 
-from django.utils import timezone
-
 from apps.core.ai_predictions.prediction_engine import generate_predictions
 
 logger = logging.getLogger(__name__)

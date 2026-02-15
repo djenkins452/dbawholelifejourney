@@ -6,7 +6,7 @@ Simple, explainable, no ML required.
 
 from datetime import timedelta
 
-from django.utils import timezone
+from apps.core.time.system_clock import get_current_time
 
 
 def get_time_window(reference_time=None, days=14):
@@ -20,7 +20,7 @@ def get_time_window(reference_time=None, days=14):
     Returns:
         (window_start, window_end) as timezone-aware datetimes.
     """
-    end = reference_time or timezone.now()
+    end = reference_time or get_current_time()
     start = end - timedelta(days=days)
     return start, end
 
@@ -77,7 +77,7 @@ def days_since(dt):
     """Calculate days since a given datetime."""
     if not dt:
         return None
-    now = timezone.now()
+    now = get_current_time()
     if hasattr(dt, "tzinfo") and dt.tzinfo is None:
         # Make naive datetime aware for comparison
         from django.utils.timezone import make_aware

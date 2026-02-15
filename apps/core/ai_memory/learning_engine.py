@@ -6,9 +6,8 @@ capped at 1.0. This prevents premature overconfidence while rewarding
 consistent usage.
 """
 
-from django.utils import timezone
-
 from apps.core.ai_memory.models import ClarificationLog, LearnedMapping
+from apps.core.time.system_clock import get_current_time
 
 # Initial confidence for a brand new mapping
 INITIAL_CONFIDENCE = 0.8
@@ -39,7 +38,7 @@ def store_learned_mapping(user, phrase, meaning_type, meaning_identifier):
     Returns:
         LearnedMapping instance (created or updated).
     """
-    now = timezone.now()
+    now = get_current_time()
 
     mapping, created = LearnedMapping.objects.get_or_create(
         user=user,
@@ -88,7 +87,7 @@ def record_usage(mapping):
     mapping.confidence_score = min(
         mapping.confidence_score + CONFIDENCE_INCREMENT, MAX_CONFIDENCE
     )
-    mapping.last_used_at = timezone.now()
+    mapping.last_used_at = get_current_time()
     mapping.save(update_fields=["usage_count", "confidence_score", "last_used_at"])
 
 

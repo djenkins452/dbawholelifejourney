@@ -268,7 +268,7 @@ Validates all resolved timestamps are within bounds. Allows future timestamps fo
 | `time_pipeline.py` | Wraps HTIE — adds `recorded_at` to parameters |
 | `context_pipeline.py` | Wraps SLCME — resolves context from page and learned mappings |
 | `action_router.py` | `EnrichedAction` class, enriches parameters |
-| `execution_engine.py` | Delegates to existing `intent_service.execute_intent()` |
+| `execution_engine.py` | Single execution authority + intelligence chain (SAE → PIE → PRIE) |
 | `safety_engine.py` | Timestamp bounds validation |
 | `learning_pipeline.py` | Stores mappings after successful actions |
 | `response_builder.py` | Enhances messages with temporal context |
@@ -393,9 +393,9 @@ Insights Inbox at `/insights/` — filterable by status (new/read/dismissed), AJ
 
 ### Integration Rules
 
-- UAIO fires `_fire_insight_event()` after every successful action execution
+- UAIO fires PIE via `execution_engine.py:_run_intelligence_chain()` after every successful action
 - PIE calls `_trigger_predictions()` after insight generation (→ PRIE)
-- Scheduler runs daily for all active users
+- Scheduler runs daily for all active users (`run_daily_insights` management command)
 - Failures in PIE never break the main AI pipeline (wrapped in try/except)
 
 ### Tests
@@ -523,10 +523,22 @@ When a new prediction is generated with the same `dedupe_key`:
 python manage.py run_prediction_engine
 ```
 
+### Data Abstraction Layer
+
+```python
+from apps.core.ai_predictions.prediction_engine import get_prediction_input_data
+
+# Returns QuerySet/list — reads from SAE cache when available, DB fallback
+data = get_prediction_input_data(user, module="health", data_type="weight_entries", lookback_days=90)
+```
+
+Supported data types: `weight_entries`, `body_fat_entries`, `lean_mass_entries`, `active_goals`, `active_habits`, `lab_results`.
+
 ### Integration Rules
 
 - PIE's `run_insights()` calls `_trigger_predictions()` after insight processing
-- Predictions also generated via daily scheduler
+- Predictions also generated via daily scheduler (`run_prediction_engine` management command)
+- `get_prediction_input_data()` provides SAE-ready data access with DB fallback
 - Failures in PRIE never break the insight pipeline (wrapped in try/except)
 
 ### Tests
@@ -544,9 +556,29 @@ python manage.py run_prediction_engine
 | UAIO → Safety | Timestamp validation | `safety_engine.py` |
 | UAIO → Actions | Enriched execution | `execution_engine.py` |
 | UAIO → Learning | Store mappings | `learning_pipeline.py` |
-| UAIO → PIE | Fire insight event | `orchestrator.py:_fire_insight_event()` |
+| UAIO → SAE (future) | State update | `execution_engine.py:_run_intelligence_chain()` |
+| UAIO → PIE | Fire insight event | `execution_engine.py:_run_intelligence_chain()` |
 | PIE → PRIE | Trigger predictions | `insight_engine.py:_trigger_predictions()` |
+| PRIE → SAE (future) | Read cached state | `prediction_engine.py:get_prediction_input_data()` |
 | Action Handlers → HTIE | Use resolved time | `action_handlers.py:_get_recorded_at()` |
+| All Engines → HTIE | System time | `system_clock.py:get_current_time()` |
+
+### Intelligence Execution Chain
+
+Post-execution, the intelligence chain fires from `execute_action()`:
+
+```
+Action Success
+  → SAE (future — ImportError-guarded)
+    → Update user state cache
+  → PIE (run_insights)
+    → Evaluate all applicable insight rules
+    → PRIE (_trigger_predictions)
+      → Evaluate all applicable prediction rules
+```
+
+This chain is centralized in `execution_engine.py:_run_intelligence_chain()`.
+No other code path may trigger PIE or PRIE during action execution.
 
 ---
 
@@ -574,6 +606,45 @@ HTIE and UAIO are stateless — no database models required.
 8. **Dedupe everything:** Both insights and predictions use SHA-256 dedupe keys
 9. **Confidence always:** Every insight and prediction must carry a confidence score
 10. **Evidence always:** Every insight and prediction must carry auditable evidence
+11. **Single time source:** All intelligence pipeline code uses `get_current_time()` from HTIE, never `datetime.now()` or `timezone.now()` directly
+12. **Single execution authority:** All post-action intelligence triggers (SAE, PIE, PRIE) flow through `execution_engine.py:_run_intelligence_chain()` only
+
+---
+
+## State Awareness Engine — Integration Preparation
+
+**Status:** SAE integration points are installed and ready. SAE is not yet implemented.
+
+### SAE Plug-In Points
+
+The following integration points have been prepared for SAE:
+
+| Location | Hook | Pattern |
+|----------|------|---------|
+| `execution_engine.py:_run_intelligence_chain()` | Post-action state update | `from apps.core.ai_state.state_updater import update_user_state` (ImportError-guarded) |
+| `prediction_engine.py:get_prediction_input_data()` | Pre-prediction state read | `from apps.core.ai_state.state_reader import get_cached_data` (ImportError-guarded) |
+
+### SAE Expected Interface
+
+When SAE is built, it must provide:
+
+```python
+# apps/core/ai_state/state_updater.py
+def update_user_state(user, module, record_id):
+    """Update cached user state after successful action."""
+
+# apps/core/ai_state/state_reader.py
+def get_cached_data(user, module, data_type, lookback_days):
+    """Read cached data for predictions. Returns None to fall back to DB."""
+```
+
+### SAE Installation Steps
+
+1. Create `apps/core/ai_state/` module
+2. Implement `state_updater.py` and `state_reader.py` with the interfaces above
+3. Both hooks will auto-activate (ImportError guards will find the module)
+4. No changes needed to execution_engine.py or prediction_engine.py
+5. Update this document with SAE engine details
 
 ---
 
@@ -600,4 +671,4 @@ HTIE and UAIO are stateless — no database models required.
 
 ---
 
-*Last updated: 2026-02-15*
+*Last updated: 2026-02-15 — Pre-SAE hardening complete*

@@ -4,10 +4,32 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-15 (PRIE: Predictive Intelligence Engine)
+# Last Updated: 2026-02-15 (Pre-SAE Hardening)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-02-15 — Intelligence Engine Integration Refinement (Pre-SAE Hardening)
+
+**Major Refactor:** Hardened integration boundaries between all five intelligence engines to prepare for State Awareness Engine (SAE) installation. Centralized the intelligence execution chain, unified time source usage, and added a data abstraction layer.
+
+### Changes:
+
+1. **Centralized Intelligence Chain** — `execution_engine.py` is now the single execution authority. Post-action chain: SAE (future, ImportError-guarded) → PIE → PRIE. Removed duplicate `_fire_insight_event()` from `orchestrator.py`.
+
+2. **Prediction Data Abstraction Layer** — New `get_prediction_input_data()` in `prediction_engine.py` provides a single data-access gateway. When SAE is installed, reads from cached state. Fallback to direct DB queries. Supports: weight_entries, body_fat_entries, lean_mass_entries, active_goals, active_habits, lab_results.
+
+3. **Temporal Compliance** — Replaced all 24 instances of `timezone.now()` across the intelligence pipeline with `get_current_time()` from HTIE's `system_clock.py`. Affected files: safety_engine.py, audit_logger.py, execution_engine.py, pattern_utils.py, notification_engine.py, scheduler.py, rules_goals.py, rules_scripture.py, prediction_engine.py, prediction_rules_health.py, prediction_rules_bodycomp.py, prediction_rules_goals.py, prediction_rules_habits.py, learning_engine.py.
+
+4. **Dead Code Cleanup** — Removed `_fire_insight_event()` from orchestrator.py, removed unused `is_time_aware` and `EnrichedAction` imports, cleaned up unused `timezone` imports from prediction_rules_labs.py, prediction_rules_habits.py, and scheduler.py.
+
+5. **Architecture Docs Updated** — Updated cross-engine integration map, added SAE preparation section with plug-in points and expected interfaces, added compliance rules #11 (single time source) and #12 (single execution authority), documented intelligence execution chain and data abstraction layer.
+
+**Tests:** 226 intelligence engine tests pass, 299 AI tests pass, 4425 total (6 pre-existing failures in security.test_admin.FilterTest).
+
+**Files Modified:** `apps/core/ai_orchestrator/orchestrator.py`, `apps/core/ai_orchestrator/execution_engine.py`, `apps/core/ai_orchestrator/safety_engine.py`, `apps/core/ai_orchestrator/audit_logger.py`, `apps/core/ai_insights/pattern_utils.py`, `apps/core/ai_insights/notification_engine.py`, `apps/core/ai_insights/scheduler.py`, `apps/core/ai_insights/rules_goals.py`, `apps/core/ai_insights/rules_scripture.py`, `apps/core/ai_predictions/prediction_engine.py`, `apps/core/ai_predictions/prediction_rules_health.py`, `apps/core/ai_predictions/prediction_rules_bodycomp.py`, `apps/core/ai_predictions/prediction_rules_goals.py`, `apps/core/ai_predictions/prediction_rules_habits.py`, `apps/core/ai_predictions/prediction_rules_labs.py`, `apps/core/ai_predictions/scheduler.py`, `apps/core/ai_memory/learning_engine.py`, `docs/INTELLIGENCE_ARCHITECTURE.md`, `docs/wlj_claude_changelog.md`
+
+---
 
 ## 2026-02-15 — Intelligence Architecture Documentation Suite
 

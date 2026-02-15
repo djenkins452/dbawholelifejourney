@@ -4,12 +4,11 @@ Scripture Reading Insight Rules — Drop-off detection.
 
 from datetime import timedelta
 
-from django.utils import timezone
-
 from apps.core.ai_insights.base_rules import BaseInsightRule
 from apps.core.ai_insights.models import build_dedupe_key
 from apps.core.ai_insights.pattern_utils import get_time_window
 from apps.core.ai_insights.rule_registry import register
+from apps.core.time.system_clock import get_current_time
 
 
 @register
@@ -24,7 +23,7 @@ class ScriptureReadingDropOffRule(BaseInsightRule):
     def evaluate(self, user, event):
         from apps.faith.models import UserReadingProgress
 
-        now = timezone.now()
+        now = get_current_time()
         # Check last 12 days for daily reading, then 5-day gap
         recent_window = now - timedelta(days=12)
         recent_completions = (

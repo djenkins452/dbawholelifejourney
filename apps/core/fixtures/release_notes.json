@@ -1,6 +1,38 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 33,
+        "fields": {
+            "title": "AI Insights Inbox",
+            "description": "Your AI assistant now proactively generates insights about your health, goals, habits, scripture reading, and journaling patterns. Get notified about weight trends, approaching deadlines, broken habit streaks, and more. View all insights in your new Insights Inbox, where you can filter by status and mark them as read or dismissed.",
+            "entry_type": "feature",
+            "version": "",
+            "release_date": "2026-02-15",
+            "is_published": true,
+            "is_major": true,
+            "learn_more_url": "",
+            "created_at": "2026-02-15T00:00:00Z",
+            "updated_at": "2026-02-15T00:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
+        "pk": 34,
+        "fields": {
+            "title": "Smarter AI: Time Understanding & Memory",
+            "description": "The AI assistant now understands natural language time expressions like '3 days ago', 'next Friday at 2pm', and 'last month on the 15th'. It also learns from your clarifications — the more you use it, the better it understands your preferences.",
+            "entry_type": "feature",
+            "version": "",
+            "release_date": "2026-02-15",
+            "is_published": true,
+            "is_major": true,
+            "learn_more_url": "",
+            "created_at": "2026-02-15T00:00:00Z",
+            "updated_at": "2026-02-15T00:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 30,
         "fields": {
             "title": "Goal Engine: Measurement-Driven Habits",

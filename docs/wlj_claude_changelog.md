@@ -4,10 +4,48 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-14 (System Review Complete)
+# Last Updated: 2026-02-15 (AI Intelligence Layer: HTIE + SLCME + UAIO + PIE)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-02-15 — AI Intelligence Layer: HTIE + SLCME + UAIO + PIE
+
+**Major Feature:** Built 4 interconnected AI intelligence modules as the foundation for WLJ's proactive AI assistant capabilities.
+
+### 1. HTIE — Human Temporal Intelligence Engine (`apps/core/time/`)
+Parses natural language time expressions ("3 days ago", "next Friday at 2pm", "last month on the 15th") into precise timestamps. Never guesses — asks clarification for ambiguous expressions ("recently", "a while ago").
+- **Files:** `system_clock.py`, `parser.py`, `resolver.py`, `ambiguity_detector.py`, `interpreter.py`, `tests.py` (76 tests)
+
+### 2. SLCME — Self-Learning Context Memory Engine (`apps/core/ai_memory/`)
+Learns from user clarifications and stores phrase→meaning mappings permanently. Confidence-based auto-use (≥0.75 = auto, 0.5-0.75 = confirm, <0.5 = ignore). Tracks current page context for disambiguation.
+- **Models:** `LearnedMapping`, `ContextSnapshot`, `ClarificationLog`
+- **Files:** `models.py`, `learning_engine.py`, `retrieval_engine.py`, `confidence_engine.py`, `context_resolver.py`, `memory_engine.py`, `tests.py` (53 tests)
+- **Migration:** `0053_add_slcme_models`
+
+### 3. UAIO — Unified AI Orchestrator (`apps/core/ai_orchestrator/`)
+Connects HTIE and SLCME into the existing AI assistant pipeline as an enhancement layer. Single entry point (`process_user_input` → `enrich_and_execute`) that enriches parameters with temporal context and learned mappings before action execution.
+- **Files:** `orchestrator.py`, `intent_engine.py`, `action_router.py`, `context_pipeline.py`, `time_pipeline.py`, `execution_engine.py`, `learning_pipeline.py`, `response_builder.py`, `safety_engine.py`, `audit_logger.py`, `tests.py` (35 tests)
+- **Integration:** Wired into `apps/ai/personal_assistant.py` `send_message()` and `apps/ai/action_handlers.py` (`_get_recorded_at()` helper)
+
+### 4. PIE — Proactive Insight Engine (`apps/core/ai_insights/`)
+Event-driven + scheduled insight system generating factual, explainable insights across all WLJ modules. Pluggable rule system with 13 rules across 7 domains.
+- **Rules:** WeightTrendUp/Down, MissingWeightLogging, MissingBodyComp, BodyFatChange, RepeatedOutOfRange, GoalDeadlineRisk, GoalStagnation, HabitBrokenStreak, HabitConsistencyPositive, ScriptureReadingDropOff, JournalStreakPositive, JournalDropOff
+- **Features:** Dedupe via SHA-256 hash keys, rate-limited notifications (3/day), Insights Inbox UI at `/insights/`, admin panel
+- **Files:** `models.py`, `base_rules.py`, `rule_registry.py`, `pattern_utils.py`, `insight_engine.py`, `notification_engine.py`, `scheduler.py`, `views.py`, `urls.py`, `admin.py`, 7 rule files, `tests.py` (30 tests)
+- **Migration:** `0054_add_pie_insight_model`
+- **Management command:** `run_daily_insights`
+
+**Test Results:** 194 new tests across all 4 modules + 299 existing AI tests pass (no regressions). 4,393 total project tests.
+
+**Modified existing files:**
+- `apps/core/models.py` — Added imports for ai_memory and ai_insights models
+- `apps/ai/personal_assistant.py` — Wired orchestrator into send_message()
+- `apps/ai/action_handlers.py` — Added `_get_recorded_at()` helper for temporal awareness
+- `config/urls.py` — Added `/insights/` route
+- `templates/ai_insights/inbox.html` — Insights Inbox template
+
+---
 
 ## 2026-02-14 — System Review: Final Cleanup + Features Doc Refresh
 

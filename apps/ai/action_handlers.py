@@ -76,6 +76,19 @@ class ActionHandler:
         from apps.core.utils import get_user_now
         return get_user_now(self.user)
 
+    def _get_recorded_at(self, kwargs):
+        """
+        Get recorded_at timestamp, using HTIE-resolved time if available.
+
+        The orchestrator passes a 'recorded_at' key in kwargs when HTIE
+        resolves a time expression (e.g., "3 days ago"). Falls back to
+        the user's current time.
+        """
+        recorded_at = kwargs.get('recorded_at')
+        if recorded_at:
+            return recorded_at
+        return self._get_user_now()
+
     def _get_user_today(self):
         """Get current date in user's timezone."""
         from apps.core.utils import get_user_today
@@ -170,7 +183,7 @@ class ActionHandler:
                 bpm=bpm,
                 context=context,
                 notes=notes or "",
-                recorded_at=self._get_user_now()
+                recorded_at=self._get_recorded_at(kwargs)
             )
 
             time_str = entry.recorded_at.strftime("%I:%M %p")
@@ -224,7 +237,7 @@ class ActionHandler:
                 arm=arm,
                 position=position,
                 notes=notes or "",
-                recorded_at=self._get_user_now()
+                recorded_at=self._get_recorded_at(kwargs)
             )
 
             time_str = entry.recorded_at.strftime("%I:%M %p")
@@ -272,7 +285,7 @@ class ActionHandler:
                 value=Decimal(str(value)),
                 unit=unit,
                 notes=notes or "",
-                recorded_at=self._get_user_now()
+                recorded_at=self._get_recorded_at(kwargs)
             )
 
             return ActionResult(
@@ -318,7 +331,7 @@ class ActionHandler:
                 context=context,
                 source='manual',
                 notes=notes or "",
-                recorded_at=self._get_user_now()
+                recorded_at=self._get_recorded_at(kwargs)
             )
 
             return ActionResult(
@@ -368,7 +381,7 @@ class ActionHandler:
                 context=context,
                 measurement_method=measurement_method,
                 notes=notes or "",
-                recorded_at=self._get_user_now()
+                recorded_at=self._get_recorded_at(kwargs)
             )
 
             time_str = entry.recorded_at.strftime("%I:%M %p")

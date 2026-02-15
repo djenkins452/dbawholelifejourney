@@ -1900,43 +1900,70 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                 actionable_intents = [ir for ir in intent_results if ir.intent_type != 'no_action']
 
                 if actionable_intents:
-                    # Check if any require confirmation
-                    needs_confirmation = [ir for ir in actionable_intents if ir.requires_confirmation]
+                    # Run orchestrator pipeline for time/context resolution
+                    from apps.core.ai_orchestrator.orchestrator import (
+                        process_user_input as orchestrator_process,
+                        enrich_and_execute,
+                    )
+                    orch_result = orchestrator_process(
+                        self.user, message, page_context=page_context
+                    )
 
-                    if needs_confirmation:
-                        # For now, if any need confirmation, handle them one by one
-                        # Store the first one pending and execute the rest
-                        # TODO: Could enhance to batch confirmations
-                        first_confirm = needs_confirmation[0]
-                        intent_service.store_pending_confirmation(self.user, first_confirm)
-
-                        # Execute any that don't need confirmation
-                        no_confirm = [ir for ir in actionable_intents if not ir.requires_confirmation]
-                        response_parts = []
-
-                        for intent_result in no_confirm:
-                            action_result = intent_service.execute_intent(intent_result, self.user)
-                            if action_result.success:
-                                response_parts.append(action_result.message)
-                                actions_taken.append(self._build_action_taken(action_result))
-
-                        # Add confirmation message for the pending one
-                        response_parts.append(first_confirm.confirmation_message)
-                        response = " ".join(response_parts)
+                    # If orchestrator needs clarification (ambiguous time/context),
+                    # ask the user instead of executing
+                    if orch_result.needs_clarification:
+                        response = orch_result.clarification_question
                     else:
-                        # Execute all actions immediately
-                        response_parts = []
+                        # Check if any require confirmation
+                        needs_confirmation = [ir for ir in actionable_intents if ir.requires_confirmation]
 
-                        for intent_result in actionable_intents:
-                            action_result = intent_service.execute_intent(intent_result, self.user)
-                            if action_result.success:
-                                response_parts.append(action_result.message)
-                                actions_taken.append(self._build_action_taken(action_result))
+                        if needs_confirmation:
+                            # For now, if any need confirmation, handle them one by one
+                            # Store the first one pending and execute the rest
+                            first_confirm = needs_confirmation[0]
+                            intent_service.store_pending_confirmation(self.user, first_confirm)
+
+                            # Execute any that don't need confirmation via orchestrator
+                            no_confirm = [ir for ir in actionable_intents if not ir.requires_confirmation]
+                            response_parts = []
+
+                            if no_confirm:
+                                orch_actions = enrich_and_execute(
+                                    self.user, no_confirm, orch_result
+                                )
+                                for action_result in orch_actions:
+                                    if action_result.success:
+                                        actions_taken.append(self._build_action_taken(action_result))
+
+                                # Use orchestrator enhanced response if available
+                                if orch_result.response:
+                                    response_parts.append(orch_result.response)
+                                else:
+                                    for ar in orch_actions:
+                                        if ar.success:
+                                            response_parts.append(ar.message)
+
+                            # Add confirmation message for the pending one
+                            response_parts.append(first_confirm.confirmation_message)
+                            response = " ".join(response_parts)
+                        else:
+                            # Execute all actions via orchestrator
+                            orch_actions = enrich_and_execute(
+                                self.user, actionable_intents, orch_result
+                            )
+
+                            for action_result in orch_actions:
+                                if action_result.success:
+                                    actions_taken.append(self._build_action_taken(action_result))
+
+                            # Use orchestrator enhanced response if available
+                            if orch_result.response:
+                                response = orch_result.response
                             else:
-                                # Action failed - include error
-                                response_parts.append(action_result.message)
-
-                        response = " ".join(response_parts)
+                                response_parts = []
+                                for ar in orch_actions:
+                                    response_parts.append(ar.message)
+                                response = " ".join(response_parts)
                 else:
                     # No action intent - check for bug reports first ("Fix this:", "Bug:", etc.)
                     bug_report_ack = self._check_bug_report(

@@ -581,6 +581,9 @@ class Command(BaseCommand):
         # One-time: Reset help_topics to reload with 40+ new context-aware help entries
         self._reset_help_topics_system_review(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset fixtures for PIE Insights Inbox (release notes, teaching destinations, help topics)
+        self._reset_pie_fixtures(DataLoadConfig, force, verbosity)
+
         # Only output summary if something loaded or if verbose
         if verbosity >= 1 and loaded_count > 0:
             self.stdout.write(self.style.SUCCESS(f'Initial data: loaded {loaded_count} items'))
@@ -1333,3 +1336,34 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset help_topics system review FAILED: {e}'))
+
+    def _reset_pie_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload fixtures for PIE Insights Inbox.
+        Resets release_notes (PKs 33-34), teaching_destinations (PK 106),
+        and help_topics (PK 83).
+        """
+        reset_tracker_name = 'reset_pie_fixtures_2026_02_15'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            for loader_name in ('release_notes', 'teaching_destinations', 'help_topics'):
+                try:
+                    config = DataLoadConfig.objects.get(loader_name=loader_name)
+                    config.reset()
+                    if verbosity >= 1:
+                        self.stdout.write(f'  Reset {loader_name} loader for PIE Insights')
+                except DataLoadConfig.DoesNotExist:
+                    pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for PIE Insights Inbox (Feb 2026)',
+                'command', 'One-time reset to reload release notes, teaching destinations, and help topics for PIE'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset PIE fixtures FAILED: {e}'))

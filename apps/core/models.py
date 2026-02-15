@@ -2190,3 +2190,14 @@ class UserActivityPattern(models.Model):
             },
         )
         return pattern
+
+
+# Import ai_memory models so Django discovers them for migrations
+from apps.core.ai_memory.models import (  # noqa: E402, F401
+    ClarificationLog,
+    ContextSnapshot,
+    LearnedMapping,
+)
+
+# Import ai_insights models so Django discovers them for migrations
+from apps.core.ai_insights.models import Insight  # noqa: E402, F401

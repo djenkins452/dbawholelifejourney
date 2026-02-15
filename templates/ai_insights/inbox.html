@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Insights Inbox{% endblock %}
+
+{% block content %}
+<div class="insights-inbox" style="max-width: 800px; margin: 0 auto; padding: 16px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+        <h1 style="font-size: 1.5rem; margin: 0;">
+            Insights
+            {% if new_count > 0 %}
+                <span style="background: var(--wlj-primary, #4A90D9); color: white; border-radius: 12px; padding: 2px 10px; font-size: 0.85rem; vertical-align: middle;">{{ new_count }} new</span>
+            {% endif %}
+        </h1>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <a href="?status=" class="btn btn-sm {% if current_filter == 'all' %}btn-primary{% else %}btn-outline-secondary{% endif %}">All</a>
+            <a href="?status=new" class="btn btn-sm {% if current_filter == 'new' %}btn-primary{% else %}btn-outline-secondary{% endif %}">New</a>
+            <a href="?status=read" class="btn btn-sm {% if current_filter == 'read' %}btn-primary{% else %}btn-outline-secondary{% endif %}">Read</a>
+            <a href="?status=dismissed" class="btn btn-sm {% if current_filter == 'dismissed' %}btn-primary{% else %}btn-outline-secondary{% endif %}">Dismissed</a>
+        </div>
+    </div>
+
+    {% if insights %}
+        {% for insight in insights %}
+        <div class="insight-card" data-id="{{ insight.pk }}"
+             style="background: var(--wlj-card-bg, #fff); border-radius: 12px; padding: 16px; margin-bottom: 12px; border-left: 4px solid
+                {% if insight.severity == 'critical' %}#dc3545{% elif insight.severity == 'warning' %}#ffc107{% elif insight.severity == 'positive' %}#28a745{% else %}#6c757d{% endif %};
+                box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+                {% if insight.status == 'new' %}opacity: 1;{% else %}opacity: 0.75;{% endif %}
+            ">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;">
+                <div style="flex: 1;">
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap;">
+                        <span style="font-size: 0.75rem; text-transform: uppercase; font-weight: 600; color:
+                            {% if insight.severity == 'critical' %}#dc3545{% elif insight.severity == 'warning' %}#b8860b{% elif insight.severity == 'positive' %}#28a745{% else %}#6c757d{% endif %};">
+                            {{ insight.severity }}
+                        </span>
+                        <span style="font-size: 0.75rem; color: #888;">{{ insight.module }}</span>
+                        {% if insight.status == 'new' %}
+                            <span style="background: var(--wlj-primary, #4A90D9); color: white; border-radius: 8px; padding: 1px 8px; font-size: 0.7rem;">NEW</span>
+                        {% endif %}
+                    </div>
+                    <h3 style="font-size: 1.05rem; margin: 0 0 8px 0; color: var(--wlj-text, #333);">{{ insight.title }}</h3>
+                    <p style="font-size: 0.9rem; color: var(--wlj-text-secondary, #666); margin: 0 0 8px 0; line-height: 1.5;">{{ insight.message|linebreaksbr }}</p>
+                    <div style="font-size: 0.75rem; color: #999;">
+                        {{ insight.created_at|date:"M d, Y g:i A" }}
+                    </div>
+                </div>
+                {% if insight.status != 'dismissed' %}
+                <div style="display: flex; gap: 6px; flex-shrink: 0;">
+                    {% if insight.status == 'new' %}
+                    <button onclick="insightAction({{ insight.pk }}, 'read')"
+                            class="btn btn-sm btn-outline-primary"
+                            style="min-width: 44px; min-height: 44px; font-size: 0.8rem;">
+                        Mark Read
+                    </button>
+                    {% endif %}
+                    <button onclick="insightAction({{ insight.pk }}, 'dismiss')"
+                            class="btn btn-sm btn-outline-secondary"
+                            style="min-width: 44px; min-height: 44px; font-size: 0.8rem;">
+                        Dismiss
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+
+        {% if is_paginated %}
+        <div style="display: flex; justify-content: center; gap: 10px; margin-top: 20px;">
+            {% if page_obj.has_previous %}
+                <a href="?page={{ page_obj.previous_page_number }}{% if current_filter != 'all' %}&status={{ current_filter }}{% endif %}"
+                   class="btn btn-sm btn-outline-primary">Previous</a>
+            {% endif %}
+            <span style="padding: 6px 12px; font-size: 0.9rem;">
+                Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+            </span>
+            {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}{% if current_filter != 'all' %}&status={{ current_filter }}{% endif %}"
+                   class="btn btn-sm btn-outline-primary">Next</a>
+            {% endif %}
+        </div>
+        {% endif %}
+    {% else %}
+        <div style="text-align: center; padding: 60px 20px; color: #888;">
+            <p style="font-size: 1.1rem; margin-bottom: 8px;">No insights yet</p>
+            <p style="font-size: 0.9rem;">Your AI assistant will generate insights as you use the app.</p>
+        </div>
+    {% endif %}
+</div>
+
+<script>
+function insightAction(pk, action) {
+    fetch(`/insights/${pk}/action/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: `action=${action}`
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            const card = document.querySelector(`[data-id="${pk}"]`);
+            if (action === 'dismiss') {
+                card.style.opacity = '0';
+                setTimeout(() => card.remove(), 300);
+            } else {
+                card.style.opacity = '0.75';
+                const badge = card.querySelector('[style*="NEW"]');
+                if (badge) badge.remove();
+                const readBtn = card.querySelector('.btn-outline-primary');
+                if (readBtn && readBtn.textContent.trim() === 'Mark Read') readBtn.remove();
+            }
+        }
+    });
+}
+</script>
+{% endblock %}

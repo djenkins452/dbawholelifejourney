@@ -1383,7 +1383,7 @@
             "destination_id": "brain-training-kenken",
             "name": "KenKen",
             "path_description": "Health - Cognitive - Brain Training - KenKen",
-            "explanation": "A math-logic puzzle that exercises arithmetic skills and reasoning. Each cage shows a target number and operation—fill cells so the operation produces that result, with no repeated numbers in any row or column. Strengthens mental math, working memory, and logical deduction.",
+            "explanation": "A math-logic puzzle that exercises arithmetic skills and reasoning. Each cage shows a target number and operation\u2014fill cells so the operation produces that result, with no repeated numbers in any row or column. Strengthens mental math, working memory, and logical deduction.",
             "url": "/health/cognitive/kenken/play/",
             "keywords": "kenken, math puzzle, arithmetic, cage puzzle, ken ken, calcudoku, mental math, working memory, logical deduction, cognitive exercise",
             "module": "health",
@@ -1400,7 +1400,7 @@
             "destination_id": "brain-training-nonogram",
             "name": "Nonogram",
             "path_description": "Health - Cognitive - Brain Training - Nonogram",
-            "explanation": "A visual logic puzzle that builds spatial reasoning and attention to detail. Number clues indicate consecutive filled cells in each row and column—use deduction to reveal a hidden picture. Enhances visual processing, planning skills, and systematic thinking.",
+            "explanation": "A visual logic puzzle that builds spatial reasoning and attention to detail. Number clues indicate consecutive filled cells in each row and column\u2014use deduction to reveal a hidden picture. Enhances visual processing, planning skills, and systematic thinking.",
             "url": "/health/cognitive/nonogram/play/",
             "keywords": "nonogram, picross, picture puzzle, grid puzzle, pixel puzzle, griddler, spatial reasoning, visual processing, cognitive exercise",
             "module": "health",
@@ -1434,7 +1434,7 @@
             "destination_id": "brain-training-memory-matrix",
             "name": "Memory Matrix",
             "path_description": "Health - Cognitive - Brain Training - Memory Matrix",
-            "explanation": "A visual memory exercise that strengthens short-term recall and attention. Watch a pattern of highlighted cells, then recreate it from memory. Regular practice improves working memory capacity, visual attention, and concentration—essential cognitive skills that support daily life.",
+            "explanation": "A visual memory exercise that strengthens short-term recall and attention. Watch a pattern of highlighted cells, then recreate it from memory. Regular practice improves working memory capacity, visual attention, and concentration\u2014essential cognitive skills that support daily life.",
             "url": "/health/cognitive/memory_matrix/play/",
             "keywords": "memory matrix, pattern memory, visual memory, recall, memory exercise, working memory, visual attention, concentration, cognitive exercise",
             "module": "health",
@@ -1782,6 +1782,21 @@
             "is_active": true,
             "created_at": "2026-02-14T00:00:00Z",
             "updated_at": "2026-02-14T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 106,
+        "fields": {
+            "destination_id": "insights-inbox",
+            "name": "Insights Inbox",
+            "path_description": "Insights",
+            "explanation": "View AI-generated insights about your health trends, goal progress, habit streaks, and more. Filter by status and dismiss or mark insights as read.",
+            "url": "/insights/",
+            "keywords": "insights,ai,trends,notifications,proactive,weight,goals,habits,patterns",
+            "module": "core",
+            "sort_order": 106,
+            "is_active": true
         }
     }
 ]

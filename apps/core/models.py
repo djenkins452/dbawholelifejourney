@@ -1756,6 +1756,7 @@ class Notification(TimeStampedModel):
     CATEGORY_FINANCE = 'finance'
     CATEGORY_JOURNAL = 'journal'
     CATEGORY_SYSTEM = 'system'
+    CATEGORY_INTELLIGENCE = 'intelligence'
 
     CATEGORY_CHOICES = [
         (CATEGORY_MEDICINE, 'Medicine Reminder'),
@@ -1770,6 +1771,7 @@ class Notification(TimeStampedModel):
         (CATEGORY_FINANCE, 'Finance Alert'),
         (CATEGORY_JOURNAL, 'Journal Prompt'),
         (CATEGORY_SYSTEM, 'System'),
+        (CATEGORY_INTELLIGENCE, 'Intelligence'),
     ]
 
     # Map categories to module preference fields
@@ -1786,6 +1788,7 @@ class Notification(TimeStampedModel):
         CATEGORY_FINANCE: 'finances_enabled',
         CATEGORY_JOURNAL: 'journal_enabled',
         CATEGORY_SYSTEM: None,  # Always show system notifications
+        CATEGORY_INTELLIGENCE: 'ai_enabled',
     }
 
     # Fields
@@ -2237,4 +2240,7 @@ from apps.core.ai_weekly_report.models import (  # noqa: E402, F401
 # Import ai_explain models so Django discovers them for migrations
 from apps.core.ai_explain.models import (  # noqa: E402, F401
     ExplainRecord,
+)
+from apps.core.ai_delivery.models import (  # noqa: E402, F401
+    DeliveredNotification,
 )

@@ -4,10 +4,30 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-15 (Evidence & Explainability Engine)
+# Last Updated: 2026-02-15 (Delivery & Notification Engine)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-02-15 — Phase 5A: Delivery & Notification Engine (DNE)
+
+**Feature:** Created the Delivery & Notification Engine — delivers intelligence outputs (PGE guidance, DBE briefings, WIRE weekly reports) through user-configurable channels with deduplication, throttling, and quiet hours enforcement. Integrates with existing notification bell, email, and SMS infrastructure.
+
+- **Module:** `apps/core/ai_delivery/` — 8 source files: `__init__.py`, `models.py`, `delivery_engine.py`, `delivery_router.py`, `delivery_policies.py`, `delivery_logger.py`, `views.py`, `urls.py`, `admin.py`
+- **Model:** `DeliveredNotification` — tracks every delivery attempt (sent/skipped/failed) with SHA-256 dedupe hash, skip reasons, and metadata
+- **Delivery engine:** `deliver_due_notifications()` scans PGE/DBE/WIRE for undelivered items, applies policies, routes to channels
+- **Policies:** SHA-256 deduplication, quiet hours enforcement (email/SMS only), configurable hourly/daily throttle limits
+- **Router:** Three channel implementations — in-app (via existing NotificationService), email (via Django send_mail), SMS (via existing SMSNotificationService)
+- **Intelligence category:** Added `intelligence` category to existing Notification model and NotificationService mappings
+- **User preferences:** Added 5 fields to UserPreferences: `intelligence_inapp_enabled` (default on), `intelligence_email_enabled` (default off), `intelligence_sms_enabled` (default off), `intelligence_max_per_day` (default 6), `intelligence_max_per_hour` (default 2)
+- **Settings UI:** `/intelligence/delivery/settings/` — toggle channels, set rate limits, view quiet hours info
+- **History UI:** `/intelligence/delivery/history/` — paginated audit log of all delivery attempts with status badges
+- **ISE integration:** Registered as `deliver_intelligence_notifications` (600s / 10 minutes) in scheduler registry
+- **Management command:** `python manage.py run_delivery_cycle`
+- **Fixtures:** Release note PK 41, teaching destinations PKs 113-114, help topics PKs 90-91
+- **Migrations:** `core.0066_delivery_notification_engine`, `users.0062_delivery_notification_engine`
+- **Architecture:** Updated `docs/INTELLIGENCE_ARCHITECTURE.md` — fourteen-engine cognitive stack, added Engine 14 (DNE) section
+- **Tests:** 29 tests (model, dedupe, policies, engine, router, views, ISE integration)
 
 ## 2026-02-15 — Phase 4B: Evidence & Explainability Engine (E3)
 

@@ -65,6 +65,7 @@ All intelligence must flow through these engines — no module may bypass them:
 | **ISE** — Intelligence Scheduler Engine | 3 | `apps/core/ai_scheduler/` | Centrally manage scheduled execution of all intelligence engines |
 | **WIRE** — Weekly Intelligence Report Engine | 3 | `apps/core/ai_weekly_report/` | Generate weekly longitudinal intelligence summaries |
 | **E3** — Evidence & Explainability Engine | 3 | `apps/core/ai_explain/` | Attach evidence and explanations to PGE, DBE, WIRE outputs |
+| **DNE** — Delivery & Notification Engine | 3 | `apps/core/ai_delivery/` | Deliver intelligence through in-app/email/SMS with throttling/dedupe |
 
 ### Intelligence Execution Pipeline
 

@@ -986,6 +986,30 @@ class UserPreferences(models.Model):
         help_text="Email notifications for capture processing completion",
     )
 
+    # ========================================
+    # INTELLIGENCE NOTIFICATION SETTINGS (DNE)
+    # ========================================
+    intelligence_inapp_enabled = models.BooleanField(
+        default=True,
+        help_text="In-app notifications for intelligence outputs (guidance, briefings, reports)",
+    )
+    intelligence_email_enabled = models.BooleanField(
+        default=False,
+        help_text="Email notifications for intelligence outputs (opt-in, off by default)",
+    )
+    intelligence_sms_enabled = models.BooleanField(
+        default=False,
+        help_text="SMS notifications for intelligence outputs (opt-in, off by default)",
+    )
+    intelligence_max_per_day = models.PositiveIntegerField(
+        default=6,
+        help_text="Maximum intelligence notifications per day",
+    )
+    intelligence_max_per_hour = models.PositiveIntegerField(
+        default=2,
+        help_text="Maximum intelligence notifications per hour",
+    )
+
     # ===================
     # WEIGHT GOALS
     # ===================

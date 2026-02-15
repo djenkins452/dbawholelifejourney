@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Intelligence Notification Settings — Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="dne-settings">
+    <div class="dne-settings-header">
+        <h1 class="dne-settings-title">Intelligence Notifications</h1>
+        <p class="dne-settings-desc">
+            Control how you receive intelligence outputs — guidance, daily briefings, and weekly reports.
+            Settings here only affect intelligence notifications, not other app notifications.
+        </p>
+    </div>
+
+    <form method="post" action="{% url 'ai_delivery:settings_save' %}" class="dne-settings-form">
+        {% csrf_token %}
+
+        <div class="dne-settings-section">
+            <h2 class="dne-settings-section-title">Delivery Channels</h2>
+
+            <label class="dne-settings-toggle">
+                <input type="checkbox" name="intelligence_inapp_enabled"
+                       {% if prefs.intelligence_inapp_enabled %}checked{% endif %}>
+                <span class="dne-toggle-label">
+                    <span class="dne-toggle-icon">🔔</span>
+                    In-App Notifications
+                </span>
+                <span class="dne-toggle-desc">Show in notification bell when new intelligence is available</span>
+            </label>
+
+            <label class="dne-settings-toggle">
+                <input type="checkbox" name="intelligence_email_enabled"
+                       {% if prefs.intelligence_email_enabled %}checked{% endif %}>
+                <span class="dne-toggle-label">
+                    <span class="dne-toggle-icon">📧</span>
+                    Email Notifications
+                </span>
+                <span class="dne-toggle-desc">Receive intelligence summaries via email</span>
+            </label>
+
+            <label class="dne-settings-toggle">
+                <input type="checkbox" name="intelligence_sms_enabled"
+                       {% if prefs.intelligence_sms_enabled %}checked{% endif %}
+                       {% if not prefs.sms_enabled or not prefs.phone_verified %}disabled{% endif %}>
+                <span class="dne-toggle-label">
+                    <span class="dne-toggle-icon">💬</span>
+                    SMS Notifications
+                </span>
+                <span class="dne-toggle-desc">
+                    {% if not prefs.sms_enabled or not prefs.phone_verified %}
+                        Requires verified phone number in SMS settings
+                    {% else %}
+                        Receive intelligence alerts via text message
+                    {% endif %}
+                </span>
+            </label>
+        </div>
+
+        <div class="dne-settings-section">
+            <h2 class="dne-settings-section-title">Rate Limits</h2>
+            <p class="dne-settings-section-desc">Control how many intelligence notifications you receive.</p>
+
+            <div class="dne-settings-field">
+                <label for="intelligence_max_per_day">Max per day</label>
+                <select name="intelligence_max_per_day" id="intelligence_max_per_day">
+                    {% for val in "1 2 3 4 5 6 8 10 15 20"|make_list %}{% endfor %}
+                    <option value="2" {% if prefs.intelligence_max_per_day == 2 %}selected{% endif %}>2</option>
+                    <option value="4" {% if prefs.intelligence_max_per_day == 4 %}selected{% endif %}>4</option>
+                    <option value="6" {% if prefs.intelligence_max_per_day == 6 %}selected{% endif %}>6 (default)</option>
+                    <option value="8" {% if prefs.intelligence_max_per_day == 8 %}selected{% endif %}>8</option>
+                    <option value="10" {% if prefs.intelligence_max_per_day == 10 %}selected{% endif %}>10</option>
+                    <option value="15" {% if prefs.intelligence_max_per_day == 15 %}selected{% endif %}>15</option>
+                    <option value="20" {% if prefs.intelligence_max_per_day == 20 %}selected{% endif %}>20</option>
+                </select>
+            </div>
+
+            <div class="dne-settings-field">
+                <label for="intelligence_max_per_hour">Max per hour</label>
+                <select name="intelligence_max_per_hour" id="intelligence_max_per_hour">
+                    <option value="1" {% if prefs.intelligence_max_per_hour == 1 %}selected{% endif %}>1</option>
+                    <option value="2" {% if prefs.intelligence_max_per_hour == 2 %}selected{% endif %}>2 (default)</option>
+                    <option value="3" {% if prefs.intelligence_max_per_hour == 3 %}selected{% endif %}>3</option>
+                    <option value="5" {% if prefs.intelligence_max_per_hour == 5 %}selected{% endif %}>5</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="dne-settings-info">
+            <p><strong>Quiet hours:</strong> Email and SMS intelligence notifications respect your SMS quiet hours
+            (currently {{ prefs.sms_quiet_start|time:"g:i A" }} – {{ prefs.sms_quiet_end|time:"g:i A" }}).
+            In-app notifications are always delivered.</p>
+        </div>
+
+        <div class="dne-settings-actions">
+            <button type="submit" class="dne-settings-save-btn">Save Settings</button>
+            <a href="{% url 'ai_delivery:history' %}" class="dne-settings-history-link">View delivery history →</a>
+        </div>
+    </form>
+</div>
+
+<style>
+.dne-settings { max-width: 640px; margin: 0 auto; padding: var(--space-4) var(--space-3); }
+.dne-settings-header { margin-bottom: var(--space-5); }
+.dne-settings-title { font-size: var(--font-size-xl); font-weight: 700; margin-bottom: var(--space-2); }
+.dne-settings-desc { color: var(--color-text-secondary); font-size: var(--font-size-sm); line-height: 1.5; }
+.dne-settings-section { margin-bottom: var(--space-5); padding: var(--space-4); background: var(--color-surface); border-radius: var(--radius-lg); border: 1px solid var(--color-border); }
+.dne-settings-section-title { font-size: var(--font-size-md); font-weight: 600; margin-bottom: var(--space-2); }
+.dne-settings-section-desc { color: var(--color-text-secondary); font-size: var(--font-size-xs); margin-bottom: var(--space-3); }
+.dne-settings-toggle { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--space-2); padding: var(--space-3) 0; border-bottom: 1px solid var(--color-border-light, #eee); cursor: pointer; }
+.dne-settings-toggle:last-child { border-bottom: none; }
+.dne-settings-toggle input[type="checkbox"] { margin-top: 3px; width: 18px; height: 18px; }
+.dne-toggle-label { font-weight: 500; font-size: var(--font-size-sm); }
+.dne-toggle-icon { margin-right: var(--space-1); }
+.dne-toggle-desc { width: 100%; padding-left: 26px; color: var(--color-text-secondary); font-size: var(--font-size-xs); }
+.dne-settings-field { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) 0; }
+.dne-settings-field label { font-size: var(--font-size-sm); font-weight: 500; min-width: 100px; }
+.dne-settings-field select { padding: var(--space-1) var(--space-2); border: 1px solid var(--color-border); border-radius: var(--radius-md); font-size: 16px; background: var(--color-surface); }
+.dne-settings-info { padding: var(--space-3); background: var(--color-accent-subtle, #e0f0ff); border-radius: var(--radius-md); margin-bottom: var(--space-4); }
+.dne-settings-info p { font-size: var(--font-size-xs); color: var(--color-text-secondary); margin: 0; }
+.dne-settings-actions { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+.dne-settings-save-btn { padding: var(--space-2) var(--space-4); background: var(--color-accent); color: white; border: none; border-radius: var(--radius-md); font-weight: 600; font-size: var(--font-size-sm); cursor: pointer; }
+.dne-settings-save-btn:hover { opacity: 0.9; }
+.dne-settings-history-link { font-size: var(--font-size-xs); color: var(--color-accent); text-decoration: none; }
+.dne-settings-history-link:hover { text-decoration: underline; }
+@media (max-width: 480px) {
+    .dne-settings { padding: var(--space-3) var(--space-2); }
+    .dne-settings-section { padding: var(--space-3); }
+    .dne-settings-field { flex-direction: column; align-items: flex-start; }
+}
+</style>
+{% endblock %}

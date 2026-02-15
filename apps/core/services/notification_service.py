@@ -70,6 +70,7 @@ class NotificationService:
         'finance': 'notify_inapp_finance',
         'journal': 'notify_inapp_journal',
         'capture': 'notify_inapp_capture',
+        'intelligence': 'intelligence_inapp_enabled',
         'system': None,  # Always allowed
     }
 
@@ -86,6 +87,7 @@ class NotificationService:
         'finance': 'notify_email_finance',
         'journal': 'notify_email_journal',
         'capture': 'notify_email_capture',
+        'intelligence': 'intelligence_email_enabled',
         'system': None,  # Always allowed
     }
 
@@ -103,6 +105,7 @@ class NotificationService:
         'finance': 'finances_enabled',
         'journal': 'journal_enabled',
         'capture': 'capture_enabled',
+        'intelligence': 'ai_enabled',
         'system': None,
     }
 

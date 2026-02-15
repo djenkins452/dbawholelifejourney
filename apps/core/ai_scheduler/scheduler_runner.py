@@ -161,3 +161,27 @@ def run_weekly_reports():
 
     logger.info(f"ISE: Weekly reports — generated={generated}, errors={errors}")
     return {"generated": generated, "errors": errors}
+
+
+def run_delivery_cycle():
+    """
+    Run one cycle of the Delivery & Notification Engine.
+
+    Calls DNE deliver_due_notifications() to route intelligence
+    outputs to user-configured channels.
+
+    Returns:
+        dict — {delivered: int, skipped: int, failed: int}
+    """
+    try:
+        from apps.core.ai_delivery.delivery_engine import deliver_due_notifications
+    except ImportError:
+        logger.error("ISE: DNE not available (import failed)")
+        return {"delivered": 0, "skipped": 0, "failed": 0}
+
+    result = deliver_due_notifications()
+    logger.info(
+        f"ISE: Delivery cycle — delivered={result['delivered']}, "
+        f"skipped={result['skipped']}, failed={result['failed']}"
+    )
+    return result

@@ -1900,5 +1900,39 @@
       "created_at": "2026-02-15T20:00:00Z",
       "updated_at": "2026-02-15T20:00:00Z"
     }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 113,
+    "fields": {
+      "destination_id": "intelligence-notification-settings",
+      "name": "Intelligence Notification Settings",
+      "path_description": "Intelligence - Delivery Settings",
+      "explanation": "Configure how and when WLJ delivers intelligence notifications. Set quiet hours, rate limits, and choose which notification types you want to receive.",
+      "url": "/intelligence/delivery/settings/",
+      "keywords": "notifications,delivery,settings,quiet hours,rate limit,bell,alerts,intelligence",
+      "module": "ai",
+      "sort_order": 113,
+      "is_active": true,
+      "created_at": "2026-02-15T00:00:00Z",
+      "updated_at": "2026-02-15T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 114,
+    "fields": {
+      "destination_id": "intelligence-delivery-history",
+      "name": "Intelligence Delivery History",
+      "path_description": "Intelligence - Delivery History",
+      "explanation": "View the audit log of all intelligence notifications delivered to you, including delivery status, timestamps, and notification types.",
+      "url": "/intelligence/delivery/history/",
+      "keywords": "delivery,history,audit,log,notifications,sent,delivered,intelligence",
+      "module": "ai",
+      "sort_order": 114,
+      "is_active": true,
+      "created_at": "2026-02-15T00:00:00Z",
+      "updated_at": "2026-02-15T00:00:00Z"
+    }
   }
 ]

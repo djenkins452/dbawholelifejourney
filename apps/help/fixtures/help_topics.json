@@ -1412,5 +1412,29 @@
       "created_at": "2026-02-15T20:00:00Z",
       "updated_at": "2026-02-15T20:00:00Z"
     }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 90,
+    "fields": {
+      "context_id": "INTELLIGENCE_DELIVERY_SETTINGS",
+      "title": "Intelligence Delivery Settings",
+      "content": "## Intelligence Delivery Settings\n\nControl how and when WLJ delivers intelligence notifications to you.\n\n### Delivery Channels\nCurrently, intelligence is delivered via the in-app notification bell. Future channels (email, push notifications) can be enabled here as they become available.\n\n### Quiet Hours\nSet a daily quiet window during which no notifications will be delivered. Notifications generated during quiet hours are held and delivered when the window ends. This is useful for avoiding interruptions during sleep or focused work.\n\n### Rate Limits\nConfigure how many notifications you receive per hour and per day. When the limit is reached, lower-priority notifications are queued until the next period. Critical notifications are never suppressed.\n\n### Notification Types\nYou can enable or disable delivery for specific intelligence types:\n- **Guidance** \u2014 Actionable recommendations from the Proactive Guidance Engine\n- **Daily Briefings** \u2014 Morning intelligence summaries\n- **Weekly Reports** \u2014 Weekly intelligence summaries\n- **Insights** \u2014 Pattern and trend detections\n- **Predictions** \u2014 Trajectory projections",
+      "is_active": true,
+      "created_at": "2026-02-15T00:00:00Z",
+      "updated_at": "2026-02-15T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 91,
+    "fields": {
+      "context_id": "INTELLIGENCE_DELIVERY_HISTORY",
+      "title": "Intelligence Delivery History",
+      "content": "## Intelligence Delivery History\n\nThe Delivery History page shows a complete audit log of all intelligence notifications delivered to you.\n\n### What You Can See\n- **Notification type** \u2014 Whether it was guidance, a briefing, a report, an insight, or a prediction\n- **Delivery status** \u2014 Whether the notification was delivered, queued, suppressed by quiet hours, or rate-limited\n- **Timestamps** \u2014 When the notification was created and when it was actually delivered\n- **Content preview** \u2014 A summary of the notification content with a link to the full item\n\n### Filtering\nYou can filter the history by notification type, delivery status, and date range to find specific deliveries.\n\n### Why It Matters\nThe delivery history provides transparency into how the intelligence system communicates with you. If you feel you are missing notifications, check here to see if they were suppressed by quiet hours or rate limits, and adjust your settings accordingly.",
+      "is_active": true,
+      "created_at": "2026-02-15T00:00:00Z",
+      "updated_at": "2026-02-15T00:00:00Z"
+    }
   }
 ]

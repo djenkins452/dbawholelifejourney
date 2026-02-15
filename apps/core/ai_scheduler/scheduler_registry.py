@@ -32,6 +32,11 @@ SCHEDULED_TASKS = {
         "interval_seconds": 604800,  # 7 days
         "description": "Generate weekly intelligence reports for all active users (WIRE).",
     },
+    "deliver_intelligence_notifications": {
+        "function_path": "apps.core.ai_scheduler.scheduler_runner.run_delivery_cycle",
+        "interval_seconds": 600,  # 10 minutes
+        "description": "Deliver intelligence notifications to user channels (DNE).",
+    },
 }
 
 

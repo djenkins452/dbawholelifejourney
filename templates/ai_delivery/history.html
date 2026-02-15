@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Intelligence Delivery History — Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="dne-history">
+    <div class="dne-history-header">
+        <h1 class="dne-history-title">Delivery History</h1>
+        <a href="{% url 'ai_delivery:settings' %}" class="dne-history-settings-link">⚙️ Settings</a>
+    </div>
+
+    {% if deliveries %}
+    <div class="dne-history-list">
+        {% for d in deliveries %}
+        <div class="dne-history-item dne-status-{{ d.status }}">
+            <div class="dne-history-item-header">
+                <span class="dne-history-channel">
+                    {% if d.channel == 'in_app' %}🔔{% elif d.channel == 'email' %}📧{% elif d.channel == 'sms' %}💬{% endif %}
+                    {{ d.get_channel_display }}
+                </span>
+                <span class="dne-history-engine">{{ d.source_engine }}</span>
+                <span class="dne-history-status dne-badge-{{ d.status }}">{{ d.get_status_display }}</span>
+            </div>
+            <div class="dne-history-item-body">
+                <h3 class="dne-history-item-title">{{ d.title }}</h3>
+                {% if d.skip_reason %}
+                <p class="dne-history-skip-reason">Skip reason: {{ d.skip_reason }}</p>
+                {% endif %}
+            </div>
+            <div class="dne-history-item-time">
+                {{ d.delivered_at|timesince }} ago
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% if is_paginated %}
+    <div class="dne-history-pagination">
+        {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}">← Previous</a>
+        {% endif %}
+        <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}">Next →</a>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="dne-history-empty">
+        <span class="dne-history-empty-icon">📭</span>
+        <p>No intelligence notifications delivered yet.</p>
+        <p class="dne-history-empty-sub">When guidance, briefings, or reports are generated, delivery attempts will appear here.</p>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.dne-history { max-width: 640px; margin: 0 auto; padding: var(--space-4) var(--space-3); }
+.dne-history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4); }
+.dne-history-title { font-size: var(--font-size-xl); font-weight: 700; }
+.dne-history-settings-link { font-size: var(--font-size-sm); color: var(--color-accent); text-decoration: none; }
+.dne-history-list { display: flex; flex-direction: column; gap: var(--space-2); }
+.dne-history-item { padding: var(--space-3); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+.dne-history-item-header { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-1); font-size: var(--font-size-xs); }
+.dne-history-channel { font-weight: 500; }
+.dne-history-engine { color: var(--color-text-secondary); }
+.dne-history-status { padding: 1px 6px; border-radius: var(--radius-full, 9999px); font-size: 11px; font-weight: 600; }
+.dne-badge-sent { background: #d4edda; color: #155724; }
+.dne-badge-skipped { background: #fff3cd; color: #856404; }
+.dne-badge-failed { background: #f8d7da; color: #721c24; }
+.dne-badge-queued { background: #d1ecf1; color: #0c5460; }
+.dne-history-item-title { font-size: var(--font-size-sm); font-weight: 500; margin: 0; }
+.dne-history-skip-reason { font-size: var(--font-size-xs); color: var(--color-text-secondary); margin: var(--space-1) 0 0; }
+.dne-history-item-time { font-size: 11px; color: var(--color-text-secondary); margin-top: var(--space-1); }
+.dne-history-pagination { display: flex; justify-content: center; gap: var(--space-3); align-items: center; margin-top: var(--space-4); font-size: var(--font-size-sm); }
+.dne-history-pagination a { color: var(--color-accent); text-decoration: none; }
+.dne-history-empty { text-align: center; padding: var(--space-6); color: var(--color-text-secondary); }
+.dne-history-empty-icon { font-size: 2rem; display: block; margin-bottom: var(--space-2); }
+.dne-history-empty-sub { font-size: var(--font-size-xs); }
+@media (max-width: 480px) {
+    .dne-history { padding: var(--space-3) var(--space-2); }
+}
+</style>
+{% endblock %}

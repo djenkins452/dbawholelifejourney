@@ -1,6 +1,6 @@
 # Whole Life Journey — Intelligence Architecture
 
-**Purpose:** Permanent architectural authority defining the thirteen-engine cognitive stack that powers all AI-driven features in WLJ. Claude Code must read this document before implementing any feature that touches AI, data logging, insights, predictions, or user interactions.
+**Purpose:** Permanent architectural authority defining the fourteen-engine cognitive stack that powers all AI-driven features in WLJ. Claude Code must read this document before implementing any feature that touches AI, data logging, insights, predictions, or user interactions.
 
 **Status:** Active — All engines implemented and deployed.
 
@@ -47,10 +47,12 @@ The WLJ intelligence system operates in **three distinct phases**. Every engine 
 | **ISE** — Intelligence Scheduler Engine | `apps/core/ai_scheduler/` | Centrally manage scheduled execution of all intelligence engines |
 | **WIRE** — Weekly Intelligence Report Engine | `apps/core/ai_weekly_report/` | Generate weekly longitudinal intelligence summaries from all engines |
 | **E3** — Evidence & Explainability Engine | `apps/core/ai_explain/` | Attach evidence and explanations to all intelligence outputs (PGE, DBE, WIRE) |
+| **DNE** — Delivery & Notification Engine | `apps/core/ai_delivery/` | Deliver intelligence outputs through user-configured channels with throttling/dedupe |
 
-**Execution order within Phase 3:** SAE → PIE → PRIE → PGE (+E3) → GLOE (on interaction) → DBE (+E3, scheduled daily) → WIRE (+E3, scheduled weekly)
+**Execution order within Phase 3:** SAE → PIE → PRIE → PGE (+E3) → GLOE (on interaction) → DBE (+E3, scheduled daily) → WIRE (+E3, scheduled weekly) → DNE (scheduled every 10min)
 **Scheduling:** ISE orchestrates when engines run (cron-triggered every 5 minutes)
 **Enrichment:** E3 hooks into PGE, DBE, and WIRE post-store (non-blocking)
+**Delivery:** DNE scans for undelivered PGE/DBE/WIRE outputs and routes to in-app/email/SMS
 
 **These engines do NOT execute actions. They observe and interpret system state.**
 
@@ -132,7 +134,14 @@ The WLJ intelligence system operates in **three distinct phases**. Every engine 
               ║    │           ISE                   │   ║
               ║    │  Scheduler (cron, every 5min)   │   ║
               ║    │  Orchestrates: DBE, PGE, GLOE,  │   ║
-              ║    │               WIRE              │   ║
+              ║    │               WIRE, DNE          │   ║
+              ║    └─────────────────────────────────┘   ║
+              ║                                          ║
+              ║    ┌─────────────────────────────────┐   ║
+              ║    │           DNE                   │   ║
+              ║    │  Delivery & Notification        │   ║
+              ║    │  (in-app, email, SMS)           │   ║
+              ║    │  (every 10 min via ISE)         │   ║
               ║    └─────────────────────────────────┘   ║
               ╚══════════════════════════════════════════╝
                                     │
@@ -175,7 +184,8 @@ User Input
       → E3 (ensure_explain_record — evidence + explanation, non-blocking)
     → WIRE (generate_weekly_report — scheduled weekly)
       → E3 (ensure_explain_record — evidence + explanation, non-blocking)
-    → ISE (run_scheduler_cycle — cron every 5min, orchestrates DBE/PGE/GLOE)
+    → ISE (run_scheduler_cycle — cron every 5min, orchestrates DBE/PGE/GLOE/DNE)
+    → DNE (deliver_due_notifications — every 10min via ISE, routes to in-app/email/SMS)
   → Response Builder (enhance with temporal context)
   → Response to User
 ```
@@ -666,6 +676,10 @@ Supported data types: `weight_entries`, `body_fat_entries`, `lean_mass_entries`,
 | PGE → E3 | Evidence enrichment | `guidance_logger.py` (post-store hook) |
 | DBE → E3 | Evidence enrichment | `briefing_engine.py` (post-store hook) |
 | WIRE → E3 | Evidence enrichment | `report_engine.py` (post-store hook) |
+| DNE → PGE | Scan undelivered guidance | `delivery_engine.py:_get_undelivered_guidance()` |
+| DNE → DBE | Scan undelivered briefings | `delivery_engine.py:_get_undelivered_briefings()` |
+| DNE → WIRE | Scan undelivered reports | `delivery_engine.py:_get_undelivered_reports()` |
+| ISE → DNE | Scheduled delivery cycle | `scheduler_runner.py:run_delivery_cycle()` |
 
 ### Phase 3 — Post-Execution Intelligence Chain
 
@@ -705,6 +719,8 @@ PGE runs separately (daily scheduler or on-demand) and reads the outputs of all 
 | `core.0059` | PGE | GuidanceItem lifecycle fields (acknowledged_at, dismissed_at, snoozed_until, acted_upon_at, action_type, feedback) |
 | `core.0064` | WIRE | WeeklyIntelligenceReport |
 | `core.0065` | E3 | ExplainRecord |
+| `core.0066` | DNE | DeliveredNotification + Notification.intelligence category |
+| `users.0062` | DNE | UserPreferences intelligence notification fields |
 
 HTIE and UAIO are stateless — no database models required.
 
@@ -1487,6 +1503,65 @@ The `ExplainDetailView` creates records on-demand if they don't exist. When a us
 ### Tests
 
 37 tests in `apps/core/ai_explain/tests.py`
+
+---
+
+## Engine 14: DNE — Delivery & Notification Engine
+
+**Phase:** 3 — Post-Execution (delivery layer)
+**Location:** `apps/core/ai_delivery/`
+**Purpose:** Deliver intelligence outputs (PGE guidance, DBE briefings, WIRE weekly reports) through user-configurable channels with deduplication, throttling, and quiet hours.
+
+### Architecture
+
+DNE does NOT generate intelligence. It scans for undelivered PGE/DBE/WIRE items and routes them through enabled channels, respecting user preferences.
+
+**Pipeline:** Scan sources → Build payload → Apply policies (dedupe, quiet hours, throttle) → Route to channels → Log delivery
+
+| Component | File | Responsibility |
+|-----------|------|----------------|
+| Engine | `delivery_engine.py` | Main cycle: `deliver_due_notifications()`, user iteration, item gathering |
+| Policies | `delivery_policies.py` | Dedupe (SHA-256), quiet hours, hourly/daily throttle |
+| Router | `delivery_router.py` | Channel implementations: in_app, email, SMS |
+| Logger | `delivery_logger.py` | Log skipped deliveries with reason |
+| Model | `models.py` | `DeliveredNotification` — tracks every delivery attempt |
+
+### Delivery Channels
+
+| Channel | Default | Implementation |
+|---------|---------|----------------|
+| In-app | **On** | Creates `Notification` via existing `NotificationService` (bell + dropdown) |
+| Email | Off | Uses Django `send_mail()` with existing email infrastructure |
+| SMS | Off | Uses existing `SMSNotificationService` (requires verified phone) |
+
+### Delivery Policies
+
+1. **Deduplication:** SHA-256 hash on (user, channel, engine, object type, object ID). Each item delivered at most once per channel.
+2. **Quiet hours:** Email/SMS blocked during user's configured quiet hours. In-app always allowed.
+3. **Throttle:** Configurable max per hour (default: 2) and max per day (default: 6).
+4. **Skip logging:** Every skipped delivery recorded with `skip_reason` for audit.
+
+### User Preferences
+
+Added to `UserPreferences`:
+- `intelligence_inapp_enabled` (default: True)
+- `intelligence_email_enabled` (default: False)
+- `intelligence_sms_enabled` (default: False)
+- `intelligence_max_per_day` (default: 6)
+- `intelligence_max_per_hour` (default: 2)
+
+### Scheduling
+
+ISE runs DNE every 10 minutes (600 seconds). Registry entry: `deliver_intelligence_notifications`.
+
+### UI
+
+- **Settings page:** `/intelligence/delivery/settings/` — toggle channels, set rate limits
+- **History page:** `/intelligence/delivery/history/` — audit log of all delivery attempts
+
+### Tests
+
+29 tests in `apps/core/ai_delivery/tests.py`
 
 ---
 

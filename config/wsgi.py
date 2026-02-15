@@ -41,7 +41,10 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 application = get_wsgi_application()
 
 # Start background schedulers in production (only once, not in each worker)
-# We use an environment variable to ensure only one scheduler runs
+# Protection layers:
+#   1. DEBUG check (skip in dev)
+#   2. os.environ['SCHEDULER_STARTED'] (in-process dedup with --preload)
+#   3. Database lock (cross-process/container dedup via SchedulerLock)
 def start_scheduler():
     """Start background schedulers if not already running."""
     import logging
@@ -49,16 +52,25 @@ def start_scheduler():
 
     logger = logging.getLogger('scheduler')
 
-    # Only run in production (non-DEBUG) and only if not already started
+    # Layer 1: Skip in development
     if settings.DEBUG:
         logger.info("Scheduler skipped: DEBUG mode is enabled")
         return
 
-    # Check if we're the main process (not a forked worker)
-    # Gunicorn preload mode ensures this runs once before workers fork
+    # Layer 2: In-process dedup (Gunicorn --preload runs wsgi.py once before fork)
     if os.environ.get('SCHEDULER_STARTED'):
         logger.debug("Scheduler already started in this process")
         return
+
+    # Layer 3: Database lock (cross-process/container singleton)
+    try:
+        from apps.core.ai_scheduler.scheduler_lock import acquire_scheduler_lock
+        if not acquire_scheduler_lock():
+            logger.info("Scheduler skipped: another instance holds the DB lock")
+            return
+    except Exception as e:
+        # DB not ready (e.g., first deploy before migrate) — fall through
+        logger.warning(f"Scheduler lock check failed ({e}), proceeding with env var guard")
 
     os.environ['SCHEDULER_STARTED'] = '1'
     logger.info("Initializing APScheduler background jobs...")
@@ -240,9 +252,19 @@ def start_scheduler():
             replace_existing=True,
         )
 
+        # Job 15: Refresh scheduler DB lock every 4 minutes
+        # Keeps the singleton lock alive so stale detection works correctly
+        scheduler.add_job(
+            'apps.core.ai_scheduler.scheduler_lock:refresh_scheduler_lock',
+            trigger=IntervalTrigger(minutes=4),
+            id="refresh_scheduler_lock",
+            max_instances=1,
+            replace_existing=True,
+        )
+
         scheduler.start()
         logger.info("=" * 60)
-        logger.info("APScheduler STARTED successfully with 14 jobs:")
+        logger.info("APScheduler STARTED successfully with 15 jobs:")
         logger.info("  - SMS: schedule_daily_sms_reminders (daily at 00:00 UTC) [on hold]")
         logger.info("  - SMS: send_pending_sms (every 5 minutes) [on hold]")
         logger.info("  - Life: recalculate_task_priorities (daily at 06:00 UTC / 01:00 EST)")
@@ -257,10 +279,18 @@ def start_scheduler():
         logger.info("  - Capture: send_expiration_reminders (daily at 08:00 UTC / 03:00 EST)")
         logger.info("  - Capture: send_pending_capture_reminders (hourly)")
         logger.info("  - ISE: run_intelligence_scheduler (every 5 minutes)")
+        logger.info("  - ISE: refresh_scheduler_lock (every 4 minutes)")
         logger.info("=" * 60)
 
-        # Ensure scheduler shuts down on exit
-        atexit.register(lambda: scheduler.shutdown(wait=False))
+        # Ensure scheduler shuts down on exit and releases DB lock
+        def _shutdown_scheduler():
+            scheduler.shutdown(wait=False)
+            try:
+                from apps.core.ai_scheduler.scheduler_lock import release_scheduler_lock
+                release_scheduler_lock()
+            except Exception:
+                pass  # Best-effort — lock will expire naturally
+        atexit.register(_shutdown_scheduler)
 
         # Run initial SMS send check
         from apps.sms.jobs import send_pending_sms

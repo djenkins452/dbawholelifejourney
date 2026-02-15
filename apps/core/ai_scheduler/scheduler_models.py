@@ -2,6 +2,7 @@
 ISE — Scheduler Models.
 
 ScheduledIntelligenceTask: Tracks scheduled engine execution state.
+SchedulerLock: Database-backed singleton lock for scheduler dedup.
 """
 
 from django.db import models
@@ -84,3 +85,34 @@ class ScheduledIntelligenceTask(models.Model):
     def is_due(self):
         """Check if this task is due for execution."""
         return self.is_active and timezone.now() >= self.next_run_at
+
+
+class SchedulerLock(models.Model):
+    """
+    Database-backed singleton lock for scheduler deduplication.
+
+    Prevents duplicate APScheduler instances across Gunicorn workers,
+    container restarts, or multi-instance deployments.
+    """
+
+    lock_name = models.CharField(
+        max_length=100,
+        unique=True,
+        help_text="Lock identifier (e.g., 'apscheduler_main').",
+    )
+    locked_at = models.DateTimeField(
+        help_text="When the lock was acquired or last refreshed.",
+    )
+    locked_by = models.CharField(
+        max_length=255,
+        help_text="Hostname-PID of the process holding the lock.",
+    )
+
+    class Meta:
+        app_label = "core"
+        db_table = "core_scheduler_lock"
+        verbose_name = "Scheduler Lock"
+        verbose_name_plural = "Scheduler Locks"
+
+    def __str__(self):
+        return f"{self.lock_name} (by {self.locked_by} at {self.locked_at})"

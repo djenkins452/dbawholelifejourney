@@ -3,12 +3,15 @@ ISE — Tests for the Intelligence Scheduler Engine.
 
 Tests cover:
 - ScheduledIntelligenceTask model
+- SchedulerLock model
+- Scheduler lock (singleton protection)
 - Scheduler registry
 - Scheduler engine (cycle execution)
 - Task runners (DBE, GLOE, PGE wrappers)
 - Management command
 """
 
+import os
 from datetime import timedelta
 from io import StringIO
 from unittest.mock import MagicMock, patch
@@ -23,7 +26,16 @@ from apps.core.ai_scheduler.scheduler_engine import (
     _execute_task,
     run_scheduler_cycle,
 )
-from apps.core.ai_scheduler.scheduler_models import ScheduledIntelligenceTask
+from apps.core.ai_scheduler.scheduler_lock import (
+    LOCK_TIMEOUT_SECONDS,
+    acquire_scheduler_lock,
+    refresh_scheduler_lock,
+    release_scheduler_lock,
+)
+from apps.core.ai_scheduler.scheduler_models import (
+    ScheduledIntelligenceTask,
+    SchedulerLock,
+)
 from apps.core.ai_scheduler.scheduler_registry import (
     SCHEDULED_TASKS,
     get_registered_tasks,
@@ -453,3 +465,141 @@ class ManagementCommandTest(TestCase):
         output = out.getvalue()
         self.assertIn("dry run", output)
         self.assertIn("generate_daily_briefings", output)
+
+
+# ---------------------------------------------------------------------------
+# Scheduler Lock Tests
+# ---------------------------------------------------------------------------
+
+
+class SchedulerLockModelTest(TestCase):
+    """Tests for SchedulerLock model."""
+
+    def test_create_lock(self):
+        lock = SchedulerLock.objects.create(
+            lock_name="test_lock",
+            locked_at=timezone.now(),
+            locked_by="host-123",
+        )
+        self.assertEqual(lock.lock_name, "test_lock")
+        self.assertIn("host-123", str(lock))
+
+    def test_unique_lock_name(self):
+        SchedulerLock.objects.create(
+            lock_name="singleton",
+            locked_at=timezone.now(),
+            locked_by="host-1",
+        )
+        with self.assertRaises(Exception):
+            SchedulerLock.objects.create(
+                lock_name="singleton",
+                locked_at=timezone.now(),
+                locked_by="host-2",
+            )
+
+
+class AcquireSchedulerLockTest(TestCase):
+    """Tests for acquire_scheduler_lock function."""
+
+    def test_acquire_new_lock(self):
+        """First caller should acquire the lock."""
+        result = acquire_scheduler_lock("test_acquire")
+        self.assertTrue(result)
+        self.assertTrue(SchedulerLock.objects.filter(lock_name="test_acquire").exists())
+
+    def test_second_acquire_blocked(self):
+        """Second caller should be blocked by fresh lock."""
+        acquire_scheduler_lock("test_block")
+        result = acquire_scheduler_lock("test_block")
+        self.assertFalse(result)
+
+    def test_stale_lock_takeover(self):
+        """Stale lock (> 10 min) should be taken over."""
+        stale_time = timezone.now() - timedelta(seconds=LOCK_TIMEOUT_SECONDS + 60)
+        SchedulerLock.objects.create(
+            lock_name="test_stale",
+            locked_at=stale_time,
+            locked_by="old-host-999",
+        )
+        result = acquire_scheduler_lock("test_stale")
+        self.assertTrue(result)
+        lock = SchedulerLock.objects.get(lock_name="test_stale")
+        self.assertNotEqual(lock.locked_by, "old-host-999")
+
+    def test_lock_just_under_timeout_not_taken(self):
+        """Lock just under timeout should NOT be taken over."""
+        recent_time = timezone.now() - timedelta(seconds=LOCK_TIMEOUT_SECONDS - 60)
+        SchedulerLock.objects.create(
+            lock_name="test_recent",
+            locked_at=recent_time,
+            locked_by="other-host-1",
+        )
+        result = acquire_scheduler_lock("test_recent")
+        self.assertFalse(result)
+
+    def test_different_lock_names_independent(self):
+        """Different lock names should not interfere."""
+        result1 = acquire_scheduler_lock("lock_a")
+        result2 = acquire_scheduler_lock("lock_b")
+        self.assertTrue(result1)
+        self.assertTrue(result2)
+
+
+class RefreshSchedulerLockTest(TestCase):
+    """Tests for refresh_scheduler_lock function."""
+
+    def test_refresh_updates_timestamp(self):
+        """Refresh should update locked_at."""
+        old_time = timezone.now() - timedelta(minutes=3)
+        import socket
+        locked_by = f"{socket.gethostname()}-{os.getpid()}"
+        SchedulerLock.objects.create(
+            lock_name="apscheduler_main",
+            locked_at=old_time,
+            locked_by=locked_by,
+        )
+        refresh_scheduler_lock()
+        lock = SchedulerLock.objects.get(lock_name="apscheduler_main")
+        self.assertGreater(lock.locked_at, old_time)
+
+    def test_refresh_only_own_lock(self):
+        """Refresh should NOT update lock held by different process."""
+        SchedulerLock.objects.create(
+            lock_name="apscheduler_main",
+            locked_at=timezone.now() - timedelta(minutes=3),
+            locked_by="other-host-999",
+        )
+        refresh_scheduler_lock()
+        lock = SchedulerLock.objects.get(lock_name="apscheduler_main")
+        self.assertEqual(lock.locked_by, "other-host-999")
+
+
+class ReleaseSchedulerLockTest(TestCase):
+    """Tests for release_scheduler_lock function."""
+
+    def test_release_own_lock(self):
+        """Release should delete own lock."""
+        import socket
+        locked_by = f"{socket.gethostname()}-{os.getpid()}"
+        SchedulerLock.objects.create(
+            lock_name="apscheduler_main",
+            locked_at=timezone.now(),
+            locked_by=locked_by,
+        )
+        release_scheduler_lock()
+        self.assertFalse(
+            SchedulerLock.objects.filter(lock_name="apscheduler_main").exists()
+        )
+
+    def test_release_does_not_delete_other_lock(self):
+        """Release should NOT delete lock held by different process."""
+        SchedulerLock.objects.create(
+            lock_name="apscheduler_main",
+            locked_at=timezone.now(),
+            locked_by="other-host-999",
+        )
+        release_scheduler_lock()
+        # Lock should still exist
+        self.assertTrue(
+            SchedulerLock.objects.filter(lock_name="apscheduler_main").exists()
+        )

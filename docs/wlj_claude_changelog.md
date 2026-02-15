@@ -9,6 +9,18 @@
 
 # WLJ Change History
 
+## 2026-02-15 — Phase 3C-Hardening: Scheduler Singleton Protection
+
+**Enhancement:** Added database-backed singleton lock to prevent duplicate APScheduler instances across Gunicorn workers, container restarts, or multi-instance deployments.
+
+- **Model:** `SchedulerLock` — lock_name (unique), locked_at, locked_by (hostname-PID)
+- **Lock logic:** `scheduler_lock.py` — `acquire_scheduler_lock()` (create-or-check with 10-min staleness), `refresh_scheduler_lock()` (heartbeat every 4 min), `release_scheduler_lock()` (clean shutdown)
+- **3-layer protection in `wsgi.py`:** (1) DEBUG check, (2) env var `SCHEDULER_STARTED` with `--preload`, (3) database lock
+- **Lock refresh:** Job 15 refreshes lock every 4 minutes to prevent false staleness
+- **Clean shutdown:** `atexit` handler releases DB lock alongside scheduler shutdown
+- **Migration:** `0063_scheduler_lock`
+- **Tests:** 11 new lock tests (43 total ISE tests)
+
 ## 2026-02-15 — Phase 3C: Intelligence Scheduler Engine (ISE)
 
 **Feature:** Created the Intelligence Scheduler Engine — centrally manages scheduled execution of all intelligence engines. ISE orchestrates when engines run, enabling continuous autonomous intelligence operation.

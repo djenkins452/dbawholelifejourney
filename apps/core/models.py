@@ -2226,4 +2226,5 @@ from apps.core.ai_guidance_learning.learning_models import (  # noqa: E402, F401
 # Import ai_scheduler models so Django discovers them for migrations
 from apps.core.ai_scheduler.scheduler_models import (  # noqa: E402, F401
     ScheduledIntelligenceTask,
+    SchedulerLock,
 )

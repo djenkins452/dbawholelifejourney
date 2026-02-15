@@ -59,6 +59,10 @@ class IntelligenceCommandCenterView(TemplateView):
         # Section 6: PRIE — Predictions
         context["predictions"] = self._get_predictions(user, now)
 
+        # Section 7: Observability (staff only)
+        if user.is_staff:
+            context["observability_snapshot"] = self._get_observability()
+
         # Page metadata
         context["app_name"] = "intelligence"
         context["help_context_id"] = "INTELLIGENCE_COMMAND_CENTER"
@@ -142,3 +146,14 @@ class IntelligenceCommandCenterView(TemplateView):
         except Exception as e:
             logger.debug(f"ICC: PRIE unavailable: {e}")
             return []
+
+    def _get_observability(self):
+        """Fetch latest IOCD observability snapshot (staff only)."""
+        try:
+            from apps.core.ai_observability.observability_engine import (
+                get_latest_snapshot,
+            )
+            return get_latest_snapshot()
+        except Exception as e:
+            logger.debug(f"ICC: IOCD unavailable: {e}")
+            return None

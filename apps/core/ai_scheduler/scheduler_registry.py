@@ -42,6 +42,11 @@ SCHEDULED_TASKS = {
         "interval_seconds": 604800,  # 7 days
         "description": "Aggregate ICQG quality metrics per rule/domain (weekly).",
     },
+    "generate_observability_snapshot": {
+        "function_path": "apps.core.ai_scheduler.scheduler_runner.run_observability_snapshot",
+        "interval_seconds": 86400,  # 24 hours
+        "description": "Generate daily intelligence observability metrics snapshot (IOCD).",
+    },
 }
 
 

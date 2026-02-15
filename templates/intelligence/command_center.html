@@ -278,6 +278,48 @@
             </div>
         </section>
 
+        {% if user.is_staff and observability_snapshot %}
+        <!-- ========== 7. System Observability (Staff Only) ========== -->
+        <section class="icc-section" id="icc-observability">
+            <div class="icc-section-header">
+                <h2 class="icc-section-title">
+                    <span class="icc-section-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/></svg>
+                    </span>
+                    System Observability
+                    <span class="icc-badge" style="background: #6b7280; font-size: 0.65rem;">STAFF</span>
+                </h2>
+                <div class="icc-section-actions">
+                    <span class="icc-section-engine">IOCD</span>
+                    <a href="{% url 'intelligence:observability' %}" class="icc-section-link">Full Dashboard</a>
+                </div>
+            </div>
+            <div class="icc-section-body">
+                <div class="icc-state-grid">
+                    <div class="icc-state-module">
+                        <span class="icc-state-module-name">Guidance Action Rate</span>
+                        <span class="icc-state-module-summary">{% widthratio observability_snapshot.guidance_action_rate 1 100 %}%</span>
+                    </div>
+                    <div class="icc-state-module">
+                        <span class="icc-state-module-name">Delivery Success</span>
+                        <span class="icc-state-module-summary">{% widthratio observability_snapshot.deliveries_success_rate 1 100 %}%</span>
+                    </div>
+                    <div class="icc-state-module">
+                        <span class="icc-state-module-name">Avg Usefulness</span>
+                        <span class="icc-state-module-summary">{% widthratio observability_snapshot.avg_usefulness_score 1 100 %}%</span>
+                    </div>
+                    <div class="icc-state-module">
+                        <span class="icc-state-module-name">Active Users</span>
+                        <span class="icc-state-module-summary">{{ observability_snapshot.active_users_count }}</span>
+                    </div>
+                </div>
+                <div class="icc-section-meta">
+                    <span class="icc-timestamp">Snapshot: {{ observability_snapshot.snapshot_date }}</span>
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
     </div>
 </div>
 

@@ -2250,3 +2250,8 @@ from apps.core.ai_quality.quality_models import (  # noqa: E402, F401
     QualityMetricAggregate,
     QualitySuppressionRecord,
 )
+
+# Import ai_observability models so Django discovers them for migrations
+from apps.core.ai_observability.models import (  # noqa: E402, F401
+    IntelligenceMetricsSnapshot,
+)

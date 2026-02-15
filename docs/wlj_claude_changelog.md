@@ -4,10 +4,42 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-15 (Persona Intelligence Layer)
+# Last Updated: 2026-02-15 (Intelligence Observability Dashboard)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-02-15 — Phase 6C: Intelligence Observability & Calibration Dashboard (IOCD)
+
+**Feature:** Added admin-only intelligence observability dashboard for monitoring system-wide metrics across all intelligence engines.
+
+**What it does:**
+- Daily metrics snapshots capturing guidance effectiveness, prediction confidence, delivery performance, engagement, quality, and persona effectiveness
+- Staff-only dashboard at `/intelligence/observability/` with 6 tiles and 7-day trend indicators
+- ICC integration (Section 7, staff-only) showing key metrics summary
+- ISE scheduler registration for daily automated snapshot generation
+- Management command `generate_observability_snapshots --days N` for backfilling
+- Persona effectiveness scores grouped by ai_coaching_style (action/dismiss rates)
+
+**Files created:**
+- `apps/core/ai_observability/__init__.py`
+- `apps/core/ai_observability/models.py` — IntelligenceMetricsSnapshot with 24 metric fields + persona_effectiveness_scores JSONField
+- `apps/core/ai_observability/metrics_calculator.py` — reads from GuidanceItem, Prediction, DeliveredNotification, GuidanceLearningProfile, QualityMetricAggregate
+- `apps/core/ai_observability/observability_engine.py` — daily snapshot creation
+- `apps/core/ai_observability/views.py` — staff-only ObservabilityDashboardView
+- `apps/core/ai_observability/admin.py` — read-only admin
+- `apps/core/ai_observability/tests.py` — 34 tests
+- `apps/core/management/commands/generate_observability_snapshots.py` — backfill command
+- `templates/intelligence/observability_dashboard.html` — dashboard template with ICC styling
+- `apps/core/migrations/0068_add_intelligencemetricssnapshot.py`
+
+**Files modified:**
+- `apps/core/models.py` — import IntelligenceMetricsSnapshot for Django discovery
+- `apps/core/urls_intelligence_center.py` — added observability URL
+- `apps/core/views_intelligence_center.py` — added Section 7 (staff observability)
+- `templates/intelligence/command_center.html` — added observability ICC section
+- `apps/core/ai_scheduler/scheduler_registry.py` — registered daily snapshot task
+- `apps/core/ai_scheduler/scheduler_runner.py` — added run_observability_snapshot runner
 
 ## 2026-02-15 — Phase 6B: Persona Intelligence Layer (PIL)
 

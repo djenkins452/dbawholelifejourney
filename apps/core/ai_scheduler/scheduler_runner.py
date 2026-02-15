@@ -208,3 +208,29 @@ def run_quality_metrics_aggregation():
         f"updated={result['updated']}, errors={result['errors']}"
     )
     return result
+
+
+def run_observability_snapshot():
+    """
+    Generate daily intelligence observability metrics snapshot.
+
+    Calls IOCD generate_daily_snapshot() — system-wide, not per-user.
+
+    Returns:
+        dict — {generated: int, errors: int}
+    """
+    try:
+        from apps.core.ai_observability.observability_engine import (
+            generate_daily_snapshot,
+        )
+    except ImportError:
+        logger.error("ISE: IOCD not available (import failed)")
+        return {"generated": 0, "errors": 0}
+
+    result = generate_daily_snapshot()
+    if result:
+        logger.info(f"ISE: Observability snapshot generated for {result.snapshot_date}")
+        return {"generated": 1, "errors": 0}
+    else:
+        logger.warning("ISE: Observability snapshot generation failed")
+        return {"generated": 0, "errors": 1}

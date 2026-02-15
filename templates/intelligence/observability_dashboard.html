@@ -1,0 +1,407 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Intelligence Observability - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="icc-page">
+    <!-- Page Header -->
+    <div class="icc-header">
+        <div class="icc-header-row">
+            <h1 class="icc-title">
+                <span class="icc-title-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="28" height="28">
+                        <path d="M3 3v18h18"/>
+                        <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/>
+                    </svg>
+                </span>
+                Intelligence Observability
+            </h1>
+            <a href="{% url 'intelligence:command_center' %}" class="icc-back-link">
+                <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd"/></svg>
+                Command Center
+            </a>
+        </div>
+        <p class="icc-subtitle">System-wide intelligence metrics for staff. Updated daily.</p>
+    </div>
+
+    {% if snapshot %}
+    <div class="icc-sections">
+
+        <!-- ========== 1. Guidance Effectiveness ========== -->
+        <section class="icc-section" id="obs-guidance">
+            <div class="icc-section-header">
+                <h2 class="icc-section-title">
+                    <span class="icc-section-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                    </span>
+                    Guidance Effectiveness
+                    {% if trends.guidance_action_rate %}
+                    <span class="obs-trend obs-trend-{{ trends.guidance_action_rate }}">
+                        {% if trends.guidance_action_rate == "up" %}↑{% elif trends.guidance_action_rate == "down" %}↓{% else %}→{% endif %}
+                    </span>
+                    {% endif %}
+                </h2>
+                <span class="icc-section-engine">PGE + GLOE</span>
+            </div>
+            <div class="icc-section-body">
+                <div class="obs-metrics-grid">
+                    <div class="obs-metric">
+                        <span class="obs-metric-value">{{ snapshot.guidance_total }}</span>
+                        <span class="obs-metric-label">Total Guidance</span>
+                    </div>
+                    <div class="obs-metric">
+                        <span class="obs-metric-value obs-pct">{% widthratio snapshot.guidance_acceptance_rate 1 100 %}%</span>
+                        <span class="obs-metric-label">Acceptance Rate</span>
+                    </div>
+                    <div class="obs-metric">
+                        <span class="obs-metric-value obs-pct">{% widthratio snapshot.guidance_action_rate 1 100 %}%</span>
+                        <span class="obs-metric-label">Action Rate</span>
+                    </div>
+                    <div class="obs-metric">
+                        <span class="obs-metric-value">{{ snapshot.guidance_dismissed }}</span>
+                        <span class="obs-metric-label">Dismissed</span>
+                    </div>
+                    <div class="obs-metric">
+                        <span class="obs-metric-value">{{ snapshot.guidance_expired }}</span>
+                        <span class="obs-metric-label">Expired</span>
+                    </div>
+                    <div class="obs-metric">
+                        <span class="obs-metric-value">{{ snapshot.guidance_avg_response_seconds|floatformat:0 }}s</span>
+                        <span class="obs-metric-label">Avg Response</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========== 2. Prediction Confidence & Coverage ========== -->
+        <section class="icc-section" id="obs-predictions">
+            <div class="icc-section-header">
+                <h2 class="icc-section-title">
+                    <span class="icc-section-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                    </span>
+                    Prediction Confidence &amp; Coverage
+                </h2>
+                <span class="icc-section-engine">PRIE</span>
+            </div>
+            <div class="icc-section-body">
+                <div class="obs-metrics-grid">
+                    <div class="obs-metric">
+                        <span class="obs-metric-value">{{ snapshot.predictions_total }}</span>
+                        <span class="obs-metric-label">Total Predictions</span>
+                    </div>
+                    <div class="obs-metric">
+                        <span class="obs-metric-value">{{ snapshot.predictions_active }}</span>
+                        <span class="obs-metric-label">Active</span>
+                    </div>
+                    <div class="obs-metric">
+                        <span class="obs-metric-value">{{ snapshot.predictions_expired }}</span>
+                        <span class="obs-metric-label">Expired</span>
+                    </div>
+                    <div class="obs-metric">
+                        <span class="obs-metric-value obs-pct">{% widthratio snapshot.predictions_avg_confidence 1 100 %}%</span>
+                        <span class="obs-metric-label">Avg Confidence</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========== 3. Delivery Performance ========== -->
+        <section class="icc-section" id="obs-deliveries">
+            <div class="icc-section-header">
+                <h2 class="icc-section-title">
+                    <span class="icc-section-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+                    </span>
+                    Delivery Performance
+                    {% if trends.deliveries_success_rate %}
+                    <span class="obs-trend obs-trend-{{ trends.deliveries_success_rate }}">
+                        {% if trends.deliveries_success_rate == "up" %}↑{% elif trends.deliveries_success_rate == "down" %}↓{% else %}→{% endif %}
+                    </span>
+                    {% endif %}
+                </h2>
+                <span class="icc-section-engine">DNE</span>
+            </div>
+            <div class="icc-section-body">
+                <div class="obs-metrics-grid">
+                    <div class="obs-metric">
+                        <span class="obs-metric-value">{{ snapshot.deliveries_total }}</span>
+                        <span class="obs-metric-label">Total</span>
+                    </div>
+                    <div class="obs-metric">
+                        <span class="obs-metric-value obs-success">{{ snapshot.deliveries_sent }}</span>
+                        <span class="obs-metric-label">Sent</span>
+                    </div>
+                    <div class="obs-metric">
+                        <span class="obs-metric-value obs-warning">{{ snapshot.deliveries_skipped }}</span>
+                        <span class="obs-metric-label">Skipped</span>
+                    </div>
+                    <div class="obs-metric">
+                        <span class="obs-metric-value obs-error">{{ snapshot.deliveries_failed }}</span>
+                        <span class="obs-metric-label">Failed</span>
+                    </div>
+                    <div class="obs-metric">
+                        <span class="obs-metric-value obs-pct">{% widthratio snapshot.deliveries_success_rate 1 100 %}%</span>
+                        <span class="obs-metric-label">Success Rate</span>
+                    </div>
+                </div>
+                {% if snapshot.deliveries_by_channel %}
+                <div class="obs-channel-breakdown">
+                    <span class="obs-breakdown-label">By Channel:</span>
+                    {% for channel, count in snapshot.deliveries_by_channel.items %}
+                    <span class="obs-channel-tag icc-channel-{{ channel }}">{{ channel }}: {{ count }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </section>
+
+        <!-- ========== 4. User Engagement ========== -->
+        <section class="icc-section" id="obs-engagement">
+            <div class="icc-section-header">
+                <h2 class="icc-section-title">
+                    <span class="icc-section-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+                    </span>
+                    User Engagement
+                    {% if trends.avg_responsiveness_score %}
+                    <span class="obs-trend obs-trend-{{ trends.avg_responsiveness_score }}">
+                        {% if trends.avg_responsiveness_score == "up" %}↑{% elif trends.avg_responsiveness_score == "down" %}↓{% else %}→{% endif %}
+                    </span>
+                    {% endif %}
+                </h2>
+                <span class="icc-section-engine">GLOE</span>
+            </div>
+            <div class="icc-section-body">
+                <div class="obs-metrics-grid">
+                    <div class="obs-metric">
+                        <span class="obs-metric-value">{{ snapshot.active_users_count }}</span>
+                        <span class="obs-metric-label">Active Users</span>
+                    </div>
+                    <div class="obs-metric">
+                        <span class="obs-metric-value obs-pct">{% widthratio snapshot.avg_responsiveness_score 1 100 %}%</span>
+                        <span class="obs-metric-label">Avg Responsiveness</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========== 5. System Quality ========== -->
+        <section class="icc-section" id="obs-quality">
+            <div class="icc-section-header">
+                <h2 class="icc-section-title">
+                    <span class="icc-section-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    </span>
+                    System Quality
+                    {% if trends.avg_usefulness_score %}
+                    <span class="obs-trend obs-trend-{{ trends.avg_usefulness_score }}">
+                        {% if trends.avg_usefulness_score == "up" %}↑{% elif trends.avg_usefulness_score == "down" %}↓{% else %}→{% endif %}
+                    </span>
+                    {% endif %}
+                </h2>
+                <span class="icc-section-engine">ICQG</span>
+            </div>
+            <div class="icc-section-body">
+                <div class="obs-metrics-grid">
+                    <div class="obs-metric">
+                        <span class="obs-metric-value obs-pct">{% widthratio snapshot.avg_usefulness_score 1 100 %}%</span>
+                        <span class="obs-metric-label">Avg Usefulness</span>
+                    </div>
+                    <div class="obs-metric">
+                        <span class="obs-metric-value">{{ snapshot.total_suppressed }}</span>
+                        <span class="obs-metric-label">Items Suppressed</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========== 6. Persona Effectiveness ========== -->
+        {% if snapshot.persona_effectiveness_scores %}
+        <section class="icc-section" id="obs-persona">
+            <div class="icc-section-header">
+                <h2 class="icc-section-title">
+                    <span class="icc-section-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    </span>
+                    Persona Effectiveness
+                </h2>
+                <span class="icc-section-engine">PIL</span>
+            </div>
+            <div class="icc-section-body">
+                <div class="obs-persona-table">
+                    <div class="obs-persona-header">
+                        <span class="obs-persona-col-style">Style</span>
+                        <span class="obs-persona-col">Total</span>
+                        <span class="obs-persona-col">Acted</span>
+                        <span class="obs-persona-col">Dismissed</span>
+                        <span class="obs-persona-col">Action %</span>
+                        <span class="obs-persona-col">Dismiss %</span>
+                    </div>
+                    {% for style, data in snapshot.persona_effectiveness_scores.items %}
+                    <div class="obs-persona-row">
+                        <span class="obs-persona-col-style obs-persona-style-name">{{ style }}</span>
+                        <span class="obs-persona-col">{{ data.total }}</span>
+                        <span class="obs-persona-col">{{ data.acted }}</span>
+                        <span class="obs-persona-col">{{ data.dismissed }}</span>
+                        <span class="obs-persona-col obs-pct">{% widthratio data.action_rate 1 100 %}%</span>
+                        <span class="obs-persona-col">{% widthratio data.dismiss_rate 1 100 %}%</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
+    </div>
+
+    <div class="icc-section-meta" style="margin-top: var(--space-4); padding: var(--space-3);">
+        <span class="icc-timestamp">Snapshot date: {{ snapshot.snapshot_date }}</span>
+        <span class="icc-timestamp">Generated {{ snapshot.created_at|timesince }} ago</span>
+    </div>
+
+    {% else %}
+    <!-- No snapshot available -->
+    <div class="icc-sections">
+        <section class="icc-section">
+            <div class="icc-section-body">
+                <div class="icc-empty">
+                    <span class="icc-empty-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="32" height="32"><path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/></svg>
+                    </span>
+                    <p>No observability snapshots yet. Run <code>manage.py generate_observability_snapshots --days 7</code> to backfill, or wait for the daily scheduler.</p>
+                </div>
+            </div>
+        </section>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Observability-specific styles (extends ICC base styles) */
+.obs-metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: var(--space-3);
+}
+.obs-metric {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md, 6px);
+    background: var(--color-background);
+}
+.obs-metric-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--color-text);
+    line-height: 1;
+}
+.obs-metric-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    text-align: center;
+}
+.obs-pct { color: var(--color-accent); }
+.obs-success { color: #059669; }
+.obs-warning { color: #d97706; }
+.obs-error { color: #dc2626; }
+
+/* Trend arrows */
+.obs-trend {
+    font-size: var(--font-size-sm);
+    font-weight: 700;
+    margin-left: var(--space-1);
+}
+.obs-trend-up { color: #059669; }
+.obs-trend-down { color: #dc2626; }
+.obs-trend-stable { color: var(--color-text-muted); }
+
+/* Channel breakdown */
+.obs-channel-breakdown {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--color-border);
+}
+.obs-breakdown-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    font-weight: 600;
+}
+.obs-channel-tag {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    padding: 1px 8px;
+    border-radius: var(--radius-full, 9999px);
+}
+
+/* Persona table */
+.obs-persona-table {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.obs-persona-header,
+.obs-persona-row {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    align-items: center;
+}
+.obs-persona-header {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    border-bottom: 1px solid var(--color-border);
+}
+.obs-persona-row {
+    font-size: var(--font-size-sm);
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-background);
+}
+.obs-persona-row:last-child { border-bottom: none; }
+.obs-persona-style-name {
+    font-weight: 600;
+    color: var(--color-text);
+    text-transform: capitalize;
+}
+.obs-persona-col {
+    text-align: center;
+}
+.obs-persona-col-style {
+    text-align: left;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+    .obs-metrics-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .obs-persona-header,
+    .obs-persona-row {
+        grid-template-columns: 2fr 1fr 1fr 1fr;
+    }
+    .obs-persona-header .obs-persona-col:nth-child(4),
+    .obs-persona-row .obs-persona-col:nth-child(4) {
+        display: none;
+    }
+    .obs-persona-header .obs-persona-col:nth-child(5),
+    .obs-persona-row .obs-persona-col:nth-child(5) {
+        display: none;
+    }
+}
+</style>
+{% endblock %}

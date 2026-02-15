@@ -245,6 +245,17 @@ TILE_DEFINITIONS = {
         'mandatory': False,
         'default_order': 20,
     },
+    'guidance': {
+        'id': 'guidance',
+        'name': "Today's Guidance",
+        'description': 'Evidence-based insights, warnings, and encouragement generated from your data patterns.',
+        'icon': 'lightbulb',
+        'module_dependency': 'ai_enabled',
+        'default_visible': True,
+        'default_size': 'medium',
+        'mandatory': False,
+        'default_order': 4,  # After memory_verse, before celebrations
+    },
     'getting_started': {
         'id': 'getting_started',
         'name': 'Getting Started',

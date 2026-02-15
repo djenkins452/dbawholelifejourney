@@ -542,5 +542,21 @@
             "created_at": "2026-02-14T00:00:00Z",
             "updated_at": "2026-02-14T00:00:00Z"
         }
+    },
+    {
+        "model": "core.releasenote",
+        "pk": 35,
+        "fields": {
+            "title": "Today's Guidance on Your Dashboard",
+            "description": "Your dashboard now shows personalized guidance items — evidence-based insights, warnings, and encouragement generated from your health trends, goal progress, and life patterns. Quickly act on suggestions, snooze them for later, or dismiss items you don't need.",
+            "entry_type": "feature",
+            "version": "",
+            "release_date": "2026-02-15",
+            "is_published": true,
+            "is_major": true,
+            "learn_more_url": "",
+            "created_at": "2026-02-15T00:00:00Z",
+            "updated_at": "2026-02-15T00:00:00Z"
+        }
     }
 ]

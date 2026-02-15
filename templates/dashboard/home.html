@@ -389,6 +389,8 @@ body.edit-mode .tile-name-label {
                 {% include "dashboard/tiles/upcoming_celebrations.html" with tile=tile %}
             {% elif tile_id == 'recurring_transactions' %}
                 {% include "dashboard/tiles/recurring_transactions.html" with tile=tile %}
+            {% elif tile_id == 'guidance' %}
+                {% include "dashboard/tiles/guidance.html" with tile=tile %}
             {% endif %}
             {% endwith %}
         </div>
@@ -672,6 +674,68 @@ body.edit-mode .tile-name-label {
             showSaveStatus('error');
         }
     }
+
+    // =====================================
+    // Guidance Action Functions
+    // =====================================
+    window.guidanceAction = async function(itemId, action) {
+        const card = document.getElementById('guidance-item-' + itemId);
+        if (!card) return;
+
+        // Optimistic UI — fade out for dismiss/snooze/acted
+        if (action === 'dismiss' || action === 'snooze' || action === 'acted') {
+            card.style.transition = 'opacity 0.3s, transform 0.3s';
+            card.style.opacity = '0';
+            card.style.transform = 'translateX(20px)';
+        }
+
+        const formData = new FormData();
+        formData.append('action', action);
+        if (action === 'snooze') {
+            formData.append('hours', '24');
+        }
+
+        try {
+            const response = await fetch('/guidance/' + itemId + '/action/', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrfToken },
+                body: formData
+            });
+
+            if (response.ok) {
+                if (action === 'dismiss' || action === 'snooze' || action === 'acted') {
+                    setTimeout(function() {
+                        card.remove();
+                        const remaining = document.querySelectorAll('.guidance-card').length;
+                        const countBadge = document.querySelector('.guidance-count');
+                        if (countBadge) {
+                            if (remaining > 0) {
+                                countBadge.textContent = remaining;
+                            } else {
+                                countBadge.remove();
+                            }
+                        }
+                        if (remaining === 0) {
+                            const list = document.getElementById('guidance-list');
+                            if (list) {
+                                list.innerHTML = '<div class="guidance-empty">' +
+                                    '<span class="guidance-empty-icon">\u2728</span>' +
+                                    '<p>You\'re all caught up. No guidance items right now.</p>' +
+                                    '</div>';
+                            }
+                        }
+                    }, 300);
+                }
+            } else {
+                card.style.opacity = '1';
+                card.style.transform = 'none';
+            }
+        } catch (error) {
+            console.error('Guidance action error:', error);
+            card.style.opacity = '1';
+            card.style.transform = 'none';
+        }
+    };
 
     // =====================================
     // Fast Timer Functions

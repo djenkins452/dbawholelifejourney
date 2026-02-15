@@ -1,0 +1,82 @@
+{% comment %}
+Dashboard Tile: Today's Guidance (PGE)
+Shows top active guidance items with lifecycle actions.
+Server-side rendered with progressive enhancement via fetch().
+{% endcomment %}
+
+{% if ai_enabled %}
+<section class="guidance-section tile-size-{{ tile.size|default:'medium' }}"
+         data-tile-id="guidance"
+         id="guidance-tile">
+    <div class="guidance-header">
+        <h3 class="guidance-title">
+            <span class="guidance-title-icon">💡</span>
+            Today's Guidance
+        </h3>
+        {% if guidance_items %}
+        <span class="guidance-count">{{ guidance_items|length }}</span>
+        {% endif %}
+    </div>
+
+    <div class="guidance-list" id="guidance-list">
+        {% if guidance_items %}
+            {% for item in guidance_items %}
+            <div class="guidance-card guidance-priority-{{ item.priority }}"
+                 id="guidance-item-{{ item.id }}"
+                 data-item-id="{{ item.id }}">
+                <div class="guidance-card-content">
+                    <div class="guidance-card-top">
+                        <span class="guidance-card-title">{{ item.title }}</span>
+                        <span class="guidance-source-badge guidance-source-{{ item.source }}">
+                            {% if item.source == 'prie_prediction' %}Prediction
+                            {% elif item.source == 'pie_insight' %}Insight
+                            {% elif item.source == 'sae_state' %}State
+                            {% else %}Guidance
+                            {% endif %}
+                        </span>
+                    </div>
+                    <p class="guidance-card-message">{{ item.message|truncatewords:30 }}</p>
+                    {% if item.source == 'prie_prediction' and item.confidence_score %}
+                    <span class="guidance-confidence">
+                        Confidence: {{ item.confidence_score|floatformat:2 }}
+                    </span>
+                    {% endif %}
+                    <span class="guidance-timestamp">{{ item.created_at|timesince }} ago</span>
+                </div>
+                <div class="guidance-actions">
+                    <button type="button"
+                            class="guidance-action-btn guidance-btn-done"
+                            onclick="guidanceAction({{ item.id }}, 'acted')"
+                            title="I did it">
+                        ✅
+                    </button>
+                    <button type="button"
+                            class="guidance-action-btn guidance-btn-snooze"
+                            onclick="guidanceAction({{ item.id }}, 'snooze')"
+                            title="Snooze 24h">
+                        💤
+                    </button>
+                    <button type="button"
+                            class="guidance-action-btn guidance-btn-dismiss"
+                            onclick="guidanceAction({{ item.id }}, 'dismiss')"
+                            title="Dismiss">
+                        ✕
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="guidance-empty">
+                <span class="guidance-empty-icon">✨</span>
+                <p>You're all caught up. No guidance items right now.</p>
+            </div>
+        {% endif %}
+    </div>
+
+    <div class="guidance-footer">
+        <a href="{% url 'ai_guidance:inbox' %}" class="guidance-view-all">
+            View all guidance →
+        </a>
+    </div>
+</section>
+{% endif %}

@@ -4,10 +4,25 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-15 (SAE State Authority Hardening)
+# Last Updated: 2026-02-15 (Dashboard Guidance Panel)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-02-15 — Phase 2A: Dashboard Guidance Panel (User Intelligence Interface)
+
+**Feature:** Added "Today's Guidance" dashboard tile that surfaces PGE (Proactive Guidance Engine) items directly on the user's dashboard.
+
+- **Tile:** New `guidance` tile in dashboard config service (default visible, medium size, AI-enabled dependency)
+- **Template:** `templates/dashboard/tiles/guidance.html` — server-side rendered, up to 5 items, priority color bars, source badges (State/Insight/Prediction/Guidance), confidence display for predictions only
+- **CSS:** `static/css/dashboard.css` — responsive guidance card styles with priority-colored left borders, mobile-first layout (44px touch targets), fade-out animations on action
+- **Actions:** JavaScript handlers for dismiss, snooze (24h), and "I did it" (acted) — optimistic UI with smooth removal animation, count badge update, empty-state fallback
+- **View:** Dashboard `get_context_data()` now loads `guidance_items` via `get_active_guidance(user, limit=5)`
+- **Fixtures:** Teaching destinations (PKs 107-108), help topic (PK 84, context_id=DASHBOARD_GUIDANCE), release note (PK 35)
+- **Loader:** One-time reset `_reset_pge_dashboard_fixtures` in `load_initial_data.py`
+- **Tests:** 20 new tests in `apps/dashboard/tests/test_guidance_panel.py` covering: panel rendering, empty state, AI-disabled hiding, item limit (5), dismissed/snoozed exclusion, source badges, confidence display, view-all link, action handlers (dismiss/snooze/acted/read), permission checks
+- **Files modified:** `apps/dashboard/views.py`, `apps/dashboard/services/config_service.py`, `templates/dashboard/home.html`, `templates/dashboard/tiles/guidance.html` (new), `static/css/dashboard.css`, `apps/help/fixtures/teaching_destinations.json`, `apps/help/fixtures/help_topics.json`, `apps/core/fixtures/release_notes.json`, `apps/core/management/commands/load_initial_data.py`, `apps/dashboard/tests/test_guidance_panel.py` (new)
+- **Tests:** 187 total (58 dashboard + 20 guidance panel + 109 PGE) — all passing
 
 ## 2026-02-15 — SAE: State Authority Hardening (Non-Bypass Enforcement)
 

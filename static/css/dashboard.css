@@ -357,6 +357,205 @@
 }
 
 /* =============================================================================
+   TODAY'S GUIDANCE (PGE)
+   ============================================================================= */
+
+.guidance-section {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+}
+
+.guidance-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-3);
+}
+
+.guidance-title {
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    color: var(--color-text);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.guidance-title-icon {
+    font-size: var(--font-size-lg);
+}
+
+.guidance-count {
+    background: var(--color-accent);
+    color: #fff;
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    min-width: 22px;
+    text-align: center;
+}
+
+.guidance-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.guidance-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
+    gap: var(--space-3);
+    transition: opacity 0.3s, transform 0.3s;
+}
+
+/* Priority color bars */
+.guidance-priority-1 { border-left: 3px solid #ef4444; }
+.guidance-priority-2 { border-left: 3px solid #f97316; }
+.guidance-priority-3 { border-left: 3px solid var(--color-accent); }
+.guidance-priority-4 { border-left: 3px solid #10b981; }
+.guidance-priority-5 { border-left: 3px solid var(--color-text-muted); }
+
+.guidance-card-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.guidance-card-top {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+    margin-bottom: var(--space-1);
+}
+
+.guidance-card-title {
+    font-weight: 600;
+    font-size: var(--font-size-sm);
+    color: var(--color-text);
+}
+
+.guidance-source-badge {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 1px 6px;
+    border-radius: var(--radius-full);
+    white-space: nowrap;
+}
+
+.guidance-source-prie_prediction {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.guidance-source-pie_insight {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.guidance-source-sae_state {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+.guidance-source-composite {
+    background: #ede9fe;
+    color: #5b21b6;
+}
+
+.guidance-card-message {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin: 0 0 var(--space-1) 0;
+    line-height: 1.4;
+}
+
+.guidance-confidence {
+    font-size: var(--font-size-xs);
+    color: #92400e;
+    background: #fef3c7;
+    padding: 1px 6px;
+    border-radius: var(--radius-full);
+    margin-right: var(--space-2);
+}
+
+.guidance-timestamp {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.guidance-actions {
+    display: flex;
+    gap: var(--space-1);
+    flex-shrink: 0;
+    align-items: flex-start;
+}
+
+.guidance-action-btn {
+    background: none;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    font-size: 14px;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, border-color 0.15s;
+    padding: 0;
+}
+
+.guidance-action-btn:hover {
+    background: var(--color-surface);
+    border-color: var(--color-accent);
+}
+
+.guidance-empty {
+    text-align: center;
+    padding: var(--space-5) var(--space-3);
+    color: var(--color-text-muted);
+}
+
+.guidance-empty-icon {
+    font-size: var(--font-size-2xl);
+    display: block;
+    margin-bottom: var(--space-2);
+}
+
+.guidance-empty p {
+    margin: 0;
+    font-size: var(--font-size-sm);
+}
+
+.guidance-footer {
+    margin-top: var(--space-3);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--color-border);
+    text-align: center;
+}
+
+.guidance-view-all {
+    font-size: var(--font-size-sm);
+    color: var(--color-accent);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.guidance-view-all:hover {
+    text-decoration: underline;
+}
+
+/* =============================================================================
    WEEKLY SUMMARY
    ============================================================================= */
 
@@ -826,6 +1025,21 @@
 
     .nudge-card .btn {
         width: 100%;
+    }
+
+    .guidance-card {
+        flex-direction: column;
+    }
+
+    .guidance-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+
+    .guidance-action-btn {
+        width: 44px;
+        height: 44px;
+        font-size: 16px;
     }
 
     .quick-actions-grid {

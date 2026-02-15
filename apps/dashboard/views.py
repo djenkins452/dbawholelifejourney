@@ -129,6 +129,13 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             # Quarterly Review tile - shows at start of each quarter
             context["quarterly_review"] = self._get_quarterly_review(user, prefs, user_data)
 
+            # Proactive Guidance (PGE) — top items for dashboard tile
+            try:
+                from apps.core.ai_guidance.guidance_engine import get_active_guidance
+                context["guidance_items"] = list(get_active_guidance(user, limit=5))
+            except Exception:
+                context["guidance_items"] = []
+
             # Dashboard tile configuration
             config_service = DashboardConfigService(user)
             context["dashboard_tiles"] = config_service.get_visible_tiles()

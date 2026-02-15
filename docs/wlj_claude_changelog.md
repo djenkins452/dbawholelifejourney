@@ -4,10 +4,27 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-15 (SAE Architecture Governance)
+# Last Updated: 2026-02-15 (SUE Semantic Understanding Engine)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-02-15 — SUE: Semantic Understanding Engine
+
+**Major Feature:** Built and deployed SUE (Semantic Understanding Engine) — Engine 7 in the intelligence stack. SUE interprets human meaning and intent from raw text without executing actions. It parses input into structured semantic data (intent candidates, entities, time expressions, contextual references) for the UAIO orchestrator.
+
+- **Feature:** Created `apps/core/ai_semantics/` module with 8 files: semantic_engine.py, semantic_parser.py, entity_resolver.py, ambiguity_engine.py, confidence_engine.py, semantic_logger.py, semantic_models.py, admin.py
+- **Feature:** Rule-based intent detection covering all 30+ WLJ intents across health, faith, purpose, life, journal domains
+- **Feature:** Entity resolution priority chain: page context → SLCME → SAE → database fallback
+- **Feature:** Ambiguity detection for intent, entity, multi-intent, and missing-entity scenarios
+- **Feature:** Composite confidence scoring (≥0.80 safe to execute, <0.80 ask clarification)
+- **Feature:** SemanticDecisionLog model for append-only audit trail
+- **Feature:** Integrated into UAIO orchestrator via `_run_semantic_understanding()` with ImportError guard
+- **Test:** 77 SUE tests, 353 total engine tests passing
+- **Docs:** Updated all governance docs (INTELLIGENCE_ARCHITECTURE.md, DOMAIN_INTELLIGENCE_ARCHITECTURE.md, ENGINE_INTEGRATION_GUIDE.md, CLAUDE.md) with Engine 7, compliance rule #15, updated pipeline diagrams
+  - Files: `apps/core/ai_semantics/__init__.py`, `apps/core/ai_semantics/semantic_engine.py`, `apps/core/ai_semantics/semantic_parser.py`, `apps/core/ai_semantics/entity_resolver.py`, `apps/core/ai_semantics/ambiguity_engine.py`, `apps/core/ai_semantics/confidence_engine.py`, `apps/core/ai_semantics/semantic_logger.py`, `apps/core/ai_semantics/semantic_models.py`, `apps/core/ai_semantics/admin.py`, `apps/core/ai_semantics/tests.py`, `apps/core/ai_orchestrator/orchestrator.py`, `apps/core/models.py`, `apps/core/admin.py`, `apps/core/migrations/0057_add_sue_semantic_decision_log.py`, `docs/INTELLIGENCE_ARCHITECTURE.md`, `docs/DOMAIN_INTELLIGENCE_ARCHITECTURE.md`, `docs/ENGINE_INTEGRATION_GUIDE.md`, `CLAUDE.md`
+
+---
 
 ## 2026-02-15 — SAE Architecture Governance Integration
 

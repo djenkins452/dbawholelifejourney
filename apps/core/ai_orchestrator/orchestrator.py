@@ -4,13 +4,13 @@ Unified AI Orchestrator — Central brain for the AI Assistant.
 This is the single entry point for all AI-assisted operations.
 It coordinates the full pipeline:
 
-    User Input → Context Resolution → Time Resolution → Safety →
-    Action Enrichment → Execution → Learning → Audit → Response
+    User Input → Context Resolution → Time Resolution → Semantic Understanding →
+    Safety → Action Enrichment → Execution → Learning → Audit → Response
 
 IMPORTANT: This does NOT replace the existing PersonalAssistant.send_message().
 It enhances the existing pipeline by being called at the right points:
 
-1. BEFORE intent execution: enrich parameters with time/context
+1. BEFORE intent execution: enrich parameters with time/context/semantics
 2. AFTER intent execution: learn from interaction, audit
 """
 
@@ -47,6 +47,7 @@ class OrchestratorResult:
         "error",
         "_time_result",
         "_context_result",
+        "_semantic_result",
     )
 
     def __init__(self, **kwargs):
@@ -54,7 +55,7 @@ class OrchestratorResult:
         self.response = kwargs.get("response")
         self.needs_clarification = kwargs.get("needs_clarification", False)
         self.clarification_question = kwargs.get("clarification_question")
-        self.clarification_source = kwargs.get("clarification_source")  # "time" or "context"
+        self.clarification_source = kwargs.get("clarification_source")  # "time", "context", or "semantic"
         self.time_resolved = kwargs.get("time_resolved", False)
         self.context_resolved = kwargs.get("context_resolved", False)
         self.actions_enriched = kwargs.get("actions_enriched", [])
@@ -63,6 +64,7 @@ class OrchestratorResult:
         self.error = kwargs.get("error")
         self._time_result = None
         self._context_result = None
+        self._semantic_result = None
 
     def to_dict(self):
         result = {
@@ -131,6 +133,24 @@ def process_user_input(user, user_input, page_context=None):
             log_interaction(user, user_input, result)
             return result
 
+        # Step 3: Semantic understanding (SUE)
+        semantic_result = _run_semantic_understanding(user, user_input, page_context)
+
+        # Check if SUE detected ambiguity that needs clarification
+        if semantic_result and semantic_result.is_ambiguous:
+            # Only halt for ambiguity if confidence is too low to proceed
+            if not semantic_result.confidence.is_safe_to_execute:
+                result = OrchestratorResult(
+                    success=False,
+                    needs_clarification=True,
+                    clarification_question=semantic_result.clarification_question,
+                    clarification_source="semantic",
+                    original_input=user_input,
+                )
+                result._semantic_result = semantic_result
+                log_interaction(user, user_input, result)
+                return result
+
         # Build result with resolution info
         result = OrchestratorResult(
             success=True,
@@ -146,6 +166,7 @@ def process_user_input(user, user_input, page_context=None):
         # Store results for use by enrich_and_execute
         result._time_result = time_result
         result._context_result = context_result
+        result._semantic_result = semantic_result
 
         return result
 
@@ -217,3 +238,22 @@ def enrich_and_execute(user, intent_results, orchestrator_result):
     log_interaction(user, orchestrator_result.original_input, orchestrator_result)
 
     return action_results
+
+
+def _run_semantic_understanding(user, user_input, page_context):
+    """
+    Run SUE semantic understanding with ImportError guard.
+
+    SUE failures must never break the orchestrator pipeline.
+    Returns SemanticResult or None.
+    """
+    try:
+        from apps.core.ai_semantics.semantic_engine import interpret
+
+        return interpret(user, user_input, context=page_context)
+    except ImportError:
+        logger.debug("SUE not installed, skipping semantic understanding")
+        return None
+    except Exception as e:
+        logger.error(f"SUE failed: {e}", exc_info=True)
+        return None

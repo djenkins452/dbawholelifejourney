@@ -1,6 +1,6 @@
 # Whole Life Journey — Intelligence Architecture
 
-**Purpose:** Permanent architectural authority defining the six-engine cognitive stack that powers all AI-driven features in WLJ. Claude Code must read this document before implementing any feature that touches AI, data logging, insights, predictions, or user interactions.
+**Purpose:** Permanent architectural authority defining the seven-engine cognitive stack that powers all AI-driven features in WLJ. Claude Code must read this document before implementing any feature that touches AI, data logging, insights, predictions, or user interactions.
 
 **Status:** Active — All engines implemented and deployed.
 
@@ -32,6 +32,15 @@
                     └────────┬──┘     └─────┬────────┘
                              │              │
                           ┌──▼──────────────▼────┐
+                          │        SUE           │
+                          │  Semantic            │
+                          │  Understanding       │
+                          │                      │
+                          │  apps/core/          │
+                          │  ai_semantics/       │
+                          └──────────┬───────────┘
+                                     │
+                          ┌──────────▼───────────┐
                           │  Module Execution    │
                           │  (Action Handlers)   │
                           │                      │
@@ -82,6 +91,7 @@ User Input
   → UAIO (process_user_input)
     → SLCME (resolve_context — memory/learned mappings)
     → HTIE (interpret_human_time — temporal resolution)
+    → SUE (interpret — semantic understanding, entity resolution)
     → Clarification check (ask user if ambiguous)
   → Intent Recognition (OpenAI function calling)
   → UAIO (enrich_and_execute)
@@ -563,11 +573,14 @@ Supported data types: `weight_entries`, `body_fat_entries`, `lean_mass_entries`,
 |------|----|-----------|----------|
 | UAIO → SLCME | Context resolution | `context_pipeline.py` |
 | UAIO → HTIE | Time resolution | `time_pipeline.py` |
+| UAIO → SUE | Semantic understanding | `orchestrator.py:_run_semantic_understanding()` |
 | UAIO → Safety | Timestamp validation | `safety_engine.py` |
 | UAIO → Actions | Enriched execution | `execution_engine.py` |
 | UAIO → Learning | Store mappings | `learning_pipeline.py` |
 | UAIO → SAE | State update | `execution_engine.py:_run_intelligence_chain()` |
 | UAIO → PIE | Fire insight event | `execution_engine.py:_run_intelligence_chain()` |
+| SUE → SLCME | Entity resolution | `entity_resolver.py:_resolve_from_slcme()` |
+| SUE → SAE | Entity resolution | `entity_resolver.py:_resolve_from_sae()` |
 | PIE → PRIE | Trigger predictions | `insight_engine.py:_trigger_predictions()` |
 | PRIE → SAE | Read cached state | `prediction_engine.py:get_prediction_input_data()` |
 | PIE → SAE | Event enrichment | `insight_engine.py:_enrich_event_with_state()` |
@@ -601,6 +614,7 @@ No other code path may trigger PIE or PRIE during action execution.
 | `core.0054` | PIE | Insight |
 | `core.0055` | PRIE | Prediction |
 | `core.0056` | SAE | UserState |
+| `core.0057` | SUE | SemanticDecisionLog |
 
 HTIE and UAIO are stateless — no database models required.
 
@@ -622,6 +636,7 @@ HTIE and UAIO are stateless — no database models required.
 12. **Single execution authority:** All post-action intelligence triggers (SAE, PIE, PRIE) flow through `execution_engine.py:_run_intelligence_chain()` only
 13. **State authority:** SAE is the authoritative source of current user state. No intelligence engine may reconstruct full user state independently — use `get_user_state()` or `get_module_state()`. Direct database queries for current state summaries are prohibited when SAE state is available.
 14. **State currency:** All features that modify user data must ensure SAE is updated. AI-initiated actions update SAE automatically via the intelligence chain. Non-AI data changes must call `update_user_state()` explicitly.
+15. **Semantic understanding:** SUE provides pre-intent semantic analysis (intent candidates, entity extraction, ambiguity detection). SUE does NOT execute actions — UAIO remains execution authority. SUE failures must never break the pipeline.
 
 ---
 
@@ -740,6 +755,82 @@ update_user_state(user, "health", record_id=42)
 
 ---
 
+## Engine 7: SUE — Semantic Understanding Engine
+
+**Location:** `apps/core/ai_semantics/`
+**Responsibility:** Interpret human meaning and intent from raw text. Parses input into structured semantic data (intent candidates, entities, time expressions, contextual references) without executing actions. UAIO remains execution authority.
+
+### Public API
+
+```python
+from apps.core.ai_semantics import interpret
+
+result = interpret(user, "log weight 175 lbs yesterday", context=page_context)
+# result.intent              → "log_weight"
+# result.domain              → "health"
+# result.entities            → {"value": 175.0, "unit": "lb"}
+# result.time_expression     → "yesterday"
+# result.confidence          → ConfidenceScore (overall, intent_score, entity_score)
+# result.is_ambiguous        → bool
+# result.ambiguity_type      → "intent" | "entity" | "multi_intent" | "insufficient_info"
+# result.clarification_question → str (if ambiguous)
+# result.alternative_intents → [{intent, domain, confidence}]
+# result.used_slcme          → bool
+# result.used_sae            → bool
+# result.used_context        → bool
+```
+
+### Internal Pipeline
+
+```
+Raw Text → Parser (regex intent/entity detection) → Entity Resolver (context→SLCME→SAE→DB)
+         → Ambiguity Engine (detect conflicts) → Confidence Engine (composite score)
+         → SemanticResult
+```
+
+### Entity Resolution Priority Chain
+
+1. **Current page context** (highest — user is looking at this object)
+2. **SLCME learned mappings** (previous clarifications)
+3. **SAE state** (current user state, e.g., "my weight" → latest weight)
+4. **Database fallback** (deferred to UAIO execution phase)
+
+### Confidence Threshold
+
+- `>= 0.80` → Safe to execute without clarification
+- `< 0.80` → Ask for clarification
+
+### Files
+
+| File | Purpose |
+|------|---------|
+| `semantic_engine.py` | Main entry: `interpret()` orchestrates full pipeline |
+| `semantic_parser.py` | Rule-based parsing: intent candidates, entities, time, references |
+| `entity_resolver.py` | Resolve contextual references via priority chain |
+| `ambiguity_engine.py` | Detect intent/entity/domain/multi-intent ambiguity |
+| `confidence_engine.py` | Compute composite confidence score |
+| `semantic_logger.py` | Log decisions to SemanticDecisionLog |
+| `semantic_models.py` | `SemanticDecisionLog` model (append-only audit) |
+| `admin.py` | Read-only admin display |
+| `tests.py` | 77 tests covering all components |
+
+### Integration Points
+
+| From | To | Mechanism |
+|------|----|-----------|
+| UAIO → SUE | Semantic understanding | `orchestrator.py:_run_semantic_understanding()` |
+| SUE → SLCME | Entity resolution | `entity_resolver.py:_resolve_from_slcme()` |
+| SUE → SAE | Entity resolution | `entity_resolver.py:_resolve_from_sae()` |
+
+### Safety Requirements
+
+- SUE does NOT execute actions
+- SUE failures never break the orchestrator pipeline (ImportError guard)
+- All decisions are logged to SemanticDecisionLog for audit
+- Confidence thresholds prevent low-confidence auto-execution
+
+---
+
 ## Adding New Intelligence
 
 ### New Insight Rule
@@ -763,4 +854,4 @@ update_user_state(user, "health", record_id=42)
 
 ---
 
-*Last updated: 2026-02-15 — SAE (State Awareness Engine) deployed*
+*Last updated: 2026-02-15 — SUE (Semantic Understanding Engine) deployed*

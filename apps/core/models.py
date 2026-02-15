@@ -2207,3 +2207,6 @@ from apps.core.ai_predictions.models import Prediction  # noqa: E402, F401
 
 # Import ai_state models so Django discovers them for migrations
 from apps.core.ai_state.models import UserState  # noqa: E402, F401
+
+# Import ai_semantics models so Django discovers them for migrations
+from apps.core.ai_semantics.semantic_models import SemanticDecisionLog  # noqa: E402, F401

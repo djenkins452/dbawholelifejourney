@@ -15,6 +15,7 @@ User Action in Domain
   → AI Assistant (via UAIO orchestrator)
     → SLCME resolves context ("my weight", "that goal")
     → HTIE resolves time ("yesterday", "last Tuesday")
+    → SUE interprets semantics (intent, entities, ambiguity)
     → Action Handler executes domain logic
       → SAE updates user state for this domain
         → PIE evaluates insight rules (enriched with SAE state)
@@ -327,4 +328,4 @@ When adding a new domain module to WLJ:
 
 ---
 
-*Last updated: 2026-02-15 — SAE integrated as authoritative state layer*
+*Last updated: 2026-02-15 — SUE (Semantic Understanding Engine) added to pipeline*

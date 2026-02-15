@@ -40,8 +40,9 @@ All intelligence must flow through these engines — no module may bypass them:
 |--------|----------|---------|
 | **HTIE** — Human Temporal Intelligence Engine | `apps/core/time/` | Parse natural language time → precise timestamps |
 | **SLCME** — Self-Learning Context Memory Engine | `apps/core/ai_memory/` | Learn from clarifications, auto-reuse with confidence |
-| **UAIO** — Unified AI Orchestrator | `apps/core/ai_orchestrator/` | Central brain connecting HTIE + SLCME to AI pipeline |
+| **UAIO** — Unified AI Orchestrator | `apps/core/ai_orchestrator/` | Central brain connecting all engines to AI pipeline |
 | **SAE** — State Awareness Engine | `apps/core/ai_state/` | Persistent user state snapshot, authoritative current condition |
+| **SUE** — Semantic Understanding Engine | `apps/core/ai_semantics/` | Interpret human meaning, extract entities, detect ambiguity |
 | **PIE** — Proactive Insight Engine | `apps/core/ai_insights/` | Event-driven + scheduled factual insights |
 | **PRIE** — Predictive Intelligence Engine | `apps/core/ai_predictions/` | Trajectory projection using linear regression |
 
@@ -54,6 +55,7 @@ User Input
   → UAIO (Orchestrator)
     → SLCME (Memory Resolution)
     → HTIE (Time Resolution)
+    → SUE (Semantic Understanding)
       → Module Execution (Action Handlers)
         → SAE (State Update)
           → PIE (Insight Generation, enriched with SAE state)

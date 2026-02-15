@@ -8,13 +8,13 @@
 
 ## When Integration is Required
 
-| Change Type | UAIO | SLCME | HTIE | SAE | PIE | PRIE |
-|-------------|------|-------|------|-----|-----|------|
-| New AI assistant action | **YES** | **YES** | If time-aware | **YES** | Consider | Consider |
-| New data logging feature | — | — | — | **YES** | **YES** | Consider |
-| New page/view | — | Consider | — | — | — | — |
-| New model with trends | — | — | — | **YES** | **YES** | **YES** |
-| Bug fix / CSS tweak | — | — | — | — | — | — |
+| Change Type | UAIO | SLCME | HTIE | SAE | SUE | PIE | PRIE |
+|-------------|------|-------|------|-----|-----|-----|------|
+| New AI assistant action | **YES** | **YES** | If time-aware | **YES** | Auto | Consider | Consider |
+| New data logging feature | — | — | — | **YES** | — | **YES** | Consider |
+| New page/view | — | Consider | — | — | — | — | — |
+| New model with trends | — | — | — | **YES** | — | **YES** | **YES** |
+| Bug fix / CSS tweak | — | — | — | — | — | — | — |
 
 ---
 
@@ -500,7 +500,8 @@ Before marking a feature complete, verify:
 - [ ] **All insights** have `confidence_score`, `explain_why`, `evidence`, `dedupe_key`
 - [ ] **All predictions** have `confidence_score`, `explanation`, `evidence`, `dedupe_key`
 - [ ] **No prohibited patterns** in new code (including SAE bypass)
+- [ ] **SUE parser patterns** added for new intents in `semantic_parser.py:INTENT_PATTERNS` (if new AI action)
 
 ---
 
-*Last updated: 2026-02-15 — SAE integration requirements added*
+*Last updated: 2026-02-15 — SUE integration added*

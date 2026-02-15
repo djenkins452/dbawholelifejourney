@@ -2244,3 +2244,9 @@ from apps.core.ai_explain.models import (  # noqa: E402, F401
 from apps.core.ai_delivery.models import (  # noqa: E402, F401
     DeliveredNotification,
 )
+
+# Import ai_quality models so Django discovers them for migrations
+from apps.core.ai_quality.quality_models import (  # noqa: E402, F401
+    QualityMetricAggregate,
+    QualitySuppressionRecord,
+)

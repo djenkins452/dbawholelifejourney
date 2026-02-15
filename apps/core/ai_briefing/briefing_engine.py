@@ -58,6 +58,13 @@ def generate_daily_briefing(user):
     # Step 3: Rank items
     ranked = rank_briefing_items(selected)
 
+    # Step 3.5: ICQG quality gate (non-blocking)
+    try:
+        from apps.core.ai_quality.quality_gate import filter_briefing_items
+        ranked = filter_briefing_items(user, ranked)
+    except Exception as e:
+        logger.warning(f"DBE: ICQG filter failed (continuing): {e}")
+
     # Step 4: Generate summary
     summary = _generate_summary(ranked, state)
 

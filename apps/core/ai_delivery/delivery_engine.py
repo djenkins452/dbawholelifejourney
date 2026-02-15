@@ -95,6 +95,13 @@ def _deliver_for_user(user):
     items.extend(_get_undelivered_briefings(user))
     items.extend(_get_undelivered_reports(user))
 
+    # ICQG quality gate (non-blocking)
+    try:
+        from apps.core.ai_quality.quality_gate import filter_delivery_candidates
+        items = filter_delivery_candidates(user, items)
+    except Exception as e:
+        logger.warning(f"DNE: ICQG filter failed (continuing): {e}")
+
     for engine, obj_type, obj_id, payload in items:
         for channel in channels:
             delivered = _deliver_to_channel(

@@ -608,6 +608,9 @@ class Command(BaseCommand):
         # One-time: Reset fixtures for Intelligence Command Center
         self._reset_icc_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset fixtures for ICQG release notes
+        self._reset_icqg_fixtures(DataLoadConfig, force, verbosity)
+
         # Only output summary if something loaded or if verbose
         if verbosity >= 1 and loaded_count > 0:
             self.stdout.write(self.style.SUCCESS(f'Initial data: loaded {loaded_count} items'))
@@ -1632,3 +1635,32 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset ICC fixtures FAILED: {e}'))
+
+    def _reset_icqg_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload fixtures for Intelligence Calibration & Quality Gate.
+        Adds release_notes (PK 43).
+        """
+        reset_tracker_name = 'reset_icqg_fixtures_2026_02_15'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                config.reset()
+                if verbosity >= 1:
+                    self.stdout.write('  Reset release_notes loader for ICQG')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for ICQG (Feb 2026)',
+                'command', 'One-time reset to reload release notes for ICQG'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset ICQG fixtures FAILED: {e}'))

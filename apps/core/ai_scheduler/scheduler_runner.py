@@ -185,3 +185,26 @@ def run_delivery_cycle():
         f"skipped={result['skipped']}, failed={result['failed']}"
     )
     return result
+
+
+def run_quality_metrics_aggregation():
+    """
+    Aggregate ICQG quality metrics for all rule/domain combinations.
+
+    Calls ICQG aggregate_weekly_metrics() to compute usefulness scores.
+
+    Returns:
+        dict — {created: int, updated: int, errors: int}
+    """
+    try:
+        from apps.core.ai_quality.quality_metrics import aggregate_weekly_metrics
+    except ImportError:
+        logger.error("ISE: ICQG not available (import failed)")
+        return {"created": 0, "updated": 0, "errors": 0}
+
+    result = aggregate_weekly_metrics()
+    logger.info(
+        f"ISE: Quality metrics — created={result['created']}, "
+        f"updated={result['updated']}, errors={result['errors']}"
+    )
+    return result

@@ -49,9 +49,16 @@ The WLJ intelligence system operates in **three distinct phases**. Every engine 
 | **E3** — Evidence & Explainability Engine | `apps/core/ai_explain/` | Attach evidence and explanations to all intelligence outputs (PGE, DBE, WIRE) |
 | **DNE** — Delivery & Notification Engine | `apps/core/ai_delivery/` | Deliver intelligence outputs through user-configured channels with throttling/dedupe |
 
-**Execution order within Phase 3:** SAE → PIE → PRIE → PGE (+E3) → GLOE (on interaction) → DBE (+E3, scheduled daily) → WIRE (+E3, scheduled weekly) → DNE (scheduled every 10min)
+**Cross-Cutting Quality Layer:**
+
+| Layer | Location | Purpose |
+|-------|----------|---------|
+| **ICQG** — Intelligence Calibration & Quality Gate | `apps/core/ai_quality/` | Reduce repetition (72h suppression), detect conflicts, enforce minimum quality thresholds. Hooks into PGE, DBE, WIRE, DNE. |
+
+**Execution order within Phase 3:** SAE → PIE → PRIE → PGE (+ICQG, +E3) → GLOE (on interaction) → DBE (+ICQG, +E3, scheduled daily) → WIRE (+ICQG, +E3, scheduled weekly) → DNE (+ICQG, scheduled every 10min)
 **Scheduling:** ISE orchestrates when engines run (cron-triggered every 5 minutes)
 **Enrichment:** E3 hooks into PGE, DBE, and WIRE post-store (non-blocking)
+**Quality Gate:** ICQG filters candidates before storage (PGE), before summary (DBE/WIRE), and before delivery (DNE) — always fails open
 **Delivery:** DNE scans for undelivered PGE/DBE/WIRE outputs and routes to in-app/email/SMS
 
 **These engines do NOT execute actions. They observe and interpret system state.**

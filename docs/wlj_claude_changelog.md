@@ -4,10 +4,27 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-15 (Intelligence Command Center)
+# Last Updated: 2026-02-15 (ICQG Quality Gate)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-02-15 — Phase 5C: Intelligence Calibration & Quality Gate (ICQG)
+
+**Feature:** Cross-cutting quality gate layer that sits between engine candidate generation and storage/delivery. Reduces noise, detects conflicts, and tracks metrics.
+
+- **Module:** `apps/core/ai_quality/` — new package with 7 files
+- **Models:** `QualitySuppressionRecord` (72h repeat suppression with SHA-256 signatures), `QualityMetricAggregate` (weekly usefulness scores per rule/domain)
+- **Migration:** `apps/core/migrations/0067_icqg_quality_suppression_and_metrics.py`
+- **Repeat Suppression:** Blocks duplicate guidance within 72h; severity increase bypasses suppression
+- **Conflict Detection:** Classifies positive/negative signals; merges similar-confidence conflicts into "mixed signals" or downgrades lower-confidence items
+- **Quality Gate:** Three entry points — `filter_guidance_candidates()` (PGE), `filter_briefing_items()` (DBE/WIRE), `filter_delivery_candidates()` (DNE)
+- **Engine Integrations:** Non-blocking hooks added to `guidance_engine.py`, `briefing_engine.py`, `report_engine.py`, `delivery_engine.py` — all fail open
+- **ISE:** Added `aggregate_quality_metrics` task (weekly, 604800s) to scheduler registry and runner
+- **Metrics:** Usefulness formula: `acted*0.40 + acknowledged*0.15 - dismissed*0.20 - snoozed*0.05 + speed*0.20`, base 0.5, clamped [0,1]
+- **Admin:** Read-only admin for both models (imported via `apps/core/admin.py`)
+- **Tests:** 33 tests covering models, suppression, conflicts, gate entry points, ISE integration, engine integrations, admin registration
+- **Docs:** Release note PK 43, fixture reset in `load_initial_data.py`
 
 ## 2026-02-15 — Phase 5B: Intelligence Command Center (ICC)
 

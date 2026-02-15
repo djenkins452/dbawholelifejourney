@@ -37,6 +37,11 @@ SCHEDULED_TASKS = {
         "interval_seconds": 600,  # 10 minutes
         "description": "Deliver intelligence notifications to user channels (DNE).",
     },
+    "aggregate_quality_metrics": {
+        "function_path": "apps.core.ai_scheduler.scheduler_runner.run_quality_metrics_aggregation",
+        "interval_seconds": 604800,  # 7 days
+        "description": "Aggregate ICQG quality metrics per rule/domain (weekly).",
+    },
 }
 
 

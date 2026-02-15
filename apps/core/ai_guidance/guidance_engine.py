@@ -48,6 +48,13 @@ def generate_guidance(user):
         # Step 3: Rank and limit (GLOE responsiveness applied if available)
         ranked = rank_guidance(candidates, user=user)
 
+        # Step 3.5: ICQG quality gate (non-blocking)
+        try:
+            from apps.core.ai_quality.quality_gate import filter_guidance_candidates
+            ranked = filter_guidance_candidates(user, ranked)
+        except Exception as e:
+            logger.warning(f"PGE: ICQG filter failed (continuing): {e}")
+
         # Step 4: Store with deduplication
         from apps.core.ai_guidance.guidance_logger import log_guidance
 

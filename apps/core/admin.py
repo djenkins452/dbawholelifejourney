@@ -25,6 +25,9 @@ from django.contrib import admin
 
 from .models import Category, ReleaseNote, Tag, UserReleaseNoteView
 
+# Import sub-module admin registrations so Django discovers them
+import apps.core.ai_state.admin  # noqa: E402, F401
+
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):

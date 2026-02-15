@@ -1,6 +1,6 @@
 # Whole Life Journey — Intelligence Architecture
 
-**Purpose:** Permanent architectural authority defining the five-engine cognitive stack that powers all AI-driven features in WLJ. Claude Code must read this document before implementing any feature that touches AI, data logging, insights, predictions, or user interactions.
+**Purpose:** Permanent architectural authority defining the six-engine cognitive stack that powers all AI-driven features in WLJ. Claude Code must read this document before implementing any feature that touches AI, data logging, insights, predictions, or user interactions.
 
 **Status:** Active — All engines implemented and deployed.
 
@@ -37,6 +37,15 @@
                           │                      │
                           │  apps/ai/            │
                           │  action_handlers.py  │
+                          └──────────┬───────────┘
+                                     │
+                          ┌──────────▼───────────┐
+                          │        SAE           │
+                          │  State Awareness     │
+                          │  Engine              │
+                          │                      │
+                          │  apps/core/          │
+                          │  ai_state/           │
                           └──────────┬───────────┘
                                      │
                           ┌──────────▼───────────┐
@@ -80,7 +89,8 @@ User Input
     → Action Router (enrich with time/context)
     → Module Execution (action_handlers.py)
     → Learning Pipeline (store mappings from successful actions)
-    → PIE (run_insights — generate factual insights)
+    → SAE (update_user_state — refresh state snapshot)
+    → PIE (run_insights — generate factual insights, enriched with SAE state)
       → PRIE (generate_predictions — trajectory projections)
   → Response Builder (enhance with temporal context)
   → Response to User
@@ -556,10 +566,11 @@ Supported data types: `weight_entries`, `body_fat_entries`, `lean_mass_entries`,
 | UAIO → Safety | Timestamp validation | `safety_engine.py` |
 | UAIO → Actions | Enriched execution | `execution_engine.py` |
 | UAIO → Learning | Store mappings | `learning_pipeline.py` |
-| UAIO → SAE (future) | State update | `execution_engine.py:_run_intelligence_chain()` |
+| UAIO → SAE | State update | `execution_engine.py:_run_intelligence_chain()` |
 | UAIO → PIE | Fire insight event | `execution_engine.py:_run_intelligence_chain()` |
 | PIE → PRIE | Trigger predictions | `insight_engine.py:_trigger_predictions()` |
-| PRIE → SAE (future) | Read cached state | `prediction_engine.py:get_prediction_input_data()` |
+| PRIE → SAE | Read cached state | `prediction_engine.py:get_prediction_input_data()` |
+| PIE → SAE | Event enrichment | `insight_engine.py:_enrich_event_with_state()` |
 | Action Handlers → HTIE | Use resolved time | `action_handlers.py:_get_recorded_at()` |
 | All Engines → HTIE | System time | `system_clock.py:get_current_time()` |
 
@@ -569,9 +580,9 @@ Post-execution, the intelligence chain fires from `execute_action()`:
 
 ```
 Action Success
-  → SAE (future — ImportError-guarded)
-    → Update user state cache
-  → PIE (run_insights)
+  → SAE (update_user_state)
+    → Rebuild affected module state from database
+  → PIE (run_insights, enriched with SAE state)
     → Evaluate all applicable insight rules
     → PRIE (_trigger_predictions)
       → Evaluate all applicable prediction rules
@@ -589,6 +600,7 @@ No other code path may trigger PIE or PRIE during action execution.
 | `core.0053` | SLCME | LearnedMapping, ContextSnapshot, ClarificationLog |
 | `core.0054` | PIE | Insight |
 | `core.0055` | PRIE | Prediction |
+| `core.0056` | SAE | UserState |
 
 HTIE and UAIO are stateless — no database models required.
 
@@ -611,40 +623,118 @@ HTIE and UAIO are stateless — no database models required.
 
 ---
 
-## State Awareness Engine — Integration Preparation
+## Engine 6: SAE — State Awareness Engine
 
-**Status:** SAE integration points are installed and ready. SAE is not yet implemented.
+**Location:** `apps/core/ai_state/`
+**Responsibility:** Maintain an always-current snapshot of each user's life state. Authoritative source of "current state" for the entire intelligence system.
 
-### SAE Plug-In Points
-
-The following integration points have been prepared for SAE:
-
-| Location | Hook | Pattern |
-|----------|------|---------|
-| `execution_engine.py:_run_intelligence_chain()` | Post-action state update | `from apps.core.ai_state.state_updater import update_user_state` (ImportError-guarded) |
-| `prediction_engine.py:get_prediction_input_data()` | Pre-prediction state read | `from apps.core.ai_state.state_reader import get_cached_data` (ImportError-guarded) |
-
-### SAE Expected Interface
-
-When SAE is built, it must provide:
+### Public API
 
 ```python
-# apps/core/ai_state/state_updater.py
-def update_user_state(user, module, record_id):
-    """Update cached user state after successful action."""
+from apps.core.ai_state import (
+    get_user_state,      # Full state snapshot
+    get_module_state,    # Single module state
+    update_user_state,   # Incremental update after action
+    rebuild_user_state,  # Full rebuild from database
+    get_cached_data,     # Data access for PRIE predictions
+)
 
-# apps/core/ai_state/state_reader.py
-def get_cached_data(user, module, data_type, lookback_days):
-    """Read cached data for predictions. Returns None to fall back to DB."""
+# Read full state
+state = get_user_state(user)
+# state["health"]["weight_current"] → 180.5
+# state["goals"]["active_goal_count"] → 3
+# state["habits"]["longest_streak"] → 7
+
+# Read single module
+health = get_module_state(user, "health")
+
+# Update after action (called by UAIO automatically)
+update_user_state(user, "health", record_id=42)
 ```
 
-### SAE Installation Steps
+### State Structure
 
-1. Create `apps/core/ai_state/` module
-2. Implement `state_updater.py` and `state_reader.py` with the interfaces above
-3. Both hooks will auto-activate (ImportError guards will find the module)
-4. No changes needed to execution_engine.py or prediction_engine.py
-5. Update this document with SAE engine details
+```json
+{
+  "health": {
+    "weight_current": 180.5,
+    "weight_unit": "lb",
+    "weight_trend": "decreasing",
+    "last_weight_entry": "2026-02-15T...",
+    "weight_entries_90d": 12,
+    "body_fat_current": 22.5,
+    "sleep_avg_duration_7d": 450.0,
+    "steps_avg_7d": 8500,
+    "bp_systolic": 120,
+    "bp_diastolic": 80
+  },
+  "goals": {
+    "active_goal_count": 3,
+    "completion_rate": 0.65,
+    "next_deadline": "2026-03-15",
+    "days_to_next_deadline": 28,
+    "overdue_goal_count": 0,
+    "total_milestones": 12,
+    "completed_milestones": 8
+  },
+  "habits": {
+    "active_habit_count": 4,
+    "longest_streak": 14,
+    "avg_completion_rate": 0.82,
+    "last_activity": "2026-02-15"
+  },
+  "faith": {
+    "active_reading_plans": 1,
+    "last_scripture_read": "2026-02-14T...",
+    "days_since_reading": 1,
+    "reading_streak": 5,
+    "unanswered_prayers": 3
+  },
+  "journal": {
+    "last_entry": "2026-02-14",
+    "last_mood": "good",
+    "days_since_entry": 1,
+    "entry_frequency": 3.5,
+    "entries_30d": 15,
+    "mood_distribution": {"great": 3, "good": 8, "okay": 4}
+  }
+}
+```
+
+### Database Model
+
+| Model | Table | Fields |
+|-------|-------|--------|
+| `UserState` | `core_user_state` | user (1:1), state_data (JSON), last_updated, created_at |
+
+### Module Files
+
+| File | Purpose |
+|------|---------|
+| `models.py` | UserState model (OneToOneField per user) |
+| `state_engine.py` | Primary read interface: `get_user_state()`, `rebuild_user_state()` |
+| `state_updater.py` | Incremental update: `update_user_state()` (called by UAIO) |
+| `state_builder.py` | Domain builders: `build_health_state()`, `build_goal_state()`, etc. |
+| `state_reader.py` | PRIE data access: `get_cached_data()` |
+| `state_registry.py` | Custom builder registration for new modules |
+| `state_utils.py` | Debugging: `get_state_age_seconds()`, `invalidate_state()` |
+| `admin.py` | Read-only admin display |
+| `tests.py` | 50 tests covering all components |
+
+### Integration Points
+
+| From | To | Mechanism |
+|------|----|-----------|
+| UAIO → SAE | Post-action state update | `execution_engine.py:_run_intelligence_chain()` |
+| PIE → SAE | Event enrichment with state | `insight_engine.py:_enrich_event_with_state()` |
+| PRIE → SAE | Cached data read | `prediction_engine.py:get_prediction_input_data()` |
+
+### Safety Requirements
+
+- State always reflects actual database values
+- State never invents or infers unsupported values
+- State updates immediately after data changes
+- State remains fully auditable via admin interface
 
 ---
 
@@ -671,4 +761,4 @@ def get_cached_data(user, module, data_type, lookback_days):
 
 ---
 
-*Last updated: 2026-02-15 — Pre-SAE hardening complete*
+*Last updated: 2026-02-15 — SAE (State Awareness Engine) deployed*

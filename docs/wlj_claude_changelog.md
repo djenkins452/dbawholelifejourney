@@ -4,10 +4,45 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-15 (Pre-SAE Hardening)
+# Last Updated: 2026-02-15 (SAE: State Awareness Engine)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-02-15 — SAE: State Awareness Engine
+
+**Major Feature:** Persistent user state intelligence layer that maintains an always-current snapshot of each user's life state. This is the 6th intelligence engine and the authoritative source of "current state" for the entire cognitive stack.
+
+### Module: `apps/core/ai_state/`
+
+**State Engine:** `get_user_state(user)` reads cached state; `rebuild_user_state(user)` does a full rebuild from database. `get_module_state(user, module)` reads a single module with alias resolution (purpose→goals, medical→health).
+
+**State Updater:** `update_user_state(user, module, record_id)` performs incremental updates after data changes. Called automatically by UAIO's `_run_intelligence_chain()` — the ImportError-guarded hook now auto-activates.
+
+**State Builders (5 domains):**
+- **Health:** Weight (current, trend, 90d count), body fat, lean mass, sleep avg 7d, steps avg 7d, blood pressure
+- **Goals:** Active count, milestone completion rate, next deadline, overdue count
+- **Habits:** Active count, longest streak, avg completion rate, last activity
+- **Faith:** Active reading plans, reading streak, last scripture read, unanswered prayers
+- **Journal:** Last entry, mood, frequency (entries/week), 30d count, mood distribution
+
+**State Reader:** `get_cached_data(user, module, data_type, lookback_days)` activates the PRIE prediction engine hook. Currently returns None for time-series data (predictions need raw points for regression) — falls back to database. Will serve cached scalar data as SAE matures.
+
+**PIE Integration:** `insight_engine.py:_enrich_event_with_state()` enriches every PIE event with the user's current state, allowing insight rules to access cached state instead of hitting the database.
+
+**Database:** `UserState` model — OneToOneField per user, JSON state_data, auto_now last_updated. Migration: `core.0056`.
+
+**Admin:** Read-only display for inspection. No add/change/delete permissions.
+
+**Tests:** 50 tests covering: model creation, one-to-one constraint, state engine (get/rebuild), incremental updater (preserves other modules), all 5 domain builders, state reader fallback, state utils (age/invalidation/summary), PIE event enrichment, UAIO auto-activation.
+
+**Architecture docs updated:** INTELLIGENCE_ARCHITECTURE.md updated with SAE as Engine 6, architecture diagram, execution pipeline, cross-engine integration map, database migration table. CLAUDE.md updated with SAE in engine table and execution pipeline.
+
+**Files Created:** `apps/core/ai_state/__init__.py`, `models.py`, `state_engine.py`, `state_updater.py`, `state_builder.py`, `state_reader.py`, `state_registry.py`, `state_utils.py`, `admin.py`, `tests.py`, `apps/core/migrations/0056_add_sae_user_state_model.py`
+
+**Files Modified:** `apps/core/models.py` (UserState import), `apps/core/admin.py` (admin discovery import), `apps/core/ai_insights/insight_engine.py` (SAE enrichment), `docs/INTELLIGENCE_ARCHITECTURE.md`, `CLAUDE.md`, `docs/wlj_claude_changelog.md`
+
+---
 
 ## 2026-02-15 — Intelligence Engine Integration Refinement (Pre-SAE Hardening)
 

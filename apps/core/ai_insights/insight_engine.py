@@ -38,6 +38,9 @@ def run_insights(user, event):
     if not getattr(settings, "AI_INSIGHTS_ENABLED", True):
         return []
 
+    # Enrich event with SAE state (if available)
+    event = _enrich_event_with_state(user, event)
+
     created = []
 
     for rule in get_rules():
@@ -73,6 +76,28 @@ def run_insights(user, event):
     _trigger_predictions(user, event)
 
     return created
+
+
+def _enrich_event_with_state(user, event):
+    """
+    Enrich a PIE event with SAE user state.
+
+    Adds a 'user_state' key so insight rules can access cached state
+    instead of hitting the database for common lookups.
+    Failures never break the insight pipeline.
+    """
+    try:
+        from apps.core.ai_state.state_engine import get_user_state
+
+        state = get_user_state(user)
+        if state:
+            enriched = dict(event)
+            enriched["user_state"] = state
+            return enriched
+    except Exception as e:
+        logger.debug(f"SAE enrichment skipped: {e}")
+
+    return event
 
 
 def _trigger_predictions(user, event):

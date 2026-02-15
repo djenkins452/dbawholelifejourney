@@ -41,6 +41,7 @@ All intelligence must flow through these engines — no module may bypass them:
 | **HTIE** — Human Temporal Intelligence Engine | `apps/core/time/` | Parse natural language time → precise timestamps |
 | **SLCME** — Self-Learning Context Memory Engine | `apps/core/ai_memory/` | Learn from clarifications, auto-reuse with confidence |
 | **UAIO** — Unified AI Orchestrator | `apps/core/ai_orchestrator/` | Central brain connecting HTIE + SLCME to AI pipeline |
+| **SAE** — State Awareness Engine | `apps/core/ai_state/` | Persistent user state snapshot, authoritative current condition |
 | **PIE** — Proactive Insight Engine | `apps/core/ai_insights/` | Event-driven + scheduled factual insights |
 | **PRIE** — Predictive Intelligence Engine | `apps/core/ai_predictions/` | Trajectory projection using linear regression |
 
@@ -54,9 +55,10 @@ User Input
     → SLCME (Memory Resolution)
     → HTIE (Time Resolution)
       → Module Execution (Action Handlers)
-        → PIE (Insight Generation)
-          → PRIE (Prediction Generation)
-            → Response
+        → SAE (State Update)
+          → PIE (Insight Generation, enriched with SAE state)
+            → PRIE (Prediction Generation)
+              → Response
 ```
 
 This pipeline must never be bypassed.

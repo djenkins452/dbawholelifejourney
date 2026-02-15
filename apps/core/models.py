@@ -2204,3 +2204,6 @@ from apps.core.ai_insights.models import Insight  # noqa: E402, F401
 
 # Import ai_predictions models so Django discovers them for migrations
 from apps.core.ai_predictions.models import Prediction  # noqa: E402, F401
+
+# Import ai_state models so Django discovers them for migrations
+from apps.core.ai_state.models import UserState  # noqa: E402, F401

@@ -17,10 +17,12 @@
 - `AdminGuideSection` and `AdminGuideArticle` models with rich Markdown content support
 - Staff-only views: home (section listing), manage (CRUD), article form (edit)
 - Template tag `admin_guide_filters.py` for Markdown rendering
-- Three fixture files covering 20 sections and 60+ articles:
-  - `admin_guide_part2.json` — Sections 1-10 (foundations, engines, pipelines)
-  - `admin_guide_part3.json` — Sections 11-15 (observability, scheduler, state, mobile)
-  - `admin_guide_part4.json` — Sections 16-20 (delivery, quality, weekly reports, briefings, E3)
+- Single fixture file `admin_guide.json` with 20 sections and 54 articles covering:
+  - System overview, onboarding, core architecture, interpretation engines
+  - Intelligence lifecycle, coaching personas, guidance/prediction systems
+  - Delivery/notifications, learning/adaptation, observability/calibration
+  - ICC, scheduler, user state, mobile/push integration
+  - Operational procedures, troubleshooting, maintenance, security, glossary
 - 24 tests covering models, views, access control, and CRUD operations
 - Django admin registration for both models
 - Dashboard link for staff users
@@ -28,9 +30,7 @@
 - Fixture loader with one-time reset registered in `load_initial_data.py`
 
 **Files added:**
-- `apps/admin_console/fixtures/admin_guide_part2.json`
-- `apps/admin_console/fixtures/admin_guide_part3.json`
-- `apps/admin_console/fixtures/admin_guide_part4.json`
+- `apps/admin_console/fixtures/admin_guide.json`
 - `apps/admin_console/migrations/0027_adminguidesection_adminguidearticle.py`
 - `apps/admin_console/templatetags/__init__.py`
 - `apps/admin_console/templatetags/admin_guide_filters.py`

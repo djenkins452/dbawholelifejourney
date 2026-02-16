@@ -4,10 +4,53 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-15 (AI assistant time context fix)
+# Last Updated: 2026-02-15 (Admin Guide feature)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-02-15 — Admin Guide: Full Feature with Fixture Content (Sections 1-20)
+
+**Feature:** Complete Admin Guide system for staff users, providing comprehensive documentation of WLJ's intelligence architecture, engines, and operational procedures.
+
+**What was built:**
+- `AdminGuideSection` and `AdminGuideArticle` models with rich Markdown content support
+- Staff-only views: home (section listing), manage (CRUD), article form (edit)
+- Template tag `admin_guide_filters.py` for Markdown rendering
+- Three fixture files covering 20 sections and 60+ articles:
+  - `admin_guide_part2.json` — Sections 1-10 (foundations, engines, pipelines)
+  - `admin_guide_part3.json` — Sections 11-15 (observability, scheduler, state, mobile)
+  - `admin_guide_part4.json` — Sections 16-20 (delivery, quality, weekly reports, briefings, E3)
+- 24 tests covering models, views, access control, and CRUD operations
+- Django admin registration for both models
+- Dashboard link for staff users
+- Release notes, teaching destinations, and help topics updated
+- Fixture loader with one-time reset registered in `load_initial_data.py`
+
+**Files added:**
+- `apps/admin_console/fixtures/admin_guide_part2.json`
+- `apps/admin_console/fixtures/admin_guide_part3.json`
+- `apps/admin_console/fixtures/admin_guide_part4.json`
+- `apps/admin_console/migrations/0027_adminguidesection_adminguidearticle.py`
+- `apps/admin_console/templatetags/__init__.py`
+- `apps/admin_console/templatetags/admin_guide_filters.py`
+- `apps/admin_console/tests/test_admin_guide.py`
+- `templates/admin_console/admin_guide/home.html`
+- `templates/admin_console/admin_guide/manage.html`
+- `templates/admin_console/admin_guide/article_form.html`
+
+**Files modified:**
+- `apps/admin_console/admin.py` — Registered AdminGuideSection, AdminGuideArticle
+- `apps/admin_console/models.py` — Added AdminGuideSection, AdminGuideArticle models
+- `apps/admin_console/urls.py` — Added admin guide URL patterns
+- `apps/admin_console/views.py` — Added AdminGuideHomeView, AdminGuideManageView, AdminGuideArticleFormView
+- `apps/core/fixtures/release_notes.json` — Added Admin Guide release note
+- `apps/core/management/commands/load_initial_data.py` — Registered fixture loaders and reset
+- `apps/help/fixtures/help_topics.json` — Added Admin Guide help topic
+- `apps/help/fixtures/teaching_destinations.json` — Added Admin Guide destination
+- `templates/admin_console/dashboard.html` — Added Admin Guide card link
+
+---
 
 ## 2026-02-15 — Fix: AI Assistant Always Knows User's Current Time
 

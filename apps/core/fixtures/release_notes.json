@@ -722,5 +722,21 @@
             "created_at": "2026-02-15T00:00:00Z",
             "updated_at": "2026-02-15T00:00:00Z"
         }
+    },
+    {
+        "model": "core.releasenote",
+        "pk": 47,
+        "fields": {
+            "title": "Admin Guide: System Documentation",
+            "description": "A comprehensive Admin Guide is now available in the Admin Console. It provides detailed documentation of the WLJ system architecture, all 14 intelligence engines, modules, security, deployment, and developer reference \u2014 organized across 20 sections with full technical and operational coverage.",
+            "entry_type": "feature",
+            "version": "",
+            "release_date": "2026-02-15",
+            "is_published": true,
+            "is_major": true,
+            "learn_more_url": "",
+            "created_at": "2026-02-15T00:00:00Z",
+            "updated_at": "2026-02-15T00:00:00Z"
+        }
     }
 ]

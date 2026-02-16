@@ -17,7 +17,7 @@ from django.contrib import messages
 from django.contrib.auth.mixins import UserPassesTestMixin
 from django.db import models
 from django.http import HttpResponseRedirect, JsonResponse
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
 from django.utils.decorators import method_decorator
 from django.views.generic import (
@@ -31,6 +31,7 @@ from django.views.generic import (
 
 from apps.core.models import Category, SiteConfiguration, Theme
 from apps.core.models import ChoiceCategory, ChoiceOption
+from .models import AdminGuideSection, AdminGuideArticle
 from apps.core.rate_limiting import APIRateLimitMixin
 from apps.core.utils import user_log_id
 from apps.help.mixins import HelpContextMixin
@@ -4483,3 +4484,109 @@ class TestItemBulkUpdateAPIView(AdminRequiredMixin, View):
             'success': True,
             'updated_count': updated_count,
         })
+
+
+# ==============================================================================
+# Admin Guide Views
+# ==============================================================================
+
+def _guide_sections_queryset():
+    """Return active guide sections with their active articles prefetched."""
+    return AdminGuideSection.objects.filter(
+        is_active=True
+    ).prefetch_related(
+        models.Prefetch(
+            'articles',
+            queryset=AdminGuideArticle.objects.filter(is_active=True)
+        )
+    )
+
+
+class AdminGuideHomeView(HelpContextMixin, AdminRequiredMixin, TemplateView):
+    """Admin Guide home — shows sidebar + first section's first article."""
+    template_name = "admin_console/admin_guide/home.html"
+    help_context_id = "ADMIN_GUIDE_HOME"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        sections = _guide_sections_queryset()
+        context['sections'] = sections
+        first_section = sections.first()
+        if first_section:
+            context['current_section'] = first_section
+            context['current_article'] = first_section.articles.first()
+        return context
+
+
+class AdminGuideSectionView(HelpContextMixin, AdminRequiredMixin, TemplateView):
+    """Display a section's first article."""
+    template_name = "admin_console/admin_guide/home.html"
+    help_context_id = "ADMIN_GUIDE_HOME"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        sections = _guide_sections_queryset()
+        context['sections'] = sections
+        current_section = get_object_or_404(
+            AdminGuideSection, section_key=self.kwargs['section_key'], is_active=True
+        )
+        context['current_section'] = current_section
+        context['current_article'] = current_section.articles.filter(is_active=True).first()
+        return context
+
+
+class AdminGuideArticleView(HelpContextMixin, AdminRequiredMixin, TemplateView):
+    """Display a specific article."""
+    template_name = "admin_console/admin_guide/home.html"
+    help_context_id = "ADMIN_GUIDE_HOME"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        sections = _guide_sections_queryset()
+        context['sections'] = sections
+        current_section = get_object_or_404(
+            AdminGuideSection, section_key=self.kwargs['section_key'], is_active=True
+        )
+        current_article = get_object_or_404(
+            AdminGuideArticle,
+            section=current_section, slug=self.kwargs['slug'], is_active=True
+        )
+        context['current_section'] = current_section
+        context['current_article'] = current_article
+        return context
+
+
+class AdminGuideManageView(HelpContextMixin, AdminRequiredMixin, ListView):
+    """List all guide articles for management."""
+    template_name = "admin_console/admin_guide/manage.html"
+    help_context_id = "ADMIN_GUIDE_MANAGE"
+    context_object_name = 'articles'
+
+    def get_queryset(self):
+        return AdminGuideArticle.objects.filter(
+            is_active=True
+        ).select_related('section').order_by('section__order', 'order')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['sections'] = AdminGuideSection.objects.filter(is_active=True)
+        return context
+
+
+class AdminGuideArticleEditView(HelpContextMixin, AdminRequiredMixin, UpdateView):
+    """Edit a supplemental guide article (is_editable=True only)."""
+    template_name = "admin_console/admin_guide/article_form.html"
+    help_context_id = "ADMIN_GUIDE_MANAGE"
+    model = AdminGuideArticle
+    fields = ['title', 'content']
+
+    def get_queryset(self):
+        return AdminGuideArticle.objects.filter(is_editable=True)
+
+    def get_success_url(self):
+        from django.urls import reverse
+        return reverse('admin_console:admin_guide_manage')
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Article '{form.instance.title}' updated.")
+        return super().form_valid(form)

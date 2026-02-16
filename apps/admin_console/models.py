@@ -1440,3 +1440,69 @@ class TestItem(models.Model):
             except TestItem.DoesNotExist:
                 pass
         super().save(*args, **kwargs)
+
+
+# ==============================================================================
+# Admin Guide Models
+# ==============================================================================
+
+class AdminGuideSection(models.Model):
+    """A section in the Admin Guide documentation."""
+    section_key = models.SlugField(
+        max_length=100,
+        unique=True,
+        help_text="Unique identifier for this section"
+    )
+    title = models.CharField(max_length=200)
+    icon = models.CharField(
+        max_length=10,
+        default="📄",
+        help_text="Emoji icon for sidebar display"
+    )
+    description = models.TextField(
+        blank=True,
+        help_text="Brief description shown below the section title"
+    )
+    order = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['order', 'title']
+        verbose_name = 'Admin Guide Section'
+        verbose_name_plural = 'Admin Guide Sections'
+
+    def __str__(self):
+        return f"{self.icon} {self.title}"
+
+
+class AdminGuideArticle(models.Model):
+    """An article within an Admin Guide section. Content is Markdown."""
+    section = models.ForeignKey(
+        AdminGuideSection,
+        on_delete=models.CASCADE,
+        related_name='articles'
+    )
+    title = models.CharField(max_length=200)
+    slug = models.SlugField(max_length=200)
+    content = models.TextField(
+        help_text="Article content in Markdown format"
+    )
+    order = models.PositiveIntegerField(default=0)
+    is_editable = models.BooleanField(
+        default=False,
+        help_text="If True, admin can edit via web interface"
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['order', 'title']
+        unique_together = [('section', 'slug')]
+        verbose_name = 'Admin Guide Article'
+        verbose_name_plural = 'Admin Guide Articles'
+
+    def __str__(self):
+        return f"{self.section.title} > {self.title}"

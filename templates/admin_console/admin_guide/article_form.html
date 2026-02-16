@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Article - Admin Guide{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <nav class="breadcrumb">
+                <a href="{% url 'admin_console:dashboard' %}">Admin Console</a>
+                <span>/</span>
+                <a href="{% url 'admin_console:admin_guide_home' %}">Admin Guide</a>
+                <span>/</span>
+                <a href="{% url 'admin_console:admin_guide_manage' %}">Manage</a>
+                <span>/</span>
+                <span>Edit</span>
+            </nav>
+            <h1 class="page-title">Edit Article</h1>
+            <p class="page-subtitle">{{ object.section.title }} &rsaquo; {{ object.title }}</p>
+        </div>
+    </div>
+
+    <div class="form-container">
+        <form method="post">
+            {% csrf_token %}
+
+            {% if form.errors %}
+            <div class="form-errors mb-4">
+                {% for field, errors in form.errors.items %}
+                    {% for error in errors %}
+                    <p class="error-text">{{ field }}: {{ error }}</p>
+                    {% endfor %}
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <div class="form-group mb-4">
+                <label for="{{ form.title.id_for_label }}" class="form-label">Title</label>
+                <input type="text" name="{{ form.title.html_name }}" id="{{ form.title.id_for_label }}"
+                       value="{{ form.title.value|default:'' }}" class="form-input"
+                       maxlength="200" required>
+            </div>
+
+            <div class="form-group mb-4">
+                <label for="{{ form.content.id_for_label }}" class="form-label">Content (Markdown)</label>
+                <textarea name="{{ form.content.html_name }}" id="{{ form.content.id_for_label }}"
+                          class="form-textarea" rows="25">{{ form.content.value|default:'' }}</textarea>
+                <p class="form-help">Use Markdown formatting: **bold**, *italic*, ## headings, - lists, ```code blocks```, | tables |</p>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+                <a href="{% url 'admin_console:admin_guide_manage' %}" class="btn btn-outline">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.form-container {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    max-width: 900px;
+}
+
+.form-errors {
+    background: color-mix(in srgb, #ef4444 10%, transparent);
+    border: 1px solid color-mix(in srgb, #ef4444 30%, transparent);
+    border-radius: var(--radius-md);
+    padding: var(--space-3) var(--space-4);
+}
+
+.error-text {
+    color: #ef4444;
+    font-size: var(--font-size-sm);
+    margin: 0;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.form-label {
+    font-weight: 600;
+    font-size: var(--font-size-sm);
+}
+
+.form-input {
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-size: 16px;
+    background: var(--color-background);
+    color: var(--color-text);
+}
+
+.form-textarea {
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    resize: vertical;
+    background: var(--color-background);
+    color: var(--color-text);
+}
+
+.form-help {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+}
+
+.mb-4 {
+    margin-bottom: var(--space-4);
+}
+</style>
+{% endblock %}

@@ -143,6 +143,12 @@ FIXTURE_LOADERS = [
         'display': 'What\'s New Release Notes',
         'description': 'Release notes shown in the What\'s New popup',
     },
+    {
+        'name': 'admin_guide',
+        'display': 'Admin Guide Documentation',
+        'description': 'Comprehensive system documentation for the Admin Console',
+        'app': 'admin_console',
+    },
     # NOTE: module_definitions removed - now handled by migration 0052_fix_module_route_names
     # Loading via fixture causes UNIQUE constraint errors since migration already creates the data
 ]
@@ -622,6 +628,9 @@ class Command(BaseCommand):
 
         # One-time: Backfill 30 days of observability snapshots
         self._backfill_observability_snapshots(DataLoadConfig, force, verbosity)
+
+        # One-time: Reset fixtures for Admin Guide documentation
+        self._reset_admin_guide_fixtures(DataLoadConfig, force, verbosity)
 
         # Only output summary if something loaded or if verbose
         if verbosity >= 1 and loaded_count > 0:
@@ -1841,3 +1850,41 @@ Tasks are sorted by priority (ascending) then creation date.""",
                 self.stdout.write(self.style.ERROR(
                     f'Observability backfill FAILED: {e}'
                 ))
+
+    def _reset_admin_guide_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """One-time reset to load Admin Guide documentation fixtures."""
+        reset_tracker_name = 'reset_admin_guide_fixtures_2026_02'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            try:
+                config = DataLoadConfig.objects.get(loader_name='admin_guide')
+                config.is_loaded = False
+                config.save()
+                if verbosity >= 1:
+                    self.stdout.write('  Reset admin_guide loader for initial load')
+            except DataLoadConfig.DoesNotExist:
+                pass  # Will load fresh
+
+            # Also reset release_notes, teaching_destinations, help_topics for new entries
+            for name in ['release_notes', 'teaching_destinations', 'help_topics']:
+                try:
+                    config = DataLoadConfig.objects.get(loader_name=name)
+                    config.is_loaded = False
+                    config.save()
+                    if verbosity >= 1:
+                        self.stdout.write(f'  Reset {name} loader for Admin Guide entries')
+                except DataLoadConfig.DoesNotExist:
+                    pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset Admin Guide Fixtures (Feb 2026)',
+                'command',
+                'One-time reset to load Admin Guide documentation'
+            )
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset admin guide fixtures FAILED: {e}'))

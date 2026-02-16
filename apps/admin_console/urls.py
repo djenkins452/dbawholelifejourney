@@ -129,6 +129,13 @@ urlpatterns = [
     path("projects/config/effort/<int:pk>/edit/", views.EffortConfigUpdateView.as_view(), name="config_effort_update"),
     path("projects/config/effort/<int:pk>/delete/", views.EffortConfigDeleteView.as_view(), name="config_effort_delete"),
 
+    # Admin Guide
+    path("admin-guide/", views.AdminGuideHomeView.as_view(), name="admin_guide_home"),
+    path("admin-guide/manage/", views.AdminGuideManageView.as_view(), name="admin_guide_manage"),
+    path("admin-guide/manage/<int:pk>/edit/", views.AdminGuideArticleEditView.as_view(), name="admin_guide_article_edit"),
+    path("admin-guide/<slug:section_key>/", views.AdminGuideSectionView.as_view(), name="admin_guide_section"),
+    path("admin-guide/<slug:section_key>/<slug:slug>/", views.AdminGuideArticleView.as_view(), name="admin_guide_article"),
+
     # Claude Code API - Ready Tasks (for "What's Next?" protocol)
     path("api/claude/ready-tasks/", views.ReadyTasksAPIView.as_view(), name="api_claude_ready_tasks"),
     path("api/claude/tasks/<int:pk>/status/", views.UpdateTaskStatusAPIView.as_view(), name="api_claude_task_status"),

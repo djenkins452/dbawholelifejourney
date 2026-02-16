@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Admin Guide - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <nav class="breadcrumb">
+                <a href="{% url 'admin_console:dashboard' %}">Admin Console</a>
+                <span>/</span>
+                <a href="{% url 'admin_console:admin_guide_home' %}">Admin Guide</a>
+                <span>/</span>
+                <span>Manage</span>
+            </nav>
+            <h1 class="page-title">Manage Admin Guide</h1>
+            <p class="page-subtitle">View and edit supplemental articles</p>
+        </div>
+        <a href="{% url 'admin_console:admin_guide_home' %}" class="btn btn-outline btn-sm">Back to Guide</a>
+    </div>
+
+    <div class="info-box mb-6">
+        <p>Core documentation articles are locked and cannot be edited. Supplemental articles (marked as editable) can be modified through this interface.</p>
+    </div>
+
+    {% regroup articles by section as section_groups %}
+    {% for group in section_groups %}
+    <div class="manage-section mb-6">
+        <h2 class="section-title">{{ group.grouper.icon }} {{ group.grouper }}</h2>
+        <div class="table-container">
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        <th>Slug</th>
+                        <th>Order</th>
+                        <th>Editable</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for article in group.list %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'admin_console:admin_guide_article' article.section.section_key article.slug %}">
+                                {{ article.title }}
+                            </a>
+                        </td>
+                        <td><code>{{ article.slug }}</code></td>
+                        <td>{{ article.order }}</td>
+                        <td>
+                            {% if article.is_editable %}
+                                <span class="badge badge-success">Yes</span>
+                            {% else %}
+                                <span class="badge badge-muted">Locked</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if article.is_editable %}
+                            <a href="{% url 'admin_console:admin_guide_article_edit' article.pk %}" class="btn btn-outline btn-sm">Edit</a>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.info-box {
+    background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-accent) 25%, transparent);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    font-size: var(--font-size-sm);
+    color: var(--color-text);
+}
+
+.mb-6 {
+    margin-bottom: var(--space-6);
+}
+
+.manage-section .section-title {
+    font-size: var(--font-size-lg);
+    margin-bottom: var(--space-3);
+}
+
+.table-container {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.admin-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.admin-table th,
+.admin-table td {
+    padding: var(--space-3) var(--space-4);
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+    font-size: var(--font-size-sm);
+}
+
+.admin-table th {
+    background: var(--color-surface);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+}
+
+.admin-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.admin-table tbody tr:hover {
+    background: var(--color-surface);
+}
+
+.admin-table a {
+    color: var(--color-accent);
+    text-decoration: none;
+}
+
+.admin-table a:hover {
+    text-decoration: underline;
+}
+
+.admin-table code {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.badge {
+    display: inline-block;
+    padding: var(--space-1) var(--space-2);
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+    border-radius: var(--radius-sm);
+}
+
+.badge-success {
+    background: color-mix(in srgb, #10b981 15%, transparent);
+    color: #10b981;
+}
+
+.badge-muted {
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+}
+
+.text-muted {
+    color: var(--color-text-muted);
+}
+
+@media (max-width: 768px) {
+    .admin-table th:nth-child(2),
+    .admin-table td:nth-child(2),
+    .admin-table th:nth-child(3),
+    .admin-table td:nth-child(3) {
+        display: none;
+    }
+}
+</style>
+{% endblock %}

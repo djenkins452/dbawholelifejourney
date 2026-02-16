@@ -9,6 +9,22 @@
 
 # WLJ Change History
 
+## 2026-02-16 — Landing Page: Dark Hero Design with Sign-In Form
+
+**Enhancement:** Replaced the old light-background landing page with the new dark hero design at the root URL (`/`).
+
+**Changes:**
+- **New landing page template:** `templates/core/landing.html` — dark gradient hero (left) with feature pills (Faith, Journal, Health, Goals), functional sign-in form (right) with "Get Started Free" CTA, plus below-fold sections: feature cards, philosophy, and final CTA
+- **Updated `LandingPageView`:** Now provides allauth `LoginForm` in context so the sign-in form is functional directly on the landing page (posts to `/accounts/login/`)
+- **Responsive:** Full mobile/tablet/desktop breakpoints (480px, 900px, 1024px)
+- **Files modified:** `templates/core/landing.html`, `apps/core/views.py`
+
+## 2026-02-16 — Add Missing Migration for HabitGoal measurement_type
+
+**Fix:** CI was failing because a previous commit changed the `duration` choice label from "Duration (Minutes)" to "Duration" without creating a migration.
+
+**Files added:** `apps/purpose/migrations/0006_alter_habitgoal_measurement_type.py`
+
 ## 2026-02-15 — Email Intake: Batch Processing, Error Surfacing & Diagnostics
 
 **Bug Fix:** Processing 46 emails in a single API request caused Cloudflare 524 timeout (>100s). The server completed processing but the client got no response, making it appear as if 0 emails were processed.

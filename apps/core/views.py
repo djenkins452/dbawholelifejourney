@@ -234,7 +234,9 @@ class HealthCheckView(View):
 class LandingPageView(TemplateView):
     """
     Landing page for unauthenticated users.
-    
+
+    Uses the dark hero design with sign-in form on the right side,
+    plus below-fold feature cards, philosophy, and CTA sections.
     Authenticated users are redirected to their dashboard.
     """
 
@@ -244,6 +246,12 @@ class LandingPageView(TemplateView):
         if request.user.is_authenticated:
             return redirect("dashboard:home")
         return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        from allauth.account.forms import LoginForm
+        context = super().get_context_data(**kwargs)
+        context["form"] = LoginForm()
+        return context
 
 
 class TermsOfServiceView(TemplateView):

@@ -3961,16 +3961,23 @@ class ProcessEmailsAPIView(APIRateLimitMixin, View):
                 status=401
             )
 
-        # Check for dry_run parameter
+        # Check parameters
         dry_run = request.GET.get('dry_run', '').lower() == 'true'
         diagnose = request.GET.get('diagnose', '').lower() == 'true'
+
+        # max_emails: batch size to avoid Cloudflare 524 timeouts (default 10)
+        try:
+            max_emails = int(request.GET.get('max_emails', '10'))
+            max_emails = max(0, min(max_emails, 50))  # Clamp 0-50
+        except (ValueError, TypeError):
+            max_emails = 10
 
         # Diagnose mode: check settings and IMAP connectivity without processing
         if diagnose:
             return self._diagnose()
 
         try:
-            results = process_email_intake(dry_run=dry_run)
+            results = process_email_intake(dry_run=dry_run, max_emails=max_emails)
 
             return JsonResponse({
                 'success': True,
@@ -3979,6 +3986,8 @@ class ProcessEmailsAPIView(APIRateLimitMixin, View):
                 'errors_count': results['errors'],
                 'tasks_created': results['tasks_created'],
                 'error_messages': results['error_messages'],
+                'total_found': results.get('total_found', results['processed']),
+                'remaining': results.get('remaining', 0),
             })
 
         except EmailIntakeError as e:

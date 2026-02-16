@@ -9,20 +9,22 @@
 
 # WLJ Change History
 
-## 2026-02-15 — Email Intake: Fix Silent Failures & Add Diagnostics
+## 2026-02-15 — Email Intake: Batch Processing, Error Surfacing & Diagnostics
 
-**Bug Fix:** Email intake API returned `processed: 0, errors: 0` when IMAP folder selection failed, silently hiding the real error. 46 emails in the Automate folder were not processed because the failure was swallowed.
+**Bug Fix:** Processing 46 emails in a single API request caused Cloudflare 524 timeout (>100s). The server completed processing but the client got no response, making it appear as if 0 emails were processed.
 
 **Changes:**
-- `fetch_emails_from_folder()` now raises `EmailConnectionError` on folder selection/search failure instead of returning empty list
-- When folder selection fails, lists available IMAP folders in error message to help diagnose path issues
-- Added `list_imap_folders()` helper function
-- Added `?diagnose=true` parameter to process-emails API endpoint — checks settings, IMAP connection, folder availability, and email count without processing
-- All folder/connection errors now surface in API response `error_messages` array
+- **Batch processing:** `process_email_intake()` now accepts `max_emails` param (default 10, max 50). API returns `total_found` and `remaining` so caller can loop through batches.
+- **Error surfacing:** `fetch_emails_from_folder()` now raises `EmailConnectionError` on folder selection/search failure instead of silently returning empty list. Lists available IMAP folders in error message.
+- **Diagnostics:** Added `?diagnose=true` param to check settings, IMAP connection, folder access, and email count without processing.
+- **Slash command updated:** `/process-emails` now instructs auto-looping when `remaining > 0`.
+- Management command uses `max_emails=0` (unlimited) since it runs server-side without Cloudflare.
 
 **Files modified:**
-- `apps/admin_console/email_intake.py` — raise on folder failure, add `list_imap_folders()`
-- `apps/admin_console/views.py` — add `_diagnose()` method to `ProcessEmailsAPIView`
+- `apps/admin_console/email_intake.py` — batch support, raise on folder failure, `list_imap_folders()`
+- `apps/admin_console/views.py` — `max_emails` param, `_diagnose()` method, `total_found`/`remaining` in response
+- `apps/admin_console/management/commands/process_email_tasks.py` — unlimited batch for cron
+- `.claude/commands/process-emails.md` — batch looping, diagnostics docs
 - `docs/wlj_claude_changelog.md` — this entry
 
 ## 2026-02-15 — Admin Guide: Full Feature with Fixture Content (Sections 1-20)

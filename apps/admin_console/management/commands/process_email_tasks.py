@@ -63,7 +63,9 @@ class Command(BaseCommand):
         self.stdout.write('Processing email intake...')
 
         try:
-            results = process_email_intake(dry_run=dry_run)
+            # max_emails=0 means unlimited - management command runs server-side
+            # with no Cloudflare timeout, so process all at once
+            results = process_email_intake(dry_run=dry_run, max_emails=0)
 
             # Report results
             if results['processed'] == 0 and results['errors'] == 0:

@@ -539,24 +539,32 @@ This is an automated message from Whole Life Journey.
         # Don't raise - task creation succeeded, email confirmation is optional
 
 
-def process_email_intake(dry_run: bool = False):
+def process_email_intake(dry_run: bool = False, max_emails: int = 10):
     """
     Main entry point for email intake processing.
 
-    Connects to IMAP, processes all emails in "Automate" folder,
+    Connects to IMAP, processes emails in "Automate" folder in batches,
     creates tasks, and moves emails to "New Requests" folder.
+
+    Processing is batched to avoid Cloudflare 524 timeouts (100s limit).
+    Each email requires task creation + confirmation email + IMAP move,
+    so ~10 emails per batch is safe.
 
     Args:
         dry_run: If True, don't create tasks or move emails (for testing)
+        max_emails: Maximum emails to process per call (default 10).
+            Set to 0 for unlimited (use with caution).
 
     Returns:
-        Dict with processing results
+        Dict with processing results including 'remaining' count
     """
     results = {
         'processed': 0,
         'errors': 0,
         'tasks_created': [],
         'error_messages': [],
+        'total_found': 0,
+        'remaining': 0,
     }
 
     imap = None
@@ -567,13 +575,26 @@ def process_email_intake(dry_run: bool = False):
 
         # Fetch emails from Automate folder
         emails = fetch_emails_from_folder(imap, 'INBOX/Automate')
+        results['total_found'] = len(emails)
 
         if not emails:
             logger.info("No emails to process")
             return results
 
-        # Process each email
-        for parsed_email in emails:
+        # Apply batch limit
+        if max_emails > 0 and len(emails) > max_emails:
+            logger.info(
+                f"Found {len(emails)} emails, processing batch of {max_emails} "
+                f"({len(emails) - max_emails} remaining)"
+            )
+            batch = emails[:max_emails]
+            results['remaining'] = len(emails) - max_emails
+        else:
+            batch = emails
+            results['remaining'] = 0
+
+        # Process batch
+        for parsed_email in batch:
             try:
                 logger.info(f"Processing: {parsed_email.subject}")
 

@@ -226,6 +226,36 @@ def connect_imap():
         raise EmailConnectionError(f"IMAP connection failed: {e}")
 
 
+def list_imap_folders(imap) -> list[str]:
+    """
+    List all available IMAP folders.
+
+    Args:
+        imap: IMAP connection
+
+    Returns:
+        List of folder names
+    """
+    folders = []
+    try:
+        status, data = imap.list()
+        if status == 'OK':
+            for item in data:
+                if isinstance(item, bytes):
+                    # Parse folder name from IMAP LIST response
+                    # Format: (\\flags) "delimiter" "folder_name"
+                    decoded = item.decode('utf-8', errors='replace')
+                    # Extract the last quoted string (folder name)
+                    parts = decoded.rsplit('"', 2)
+                    if len(parts) >= 2:
+                        folders.append(parts[-2])
+                    else:
+                        folders.append(decoded)
+    except Exception as e:
+        logger.warning(f"Failed to list IMAP folders: {e}")
+    return folders
+
+
 def fetch_emails_from_folder(imap, folder_name: str = 'INBOX/Automate') -> list[ParsedEmail]:
     """
     Fetch all emails from a folder.
@@ -236,20 +266,31 @@ def fetch_emails_from_folder(imap, folder_name: str = 'INBOX/Automate') -> list[
 
     Returns:
         List of ParsedEmail objects
+
+    Raises:
+        EmailConnectionError: If folder cannot be selected or searched
     """
     emails = []
 
     # Select folder
     status, data = imap.select(f'"{folder_name}"')
     if status != 'OK':
-        logger.warning(f"Could not select folder '{folder_name}': {data}")
-        return emails
+        # List available folders to help diagnose
+        available = list_imap_folders(imap)
+        folder_list = ', '.join(available[:30]) if available else '(could not list)'
+        error_msg = (
+            f"Could not select folder '{folder_name}': {data}. "
+            f"Available folders: {folder_list}"
+        )
+        logger.error(error_msg)
+        raise EmailConnectionError(error_msg)
 
     # Search for all messages
     status, data = imap.uid('search', None, 'ALL')
     if status != 'OK':
-        logger.warning(f"Search failed in folder '{folder_name}': {data}")
-        return emails
+        error_msg = f"Search failed in folder '{folder_name}': {data}"
+        logger.error(error_msg)
+        raise EmailConnectionError(error_msg)
 
     uids = data[0].split()
     if not uids:

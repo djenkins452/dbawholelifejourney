@@ -3963,6 +3963,11 @@ class ProcessEmailsAPIView(APIRateLimitMixin, View):
 
         # Check for dry_run parameter
         dry_run = request.GET.get('dry_run', '').lower() == 'true'
+        diagnose = request.GET.get('diagnose', '').lower() == 'true'
+
+        # Diagnose mode: check settings and IMAP connectivity without processing
+        if diagnose:
+            return self._diagnose()
 
         try:
             results = process_email_intake(dry_run=dry_run)
@@ -3987,6 +3992,78 @@ class ProcessEmailsAPIView(APIRateLimitMixin, View):
                 'success': False,
                 'error': f'Unexpected error: {str(e)}',
             }, status=500)
+
+    def _diagnose(self):
+        """Run diagnostics on email intake configuration and IMAP connectivity."""
+        from .email_intake import (
+            get_email_settings, connect_imap, list_imap_folders,
+            EmailIntakeError, EmailConnectionError,
+        )
+
+        diag = {
+            'settings_ok': False,
+            'settings_detail': {},
+            'connection_ok': False,
+            'connection_detail': '',
+            'folders': [],
+            'automate_folder_exists': False,
+            'automate_email_count': 0,
+        }
+
+        # Check settings
+        try:
+            config = get_email_settings()
+            diag['settings_ok'] = True
+            diag['settings_detail'] = {
+                'host': config['host'],
+                'port': config['port'],
+                'user': config['user'],
+                'password_set': bool(config['password']),
+            }
+        except EmailIntakeError as e:
+            diag['settings_detail'] = {'error': str(e)}
+            return JsonResponse({'success': True, 'diagnose': diag})
+
+        # Check connection
+        imap = None
+        try:
+            imap = connect_imap()
+            diag['connection_ok'] = True
+            diag['connection_detail'] = 'Connected and authenticated'
+
+            # List folders
+            folders = list_imap_folders(imap)
+            diag['folders'] = folders
+
+            # Check for Automate folder specifically
+            automate_variants = ['INBOX/Automate', 'INBOX.Automate', 'Automate']
+            for variant in automate_variants:
+                try:
+                    status, data = imap.select(f'"{variant}"')
+                    if status == 'OK':
+                        diag['automate_folder_exists'] = True
+                        diag['automate_folder_name'] = variant
+                        # Count emails
+                        s, d = imap.uid('search', None, 'ALL')
+                        if s == 'OK' and d[0]:
+                            diag['automate_email_count'] = len(d[0].split())
+                        break
+                except Exception:
+                    continue
+
+        except EmailConnectionError as e:
+            diag['connection_detail'] = str(e)
+        except Exception as e:
+            diag['connection_detail'] = f'Unexpected: {str(e)}'
+        finally:
+            if imap:
+                try:
+                    imap.close()
+                    imap.logout()
+                except Exception:
+                    pass
+
+        return JsonResponse({'success': True, 'diagnose': diag})
 
 
 # =============================================================================

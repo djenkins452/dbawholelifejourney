@@ -9,6 +9,22 @@
 
 # WLJ Change History
 
+## 2026-02-15 — Email Intake: Fix Silent Failures & Add Diagnostics
+
+**Bug Fix:** Email intake API returned `processed: 0, errors: 0` when IMAP folder selection failed, silently hiding the real error. 46 emails in the Automate folder were not processed because the failure was swallowed.
+
+**Changes:**
+- `fetch_emails_from_folder()` now raises `EmailConnectionError` on folder selection/search failure instead of returning empty list
+- When folder selection fails, lists available IMAP folders in error message to help diagnose path issues
+- Added `list_imap_folders()` helper function
+- Added `?diagnose=true` parameter to process-emails API endpoint — checks settings, IMAP connection, folder availability, and email count without processing
+- All folder/connection errors now surface in API response `error_messages` array
+
+**Files modified:**
+- `apps/admin_console/email_intake.py` — raise on folder failure, add `list_imap_folders()`
+- `apps/admin_console/views.py` — add `_diagnose()` method to `ProcessEmailsAPIView`
+- `docs/wlj_claude_changelog.md` — this entry
+
 ## 2026-02-15 — Admin Guide: Full Feature with Fixture Content (Sections 1-20)
 
 **Feature:** Complete Admin Guide system for staff users, providing comprehensive documentation of WLJ's intelligence architecture, engines, and operational procedures.

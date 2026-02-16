@@ -24,6 +24,7 @@
         <div class="rest-timer">
             <span class="rest-label">Rest:</span>
             <span id="restTimerDisplay" class="rest-time">0:00</span>
+            <button type="button" class="rest-timer-close" onclick="dismissRestTimer()" aria-label="Close timer">&times;</button>
         </div>
     </div>
 
@@ -322,22 +323,23 @@
     min-width: 60px;
 }
 
-.rest-timer-container.warning {
-    border-color: var(--color-warning, #f59e0b);
-    animation: pulse-warning 1s ease-in-out infinite;
-}
-
-.rest-timer-container.warning .rest-time {
-    color: var(--color-warning, #f59e0b);
-}
-
-.rest-timer-container.stopped .rest-time {
+.rest-timer-close {
+    background: none;
+    border: none;
     color: var(--color-text-muted);
+    font-size: 1.5rem;
+    line-height: 1;
+    padding: 0 0 0 var(--space-2);
+    cursor: pointer;
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
-@keyframes pulse-warning {
-    0%, 100% { box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); }
-    50% { box-shadow: 0 4px 20px rgba(245, 158, 11, 0.4); }
+.rest-timer-close:hover {
+    color: var(--color-text);
 }
 
 .workout-status-banner {
@@ -740,7 +742,6 @@ const templateDefaults = {{ template_defaults_json|default:"{}" }};
 // Rest timer state
 let restTimerInterval = null;
 let restTimerSeconds = 0;
-const REST_TIMER_MAX = 70; // 1 minute 10 seconds
 
 // CSRF token for AJAX requests
 function getCSRFToken() {
@@ -772,16 +773,6 @@ function startRestTimer() {
     restTimerInterval = setInterval(() => {
         restTimerSeconds++;
         display.textContent = formatTime(restTimerSeconds);
-
-        // Warning at 60 seconds
-        if (restTimerSeconds >= 60) {
-            container.classList.add('warning');
-        }
-
-        // Stop at max time
-        if (restTimerSeconds >= REST_TIMER_MAX) {
-            stopRestTimer();
-        }
     }, 1000);
 }
 
@@ -793,6 +784,13 @@ function stopRestTimer() {
     }
     const container = document.getElementById('restTimerContainer');
     container.classList.add('stopped');
+}
+
+// Dismiss (hide) the rest timer via X button
+function dismissRestTimer() {
+    stopRestTimer();
+    const container = document.getElementById('restTimerContainer');
+    container.style.display = 'none';
 }
 
 // Start workout session (creates in DB)

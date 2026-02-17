@@ -11,3 +11,4 @@ Public API:
 """
 
 from apps.core.ai_guidance.guidance_engine import generate_guidance  # noqa: F401
+import apps.core.ai_guidance.guidance_rules_transformation  # noqa: F401  -- register transformation rules

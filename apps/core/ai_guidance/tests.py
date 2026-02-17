@@ -365,14 +365,21 @@ class GuidanceRegistryTest(TestCase):
 
     def test_known_rules_registered(self):
         rule_names = {r.rule_name for r in get_guidance_rules()}
+        # Core rules
         self.assertIn("goal_risk", rule_names)
         self.assertIn("habit_inactivity", rule_names)
         self.assertIn("health_trend", rule_names)
         self.assertIn("journal_inactivity", rule_names)
         self.assertIn("positive_reinforcement", rule_names)
+        # Transformation rules
+        self.assertIn("transformation_coaching", rule_names)
+        self.assertIn("protein_adjustment", rule_names)
+        self.assertIn("workout_frequency_adjustment", rule_names)
+        self.assertIn("fasting_optimization", rule_names)
 
-    def test_five_rules_total(self):
-        self.assertEqual(len(get_guidance_rules()), 5)
+    def test_all_rules_registered(self):
+        # 5 core rules + 4 transformation rules = 9
+        self.assertEqual(len(get_guidance_rules()), 9)
 
 
 # ---------------------------------------------------------------------------

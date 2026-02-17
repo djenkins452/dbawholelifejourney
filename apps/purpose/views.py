@@ -7,6 +7,7 @@ Visited seasonally, not daily.
 import json
 
 from django.contrib import messages
+from django.core.exceptions import ValidationError
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Max
 from django.http import JsonResponse
@@ -1470,6 +1471,18 @@ class GoalLogDurationView(PurposeAccessMixin, View):
         notes = data.get('notes', '')
         duration_dec = Decimal(str(duration))
 
+        # Validate date is within goal range
+        if log_date < goal.start_date:
+            return JsonResponse({
+                'success': False,
+                'error': f'Date cannot be before goal start date ({goal.start_date}).'
+            }, status=400)
+        if goal.end_date and log_date > goal.end_date:
+            return JsonResponse({
+                'success': False,
+                'error': f'Date cannot be after goal end date ({goal.end_date}).'
+            }, status=400)
+
         # Determine session number
         existing = HabitEntry.objects.filter(goal=goal, date=log_date).count()
         session_num = existing + 1
@@ -1479,15 +1492,21 @@ class GoalLogDurationView(PurposeAccessMixin, View):
         if goal.target_value:
             completed = duration_dec >= goal.target_value
 
-        entry = HabitEntry(
-            goal=goal,
-            date=log_date,
-            duration_minutes=duration_dec,
-            completed=completed,
-            notes=notes,
-            session_number=session_num,
-        )
-        entry.save()
+        try:
+            entry = HabitEntry(
+                goal=goal,
+                date=log_date,
+                duration_minutes=duration_dec,
+                completed=completed,
+                notes=notes,
+                session_number=session_num,
+            )
+            entry.save()
+        except ValidationError as e:
+            return JsonResponse({
+                'success': False,
+                'error': str(e.message_dict if hasattr(e, 'message_dict') else e.messages)
+            }, status=400)
 
         day_number = (log_date - goal.start_date).days + 1
 
@@ -1552,17 +1571,46 @@ class GoalLogCountView(PurposeAccessMixin, View):
         notes = data.get('notes', '')
         count_dec = Decimal(str(count_val))
 
+        # Validate date is within goal range
+        if log_date < goal.start_date:
+            return JsonResponse({
+                'success': False,
+                'error': f'Date cannot be before goal start date ({goal.start_date}).'
+            }, status=400)
+        if goal.end_date and log_date > goal.end_date:
+            return JsonResponse({
+                'success': False,
+                'error': f'Date cannot be after goal end date ({goal.end_date}).'
+            }, status=400)
+
         # Update existing entry for today or create new
-        entry, created = HabitEntry.objects.update_or_create(
-            goal=goal,
-            date=log_date,
-            session_number=1,
-            defaults={
-                'count_value': count_dec,
-                'completed': count_dec >= goal.target_value if goal.target_value else True,
-                'notes': notes,
-            }
-        )
+        try:
+            entry, created = HabitEntry.objects.update_or_create(
+                goal=goal,
+                date=log_date,
+                session_number=1,
+                defaults={
+                    'count_value': count_dec,
+                    'completed': count_dec >= goal.target_value if goal.target_value else True,
+                    'notes': notes,
+                }
+            )
+        except HabitEntry.MultipleObjectsReturned:
+            dupes = HabitEntry.objects.filter(
+                goal=goal, date=log_date, session_number=1
+            ).order_by('pk')
+            entry = dupes.first()
+            entry.count_value = count_dec
+            entry.completed = count_dec >= goal.target_value if goal.target_value else True
+            entry.notes = notes
+            entry.save()
+            dupes.exclude(pk=entry.pk).delete()
+            created = False
+        except ValidationError as e:
+            return JsonResponse({
+                'success': False,
+                'error': str(e.message_dict if hasattr(e, 'message_dict') else e.messages)
+            }, status=400)
 
         day_number = (log_date - goal.start_date).days + 1
 
@@ -1625,16 +1673,45 @@ class GoalLogTargetView(PurposeAccessMixin, View):
         notes = data.get('notes', '')
         target_dec = Decimal(str(target_val))
 
-        entry, created = HabitEntry.objects.update_or_create(
-            goal=goal,
-            date=log_date,
-            session_number=1,
-            defaults={
-                'target_value': target_dec,
-                'completed': True,  # Any entry counts as completed for target goals
-                'notes': notes,
-            }
-        )
+        # Validate date is within goal range
+        if log_date < goal.start_date:
+            return JsonResponse({
+                'success': False,
+                'error': f'Date cannot be before goal start date ({goal.start_date}).'
+            }, status=400)
+        if goal.end_date and log_date > goal.end_date:
+            return JsonResponse({
+                'success': False,
+                'error': f'Date cannot be after goal end date ({goal.end_date}).'
+            }, status=400)
+
+        try:
+            entry, created = HabitEntry.objects.update_or_create(
+                goal=goal,
+                date=log_date,
+                session_number=1,
+                defaults={
+                    'target_value': target_dec,
+                    'completed': True,  # Any entry counts as completed for target goals
+                    'notes': notes,
+                }
+            )
+        except HabitEntry.MultipleObjectsReturned:
+            dupes = HabitEntry.objects.filter(
+                goal=goal, date=log_date, session_number=1
+            ).order_by('pk')
+            entry = dupes.first()
+            entry.target_value = target_dec
+            entry.completed = True
+            entry.notes = notes
+            entry.save()
+            dupes.exclude(pk=entry.pk).delete()
+            created = False
+        except ValidationError as e:
+            return JsonResponse({
+                'success': False,
+                'error': str(e.message_dict if hasattr(e, 'message_dict') else e.messages)
+            }, status=400)
 
         day_number = (log_date - goal.start_date).days + 1
 

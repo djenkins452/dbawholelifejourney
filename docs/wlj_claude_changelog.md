@@ -9,6 +9,12 @@
 
 # WLJ Change History
 
+## 2026-02-17 — Email Task Batch 2: Goal Log Validation + 9 Duplicates Closed
+
+- **Fix:** GoalLogCountView, GoalLogDurationView, GoalLogTargetView — add date range validation (reject dates before start or after end) and wrap save/update_or_create in try/except for ValidationError and MultipleObjectsReturned
+  - Files: apps/purpose/views.py
+- **Closed (duplicates):** 8 summary_text errors (tasks 523,524,526,528,529,530,531,532 — already fixed), 1 MultipleObjectsReturned (task 527 — already fixed)
+
 ## 2026-02-17 — Email Task Batch: 2 Bug Fixes + 8 Closed
 
 - **Fix:** HabitEntry `MultipleObjectsReturned` on `/purpose/habits/<id>/log-dates/` — handle duplicate entries from pre-constraint migration data by keeping first entry and deleting extras

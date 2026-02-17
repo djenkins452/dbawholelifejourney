@@ -331,19 +331,22 @@ class TestStreakService(TestCase):
 
     def test_weekly_streak(self):
         """Weekly streak counts weeks meeting sessions_per_week."""
+        today = date.today()
+        # Use a previous full week so all 3 entries fit in a single ISO week
+        # without risking future dates or spanning a week boundary.
+        monday_last_week = today - timedelta(days=today.weekday() + 7)
         goal = create_habit_goal(
             self.user,
             measurement_type='duration',
             frequency_type='weekly',
             sessions_per_week=3,
-            start_date=date.today() - timedelta(days=21),
+            start_date=monday_last_week - timedelta(days=7),
         )
-        today = date.today()
-        # This week: 3 sessions
+        # Last week: 3 sessions (Mon, Tue, Wed)
         for i in range(3):
             HabitEntry.objects.create(
                 goal=goal,
-                date=today - timedelta(days=i),
+                date=monday_last_week + timedelta(days=i),
                 duration_minutes=Decimal('30'),
                 session_number=1,
             )

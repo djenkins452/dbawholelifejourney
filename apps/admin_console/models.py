@@ -1129,11 +1129,15 @@ class TestCycle(models.Model):
 
     STATUS_DRAFT = 'draft'
     STATUS_IN_PROGRESS = 'in_progress'
+    STATUS_PAUSED = 'paused'
     STATUS_COMPLETED = 'completed'
+    STATUS_CANCELLED = 'cancelled'
     STATUS_CHOICES = [
         (STATUS_DRAFT, 'Draft'),
         (STATUS_IN_PROGRESS, 'In Progress'),
+        (STATUS_PAUSED, 'Paused'),
         (STATUS_COMPLETED, 'Completed'),
+        (STATUS_CANCELLED, 'Cancelled'),
     ]
 
     name = models.CharField(
@@ -1219,6 +1223,26 @@ class TestCycle(models.Model):
         self.status = self.STATUS_COMPLETED
         self.completed_at = timezone.now()
         self.save()
+
+    def pause(self):
+        """Pause this cycle. Can only pause an in-progress cycle."""
+        if self.status == self.STATUS_IN_PROGRESS:
+            self.status = self.STATUS_PAUSED
+            self.save()
+
+    def resume(self):
+        """Resume a paused cycle back to in-progress."""
+        if self.status == self.STATUS_PAUSED:
+            self.status = self.STATUS_IN_PROGRESS
+            self.save()
+
+    def cancel(self):
+        """Cancel this cycle. Can cancel from in-progress or paused."""
+        from django.utils import timezone
+        if self.status in (self.STATUS_IN_PROGRESS, self.STATUS_PAUSED):
+            self.status = self.STATUS_CANCELLED
+            self.completed_at = timezone.now()
+            self.save()
 
 
 class TestPhase(models.Model):

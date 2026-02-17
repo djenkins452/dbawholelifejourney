@@ -4344,6 +4344,54 @@ class TestCycleCompleteView(AdminRequiredMixin, View):
         return redirect('admin_console:test_cycle_detail', pk=pk)
 
 
+class TestCyclePauseView(AdminRequiredMixin, View):
+    """Pause an in-progress test cycle."""
+
+    def post(self, request, pk):
+        from .models import TestCycle
+
+        try:
+            cycle = TestCycle.objects.get(pk=pk)
+            cycle.pause()
+            messages.success(request, f"Test cycle '{cycle.name}' paused.")
+        except TestCycle.DoesNotExist:
+            messages.error(request, "Test cycle not found.")
+
+        return redirect('admin_console:test_cycle_detail', pk=pk)
+
+
+class TestCycleResumeView(AdminRequiredMixin, View):
+    """Resume a paused test cycle."""
+
+    def post(self, request, pk):
+        from .models import TestCycle
+
+        try:
+            cycle = TestCycle.objects.get(pk=pk)
+            cycle.resume()
+            messages.success(request, f"Test cycle '{cycle.name}' resumed.")
+        except TestCycle.DoesNotExist:
+            messages.error(request, "Test cycle not found.")
+
+        return redirect('admin_console:test_cycle_detail', pk=pk)
+
+
+class TestCycleCancelView(AdminRequiredMixin, View):
+    """Cancel an in-progress or paused test cycle."""
+
+    def post(self, request, pk):
+        from .models import TestCycle
+
+        try:
+            cycle = TestCycle.objects.get(pk=pk)
+            cycle.cancel()
+            messages.success(request, f"Test cycle '{cycle.name}' cancelled.")
+        except TestCycle.DoesNotExist:
+            messages.error(request, "Test cycle not found.")
+
+        return redirect('admin_console:test_cycle_detail', pk=pk)
+
+
 class TestPhaseCreateView(AdminRequiredMixin, CreateView):
     """Create a new test phase within a cycle."""
     template_name = "admin_console/test_plans/phase_form.html"

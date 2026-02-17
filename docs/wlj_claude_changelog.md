@@ -9,6 +9,11 @@
 
 # WLJ Change History
 
+## 2026-02-17 — Test Plan Pause & Cancel
+
+- **Feature:** Add Pause and Cancel buttons to test plan cycles. New statuses: paused, cancelled. Pause/Resume/Cancel views and URL routes. Confirmation dialog on cancel. Status badge styling for paused (amber) and cancelled (red) on both detail and list pages.
+  - Files: apps/admin_console/models.py, apps/admin_console/views.py, apps/admin_console/urls.py, templates/admin_console/test_plans/cycle_detail.html, templates/admin_console/test_plans/cycle_list.html, apps/admin_console/migrations/0028_add_paused_cancelled_to_testcycle.py
+
 ## 2026-02-17 — Body Transformation Protocol (Full Cognitive Pipeline)
 
 **Feature:** Complete body transformation intelligence system spanning all 4 post-execution engines (SAE, PIE, PRIE, PGE), 2 new domain models, transformation dashboard, and UAIO action handlers.

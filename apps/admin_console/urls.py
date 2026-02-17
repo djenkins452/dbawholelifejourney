@@ -170,6 +170,9 @@ urlpatterns = [
     path("test-plans/<int:pk>/delete/", views.TestCycleDeleteView.as_view(), name="test_cycle_delete"),
     path("test-plans/<int:pk>/start/", views.TestCycleStartView.as_view(), name="test_cycle_start"),
     path("test-plans/<int:pk>/complete/", views.TestCycleCompleteView.as_view(), name="test_cycle_complete"),
+    path("test-plans/<int:pk>/pause/", views.TestCyclePauseView.as_view(), name="test_cycle_pause"),
+    path("test-plans/<int:pk>/resume/", views.TestCycleResumeView.as_view(), name="test_cycle_resume"),
+    path("test-plans/<int:pk>/cancel/", views.TestCycleCancelView.as_view(), name="test_cycle_cancel"),
 
     # Test Phases
     path("test-plans/<int:cycle_pk>/phases/new/", views.TestPhaseCreateView.as_view(), name="test_phase_create"),

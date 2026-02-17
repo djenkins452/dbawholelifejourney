@@ -27,8 +27,33 @@
                 {% csrf_token %}
                 <button type="submit" class="btn btn-success">Mark Complete</button>
             </form>
+            <form method="post" action="{% url 'admin_console:test_cycle_pause' cycle.pk %}" class="inline-form">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-warning">Pause</button>
+            </form>
+            <form method="post" action="{% url 'admin_console:test_cycle_cancel' cycle.pk %}" class="inline-form"
+                  onsubmit="return confirm('Are you sure you want to cancel this test cycle? This cannot be undone.');">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-ghost text-error">Cancel Test</button>
+            </form>
+            {% elif cycle.status == 'paused' %}
+            <form method="post" action="{% url 'admin_console:test_cycle_resume' cycle.pk %}" class="inline-form">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-primary">Resume</button>
+            </form>
+            <form method="post" action="{% url 'admin_console:test_cycle_complete' cycle.pk %}" class="inline-form">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-success">Mark Complete</button>
+            </form>
+            <form method="post" action="{% url 'admin_console:test_cycle_cancel' cycle.pk %}" class="inline-form"
+                  onsubmit="return confirm('Are you sure you want to cancel this test cycle? This cannot be undone.');">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-ghost text-error">Cancel Test</button>
+            </form>
             {% endif %}
+            {% if cycle.status != 'cancelled' and cycle.status != 'completed' %}
             <a href="{% url 'admin_console:test_phase_create' cycle.pk %}" class="btn btn-secondary">Add Phase</a>
+            {% endif %}
             <a href="{% url 'admin_console:test_cycle_delete' cycle.pk %}" class="btn btn-ghost text-error">Delete</a>
         </div>
     </div>
@@ -239,7 +264,9 @@
 
 .status-draft { background: #f3f4f6; color: #6b7280; }
 .status-in_progress { background: #dbeafe; color: #1e40af; }
+.status-paused { background: #fef3c7; color: #92400e; }
 .status-completed { background: #dcfce7; color: #166534; }
+.status-cancelled { background: #fee2e2; color: #991b1b; }
 
 .progress-text {
     font-weight: 600;
@@ -553,6 +580,8 @@
 .text-error { color: var(--color-error); }
 .btn-success { background: #22c55e; color: white; }
 .btn-success:hover { background: #16a34a; }
+.btn-warning { background: #f59e0b; color: white; }
+.btn-warning:hover { background: #d97706; }
 .btn-xs { padding: var(--space-1) var(--space-2); font-size: var(--font-size-xs); }
 
 /* Save indicator toast */

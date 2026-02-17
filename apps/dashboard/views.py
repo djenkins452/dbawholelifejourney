@@ -159,7 +159,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
 
             # Dashboard tile configuration
             config_service = DashboardConfigService(user)
-            context["dashboard_tiles"] = config_service.get_visible_tiles()
+            context["dashboard_tiles"] = config_service.get_config().get('tiles', [])
             context["dashboard_setup_complete"] = prefs.dashboard_setup_complete
             context["show_dashboard_setup_banner"] = not prefs.dashboard_setup_complete
 
@@ -1860,7 +1860,7 @@ class TransformationDashboardView(LoginRequiredMixin, TemplateView):
         from apps.health.models import TransformationProtocol
 
         context["protocol"] = (
-            TransformationProtocol.objects.filter(user=user, is_active=True, status="active")
+            TransformationProtocol.objects.filter(user=user, is_active=True)
             .order_by("-start_date")
             .first()
         )

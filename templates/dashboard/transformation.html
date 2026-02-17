@@ -254,36 +254,51 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4" nonce="{{ csp_nonce }}"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js" nonce="{{ csp_nonce }}"></script>
 <script nonce="{{ csp_nonce }}">
 document.addEventListener('DOMContentLoaded', function() {
     fetch('{% url "dashboard:transformation_chart_data" %}?days=90')
         .then(r => r.json())
         .then(data => {
-            const chartOpts = {
+            const lineOpts = {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: { legend: { display: false } },
                 scales: {
-                    x: { type: 'time', time: { unit: 'week' }, grid: { display: false } },
+                    x: { grid: { display: false }, ticks: { maxTicksLimit: 10, maxRotation: 45 } },
                     y: { beginAtZero: false }
                 }
             };
+            const barOpts = {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { display: false }, ticks: { maxTicksLimit: 10, maxRotation: 45 } },
+                    y: { beginAtZero: true }
+                }
+            };
+
+            function shortDate(isoDate) {
+                const d = new Date(isoDate);
+                return (d.getMonth()+1) + '/' + d.getDate();
+            }
 
             // Weight chart
             if (data.weight && data.weight.length > 0) {
                 new Chart(document.getElementById('weightChart'), {
                     type: 'line',
                     data: {
+                        labels: data.weight.map(d => shortDate(d.date)),
                         datasets: [{
                             label: 'Weight',
-                            data: data.weight.map(d => ({x: d.date, y: d.value})),
+                            data: data.weight.map(d => d.value),
                             borderColor: '#6366f1',
                             tension: 0.3,
                             pointRadius: 2,
                         }]
                     },
-                    options: chartOpts
+                    options: lineOpts
                 });
             }
 
@@ -292,15 +307,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 new Chart(document.getElementById('bodyFatChart'), {
                     type: 'line',
                     data: {
+                        labels: data.body_fat.map(d => shortDate(d.date)),
                         datasets: [{
                             label: 'Body Fat %',
-                            data: data.body_fat.map(d => ({x: d.date, y: d.value})),
+                            data: data.body_fat.map(d => d.value),
                             borderColor: '#f59e0b',
                             tension: 0.3,
                             pointRadius: 2,
                         }]
                     },
-                    options: chartOpts
+                    options: lineOpts
                 });
             }
 
@@ -309,7 +325,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 new Chart(document.getElementById('calorieChart'), {
                     type: 'bar',
                     data: {
-                        labels: data.nutrition.map(d => d.date),
+                        labels: data.nutrition.map(d => shortDate(d.date)),
                         datasets: [{
                             label: 'Calories',
                             data: data.nutrition.map(d => d.calories),
@@ -318,7 +334,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             borderWidth: 1,
                         }]
                     },
-                    options: {...chartOpts, scales: {...chartOpts.scales, y: {beginAtZero: true}}}
+                    options: barOpts
                 });
             }
 
@@ -327,7 +343,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 new Chart(document.getElementById('proteinChart'), {
                     type: 'bar',
                     data: {
-                        labels: data.nutrition.map(d => d.date),
+                        labels: data.nutrition.map(d => shortDate(d.date)),
                         datasets: [{
                             label: 'Protein (g)',
                             data: data.nutrition.map(d => d.protein),
@@ -336,7 +352,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             borderWidth: 1,
                         }]
                     },
-                    options: {...chartOpts, scales: {...chartOpts.scales, y: {beginAtZero: true}}}
+                    options: barOpts
                 });
             }
 
@@ -345,7 +361,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 new Chart(document.getElementById('workoutChart'), {
                     type: 'bar',
                     data: {
-                        labels: data.workouts.map(d => d.date),
+                        labels: data.workouts.map(d => shortDate(d.date)),
                         datasets: [{
                             label: 'Workouts/Week',
                             data: data.workouts.map(d => d.count),
@@ -354,7 +370,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             borderWidth: 1,
                         }]
                     },
-                    options: {...chartOpts, scales: {...chartOpts.scales, y: {beginAtZero: true, ticks: {stepSize: 1}}}}
+                    options: {...barOpts, scales: {...barOpts.scales, y: {beginAtZero: true, ticks: {stepSize: 1}}}}
                 });
             }
 
@@ -363,17 +379,26 @@ document.addEventListener('DOMContentLoaded', function() {
                 new Chart(document.getElementById('glucoseChart'), {
                     type: 'line',
                     data: {
+                        labels: data.glucose.map(d => shortDate(d.date)),
                         datasets: [{
                             label: 'Glucose (mg/dL)',
-                            data: data.glucose.map(d => ({x: d.date, y: d.value})),
+                            data: data.glucose.map(d => d.value),
                             borderColor: '#ec4899',
                             tension: 0.3,
                             pointRadius: 1,
                         }]
                     },
-                    options: chartOpts
+                    options: lineOpts
                 });
             }
+
+            // Show "No data" message on empty charts
+            document.querySelectorAll('.chart-container').forEach(container => {
+                const canvas = container.querySelector('canvas');
+                if (canvas && !canvas.__chartjs) {
+                    container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--color-text-secondary,#9ca3af);font-size:0.9rem;">No data yet</div>';
+                }
+            });
         })
         .catch(err => console.error('Failed to load transformation chart data:', err));
 });

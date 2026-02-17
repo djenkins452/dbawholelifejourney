@@ -3,6 +3,12 @@ Transformation tile — shows transformation score and sub-scores on the main da
 Opt-in tile (default_visible: false). Links to full transformation dashboard.
 {% endcomment %}
 
+{% comment %}
+Transformation tile — shows transformation score and sub-scores on the main dashboard.
+Opt-in tile (default_visible: false). Links to full transformation dashboard.
+Uses user_state from SAE (already in context from DashboardView).
+{% endcomment %}
+
 {% if health_enabled %}
 <section class="tile tile-size-{{ tile.size|default:'large' }}" data-tile-id="transformation">
     <div class="tile-header">
@@ -10,8 +16,9 @@ Opt-in tile (default_visible: false). Links to full transformation dashboard.
         <a href="{% url 'dashboard:transformation' %}" class="tile-action-link">View Dashboard &rarr;</a>
     </div>
 
-    {% with score=transformation_state.transformation_score %}
-    {% if score is not None %}
+    {% with t_state=user_state.transformation %}
+    {% with score=t_state.transformation_score %}
+    {% if score is not None and score != 0 %}
     <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
         <div style="width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; font-weight: 700; color: white;
             background: {% if score >= 70 %}var(--color-success, #22c55e){% elif score >= 40 %}var(--color-warning, #f59e0b){% else %}var(--color-danger, #ef4444){% endif %};">
@@ -26,21 +33,23 @@ Opt-in tile (default_visible: false). Links to full transformation dashboard.
     </div>
 
     <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; font-size: 0.85rem;">
-        {% if transformation_state.nutrition_score %}
-        <div><strong>Nutrition:</strong> {{ transformation_state.nutrition_score }}%</div>
+        {% if t_state.nutrition_score %}
+        <div><strong>Nutrition:</strong> {{ t_state.nutrition_score }}%</div>
         {% endif %}
-        {% if transformation_state.workout_score %}
-        <div><strong>Workouts:</strong> {{ transformation_state.workout_score }}%</div>
+        {% if t_state.workout_score %}
+        <div><strong>Workouts:</strong> {{ t_state.workout_score }}%</div>
         {% endif %}
-        {% if transformation_state.momentum_score %}
-        <div><strong>Momentum:</strong> {{ transformation_state.momentum_score }}%</div>
+        {% if t_state.momentum_score %}
+        <div><strong>Momentum:</strong> {{ t_state.momentum_score }}%</div>
         {% endif %}
     </div>
     {% else %}
     <p style="color: var(--color-text-secondary); font-size: 0.9rem;">
         Start tracking your nutrition, workouts, and fasting to see your transformation score.
+        <a href="{% url 'dashboard:transformation' %}">View Dashboard &rarr;</a>
     </p>
     {% endif %}
+    {% endwith %}
     {% endwith %}
 </section>
 {% endif %}

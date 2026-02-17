@@ -9,6 +9,14 @@
 
 # WLJ Change History
 
+## 2026-02-17 — Email Task Batch: 2 Bug Fixes + 8 Closed
+
+- **Fix:** HabitEntry `MultipleObjectsReturned` on `/purpose/habits/<id>/log-dates/` — handle duplicate entries from pre-constraint migration data by keeping first entry and deleting extras
+  - Files: apps/purpose/views.py
+- **Fix:** `NameError: DashboardCacheService` on `/dashboard/api/weight-goal/clear/` — add missing import
+  - Files: apps/dashboard/views.py
+- **Closed (no action):** 5 false-positive AI approval emails (refresh, dates, foot x2, timezone), 1 empty capture email, 2 already-fixed errors (insights_panel.html, summary_text)
+
 ## 2026-02-17 — Bulk Bug Fixes: DNE, Faith Assessment, Digest, iOS Project
 
 - **Fix (DNE):** Fix `summary_text` AttributeError on DailyBriefing and WeeklyIntelligenceReport in delivery engine. Correct field name is `summary`.

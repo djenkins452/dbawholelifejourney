@@ -1719,6 +1719,7 @@ class ClearWeightGoalView(LoginRequiredMixin, View):
 
     def post(self, request, *args, **kwargs):
         from apps.health.models import HealthProfile
+        from apps.dashboard.cache import DashboardCacheService
         profile = HealthProfile.get_for_user(request.user)
         profile.weight_goal = None
         profile.weight_goal_target_date = None

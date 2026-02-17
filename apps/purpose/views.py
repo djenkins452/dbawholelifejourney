@@ -1146,12 +1146,25 @@ class HabitLogDatesView(PurposeAccessMixin, View):
         # Bulk create/update entries (session_number=1 for manual logging)
         logged = []
         for d in parsed_dates:
-            entry, created = HabitEntry.objects.update_or_create(
-                goal=goal,
-                date=d,
-                session_number=1,
-                defaults=defaults,
-            )
+            try:
+                entry, created = HabitEntry.objects.update_or_create(
+                    goal=goal,
+                    date=d,
+                    session_number=1,
+                    defaults=defaults,
+                )
+            except HabitEntry.MultipleObjectsReturned:
+                # Clean up duplicate entries from before unique constraint change
+                dupes = HabitEntry.objects.filter(
+                    goal=goal, date=d, session_number=1
+                ).order_by('pk')
+                entry = dupes.first()
+                for field, value in defaults.items():
+                    setattr(entry, field, value)
+                entry.save()
+                # Delete the extra duplicates
+                dupes.exclude(pk=entry.pk).delete()
+                created = False
             day_number = (d - goal.start_date).days + 1
             logged.append({
                 'date': d.isoformat(),

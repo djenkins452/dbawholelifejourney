@@ -4234,3 +4234,132 @@ class InsightResult(UserOwnedModel):
 
     def __str__(self):
         return f"[{self.insight_type}] {self.text[:60]}..."
+
+
+# =============================================================================
+# Transformation Protocol
+# =============================================================================
+
+PROTOCOL_TYPE_CHOICES = [
+    ("cut", "Cut"),
+    ("bulk", "Bulk"),
+    ("recomp", "Recomposition"),
+    ("maintenance", "Maintenance"),
+    ("custom", "Custom"),
+]
+
+
+class TransformationProtocol(UserOwnedModel):
+    """
+    A body transformation protocol tracking the user's transformation journey.
+
+    Links to LifeGoal for goal engine integration and provides
+    protocol-level metadata for the transformation dashboard and AI engines.
+    """
+
+    name = models.CharField(
+        max_length=200,
+        help_text="Protocol name (e.g., '12-Week Cut', 'Summer Bulk')",
+    )
+    protocol_type = models.CharField(
+        max_length=20,
+        choices=PROTOCOL_TYPE_CHOICES,
+        default="custom",
+        help_text="Type of transformation protocol",
+    )
+    start_date = models.DateField(
+        help_text="When the protocol starts",
+    )
+    target_end_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Target completion date",
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Whether this protocol is currently active",
+    )
+
+    # ── Goals ────────────────────────────────────────────────────
+    goal_weight = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Target weight (in user's preferred unit)",
+    )
+    goal_weight_unit = models.CharField(
+        max_length=5,
+        choices=[("lb", "Pounds"), ("kg", "Kilograms")],
+        default="lb",
+    )
+    goal_body_fat = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Target body fat percentage",
+    )
+
+    # ── Integration ──────────────────────────────────────────────
+    life_goal = models.ForeignKey(
+        "purpose.LifeGoal",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="transformation_protocols",
+        help_text="Linked life goal for goal engine tracking",
+    )
+
+    notes = models.TextField(blank=True, help_text="Protocol notes")
+
+    # ── Lifecycle ────────────────────────────────────────────────
+    completed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the protocol was completed",
+    )
+
+    class Meta:
+        ordering = ["-start_date"]
+        verbose_name = "transformation protocol"
+        verbose_name_plural = "transformation protocols"
+        indexes = [
+            models.Index(fields=["user", "is_active"]),
+            models.Index(fields=["user", "-start_date"]),
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({self.get_protocol_type_display()})"
+
+    @property
+    def is_complete(self):
+        return self.completed_at is not None
+
+    @property
+    def duration_days(self):
+        """Total planned duration in days."""
+        if self.target_end_date:
+            return (self.target_end_date - self.start_date).days
+        return None
+
+    @property
+    def days_remaining(self):
+        """Days remaining until target end date."""
+        if not self.target_end_date:
+            return None
+        from apps.core.time.system_clock import get_current_time
+        remaining = (self.target_end_date - get_current_time().date()).days
+        return max(0, remaining)
+
+    @property
+    def progress_percent(self):
+        """Progress as percentage of total duration."""
+        if not self.target_end_date:
+            return None
+        total = (self.target_end_date - self.start_date).days
+        if total <= 0:
+            return 100
+        from apps.core.time.system_clock import get_current_time
+        elapsed = (get_current_time().date() - self.start_date).days
+        return min(100, round(elapsed / total * 100))

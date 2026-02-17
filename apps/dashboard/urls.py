@@ -49,4 +49,8 @@ urlpatterns = [
     path("api/config/", views.DashboardConfigAPIView.as_view(), name="config_api"),
     path("api/config/reorder/", views.DashboardReorderAPIView.as_view(), name="config_reorder"),
     path("api/config/tile/<str:tile_id>/", views.DashboardTileConfigAPIView.as_view(), name="tile_config_api"),
+
+    # Transformation dashboard
+    path("transformation/", views.TransformationDashboardView.as_view(), name="transformation"),
+    path("api/transformation-data/", views.TransformationChartDataView.as_view(), name="transformation_chart_data"),
 ]

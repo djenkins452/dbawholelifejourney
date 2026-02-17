@@ -9,6 +9,96 @@
 
 # WLJ Change History
 
+## 2026-02-17 — Body Transformation Protocol (Full Cognitive Pipeline)
+
+**Feature:** Complete body transformation intelligence system spanning all 4 post-execution engines (SAE, PIE, PRIE, PGE), 2 new domain models, transformation dashboard, and UAIO action handlers.
+
+**SAE — State Awareness Engine (4 new builders):**
+- `build_nutrition_state(user)` — rolling 7d calorie/protein averages, macro compliance, food entry counts
+- `build_fasting_state(user)` — active fast detection, rolling 7d fasting hours, compliance score
+- `build_fitness_state(user)` — workout counts (7d/30d), volume, PR tracking, consistency score
+- `build_transformation_state(user)` — composite score from SAE sub-states only (no raw DB), weight trend scoring, momentum score
+
+**PIE — Proactive Insight Engine (7 new rules):**
+- `NutritionCalorieTrendRule` — calories ±20% from target (warning/positive)
+- `ProteinDeficitRule` — protein <80% of target (warning)
+- `CarbGlucoseCorrelationRule` — high carbs + elevated glucose (info)
+- `FastingConsistencyRule` — fasting consistency drop/gain (info/positive)
+- `WorkoutConsistencyRule` — workout frequency changes (warning/positive)
+- `StrengthPlateauRule` — no PRs in 30+ days with consistent training (info)
+- `TransformationMomentumRule` — composite momentum from SAE state (positive/warning)
+
+**PRIE — Predictive Intelligence Engine (3 new rules):**
+- `NutritionWeightProjectionRule` — weight projection accounting for calorie surplus/deficit
+- `StrengthProgressionPredictionRule` — training volume trajectory at 30/60d
+- `TransformationSuccessProbabilityRule` — protocol goal probability (0-1)
+
+**PGE — Proactive Guidance Engine (4 new rules):**
+- `TransformationCoachingRule` — overall transformation status/recommendations
+- `ProteinAdjustmentRule` — specific protein intake guidance from PIE insights
+- `WorkoutFrequencyAdjustmentRule` — workout frequency recommendations
+- `FastingOptimizationRule` — fasting schedule optimization
+
+**Models:**
+- `TransformationProtocol` — protocol tracking (cut/bulk/recomp/maintenance/custom) with goal weight, body fat targets, progress properties
+- `ShoppingList` + `ShoppingItem` — shopping list management with categories, purchase tracking, soft delete
+
+**Dashboard:**
+- `TransformationDashboardView` — weight/body fat/calorie/protein/fasting/workout/glucose trend charts
+- Transformation tile in dashboard config (opt-in, health_enabled dependency)
+- Chart data JSON API endpoint
+
+**UAIO:**
+- `handle_log_transformation_protocol` — create/manage transformation protocols
+- `handle_log_shopping_item` — add items to shopping lists
+- `handle_complete_shopping_item` — mark items as purchased
+- Intent routing in `get_intent_module()` for transformation intents
+
+**Tests (131 new):**
+- SAE builders: 22 tests (empty state, data reflected, compliance, SAE-only reads, edge cases)
+- PIE rules: 30 tests (applies, evaluate with SAE state dict, no-trigger cases)
+- PRIE rules: 15 tests (applies, predict, confidence bounds, horizons)
+- PGE rules: 13 tests (evaluate with state/insights/predictions, priority bounds)
+- Models: 20 tests (CRUD, properties, soft delete)
+- Dashboard: 6 tests (auth, context, template, chart API, tile config)
+- Handlers: 12 tests (success, failure, routing)
+- AI tests: 13 tests (handler execution, missing params)
+
+**Files created:**
+- `apps/core/ai_insights/rules_transformation.py`
+- `apps/core/ai_predictions/prediction_rules_transformation.py`
+- `apps/core/ai_guidance/guidance_rules_transformation.py`
+- `apps/core/ai_state/tests_transformation.py`
+- `apps/core/ai_insights/tests_transformation.py`
+- `apps/core/ai_predictions/tests_transformation.py`
+- `apps/core/ai_guidance/tests_transformation.py`
+- `apps/health/tests/test_transformation_protocol.py`
+- `apps/life/tests/test_shopping.py`
+- `apps/dashboard/tests/test_transformation_dashboard.py`
+- `apps/ai/tests/test_transformation_handlers.py`
+- `templates/dashboard/transformation.html`
+- `templates/dashboard/tiles/transformation.html`
+- `apps/health/migrations/0029_transformationprotocol.py`
+- `apps/life/migrations/0012_shoppinglist_shoppingitem.py`
+
+**Files modified:**
+- `apps/core/ai_state/state_builder.py` — 4 builders + MODULE_BUILDERS registration
+- `apps/core/ai_state/state_engine.py` — nutrition/fitness aliases
+- `apps/core/ai_orchestrator/execution_engine.py` — import transformation rules
+- `apps/core/ai_orchestrator/intent_engine.py` — TRANSFORMATION_INTENTS routing
+- `apps/core/ai_predictions/prediction_engine.py` — import prediction rules
+- `apps/health/models.py` — TransformationProtocol model
+- `apps/health/admin.py` — TransformationProtocol admin registration
+- `apps/life/models.py` — ShoppingList + ShoppingItem models
+- `apps/life/admin.py` — Shopping model admin registration
+- `apps/dashboard/views.py` — TransformationDashboardView + chart data API
+- `apps/dashboard/services/config_service.py` — transformation tile definition
+- `apps/dashboard/urls.py` — transformation URL routes
+- `apps/ai/action_handlers.py` — 3 new handler methods
+- `apps/ai/intent_service.py` — 3 new intent branches
+- `docs/INTELLIGENCE_ARCHITECTURE.md` — updated rule tables
+- `docs/DOMAIN_INTELLIGENCE_ARCHITECTURE.md` — 4 new domain sections
+
 ## 2026-02-16 — Landing Page: Dark Hero Design with Sign-In Form
 
 **Enhancement:** Replaced the old light-background landing page with the new dark hero design at the root URL (`/`).

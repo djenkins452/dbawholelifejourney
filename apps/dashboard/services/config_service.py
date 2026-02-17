@@ -301,6 +301,17 @@ TILE_DEFINITIONS = {
         'default_order': 0,  # Show first
         'new_user_only': True,  # Special flag - only show for new users
     },
+    'transformation': {
+        'id': 'transformation',
+        'name': 'Body Transformation',
+        'description': 'Track your body transformation progress with composite scores across nutrition, workouts, fasting, and recovery.',
+        'icon': 'fire',
+        'module_dependency': 'health_enabled',
+        'default_visible': False,  # Opt-in — user enables when starting a protocol
+        'default_size': 'large',
+        'mandatory': False,
+        'default_order': 15,
+    },
 }
 
 

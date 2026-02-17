@@ -62,6 +62,12 @@ FITNESS_INTENTS = {
     "log_cardio",
 }
 
+TRANSFORMATION_INTENTS = {
+    "log_transformation_protocol",
+    "log_shopping_item",
+    "complete_shopping_item",
+}
+
 # All intents that support a recorded_at timestamp override
 TIME_AWARE_INTENTS = (
     HEALTH_INTENTS
@@ -107,6 +113,13 @@ def get_intent_module(intent_type):
         return "life"
     if intent_type in FITNESS_INTENTS:
         return "health"
+    if intent_type in TRANSFORMATION_INTENTS:
+        if intent_type == "log_transformation_protocol":
+            return "health"
+        elif intent_type in ("log_shopping_item", "complete_shopping_item"):
+            return "life"
+        else:
+            return "health"
     return "unknown"
 
 

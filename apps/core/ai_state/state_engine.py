@@ -63,6 +63,9 @@ def rebuild_user_state(user):
     This reads all domain data and produces a complete snapshot.
     Use sparingly — prefer incremental updates via state_updater.
 
+    Modules are built and saved incrementally so that composite builders
+    (like transformation) can read already-built module state from the DB.
+
     Args:
         user: Django User instance.
 
@@ -71,7 +74,9 @@ def rebuild_user_state(user):
     """
     from apps.core.ai_state.state_builder import get_all_builders
 
+    state_obj, _ = UserState.objects.get_or_create(user=user)
     state = {}
+
     for module, builder in get_all_builders().items():
         try:
             state[module] = builder(user)
@@ -82,10 +87,10 @@ def rebuild_user_state(user):
             )
             state[module] = {}
 
-    # Persist
-    state_obj, _ = UserState.objects.get_or_create(user=user)
-    state_obj.state_data = state
-    state_obj.save()
+        # Save incrementally so composite builders (e.g. transformation)
+        # can read already-built modules from the database.
+        state_obj.state_data = state
+        state_obj.save()
 
     return state
 
@@ -142,5 +147,9 @@ def _canonical_module(module):
         "purpose": "goals",
         "medical": "health",
         "labs": "health",
+        "food": "nutrition",
+        "workout": "fitness",
+        "workouts": "fitness",
+        "training": "fitness",
     }
     return aliases.get(module, module)

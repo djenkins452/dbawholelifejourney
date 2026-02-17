@@ -1772,3 +1772,109 @@ class ProcessedEmail(models.Model):
 
     def __str__(self):
         return f"Email {self.gmail_message_id} for {self.user}"
+
+
+# =============================================================================
+# Shopping List & Items
+# =============================================================================
+
+SHOPPING_CATEGORY_CHOICES = [
+    ("produce", "Produce"),
+    ("protein", "Protein"),
+    ("dairy", "Dairy"),
+    ("grains", "Grains"),
+    ("frozen", "Frozen"),
+    ("pantry", "Pantry"),
+    ("beverages", "Beverages"),
+    ("supplements", "Supplements"),
+    ("household", "Household"),
+    ("other", "Other"),
+]
+
+
+class ShoppingList(UserOwnedModel):
+    """
+    A shopping list for organizing grocery and meal prep purchases.
+
+    Integrates with the transformation protocol for nutrition planning.
+    """
+
+    name = models.CharField(
+        max_length=200,
+        help_text="List name (e.g., 'Week 3 Meal Prep', 'Protein Sources')",
+    )
+    is_completed = models.BooleanField(
+        default=False,
+        help_text="Whether all items have been purchased",
+    )
+    completed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the list was completed",
+    )
+    notes = models.TextField(blank=True, help_text="Shopping list notes")
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "shopping list"
+        verbose_name_plural = "shopping lists"
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def item_count(self):
+        return self.items.count()
+
+    @property
+    def purchased_count(self):
+        return self.items.filter(is_purchased=True).count()
+
+    @property
+    def progress_percent(self):
+        total = self.item_count
+        if total == 0:
+            return 0
+        return round(self.purchased_count / total * 100)
+
+
+class ShoppingItem(UserOwnedModel):
+    """
+    An individual item on a shopping list.
+    """
+
+    shopping_list = models.ForeignKey(
+        ShoppingList,
+        on_delete=models.CASCADE,
+        related_name="items",
+    )
+    name = models.CharField(
+        max_length=200,
+        help_text="Item name",
+    )
+    quantity = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Quantity (e.g., '2 lbs', '1 dozen', '3')",
+    )
+    category = models.CharField(
+        max_length=20,
+        choices=SHOPPING_CATEGORY_CHOICES,
+        default="other",
+    )
+    is_purchased = models.BooleanField(
+        default=False,
+    )
+    purchased_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["is_purchased", "category", "name"]
+        verbose_name = "shopping item"
+        verbose_name_plural = "shopping items"
+
+    def __str__(self):
+        return f"{self.name} ({self.quantity})" if self.quantity else self.name

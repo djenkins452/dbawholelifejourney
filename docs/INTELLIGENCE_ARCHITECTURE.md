@@ -448,7 +448,7 @@ class MyRule(BaseInsightRule):
         }]
 ```
 
-### Registered Rules (13 rules, 7 domains)
+### Registered Rules (20 rules, 11 domains)
 
 | File | Rules |
 |------|-------|
@@ -459,6 +459,7 @@ class MyRule(BaseInsightRule):
 | `rules_habits.py` | HabitBrokenStreak, HabitConsistencyPositive |
 | `rules_scripture.py` | ScriptureReadingDropOff |
 | `rules_journal.py` | JournalStreakPositive, JournalDropOff |
+| `rules_transformation.py` | NutritionCalorieTrend, ProteinDeficit, CarbGlucoseCorrelation, FastingConsistency, WorkoutConsistency, StrengthPlateau, TransformationMomentum |
 
 ### Insight Model (app_label="core", db_table="core_ai_insight")
 
@@ -558,7 +559,7 @@ class MyPrediction(BasePredictionRule):
         }]
 ```
 
-### Registered Prediction Rules (6 rules, 4 modules)
+### Registered Prediction Rules (9 rules, 6 modules)
 
 | Rule | Module | Prediction |
 |------|--------|-----------|
@@ -568,6 +569,9 @@ class MyPrediction(BasePredictionRule):
 | `GoalCompletionDateRule` | goals | Completion date from milestone velocity |
 | `HabitContinuationRule` | habits | Continuation probability (0–1) |
 | `LabMarkerTrendRule` | labs | Marker trend direction + out-of-range warnings |
+| `NutritionWeightProjectionRule` | nutrition | Weight projection from calorie surplus/deficit at 30/60/90d |
+| `StrengthProgressionPredictionRule` | fitness | Training volume trajectory at 30/60d |
+| `TransformationSuccessProbabilityRule` | transformation | Protocol goal probability (0–1) by target date |
 
 ### Projection Math
 
@@ -864,7 +868,7 @@ update_user_state(user, "health", record_id=42)
 | `models.py` | UserState model (OneToOneField per user) |
 | `state_engine.py` | Primary read interface: `get_user_state()`, `rebuild_user_state()` |
 | `state_updater.py` | Incremental update: `update_user_state()` (called by UAIO) |
-| `state_builder.py` | Domain builders: `build_health_state()`, `build_goal_state()`, etc. |
+| `state_builder.py` | Domain builders: `build_health_state()`, `build_goal_state()`, `build_nutrition_state()`, `build_fasting_state()`, `build_fitness_state()`, `build_transformation_state()`, etc. |
 | `state_reader.py` | PRIE data access: `get_cached_data()` |
 | `state_registry.py` | Custom builder registration for new modules |
 | `state_utils.py` | Debugging: `get_state_age_seconds()`, `invalidate_state()` |
@@ -1022,7 +1026,7 @@ class MyRule(BaseGuidanceRule):
         }]
 ```
 
-### Registered Rules (5 rules, 4 modules)
+### Registered Rules (9 rules, 8 modules)
 
 | Rule | Module | Surfaces |
 |------|--------|----------|
@@ -1031,6 +1035,10 @@ class MyRule(BaseGuidanceRule):
 | `HealthTrendRule` | health | PIE health insights + PRIE health projections |
 | `JournalInactivityRule` | journal | PIE journal drop-off + SAE zero-entry detection |
 | `PositiveReinforcementRule` | (all) | PIE positive insights across all modules |
+| `TransformationCoachingRule` | transformation | Overall transformation status + PRIE predictions |
+| `ProteinAdjustmentRule` | nutrition | Specific protein intake recommendations from PIE insights |
+| `WorkoutFrequencyAdjustmentRule` | fitness | Workout frequency recommendations from PIE + SAE |
+| `FastingOptimizationRule` | fasting | Fasting schedule optimization from PIE insights |
 
 ### Ranking Algorithm
 

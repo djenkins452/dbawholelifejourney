@@ -843,3 +843,17 @@ class InsightResultAdmin(admin.ModelAdmin):
     def text_truncated(self, obj):
         return obj.text[:80] + "..." if len(obj.text) > 80 else obj.text
     text_truncated.short_description = "Insight"
+
+
+# ── Transformation Protocol ─────────────────────────────────────
+
+from apps.health.models import TransformationProtocol  # noqa: E402
+
+
+@admin.register(TransformationProtocol)
+class TransformationProtocolAdmin(admin.ModelAdmin):
+    list_display = ["user", "name", "protocol_type", "start_date", "target_end_date", "is_active"]
+    list_filter = ["protocol_type", "is_active"]
+    search_fields = ["user__email", "name"]
+    raw_id_fields = ["user", "life_goal"]
+    date_hierarchy = "start_date"

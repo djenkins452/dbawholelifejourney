@@ -1,0 +1,381 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Body Transformation - Whole Life Journey{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
+<style nonce="{{ csp_nonce }}">
+.transformation-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+.transformation-score {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+.score-circle {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: white;
+}
+.score-high { background: var(--color-success, #22c55e); }
+.score-medium { background: var(--color-warning, #f59e0b); }
+.score-low { background: var(--color-danger, #ef4444); }
+.score-none { background: var(--color-muted, #9ca3af); }
+
+.metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+.metric-card {
+    background: var(--color-surface, #fff);
+    border: 1px solid var(--color-border, #e5e7eb);
+    border-radius: 12px;
+    padding: 1rem;
+}
+.metric-card h4 {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    color: var(--color-text-secondary, #6b7280);
+    margin: 0 0 0.25rem 0;
+}
+.metric-card .value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--color-text, #111827);
+}
+.metric-card .unit {
+    font-size: 0.875rem;
+    color: var(--color-text-secondary, #6b7280);
+}
+
+.charts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+.chart-card {
+    background: var(--color-surface, #fff);
+    border: 1px solid var(--color-border, #e5e7eb);
+    border-radius: 12px;
+    padding: 1.25rem;
+}
+.chart-card h3 {
+    font-size: 1rem;
+    margin: 0 0 1rem 0;
+}
+.chart-container {
+    position: relative;
+    height: 250px;
+}
+
+.guidance-section {
+    margin-bottom: 2rem;
+}
+.guidance-item {
+    background: var(--color-surface, #fff);
+    border: 1px solid var(--color-border, #e5e7eb);
+    border-radius: 12px;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+}
+.guidance-item h4 {
+    margin: 0 0 0.5rem 0;
+    font-size: 0.95rem;
+}
+.guidance-item p {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--color-text-secondary, #6b7280);
+}
+
+.protocol-card {
+    background: var(--color-surface, #fff);
+    border: 2px solid var(--color-primary, #6366f1);
+    border-radius: 12px;
+    padding: 1.25rem;
+    margin-bottom: 1.5rem;
+}
+
+@media (max-width: 480px) {
+    .charts-grid {
+        grid-template-columns: 1fr;
+    }
+    .metrics-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .chart-container {
+        height: 200px;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="transformation-header">
+        <div>
+            <h1>Body Transformation</h1>
+            <p style="color: var(--color-text-secondary); margin: 0;">Track your progress across all domains</p>
+        </div>
+        <div class="transformation-score">
+            {% with score=transformation.transformation_score %}
+            <div class="score-circle {% if score >= 70 %}score-high{% elif score >= 40 %}score-medium{% elif score %}score-low{% else %}score-none{% endif %}">
+                {{ score|default:"--" }}
+            </div>
+            <div>
+                <div style="font-weight: 600;">Transformation Score</div>
+                <div style="font-size: 0.875rem; color: var(--color-text-secondary);">
+                    {% if score >= 70 %}On Track{% elif score >= 40 %}Needs Attention{% elif score %}At Risk{% else %}Not enough data{% endif %}
+                </div>
+            </div>
+            {% endwith %}
+        </div>
+    </div>
+
+    <!-- Active Protocol -->
+    {% if protocol %}
+    <div class="protocol-card">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+            <div>
+                <h3 style="margin: 0;">{{ protocol.name }}</h3>
+                <p style="margin: 0.25rem 0 0; font-size: 0.875rem; color: var(--color-text-secondary);">
+                    {{ protocol.get_protocol_type_display }} &middot; Started {{ protocol.start_date }}
+                    {% if protocol.target_end_date %} &middot; {{ protocol.days_remaining }} days remaining{% endif %}
+                </p>
+            </div>
+            {% if protocol.progress_percent is not None %}
+            <div style="text-align: right;">
+                <div style="font-size: 1.25rem; font-weight: 700;">{{ protocol.progress_percent }}%</div>
+                <div style="font-size: 0.75rem; color: var(--color-text-secondary);">Progress</div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Sub-Score Metrics -->
+    <div class="metrics-grid">
+        <div class="metric-card">
+            <h4>Weight Trend</h4>
+            <div class="value">{{ transformation.weight_trend_score|default:"--" }}<span class="unit">/100</span></div>
+        </div>
+        <div class="metric-card">
+            <h4>Nutrition</h4>
+            <div class="value">{{ transformation.nutrition_score|default:"--" }}<span class="unit">/100</span></div>
+        </div>
+        <div class="metric-card">
+            <h4>Workouts</h4>
+            <div class="value">{{ transformation.workout_score|default:"--" }}<span class="unit">/100</span></div>
+        </div>
+        <div class="metric-card">
+            <h4>Fasting</h4>
+            <div class="value">{{ transformation.fasting_score|default:"--" }}<span class="unit">/100</span></div>
+        </div>
+        <div class="metric-card">
+            <h4>Recovery</h4>
+            <div class="value">{{ transformation.recovery_score|default:"--" }}<span class="unit">/100</span></div>
+        </div>
+        <div class="metric-card">
+            <h4>Momentum</h4>
+            <div class="value">{{ transformation.momentum_score|default:"--" }}<span class="unit">/100</span></div>
+        </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="charts-grid">
+        <div class="chart-card">
+            <h3>Weight Trend</h3>
+            <div class="chart-container"><canvas id="weightChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+            <h3>Body Fat %</h3>
+            <div class="chart-container"><canvas id="bodyFatChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+            <h3>Calorie Intake</h3>
+            <div class="chart-container"><canvas id="calorieChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+            <h3>Protein Intake</h3>
+            <div class="chart-container"><canvas id="proteinChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+            <h3>Workout Frequency</h3>
+            <div class="chart-container"><canvas id="workoutChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+            <h3>Glucose</h3>
+            <div class="chart-container"><canvas id="glucoseChart"></canvas></div>
+        </div>
+    </div>
+
+    <!-- Predictions -->
+    {% if predictions %}
+    <div class="guidance-section">
+        <h2>Predictions</h2>
+        {% for pred in predictions %}
+        <div class="guidance-item">
+            <h4>{{ pred.prediction_type }}</h4>
+            <p>{{ pred.explanation }}</p>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Guidance -->
+    {% if guidance_items %}
+    <div class="guidance-section">
+        <h2>Coaching</h2>
+        {% for item in guidance_items %}
+        <div class="guidance-item">
+            <h4>{{ item.title }}</h4>
+            <p>{{ item.message }}</p>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4" nonce="{{ csp_nonce }}"></script>
+<script nonce="{{ csp_nonce }}">
+document.addEventListener('DOMContentLoaded', function() {
+    fetch('{% url "dashboard:transformation_chart_data" %}?days=90')
+        .then(r => r.json())
+        .then(data => {
+            const chartOpts = {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { type: 'time', time: { unit: 'week' }, grid: { display: false } },
+                    y: { beginAtZero: false }
+                }
+            };
+
+            // Weight chart
+            if (data.weight && data.weight.length > 0) {
+                new Chart(document.getElementById('weightChart'), {
+                    type: 'line',
+                    data: {
+                        datasets: [{
+                            label: 'Weight',
+                            data: data.weight.map(d => ({x: d.date, y: d.value})),
+                            borderColor: '#6366f1',
+                            tension: 0.3,
+                            pointRadius: 2,
+                        }]
+                    },
+                    options: chartOpts
+                });
+            }
+
+            // Body fat chart
+            if (data.body_fat && data.body_fat.length > 0) {
+                new Chart(document.getElementById('bodyFatChart'), {
+                    type: 'line',
+                    data: {
+                        datasets: [{
+                            label: 'Body Fat %',
+                            data: data.body_fat.map(d => ({x: d.date, y: d.value})),
+                            borderColor: '#f59e0b',
+                            tension: 0.3,
+                            pointRadius: 2,
+                        }]
+                    },
+                    options: chartOpts
+                });
+            }
+
+            // Calorie chart
+            if (data.nutrition && data.nutrition.length > 0) {
+                new Chart(document.getElementById('calorieChart'), {
+                    type: 'bar',
+                    data: {
+                        labels: data.nutrition.map(d => d.date),
+                        datasets: [{
+                            label: 'Calories',
+                            data: data.nutrition.map(d => d.calories),
+                            backgroundColor: '#22c55e80',
+                            borderColor: '#22c55e',
+                            borderWidth: 1,
+                        }]
+                    },
+                    options: {...chartOpts, scales: {...chartOpts.scales, y: {beginAtZero: true}}}
+                });
+            }
+
+            // Protein chart
+            if (data.nutrition && data.nutrition.length > 0) {
+                new Chart(document.getElementById('proteinChart'), {
+                    type: 'bar',
+                    data: {
+                        labels: data.nutrition.map(d => d.date),
+                        datasets: [{
+                            label: 'Protein (g)',
+                            data: data.nutrition.map(d => d.protein),
+                            backgroundColor: '#ef444480',
+                            borderColor: '#ef4444',
+                            borderWidth: 1,
+                        }]
+                    },
+                    options: {...chartOpts, scales: {...chartOpts.scales, y: {beginAtZero: true}}}
+                });
+            }
+
+            // Workout frequency chart
+            if (data.workouts && data.workouts.length > 0) {
+                new Chart(document.getElementById('workoutChart'), {
+                    type: 'bar',
+                    data: {
+                        labels: data.workouts.map(d => d.date),
+                        datasets: [{
+                            label: 'Workouts/Week',
+                            data: data.workouts.map(d => d.count),
+                            backgroundColor: '#8b5cf680',
+                            borderColor: '#8b5cf6',
+                            borderWidth: 1,
+                        }]
+                    },
+                    options: {...chartOpts, scales: {...chartOpts.scales, y: {beginAtZero: true, ticks: {stepSize: 1}}}}
+                });
+            }
+
+            // Glucose chart
+            if (data.glucose && data.glucose.length > 0) {
+                new Chart(document.getElementById('glucoseChart'), {
+                    type: 'line',
+                    data: {
+                        datasets: [{
+                            label: 'Glucose (mg/dL)',
+                            data: data.glucose.map(d => ({x: d.date, y: d.value})),
+                            borderColor: '#ec4899',
+                            tension: 0.3,
+                            pointRadius: 1,
+                        }]
+                    },
+                    options: chartOpts
+                });
+            }
+        })
+        .catch(err => console.error('Failed to load transformation chart data:', err));
+});
+</script>
+{% endblock %}

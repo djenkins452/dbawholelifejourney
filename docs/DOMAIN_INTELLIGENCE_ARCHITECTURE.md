@@ -301,6 +301,144 @@ No prediction rules currently registered for Scripture. Future candidates:
 
 ---
 
+## Domain 8: Nutrition
+
+**App:** `apps/health/`
+**Key Model:** `FoodEntry` — food_name, total_calories, total_protein_g, total_carbohydrates_g, total_fat_g, logged_date
+**Key Model:** `NutritionGoals` — daily_calorie_target, daily_protein_target_g, daily_carb_target_g, daily_fat_target_g
+
+### SAE State Builder
+
+`build_nutrition_state(user)` → rolling 7d calorie/protein averages, macro compliance scores, food entry counts, calorie/protein targets from NutritionGoals.
+
+### PIE Rules
+
+| Rule | Type | Trigger |
+|------|------|---------|
+| `NutritionCalorieTrendRule` | warning/positive | 7d avg calories ±20% from target |
+| `ProteinDeficitRule` | warning | Protein <80% of target for 3+ days |
+| `CarbGlucoseCorrelationRule` | info | High carbs + elevated glucose same day |
+
+### PRIE Predictions
+
+| Rule | Horizons | Data Source |
+|------|----------|-------------|
+| `NutritionWeightProjectionRule` | 30/60/90d | FoodEntry calories (90d) + WeightEntry (90d) |
+
+### PGE Rules
+
+| Rule | Sources | Guidance |
+|------|---------|----------|
+| `ProteinAdjustmentRule` | PIE ProteinDeficit + SAE nutrition_state | Specific protein intake recommendations |
+
+### UAIO Integration
+
+No direct UAIO intents — nutrition data logged via existing food entry handlers.
+
+---
+
+## Domain 9: Fasting
+
+**App:** `apps/health/`
+**Key Model:** `FastingWindow` — started_at, ended_at, fasting_type, target_hours
+
+### SAE State Builder
+
+`build_fasting_state(user)` → active fast detection, rolling 7d fasting hours, avg fast duration, compliance score, fast count.
+
+### PIE Rules
+
+| Rule | Type | Trigger |
+|------|------|---------|
+| `FastingConsistencyRule` | info/positive | Fasting consistency drop (7d vs 30d) or high compliance |
+
+### PRIE Predictions
+
+No prediction rules currently registered for fasting.
+
+### PGE Rules
+
+| Rule | Sources | Guidance |
+|------|---------|----------|
+| `FastingOptimizationRule` | PIE FastingConsistency + SAE fasting_state | Fasting schedule optimization |
+
+### UAIO Integration
+
+No direct UAIO intents — fasting data logged via existing fast start/end handlers.
+
+---
+
+## Domain 10: Fitness
+
+**App:** `apps/health/`
+**Key Models:** `WorkoutSession` — name, date, duration_minutes; `ExerciseSet` — weight, reps, set_number; `PersonalRecord` — achieved_date
+
+### SAE State Builder
+
+`build_fitness_state(user)` → workout counts (7d/30d), total volume, avg duration, PR count, consistency score, strength trend.
+
+### PIE Rules
+
+| Rule | Type | Trigger |
+|------|------|---------|
+| `WorkoutConsistencyRule` | warning/positive | Workout frequency drop/increase (7d vs 30d) |
+| `StrengthPlateauRule` | info | No new PRs in 30+ days with consistent training |
+
+### PRIE Predictions
+
+| Rule | Horizons | Data Source |
+|------|----------|-------------|
+| `StrengthProgressionPredictionRule` | 30/60d | ExerciseSet volume (90d) |
+
+### PGE Rules
+
+| Rule | Sources | Guidance |
+|------|---------|----------|
+| `WorkoutFrequencyAdjustmentRule` | PIE WorkoutConsistency + SAE fitness_state | Workout frequency recommendations |
+
+### UAIO Integration
+
+No direct UAIO intents — workout data logged via existing fitness handlers.
+
+---
+
+## Domain 11: Transformation (Composite)
+
+**App:** `apps/health/` (protocol model), `apps/core/ai_state/` (composite builder)
+**Key Model:** `TransformationProtocol` — name, protocol_type (cut/bulk/recomp/maintenance/custom), start_date, target_end_date, goal_weight, goal_body_fat, is_active
+
+### SAE State Builder
+
+`build_transformation_state(user)` → reads from **SAE sub-states only** (never raw DB): transformation_score (0-100), weight_trend_score, nutrition_score, fasting_score, workout_score, recovery_score, momentum_score. Uses `UserState.objects.get()` to avoid recursion.
+
+### PIE Rules
+
+| Rule | Type | Trigger |
+|------|------|---------|
+| `TransformationMomentumRule` | positive/warning | Composite momentum from transformation_state |
+
+### PRIE Predictions
+
+| Rule | Horizons | Data Source |
+|------|----------|-------------|
+| `TransformationSuccessProbabilityRule` | target_date | SAE transformation_state → probability (0-1) |
+
+### PGE Rules
+
+| Rule | Sources | Guidance |
+|------|---------|----------|
+| `TransformationCoachingRule` | SAE transformation_state + PRIE predictions | Overall transformation status/recommendations |
+
+### UAIO Integration
+
+| Intent | Action Handler | Parameters |
+|--------|---------------|------------|
+| `log_transformation_protocol` | `handle_log_transformation_protocol` | name, protocol_type, start_date, target_end_date, goal_weight, goal_body_fat |
+| `log_shopping_item` | `handle_log_shopping_item` | name, quantity, category, list_name |
+| `complete_shopping_item` | `handle_complete_shopping_item` | name, list_name |
+
+---
+
 ## Domain Integration Summary
 
 | Domain | SAE State | PIE Rules | PRIE Rules | PGE Rules | UAIO Intents | SLCME Context |
@@ -312,8 +450,12 @@ No prediction rules currently registered for Scripture. Future candidates:
 | Habits | `habits` | 2 | 1 | `habit_inactivity` | `log_habit` | `habit_page` |
 | Journal | `journal` | 2 | 0 | `journal_inactivity` | — | `journal_page` |
 | Scripture | `faith` | 1 | 0 | — | `save_verse` | `scripture_page` |
+| Nutrition | `nutrition` | 3 | 1 (3 horizons) | `protein_adjustment` | — | — |
+| Fasting | `fasting` | 1 | 0 | `fasting_optimization` | — | — |
+| Fitness | `fitness` | 2 | 1 (2 horizons) | `workout_frequency` | — | — |
+| Transformation | `transformation` | 1 | 1 | `transformation_coaching` | `log_transformation_protocol` | — |
 | Cross-module | — | — | — | `positive_reinforcement` | — | — |
-| **Total** | **5 modules** | **13** | **6** | **5** | — | — |
+| **Total** | **9 modules** | **20** | **9** | **9** | — | — |
 
 ---
 
@@ -335,4 +477,4 @@ When adding a new domain module to WLJ:
 
 ---
 
-*Last updated: 2026-02-15 — Three-phase execution model established*
+*Last updated: 2026-02-17 — Added Nutrition, Fasting, Fitness, Transformation domains (4 SAE builders, 7 PIE rules, 3 PRIE rules, 4 PGE rules)*

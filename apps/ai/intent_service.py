@@ -514,6 +514,16 @@ Examples of messages that should NOT trigger functions:
             elif intent_type == 'log_cardio':
                 return handler.handle_log_cardio(**parameters)
 
+            # Transformation handlers
+            elif intent_type == 'log_transformation_protocol':
+                return handler.handle_log_transformation_protocol(**parameters)
+
+            elif intent_type == 'log_shopping_item':
+                return handler.handle_log_shopping_item(**parameters)
+
+            elif intent_type == 'complete_shopping_item':
+                return handler.handle_complete_shopping_item(**parameters)
+
             else:
                 return ActionResult(
                     success=False,

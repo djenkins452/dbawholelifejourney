@@ -2043,3 +2043,145 @@ class ActionHandler:
                 message="Sorry, I couldn't log that cardio session.",
                 error=str(e)
             )
+
+    # ── Transformation Protocol Handlers ─────────────────────────
+
+    def handle_log_transformation_protocol(self, **kwargs):
+        """Create a new transformation protocol."""
+        from apps.health.models import TransformationProtocol
+
+        try:
+            name = kwargs.get('name', 'My Transformation')
+            protocol_type = kwargs.get('protocol_type', 'custom')
+            start_date = kwargs.get('start_date', self._get_user_today())
+            target_end_date = kwargs.get('target_end_date')
+            goal_weight = kwargs.get('goal_weight')
+            goal_body_fat = kwargs.get('goal_body_fat')
+            notes = kwargs.get('notes', '')
+
+            protocol = TransformationProtocol.objects.create(
+                user=self.user,
+                name=name,
+                protocol_type=protocol_type,
+                start_date=start_date,
+                target_end_date=target_end_date,
+                goal_weight=goal_weight,
+                goal_body_fat=goal_body_fat,
+                notes=notes,
+                is_active=True,
+            )
+
+            return ActionResult(
+                success=True,
+                message=f"Started transformation protocol: {name}",
+                created_object={'id': protocol.id, 'name': name},
+                action_type='log_transformation_protocol'
+            )
+
+        except Exception as e:
+            logger.error(f"Error creating protocol: {e}", exc_info=True)
+            return ActionResult(
+                success=False,
+                message="Sorry, I couldn't create that protocol.",
+                error=str(e)
+            )
+
+    def handle_log_shopping_item(self, **kwargs):
+        """Add an item to a shopping list (creates list if needed)."""
+        from apps.life.models import ShoppingItem, ShoppingList
+
+        try:
+            item_name = kwargs.get('name', kwargs.get('item', ''))
+            if not item_name:
+                return ActionResult(
+                    success=False,
+                    message="Please specify what to add to the shopping list.",
+                    error="No item name provided"
+                )
+
+            list_name = kwargs.get('list_name', 'Shopping List')
+            quantity = kwargs.get('quantity', '')
+            category = kwargs.get('category', 'other')
+
+            # Get or create shopping list
+            shopping_list, _ = ShoppingList.objects.get_or_create(
+                user=self.user,
+                name=list_name,
+                is_completed=False,
+                defaults={'status': 'active'},
+            )
+
+            item = ShoppingItem.objects.create(
+                user=self.user,
+                shopping_list=shopping_list,
+                name=item_name,
+                quantity=quantity,
+                category=category,
+            )
+
+            return ActionResult(
+                success=True,
+                message=f"Added '{item_name}' to {list_name}",
+                created_object={'id': item.id, 'name': item_name, 'list_id': shopping_list.id},
+                action_type='log_shopping_item'
+            )
+
+        except Exception as e:
+            logger.error(f"Error adding shopping item: {e}", exc_info=True)
+            return ActionResult(
+                success=False,
+                message="Sorry, I couldn't add that to your shopping list.",
+                error=str(e)
+            )
+
+    def handle_complete_shopping_item(self, **kwargs):
+        """Mark a shopping item as purchased."""
+        from apps.life.models import ShoppingItem
+
+        try:
+            item_name = kwargs.get('name', kwargs.get('item', ''))
+            if not item_name:
+                return ActionResult(
+                    success=False,
+                    message="Please specify which item to mark as purchased.",
+                    error="No item name provided"
+                )
+
+            # Find the most recent unpurchased item matching the name
+            item = (
+                ShoppingItem.objects.filter(
+                    user=self.user,
+                    name__icontains=item_name,
+                    is_purchased=False,
+                    status="active",
+                )
+                .order_by("-created_at")
+                .first()
+            )
+
+            if not item:
+                return ActionResult(
+                    success=False,
+                    message=f"Couldn't find '{item_name}' on your shopping list.",
+                    error="Item not found"
+                )
+
+            from apps.core.time.system_clock import get_current_time
+            item.is_purchased = True
+            item.purchased_at = get_current_time()
+            item.save(update_fields=["is_purchased", "purchased_at"])
+
+            return ActionResult(
+                success=True,
+                message=f"Marked '{item.name}' as purchased",
+                created_object={'id': item.id, 'name': item.name},
+                action_type='complete_shopping_item'
+            )
+
+        except Exception as e:
+            logger.error(f"Error completing shopping item: {e}", exc_info=True)
+            return ActionResult(
+                success=False,
+                message="Sorry, I couldn't mark that item as purchased.",
+                error=str(e)
+            )

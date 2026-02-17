@@ -1,6 +1,38 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 48,
+        "fields": {
+            "title": "Body Transformation Protocol",
+            "description": "Track your body transformation journey with a complete intelligence pipeline. Set up transformation protocols (cut, bulk, recomp, maintenance), track nutrition compliance, fasting consistency, workout frequency, and strength progress. The AI monitors your transformation score across all domains and provides proactive coaching, predictions, and guidance. View your transformation dashboard with trend charts for weight, body fat, calories, protein, fasting, and workouts.",
+            "entry_type": "feature",
+            "version": "",
+            "release_date": "2026-02-17",
+            "is_published": true,
+            "is_major": true,
+            "learn_more_url": "",
+            "created_at": "2026-02-17T00:00:00Z",
+            "updated_at": "2026-02-17T00:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
+        "pk": 49,
+        "fields": {
+            "title": "Shopping Lists",
+            "description": "Create and manage shopping lists to support your nutrition and transformation goals. Add items with quantities and categories (produce, protein, dairy, grains, frozen, pantry, beverages, supplements), mark items as purchased, and track your shopping progress. Ask the AI to add items or complete them hands-free.",
+            "entry_type": "feature",
+            "version": "",
+            "release_date": "2026-02-17",
+            "is_published": true,
+            "is_major": false,
+            "learn_more_url": "",
+            "created_at": "2026-02-17T00:00:00Z",
+            "updated_at": "2026-02-17T00:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 33,
         "fields": {
             "title": "AI Insights Inbox",

@@ -1825,3 +1825,184 @@ class DashboardTileConfigAPIView(LoginRequiredMixin, View):
 
         except json.JSONDecodeError:
             return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+
+# =============================================================================
+# Transformation Dashboard
+# =============================================================================
+
+
+class TransformationDashboardView(LoginRequiredMixin, TemplateView):
+    """
+    Dedicated transformation dashboard showing composite transformation metrics.
+
+    This is a NEW view — it does NOT replace the existing dashboard.
+    """
+
+    template_name = "dashboard/transformation.html"
+    help_context_id = "DASHBOARD_TRANSFORMATION"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+
+        # Get all relevant SAE states
+        from apps.core.ai_state import get_user_state
+
+        state = get_user_state(user)
+        context["transformation"] = state.get("transformation", {})
+        context["health"] = state.get("health", {})
+        context["nutrition"] = state.get("nutrition", {})
+        context["fasting"] = state.get("fasting", {})
+        context["fitness"] = state.get("fitness", {})
+
+        # Active protocol
+        from apps.health.models import TransformationProtocol
+
+        context["protocol"] = (
+            TransformationProtocol.objects.filter(user=user, is_active=True, status="active")
+            .order_by("-start_date")
+            .first()
+        )
+
+        # Recent guidance
+        try:
+            from apps.core.ai_guidance.models import GuidanceItem
+
+            context["guidance_items"] = (
+                GuidanceItem.objects.filter(
+                    user=user,
+                    is_active=True,
+                    module="health",
+                    guidance_type__in=[
+                        "transformation_coaching",
+                        "protein_adjustment",
+                        "workout_frequency_adjustment",
+                        "fasting_optimization",
+                    ],
+                )
+                .exclude(dismissed_at__isnull=False)
+                .order_by("priority")[:5]
+            )
+        except Exception:
+            context["guidance_items"] = []
+
+        # Recent predictions
+        try:
+            from apps.core.ai_predictions.models import Prediction
+
+            context["predictions"] = (
+                Prediction.objects.filter(
+                    user=user,
+                    status="active",
+                    prediction_type__in=[
+                        "nutrition_weight_30d",
+                        "nutrition_weight_60d",
+                        "strength_volume_30d",
+                        "strength_volume_60d",
+                        "transformation_success_90d",
+                    ],
+                ).order_by("prediction_type")
+            )
+        except Exception:
+            context["predictions"] = []
+
+        return context
+
+
+class TransformationChartDataView(LoginRequiredMixin, View):
+    """API endpoint providing chart data for the transformation dashboard."""
+
+    def get(self, request):
+        user = request.user
+        from datetime import timedelta
+
+        from apps.core.time.system_clock import get_current_time
+
+        now = get_current_time()
+        days = int(request.GET.get("days", 90))
+        cutoff = now - timedelta(days=days)
+
+        data = {}
+
+        # Weight trend
+        from apps.health.models import WeightEntry
+
+        weight_entries = (
+            WeightEntry.objects.filter(user=user, recorded_at__gte=cutoff, status="active")
+            .order_by("recorded_at")
+            .values_list("recorded_at", "value")
+        )
+        data["weight"] = [
+            {"date": dt.isoformat(), "value": float(val)}
+            for dt, val in weight_entries
+        ]
+
+        # Body fat trend
+        from apps.health.models import BodyCompositionEntry
+
+        bf_entries = (
+            BodyCompositionEntry.objects.filter(
+                user=user,
+                metric_name="body_fat_pct",
+                measurement_date__gte=cutoff.date(),
+                status="active",
+            )
+            .order_by("measurement_date")
+            .values_list("measurement_date", "value")
+        )
+        data["body_fat"] = [
+            {"date": dt.isoformat(), "value": float(val)}
+            for dt, val in bf_entries
+        ]
+
+        # Calorie/protein trends
+        from apps.health.models import DailyNutritionSummary
+
+        nutrition_entries = (
+            DailyNutritionSummary.objects.filter(
+                user=user, summary_date__gte=cutoff.date()
+            )
+            .order_by("summary_date")
+            .values_list("summary_date", "total_calories", "total_protein_g")
+        )
+        data["nutrition"] = [
+            {"date": dt.isoformat(), "calories": float(cal or 0), "protein": float(prot or 0)}
+            for dt, cal, prot in nutrition_entries
+        ]
+
+        # Workout frequency (weekly counts)
+        from apps.health.models import WorkoutSession
+
+        sessions = (
+            WorkoutSession.objects.filter(
+                user=user, date__gte=cutoff.date(), status="active"
+            )
+            .order_by("date")
+            .values_list("date", flat=True)
+        )
+        weekly_counts = {}
+        for session_date in sessions:
+            week_start = session_date - timedelta(days=session_date.weekday())
+            weekly_counts[week_start] = weekly_counts.get(week_start, 0) + 1
+        data["workouts"] = [
+            {"date": dt.isoformat(), "count": count}
+            for dt, count in sorted(weekly_counts.items())
+        ]
+
+        # Glucose trend
+        from apps.health.models import GlucoseEntry
+
+        glucose_entries = (
+            GlucoseEntry.objects.filter(
+                user=user, recorded_at__gte=cutoff, status="active"
+            )
+            .order_by("recorded_at")
+            .values_list("recorded_at", "value")
+        )
+        data["glucose"] = [
+            {"date": dt.isoformat(), "value": float(val)}
+            for dt, val in glucose_entries
+        ]
+
+        return JsonResponse(data)

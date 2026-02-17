@@ -67,3 +67,39 @@ class SignificantEventAdmin(admin.ModelAdmin):
     list_filter = ['event_type', 'sms_reminder_enabled', 'created_at']
     search_fields = ['title', 'person_name', 'description']
     ordering = ['event_date']
+
+
+# ── Shopping ─────────────────────────────────────────────────────
+
+from apps.life.models import ShoppingItem, ShoppingList  # noqa: E402
+
+
+class ShoppingItemInline(admin.TabularInline):
+    model = ShoppingItem
+    extra = 0
+    fields = ['name', 'quantity', 'category', 'is_purchased']
+
+
+@admin.register(ShoppingList)
+class ShoppingListAdmin(admin.ModelAdmin):
+    list_display = ['name', 'user', 'item_count', 'purchased_count', 'is_completed', 'created_at']
+    list_filter = ['is_completed']
+    search_fields = ['name', 'user__email']
+    raw_id_fields = ['user']
+    inlines = [ShoppingItemInline]
+
+    def item_count(self, obj):
+        return obj.item_count
+    item_count.short_description = "Items"
+
+    def purchased_count(self, obj):
+        return obj.purchased_count
+    purchased_count.short_description = "Purchased"
+
+
+@admin.register(ShoppingItem)
+class ShoppingItemAdmin(admin.ModelAdmin):
+    list_display = ['name', 'quantity', 'category', 'is_purchased', 'shopping_list']
+    list_filter = ['category', 'is_purchased']
+    search_fields = ['name']
+    raw_id_fields = ['user', 'shopping_list']

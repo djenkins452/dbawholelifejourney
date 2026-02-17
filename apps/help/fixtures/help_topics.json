@@ -1,6 +1,22 @@
 [
     {
         "model": "help.helptopic",
+        "pk": 95,
+        "fields": {
+            "context_id": "DASHBOARD_TRANSFORMATION",
+            "help_id": "transformation-dashboard",
+            "title": "Body Transformation Dashboard",
+            "description": "Track your body transformation with AI-powered trend analysis and composite scoring.",
+            "content": "## Body Transformation Dashboard\n\nYour Transformation Dashboard brings together data from across your health journey into one comprehensive view.\n\n### Transformation Score\n\nYour transformation score (0-100) is a composite metric calculated from:\n- **Weight Trend** - Whether your weight is moving in the right direction for your protocol\n- **Nutrition Compliance** - How well you're hitting calorie and macro targets\n- **Fasting Consistency** - Regularity and duration of your fasting windows\n- **Workout Consistency** - Training frequency and volume trends\n- **Recovery** - Sleep duration and quality indicators\n\n### Momentum Score\n\nMomentum reflects how many health domains you're actively engaging with. The more consistently you log across nutrition, fasting, fitness, and health tracking, the higher your momentum.\n\n### Trend Charts\n\nThe dashboard includes trend charts for:\n- **Weight & Body Fat** - Track body composition changes over time\n- **Calories & Protein** - Monitor nutrition adherence\n- **Fasting Hours** - View fasting consistency\n- **Workout Volume** - See training progression\n\n### Transformation Protocols\n\nSet up a transformation protocol to define your goals:\n- **Cut** - Focused on fat loss\n- **Bulk** - Focused on muscle gain\n- **Recomp** - Body recomposition (lose fat, gain muscle)\n- **Maintenance** - Maintain current physique\n- **Custom** - Your own defined protocol\n\nEach protocol can include target weight, target body fat %, and a target end date. The AI predicts your probability of reaching these goals.\n\n### AI Intelligence\n\nThe transformation system uses the full cognitive pipeline:\n- **Insights** - Proactive detection of calorie trends, protein deficits, workout plateaus, and fasting consistency changes\n- **Predictions** - Weight projections based on calorie surplus/deficit, strength progression forecasts, and protocol success probability\n- **Guidance** - Personalized coaching recommendations based on your current state and predictions\n\n### Getting Started\n\n1. Enable the Transformation tile in Dashboard Settings\n2. Log food entries for nutrition tracking\n3. Log workouts for fitness tracking\n4. Optionally set up a transformation protocol via the AI assistant\n5. Check your dashboard regularly to monitor progress",
+            "app_name": "dashboard",
+            "order": 95,
+            "is_active": true,
+            "created_at": "2026-02-17T00:00:00Z",
+            "updated_at": "2026-02-17T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.helptopic",
         "pk": 1,
         "fields": {
             "context_id": "DASHBOARD_HOME",

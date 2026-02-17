@@ -1,6 +1,23 @@
 [
     {
         "model": "help.teachingdestination",
+        "pk": 118,
+        "fields": {
+            "destination_id": "transformation-dashboard",
+            "name": "Transformation Dashboard",
+            "path_description": "Dashboard - Transformation",
+            "explanation": "View your body transformation progress with trend charts for weight, body fat, calories, protein, fasting, and workouts. Track your transformation score and momentum.",
+            "url": "/dashboard/transformation/",
+            "keywords": "transformation, body transformation, cut, bulk, recomp, transformation score, transformation dashboard, weight loss, body fat, muscle gain",
+            "module": "health",
+            "sort_order": 118,
+            "is_active": true,
+            "created_at": "2026-02-17T00:00:00Z",
+            "updated_at": "2026-02-17T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
         "pk": 1,
         "fields": {
             "destination_id": "weight-tracking",

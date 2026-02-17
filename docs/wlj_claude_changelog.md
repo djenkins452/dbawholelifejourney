@@ -9,6 +9,11 @@
 
 # WLJ Change History
 
+## 2026-02-17 — Fix Task List Page Blinking on Load
+
+- **Fix:** Fix task list page blinking/flashing 3-4 times on load. Filter restoration logic was always triggering a full page redirect because default sort (priority/asc) was counted as a filter worth restoring, and "all selected" checkbox states were being added to the URL unnecessarily. Now only redirects when there are real narrowing filters.
+  - Files: templates/admin_console/admin_task_list.html
+
 ## 2026-02-17 — Test Plan Pause & Cancel
 
 - **Feature:** Add Pause and Cancel buttons to test plan cycles. New statuses: paused, cancelled. Pause/Resume/Cancel views and URL routes. Confirmation dialog on cancel. Status badge styling for paused (amber) and cancelled (red) on both detail and list pages.

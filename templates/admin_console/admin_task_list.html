@@ -414,36 +414,40 @@ document.addEventListener('DOMContentLoaded', function() {
             const state = JSON.parse(savedState);
             const url = new URL(window.location.href);
 
-            // Check if there's anything to restore
-            const hasFilters = state.search ||
-                               (state.phases && state.phases.length > 0 &&
-                                state.phases.length < {{ phases|length }}) ||
-                               (state.projects && state.projects.length > 0 &&
-                                state.projects.length < {{ projects|length }}) ||
-                               (state.statuses && state.statuses.length > 0 &&
-                                state.statuses.length < {{ status_choices|length }}) ||
-                               state.sort;
+            const totalPhases = {{ phases|length }};
+            const totalProjects = {{ projects|length }};
+            const totalStatuses = {{ status_choices|length }};
 
-            if (!hasFilters) return false;
+            // Check if saved state has any actual narrowing filters
+            const hasSearch = !!state.search;
+            const hasPhaseFilter = state.phases && state.phases.length > 0 &&
+                                   state.phases.length < totalPhases;
+            const hasProjectFilter = state.projects && state.projects.length > 0 &&
+                                     state.projects.length < totalProjects;
+            const hasStatusFilter = state.statuses && state.statuses.length > 0 &&
+                                    state.statuses.length < totalStatuses;
+            const hasNonDefaultSort = state.sort && (state.sort !== 'priority' || (state.dir && state.dir !== 'asc'));
+
+            // Only redirect if there are real filters that narrow results
+            if (!hasSearch && !hasPhaseFilter && !hasProjectFilter && !hasStatusFilter && !hasNonDefaultSort) {
+                return false;
+            }
 
             // Build URL with saved filters
-            if (state.search) url.searchParams.set('q', state.search);
-            if (state.phases && state.phases.length > 0) {
-                // Clear existing phase params
+            if (hasSearch) url.searchParams.set('q', state.search);
+            if (state.phases && state.phases.length > 0 && state.phases.length < totalPhases) {
                 url.searchParams.delete('phase');
                 state.phases.forEach(p => url.searchParams.append('phase', p));
             }
-            if (state.projects && state.projects.length > 0) {
-                // Clear existing project params
+            if (state.projects && state.projects.length > 0 && state.projects.length < totalProjects) {
                 url.searchParams.delete('project');
                 state.projects.forEach(p => url.searchParams.append('project', p));
             }
-            if (state.statuses && state.statuses.length > 0) {
-                // Clear existing status params
+            if (state.statuses && state.statuses.length > 0 && state.statuses.length < totalStatuses) {
                 url.searchParams.delete('status');
                 state.statuses.forEach(s => url.searchParams.append('status', s));
             }
-            if (state.sort) {
+            if (hasNonDefaultSort) {
                 url.searchParams.set('sort', state.sort);
                 url.searchParams.set('dir', state.dir || 'asc');
             }

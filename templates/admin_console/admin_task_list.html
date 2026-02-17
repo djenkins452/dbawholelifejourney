@@ -3,7 +3,7 @@
 {% block title %}Task List - Admin Console{% endblock %}
 
 {% block content %}
-<div class="container">
+<div class="container" id="task-list-container" style="opacity: 0; transition: opacity 0.15s ease-in;">
     <div class="page-header">
         <div>
             <nav class="breadcrumb">
@@ -467,9 +467,12 @@ document.addEventListener('DOMContentLoaded', function() {
     // Check if we need to restore filters on page load
     if (shouldRestoreFilters()) {
         if (restoreFiltersFromSession()) {
-            return; // Stop execution, page is redirecting
+            return; // Stop execution, page is redirecting (content stays hidden)
         }
     }
+
+    // No redirect needed — reveal the page content
+    document.getElementById('task-list-container').style.opacity = '1';
 
     // Save filters whenever the page loads with filters applied
     saveFiltersToSession();

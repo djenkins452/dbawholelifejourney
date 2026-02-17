@@ -1537,16 +1537,27 @@ class SaveAssessmentResponseView(LoginRequiredMixin, FaithRequiredMixin, View):
                 return JsonResponse({"error": "Invalid JSON"}, status=400)
 
             # Get or create the response object
-            user_response, created = UserAssessmentResponse.objects.get_or_create(
-                user=request.user,
-                assessment=assessment,
-                user_plan=user_plan,
-                defaults={"responses": responses}
-            )
-
-            if not created:
+            # Use all_objects to include soft-deleted records (SoftDeleteManager
+            # filters them out, causing unique constraint violations on create)
+            try:
+                user_response = UserAssessmentResponse.all_objects.get(
+                    user=request.user,
+                    assessment=assessment,
+                    user_plan=user_plan,
+                )
+                # Restore if soft-deleted
+                if user_response.is_deleted:
+                    user_response.is_deleted = False
+                    user_response.deleted_at = None
                 user_response.responses = responses
                 user_response.save()
+            except UserAssessmentResponse.DoesNotExist:
+                user_response = UserAssessmentResponse.objects.create(
+                    user=request.user,
+                    assessment=assessment,
+                    user_plan=user_plan,
+                    responses=responses,
+                )
 
             # Get interpretation
             interpretation = user_response.interpretation

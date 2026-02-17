@@ -206,8 +206,8 @@ def _build_payload(engine, obj):
 
     elif obj_type == "DailyBriefing":
         summary = ""
-        if obj.summary_text:
-            summary = obj.summary_text[:300]
+        if obj.summary:
+            summary = obj.summary[:300]
         return {
             "title": "Your Daily Briefing is Ready",
             "message": summary or "Your intelligence briefing for today has been generated.",
@@ -217,8 +217,8 @@ def _build_payload(engine, obj):
 
     elif obj_type == "WeeklyIntelligenceReport":
         summary = ""
-        if obj.summary_text:
-            summary = obj.summary_text[:300]
+        if obj.summary:
+            summary = obj.summary[:300]
         return {
             "title": "Weekly Intelligence Report",
             "message": summary or "Your weekly intelligence report is ready.",

@@ -19,6 +19,7 @@
 		1A000000000000000000000A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1A100000000000000000000A /* Assets.xcassets */; };
 		1A000000000000000000000B /* HealthKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1A100000000000000000000B /* HealthKit.framework */; };
 		7D6566EE2F2569C9007C1407 /* BackgroundSyncManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D6566ED2F2569C9007C1407 /* BackgroundSyncManager.swift */; };
+		7D6566F02F2569D0007C1407 /* PushNotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D6566EF2F2569D0007C1407 /* PushNotificationManager.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -37,6 +38,7 @@
 		1A100000000000000000000D /* WLJWrapper.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = WLJWrapper.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1A100000000000000000000E /* WLJWrapper.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = WLJWrapper.entitlements; sourceTree = "<group>"; };
 		7D6566ED2F2569C9007C1407 /* BackgroundSyncManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundSyncManager.swift; sourceTree = "<group>"; };
+		7D6566EF2F2569D0007C1407 /* PushNotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushNotificationManager.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -112,6 +114,7 @@
 			isa = PBXGroup;
 			children = (
 				7D6566ED2F2569C9007C1407 /* BackgroundSyncManager.swift */,
+				7D6566EF2F2569D0007C1407 /* PushNotificationManager.swift */,
 				1A1000000000000000000006 /* KeychainManager.swift */,
 				1A1000000000000000000007 /* APIClient.swift */,
 				1A1000000000000000000008 /* HealthKitManager.swift */,
@@ -210,6 +213,7 @@
 				1A0000000000000000000003 /* MainWebView.swift in Sources */,
 				1A0000000000000000000004 /* SettingsView.swift in Sources */,
 				7D6566EE2F2569C9007C1407 /* BackgroundSyncManager.swift in Sources */,
+				7D6566F02F2569D0007C1407 /* PushNotificationManager.swift in Sources */,
 				1A0000000000000000000005 /* HealthSyncView.swift in Sources */,
 				1A0000000000000000000006 /* KeychainManager.swift in Sources */,
 				1A0000000000000000000007 /* APIClient.swift in Sources */,

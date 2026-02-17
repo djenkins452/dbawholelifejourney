@@ -30,12 +30,15 @@ class APIClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
         let deviceId = KeychainManager.shared.getOrCreateDeviceId()
+        let deviceName = await UIDevice.current.name
+        let deviceModel = await UIDevice.current.model
+        let osVersion = await UIDevice.current.systemVersion
         let body = TokenExchangeRequest(
             code: code,
             deviceId: deviceId,
-            deviceName: UIDevice.current.name,
-            deviceModel: UIDevice.current.model,
-            osVersion: "iOS \(UIDevice.current.systemVersion)",
+            deviceName: deviceName,
+            deviceModel: deviceModel,
+            osVersion: "iOS \(osVersion)",
             appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
         )
 

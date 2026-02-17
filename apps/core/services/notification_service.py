@@ -462,11 +462,12 @@ class NotificationService:
             is_read=False,
         ).values_list('user_id', flat=True).distinct()
 
-        # Filter to users with digest frequency
+        # Filter to users with digest frequency (exclude app review accounts)
         return User.objects.filter(
             id__in=users_with_notifications,
             preferences__email_notifications_enabled=True,
             preferences__email_notification_frequency='daily_digest',
+            is_app_review_account=False,
         ).select_related('preferences')
 
     def create_prayer_reminders(self) -> int:

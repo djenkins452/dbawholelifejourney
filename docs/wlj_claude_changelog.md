@@ -9,6 +9,25 @@
 
 # WLJ Change History
 
+## 2026-02-17 — Bulk Bug Fixes: DNE, Faith Assessment, Digest, iOS Project
+
+- **Fix (DNE):** Fix `summary_text` AttributeError on DailyBriefing and WeeklyIntelligenceReport in delivery engine. Correct field name is `summary`.
+  - Files: apps/core/ai_delivery/delivery_engine.py
+
+- **Fix (Faith):** Fix faith assessment save 500 error caused by SoftDeleteManager filtering out soft-deleted records during `get_or_create`, causing unique constraint violations. Now uses `all_objects` to find and restore soft-deleted records.
+  - Files: apps/faith/views.py
+
+- **Fix (Digest):** Exclude app review accounts from daily digest email recipients to prevent bounce errors on non-existent mailboxes.
+  - Files: apps/core/services/notification_service.py
+
+- **Fix (Billing):** Hardcode logout URL in trial_expired template to prevent potential NoReverseMatch errors with allauth namespace resolution.
+  - Files: templates/billing/trial_expired.html
+
+- **Fix (iOS):** Add PushNotificationManager.swift to Xcode project file (was on disk but missing from project.pbxproj). Fix APIClient async warnings by adding `await` to `UIDevice.current` properties now isolated to `@MainActor` in newer SDKs.
+  - Files: ios/WLJWrapper/WLJWrapper.xcodeproj/project.pbxproj, ios/WLJWrapper/WLJWrapper/Services/APIClient.swift
+
+- **Ops:** Bulk-closed 40 resolved/duplicate tasks from ready queue.
+
 ## 2026-02-17 — Fix Task List Page Blinking on Load
 
 - **Fix:** Fix task list page blinking/flashing 3-4 times on load. Filter restoration logic was always triggering a full page redirect because default sort (priority/asc) was counted as a filter worth restoring, and "all selected" checkbox states were being added to the URL unnecessarily. Now only redirects when there are real narrowing filters.

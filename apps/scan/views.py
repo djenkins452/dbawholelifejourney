@@ -504,9 +504,20 @@ class BarcodeLookupView(LoginRequiredMixin, View):
             if result.description:
                 url_params.append(f'notes={quote(result.description)}')
 
-            # Set source as barcode
+            # Set source as barcode + data source for accuracy tracking
             url_params.append('entry_source=barcode')
             url_params.append(f'barcode={quote(barcode)}')
+
+            # Pass data source and confidence for nutrition accuracy display
+            source_map = {
+                'database': 'local',
+                'fatsecret': 'fatsecret',
+                'openfoodfacts': 'openfoodfacts',
+                'ai': 'ai_guess',
+            }
+            data_source = source_map.get(result.source, 'local')
+            url_params.append(f'data_source={data_source}')
+            url_params.append(f'confidence={result.confidence}')
 
             # Auto-determine meal type based on current time (user's local time)
             # Check if meal was passed as query param first

@@ -3854,24 +3854,54 @@ class FoodEntryCreateView(HelpContextMixin, SaveAddAnotherMixin, LoginRequiredMi
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        GET = self.request.GET
         # Track if this is from camera scan or barcode scan for display purposes
-        context['from_camera'] = self.request.GET.get('source') == 'ai_camera'
-        context['from_barcode'] = self.request.GET.get('entry_source') == 'barcode'
-        context['scanned_barcode'] = self.request.GET.get('barcode', '')
+        context['from_camera'] = GET.get('source') == 'ai_camera'
+        context['from_barcode'] = GET.get('entry_source') == 'barcode'
+        context['scanned_barcode'] = GET.get('barcode', '')
+
+        # Data source and confidence for accuracy display
+        data_source = GET.get('data_source', '')
+        context['data_source'] = data_source
+        source_labels = {
+            'local': 'Local Database',
+            'fatsecret': 'FatSecret',
+            'openfoodfacts': 'Open Food Facts',
+            'ai_guess': 'AI Estimate',
+        }
+        context['data_source_label'] = source_labels.get(data_source, '')
+        try:
+            conf = float(GET.get('confidence', 0))
+            context['confidence_score'] = round(conf * 100) if conf <= 1 else round(conf)
+        except (ValueError, TypeError):
+            context['confidence_score'] = None
+
         return context
 
     def form_valid(self, form):
         form.instance.user = self.request.user
-        # Set entry source based on how user got here
-        entry_source = self.request.GET.get('entry_source', 'manual')
+        GET = self.request.GET
+
+        # Set entry source and data source based on how user got here
+        entry_source = GET.get('entry_source', 'manual')
         if entry_source == 'camera':
             form.instance.entry_source = FoodEntry.SOURCE_CAMERA
             form.instance.data_source_used = FoodEntry.DATA_SOURCE_FATSECRET
             form.instance.confidence_score = 85
         elif entry_source == 'barcode':
             form.instance.entry_source = FoodEntry.SOURCE_BARCODE
-            form.instance.data_source_used = FoodEntry.DATA_SOURCE_LOCAL
-            form.instance.confidence_score = 95
+            # Use the specific data source from barcode lookup if provided
+            data_source = GET.get('data_source', '')
+            if data_source in dict(FoodEntry.DATA_SOURCE_CHOICES):
+                form.instance.data_source_used = data_source
+            else:
+                form.instance.data_source_used = FoodEntry.DATA_SOURCE_LOCAL
+            # Use confidence from barcode lookup if provided
+            try:
+                conf = float(GET.get('confidence', 0))
+                form.instance.confidence_score = min(conf * 100, 100) if conf <= 1 else min(conf, 100)
+            except (ValueError, TypeError):
+                form.instance.confidence_score = 95
         else:
             form.instance.entry_source = FoodEntry.SOURCE_MANUAL
             form.instance.data_source_used = FoodEntry.DATA_SOURCE_MANUAL

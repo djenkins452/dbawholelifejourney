@@ -292,12 +292,22 @@ class FatSecretService:
 
         The detail endpoint returns structured serving data with full nutrition.
         """
-        # Get the first serving (usually the default)
+        # Get the default serving (matches nutrition label serving size)
         servings = food.get('servings', {}).get('serving', [])
         if isinstance(servings, dict):
             servings = [servings]
 
-        serving = servings[0] if servings else {}
+        # Prefer the serving flagged as default by FatSecret (is_default=1),
+        # which typically matches the nutrition label's serving size.
+        # Fall back to first serving if no default is flagged.
+        serving = {}
+        if servings:
+            for s in servings:
+                if str(s.get('is_default', '0')) == '1':
+                    serving = s
+                    break
+            if not serving:
+                serving = servings[0]
 
         return FatSecretFood(
             food_id=str(food.get('food_id', '')),

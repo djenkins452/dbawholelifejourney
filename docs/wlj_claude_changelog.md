@@ -9,6 +9,12 @@
 
 # WLJ Change History
 
+## 2026-02-17 — Fix FatSecret Barcode Serving Size Mismatch
+
+- **Fix:** FatSecret `_parse_food_detail()` was blindly taking `servings[0]` instead of the serving flagged as default (`is_default=1`). This caused barcode scans to return per-tablespoon nutrition data instead of the label's actual serving size (e.g., Mrs. Butterworth's sugar-free syrup showed 3 cal instead of 10 cal).
+  - Files: apps/health/services/fatsecret.py
+- **Note:** Previously cached FoodItem entries with wrong serving data will need to be corrected or deleted in production. Future scans will use the correct default serving.
+
 ## 2026-02-17 — Email Task Batch 2: Goal Log Validation + 9 Duplicates Closed
 
 - **Fix:** GoalLogCountView, GoalLogDurationView, GoalLogTargetView — add date range validation (reject dates before start or after end) and wrap save/update_or_create in try/except for ValidationError and MultipleObjectsReturned

@@ -224,6 +224,11 @@ COMMAND_LOADERS = [
         'display': 'App Review Demo Account',
         'description': 'Apple App Store review demo account (appreview@wholelifejourney.com)',
     },
+    {
+        'name': 'setup_strength_split',
+        'display': 'Danny Strength Split',
+        'description': '2-group strength training split for dannyjenkins71@gmail.com',
+    },
 ]
 
 BLUEPRINT_LOADERS = [

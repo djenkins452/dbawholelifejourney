@@ -9,6 +9,19 @@
 
 # WLJ Change History
 
+## 2026-02-18 — WorkoutPlan & WorkoutSchedule Models + 2-Group Strength Split
+
+- **Feature:** Add WorkoutPlan and WorkoutSchedule models for structured workout split planning. WorkoutPlan groups templates into a named program with optional TransformationProtocol link. WorkoutSchedule maps day-of-week to templates with preferred time.
+  - Files: apps/health/models.py, apps/health/migrations/0044_workout_plan_and_schedule.py
+- **Feature:** Created 2-group strength training split (Group A: Push+Arms, Group B: Pull+Legs) with 6-day weekly rotation (Mon–Sat, Sunday rest, 5–6 PM) for dannyjenkins71@gmail.com via `setup_strength_split` management command.
+  - Files: apps/health/management/commands/setup_strength_split.py
+- **Admin:** Registered WorkoutPlan and WorkoutSchedule in Django admin with inline schedule entries.
+  - Files: apps/health/admin.py
+- **Test:** Added 25 tests covering model CRUD, schedule uniqueness, cascade deletes, command idempotency, protocol linking, and user-not-found handling.
+  - Files: apps/health/tests/test_workout_plan.py
+- **Deploy:** Registered setup_strength_split in load_initial_data for automatic production execution.
+  - Files: apps/core/management/commands/load_initial_data.py
+
 ## 2026-02-17 — Fix FatSecret Barcode Serving Size Mismatch
 
 - **Fix:** FatSecret `_parse_food_detail()` was blindly taking `servings[0]` instead of the serving flagged as default (`is_default=1`). This caused barcode scans to return per-tablespoon nutrition data instead of the label's actual serving size (e.g., Mrs. Butterworth's sugar-free syrup showed 3 cal instead of 10 cal).

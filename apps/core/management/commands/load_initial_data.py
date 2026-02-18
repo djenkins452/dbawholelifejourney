@@ -635,6 +635,9 @@ class Command(BaseCommand):
         # One-time: Reset fixtures for Body Transformation Protocol
         self._reset_transformation_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Clear cached FatSecret FoodItems (serving size fix)
+        self._clear_fatsecret_cached_items(DataLoadConfig, force, verbosity)
+
         # Only output summary if something loaded or if verbose
         if verbosity >= 1 and loaded_count > 0:
             self.stdout.write(self.style.SUCCESS(f'Initial data: loaded {loaded_count} items'))
@@ -1922,3 +1925,36 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset transformation fixtures FAILED: {e}'))
+
+    def _clear_fatsecret_cached_items(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time cleanup: delete cached FatSecret FoodItems so they re-fetch
+        with correct default serving size after the is_default fix.
+        """
+        reset_tracker_name = 'clear_fatsecret_cached_items_2026_02_17'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            from apps.health.models import FoodItem
+
+            # Delete FoodItems cached from FatSecret and barcode scans
+            # so they re-lookup with the corrected default serving logic
+            deleted_count, _ = FoodItem.objects.filter(
+                data_source__in=[FoodItem.SOURCE_FATSECRET, FoodItem.SOURCE_BARCODE]
+            ).delete()
+
+            if verbosity >= 1 and deleted_count > 0:
+                self.stdout.write(f'  Cleared {deleted_count} cached barcode/FatSecret FoodItems (serving size fix)')
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Clear cached FatSecret FoodItems for serving size fix (Feb 2026)',
+                'command',
+                'One-time delete of cached barcode FoodItems so they re-fetch with correct default serving'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Clear FatSecret cache FAILED: {e}'))

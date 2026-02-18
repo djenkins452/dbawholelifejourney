@@ -129,6 +129,22 @@ def theme_context(request):
                 )
             except Exception:
                 context['cycle_tracking_enabled'] = False
+            # Chief of Staff alignment badge (lightweight — for nav header)
+            if prefs.personal_assistant_enabled:
+                try:
+                    from apps.core.blueprint.alignment_engine import (
+                        compute_alignment_score,
+                    )
+                    alignment = compute_alignment_score(request.user)
+                    context['command_brief'] = {
+                        'active': True,
+                        'alignment_score': round(alignment.score),
+                    }
+                except Exception:
+                    context['command_brief'] = {
+                        'active': True,
+                        'alignment_score': 100,
+                    }
             # User's "today" in their timezone (for date comparisons in templates)
             from apps.core.utils import get_user_today
             context['user_today'] = get_user_today(request.user)

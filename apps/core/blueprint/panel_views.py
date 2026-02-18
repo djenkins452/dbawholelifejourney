@@ -90,7 +90,7 @@ class TodayPlanView(LoginRequiredMixin, View):
             html = (
                 '<div style="font-size:var(--font-size-xs);'
                 'color:var(--color-text-muted);">'
-                'Generating plan...'
+                'Architecture initializing. Auto-generation in progress.'
                 '</div>'
             )
 
@@ -150,7 +150,7 @@ class PendingInterventionsView(LoginRequiredMixin, View):
         if not pending.exists():
             return HttpResponse(
                 '<div style="font-size:var(--font-size-xs);color:var(--color-text-muted);">'
-                'No active alerts</div>'
+                'System stable. Tier-1 protected.</div>'
             )
 
         html = ''

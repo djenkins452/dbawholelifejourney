@@ -767,7 +767,7 @@
         <!-- Daily Check-in Card -->
         <div class="checkin-card" id="checkin-card">
             <div class="checkin-header">
-                <h1 class="checkin-greeting" id="greeting">Loading...</h1>
+                <h1 class="checkin-greeting" id="greeting">Initializing...</h1>
                 <p class="checkin-date" id="current-date"></p>
             </div>
 
@@ -837,7 +837,7 @@
             <!-- Messages will be inserted here -->
             <div id="chat-loading" class="chat-loading">
                 <div class="chat-loading-spinner"></div>
-                <span>Loading conversation...</span>
+                <span>Establishing connection...</span>
             </div>
         </div>
 
@@ -914,8 +914,8 @@
     // Load opening message
     async function loadOpening() {
         if (!personalAssistantAccessible) {
-            document.getElementById('greeting').textContent = 'Welcome back';
-            document.getElementById('assessment').textContent = 'Enable Personal Assistant in your preferences to get personalized daily priorities and coaching.';
+            document.getElementById('greeting').textContent = 'Chief of Staff — Standby';
+            document.getElementById('assessment').textContent = 'Enable Personal Assistant in your preferences to activate operational governance.';
             return;
         }
 
@@ -927,8 +927,8 @@
                 // Greeting
                 document.getElementById('greeting').textContent = data.greeting;
 
-                // Assessment - focused on what needs attention
-                document.getElementById('assessment').textContent = data.state_summary || 'Here\'s what needs your attention today.';
+                // Assessment - operational state
+                document.getElementById('assessment').textContent = data.state_summary || 'Operational state loaded. Architecture active.';
 
                 // Action Items (nudges) - things that need attention
                 if (data.nudges && data.nudges.length > 0) {
@@ -955,15 +955,20 @@
                     document.getElementById('reflection-prompt').style.display = 'block';
                 }
 
+                // Auto-initialize chat with CoS snapshot
+                if (data.cos_snapshot) {
+                    injectCosSnapshot(data.cos_snapshot);
+                }
+
             } else {
-                document.getElementById('greeting').textContent = 'Welcome back';
-                document.getElementById('assessment').textContent = data.error || 'Something went wrong. Please try again.';
+                document.getElementById('greeting').textContent = 'Chief of Staff — Active';
+                document.getElementById('assessment').textContent = data.error || 'System recalibrating. Tier-1 protections remain locked.';
             }
 
         } catch (error) {
             console.error('Error loading opening:', error);
-            document.getElementById('greeting').textContent = 'Welcome back';
-            document.getElementById('assessment').textContent = 'Unable to load your personalized dashboard. Please refresh.';
+            document.getElementById('greeting').textContent = 'Chief of Staff — Active';
+            document.getElementById('assessment').textContent = 'Connection interrupted. Tier-1 protections remain locked. Refresh to re-establish.';
         }
     }
 
@@ -973,7 +978,7 @@
         list.innerHTML = '';
 
         if (!priorities || priorities.length === 0) {
-            list.innerHTML = '<p class="text-muted">No priorities for today. Check back later!</p>';
+            list.innerHTML = '<p class="text-muted">Architecture loaded. No priority overrides required.</p>';
             return;
         }
 
@@ -1093,6 +1098,55 @@
     const chatLoading = document.getElementById('chat-loading');
     const clearChatBtn = document.getElementById('clear-chat-btn');
     let hasMessages = false;
+
+    // Inject CoS snapshot as auto-initialized first chat message
+    function injectCosSnapshot(snapshot) {
+        if (!snapshot || !chatMessages) return;
+        // Hide loading
+        if (chatLoading) chatLoading.style.display = 'none';
+
+        const align = snapshot.alignment || 0;
+        const drift = snapshot.drift_risk || 0;
+        const cap = snapshot.capacity || 0;
+        const tier1 = snapshot.tier1_protected || [];
+        const inRecovery = snapshot.in_recovery || false;
+
+        function driftClass(val, invert) {
+            if (invert) {
+                if (val >= 80) return 'drift-green';
+                if (val >= 50) return 'drift-amber';
+                return 'drift-red';
+            }
+            if (val < 25) return 'drift-green';
+            if (val < 50) return 'drift-amber';
+            return 'drift-red';
+        }
+
+        let html = '<div class="proactive-label">OPERATIONAL STATE</div>';
+        html += `<div style="display:flex;gap:16px;flex-wrap:wrap;margin:6px 0 8px;">`;
+        html += `<span><strong>Alignment</strong> <span class="${driftClass(align, true)}">${align}%</span></span>`;
+        html += `<span><strong>Drift</strong> <span class="${driftClass(drift, false)}">${drift}%</span></span>`;
+        html += `<span><strong>Capacity</strong> ${cap}%</span>`;
+        html += `</div>`;
+
+        if (tier1.length > 0) {
+            html += `<div style="font-size:12px;color:var(--color-text-muted);margin-bottom:4px;"><strong>Tier-1 Protected:</strong> ${tier1.join(', ')}</div>`;
+        }
+
+        if (inRecovery) {
+            html += `<div style="font-size:12px;color:#d97706;margin-bottom:4px;">Recovery mode active.</div>`;
+        }
+
+        html += `<div style="margin-top:6px;font-weight:500;">State loaded. What are we adjusting?</div>`;
+
+        const msgEl = document.createElement('div');
+        msgEl.className = 'chat-message assistant proactive';
+        msgEl.innerHTML = html;
+        chatMessages.appendChild(msgEl);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        hasMessages = true;
+        if (clearChatBtn) clearChatBtn.style.display = '';
+    }
 
     // Image attachment elements
     const attachBtn = document.getElementById('chat-attach-btn');

@@ -295,7 +295,10 @@ body.edit-mode .tile-name-label {
 
     </header>
 
-    {% comment %} Chief of Staff Command Brief — strategic layer above tiles {% endcomment %}
+    {% comment %} Chief of Staff — Arrival Briefing (login intercept layer) {% endcomment %}
+    {% include "components/cos_arrival_briefing.html" %}
+
+    {% comment %} Chief of Staff Command Brief — strategic detail layer {% endcomment %}
     {% include "components/assistant_command_brief.html" %}
 
     <!-- Edit Mode Bar -->

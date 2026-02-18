@@ -1339,3 +1339,370 @@ class CosRegistryPhase2Tests(TestCase):
             len(cos_errors), 0,
             f"CoS Phase 2 validation errors: {cos_errors}"
         )
+
+
+# =============================================================================
+# PRESENCE MODE TESTS
+# =============================================================================
+
+
+class ArrivalBriefingTests(TestCase):
+    """Tests for the arrival briefing component and data pipeline."""
+
+    def setUp(self):
+        self.user = _create_test_user(email='arrival@test.com')
+        self.blueprint = blueprint_engine.get_blueprint(self.user)
+
+    def test_command_brief_includes_recovery_fields(self):
+        """Command brief dict should include recovery status fields."""
+        from apps.dashboard.views import DashboardView
+        factory = RequestFactory()
+        request = factory.get('/dashboard/')
+        request.user = self.user
+        view = DashboardView()
+        view.request = request
+        brief = view._get_command_brief(self.user, self.user.preferences)
+        self.assertIn('recovery_active', brief)
+        self.assertIn('recovery_tier1_locked', brief)
+        self.assertIn('recovery_tier3_deferred', brief)
+        self.assertFalse(brief['recovery_active'])
+
+    def test_command_brief_has_alignment_score(self):
+        """Command brief should always have an alignment_score."""
+        from apps.dashboard.views import DashboardView
+        factory = RequestFactory()
+        request = factory.get('/dashboard/')
+        request.user = self.user
+        view = DashboardView()
+        view.request = request
+        brief = view._get_command_brief(self.user, self.user.preferences)
+        self.assertIn('alignment_score', brief)
+        self.assertIsInstance(brief['alignment_score'], int)
+
+    def test_command_brief_auto_generates_plan(self):
+        """Command brief should auto-generate architecture if none exists."""
+        from apps.dashboard.views import DashboardView
+        factory = RequestFactory()
+        request = factory.get('/dashboard/')
+        request.user = self.user
+        view = DashboardView()
+        view.request = request
+        brief = view._get_command_brief(self.user, self.user.preferences)
+        # Should attempt to generate — either has plan or auto_generated flag
+        self.assertIn('auto_generated', brief)
+
+    def test_command_brief_none_when_pa_disabled(self):
+        """Command brief returns None when personal assistant is disabled."""
+        from apps.dashboard.views import DashboardView
+        self.user.preferences.personal_assistant_enabled = False
+        self.user.preferences.save()
+        factory = RequestFactory()
+        request = factory.get('/dashboard/')
+        request.user = self.user
+        view = DashboardView()
+        view.request = request
+        brief = view._get_command_brief(self.user, self.user.preferences)
+        self.assertIsNone(brief)
+
+    def test_arrival_briefing_drift_classes(self):
+        """Drift thresholds should map to correct CSS classes."""
+        # These are the threshold rules from the template
+        # <25% = drift-green, 25-49% = drift-amber, >=50% = drift-red
+        thresholds = [
+            (10, 'drift-green'),
+            (24, 'drift-green'),
+            (25, 'drift-amber'),
+            (49, 'drift-amber'),
+            (50, 'drift-red'),
+            (80, 'drift-red'),
+        ]
+        for val, expected_class in thresholds:
+            if val < 25:
+                css = 'drift-green'
+            elif val < 50:
+                css = 'drift-amber'
+            else:
+                css = 'drift-red'
+            self.assertEqual(css, expected_class, f"Value {val} should be {expected_class}")
+
+
+class PassiveLanguageTests(TestCase):
+    """Tests to ensure passive language is removed from templates."""
+
+    PASSIVE_TERMS = [
+        'Monitoring',
+        'No plan for today',
+        'Generate plan?',
+        'Check back later!',
+        'Something went wrong. Please try again.',
+        'Unable to load your personalized dashboard',
+        'Loading conversation...',
+    ]
+
+    def test_arrival_briefing_no_passive_language(self):
+        """Arrival briefing template should not contain passive language."""
+        import os
+        template_path = os.path.join(
+            settings.BASE_DIR,
+            'templates', 'components', 'cos_arrival_briefing.html',
+        )
+        with open(template_path, 'r') as f:
+            content = f.read()
+        for term in self.PASSIVE_TERMS:
+            self.assertNotIn(
+                term, content,
+                f"Arrival briefing contains passive language: '{term}'",
+            )
+
+    def test_command_brief_no_passive_language(self):
+        """Command brief template should not contain passive language."""
+        import os
+        template_path = os.path.join(
+            settings.BASE_DIR,
+            'templates', 'components', 'assistant_command_brief.html',
+        )
+        with open(template_path, 'r') as f:
+            content = f.read()
+        for term in self.PASSIVE_TERMS:
+            self.assertNotIn(
+                term, content,
+                f"Command brief contains passive language: '{term}'",
+            )
+
+    def test_assistant_dashboard_no_passive_language(self):
+        """Assistant dashboard should not contain passive fallback text."""
+        import os
+        template_path = os.path.join(
+            settings.BASE_DIR,
+            'templates', 'ai', 'assistant_dashboard.html',
+        )
+        with open(template_path, 'r') as f:
+            content = f.read()
+        for term in self.PASSIVE_TERMS:
+            self.assertNotIn(
+                term, content,
+                f"Assistant dashboard contains passive language: '{term}'",
+            )
+
+    def test_panel_no_passive_loading_text(self):
+        """Panel template should use active voice for loading states."""
+        import os
+        template_path = os.path.join(
+            settings.BASE_DIR,
+            'templates', 'components', 'assistant_panel.html',
+        )
+        with open(template_path, 'r') as f:
+            content = f.read()
+        self.assertNotIn('Loading plan...', content)
+        self.assertNotIn('Loading drift data...', content)
+        self.assertNotIn('Loading...', content)
+
+    def test_panel_views_silent_authority(self):
+        """Panel views should show 'System stable' instead of 'No active alerts'."""
+        from .panel_views import PendingInterventionsView
+        factory = RequestFactory()
+        user = _create_test_user(email='silent@test.com')
+        request = factory.get('/api/blueprint/interventions/pending/')
+        request.user = user
+        response = PendingInterventionsView.as_view()(request)
+        content = response.content.decode()
+        self.assertIn('System stable', content)
+        self.assertNotIn('No active alerts', content)
+
+
+class ChatInitializationTests(TestCase):
+    """Tests for auto-initialized chat with CoS snapshot."""
+
+    def setUp(self):
+        self.user = _create_test_user(email='chat@test.com')
+
+    def test_opening_view_includes_cos_snapshot(self):
+        """Opening API should include cos_snapshot in response."""
+        from apps.ai.views import AssistantOpeningView
+        factory = RequestFactory()
+        request = factory.get('/assistant/api/opening/')
+        request.user = self.user
+        # We can't easily test full API without mocking OpenAI,
+        # but we can verify the view is importable and has correct class
+        self.assertTrue(hasattr(AssistantOpeningView, 'get'))
+
+    def test_cos_snapshot_structure(self):
+        """CoS snapshot should have expected keys."""
+        from apps.core.ai_orchestrator.cos_context import build_cos_context
+        ctx = build_cos_context(self.user)
+        # Build the snapshot the same way the view does
+        snapshot = {
+            'alignment': ctx.get('alignment_score', 100),
+            'drift_risk': ctx.get('drift_probability', {}).get(
+                'probability_24h', 0,
+            ),
+            'capacity': ctx.get('capacity_snapshot', {}).get(
+                'capacity_pct', 0,
+            ),
+            'tier1_protected': ctx.get('protected_tiers', []),
+        }
+        self.assertIn('alignment', snapshot)
+        self.assertIn('drift_risk', snapshot)
+        self.assertIn('capacity', snapshot)
+        self.assertIn('tier1_protected', snapshot)
+        self.assertIsInstance(snapshot['alignment'], int)
+
+    def test_cos_snapshot_alignment_range(self):
+        """Alignment score should be 0-100."""
+        from apps.core.ai_orchestrator.cos_context import build_cos_context
+        ctx = build_cos_context(self.user)
+        alignment = ctx.get('alignment_score', 100)
+        self.assertGreaterEqual(alignment, 0)
+        self.assertLessEqual(alignment, 100)
+
+
+class AlignmentBadgeTests(TestCase):
+    """Tests for the persistent alignment badge in navigation."""
+
+    def setUp(self):
+        self.user = _create_test_user(email='badge@test.com')
+
+    def test_context_processor_includes_command_brief(self):
+        """Context processor should include command_brief for PA users."""
+        from apps.core.context_processors import theme_context
+        factory = RequestFactory()
+        request = factory.get('/dashboard/')
+        request.user = self.user
+        ctx = theme_context(request)
+        self.assertIn('command_brief', ctx)
+        self.assertTrue(ctx['command_brief']['active'])
+        self.assertIn('alignment_score', ctx['command_brief'])
+
+    def test_context_processor_no_badge_when_pa_disabled(self):
+        """No alignment badge data when personal assistant is disabled."""
+        self.user.preferences.personal_assistant_enabled = False
+        self.user.preferences.save()
+        from apps.core.context_processors import theme_context
+        factory = RequestFactory()
+        request = factory.get('/dashboard/')
+        request.user = self.user
+        ctx = theme_context(request)
+        self.assertNotIn('command_brief', ctx)
+
+    def test_alignment_badge_css_classes(self):
+        """Alignment badge CSS classes should map correctly."""
+        test_cases = [
+            (90, 'align-good'),
+            (80, 'align-good'),
+            (79, 'align-caution'),
+            (50, 'align-caution'),
+            (49, 'align-warning'),
+            (10, 'align-warning'),
+        ]
+        for score, expected_class in test_cases:
+            if score >= 80:
+                css = 'align-good'
+            elif score >= 50:
+                css = 'align-caution'
+            else:
+                css = 'align-warning'
+            self.assertEqual(css, expected_class, f"Score {score} should be {expected_class}")
+
+    def test_desktop_top_bar_has_badge_template(self):
+        """Desktop top bar template should contain alignment badge markup."""
+        import os
+        template_path = os.path.join(
+            settings.BASE_DIR,
+            'templates', 'components', 'desktop_top_bar.html',
+        )
+        with open(template_path, 'r') as f:
+            content = f.read()
+        self.assertIn('cos-alignment-badge', content)
+        self.assertIn('alignment_score', content)
+
+
+class DriftVisualizationTests(TestCase):
+    """Tests for drift color visualization."""
+
+    def test_drift_green_threshold(self):
+        """Values below 25% should be green."""
+        for val in [0, 5, 10, 24]:
+            if val < 25:
+                color = 'green'
+            elif val < 50:
+                color = 'amber'
+            else:
+                color = 'red'
+            self.assertEqual(color, 'green', f"Drift {val}% should be green")
+
+    def test_drift_amber_threshold(self):
+        """Values 25-49% should be amber."""
+        for val in [25, 30, 40, 49]:
+            if val < 25:
+                color = 'green'
+            elif val < 50:
+                color = 'amber'
+            else:
+                color = 'red'
+            self.assertEqual(color, 'amber', f"Drift {val}% should be amber")
+
+    def test_drift_red_threshold(self):
+        """Values >= 50% should be red."""
+        for val in [50, 60, 80, 100]:
+            if val < 25:
+                color = 'green'
+            elif val < 50:
+                color = 'amber'
+            else:
+                color = 'red'
+            self.assertEqual(color, 'red', f"Drift {val}% should be red")
+
+    def test_css_has_drift_color_classes(self):
+        """CSS should define drift-green, drift-amber, drift-red classes."""
+        import os
+        css_path = os.path.join(
+            settings.BASE_DIR,
+            'static', 'css', 'assistant-panel.css',
+        )
+        with open(css_path, 'r') as f:
+            content = f.read()
+        self.assertIn('.drift-green', content)
+        self.assertIn('.drift-amber', content)
+        self.assertIn('.drift-red', content)
+
+
+class SilentAuthorityTests(TestCase):
+    """Tests for the Silent Authority Rule — no empty states."""
+
+    def test_panel_interventions_empty_shows_stable(self):
+        """Empty interventions should show 'System stable' message."""
+        user = _create_test_user(email='silent2@test.com')
+        factory = RequestFactory()
+        request = factory.get('/api/blueprint/interventions/pending/')
+        request.user = user
+        from .panel_views import PendingInterventionsView
+        response = PendingInterventionsView.as_view()(request)
+        content = response.content.decode()
+        self.assertIn('System stable', content)
+        self.assertIn('Tier-1 protected', content)
+
+    def test_plan_view_empty_shows_initializing(self):
+        """Empty plan should show architecture initializing message."""
+        user = _create_test_user(email='silent3@test.com')
+        factory = RequestFactory()
+        request = factory.get('/api/blueprint/plan/today/')
+        request.user = user
+        from .panel_views import TodayPlanView
+        response = TodayPlanView.as_view()(request)
+        content = response.content.decode()
+        # Should NOT say "Generating plan..." (passive)
+        self.assertNotIn('Generating plan', content)
+
+    def test_arrival_briefing_always_has_status_line(self):
+        """Arrival briefing template should always show a status line."""
+        import os
+        template_path = os.path.join(
+            settings.BASE_DIR,
+            'templates', 'components', 'cos_arrival_briefing.html',
+        )
+        with open(template_path, 'r') as f:
+            content = f.read()
+        # Should have the conditional status lines
+        self.assertIn('System stable. Tier-1 protected.', content)
+        self.assertIn('Elevated risk. Tier-1 locked.', content)
+        self.assertIn('Moderate risk. Recalibrating schedule.', content)

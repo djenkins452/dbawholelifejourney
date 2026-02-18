@@ -11,6 +11,17 @@
 
 ## 2026-02-18
 
+- **Feature:** CoS Presence Mode — Arrival intercept briefing, passive language removal, auto-initialized chat with CoS snapshot, drift visualization (green/amber/red), persistent alignment badge in nav, silent authority rule, and 24 new tests
+  - Arrival briefing: Full-width `cos_arrival_briefing.html` renders above dashboard with alignment, drift risk, capacity, tier-1 protections, recovery status, and risk warnings
+  - Passive language removal: Replaced all "Monitoring", "No plan", "Loading..." with active voice ("Governing", "Architecture initializing", "System stable. Tier-1 protected.")
+  - Auto-initialized chat: `/assistant/` auto-displays CoS snapshot (alignment%, drift%, capacity%, tier-1 protections) with "State loaded. What are we adjusting?"
+  - Drift visualization: Green (<25%), Amber (25-49%), Red (≥50%) color classes applied across arrival briefing, command brief, and chat snapshot
+  - Alignment badge: Persistent `cos-alignment-badge` in desktop and mobile nav headers, clickable to assistant dashboard
+  - Silent authority rule: No empty states — panels show "System stable. Tier-1 protected." when no alerts; plan shows "Architecture initializing" instead of blank
+  - Context processor enhanced: `theme_context` now includes lightweight `command_brief` with alignment score for nav badge on all pages
+  - 24 new tests across 6 test classes (ArrivalBriefingTests, PassiveLanguageTests, ChatInitializationTests, AlignmentBadgeTests, DriftVisualizationTests, SilentAuthorityTests)
+  - Files: templates/components/cos_arrival_briefing.html, templates/components/assistant_command_brief.html, templates/components/assistant_panel.html, templates/components/desktop_top_bar.html, templates/components/navigation.html, templates/dashboard/home.html, templates/ai/assistant_dashboard.html, templates/base.html, apps/dashboard/views.py, apps/ai/views.py, apps/core/context_processors.py, apps/core/blueprint/panel_views.py, static/css/assistant-panel.css, apps/core/blueprint/tests.py
+
 - **Feature:** CoS System-Level Upgrade Phase 2 — Context injection, identity unification, adaptive discipline, recovery architecture, alignment engine, predictive interventions, and 43 new tests
   - CoS context injection: `build_cos_context()` + `format_cos_system_injection()` prepended to every LLM system prompt with full operational awareness
   - Identity unification: Assistant dashboard rebranded to "Chief of Staff — Direct Channel" with updated chat header and placeholder

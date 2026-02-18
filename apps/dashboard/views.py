@@ -235,6 +235,9 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             'block_total': 0,
             'blocks_completed': 0,
             'auto_generated': False,
+            'recovery_active': False,
+            'recovery_tier1_locked': 0,
+            'recovery_tier3_deferred': 0,
         }
 
         # Get or auto-generate today's plan
@@ -341,6 +344,29 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                     100, round(tmr_minutes / waking_minutes * 100)
                 )
                 brief['overload_risk'] = brief['tomorrow_capacity_pct'] > 85
+        except Exception:
+            pass
+
+        # Recovery status
+        try:
+            from apps.core.blueprint.recovery_engine import get_recovery_status
+            recovery = get_recovery_status(user)
+            if recovery.get('in_recovery'):
+                brief['recovery_active'] = True
+                brief['recovery_tier1_locked'] = recovery.get(
+                    'locked_tier1_count', 0,
+                )
+                brief['recovery_tier3_deferred'] = len(
+                    recovery.get('recovery_warnings', []),
+                )
+        except Exception:
+            pass
+
+        # Alignment engine (primary source, overrides drift-derived score)
+        try:
+            from apps.core.blueprint.alignment_engine import compute_alignment_score
+            alignment = compute_alignment_score(user)
+            brief['alignment_score'] = round(alignment.score)
         except Exception:
             pass
 

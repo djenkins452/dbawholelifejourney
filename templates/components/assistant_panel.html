@@ -31,7 +31,7 @@
         {# Status indicator #}
         <div class="assistant-status" id="assistant-status">
             <div class="assistant-status-dot active"></div>
-            <span class="assistant-status-text">Active</span>
+            <span class="assistant-status-text">Governing</span>
         </div>
 
         {# Today's Architecture Plan #}
@@ -45,7 +45,7 @@
                      hx-get="/api/blueprint/plan/today/"
                      hx-trigger="load"
                      hx-swap="outerHTML">
-                    Loading plan...
+                    Loading architecture...
                 </div>
             </div>
         </div>
@@ -61,7 +61,7 @@
                      hx-get="/api/blueprint/drift/summary/"
                      hx-trigger="load"
                      hx-swap="outerHTML">
-                    Loading drift data...
+                    Calculating drift...
                 </div>
             </div>
         </div>
@@ -78,7 +78,7 @@
                      hx-get="/api/blueprint/interventions/pending/"
                      hx-trigger="load"
                      hx-swap="outerHTML">
-                    Loading...
+                    Checking interventions...
                 </div>
             </div>
         </div>

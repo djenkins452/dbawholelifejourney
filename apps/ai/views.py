@@ -128,6 +128,39 @@ class AssistantOpeningView(LoginRequiredMixin, AssistantMixin, View):
             assistant = self.get_assistant()
             opening = assistant.get_opening_message()
 
+            # Build CoS snapshot for auto-initialized chat
+            cos_snapshot = {}
+            try:
+                from apps.core.ai_orchestrator.cos_context import build_cos_context
+                ctx = build_cos_context(request.user)
+                cos_snapshot = {
+                    'alignment': ctx.get('alignment_score', 100),
+                    'drift_risk': ctx.get('drift_probability', {}).get(
+                        'probability_24h', 0,
+                    ),
+                    'capacity': ctx.get(
+                        'capacity_snapshot', {},
+                    ).get('capacity_pct', 0),
+                    'tier1_protected': ctx.get('protected_tiers', []),
+                    'in_recovery': False,
+                }
+                # Check recovery
+                try:
+                    from apps.core.blueprint.recovery_engine import (
+                        get_recovery_status,
+                    )
+                    rec = get_recovery_status(request.user)
+                    cos_snapshot['in_recovery'] = rec.get(
+                        'in_recovery', False,
+                    )
+                    cos_snapshot['recovery_warnings'] = rec.get(
+                        'recovery_warnings', [],
+                    )
+                except Exception:
+                    pass
+            except Exception:
+                pass
+
             return JsonResponse({
                 'success': True,
                 'greeting': opening['greeting'],
@@ -137,6 +170,7 @@ class AssistantOpeningView(LoginRequiredMixin, AssistantMixin, View):
                 'nudges': opening['nudges'],
                 'reflection_prompt': opening['reflection_prompt'],
                 'is_first_visit': opening.get('is_first_visit', True),
+                'cos_snapshot': cos_snapshot,
             })
 
         except Exception as e:

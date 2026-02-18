@@ -14,20 +14,20 @@
     <div class="command-brief-body">
         <div class="command-brief-status-bar">
             <div class="command-brief-stat">
-                <span class="command-brief-stat-label">Status</span>
-                <span class="command-brief-stat-value status-active">Active</span>
+                <span class="command-brief-stat-label">System</span>
+                <span class="command-brief-stat-value status-active">Governing</span>
             </div>
             <div class="command-brief-stat">
                 <span class="command-brief-stat-label">Capacity</span>
                 <span class="command-brief-stat-value">{{ command_brief.capacity_pct }}%</span>
             </div>
             <div class="command-brief-stat">
-                <span class="command-brief-stat-label">Drift Risk (24h)</span>
-                <span class="command-brief-stat-value {% if command_brief.drift_risk_24h > 50 %}stat-warning{% elif command_brief.drift_risk_24h > 30 %}stat-caution{% endif %}">{{ command_brief.drift_risk_24h }}%</span>
+                <span class="command-brief-stat-label">Drift Risk</span>
+                <span class="command-brief-stat-value {% if command_brief.drift_risk_24h >= 50 %}drift-red{% elif command_brief.drift_risk_24h >= 25 %}drift-amber{% else %}drift-green{% endif %}">{{ command_brief.drift_risk_24h }}%</span>
             </div>
             <div class="command-brief-stat">
                 <span class="command-brief-stat-label">Alignment</span>
-                <span class="command-brief-stat-value {% if command_brief.alignment_score >= 80 %}stat-good{% elif command_brief.alignment_score >= 50 %}stat-caution{% else %}stat-warning{% endif %}">{{ command_brief.alignment_score }}%</span>
+                <span class="command-brief-stat-value {% if command_brief.alignment_score >= 80 %}drift-green{% elif command_brief.alignment_score >= 50 %}drift-amber{% else %}drift-red{% endif %}">{{ command_brief.alignment_score }}%</span>
             </div>
             {% if command_brief.block_total > 0 %}
             <div class="command-brief-stat">
@@ -90,7 +90,7 @@
                     {% endif %}
                     {% if command_brief.overload_risk %}
                     <div class="command-brief-forecast-alert">
-                        Schedule density is elevated. Deferring items today will increase friction tomorrow.
+                        Density elevated. Tier-3 items flagged for deferral.
                     </div>
                     {% endif %}
                     {% for warning in command_brief.risk_warnings %}

@@ -281,6 +281,14 @@ class AssistantChatView(LoginRequiredMixin, AssistantMixin, View):
                 image_mime_type=image_mime_type
             )
 
+            # Phase 4: Extract learning from user message (non-blocking)
+            try:
+                from apps.core.ai_learning.learning_extractor import extract_learning
+                response_text = result.get('response', '') if isinstance(result, dict) else str(result)
+                extract_learning(request.user, message, response_text)
+            except Exception:
+                pass  # Learning extraction must never break chat
+
             # Handle both old string response and new dict response
             if isinstance(result, dict):
                 response_data = {

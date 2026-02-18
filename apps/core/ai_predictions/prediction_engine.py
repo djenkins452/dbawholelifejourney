@@ -154,6 +154,18 @@ def generate_predictions(user, module=None, record_id=None):
             predictions = rule.predict(user, event)
             for pred_data in predictions:
                 confidence = pred_data.get("confidence_score", 0.0)
+
+                # Phase 4: Apply feedback-based confidence adjustment
+                try:
+                    from apps.core.ai_feedback.prediction_validator import get_confidence_adjustment
+                    adjustment = get_confidence_adjustment(
+                        user, pred_data.get("prediction_type", "")
+                    )
+                    confidence = max(0.0, min(1.0, confidence + adjustment))
+                    pred_data["confidence_score"] = confidence
+                except Exception:
+                    pass  # Feedback adjustment must never break predictions
+
                 min_conf = max(
                     MIN_CONFIDENCE_TO_STORE,
                     getattr(rule, "min_confidence_to_store", 0.30),

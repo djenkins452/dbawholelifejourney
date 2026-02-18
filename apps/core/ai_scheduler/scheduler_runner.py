@@ -537,3 +537,112 @@ def _create_relational_guidance(user, suggestion):
             )
     except (ImportError, Exception) as e:
         logger.debug("Relational guidance creation failed: %s", e)
+
+
+# =========================================================================
+# PHASE 4 — FEEDBACK LOOP RUNNERS
+# =========================================================================
+
+
+def run_prediction_validation():
+    """
+    Validate expired predictions against actual outcomes for all active users.
+
+    Calls PredictionValidator.validate_expired_predictions() per user.
+
+    Returns:
+        dict — {validated: int, errors: int}
+    """
+    try:
+        from apps.core.ai_feedback.prediction_validator import validate_expired_predictions
+    except ImportError:
+        logger.error("ISE: PredictionValidator not available (import failed)")
+        return {"validated": 0, "errors": 0}
+
+    users = _get_active_ai_users()
+    validated = 0
+    errors = 0
+
+    for user in users:
+        try:
+            outcomes = validate_expired_predictions(user)
+            validated += len(outcomes) if outcomes else 0
+        except Exception as e:
+            errors += 1
+            logger.warning(f"ISE: Prediction validation failed for {user.email}: {e}")
+
+    logger.info(f"ISE: Prediction validation — validated={validated}, errors={errors}")
+    return {"validated": validated, "errors": errors}
+
+
+def run_intervention_effectiveness():
+    """
+    Evaluate intervention effectiveness for all active users.
+
+    Calls InterventionEffectivenessTracker per user to update
+    effectiveness scores and escalation speed modifiers.
+
+    Returns:
+        dict — {evaluated: int, errors: int}
+    """
+    try:
+        from apps.core.ai_feedback.intervention_tracker import evaluate_intervention_effectiveness
+    except ImportError:
+        logger.error("ISE: InterventionEffectivenessTracker not available (import failed)")
+        return {"evaluated": 0, "errors": 0}
+
+    users = _get_active_ai_users()
+    evaluated = 0
+    errors = 0
+
+    for user in users:
+        try:
+            evaluate_intervention_effectiveness(user)
+            evaluated += 1
+        except Exception as e:
+            errors += 1
+            logger.warning(f"ISE: Intervention effectiveness failed for {user.email}: {e}")
+
+    logger.info(f"ISE: Intervention effectiveness — evaluated={evaluated}, errors={errors}")
+    return {"evaluated": evaluated, "errors": errors}
+
+
+def run_cross_domain_insights():
+    """
+    Run cross-domain correlation insight rules for all active users.
+
+    Fires a 'scheduled_check' event through the insight engine,
+    which triggers cross-domain rules registered via @register.
+
+    Returns:
+        dict — {checked: int, insights_created: int, errors: int}
+    """
+    try:
+        from apps.core.ai_insights.insight_engine import run_insights
+    except ImportError:
+        logger.error("ISE: Insight engine not available (import failed)")
+        return {"checked": 0, "insights_created": 0, "errors": 0}
+
+    users = _get_active_ai_users()
+    checked = 0
+    total_insights = 0
+    errors = 0
+
+    for user in users:
+        try:
+            event = {
+                "event_type": "scheduled_check",
+                "module": "cross_domain",
+            }
+            insights = run_insights(user, event)
+            checked += 1
+            total_insights += len(insights) if insights else 0
+        except Exception as e:
+            errors += 1
+            logger.warning(f"ISE: Cross-domain insights failed for {user.email}: {e}")
+
+    logger.info(
+        f"ISE: Cross-domain insights — checked={checked}, "
+        f"created={total_insights}, errors={errors}"
+    )
+    return {"checked": checked, "insights_created": total_insights, "errors": errors}

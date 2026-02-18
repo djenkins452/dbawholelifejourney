@@ -57,6 +57,19 @@ def run_insights(user, event):
                 if confidence < rule.min_confidence_to_store:
                     continue
 
+                # Phase 4: Noise budget check (caps + dedupe)
+                try:
+                    from apps.core.ai_insights.noise_budget import check_noise_budget
+                    allowed, reason = check_noise_budget(user, insight_data, rule)
+                    if not allowed:
+                        logger.debug(
+                            f"Noise budget blocked insight from "
+                            f"'{rule.rule_name}': {reason}"
+                        )
+                        continue
+                except Exception:
+                    pass  # Noise budget must never block insights on failure
+
                 insight_obj = _upsert_insight(user, rule, insight_data)
                 if insight_obj:
                     created.append(insight_obj)

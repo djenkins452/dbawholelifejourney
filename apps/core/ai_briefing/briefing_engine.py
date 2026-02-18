@@ -65,8 +65,16 @@ def generate_daily_briefing(user):
     except Exception as e:
         logger.warning(f"DBE: ICQG filter failed (continuing): {e}")
 
+    # Step 3.7: Phase 4 — Apply preferred briefing length
+    preferred_length = "standard"
+    try:
+        from apps.core.ai_feedback.briefing_tracker import get_preferred_briefing_length
+        preferred_length = get_preferred_briefing_length(user)
+    except Exception:
+        pass
+
     # Step 4: Generate summary
-    summary = _generate_summary(ranked, state)
+    summary = _generate_summary(ranked, state, preferred_length=preferred_length)
 
     # Step 4.5: Apply persona rendering (non-blocking)
     summary = _apply_persona(user, summary)
@@ -163,19 +171,20 @@ def _get_predictions(user):
         return []
 
 
-def _generate_summary(ranked_items, state):
+def _generate_summary(ranked_items, state, preferred_length="standard"):
     """
     Generate a Strategic Narrative for the Day.
 
     Phase 4 upgrade: Instead of listing insights, generates a
-    6-section executive briefing narrative.
+    6-section executive briefing narrative. Respects preferred_length
+    from BriefingEngagementProfile feedback loop.
 
     Structure:
     1. Where you stand
     2. What matters most today
-    3. Hidden risks
-    4. Relational considerations
-    5. Health considerations
+    3. Hidden risks (standard/detailed only)
+    4. Relational considerations (standard/detailed only)
+    5. Health considerations (standard/detailed only)
     6. One focus directive
     """
     sections = []
@@ -190,20 +199,22 @@ def _generate_summary(ranked_items, state):
     if priorities:
         sections.append(f"WHAT MATTERS MOST: {priorities}")
 
-    # Section 3: Hidden risks
-    risks = _build_risks_section(ranked_items, state)
-    if risks:
-        sections.append(f"HIDDEN RISKS: {risks}")
+    # Concise mode: skip optional sections 3-5
+    if preferred_length != "concise":
+        # Section 3: Hidden risks
+        risks = _build_risks_section(ranked_items, state)
+        if risks:
+            sections.append(f"HIDDEN RISKS: {risks}")
 
-    # Section 4: Relational considerations
-    relational = _build_relational_section(state)
-    if relational:
-        sections.append(f"RELATIONSHIPS: {relational}")
+        # Section 4: Relational considerations
+        relational = _build_relational_section(state)
+        if relational:
+            sections.append(f"RELATIONSHIPS: {relational}")
 
-    # Section 5: Health considerations
-    health_section = _build_health_section(state)
-    if health_section:
-        sections.append(f"HEALTH: {health_section}")
+        # Section 5: Health considerations
+        health_section = _build_health_section(state)
+        if health_section:
+            sections.append(f"HEALTH: {health_section}")
 
     # Section 6: Focus directive
     directive = _build_focus_directive(ranked_items, state)

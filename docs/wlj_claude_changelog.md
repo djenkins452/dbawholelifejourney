@@ -11,6 +11,23 @@
 
 ## 2026-02-18
 
+- **Feature:** Phase 4 Verification & Wiring Pass
+  - **Wiring:** Connected all 8 Phase 4 trackers to production call sites (all were floating/unused)
+  - **Cross-domain rules:** Imported `rules_cross_domain.py` in PIE `__init__.py` so `@register` decorators fire
+  - **InsightEngagement:** Wired into `InsightActionView.post()` — records viewed/dismissed events
+  - **BriefingEngagement:** Wired into `DashboardView` and `WeeklyReportDetailView` — records open events
+  - **PredictionValidator:** Registered in ISE scheduler (daily) — validates expired predictions against actuals
+  - **InterventionEffectiveness:** Registered in ISE scheduler (daily) — evaluates response patterns
+  - **LearningExtractor:** Wired into `AssistantChatView.post()` — extracts learning after every chat message
+  - **Cross-domain insights:** Registered in ISE scheduler (6h) — runs scheduled cross-domain correlation checks
+  - **Confidence adjustment:** Applied in PRIE `generate_predictions()` — adjusts confidence ±0.2 based on accuracy
+  - **Escalation modifier:** Applied in `compute_intensity()` — adjusts intervention intensity ±15 points
+  - **Preferred briefing length:** Applied in DBE `_generate_summary()` — concise mode skips optional sections
+  - **Noise budget:** New module `noise_budget.py` — caps insights at 12/day, 5/6h window, 4 cross-domain/day
+  - **Backfill command:** `python manage.py backfill_phase4_engagement` — backfills engagement from existing records
+  - **Tests:** 14 new verification tests (70 total Phase 4 tests passing)
+  - **Report:** `docs/PHASE4_VERIFICATION_REPORT.md`
+
 - **Feature:** Phase 4 CoS Integration — Unified Executive Intelligence
   - **Step 1:** Extended ExecutiveContextBuilder (`cos_context.py`) with 8 new signals: active insights, predictions, relationship signals, mood trends, health signals, open loops, feedback profiles, learned profile
   - **Step 2:** Added 6 cross-domain intelligence rules in PIE: Motivation Drift, Overtraining Risk, Financial Anxiety, Overextension Risk, Compliance Risk, Behavioral Instability

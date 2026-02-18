@@ -51,4 +51,12 @@ class WeeklyReportDetailView(LoginRequiredMixin, DetailView):
         context = super().get_context_data(**kwargs)
         context["app_name"] = "intelligence"
         context["help_context_id"] = "WEEKLY_INTELLIGENCE_REPORT"
+
+        # Phase 4: Record detail view for engagement tracking
+        try:
+            from apps.core.ai_feedback.briefing_tracker import record_briefing_opened
+            record_briefing_opened(self.request.user, "weekly_report", self.object.id)
+        except Exception:
+            pass
+
         return context

@@ -154,8 +154,21 @@ def compute_intensity(user, behavior_key=None, context=None):
     factors['biological_risk'] = round(bio_risk, 2)
     score += bio_risk * 15.0
 
+    # Phase 4: Apply escalation speed modifier from feedback loop
+    # Positive modifier = faster escalation (non-responsive user)
+    # Negative modifier = slower escalation (responsive user)
+    try:
+        from apps.core.ai_feedback.intervention_tracker import get_escalation_speed_modifier
+        esc_modifier = get_escalation_speed_modifier(user)
+        if esc_modifier != 0.0:
+            # Modifier adjusts score by up to ±15 points
+            score += esc_modifier * 50.0
+            factors['escalation_speed_modifier'] = esc_modifier
+    except Exception:
+        pass  # Feedback adjustment must never break intensity computation
+
     # Compute level from composite score
-    score = min(100.0, score)
+    score = min(100.0, max(0.0, score))
     factors['composite_score'] = round(score, 1)
 
     if score >= 80:

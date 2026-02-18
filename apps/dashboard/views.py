@@ -139,14 +139,30 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             # Daily Briefing Engine (DBE) — today's intelligence summary
             try:
                 from apps.core.ai_briefing.briefing_engine import get_todays_briefing
-                context["daily_briefing"] = get_todays_briefing(user)
+                briefing = get_todays_briefing(user)
+                context["daily_briefing"] = briefing
+                # Phase 4: Record briefing opened for engagement tracking
+                if briefing:
+                    try:
+                        from apps.core.ai_feedback.briefing_tracker import record_briefing_opened
+                        record_briefing_opened(user, "daily_briefing", briefing.id)
+                    except Exception:
+                        pass
             except Exception:
                 context["daily_briefing"] = None
 
             # Weekly Intelligence Report (WIRE) — latest weekly summary
             try:
                 from apps.core.ai_weekly_report.report_engine import get_latest_weekly_report
-                context["weekly_report"] = get_latest_weekly_report(user)
+                report = get_latest_weekly_report(user)
+                context["weekly_report"] = report
+                # Phase 4: Record report opened for engagement tracking
+                if report:
+                    try:
+                        from apps.core.ai_feedback.briefing_tracker import record_briefing_opened
+                        record_briefing_opened(user, "weekly_report", report.id)
+                    except Exception:
+                        pass
             except Exception:
                 context["weekly_report"] = None
 

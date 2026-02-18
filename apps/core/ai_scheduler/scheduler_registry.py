@@ -77,6 +77,21 @@ SCHEDULED_TASKS = {
         "interval_seconds": 86400,  # 24 hours
         "description": "Detect relational drift and generate reconnect guidance (CoS).",
     },
+    "validate_predictions": {
+        "function_path": "apps.core.ai_scheduler.scheduler_runner.run_prediction_validation",
+        "interval_seconds": 86400,  # 24 hours
+        "description": "Validate expired predictions against actual outcomes (Phase 4 feedback).",
+    },
+    "evaluate_intervention_effectiveness": {
+        "function_path": "apps.core.ai_scheduler.scheduler_runner.run_intervention_effectiveness",
+        "interval_seconds": 86400,  # 24 hours
+        "description": "Evaluate intervention effectiveness and calibrate escalation speed (Phase 4 feedback).",
+    },
+    "run_cross_domain_insights": {
+        "function_path": "apps.core.ai_scheduler.scheduler_runner.run_cross_domain_insights",
+        "interval_seconds": 21600,  # 6 hours
+        "description": "Run cross-domain correlation insight rules for all active users (Phase 4 CoS).",
+    },
 }
 
 

@@ -47,6 +47,15 @@ class InsightActionView(LoginRequiredMixin, View):
             else:
                 insight.status = "read"
             insight.save(update_fields=["status", "updated_at"])
+
+            # Phase 4: Record engagement for feedback loop
+            try:
+                from apps.core.ai_feedback.insight_tracker import record_insight_engagement
+                event_type = "dismissed" if action == "dismiss" else "viewed"
+                record_insight_engagement(request.user, insight, event_type)
+            except Exception:
+                pass  # Feedback tracking must never break insight actions
+
             return JsonResponse({"success": True, "status": insight.status})
         except Insight.DoesNotExist:
             return JsonResponse({"success": False, "error": "Not found"}, status=404)

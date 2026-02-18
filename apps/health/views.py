@@ -63,6 +63,7 @@ from .models import (
     FoodEntry,
     GlucoseEntry,
     HeartRateEntry,
+    MealTemplate,
     Medicine,
     MedicineLog,
     MedicineSchedule,
@@ -4294,6 +4295,552 @@ class FoodSearchAPIView(LoginRequiredMixin, View):
             logger = logging.getLogger(__name__)
             logger.error(f"Food search error: {e}")
             return JsonResponse({'results': [], 'error': str(e)}, status=500)
+
+
+# =============================================================================
+# Nutrition Copy & Template API Views
+# =============================================================================
+
+
+class CopyEntryAPIView(LoginRequiredMixin, View):
+    """
+    Copy a single food entry to a target date/meal.
+
+    POST /health/physical/nutrition/api/copy-entry/
+    Body: {entry_id, target_date, target_meal}
+    """
+
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        entry_id = data.get('entry_id')
+        target_date = data.get('target_date')
+        target_meal = data.get('target_meal')
+
+        if not all([entry_id, target_date]):
+            return JsonResponse({'error': 'entry_id and target_date are required'}, status=400)
+
+        try:
+            original = FoodEntry.objects.get(pk=entry_id, user=request.user, status='active')
+        except FoodEntry.DoesNotExist:
+            return JsonResponse({'error': 'Entry not found'}, status=404)
+
+        from datetime import datetime
+        try:
+            parsed_date = datetime.strptime(target_date, '%Y-%m-%d').date()
+        except ValueError:
+            return JsonResponse({'error': 'Invalid date format (use YYYY-MM-DD)'}, status=400)
+
+        meal_type = target_meal if target_meal in dict(FoodEntry.MEAL_CHOICES) else original.meal_type
+
+        # Create the copy
+        new_entry = FoodEntry(
+            user=request.user,
+            food_item=original.food_item,
+            custom_food=original.custom_food,
+            food_name=original.food_name,
+            food_brand=original.food_brand,
+            quantity=original.quantity,
+            serving_size=original.serving_size,
+            serving_unit=original.serving_unit,
+            total_calories=original.total_calories,
+            total_protein_g=original.total_protein_g,
+            total_carbohydrates_g=original.total_carbohydrates_g,
+            total_fiber_g=original.total_fiber_g,
+            total_sugar_g=original.total_sugar_g,
+            total_fat_g=original.total_fat_g,
+            total_saturated_fat_g=original.total_saturated_fat_g,
+            total_sodium_mg=original.total_sodium_mg,
+            total_cholesterol_mg=original.total_cholesterol_mg,
+            total_potassium_mg=original.total_potassium_mg,
+            logged_date=parsed_date,
+            meal_type=meal_type,
+            entry_source=original.entry_source,
+            snapshot_nutrients=original.snapshot_nutrients,
+            food_item_version=original.food_item_version,
+            data_source_used=original.data_source_used,
+            confidence_score=original.confidence_score,
+            copied_from_entry=original,
+        )
+        new_entry.save()
+
+        # Audit trail
+        from .models import NutritionEntryAudit
+        NutritionEntryAudit.objects.create(
+            entry=new_entry,
+            changed_by=request.user,
+            change_type=NutritionEntryAudit.CHANGE_COPY,
+            after_data={
+                'copied_from': original.pk,
+                'target_date': str(parsed_date),
+                'target_meal': meal_type,
+            },
+        )
+
+        return JsonResponse({
+            'success': True,
+            'new_entry_id': new_entry.pk,
+            'food_name': new_entry.food_name,
+            'target_date': str(parsed_date),
+        })
+
+
+class CopyMealAPIView(LoginRequiredMixin, View):
+    """
+    Copy all entries from a source date/meal to a target date/meal.
+
+    POST /health/physical/nutrition/api/copy-meal/
+    Body: {source_date, source_meal, target_date, target_meal}
+    """
+
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        source_date = data.get('source_date')
+        source_meal = data.get('source_meal')
+        target_date = data.get('target_date')
+        target_meal = data.get('target_meal')
+
+        if not all([source_date, source_meal, target_date]):
+            return JsonResponse({'error': 'source_date, source_meal, and target_date are required'}, status=400)
+
+        from datetime import datetime
+        try:
+            parsed_source = datetime.strptime(source_date, '%Y-%m-%d').date()
+            parsed_target = datetime.strptime(target_date, '%Y-%m-%d').date()
+        except ValueError:
+            return JsonResponse({'error': 'Invalid date format (use YYYY-MM-DD)'}, status=400)
+
+        target_meal_type = target_meal if target_meal in dict(FoodEntry.MEAL_CHOICES) else source_meal
+
+        # Get source entries
+        source_entries = FoodEntry.objects.filter(
+            user=request.user,
+            logged_date=parsed_source,
+            meal_type=source_meal,
+            status='active',
+        ).order_by('logged_time', 'created_at')
+
+        if not source_entries.exists():
+            return JsonResponse({'error': 'No entries found for source date/meal'}, status=404)
+
+        from .models import NutritionEntryAudit
+        copied = []
+        for original in source_entries:
+            new_entry = FoodEntry(
+                user=request.user,
+                food_item=original.food_item,
+                custom_food=original.custom_food,
+                food_name=original.food_name,
+                food_brand=original.food_brand,
+                quantity=original.quantity,
+                serving_size=original.serving_size,
+                serving_unit=original.serving_unit,
+                total_calories=original.total_calories,
+                total_protein_g=original.total_protein_g,
+                total_carbohydrates_g=original.total_carbohydrates_g,
+                total_fiber_g=original.total_fiber_g,
+                total_sugar_g=original.total_sugar_g,
+                total_fat_g=original.total_fat_g,
+                total_saturated_fat_g=original.total_saturated_fat_g,
+                total_sodium_mg=original.total_sodium_mg,
+                total_cholesterol_mg=original.total_cholesterol_mg,
+                total_potassium_mg=original.total_potassium_mg,
+                logged_date=parsed_target,
+                meal_type=target_meal_type,
+                entry_source=original.entry_source,
+                snapshot_nutrients=original.snapshot_nutrients,
+                food_item_version=original.food_item_version,
+                data_source_used=original.data_source_used,
+                confidence_score=original.confidence_score,
+                copied_from_entry=original,
+            )
+            new_entry.save()
+
+            NutritionEntryAudit.objects.create(
+                entry=new_entry,
+                changed_by=request.user,
+                change_type=NutritionEntryAudit.CHANGE_COPY,
+                after_data={
+                    'copied_from': original.pk,
+                    'source_date': str(parsed_source),
+                    'source_meal': source_meal,
+                    'target_date': str(parsed_target),
+                    'target_meal': target_meal_type,
+                },
+            )
+            copied.append(new_entry.pk)
+
+        return JsonResponse({
+            'success': True,
+            'copied_count': len(copied),
+            'new_entry_ids': copied,
+            'target_date': str(parsed_target),
+            'target_meal': target_meal_type,
+        })
+
+
+class CopyDayAPIView(LoginRequiredMixin, View):
+    """
+    Copy all entries from a source date to a target date.
+
+    POST /health/physical/nutrition/api/copy-day/
+    Body: {source_date, target_date, mode: "merge"|"replace"}
+    """
+
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        source_date = data.get('source_date')
+        target_date = data.get('target_date')
+        mode = data.get('mode', 'merge')  # "merge" or "replace"
+
+        if not all([source_date, target_date]):
+            return JsonResponse({'error': 'source_date and target_date are required'}, status=400)
+
+        from datetime import datetime
+        try:
+            parsed_source = datetime.strptime(source_date, '%Y-%m-%d').date()
+            parsed_target = datetime.strptime(target_date, '%Y-%m-%d').date()
+        except ValueError:
+            return JsonResponse({'error': 'Invalid date format (use YYYY-MM-DD)'}, status=400)
+
+        if parsed_source == parsed_target:
+            return JsonResponse({'error': 'Source and target dates must be different'}, status=400)
+
+        # Get source entries
+        source_entries = FoodEntry.objects.filter(
+            user=request.user,
+            logged_date=parsed_source,
+            status='active',
+        ).order_by('meal_type', 'logged_time', 'created_at')
+
+        if not source_entries.exists():
+            return JsonResponse({'error': 'No entries found for source date'}, status=404)
+
+        # Handle replace mode — soft-delete existing target entries
+        replaced_count = 0
+        if mode == 'replace':
+            existing = FoodEntry.objects.filter(
+                user=request.user,
+                logged_date=parsed_target,
+                status='active',
+            )
+            replaced_count = existing.count()
+            for entry in existing:
+                entry.soft_delete()
+
+        from .models import NutritionEntryAudit
+        copied = []
+        for original in source_entries:
+            new_entry = FoodEntry(
+                user=request.user,
+                food_item=original.food_item,
+                custom_food=original.custom_food,
+                food_name=original.food_name,
+                food_brand=original.food_brand,
+                quantity=original.quantity,
+                serving_size=original.serving_size,
+                serving_unit=original.serving_unit,
+                total_calories=original.total_calories,
+                total_protein_g=original.total_protein_g,
+                total_carbohydrates_g=original.total_carbohydrates_g,
+                total_fiber_g=original.total_fiber_g,
+                total_sugar_g=original.total_sugar_g,
+                total_fat_g=original.total_fat_g,
+                total_saturated_fat_g=original.total_saturated_fat_g,
+                total_sodium_mg=original.total_sodium_mg,
+                total_cholesterol_mg=original.total_cholesterol_mg,
+                total_potassium_mg=original.total_potassium_mg,
+                logged_date=parsed_target,
+                meal_type=original.meal_type,
+                entry_source=original.entry_source,
+                snapshot_nutrients=original.snapshot_nutrients,
+                food_item_version=original.food_item_version,
+                data_source_used=original.data_source_used,
+                confidence_score=original.confidence_score,
+                copied_from_entry=original,
+            )
+            new_entry.save()
+
+            NutritionEntryAudit.objects.create(
+                entry=new_entry,
+                changed_by=request.user,
+                change_type=NutritionEntryAudit.CHANGE_COPY,
+                after_data={
+                    'copied_from': original.pk,
+                    'source_date': str(parsed_source),
+                    'target_date': str(parsed_target),
+                    'mode': mode,
+                },
+            )
+            copied.append(new_entry.pk)
+
+        return JsonResponse({
+            'success': True,
+            'copied_count': len(copied),
+            'replaced_count': replaced_count,
+            'new_entry_ids': copied,
+            'target_date': str(parsed_target),
+            'mode': mode,
+        })
+
+
+# =============================================================================
+# Meal Template Views
+# =============================================================================
+
+
+class MealTemplateListView(HelpContextMixin, LoginRequiredMixin, ListView):
+    """List user's meal templates."""
+    model = MealTemplate
+    template_name = "health/nutrition/templates_list.html"
+    context_object_name = "templates"
+    help_context_id = "MEAL_TEMPLATES"
+    paginate_by = 30
+
+    def get_queryset(self):
+        return MealTemplate.objects.filter(
+            user=self.request.user, status='active'
+        ).prefetch_related('items').order_by('-is_favorite', '-use_count', 'name')
+
+
+class MealTemplateCreateView(HelpContextMixin, LoginRequiredMixin, View):
+    """
+    Create a meal template from entries or manual input.
+
+    POST /health/physical/nutrition/templates/create/
+    Body: {
+        name, default_meal_type, is_favorite,
+        source: "entries"|"manual",
+        entry_ids: [...]  (if source=entries)
+        items: [{food_name, quantity, ...}]  (if source=manual)
+    }
+    """
+
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        name = data.get('name', '').strip()
+        if not name:
+            return JsonResponse({'error': 'Template name is required'}, status=400)
+
+        from .models import MealTemplate, MealTemplateItem
+
+        template = MealTemplate.objects.create(
+            user=request.user,
+            name=name,
+            description=data.get('description', ''),
+            default_meal_type=data.get('default_meal_type', FoodEntry.MEAL_SNACK),
+            is_favorite=data.get('is_favorite', False),
+        )
+
+        source = data.get('source', 'entries')
+
+        if source == 'entries':
+            # Build from existing food entries
+            entry_ids = data.get('entry_ids', [])
+            entries = FoodEntry.objects.filter(
+                pk__in=entry_ids, user=request.user, status='active'
+            ).order_by('logged_time', 'created_at')
+
+            for i, entry in enumerate(entries):
+                MealTemplateItem.objects.create(
+                    template=template,
+                    food_item=entry.food_item,
+                    custom_food=entry.custom_food,
+                    food_name=entry.food_name,
+                    food_brand=entry.food_brand,
+                    quantity=entry.quantity,
+                    serving_size=entry.serving_size,
+                    serving_unit=entry.serving_unit,
+                    snapshot_nutrients=entry.snapshot_nutrients or {},
+                    sort_order=i,
+                )
+        elif source == 'manual':
+            items = data.get('items', [])
+            for i, item in enumerate(items):
+                MealTemplateItem.objects.create(
+                    template=template,
+                    food_name=item.get('food_name', ''),
+                    food_brand=item.get('food_brand', ''),
+                    quantity=item.get('quantity', 1),
+                    serving_size=item.get('serving_size', 1),
+                    serving_unit=item.get('serving_unit', 'serving'),
+                    snapshot_nutrients=item.get('snapshot_nutrients', {}),
+                    sort_order=i,
+                )
+
+        return JsonResponse({
+            'success': True,
+            'template_id': template.pk,
+            'name': template.name,
+            'item_count': template.items.count(),
+        })
+
+
+class MealTemplateEditView(HelpContextMixin, LoginRequiredMixin, View):
+    """Edit a meal template (name, items)."""
+    help_context_id = "MEAL_TEMPLATE_EDIT"
+
+    def get(self, request, pk):
+        template = get_object_or_404(
+            MealTemplate.objects.filter(user=request.user, status='active'), pk=pk
+        )
+        items = list(template.items.order_by('sort_order').values(
+            'id', 'food_name', 'food_brand', 'quantity',
+            'serving_size', 'serving_unit', 'snapshot_nutrients',
+        ))
+        return JsonResponse({
+            'id': template.pk,
+            'name': template.name,
+            'description': template.description,
+            'default_meal_type': template.default_meal_type,
+            'is_favorite': template.is_favorite,
+            'items': items,
+        })
+
+    def post(self, request, pk):
+        template = get_object_or_404(
+            MealTemplate.objects.filter(user=request.user, status='active'), pk=pk
+        )
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        if 'name' in data:
+            template.name = data['name']
+        if 'description' in data:
+            template.description = data['description']
+        if 'default_meal_type' in data:
+            template.default_meal_type = data['default_meal_type']
+        if 'is_favorite' in data:
+            template.is_favorite = data['is_favorite']
+        template.save()
+
+        return JsonResponse({'success': True, 'template_id': template.pk})
+
+
+class MealTemplateDeleteView(LoginRequiredMixin, View):
+    """Soft-delete a meal template."""
+
+    def post(self, request, pk):
+        template = get_object_or_404(
+            MealTemplate.objects.filter(user=request.user, status='active'), pk=pk
+        )
+        template.soft_delete()
+        return JsonResponse({'success': True})
+
+
+class MealTemplateApplyAPIView(LoginRequiredMixin, View):
+    """
+    Apply a meal template — creates one FoodEntry per template item.
+
+    POST /health/physical/nutrition/api/templates/<pk>/apply/
+    Body: {target_date, target_meal}
+    """
+
+    def post(self, request, pk):
+        template = get_object_or_404(
+            MealTemplate.objects.filter(user=request.user, status='active'), pk=pk
+        )
+
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        target_date = data.get('target_date')
+        target_meal = data.get('target_meal', template.default_meal_type)
+
+        if not target_date:
+            return JsonResponse({'error': 'target_date is required'}, status=400)
+
+        from datetime import datetime
+        try:
+            parsed_date = datetime.strptime(target_date, '%Y-%m-%d').date()
+        except ValueError:
+            return JsonResponse({'error': 'Invalid date format (use YYYY-MM-DD)'}, status=400)
+
+        if target_meal not in dict(FoodEntry.MEAL_CHOICES):
+            target_meal = template.default_meal_type
+
+        from .models import NutritionEntryAudit
+        from .services.nutrition_calculator import compute_totals
+
+        created_entries = []
+        items = template.items.order_by('sort_order')
+
+        for item in items:
+            snapshot = item.snapshot_nutrients or {}
+            totals = compute_totals(snapshot, item.quantity)
+
+            new_entry = FoodEntry(
+                user=request.user,
+                food_item=item.food_item,
+                custom_food=item.custom_food,
+                food_name=item.food_name,
+                food_brand=item.food_brand,
+                quantity=item.quantity,
+                serving_size=item.serving_size,
+                serving_unit=item.serving_unit,
+                total_calories=totals.get('total_calories', 0) or 0,
+                total_protein_g=totals.get('total_protein_g', 0) or 0,
+                total_carbohydrates_g=totals.get('total_carbohydrates_g', 0) or 0,
+                total_fiber_g=totals.get('total_fiber_g', 0) or 0,
+                total_sugar_g=totals.get('total_sugar_g', 0) or 0,
+                total_fat_g=totals.get('total_fat_g', 0) or 0,
+                total_saturated_fat_g=totals.get('total_saturated_fat_g', 0) or 0,
+                total_sodium_mg=totals.get('total_sodium_mg'),
+                total_cholesterol_mg=totals.get('total_cholesterol_mg'),
+                total_potassium_mg=totals.get('total_potassium_mg'),
+                logged_date=parsed_date,
+                meal_type=target_meal,
+                entry_source=FoodEntry.SOURCE_MANUAL,
+                snapshot_nutrients=snapshot,
+                data_source_used=FoodEntry.DATA_SOURCE_LOCAL,
+                confidence_score=100,
+                applied_template=template,
+            )
+            new_entry.save()
+
+            NutritionEntryAudit.objects.create(
+                entry=new_entry,
+                changed_by=request.user,
+                change_type=NutritionEntryAudit.CHANGE_TEMPLATE,
+                after_data={
+                    'template_id': template.pk,
+                    'template_name': template.name,
+                    'template_item_food': item.food_name,
+                },
+            )
+            created_entries.append(new_entry.pk)
+
+        # Increment use count
+        template.use_count += 1
+        template.save(update_fields=['use_count'])
+
+        return JsonResponse({
+            'success': True,
+            'template_name': template.name,
+            'created_count': len(created_entries),
+            'new_entry_ids': created_entries,
+            'target_date': str(parsed_date),
+            'target_meal': target_meal,
+        })
 
 
 # =============================================================================

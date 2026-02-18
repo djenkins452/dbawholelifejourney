@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Meal Templates - Nutrition - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'health:home' %}">Health</a>
+        <span>/</span>
+        <a href="{% url 'health:nutrition_home' %}">Nutrition</a>
+        <span>/</span>
+        <span>Meal Templates</span>
+    </nav>
+
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Meal Templates</h1>
+            <p class="page-subtitle">Save meals you eat often for quick logging</p>
+        </div>
+    </div>
+
+    {% if templates %}
+    <div class="card-list">
+        {% for template in templates %}
+        <div class="card mb-4" data-template-id="{{ template.pk }}">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h3 class="card-title">
+                        {% if template.is_favorite %}<span title="Favorite">&#9733;</span> {% endif %}
+                        {{ template.name }}
+                    </h3>
+                    <span class="text-muted">
+                        {{ template.item_count }} item{{ template.item_count|pluralize }} &middot;
+                        ~{{ template.total_calories|floatformat:0 }} cal &middot;
+                        {{ template.get_default_meal_type_display }} &middot;
+                        Used {{ template.use_count }}x
+                    </span>
+                </div>
+                <div class="btn-group">
+                    <button class="btn btn-sm btn-primary btn-apply-template"
+                            data-template-id="{{ template.pk }}"
+                            data-template-name="{{ template.name }}"
+                            title="Log this template today">
+                        Log Today
+                    </button>
+                    <button class="btn btn-sm btn-secondary btn-delete-template"
+                            data-template-id="{{ template.pk }}"
+                            title="Delete template">
+                        Delete
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <ul class="template-items-list" style="list-style: none; padding: 0; margin: 0;">
+                    {% for item in template.items.all %}
+                    <li style="padding: 4px 0; border-bottom: 1px solid var(--border-color, #eee);">
+                        <span>{{ item.food_name }}{% if item.food_brand %} <span class="text-muted">({{ item.food_brand }})</span>{% endif %}</span>
+                        <span class="text-muted" style="float: right;">
+                            x{{ item.quantity }} &middot;
+                            {% with snap=item.snapshot_nutrients %}
+                                {{ snap.calories|default:"0"|floatformat:0 }} cal
+                            {% endwith %}
+                        </span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <p>No meal templates yet.</p>
+        <p class="text-muted">
+            Create templates from the daily nutrition view by selecting entries and choosing "Save as Template".
+        </p>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Apply template
+    document.querySelectorAll('.btn-apply-template').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var templateId = this.dataset.templateId;
+            var today = new Date().toISOString().split('T')[0];
+            var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
+                            document.cookie.split('csrftoken=')[1]?.split(';')[0] || '';
+
+            fetch('/health/physical/nutrition/api/templates/' + templateId + '/apply/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                },
+                body: JSON.stringify({target_date: today}),
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    if (typeof window.showToast === 'function') {
+                        window.showToast(data.template_name + ' logged (' + data.created_count + ' items)', 'success');
+                    }
+                    setTimeout(function() { window.location.href = '{% url "health:nutrition_home" %}'; }, 1000);
+                } else {
+                    alert(data.error || 'Failed to apply template');
+                }
+            })
+            .catch(function(err) { alert('Error: ' + err); });
+        });
+    });
+
+    // Delete template
+    document.querySelectorAll('.btn-delete-template').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            if (!confirm('Delete this template?')) return;
+            var templateId = this.dataset.templateId;
+            var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
+                            document.cookie.split('csrftoken=')[1]?.split(';')[0] || '';
+
+            fetch('/health/physical/nutrition/templates/' + templateId + '/delete/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                },
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    var card = document.querySelector('[data-template-id="' + templateId + '"]');
+                    if (card) card.remove();
+                    if (typeof window.showToast === 'function') {
+                        window.showToast('Template deleted', 'success');
+                    }
+                }
+            })
+            .catch(function(err) { alert('Error: ' + err); });
+        });
+    });
+});
+</script>
+{% endblock %}

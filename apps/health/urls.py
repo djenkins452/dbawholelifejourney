@@ -265,6 +265,16 @@ urlpatterns = [
 
     # Nutrition API
     path("physical/nutrition/api/search/", views.FoodSearchAPIView.as_view(), name="food_search_api"),
+    path("physical/nutrition/api/copy-entry/", views.CopyEntryAPIView.as_view(), name="copy_entry_api"),
+    path("physical/nutrition/api/copy-meal/", views.CopyMealAPIView.as_view(), name="copy_meal_api"),
+    path("physical/nutrition/api/copy-day/", views.CopyDayAPIView.as_view(), name="copy_day_api"),
+
+    # Meal Templates
+    path("physical/nutrition/templates/", views.MealTemplateListView.as_view(), name="meal_template_list"),
+    path("physical/nutrition/templates/create/", views.MealTemplateCreateView.as_view(), name="meal_template_create"),
+    path("physical/nutrition/templates/<int:pk>/edit/", views.MealTemplateEditView.as_view(), name="meal_template_edit"),
+    path("physical/nutrition/templates/<int:pk>/delete/", views.MealTemplateDeleteView.as_view(), name="meal_template_delete"),
+    path("physical/nutrition/api/templates/<int:pk>/apply/", views.MealTemplateApplyAPIView.as_view(), name="meal_template_apply_api"),
 
     # Medical Providers
     path("physical/providers/", views.MedicalProviderListView.as_view(), name="provider_list"),

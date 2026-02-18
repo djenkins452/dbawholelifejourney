@@ -275,6 +275,7 @@ urlpatterns = [
     path("physical/nutrition/templates/<int:pk>/edit/", views.MealTemplateEditView.as_view(), name="meal_template_edit"),
     path("physical/nutrition/templates/<int:pk>/delete/", views.MealTemplateDeleteView.as_view(), name="meal_template_delete"),
     path("physical/nutrition/api/templates/<int:pk>/apply/", views.MealTemplateApplyAPIView.as_view(), name="meal_template_apply_api"),
+    path("physical/nutrition/api/save-meal-template/", views.SaveMealAsTemplateAPIView.as_view(), name="save_meal_template_api"),
 
     # Medical Providers
     path("physical/providers/", views.MedicalProviderListView.as_view(), name="provider_list"),

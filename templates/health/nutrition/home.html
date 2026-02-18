@@ -123,6 +123,11 @@
                 </div>
                 <div class="meal-actions">
                     {% if breakfast_entries %}
+                    <button type="button" class="btn btn-icon-sm btn-save-template"
+                            data-source-date="{{ view_date|date:'Y-m-d' }}" data-source-meal="breakfast"
+                            title="Save as template" aria-label="Save breakfast as template">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                    </button>
                     <button type="button" class="btn btn-icon-sm btn-copy-meal"
                             data-source-date="{{ view_date|date:'Y-m-d' }}" data-source-meal="breakfast"
                             title="Copy breakfast" aria-label="Copy breakfast to another day">
@@ -155,6 +160,11 @@
                 </div>
                 <div class="meal-actions">
                     {% if lunch_entries %}
+                    <button type="button" class="btn btn-icon-sm btn-save-template"
+                            data-source-date="{{ view_date|date:'Y-m-d' }}" data-source-meal="lunch"
+                            title="Save as template" aria-label="Save lunch as template">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                    </button>
                     <button type="button" class="btn btn-icon-sm btn-copy-meal"
                             data-source-date="{{ view_date|date:'Y-m-d' }}" data-source-meal="lunch"
                             title="Copy lunch" aria-label="Copy lunch to another day">
@@ -187,6 +197,11 @@
                 </div>
                 <div class="meal-actions">
                     {% if dinner_entries %}
+                    <button type="button" class="btn btn-icon-sm btn-save-template"
+                            data-source-date="{{ view_date|date:'Y-m-d' }}" data-source-meal="dinner"
+                            title="Save as template" aria-label="Save dinner as template">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                    </button>
                     <button type="button" class="btn btn-icon-sm btn-copy-meal"
                             data-source-date="{{ view_date|date:'Y-m-d' }}" data-source-meal="dinner"
                             title="Copy dinner" aria-label="Copy dinner to another day">
@@ -219,6 +234,11 @@
                 </div>
                 <div class="meal-actions">
                     {% if snack_entries %}
+                    <button type="button" class="btn btn-icon-sm btn-save-template"
+                            data-source-date="{{ view_date|date:'Y-m-d' }}" data-source-meal="snack"
+                            title="Save as template" aria-label="Save snacks as template">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                    </button>
                     <button type="button" class="btn btn-icon-sm btn-copy-meal"
                             data-source-date="{{ view_date|date:'Y-m-d' }}" data-source-meal="snack"
                             title="Copy snacks" aria-label="Copy snacks to another day">
@@ -356,6 +376,28 @@
         <footer class="nutrition-modal-footer">
             <button type="button" class="btn btn-secondary" onclick="document.getElementById('copy-day-modal').close()">Cancel</button>
             <button type="button" class="btn btn-primary" id="copy-day-confirm">Copy Day</button>
+        </footer>
+    </div>
+</dialog>
+
+<!-- Save as Template Modal -->
+<dialog id="save-template-modal" class="nutrition-modal" aria-labelledby="save-template-title">
+    <div class="nutrition-modal-content">
+        <header class="nutrition-modal-header">
+            <h2 id="save-template-title">Save as Template</h2>
+            <button type="button" class="nutrition-modal-close" onclick="document.getElementById('save-template-modal').close()" aria-label="Close">&times;</button>
+        </header>
+        <div class="nutrition-modal-body">
+            <p class="save-template-desc text-muted"></p>
+            <div class="form-group">
+                <label for="save-template-name" class="form-label">Template Name</label>
+                <input type="text" id="save-template-name" class="form-input" placeholder="e.g. Italian Lunch" maxlength="100" autocomplete="off">
+                <span class="form-hint">Give it a name you'll remember</span>
+            </div>
+        </div>
+        <footer class="nutrition-modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="document.getElementById('save-template-modal').close()">Cancel</button>
+            <button type="button" class="btn btn-primary" id="save-template-confirm">Save Template</button>
         </footer>
     </div>
 </dialog>
@@ -1043,6 +1085,65 @@
             document.getElementById('copy-day-confirm').textContent = 'Copy Day';
             toast('Error: ' + err, 'error');
         });
+    });
+
+    // ── Save as Template ──
+    var saveTemplateModal = document.getElementById('save-template-modal');
+    var pendingTemplate = {};
+
+    document.querySelectorAll('.btn-save-template').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            pendingTemplate = {
+                date: this.dataset.sourceDate,
+                meal: this.dataset.sourceMeal,
+            };
+            var mealName = pendingTemplate.meal.charAt(0).toUpperCase() + pendingTemplate.meal.slice(1);
+            saveTemplateModal.querySelector('.save-template-desc').textContent =
+                'Save all ' + mealName + ' entries from ' + pendingTemplate.date + ' as a reusable template.';
+            document.getElementById('save-template-name').value = '';
+            saveTemplateModal.showModal();
+            // Focus the name input
+            setTimeout(function() {
+                document.getElementById('save-template-name').focus();
+            }, 100);
+        });
+    });
+
+    document.getElementById('save-template-confirm').addEventListener('click', function() {
+        var name = document.getElementById('save-template-name').value.trim();
+        if (!name) {
+            document.getElementById('save-template-name').focus();
+            return;
+        }
+        this.disabled = true;
+        this.textContent = 'Saving...';
+        postJSON('{% url "health:save_meal_template_api" %}', {
+            name: name,
+            source_date: pendingTemplate.date,
+            source_meal: pendingTemplate.meal,
+        }).then(function(data) {
+            saveTemplateModal.close();
+            document.getElementById('save-template-confirm').disabled = false;
+            document.getElementById('save-template-confirm').textContent = 'Save Template';
+            if (data.success) {
+                toast('Template "' + data.name + '" saved with ' + data.item_count + ' items!');
+            } else {
+                toast(data.error || 'Failed to save template', 'error');
+            }
+        }).catch(function(err) {
+            saveTemplateModal.close();
+            document.getElementById('save-template-confirm').disabled = false;
+            document.getElementById('save-template-confirm').textContent = 'Save Template';
+            toast('Error: ' + err, 'error');
+        });
+    });
+
+    // Allow Enter key in template name field to submit
+    document.getElementById('save-template-name').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            document.getElementById('save-template-confirm').click();
+        }
     });
 
     // Close modals on Escape or backdrop click

@@ -468,6 +468,46 @@ class MealTemplateTest(CoreTestMixin, TestCase):
         self.assertEqual(template.status, 'deleted')
 
 
+    def test_save_meal_as_template(self):
+        """Test saving a meal's entries as a new template via API."""
+        url = reverse('health:save_meal_template_api')
+        resp = self.client.post(url, json.dumps({
+            'name': 'Italian Lunch',
+            'source_date': '2026-02-01',
+            'source_meal': 'lunch',
+        }), content_type='application/json')
+        data = resp.json()
+        self.assertTrue(data['success'])
+        self.assertEqual(data['name'], 'Italian Lunch')
+        self.assertEqual(data['item_count'], 2)
+
+        template = MealTemplate.objects.get(pk=data['template_id'])
+        self.assertEqual(template.default_meal_type, 'lunch')
+        self.assertEqual(template.items.count(), 2)
+
+    def test_save_meal_as_template_empty(self):
+        """No entries for the given meal returns error."""
+        url = reverse('health:save_meal_template_api')
+        resp = self.client.post(url, json.dumps({
+            'name': 'Empty Meal',
+            'source_date': '2026-02-01',
+            'source_meal': 'breakfast',
+        }), content_type='application/json')
+        data = resp.json()
+        self.assertIn('error', data)
+
+    def test_save_meal_as_template_no_name(self):
+        """Missing name returns error."""
+        url = reverse('health:save_meal_template_api')
+        resp = self.client.post(url, json.dumps({
+            'name': '',
+            'source_date': '2026-02-01',
+            'source_meal': 'lunch',
+        }), content_type='application/json')
+        data = resp.json()
+        self.assertIn('error', data)
+
+
 class FoodItemOverrideTest(CoreTestMixin, TestCase):
     """Tests for user nutrient overrides."""
 

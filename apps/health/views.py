@@ -4920,6 +4920,80 @@ class MealTemplateApplyAPIView(LoginRequiredMixin, View):
         })
 
 
+class SaveMealAsTemplateAPIView(LoginRequiredMixin, View):
+    """
+    Save all entries from a specific meal on a date as a new MealTemplate.
+
+    POST /health/physical/nutrition/api/save-meal-template/
+    Body: {name, source_date, source_meal}
+    """
+
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        name = data.get('name', '').strip()
+        if not name:
+            return JsonResponse({'error': 'Template name is required'}, status=400)
+
+        source_date = data.get('source_date')
+        source_meal = data.get('source_meal')
+
+        if not source_date or not source_meal:
+            return JsonResponse({'error': 'source_date and source_meal are required'}, status=400)
+
+        from datetime import datetime as dt
+        try:
+            parsed_date = dt.strptime(source_date, '%Y-%m-%d').date()
+        except ValueError:
+            return JsonResponse({'error': 'Invalid date format (use YYYY-MM-DD)'}, status=400)
+
+        if source_meal not in dict(FoodEntry.MEAL_CHOICES):
+            return JsonResponse({'error': 'Invalid meal type'}, status=400)
+
+        # Get all entries for that meal on that date
+        entries = FoodEntry.objects.filter(
+            user=request.user,
+            logged_date=parsed_date,
+            meal_type=source_meal,
+            status='active',
+        ).order_by('logged_time', 'created_at')
+
+        if not entries.exists():
+            return JsonResponse({'error': 'No entries found for that meal'}, status=400)
+
+        from .models import MealTemplate, MealTemplateItem
+
+        template = MealTemplate.objects.create(
+            user=request.user,
+            name=name,
+            default_meal_type=source_meal,
+        )
+
+        for i, entry in enumerate(entries):
+            MealTemplateItem.objects.create(
+                template=template,
+                food_item=entry.food_item,
+                custom_food=entry.custom_food,
+                food_name=entry.food_name,
+                food_brand=entry.food_brand,
+                quantity=entry.quantity,
+                serving_size=entry.serving_size,
+                serving_unit=entry.serving_unit,
+                snapshot_nutrients=entry.snapshot_nutrients or {},
+                sort_order=i,
+            )
+
+        return JsonResponse({
+            'success': True,
+            'template_id': template.pk,
+            'name': template.name,
+            'item_count': template.items.count(),
+        })
+
+
 # =============================================================================
 # Blood Pressure Views
 # =============================================================================

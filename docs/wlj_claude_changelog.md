@@ -9,6 +9,13 @@
 
 # WLJ Change History
 
+## 2026-02-18 — Save Meal as Template (from Daily Log)
+
+- **Feature:** "Save as Template" button on each meal section header in the daily nutrition log. Opens a modal where you name the template (e.g. "Italian Lunch"), then saves all entries from that meal as a reusable MealTemplate.
+  - New API: `POST /nutrition/api/save-meal-template/` — takes `name`, `source_date`, `source_meal`
+  - 3 new tests covering happy path, empty meal, and missing name
+  - Files: apps/health/views.py, apps/health/urls.py, templates/health/nutrition/home.html, apps/health/tests/test_nutrition_upgrade.py
+
 ## 2026-02-18 — Chief of Staff (CoS) Assistant — Life Operating System Layer
 
 Major new system: the CoS Assistant provides a Personal Operating Blueprint, tiered priority management, daily architecture planning, drift detection, intelligent interventions, and an assistant-first UI panel.

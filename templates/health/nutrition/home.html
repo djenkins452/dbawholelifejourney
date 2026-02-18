@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Nutrition - Health - Whole Life Journey{% endblock %}
+{% block title %}Nutrition - {{ view_date|date:"M j" }} - Health - Whole Life Journey{% endblock %}
 
 {% block content %}
 <div class="container">
@@ -11,20 +11,37 @@
         <span>Nutrition</span>
     </nav>
 
+    <!-- Page Header with Date Navigation -->
     <div class="page-header">
         <div>
             <h1 class="page-title">Daily Nutrition {% include "components/favorite_toggle.html" with page_title="Nutrition" %}</h1>
-            <p class="page-subtitle">{{ today|date:"l, F j, Y" }}</p>
         </div>
         <div class="page-actions">
-            <a href="{% url 'scan:home' %}?mode=barcode" class="btn btn-icon btn-secondary" title="Scan food barcode">📷</a>
+            <a href="{% url 'scan:home' %}?mode=barcode" class="btn btn-icon btn-secondary" title="Scan barcode" aria-label="Scan food barcode">📷</a>
             <a href="{% url 'health:food_quick_add' %}" class="btn btn-secondary btn-sm">Quick Add</a>
-            <a href="{% url 'health:food_entry_create' %}" class="btn btn-primary">Log Food</a>
+            <a href="{% url 'health:food_entry_create' %}?date={{ view_date|date:'Y-m-d' }}" class="btn btn-primary">Log Food</a>
         </div>
     </div>
 
+    <!-- Date Navigation -->
+    <nav class="date-nav mb-4" aria-label="Date navigation">
+        <a href="?date={{ prev_date|date:'Y-m-d' }}" class="date-nav-btn" aria-label="Previous day" title="{{ prev_date|date:'M j' }}">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        </a>
+        <div class="date-nav-center">
+            <span class="date-nav-day">{{ view_date|date:"l" }}</span>
+            <span class="date-nav-date">{{ view_date|date:"F j, Y" }}</span>
+            {% if not is_today %}
+            <a href="{% url 'health:nutrition_home' %}" class="date-nav-today-link">Go to Today</a>
+            {% endif %}
+        </div>
+        <a href="?date={{ next_date|date:'Y-m-d' }}" class="date-nav-btn" aria-label="Next day" title="{{ next_date|date:'M j' }}">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        </a>
+    </nav>
+
     <!-- Daily Summary -->
-    <div class="nutrition-summary mb-6">
+    <section class="nutrition-summary mb-6" aria-label="Daily nutrition summary">
         <div class="summary-card calories-card">
             <div class="summary-main">
                 <span class="summary-value">{{ total_calories|floatformat:0 }}</span>
@@ -32,7 +49,7 @@
             </div>
             {% if goals and goals.daily_calorie_target %}
             <div class="summary-progress">
-                <div class="progress-bar">
+                <div class="progress-bar" role="progressbar" aria-valuenow="{{ calorie_progress|default:0 }}" aria-valuemin="0" aria-valuemax="100" aria-label="Calorie progress">
                     <div class="progress-fill" style="width: {{ calorie_progress|default:0 }}%"></div>
                 </div>
                 <span class="progress-text">{{ calorie_progress|default:0 }}% of {{ goals.daily_calorie_target }}</span>
@@ -46,7 +63,7 @@
                 <span class="macro-label">Protein</span>
                 {% if goals and goals.daily_protein_target_g %}
                 <div class="macro-progress">
-                    <div class="progress-bar-mini">
+                    <div class="progress-bar-mini" role="progressbar" aria-valuenow="{{ protein_progress|default:0 }}" aria-valuemin="0" aria-valuemax="100" aria-label="Protein progress">
                         <div class="progress-fill" style="width: {{ protein_progress|default:0 }}%"></div>
                     </div>
                 </div>
@@ -57,7 +74,7 @@
                 <span class="macro-label">Carbs</span>
                 {% if goals and goals.daily_carb_target_g %}
                 <div class="macro-progress">
-                    <div class="progress-bar-mini">
+                    <div class="progress-bar-mini" role="progressbar" aria-valuenow="{{ carb_progress|default:0 }}" aria-valuemin="0" aria-valuemax="100" aria-label="Carbs progress">
                         <div class="progress-fill" style="width: {{ carb_progress|default:0 }}%"></div>
                     </div>
                 </div>
@@ -68,246 +85,376 @@
                 <span class="macro-label">Fat</span>
                 {% if goals and goals.daily_fat_target_g %}
                 <div class="macro-progress">
-                    <div class="progress-bar-mini">
+                    <div class="progress-bar-mini" role="progressbar" aria-valuenow="{{ fat_progress|default:0 }}" aria-valuemin="0" aria-valuemax="100" aria-label="Fat progress">
                         <div class="progress-fill" style="width: {{ fat_progress|default:0 }}%"></div>
                     </div>
                 </div>
                 {% endif %}
             </div>
         </div>
+    </section>
+
+    <!-- Copy Day Action (only if there are entries) -->
+    {% if has_entries %}
+    <div class="day-actions mb-4">
+        <button type="button" class="btn btn-ghost btn-sm btn-copy-day"
+                data-source-date="{{ view_date|date:'Y-m-d' }}"
+                aria-label="Copy all entries from this day">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+            Copy Day
+        </button>
     </div>
+    {% endif %}
 
     <!-- Meals -->
     <div class="meals-section">
+        {% with meals="breakfast,lunch,dinner,snack" %}
+        {% for meal_name in meals|make_list %}{% endfor %}
+        {% endwith %}
+
         <!-- Breakfast -->
-        <div class="meal-group">
+        <section class="meal-group" aria-label="Breakfast">
             <div class="meal-header">
                 <div class="meal-title-row">
                     <h2>Breakfast</h2>
                     {% if breakfast_entries %}
-                    <span class="meal-subtotal">{{ breakfast_totals.calories|floatformat:0 }} cal | P: {{ breakfast_totals.protein|floatformat:0 }}g | C: {{ breakfast_totals.carbs|floatformat:0 }}g | F: {{ breakfast_totals.fat|floatformat:0 }}g</span>
+                    <span class="meal-subtotal">{{ breakfast_totals.calories|floatformat:0 }} cal &middot; P: {{ breakfast_totals.protein|floatformat:0 }}g &middot; C: {{ breakfast_totals.carbs|floatformat:0 }}g &middot; F: {{ breakfast_totals.fat|floatformat:0 }}g</span>
                     {% endif %}
                 </div>
                 <div class="meal-actions">
-                    <a href="{% url 'scan:home' %}?mode=barcode&meal=breakfast" class="btn btn-icon-sm" title="Scan food barcode">📷</a>
-                    <a href="{% url 'health:food_entry_create' %}?meal=breakfast" class="btn btn-text btn-sm">+ Add</a>
+                    {% if breakfast_entries %}
+                    <button type="button" class="btn btn-icon-sm btn-copy-meal"
+                            data-source-date="{{ view_date|date:'Y-m-d' }}" data-source-meal="breakfast"
+                            title="Copy breakfast" aria-label="Copy breakfast to another day">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                    </button>
+                    {% endif %}
+                    <a href="{% url 'scan:home' %}?mode=barcode&meal=breakfast" class="btn btn-icon-sm" title="Scan barcode" aria-label="Scan barcode for breakfast">📷</a>
+                    <a href="{% url 'health:food_entry_create' %}?meal=breakfast&date={{ view_date|date:'Y-m-d' }}" class="btn btn-text btn-sm">+ Add</a>
                 </div>
             </div>
             {% if breakfast_entries %}
             <div class="food-list">
                 {% for entry in breakfast_entries %}
-                <div class="food-item">
-                    <div class="food-info">
-                        <span class="food-name">{{ entry.food_name }}</span>
-                        {% if entry.food_brand %}<span class="food-brand">{{ entry.food_brand }}</span>{% endif %}
-                        <span class="food-serving">{{ entry.quantity }} {{ entry.serving_unit }}</span>
-                    </div>
-                    <div class="food-calories">{{ entry.total_calories|floatformat:0 }} cal</div>
-                    <div class="food-actions">
-                        <a href="{% url 'health:food_entry_edit' entry.pk %}" class="btn btn-text btn-xs">Edit</a>
-                        <form method="post" action="{% url 'health:food_entry_delete' entry.pk %}" class="inline-form" onsubmit="return confirm('Delete this entry?');">
-                            {% csrf_token %}
-                            <button type="submit" class="btn btn-text btn-xs text-danger">Delete</button>
-                        </form>
-                    </div>
-                </div>
+                {% include "health/nutrition/_food_entry_row.html" with entry=entry view_date=view_date %}
                 {% endfor %}
             </div>
             {% else %}
-            <p class="text-muted text-sm">No breakfast logged yet.</p>
+            <p class="text-muted text-sm meal-empty">No breakfast logged yet.</p>
             {% endif %}
-        </div>
+        </section>
 
         <!-- Lunch -->
-        <div class="meal-group">
+        <section class="meal-group" aria-label="Lunch">
             <div class="meal-header">
                 <div class="meal-title-row">
                     <h2>Lunch</h2>
                     {% if lunch_entries %}
-                    <span class="meal-subtotal">{{ lunch_totals.calories|floatformat:0 }} cal | P: {{ lunch_totals.protein|floatformat:0 }}g | C: {{ lunch_totals.carbs|floatformat:0 }}g | F: {{ lunch_totals.fat|floatformat:0 }}g</span>
+                    <span class="meal-subtotal">{{ lunch_totals.calories|floatformat:0 }} cal &middot; P: {{ lunch_totals.protein|floatformat:0 }}g &middot; C: {{ lunch_totals.carbs|floatformat:0 }}g &middot; F: {{ lunch_totals.fat|floatformat:0 }}g</span>
                     {% endif %}
                 </div>
                 <div class="meal-actions">
-                    <a href="{% url 'scan:home' %}?mode=barcode&meal=lunch" class="btn btn-icon-sm" title="Scan food barcode">📷</a>
-                    <a href="{% url 'health:food_entry_create' %}?meal=lunch" class="btn btn-text btn-sm">+ Add</a>
+                    {% if lunch_entries %}
+                    <button type="button" class="btn btn-icon-sm btn-copy-meal"
+                            data-source-date="{{ view_date|date:'Y-m-d' }}" data-source-meal="lunch"
+                            title="Copy lunch" aria-label="Copy lunch to another day">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                    </button>
+                    {% endif %}
+                    <a href="{% url 'scan:home' %}?mode=barcode&meal=lunch" class="btn btn-icon-sm" title="Scan barcode" aria-label="Scan barcode for lunch">📷</a>
+                    <a href="{% url 'health:food_entry_create' %}?meal=lunch&date={{ view_date|date:'Y-m-d' }}" class="btn btn-text btn-sm">+ Add</a>
                 </div>
             </div>
             {% if lunch_entries %}
             <div class="food-list">
                 {% for entry in lunch_entries %}
-                <div class="food-item">
-                    <div class="food-info">
-                        <span class="food-name">{{ entry.food_name }}</span>
-                        {% if entry.food_brand %}<span class="food-brand">{{ entry.food_brand }}</span>{% endif %}
-                        <span class="food-serving">{{ entry.quantity }} {{ entry.serving_unit }}</span>
-                    </div>
-                    <div class="food-calories">{{ entry.total_calories|floatformat:0 }} cal</div>
-                    <div class="food-actions">
-                        <a href="{% url 'health:food_entry_edit' entry.pk %}" class="btn btn-text btn-xs">Edit</a>
-                        <form method="post" action="{% url 'health:food_entry_delete' entry.pk %}" class="inline-form" onsubmit="return confirm('Delete this entry?');">
-                            {% csrf_token %}
-                            <button type="submit" class="btn btn-text btn-xs text-danger">Delete</button>
-                        </form>
-                    </div>
-                </div>
+                {% include "health/nutrition/_food_entry_row.html" with entry=entry view_date=view_date %}
                 {% endfor %}
             </div>
             {% else %}
-            <p class="text-muted text-sm">No lunch logged yet.</p>
+            <p class="text-muted text-sm meal-empty">No lunch logged yet.</p>
             {% endif %}
-        </div>
+        </section>
 
         <!-- Dinner -->
-        <div class="meal-group">
+        <section class="meal-group" aria-label="Dinner">
             <div class="meal-header">
                 <div class="meal-title-row">
                     <h2>Dinner</h2>
                     {% if dinner_entries %}
-                    <span class="meal-subtotal">{{ dinner_totals.calories|floatformat:0 }} cal | P: {{ dinner_totals.protein|floatformat:0 }}g | C: {{ dinner_totals.carbs|floatformat:0 }}g | F: {{ dinner_totals.fat|floatformat:0 }}g</span>
+                    <span class="meal-subtotal">{{ dinner_totals.calories|floatformat:0 }} cal &middot; P: {{ dinner_totals.protein|floatformat:0 }}g &middot; C: {{ dinner_totals.carbs|floatformat:0 }}g &middot; F: {{ dinner_totals.fat|floatformat:0 }}g</span>
                     {% endif %}
                 </div>
                 <div class="meal-actions">
-                    <a href="{% url 'scan:home' %}?mode=barcode&meal=dinner" class="btn btn-icon-sm" title="Scan food barcode">📷</a>
-                    <a href="{% url 'health:food_entry_create' %}?meal=dinner" class="btn btn-text btn-sm">+ Add</a>
+                    {% if dinner_entries %}
+                    <button type="button" class="btn btn-icon-sm btn-copy-meal"
+                            data-source-date="{{ view_date|date:'Y-m-d' }}" data-source-meal="dinner"
+                            title="Copy dinner" aria-label="Copy dinner to another day">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                    </button>
+                    {% endif %}
+                    <a href="{% url 'scan:home' %}?mode=barcode&meal=dinner" class="btn btn-icon-sm" title="Scan barcode" aria-label="Scan barcode for dinner">📷</a>
+                    <a href="{% url 'health:food_entry_create' %}?meal=dinner&date={{ view_date|date:'Y-m-d' }}" class="btn btn-text btn-sm">+ Add</a>
                 </div>
             </div>
             {% if dinner_entries %}
             <div class="food-list">
                 {% for entry in dinner_entries %}
-                <div class="food-item">
-                    <div class="food-info">
-                        <span class="food-name">{{ entry.food_name }}</span>
-                        {% if entry.food_brand %}<span class="food-brand">{{ entry.food_brand }}</span>{% endif %}
-                        <span class="food-serving">{{ entry.quantity }} {{ entry.serving_unit }}</span>
-                    </div>
-                    <div class="food-calories">{{ entry.total_calories|floatformat:0 }} cal</div>
-                    <div class="food-actions">
-                        <a href="{% url 'health:food_entry_edit' entry.pk %}" class="btn btn-text btn-xs">Edit</a>
-                        <form method="post" action="{% url 'health:food_entry_delete' entry.pk %}" class="inline-form" onsubmit="return confirm('Delete this entry?');">
-                            {% csrf_token %}
-                            <button type="submit" class="btn btn-text btn-xs text-danger">Delete</button>
-                        </form>
-                    </div>
-                </div>
+                {% include "health/nutrition/_food_entry_row.html" with entry=entry view_date=view_date %}
                 {% endfor %}
             </div>
             {% else %}
-            <p class="text-muted text-sm">No dinner logged yet.</p>
+            <p class="text-muted text-sm meal-empty">No dinner logged yet.</p>
             {% endif %}
-        </div>
+        </section>
 
         <!-- Snacks -->
-        <div class="meal-group">
+        <section class="meal-group" aria-label="Snacks">
             <div class="meal-header">
                 <div class="meal-title-row">
                     <h2>Snacks</h2>
                     {% if snack_entries %}
-                    <span class="meal-subtotal">{{ snack_totals.calories|floatformat:0 }} cal | P: {{ snack_totals.protein|floatformat:0 }}g | C: {{ snack_totals.carbs|floatformat:0 }}g | F: {{ snack_totals.fat|floatformat:0 }}g</span>
+                    <span class="meal-subtotal">{{ snack_totals.calories|floatformat:0 }} cal &middot; P: {{ snack_totals.protein|floatformat:0 }}g &middot; C: {{ snack_totals.carbs|floatformat:0 }}g &middot; F: {{ snack_totals.fat|floatformat:0 }}g</span>
                     {% endif %}
                 </div>
                 <div class="meal-actions">
-                    <a href="{% url 'scan:home' %}?mode=barcode&meal=snack" class="btn btn-icon-sm" title="Scan food barcode">📷</a>
-                    <a href="{% url 'health:food_entry_create' %}?meal=snack" class="btn btn-text btn-sm">+ Add</a>
+                    {% if snack_entries %}
+                    <button type="button" class="btn btn-icon-sm btn-copy-meal"
+                            data-source-date="{{ view_date|date:'Y-m-d' }}" data-source-meal="snack"
+                            title="Copy snacks" aria-label="Copy snacks to another day">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                    </button>
+                    {% endif %}
+                    <a href="{% url 'scan:home' %}?mode=barcode&meal=snack" class="btn btn-icon-sm" title="Scan barcode" aria-label="Scan barcode for snack">📷</a>
+                    <a href="{% url 'health:food_entry_create' %}?meal=snack&date={{ view_date|date:'Y-m-d' }}" class="btn btn-text btn-sm">+ Add</a>
                 </div>
             </div>
             {% if snack_entries %}
             <div class="food-list">
                 {% for entry in snack_entries %}
-                <div class="food-item">
-                    <div class="food-info">
-                        <span class="food-name">{{ entry.food_name }}</span>
-                        {% if entry.food_brand %}<span class="food-brand">{{ entry.food_brand }}</span>{% endif %}
-                        <span class="food-serving">{{ entry.quantity }} {{ entry.serving_unit }}</span>
-                    </div>
-                    <div class="food-calories">{{ entry.total_calories|floatformat:0 }} cal</div>
-                    <div class="food-actions">
-                        <a href="{% url 'health:food_entry_edit' entry.pk %}" class="btn btn-text btn-xs">Edit</a>
-                        <form method="post" action="{% url 'health:food_entry_delete' entry.pk %}" class="inline-form" onsubmit="return confirm('Delete this entry?');">
-                            {% csrf_token %}
-                            <button type="submit" class="btn btn-text btn-xs text-danger">Delete</button>
-                        </form>
-                    </div>
-                </div>
+                {% include "health/nutrition/_food_entry_row.html" with entry=entry view_date=view_date %}
                 {% endfor %}
             </div>
             {% else %}
-            <p class="text-muted text-sm">No snacks logged yet.</p>
+            <p class="text-muted text-sm meal-empty">No snacks logged yet.</p>
             {% endif %}
-        </div>
+        </section>
     </div>
 
     <!-- Quick Actions -->
-    <div class="quick-actions mt-8">
+    <nav class="quick-actions mt-8" aria-label="Nutrition quick actions">
         <a href="{% url 'health:food_history' %}" class="action-card">
-            <span class="action-icon">&#128197;</span>
+            <svg class="action-icon-svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
             <span class="action-text">History</span>
         </a>
         <a href="{% url 'health:nutrition_stats' %}" class="action-card">
-            <span class="action-icon">&#128200;</span>
+            <svg class="action-icon-svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
             <span class="action-text">Stats</span>
         </a>
         <a href="{% url 'health:nutrition_goals' %}" class="action-card">
-            <span class="action-icon">&#127919;</span>
+            <svg class="action-icon-svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
             <span class="action-text">Goals</span>
         </a>
         <a href="{% url 'health:custom_food_list' %}" class="action-card">
-            <span class="action-icon">&#128218;</span>
+            <svg class="action-icon-svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
             <span class="action-text">My Foods</span>
         </a>
-    </div>
+        <a href="{% url 'health:meal_template_list' %}" class="action-card">
+            <svg class="action-icon-svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            <span class="action-text">Templates{% if template_count %} <span class="badge-count">{{ template_count }}</span>{% endif %}</span>
+        </a>
+    </nav>
 </div>
 
+<!-- Copy Entry Modal -->
+<dialog id="copy-entry-modal" class="nutrition-modal" aria-labelledby="copy-entry-title">
+    <div class="nutrition-modal-content">
+        <header class="nutrition-modal-header">
+            <h2 id="copy-entry-title">Copy Entry</h2>
+            <button type="button" class="nutrition-modal-close" onclick="document.getElementById('copy-entry-modal').close()" aria-label="Close">&times;</button>
+        </header>
+        <div class="nutrition-modal-body">
+            <p class="copy-entry-name text-muted"></p>
+            <div class="form-group">
+                <label for="copy-entry-date" class="form-label">To Date</label>
+                <input type="date" id="copy-entry-date" class="form-input" value="">
+            </div>
+            <div class="form-group">
+                <label for="copy-entry-meal" class="form-label">Meal</label>
+                <select id="copy-entry-meal" class="form-select">
+                    <option value="breakfast">Breakfast</option>
+                    <option value="lunch">Lunch</option>
+                    <option value="dinner">Dinner</option>
+                    <option value="snack">Snack</option>
+                </select>
+            </div>
+        </div>
+        <footer class="nutrition-modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="document.getElementById('copy-entry-modal').close()">Cancel</button>
+            <button type="button" class="btn btn-primary" id="copy-entry-confirm">Copy</button>
+        </footer>
+    </div>
+</dialog>
+
+<!-- Copy Meal Modal -->
+<dialog id="copy-meal-modal" class="nutrition-modal" aria-labelledby="copy-meal-title">
+    <div class="nutrition-modal-content">
+        <header class="nutrition-modal-header">
+            <h2 id="copy-meal-title">Copy Meal</h2>
+            <button type="button" class="nutrition-modal-close" onclick="document.getElementById('copy-meal-modal').close()" aria-label="Close">&times;</button>
+        </header>
+        <div class="nutrition-modal-body">
+            <p class="copy-meal-name text-muted"></p>
+            <div class="form-group">
+                <label for="copy-meal-date" class="form-label">To Date</label>
+                <input type="date" id="copy-meal-date" class="form-input" value="">
+            </div>
+            <div class="form-group">
+                <label for="copy-meal-target" class="form-label">As Meal</label>
+                <select id="copy-meal-target" class="form-select">
+                    <option value="breakfast">Breakfast</option>
+                    <option value="lunch">Lunch</option>
+                    <option value="dinner">Dinner</option>
+                    <option value="snack">Snack</option>
+                </select>
+            </div>
+        </div>
+        <footer class="nutrition-modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="document.getElementById('copy-meal-modal').close()">Cancel</button>
+            <button type="button" class="btn btn-primary" id="copy-meal-confirm">Copy</button>
+        </footer>
+    </div>
+</dialog>
+
+<!-- Copy Day Modal -->
+<dialog id="copy-day-modal" class="nutrition-modal" aria-labelledby="copy-day-title">
+    <div class="nutrition-modal-content">
+        <header class="nutrition-modal-header">
+            <h2 id="copy-day-title">Copy Day</h2>
+            <button type="button" class="nutrition-modal-close" onclick="document.getElementById('copy-day-modal').close()" aria-label="Close">&times;</button>
+        </header>
+        <div class="nutrition-modal-body">
+            <p class="text-muted">Copy all entries from <strong>{{ view_date|date:"M j" }}</strong> to another day.</p>
+            <div class="form-group">
+                <label for="copy-day-date" class="form-label">To Date</label>
+                <input type="date" id="copy-day-date" class="form-input" value="">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Mode</label>
+                <div class="radio-group">
+                    <label class="radio-option">
+                        <input type="radio" name="copy-day-mode" value="merge" checked>
+                        <span>Merge (add to existing entries)</span>
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" name="copy-day-mode" value="replace">
+                        <span>Replace (remove existing, then copy)</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+        <footer class="nutrition-modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="document.getElementById('copy-day-modal').close()">Cancel</button>
+            <button type="button" class="btn btn-primary" id="copy-day-confirm">Copy Day</button>
+        </footer>
+    </div>
+</dialog>
+
 <style nonce="{{ csp_nonce }}">
+/* ── Page Header ── */
 .page-header {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    margin-bottom: var(--space-6);
+    margin-bottom: var(--space-4);
     flex-wrap: wrap;
     gap: var(--space-4);
 }
-
 .page-actions {
     display: flex;
     gap: var(--space-2);
+    align-items: center;
 }
 
+/* ── Date Navigation ── */
+.date-nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-3);
+    padding: var(--space-3) 0;
+}
+.date-nav-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-full);
+    color: var(--color-text);
+    text-decoration: none;
+    transition: all 0.15s ease;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+}
+.date-nav-btn:hover {
+    background: var(--color-accent);
+    color: white;
+    border-color: var(--color-accent);
+}
+.date-nav-center {
+    text-align: center;
+    min-width: 180px;
+}
+.date-nav-day {
+    display: block;
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--color-text);
+}
+.date-nav-date {
+    display: block;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+.date-nav-today-link {
+    display: inline-block;
+    font-size: var(--font-size-xs);
+    color: var(--color-accent);
+    margin-top: var(--space-1);
+}
+
+/* ── Daily Summary ── */
 .nutrition-summary {
     background: var(--color-surface);
     border-radius: var(--radius-lg);
     padding: var(--space-5);
 }
-
 .summary-card {
     text-align: center;
     margin-bottom: var(--space-4);
 }
-
 .summary-main {
     display: flex;
     flex-direction: column;
     align-items: center;
     margin-bottom: var(--space-2);
 }
-
 .summary-value {
     font-size: var(--font-size-4xl);
     font-weight: 700;
     color: var(--color-accent);
 }
-
 .summary-label {
     font-size: var(--font-size-sm);
     color: var(--color-text-muted);
     text-transform: uppercase;
     letter-spacing: 0.05em;
 }
-
 .summary-progress {
     max-width: 300px;
     margin: 0 auto;
 }
-
 .progress-bar {
     height: 8px;
     background: var(--color-border);
@@ -315,47 +462,39 @@
     overflow: hidden;
     margin-bottom: var(--space-1);
 }
-
 .progress-fill {
     height: 100%;
     background: var(--color-accent);
     border-radius: var(--radius-full);
     transition: width 0.3s ease;
 }
-
 .progress-text {
     font-size: var(--font-size-xs);
     color: var(--color-text-muted);
 }
-
 .macros-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: var(--space-4);
 }
-
 .macro-card {
     text-align: center;
     padding: var(--space-3);
     background: var(--color-background);
     border-radius: var(--radius-md);
 }
-
 .macro-value {
     display: block;
     font-size: var(--font-size-xl);
     font-weight: 600;
 }
-
 .macro-label {
     font-size: var(--font-size-xs);
     color: var(--color-text-muted);
 }
-
 .macro-card.protein .macro-value { color: #ef4444; }
 .macro-card.carbs .macro-value { color: #3b82f6; }
 .macro-card.fat .macro-value { color: #f59e0b; }
-
 .progress-bar-mini {
     height: 4px;
     background: var(--color-border);
@@ -364,19 +503,30 @@
     margin-top: var(--space-2);
 }
 
+/* ── Day Actions ── */
+.day-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+}
+.btn-copy-day svg,
+.btn-copy-meal svg {
+    vertical-align: -2px;
+    margin-right: 4px;
+}
+
+/* ── Meals ── */
 .meals-section {
     display: flex;
     flex-direction: column;
-    gap: var(--space-6);
+    gap: var(--space-4);
 }
-
 .meal-group {
     background: var(--color-background);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
     padding: var(--space-4);
 }
-
 .meal-header {
     display: flex;
     justify-content: space-between;
@@ -384,50 +534,50 @@
     margin-bottom: var(--space-3);
     gap: var(--space-3);
 }
-
 .meal-title-row {
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
 }
-
 .meal-header h2 {
     margin: 0;
     font-size: var(--font-size-lg);
 }
-
 .meal-subtotal {
     font-size: var(--font-size-xs);
     color: var(--color-text-muted);
     font-weight: 400;
 }
-
 .meal-actions {
     display: flex;
     align-items: center;
     gap: var(--space-2);
+    flex-shrink: 0;
 }
-
+.meal-empty {
+    padding: var(--space-2) 0;
+}
 .btn-icon-sm {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
+    width: 36px;
+    height: 36px;
     padding: 0;
-    font-size: var(--font-size-base);
+    font-size: var(--font-size-sm);
     border-radius: var(--radius-md);
     background: var(--color-surface);
     border: 1px solid var(--color-border);
     text-decoration: none;
-    transition: all 0.2s ease;
+    transition: all 0.15s ease;
+    cursor: pointer;
+    color: var(--color-text-muted);
 }
-
 .btn-icon-sm:hover {
     border-color: var(--color-accent);
-    background: var(--color-accent);
+    color: var(--color-accent);
+    background: var(--color-surface);
 }
-
 .btn-icon {
     display: inline-flex;
     align-items: center;
@@ -439,75 +589,120 @@
     border-radius: var(--radius-md);
 }
 
+/* ── Food List ── */
 .food-list {
     display: flex;
     flex-direction: column;
-    gap: var(--space-2);
 }
-
 .food-item {
     display: flex;
     align-items: center;
     gap: var(--space-3);
-    padding: var(--space-2) 0;
+    padding: var(--space-3) 0;
     border-bottom: 1px solid var(--color-border);
 }
-
 .food-item:last-child {
     border-bottom: none;
+    padding-bottom: 0;
 }
-
 .food-info {
     flex: 1;
-    display: flex;
-    flex-direction: column;
+    min-width: 0;
 }
-
+.food-name-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
 .food-name {
     font-weight: 500;
+    word-break: break-word;
 }
-
 .food-brand {
     font-size: var(--font-size-xs);
     color: var(--color-text-muted);
 }
-
 .food-serving {
     font-size: var(--font-size-xs);
     color: var(--color-text-muted);
 }
-
+.food-source-badge {
+    display: inline-block;
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: var(--radius-sm);
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    vertical-align: middle;
+    line-height: 1.4;
+}
+.food-source-badge.source-local,
+.food-source-badge.source-manual {
+    background: var(--color-success-bg, #dcfce7);
+    color: var(--color-success, #16a34a);
+}
+.food-source-badge.source-fatsecret,
+.food-source-badge.source-openfoodfacts {
+    background: var(--color-info-bg, #dbeafe);
+    color: var(--color-info, #2563eb);
+}
+.food-source-badge.source-ai_guess {
+    background: var(--color-warning-bg, #fef3c7);
+    color: var(--color-warning, #d97706);
+}
+.food-source-badge.source-user_override {
+    background: #f0e6ff;
+    color: #7c3aed;
+}
+.food-source-badge.source-quick_add {
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+}
 .food-calories {
     font-weight: 600;
     color: var(--color-accent);
+    white-space: nowrap;
 }
-
 .food-actions {
     display: flex;
-    gap: var(--space-2);
+    gap: var(--space-1);
     align-items: center;
+    flex-shrink: 0;
 }
-
+.food-action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: none;
+    background: none;
+    border-radius: var(--radius-sm);
+    color: var(--color-text-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.food-action-btn:hover {
+    background: var(--color-surface);
+    color: var(--color-text);
+}
+.food-action-btn.action-delete:hover {
+    color: var(--color-error, #ef4444);
+}
 .inline-form {
     display: inline;
     margin: 0;
     padding: 0;
 }
 
-.text-danger {
-    color: var(--color-danger, #dc2626) !important;
-}
-
-.text-danger:hover {
-    color: #b91c1c !important;
-}
-
+/* ── Quick Actions ── */
 .quick-actions {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: var(--space-4);
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: var(--space-3);
 }
-
 .action-card {
     display: flex;
     flex-direction: column;
@@ -519,36 +714,343 @@
     border-radius: var(--radius-lg);
     text-decoration: none;
     color: var(--color-text);
-    transition: all 0.2s ease;
+    transition: all 0.15s ease;
 }
-
 .action-card:hover {
     border-color: var(--color-accent);
-    transform: translateY(-2px);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
 }
-
-.action-icon {
-    font-size: var(--font-size-2xl);
+.action-icon-svg {
+    color: var(--color-accent);
 }
-
 .action-text {
     font-size: var(--font-size-sm);
     font-weight: 500;
+    text-align: center;
+}
+.badge-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: var(--radius-full);
+    background: var(--color-accent);
+    color: white;
+    margin-left: 4px;
+    vertical-align: middle;
+}
+
+/* ── Modals ── */
+.nutrition-modal {
+    border: none;
+    border-radius: var(--radius-lg);
+    padding: 0;
+    max-width: 400px;
+    width: calc(100% - var(--space-8));
+    box-shadow: var(--shadow-lg);
+    background: var(--color-background);
+}
+.nutrition-modal::backdrop {
+    background: rgba(0, 0, 0, 0.5);
+}
+.nutrition-modal-content {
+    display: flex;
+    flex-direction: column;
+}
+.nutrition-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-4) var(--space-5);
+    border-bottom: 1px solid var(--color-border);
+}
+.nutrition-modal-header h2 {
+    margin: 0;
+    font-size: var(--font-size-lg);
+}
+.nutrition-modal-close {
+    width: 44px;
+    height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: none;
+    font-size: var(--font-size-xl);
+    color: var(--color-text-muted);
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+}
+.nutrition-modal-close:hover {
+    background: var(--color-surface);
+    color: var(--color-text);
+}
+.nutrition-modal-body {
+    padding: var(--space-5);
+}
+.nutrition-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-5);
+    border-top: 1px solid var(--color-border);
+}
+.radio-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+.radio-option {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-size: var(--font-size-sm);
+}
+.radio-option:hover {
+    border-color: var(--color-accent);
+}
+.radio-option input[type="radio"] {
+    accent-color: var(--color-accent);
+}
+
+/* ── Sticky Bottom Totals (mobile) ── */
+.sticky-totals {
+    display: none;
 }
 
 @media (max-width: 640px) {
     .macros-grid {
-        grid-template-columns: repeat(3, 1fr);
         gap: var(--space-2);
     }
-
     .macro-card {
         padding: var(--space-2);
     }
-
     .macro-value {
         font-size: var(--font-size-lg);
     }
+    .page-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+    .food-item {
+        padding: var(--space-2) 0;
+    }
+    .quick-actions {
+        grid-template-columns: repeat(3, 1fr);
+        gap: var(--space-2);
+    }
+    .action-card {
+        padding: var(--space-3);
+    }
+    .sticky-totals {
+        display: flex;
+        position: fixed;
+        bottom: 70px; /* above bottom tab bar */
+        left: 0;
+        right: 0;
+        background: var(--color-background);
+        border-top: 1px solid var(--color-border);
+        padding: var(--space-2) var(--space-4);
+        justify-content: space-around;
+        z-index: 40;
+        box-shadow: 0 -2px 8px rgba(0,0,0,0.08);
+    }
+    .sticky-total-item {
+        text-align: center;
+        font-size: var(--font-size-xs);
+    }
+    .sticky-total-value {
+        display: block;
+        font-weight: 600;
+        font-size: var(--font-size-sm);
+    }
+    .sticky-total-value.cal { color: var(--color-accent); }
+    .sticky-total-value.protein { color: #ef4444; }
+    .sticky-total-value.carbs { color: #3b82f6; }
+    .sticky-total-value.fat { color: #f59e0b; }
 }
 </style>
+
+<!-- Sticky Bottom Totals (mobile only) -->
+<div class="sticky-totals" aria-label="Daily nutrition totals">
+    <div class="sticky-total-item">
+        <span class="sticky-total-value cal">{{ total_calories|floatformat:0 }}</span>
+        cal
+    </div>
+    <div class="sticky-total-item">
+        <span class="sticky-total-value protein">{{ total_protein|floatformat:0 }}g</span>
+        P
+    </div>
+    <div class="sticky-total-item">
+        <span class="sticky-total-value carbs">{{ total_carbs|floatformat:0 }}g</span>
+        C
+    </div>
+    <div class="sticky-total-item">
+        <span class="sticky-total-value fat">{{ total_fat|floatformat:0 }}g</span>
+        F
+    </div>
+</div>
+
+<script nonce="{{ csp_nonce }}">
+(function() {
+    'use strict';
+
+    var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
+                    document.cookie.split('csrftoken=')[1]?.split(';')[0] || '';
+    var viewDate = '{{ view_date|date:"Y-m-d" }}';
+    var todayISO = new Date().toISOString().split('T')[0];
+
+    function toast(msg, type) {
+        if (typeof window.showToast === 'function') {
+            window.showToast(msg, type || 'success');
+        }
+    }
+
+    function postJSON(url, body) {
+        return fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken,
+            },
+            body: JSON.stringify(body),
+        }).then(function(r) { return r.json(); });
+    }
+
+    // ── Copy Entry ──
+    var copyEntryModal = document.getElementById('copy-entry-modal');
+    var pendingEntryId = null;
+
+    document.querySelectorAll('.btn-copy-entry').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            pendingEntryId = this.dataset.entryId;
+            var entryName = this.dataset.entryName || 'this entry';
+            copyEntryModal.querySelector('.copy-entry-name').textContent = 'Copy "' + entryName + '"';
+            document.getElementById('copy-entry-date').value = todayISO;
+            document.getElementById('copy-entry-meal').value = this.dataset.entryMeal || 'breakfast';
+            copyEntryModal.showModal();
+        });
+    });
+
+    document.getElementById('copy-entry-confirm').addEventListener('click', function() {
+        if (!pendingEntryId) return;
+        this.disabled = true;
+        this.textContent = 'Copying...';
+        postJSON('{% url "health:copy_entry_api" %}', {
+            entry_id: parseInt(pendingEntryId),
+            target_date: document.getElementById('copy-entry-date').value,
+            target_meal: document.getElementById('copy-entry-meal').value,
+        }).then(function(data) {
+            copyEntryModal.close();
+            document.getElementById('copy-entry-confirm').disabled = false;
+            document.getElementById('copy-entry-confirm').textContent = 'Copy';
+            if (data.success) {
+                toast('Entry copied!');
+            } else {
+                toast(data.error || 'Failed to copy', 'error');
+            }
+        }).catch(function(err) {
+            copyEntryModal.close();
+            document.getElementById('copy-entry-confirm').disabled = false;
+            document.getElementById('copy-entry-confirm').textContent = 'Copy';
+            toast('Error: ' + err, 'error');
+        });
+    });
+
+    // ── Copy Meal ──
+    var copyMealModal = document.getElementById('copy-meal-modal');
+    var pendingMealSource = {};
+
+    document.querySelectorAll('.btn-copy-meal').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            pendingMealSource = {
+                date: this.dataset.sourceDate,
+                meal: this.dataset.sourceMeal,
+            };
+            var mealName = this.dataset.sourceMeal.charAt(0).toUpperCase() + this.dataset.sourceMeal.slice(1);
+            copyMealModal.querySelector('.copy-meal-name').textContent = 'Copy ' + mealName + ' from ' + pendingMealSource.date;
+            document.getElementById('copy-meal-date').value = todayISO;
+            document.getElementById('copy-meal-target').value = pendingMealSource.meal;
+            copyMealModal.showModal();
+        });
+    });
+
+    document.getElementById('copy-meal-confirm').addEventListener('click', function() {
+        this.disabled = true;
+        this.textContent = 'Copying...';
+        postJSON('{% url "health:copy_meal_api" %}', {
+            source_date: pendingMealSource.date,
+            source_meal: pendingMealSource.meal,
+            target_date: document.getElementById('copy-meal-date').value,
+            target_meal: document.getElementById('copy-meal-target').value,
+        }).then(function(data) {
+            copyMealModal.close();
+            document.getElementById('copy-meal-confirm').disabled = false;
+            document.getElementById('copy-meal-confirm').textContent = 'Copy';
+            if (data.success) {
+                toast(data.copied_count + ' entries copied!');
+            } else {
+                toast(data.error || 'Failed to copy', 'error');
+            }
+        }).catch(function(err) {
+            copyMealModal.close();
+            document.getElementById('copy-meal-confirm').disabled = false;
+            document.getElementById('copy-meal-confirm').textContent = 'Copy';
+            toast('Error: ' + err, 'error');
+        });
+    });
+
+    // ── Copy Day ──
+    var copyDayModal = document.getElementById('copy-day-modal');
+
+    document.querySelectorAll('.btn-copy-day').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            document.getElementById('copy-day-date').value = todayISO;
+            copyDayModal.showModal();
+        });
+    });
+
+    document.getElementById('copy-day-confirm').addEventListener('click', function() {
+        this.disabled = true;
+        this.textContent = 'Copying...';
+        var mode = document.querySelector('input[name="copy-day-mode"]:checked').value;
+        postJSON('{% url "health:copy_day_api" %}', {
+            source_date: viewDate,
+            target_date: document.getElementById('copy-day-date').value,
+            mode: mode,
+        }).then(function(data) {
+            copyDayModal.close();
+            document.getElementById('copy-day-confirm').disabled = false;
+            document.getElementById('copy-day-confirm').textContent = 'Copy Day';
+            if (data.success) {
+                toast(data.copied_count + ' entries copied!');
+            } else {
+                toast(data.error || 'Failed to copy', 'error');
+            }
+        }).catch(function(err) {
+            copyDayModal.close();
+            document.getElementById('copy-day-confirm').disabled = false;
+            document.getElementById('copy-day-confirm').textContent = 'Copy Day';
+            toast('Error: ' + err, 'error');
+        });
+    });
+
+    // Close modals on Escape or backdrop click
+    document.querySelectorAll('.nutrition-modal').forEach(function(modal) {
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) modal.close();
+        });
+    });
+})();
+</script>
 {% endblock %}

@@ -3696,6 +3696,7 @@ class MedicineQuickLookView(LoginRequiredMixin, TemplateView):
 class NutritionHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
     """
     Nutrition module home - daily food tracker dashboard.
+    Supports date navigation via ?date=YYYY-MM-DD query param.
     """
 
     template_name = "health/nutrition/home.html"
@@ -3704,15 +3705,33 @@ class NutritionHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         user = self.request.user
-        today = get_user_today(user)
+        user_today = get_user_today(user)
+
+        # Date navigation: ?date=YYYY-MM-DD or default to today
+        import datetime
+        date_str = self.request.GET.get('date')
+        if date_str:
+            try:
+                view_date = datetime.date.fromisoformat(date_str)
+            except (ValueError, TypeError):
+                view_date = user_today
+        else:
+            view_date = user_today
+
+        # Navigation dates
+        context["view_date"] = view_date
+        context["today"] = view_date  # backward compat for template
+        context["is_today"] = (view_date == user_today)
+        context["prev_date"] = view_date - datetime.timedelta(days=1)
+        context["next_date"] = view_date + datetime.timedelta(days=1)
+        context["user_today"] = user_today
 
         # Today's food entries
         today_entries = FoodEntry.objects.filter(
             user=user,
-            logged_date=today,
+            logged_date=view_date,
         ).order_by('logged_time', 'created_at')
 
-        context["today"] = today
         context["today_entries"] = today_entries
 
         # Group entries by meal type
@@ -3795,6 +3814,25 @@ class NutritionHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             user=user,
         ).order_by('-updated_at')[:5]
 
+        # Template count for quick actions badge
+        context["template_count"] = MealTemplate.objects.filter(
+            user=user,
+        ).count()
+
+        # Flag for copy-day action visibility
+        context["has_entries"] = today_entries.exists()
+
+        # Source label mapping for badges
+        context["source_labels"] = {
+            'local': 'Saved',
+            'fatsecret': 'FatSecret',
+            'openfoodfacts': 'OpenFoodFacts',
+            'ai_guess': 'AI',
+            'user_override': 'Custom',
+            'quick_add': 'Quick',
+            'manual': 'Manual',
+        }
+
         return context
 
 
@@ -3818,6 +3856,15 @@ class FoodEntryCreateView(HelpContextMixin, SaveAddAnotherMixin, LoginRequiredMi
     def get_initial(self):
         initial = super().get_initial()
         GET = self.request.GET
+
+        # Pre-fill date from query param (for date navigation)
+        import datetime
+        date_param = GET.get('date')
+        if date_param:
+            try:
+                initial['logged_date'] = datetime.date.fromisoformat(date_param)
+            except (ValueError, TypeError):
+                pass
 
         # Pre-fill meal type from query param
         meal_type = GET.get('meal')

@@ -107,7 +107,13 @@
 
         <div class="meta-info">
             <span class="meta-item">Source: {{ entry.get_entry_source_display }}</span>
+            {% if entry.data_source_used and entry.data_source_used != 'manual' %}
+            <span class="meta-item">Data: {{ entry.get_data_source_used_display }}{% if entry.confidence_score %} ({{ entry.confidence_score|floatformat:0 }}%){% endif %}</span>
+            {% endif %}
             <span class="meta-item">Logged: {{ entry.created_at|date:"M j, Y g:i A" }}</span>
+            {% if entry.copied_from_entry %}
+            <span class="meta-item">Copied from entry #{{ entry.copied_from_entry_id }}</span>
+            {% endif %}
         </div>
     </div>
 

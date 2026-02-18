@@ -17,13 +17,21 @@
         <h1 class="page-title">{% if form.instance.pk %}Edit Food Entry{% else %}Log Food{% endif %}</h1>
     </div>
 
-    <form method="post" class="form-card">
+    {% if data_source_label %}
+    <div class="source-indicator mb-4" aria-label="Data source information">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -3px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        Nutrition data from <strong>{{ data_source_label }}</strong>{% if confidence_score %} ({{ confidence_score }}% confident){% endif %}
+    </div>
+    {% endif %}
+
+    <form method="post" class="form-card" id="food-entry-form">
         {% csrf_token %}
 
-        <div class="form-section">
+        <!-- Section 1: Food -->
+        <fieldset class="form-section">
             <div class="form-section-header">
-                <h2 class="form-section-title">What did you eat?</h2>
-                <a href="{% url 'scan:home' %}?mode=barcode{% if request.GET.meal %}&meal={{ request.GET.meal }}{% endif %}" class="btn btn-icon-sm" title="Scan food barcode">📷</a>
+                <legend class="form-section-title">What did you eat?</legend>
+                <a href="{% url 'scan:home' %}?mode=barcode{% if request.GET.meal %}&meal={{ request.GET.meal }}{% endif %}{% if request.GET.date %}&date={{ request.GET.date }}{% endif %}" class="btn btn-icon-sm" title="Scan food barcode" aria-label="Scan food barcode">📷</a>
             </div>
 
             <div class="form-group">
@@ -31,7 +39,7 @@
                 {{ form.food_name }}
                 <span class="form-hint">Start typing to search foods...</span>
                 {% if form.food_name.errors %}
-                <span class="form-error">{{ form.food_name.errors.0 }}</span>
+                <span class="form-error" role="alert">{{ form.food_name.errors.0 }}</span>
                 {% endif %}
             </div>
 
@@ -40,7 +48,7 @@
                 {{ form.food_brand }}
             </div>
 
-            <div class="form-row">
+            <div class="form-row form-row-3">
                 <div class="form-group">
                     <label for="{{ form.meal_type.id_for_label }}">Meal</label>
                     {{ form.meal_type }}
@@ -54,19 +62,20 @@
                     {{ form.logged_time }}
                 </div>
             </div>
-        </div>
+        </fieldset>
 
-        <div class="form-section">
-            <h2 class="form-section-title">Serving Size</h2>
+        <!-- Section 2: Serving -->
+        <fieldset class="form-section">
+            <legend class="form-section-title">Serving Size</legend>
 
-            <div class="form-row">
+            <div class="form-row form-row-3">
                 <div class="form-group">
-                    <label for="{{ form.quantity.id_for_label }}">Quantity *</label>
+                    <label for="{{ form.quantity.id_for_label }}">Servings *</label>
                     {{ form.quantity }}
-                    <span class="form-hint">Number of servings</span>
+                    <span class="form-hint">How many servings?</span>
                 </div>
                 <div class="form-group">
-                    <label for="{{ form.serving_size.id_for_label }}">Serving Size *</label>
+                    <label for="{{ form.serving_size.id_for_label }}">Size *</label>
                     {{ form.serving_size }}
                 </div>
                 <div class="form-group">
@@ -74,36 +83,40 @@
                     {{ form.serving_unit }}
                 </div>
             </div>
-        </div>
+        </fieldset>
 
-        <div class="form-section">
-            <h2 class="form-section-title">Nutrition Facts</h2>
+        <!-- Section 3: Nutrition -->
+        <fieldset class="form-section">
+            <legend class="form-section-title">Nutrition Facts</legend>
 
-            <div class="form-row">
+            <div class="calories-field">
                 <div class="form-group">
                     <label for="{{ form.total_calories.id_for_label }}">Calories *</label>
                     {{ form.total_calories }}
+                    {% if form.total_calories.errors %}
+                    <span class="form-error" role="alert">{{ form.total_calories.errors.0 }}</span>
+                    {% endif %}
                 </div>
             </div>
 
             <div class="form-row macros-row">
-                <div class="form-group">
-                    <label for="{{ form.total_protein_g.id_for_label }}">Protein (g) *</label>
+                <div class="form-group macro-input protein-input">
+                    <label for="{{ form.total_protein_g.id_for_label }}">Protein (g)</label>
                     {{ form.total_protein_g }}
                 </div>
-                <div class="form-group">
-                    <label for="{{ form.total_carbohydrates_g.id_for_label }}">Carbs (g) *</label>
+                <div class="form-group macro-input carbs-input">
+                    <label for="{{ form.total_carbohydrates_g.id_for_label }}">Carbs (g)</label>
                     {{ form.total_carbohydrates_g }}
                 </div>
-                <div class="form-group">
-                    <label for="{{ form.total_fat_g.id_for_label }}">Fat (g) *</label>
+                <div class="form-group macro-input fat-input">
+                    <label for="{{ form.total_fat_g.id_for_label }}">Fat (g)</label>
                     {{ form.total_fat_g }}
                 </div>
             </div>
 
             <details class="optional-nutrition">
                 <summary>More nutrition details (optional)</summary>
-                <div class="form-row">
+                <div class="form-row form-row-3">
                     <div class="form-group">
                         <label for="{{ form.total_fiber_g.id_for_label }}">Fiber (g)</label>
                         {{ form.total_fiber_g }}
@@ -118,12 +131,13 @@
                     </div>
                 </div>
             </details>
-        </div>
+        </fieldset>
 
+        <!-- Section 4: Context (optional) -->
         <details class="form-section context-section">
             <summary class="form-section-title clickable">Context (optional)</summary>
 
-            <div class="form-row">
+            <div class="form-row form-row-2">
                 <div class="form-group">
                     <label for="{{ form.location.id_for_label }}">Where?</label>
                     {{ form.location }}
@@ -134,7 +148,7 @@
                 </div>
             </div>
 
-            <div class="form-row">
+            <div class="form-row form-row-2">
                 <div class="form-group">
                     <label for="{{ form.hunger_level_before.id_for_label }}">Hunger Before (1-5)</label>
                     {{ form.hunger_level_before }}
@@ -151,164 +165,225 @@
             </div>
         </details>
 
+        <!-- Form Actions -->
         <div class="form-actions">
             <a href="{% url 'health:nutrition_home' %}" class="btn btn-secondary">Cancel</a>
-            <button type="submit" class="btn btn-primary">{% if form.instance.pk %}Save Changes{% else %}Log Food{% endif %}</button>
-            {% if not form.instance.pk %}
-            <button type="submit" name="save_add_another" class="btn btn-outline">
-                Save &amp; Add Another
-            </button>
-            <button type="submit" name="save_and_scan" class="btn btn-outline" title="Save and scan another item">
-                Save &amp; Scan 📷
-            </button>
-            {% endif %}
+            <div class="form-actions-primary">
+                <button type="submit" class="btn btn-primary">{% if form.instance.pk %}Save Changes{% else %}Log Food{% endif %}</button>
+                {% if not form.instance.pk %}
+                <button type="submit" name="save_add_another" class="btn btn-outline" title="Save and add another food">
+                    + Another
+                </button>
+                <button type="submit" name="save_and_scan" class="btn btn-outline" title="Save and scan another barcode">
+                    📷 Scan
+                </button>
+                {% endif %}
+            </div>
         </div>
     </form>
 </div>
 
 <style nonce="{{ csp_nonce }}">
+/* ── Form Card ── */
 .form-card {
     background: var(--color-background);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
-    padding: var(--space-6);
+    padding: var(--space-5);
     max-width: 600px;
 }
 
+/* ── Source Indicator ── */
+.source-indicator {
+    max-width: 600px;
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-info-bg, #dbeafe);
+    color: var(--color-info, #2563eb);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+}
+
+/* ── Form Sections ── */
 .form-section {
-    margin-bottom: var(--space-6);
-    padding-bottom: var(--space-6);
+    margin-bottom: var(--space-5);
+    padding-bottom: var(--space-5);
     border-bottom: 1px solid var(--color-border);
+    border: none;
+    padding: 0;
 }
-
-.form-section:last-of-type {
-    border-bottom: none;
+.form-section + .form-section {
+    padding-top: var(--space-5);
+    border-top: 1px solid var(--color-border);
 }
-
 .form-section-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: var(--space-4);
 }
-
 .form-section-header .form-section-title {
     margin-bottom: 0;
 }
-
 .form-section-title {
-    font-size: var(--font-size-lg);
-    margin-bottom: var(--space-4);
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    margin-bottom: var(--space-3);
+    padding: 0;
 }
-
 .form-section-title.clickable {
     cursor: pointer;
 }
 
+/* ── Icon Button ── */
 .btn-icon-sm {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
+    width: 44px;
+    height: 44px;
     padding: 0;
     font-size: var(--font-size-base);
     border-radius: var(--radius-md);
     background: var(--color-surface);
     border: 1px solid var(--color-border);
     text-decoration: none;
-    transition: all 0.2s ease;
+    transition: all 0.15s ease;
 }
-
 .btn-icon-sm:hover {
     border-color: var(--color-accent);
-    background: var(--color-accent);
+    color: var(--color-accent);
 }
 
+/* ── Form Groups ── */
 .form-group {
-    margin-bottom: var(--space-4);
+    margin-bottom: var(--space-3);
 }
-
 .form-group label {
     display: block;
     margin-bottom: var(--space-1);
     font-weight: 500;
     font-size: var(--font-size-sm);
 }
-
 .form-row {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: var(--space-4);
+    gap: var(--space-3);
+}
+.form-row-3 {
+    grid-template-columns: repeat(3, 1fr);
+}
+.form-row-2 {
+    grid-template-columns: repeat(2, 1fr);
+}
+.form-hint {
+    display: block;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    margin-top: 2px;
+}
+.form-error {
+    display: block;
+    color: var(--color-error, #ef4444);
+    font-size: var(--font-size-xs);
+    margin-top: 2px;
 }
 
+/* ── Calories Field (emphasized) ── */
+.calories-field {
+    margin-bottom: var(--space-3);
+}
+.calories-field .form-group {
+    max-width: 200px;
+}
+
+/* ── Macro Color Indicators ── */
+.protein-input label { color: #ef4444; }
+.carbs-input label { color: #3b82f6; }
+.fat-input label { color: #f59e0b; }
+
+/* ── Macros Row ── */
 .macros-row {
     grid-template-columns: repeat(3, 1fr);
 }
 
-.form-hint {
-    font-size: var(--font-size-xs);
-    color: var(--color-text-muted);
-}
-
-.form-error {
-    color: var(--color-error, #ef4444);
-    font-size: var(--font-size-sm);
-}
-
+/* ── Optional Nutrition ── */
 .optional-nutrition {
-    margin-top: var(--space-4);
+    margin-top: var(--space-3);
     padding: var(--space-3);
     background: var(--color-surface);
     border-radius: var(--radius-md);
 }
-
 .optional-nutrition summary {
     cursor: pointer;
     font-size: var(--font-size-sm);
     color: var(--color-text-muted);
 }
-
 .optional-nutrition[open] summary {
     margin-bottom: var(--space-3);
 }
 
+/* ── Context Section ── */
 .context-section {
     background: var(--color-surface);
     border-radius: var(--radius-md);
     padding: var(--space-4);
+    margin-bottom: 0;
 }
-
 .context-section summary {
     cursor: pointer;
 }
-
 .context-section[open] summary {
     margin-bottom: var(--space-4);
 }
 
+/* ── Form Actions ── */
 .form-actions {
     display: flex;
-    gap: var(--space-3);
-    justify-content: flex-end;
+    justify-content: space-between;
+    align-items: center;
     padding-top: var(--space-4);
+    gap: var(--space-3);
+}
+.form-actions-primary {
+    display: flex;
+    gap: var(--space-2);
 }
 
+/* ── Responsive ── */
 @media (max-width: 640px) {
-    .form-row {
+    .form-card {
+        padding: var(--space-4);
+        border: none;
+        border-radius: 0;
+    }
+    .form-row-3 {
         grid-template-columns: 1fr;
     }
-
-    .macros-row {
+    .form-row-2 {
         grid-template-columns: 1fr;
+    }
+    .macros-row {
+        grid-template-columns: repeat(3, 1fr);
+    }
+    .form-actions {
+        flex-direction: column;
+        gap: var(--space-2);
+    }
+    .form-actions > .btn {
+        width: 100%;
+    }
+    .form-actions-primary {
+        width: 100%;
+        flex-direction: column;
+    }
+    .form-actions-primary .btn {
+        width: 100%;
     }
 }
 
-/* Food Autocomplete Styles */
+/* ── Food Autocomplete ── */
 .food-autocomplete-wrapper {
     position: relative;
 }
-
 .food-autocomplete-dropdown {
     position: absolute;
     top: 100%;
@@ -319,89 +394,76 @@
     background: var(--color-background);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
     z-index: 50;
     margin-top: 4px;
 }
-
 .food-autocomplete-item {
     padding: var(--space-3);
     cursor: pointer;
     border-bottom: 1px solid var(--color-border);
+    transition: background 0.1s ease;
 }
-
 .food-autocomplete-item:last-child {
     border-bottom: none;
 }
-
 .food-autocomplete-item:hover,
 .food-autocomplete-item.selected {
     background: var(--color-accent);
     color: white;
 }
-
 .food-autocomplete-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     gap: var(--space-2);
 }
-
 .food-autocomplete-name {
     font-weight: 500;
     font-size: var(--font-size-sm);
 }
-
 .food-autocomplete-brand {
     font-weight: normal;
     color: var(--color-text-muted);
 }
-
 .food-autocomplete-item.selected .food-autocomplete-brand,
 .food-autocomplete-item:hover .food-autocomplete-brand {
     color: rgba(255, 255, 255, 0.8);
 }
-
 .food-autocomplete-source {
-    font-size: var(--font-size-xs);
-    padding: 2px 6px;
+    font-size: 10px;
+    padding: 1px 6px;
     border-radius: var(--radius-sm);
     white-space: nowrap;
+    font-weight: 500;
 }
-
 .food-autocomplete-source-local,
 .food-autocomplete-source-custom {
     background: var(--color-success-bg, #dcfce7);
     color: var(--color-success, #16a34a);
 }
-
 .food-autocomplete-source-fatsecret {
     background: var(--color-info-bg, #dbeafe);
     color: var(--color-info, #2563eb);
 }
-
 .food-autocomplete-source-ai {
     background: var(--color-warning-bg, #fef3c7);
     color: var(--color-warning, #d97706);
 }
-
 .food-autocomplete-item.selected .food-autocomplete-source,
 .food-autocomplete-item:hover .food-autocomplete-source {
     background: rgba(255, 255, 255, 0.2);
     color: white;
 }
-
 .food-autocomplete-nutrition {
     font-size: var(--font-size-xs);
     color: var(--color-text-muted);
     margin-top: 2px;
 }
-
 .food-autocomplete-item.selected .food-autocomplete-nutrition,
 .food-autocomplete-item:hover .food-autocomplete-nutrition {
     color: rgba(255, 255, 255, 0.7);
 }
-
 .food-autocomplete-empty,
 .food-autocomplete-loading {
     padding: var(--space-4);
@@ -409,7 +471,6 @@
     color: var(--color-text-muted);
     font-size: var(--font-size-sm);
 }
-
 .food-autocomplete-loading .spinner {
     display: inline-block;
     width: 16px;
@@ -421,16 +482,12 @@
     margin-right: var(--space-2);
     vertical-align: middle;
 }
-
 @keyframes spin {
     to { transform: rotate(360deg); }
 }
-
-/* Auto-fill highlight animation */
 .field-auto-filled {
     animation: field-highlight 0.5s ease;
 }
-
 @keyframes field-highlight {
     0% { background-color: var(--color-success-bg, #dcfce7); }
     100% { background-color: transparent; }

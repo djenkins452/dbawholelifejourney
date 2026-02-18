@@ -643,6 +643,9 @@ class Command(BaseCommand):
         # One-time: Clear cached FatSecret FoodItems (serving size fix)
         self._clear_fatsecret_cached_items(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset fixtures for Nutrition Log UI Upgrade (PK 50, PK 119)
+        self._reset_nutrition_ui_fixtures(DataLoadConfig, force, verbosity)
+
         # Only output summary if something loaded or if verbose
         if verbosity >= 1 and loaded_count > 0:
             self.stdout.write(self.style.SUCCESS(f'Initial data: loaded {loaded_count} items'))
@@ -1963,3 +1966,34 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Clear FatSecret cache FAILED: {e}'))
+
+    def _reset_nutrition_ui_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload fixtures for Nutrition Log UI Upgrade.
+        Adds release_notes (PK 50), teaching_destinations (PK 119).
+        """
+        reset_tracker_name = 'reset_nutrition_ui_fixtures_2026_02_18'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            for loader_name in ('release_notes', 'teaching_destinations'):
+                try:
+                    config = DataLoadConfig.objects.get(loader_name=loader_name)
+                    config.reset()
+                    if verbosity >= 1:
+                        self.stdout.write(f'  Reset {loader_name} loader for Nutrition UI Upgrade')
+                except DataLoadConfig.DoesNotExist:
+                    pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for Nutrition Log UI Upgrade (Feb 2026)',
+                'command',
+                'One-time reset to reload release notes and teaching destinations for nutrition UI'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset nutrition UI fixtures FAILED: {e}'))

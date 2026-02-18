@@ -51,7 +51,17 @@ Major rebuild of the nutrition logging system for best-in-class accuracy, copy f
   - All 124 nutrition tests pass (94 existing + 30 new)
   - Files: apps/health/tests/test_nutrition_upgrade.py
 
-- **Phase 6 (UI rebuild) deferred** — awaiting UI polish master prompt
+- **Phase 6 — UI/UX Polish Pass**
+  - Daily Nutrition Log: date navigation (prev/next/today), source badges per entry, copy buttons (entry/meal/day), sticky mobile totals bar, SVG icons replacing emoji
+  - Copy Modals: native `<dialog>` modals for copy entry (date+meal picker), copy meal (date+target meal), copy day (date+merge/replace)
+  - Add Food Form: data source indicator when pre-filled, date param support for date navigation, improved mobile layout with fieldsets, macro color labels
+  - Templates Screen: card-based layout, date picker modal for "Log Template", animated delete, better empty state with icon
+  - Food Entry Detail: data source + confidence display, copy info for copied entries
+  - New partial: `_food_entry_row.html` for DRY food item rendering
+  - Accessibility: ARIA labels on progress bars, source badges, buttons; 44px modal close buttons; semantic `<section>`, `<fieldset>`, `<nav>`, `<dialog>`
+  - Mobile: sticky bottom totals bar, 3-column quick actions grid, edge-to-edge form on mobile
+  - Files: templates/health/nutrition/home.html, food_entry_form.html, food_entry_detail.html, templates_list.html, _food_entry_row.html, apps/health/views.py
+  - Docs: docs/NUTRITION_LOG_UI_REDESIGN.md, docs/NUTRITION_LOG_USABILITY_CHECKLIST.md
 
 ## 2026-02-18 — WorkoutPlan & WorkoutSchedule Models + 2-Group Strength Split
 

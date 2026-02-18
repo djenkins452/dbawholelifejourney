@@ -1,0 +1,37 @@
+{% comment %}
+Food entry row partial — used in daily nutrition log.
+Context: entry (FoodEntry), view_date (date)
+{% endcomment %}
+<div class="food-item" data-entry-id="{{ entry.pk }}">
+    <div class="food-info">
+        <div class="food-name-row">
+            <a href="{% url 'health:food_entry_detail' entry.pk %}" class="food-name">{{ entry.food_name }}</a>
+            {% if entry.data_source_used and entry.data_source_used != 'manual' %}
+            <span class="food-source-badge source-{{ entry.data_source_used }}"
+                  title="{{ entry.get_data_source_used_display }}"
+                  aria-label="Data source: {{ entry.get_data_source_used_display }}">{% if entry.data_source_used == 'local' %}Saved{% elif entry.data_source_used == 'fatsecret' %}FatSecret{% elif entry.data_source_used == 'openfoodfacts' %}OFF{% elif entry.data_source_used == 'ai_guess' %}AI{% elif entry.data_source_used == 'user_override' %}Custom{% elif entry.data_source_used == 'quick_add' %}Quick{% else %}{{ entry.data_source_used }}{% endif %}</span>
+            {% endif %}
+        </div>
+        {% if entry.food_brand %}<span class="food-brand">{{ entry.food_brand }}</span>{% endif %}
+        <span class="food-serving">{{ entry.quantity }}x {% if entry.serving_size %}{{ entry.serving_size }} {% endif %}{{ entry.serving_unit|default:"serving" }}</span>
+    </div>
+    <div class="food-calories">{{ entry.total_calories|floatformat:0 }}</div>
+    <div class="food-actions">
+        <button type="button" class="food-action-btn btn-copy-entry"
+                data-entry-id="{{ entry.pk }}"
+                data-entry-name="{{ entry.food_name }}"
+                data-entry-meal="{{ entry.meal_type }}"
+                title="Copy" aria-label="Copy {{ entry.food_name }}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+        </button>
+        <a href="{% url 'health:food_entry_edit' entry.pk %}" class="food-action-btn" title="Edit" aria-label="Edit {{ entry.food_name }}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </a>
+        <form method="post" action="{% url 'health:food_entry_delete' entry.pk %}" class="inline-form" onsubmit="return confirm('Delete this entry?');">
+            {% csrf_token %}
+            <button type="submit" class="food-action-btn action-delete" title="Delete" aria-label="Delete {{ entry.food_name }}">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+            </button>
+        </form>
+    </div>
+</div>

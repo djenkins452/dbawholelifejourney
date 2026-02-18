@@ -21,94 +21,337 @@
     </div>
 
     {% if templates %}
-    <div class="card-list">
+    <div class="templates-list">
         {% for template in templates %}
-        <div class="card mb-4" data-template-id="{{ template.pk }}">
-            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
-                <div>
-                    <h3 class="card-title">
-                        {% if template.is_favorite %}<span title="Favorite">&#9733;</span> {% endif %}
+        <div class="template-card" data-template-id="{{ template.pk }}">
+            <div class="template-header">
+                <div class="template-info">
+                    <h3 class="template-name">
+                        {% if template.is_favorite %}<span class="template-fav" title="Favorite" role="img" aria-label="Favorite">&#9733;</span> {% endif %}
                         {{ template.name }}
                     </h3>
-                    <span class="text-muted">
-                        {{ template.item_count }} item{{ template.item_count|pluralize }} &middot;
-                        ~{{ template.total_calories|floatformat:0 }} cal &middot;
-                        {{ template.get_default_meal_type_display }} &middot;
-                        Used {{ template.use_count }}x
-                    </span>
+                    <div class="template-meta">
+                        <span>{{ template.item_count }} item{{ template.item_count|pluralize }}</span>
+                        <span>&middot;</span>
+                        <span>~{{ template.total_calories|floatformat:0 }} cal</span>
+                        <span>&middot;</span>
+                        <span>{{ template.get_default_meal_type_display }}</span>
+                        {% if template.use_count %}
+                        <span>&middot;</span>
+                        <span>Used {{ template.use_count }}x</span>
+                        {% endif %}
+                    </div>
                 </div>
-                <div class="btn-group">
-                    <button class="btn btn-sm btn-primary btn-apply-template"
+                <div class="template-actions">
+                    <button type="button" class="btn btn-sm btn-primary btn-apply-template"
                             data-template-id="{{ template.pk }}"
                             data-template-name="{{ template.name }}"
-                            title="Log this template today">
-                        Log Today
+                            title="Log this template" aria-label="Log {{ template.name }}">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -2px; margin-right: 4px;"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+                        Log
                     </button>
-                    <button class="btn btn-sm btn-secondary btn-delete-template"
+                    <button type="button" class="btn btn-icon-sm btn-delete-template"
                             data-template-id="{{ template.pk }}"
-                            title="Delete template">
-                        Delete
+                            title="Delete template" aria-label="Delete {{ template.name }}">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
                     </button>
                 </div>
             </div>
-            <div class="card-body">
-                <ul class="template-items-list" style="list-style: none; padding: 0; margin: 0;">
-                    {% for item in template.items.all %}
-                    <li style="padding: 4px 0; border-bottom: 1px solid var(--border-color, #eee);">
-                        <span>{{ item.food_name }}{% if item.food_brand %} <span class="text-muted">({{ item.food_brand }})</span>{% endif %}</span>
-                        <span class="text-muted" style="float: right;">
-                            x{{ item.quantity }} &middot;
-                            {% with snap=item.snapshot_nutrients %}
-                                {{ snap.calories|default:"0"|floatformat:0 }} cal
-                            {% endwith %}
-                        </span>
-                    </li>
-                    {% endfor %}
-                </ul>
+            <div class="template-items">
+                {% for item in template.items.all %}
+                <div class="template-item">
+                    <span class="template-item-name">
+                        {{ item.food_name }}{% if item.food_brand %} <span class="text-muted">({{ item.food_brand }})</span>{% endif %}
+                    </span>
+                    <span class="template-item-detail">
+                        x{{ item.quantity }} &middot;
+                        {% with snap=item.snapshot_nutrients %}
+                            {{ snap.calories|default:"0"|floatformat:0 }} cal
+                        {% endwith %}
+                    </span>
+                </div>
+                {% endfor %}
             </div>
         </div>
         {% endfor %}
     </div>
     {% else %}
     <div class="empty-state">
-        <p>No meal templates yet.</p>
+        <svg class="empty-state-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-muted)" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        <h3 class="empty-state-title">No meal templates yet</h3>
         <p class="text-muted">
             Create templates from the daily nutrition view by selecting entries and choosing "Save as Template".
         </p>
+        <a href="{% url 'health:nutrition_home' %}" class="btn btn-primary">Go to Daily Nutrition</a>
     </div>
     {% endif %}
 </div>
 
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Apply template
+<!-- Apply Template Modal (date picker) -->
+<dialog id="apply-template-modal" class="nutrition-modal" aria-labelledby="apply-template-title">
+    <div class="nutrition-modal-content">
+        <header class="nutrition-modal-header">
+            <h2 id="apply-template-title">Log Template</h2>
+            <button type="button" class="nutrition-modal-close" onclick="document.getElementById('apply-template-modal').close()" aria-label="Close">&times;</button>
+        </header>
+        <div class="nutrition-modal-body">
+            <p class="apply-template-name text-muted"></p>
+            <div class="form-group">
+                <label for="apply-template-date" class="form-label">Log to Date</label>
+                <input type="date" id="apply-template-date" class="form-input" value="">
+            </div>
+        </div>
+        <footer class="nutrition-modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="document.getElementById('apply-template-modal').close()">Cancel</button>
+            <button type="button" class="btn btn-primary" id="apply-template-confirm">Log Template</button>
+        </footer>
+    </div>
+</dialog>
+
+<style nonce="{{ csp_nonce }}">
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--space-6);
+    flex-wrap: wrap;
+    gap: var(--space-4);
+}
+.templates-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+.template-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+.template-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: var(--space-4);
+    gap: var(--space-3);
+}
+.template-info {
+    flex: 1;
+    min-width: 0;
+}
+.template-name {
+    margin: 0 0 var(--space-1) 0;
+    font-size: var(--font-size-base);
+    font-weight: 600;
+}
+.template-fav {
+    color: #f59e0b;
+}
+.template-meta {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+}
+.template-actions {
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+    flex-shrink: 0;
+}
+.template-items {
+    border-top: 1px solid var(--color-border);
+    background: var(--color-surface);
+    padding: 0 var(--space-4);
+}
+.template-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--color-border);
+    font-size: var(--font-size-sm);
+}
+.template-item:last-child {
+    border-bottom: none;
+}
+.template-item-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.template-item-detail {
+    color: var(--color-text-muted);
+    white-space: nowrap;
+    margin-left: var(--space-3);
+}
+
+/* Icon button for delete */
+.btn-icon-sm {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    cursor: pointer;
+    color: var(--color-text-muted);
+    transition: all 0.15s ease;
+}
+.btn-icon-sm:hover {
+    color: var(--color-error, #ef4444);
+    border-color: var(--color-error, #ef4444);
+}
+
+/* Empty State */
+.empty-state {
+    text-align: center;
+    padding: var(--space-8) var(--space-4);
+}
+.empty-state-icon {
+    margin-bottom: var(--space-4);
+    opacity: 0.5;
+}
+.empty-state-title {
+    font-size: var(--font-size-lg);
+    margin-bottom: var(--space-2);
+}
+
+/* Modal (reuse pattern from home) */
+.nutrition-modal {
+    border: none;
+    border-radius: var(--radius-lg);
+    padding: 0;
+    max-width: 400px;
+    width: calc(100% - var(--space-8));
+    box-shadow: var(--shadow-lg);
+    background: var(--color-background);
+}
+.nutrition-modal::backdrop {
+    background: rgba(0, 0, 0, 0.5);
+}
+.nutrition-modal-content {
+    display: flex;
+    flex-direction: column;
+}
+.nutrition-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-4) var(--space-5);
+    border-bottom: 1px solid var(--color-border);
+}
+.nutrition-modal-header h2 {
+    margin: 0;
+    font-size: var(--font-size-lg);
+}
+.nutrition-modal-close {
+    width: 44px;
+    height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: none;
+    font-size: var(--font-size-xl);
+    color: var(--color-text-muted);
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+}
+.nutrition-modal-close:hover {
+    background: var(--color-surface);
+    color: var(--color-text);
+}
+.nutrition-modal-body {
+    padding: var(--space-5);
+}
+.nutrition-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-5);
+    border-top: 1px solid var(--color-border);
+}
+
+@media (max-width: 640px) {
+    .template-header {
+        flex-direction: column;
+    }
+    .template-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+}
+</style>
+
+<script nonce="{{ csp_nonce }}">
+(function() {
+    'use strict';
+
+    var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
+                    document.cookie.split('csrftoken=')[1]?.split(';')[0] || '';
+    var todayISO = new Date().toISOString().split('T')[0];
+
+    function toast(msg, type) {
+        if (typeof window.showToast === 'function') {
+            window.showToast(msg, type || 'success');
+        }
+    }
+
+    // Apply template — show modal with date picker
+    var applyModal = document.getElementById('apply-template-modal');
+    var pendingTemplateId = null;
+
     document.querySelectorAll('.btn-apply-template').forEach(function(btn) {
         btn.addEventListener('click', function() {
-            var templateId = this.dataset.templateId;
-            var today = new Date().toISOString().split('T')[0];
-            var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
-                            document.cookie.split('csrftoken=')[1]?.split(';')[0] || '';
+            pendingTemplateId = this.dataset.templateId;
+            var name = this.dataset.templateName || 'Template';
+            applyModal.querySelector('.apply-template-name').textContent = 'Log "' + name + '" to your food diary.';
+            document.getElementById('apply-template-date').value = todayISO;
+            applyModal.showModal();
+        });
+    });
 
-            fetch('/health/physical/nutrition/api/templates/' + templateId + '/apply/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': csrfToken,
-                },
-                body: JSON.stringify({target_date: today}),
-            })
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-                if (data.success) {
-                    if (typeof window.showToast === 'function') {
-                        window.showToast(data.template_name + ' logged (' + data.created_count + ' items)', 'success');
-                    }
-                    setTimeout(function() { window.location.href = '{% url "health:nutrition_home" %}'; }, 1000);
-                } else {
-                    alert(data.error || 'Failed to apply template');
-                }
-            })
-            .catch(function(err) { alert('Error: ' + err); });
+    document.getElementById('apply-template-confirm').addEventListener('click', function() {
+        if (!pendingTemplateId) return;
+        this.disabled = true;
+        this.textContent = 'Logging...';
+
+        var targetDate = document.getElementById('apply-template-date').value || todayISO;
+
+        fetch('/health/physical/nutrition/api/templates/' + pendingTemplateId + '/apply/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken,
+            },
+            body: JSON.stringify({target_date: targetDate}),
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            applyModal.close();
+            document.getElementById('apply-template-confirm').disabled = false;
+            document.getElementById('apply-template-confirm').textContent = 'Log Template';
+            if (data.success) {
+                toast(data.template_name + ' logged (' + data.created_count + ' items)');
+                setTimeout(function() {
+                    window.location.href = '{% url "health:nutrition_home" %}?date=' + targetDate;
+                }, 1000);
+            } else {
+                toast(data.error || 'Failed to apply template', 'error');
+            }
+        })
+        .catch(function(err) {
+            applyModal.close();
+            document.getElementById('apply-template-confirm').disabled = false;
+            document.getElementById('apply-template-confirm').textContent = 'Log Template';
+            toast('Error: ' + err, 'error');
         });
     });
 
@@ -117,8 +360,6 @@ document.addEventListener('DOMContentLoaded', function() {
         btn.addEventListener('click', function() {
             if (!confirm('Delete this template?')) return;
             var templateId = this.dataset.templateId;
-            var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
-                            document.cookie.split('csrftoken=')[1]?.split(';')[0] || '';
 
             fetch('/health/physical/nutrition/templates/' + templateId + '/delete/', {
                 method: 'POST',
@@ -131,15 +372,28 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(function(data) {
                 if (data.success) {
                     var card = document.querySelector('[data-template-id="' + templateId + '"]');
-                    if (card) card.remove();
-                    if (typeof window.showToast === 'function') {
-                        window.showToast('Template deleted', 'success');
+                    if (card) {
+                        card.style.transition = 'opacity 0.2s, transform 0.2s';
+                        card.style.opacity = '0';
+                        card.style.transform = 'translateX(20px)';
+                        setTimeout(function() { card.remove(); }, 200);
+                    }
+                    toast('Template deleted');
+
+                    // Show empty state if no templates left
+                    if (document.querySelectorAll('.template-card').length <= 1) {
+                        setTimeout(function() { location.reload(); }, 300);
                     }
                 }
             })
-            .catch(function(err) { alert('Error: ' + err); });
+            .catch(function(err) { toast('Error: ' + err, 'error'); });
         });
     });
-});
+
+    // Modal backdrop click to close
+    applyModal.addEventListener('click', function(e) {
+        if (e.target === applyModal) applyModal.close();
+    });
+})();
 </script>
 {% endblock %}

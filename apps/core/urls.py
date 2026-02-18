@@ -24,13 +24,16 @@ Copyright:
     without explicit permission.
 """
 
-from django.urls import path
+from django.urls import include, path
 
 from . import views
 
 app_name = "core"
 
 urlpatterns = [
+    # Blueprint API
+    path("api/blueprint/", include("apps.core.blueprint.urls")),
+
     path("", views.LandingPageView.as_view(), name="landing"),
     path("_health/", views.HealthCheckView.as_view(), name="health_check"),
     path("terms/", views.TermsOfServiceView.as_view(), name="terms"),

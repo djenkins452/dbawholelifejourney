@@ -646,6 +646,9 @@ class Command(BaseCommand):
         # One-time: Reset fixtures for Nutrition Log UI Upgrade (PK 50, PK 119)
         self._reset_nutrition_ui_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset fixtures for Chief of Staff Assistant (PK 51, PK 120, PK 96)
+        self._reset_cos_assistant_fixtures(DataLoadConfig, force, verbosity)
+
         # Only output summary if something loaded or if verbose
         if verbosity >= 1 and loaded_count > 0:
             self.stdout.write(self.style.SUCCESS(f'Initial data: loaded {loaded_count} items'))
@@ -1997,3 +2000,34 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset nutrition UI fixtures FAILED: {e}'))
+
+    def _reset_cos_assistant_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload fixtures for Chief of Staff Assistant.
+        Adds release_notes (PK 51), teaching_destinations (PK 120), help_topics (PK 96).
+        """
+        reset_tracker_name = 'reset_cos_assistant_fixtures_2026_02_18'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            for loader_name in ('release_notes', 'teaching_destinations', 'help_topics'):
+                try:
+                    config = DataLoadConfig.objects.get(loader_name=loader_name)
+                    config.reset()
+                    if verbosity >= 1:
+                        self.stdout.write(f'  Reset {loader_name} loader for CoS Assistant')
+                except DataLoadConfig.DoesNotExist:
+                    pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for Chief of Staff Assistant (Feb 2026)',
+                'command',
+                'One-time reset to reload release notes, teaching destinations, and help topics for CoS'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset CoS Assistant fixtures FAILED: {e}'))

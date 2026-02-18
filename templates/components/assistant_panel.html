@@ -1,0 +1,297 @@
+{% load static %}
+{#
+  Chief of Staff Assistant Panel
+
+  Desktop: Pinned right panel (default open, collapsible)
+  Mobile: Pull-up panel from bottom
+
+  Renders: today's plan, active interventions, drift status, quick actions
+  Supports: assistant-initiated pings, friction gates, curveball handling
+#}
+
+{% if user.is_authenticated and personal_assistant_enabled %}
+{# Desktop Panel (hidden on mobile) #}
+<aside id="assistant-panel" class="assistant-panel" data-state="open" aria-label="Assistant Panel">
+    <div class="assistant-panel-header">
+        <div class="assistant-panel-title">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="m9 12 2 2 4-4"/>
+            </svg>
+            <span>Chief of Staff</span>
+        </div>
+        <button class="assistant-panel-toggle" onclick="toggleAssistantPanel()" aria-label="Toggle assistant panel" title="Toggle panel">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="15 18 9 12 15 6"/>
+            </svg>
+        </button>
+    </div>
+
+    <div class="assistant-panel-body">
+        {# Status indicator #}
+        <div class="assistant-status" id="assistant-status">
+            <div class="assistant-status-dot active"></div>
+            <span class="assistant-status-text">Monitoring</span>
+        </div>
+
+        {# Today's Architecture Plan #}
+        <div class="assistant-section" id="assistant-plan-section">
+            <div class="assistant-section-header" onclick="toggleSection('assistant-plan')">
+                <span>Today's Plan</span>
+                <svg class="section-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+            <div class="assistant-section-content" id="assistant-plan">
+                <div class="assistant-loading"
+                     hx-get="/api/blueprint/plan/today/"
+                     hx-trigger="load"
+                     hx-swap="outerHTML">
+                    Loading plan...
+                </div>
+            </div>
+        </div>
+
+        {# Drift Status #}
+        <div class="assistant-section" id="assistant-drift-section">
+            <div class="assistant-section-header" onclick="toggleSection('assistant-drift')">
+                <span>Drift Monitor</span>
+                <svg class="section-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+            <div class="assistant-section-content" id="assistant-drift">
+                <div class="assistant-loading"
+                     hx-get="/api/blueprint/drift/summary/"
+                     hx-trigger="load"
+                     hx-swap="outerHTML">
+                    Loading drift data...
+                </div>
+            </div>
+        </div>
+
+        {# Active Interventions #}
+        <div class="assistant-section" id="assistant-interventions-section">
+            <div class="assistant-section-header" onclick="toggleSection('assistant-interventions')">
+                <span>Alerts</span>
+                <span class="assistant-badge" id="intervention-count" hidden>0</span>
+                <svg class="section-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+            <div class="assistant-section-content" id="assistant-interventions">
+                <div class="assistant-loading"
+                     hx-get="/api/blueprint/interventions/pending/"
+                     hx-trigger="load"
+                     hx-swap="outerHTML">
+                    Loading...
+                </div>
+            </div>
+        </div>
+
+        {# Quick Actions #}
+        <div class="assistant-section">
+            <div class="assistant-section-header">
+                <span>Quick Actions</span>
+            </div>
+            <div class="assistant-section-content">
+                <div class="assistant-quick-actions">
+                    <button class="assistant-action-btn" onclick="openAssistantChat()" title="Open chat">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="m3 21 1.9-5.7a8.5 8.5 0 1 1 3.8 3.8z"/>
+                        </svg>
+                        Chat
+                    </button>
+                    <button class="assistant-action-btn" onclick="triggerCurveball()" title="Report curveball">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 2v20M2 12h20"/>
+                        </svg>
+                        Curveball
+                    </button>
+                    <button class="assistant-action-btn" onclick="viewBlueprint()" title="View blueprint">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect width="18" height="18" x="3" y="4" rx="2" ry="2"/>
+                            <line x1="16" x2="16" y1="2" y2="6"/>
+                            <line x1="8" x2="8" y1="2" y2="6"/>
+                            <line x1="3" x2="21" y1="10" y2="10"/>
+                        </svg>
+                        Blueprint
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</aside>
+
+{# Mobile Pull-Up Panel #}
+<div id="assistant-pullup" class="assistant-pullup" aria-label="Assistant">
+    <div class="assistant-pullup-handle" onclick="toggleMobileAssistant()">
+        <div class="assistant-pullup-grip"></div>
+        <div class="assistant-pullup-header">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="m9 12 2 2 4-4"/>
+            </svg>
+            <span>Chief of Staff</span>
+            <span class="assistant-badge mobile-badge" id="mobile-intervention-count" hidden>0</span>
+        </div>
+    </div>
+    <div class="assistant-pullup-body" id="assistant-pullup-body">
+        {# Same content as desktop panel, loaded via HTMX when opened #}
+        <div class="assistant-pullup-content"
+             hx-get="/api/blueprint/panel/mobile/"
+             hx-trigger="revealed"
+             hx-swap="innerHTML">
+        </div>
+    </div>
+</div>
+
+{# Friction Gate Modal #}
+<div id="friction-gate-modal" class="friction-gate-overlay" hidden>
+    <div class="friction-gate-modal">
+        <div class="friction-gate-icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="2">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+        </div>
+        <div class="friction-gate-content" id="friction-gate-content">
+            {# Content loaded dynamically #}
+        </div>
+        <div class="friction-gate-actions" id="friction-gate-actions">
+            {# Buttons loaded dynamically #}
+        </div>
+    </div>
+</div>
+
+<script nonce="{{ csp_nonce }}">
+/* Assistant Panel Logic */
+function toggleAssistantPanel() {
+    var panel = document.getElementById('assistant-panel');
+    var state = panel.getAttribute('data-state');
+    panel.setAttribute('data-state', state === 'open' ? 'closed' : 'open');
+    document.body.classList.toggle('assistant-panel-closed', state === 'open');
+}
+
+function toggleSection(sectionId) {
+    var section = document.getElementById(sectionId);
+    if (section) {
+        section.classList.toggle('collapsed');
+    }
+}
+
+function toggleMobileAssistant() {
+    var pullup = document.getElementById('assistant-pullup');
+    pullup.classList.toggle('expanded');
+    document.body.classList.toggle('assistant-pullup-open');
+}
+
+function openAssistantChat() {
+    /* Open the existing chat widget */
+    var chatToggle = document.querySelector('.chat-toggle-button, [data-chat-toggle]');
+    if (chatToggle) chatToggle.click();
+    else window.location.href = '/assistant/';
+}
+
+function triggerCurveball() {
+    var desc = prompt("What's the curveball? Describe the unexpected event:");
+    if (desc) {
+        fetch('/api/blueprint/curveball/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({ description: desc })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                htmx.trigger('#assistant-plan-section', 'load');
+                showToast('Plan updated for curveball');
+            }
+        });
+    }
+}
+
+function viewBlueprint() {
+    window.location.href = '/user/preferences/#blueprint';
+}
+
+function showFrictionGate(data) {
+    var modal = document.getElementById('friction-gate-modal');
+    var content = document.getElementById('friction-gate-content');
+    var actions = document.getElementById('friction-gate-actions');
+
+    content.innerHTML = '<p class="friction-gate-message">' + data.message + '</p>';
+    if (data.identity_cost > 30) {
+        content.innerHTML += '<div class="friction-gate-cost">Identity Cost: ' +
+            Math.round(data.identity_cost) + '/100</div>';
+    }
+
+    var html = '';
+    (data.options || []).forEach(function(opt) {
+        html += '<button class="btn btn-' + (opt.style || 'secondary') +
+            '" onclick="respondFrictionGate(' + data.intervention_id + ', \'' +
+            opt.key + '\')">' + opt.label + '</button>';
+    });
+    actions.innerHTML = html;
+
+    modal.hidden = false;
+}
+
+function respondFrictionGate(interventionId, response) {
+    fetch('/api/blueprint/interventions/' + interventionId + '/respond/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({ response: response })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function() {
+        document.getElementById('friction-gate-modal').hidden = true;
+    });
+}
+
+function getCookie(name) {
+    var value = '; ' + document.cookie;
+    var parts = value.split('; ' + name + '=');
+    if (parts.length === 2) return parts.pop().split(';').shift();
+    return '';
+}
+
+function showToast(message) {
+    var toast = document.createElement('div');
+    toast.className = 'assistant-toast';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(function() { toast.classList.add('show'); }, 10);
+    setTimeout(function() { toast.remove(); }, 3000);
+}
+
+/* Poll for assistant pings every 60 seconds */
+setInterval(function() {
+    fetch('/api/blueprint/interventions/check/')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.count > 0) {
+            var badge = document.getElementById('intervention-count');
+            var mBadge = document.getElementById('mobile-intervention-count');
+            if (badge) { badge.textContent = data.count; badge.hidden = false; }
+            if (mBadge) { mBadge.textContent = data.count; mBadge.hidden = false; }
+
+            if (data.friction_gate) {
+                showFrictionGate(data.friction_gate);
+            }
+
+            /* Auto-open panel on ping level interventions */
+            if (data.should_ping) {
+                var panel = document.getElementById('assistant-panel');
+                if (panel && panel.getAttribute('data-state') === 'closed') {
+                    panel.setAttribute('data-state', 'open');
+                    document.body.classList.remove('assistant-panel-closed');
+                }
+            }
+        }
+    })
+    .catch(function() {});
+}, 60000);
+</script>
+{% endif %}

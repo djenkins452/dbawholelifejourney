@@ -1,6 +1,22 @@
 [
     {
         "model": "help.helptopic",
+        "pk": 96,
+        "fields": {
+            "context_id": "BLUEPRINT_SETTINGS",
+            "help_id": "blueprint-settings",
+            "title": "Chief of Staff Assistant & Personal Operating Blueprint",
+            "description": "Configure your life operating system — identity-protected behaviors, daily architecture, drift detection, and intelligent interventions.",
+            "content": "## Chief of Staff Assistant\n\nThe Chief of Staff (CoS) Assistant is your Personal Life Operating System layer. It sits on top of all your WLJ data and intelligence engines to orchestrate your day.\n\n### Personal Operating Blueprint\n\nYour blueprint defines how the assistant operates:\n- **Operating Style** — Executive CoS, Calm Guide, Minimal, Coach, or Custom\n- **Life Pillars** — Ranked list of what matters most (Faith, Health, Purpose, etc.)\n- **Tier 1 Protected Behaviors** — Identity-defining commitments that are protected aggressively\n- **Interruption Tolerance** — How aggressively the assistant can interrupt you (Low/Medium/High)\n- **Sleep & Wake Preferences** — Target sleep duration and wake time policy\n\n### Non-Negotiables\n\nDefine behaviors that must happen every day (or on specific days):\n- Each has a behavior key, time window, frequency, and optional hard deadline\n- Tier 1 non-negotiables are protected by Rule B: they are only displaced if all other options are exhausted\n- The assistant monitors completion and escalates if a deadline approaches\n\n### Daily Architecture\n\nEach night, the assistant builds tomorrow's plan:\n1. Sleep blocks are placed first\n2. Tier 1 non-negotiables are scheduled in preferred windows\n3. Calendar events and tasks fill remaining time\n4. Buffer blocks are added for transitions\n\nIf something disrupts your day (a \"curveball\"), the assistant re-optimizes around it.\n\n### Drift Detection\n\nThe assistant tracks drift from your commitments:\n- **Drift Events** — Missed medications, skipped workouts, broken fasts, etc.\n- **Drift Score** — Daily aggregate (0-100) weighted by tier importance\n- **Drift Prediction** — 24h/72h probability of future drift\n\n### Interventions\n\nWhen action is needed, the assistant intervenes at the right level:\n- **Level 0 (Silent)** — Logged but not shown\n- **Level 1 (Nudge)** — Subtle reminder\n- **Level 2 (Ping)** — Attention-getting notification\n- **Level 3 (Interrupt)** — Modal or prominent alert\n- **Level 4 (Friction Gate)** — Must acknowledge with evidence before proceeding\n\n### Assistant Panel\n\n- **Desktop** — Pinned right panel with today's plan, drift status, and alerts\n- **Mobile** — Pull-up panel from the bottom tab bar\n- Both update automatically with 60-second polling",
+            "app_name": "ai",
+            "order": 96,
+            "is_active": true,
+            "created_at": "2026-02-18T00:00:00Z",
+            "updated_at": "2026-02-18T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.helptopic",
         "pk": 95,
         "fields": {
             "context_id": "DASHBOARD_TRANSFORMATION",

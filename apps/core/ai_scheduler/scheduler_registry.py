@@ -47,6 +47,21 @@ SCHEDULED_TASKS = {
         "interval_seconds": 86400,  # 24 hours
         "description": "Generate daily intelligence observability metrics snapshot (IOCD).",
     },
+    "run_architecture_pass": {
+        "function_path": "apps.core.ai_scheduler.scheduler_runner.run_architecture_pass",
+        "interval_seconds": 86400,  # 24 hours (nightly)
+        "description": "Run nightly architecture pass to build tomorrow's plan (CoS).",
+    },
+    "run_drift_scoring": {
+        "function_path": "apps.core.ai_scheduler.scheduler_runner.run_drift_scoring",
+        "interval_seconds": 21600,  # 6 hours
+        "description": "Compute drift scores and predictions for all active users (CoS).",
+    },
+    "run_assistant_triggers": {
+        "function_path": "apps.core.ai_scheduler.scheduler_runner.run_assistant_triggers",
+        "interval_seconds": 900,  # 15 minutes
+        "description": "Check and execute assistant trigger conditions for active users (CoS).",
+    },
 }
 
 

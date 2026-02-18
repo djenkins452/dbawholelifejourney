@@ -9,6 +9,74 @@
 
 # WLJ Change History
 
+## 2026-02-18 — Chief of Staff (CoS) Assistant — Life Operating System Layer
+
+Major new system: the CoS Assistant provides a Personal Operating Blueprint, tiered priority management, daily architecture planning, drift detection, intelligent interventions, and an assistant-first UI panel.
+
+- **Phase 1 — Personal Operating Blueprint (POB)**
+  - 7 new models: PersonalOperatingBlueprint, NonNegotiable, ArchitecturePlan, ScheduledBlock, DriftEvent, DriftScore, InterventionLog
+  - Blueprint engine with get/update/sync/explain API, module-gated behavior references
+  - REST API: GET/PUT /api/blueprint/, GET /api/blueprint/explain/, POST /api/blueprint/sync/
+  - Non-negotiable CRUD: GET/POST /api/blueprint/non-negotiables/, PUT/DELETE detail
+  - Django admin registration for all 7 models with inlines
+  - Migration: apps/core/migrations/0069_add_blueprint_models.py
+
+- **Phase 2 — Priority, Tiers, Conflict Rules**
+  - priority_engine.py: Rule B enforcement (Tier 1 protected aggressively), identity cost computation (0-100)
+  - Tier assignment from blueprint tier1_protected_behaviors and pillar ranking
+  - Conflict resolution: evict lowest-tier blocks first, T1 only as last resort with E3 evidence
+
+- **Phase 3 — Capacity & Scheduling Architecture**
+  - architecture_engine.py: Nightly "Tomorrow Architecture Pass" builds daily plans
+  - Sleep blocks, non-negotiable blocks, calendar events, task blocks auto-scheduled
+  - Curveball re-optimization: handle_curveball() re-plans around disruptions
+  - ArchitecturePlan lifecycle: draft → active → superseded → completed
+
+- **Phase 4 — Drift Detection + Predictive Risk**
+  - drift_engine.py: record_drift_event(), compute_daily_drift_score(), predict_drift_probability()
+  - Module-gated drift types (8 types: FAST_BREAK_EARLY, MED_MISSED, WORKOUT_SKIPPED, etc.)
+  - Weighted scoring by tier multiplier (T1=3x, T2=2x, T3=1x, T4=0.5x) and pillar weight
+  - 24h/72h drift probability prediction with trend/density/fatigue/weekend factors
+
+- **Phase 5 — Intervention + Intelligent Friction**
+  - intervention_engine.py: 5 escalation levels (silent → nudge → ping → interrupt → friction gate)
+  - Tolerance-aware escalation based on blueprint interruption_tolerance setting
+  - Friction gates with full E3 evidence for Tier 1 overrides
+  - GLOE learning integration on override responses
+
+- **Phase 6 — Delivery + Assistant Triggers**
+  - assistant_triggers.py: 4 trigger conditions (approaching deadline, drift spike, architecture ready, idle during focus)
+  - Trigger deduplication (4h window), tolerance-based escalation
+  - ISE scheduler integration: 3 new tasks (run_architecture_pass 24h, run_drift_scoring 6h, run_assistant_triggers 15min)
+
+- **Phase 7 — UI: Assistant Panel**
+  - Desktop: pinned right panel (320px) with plan, drift, alerts, quick actions sections
+  - Mobile: pull-up panel from bottom tab bar with swipe handle
+  - HTMX-powered content loading with 60s polling for intervention checks
+  - Friction gate modal overlay with E3 evidence display
+  - Panel views: TodayPlanView, DriftSummaryView, PendingInterventionsView, InterventionCheckView, CurveballView
+  - Tier color coding (T1=red, T2=orange, T3=accent, T4=muted), drift bar visualization
+
+- **Phase 8 — Tests**
+  - 47 tests across 9 test classes: models, engine, priority, drift, intervention, architecture, triggers, non-negotiables, API
+  - All tests passing
+
+- **Files Created:**
+  - apps/core/blueprint/__init__.py, models.py, engine.py, api.py, urls.py, admin.py
+  - apps/core/blueprint/priority_engine.py, architecture_engine.py, drift_engine.py
+  - apps/core/blueprint/intervention_engine.py, assistant_triggers.py, panel_views.py
+  - apps/core/blueprint/tests.py
+  - templates/components/assistant_panel.html
+  - static/css/assistant-panel.css
+
+- **Files Modified:**
+  - apps/core/models.py (blueprint model imports)
+  - apps/core/admin.py (blueprint admin import)
+  - apps/core/urls.py (blueprint API routes)
+  - apps/core/ai_scheduler/scheduler_registry.py (3 new ISE tasks)
+  - apps/core/ai_scheduler/scheduler_runner.py (3 runner functions)
+  - templates/base.html (CSS link + assistant panel include)
+
 ## 2026-02-18 — Nutrition Log Upgrade (Phases 1-5, 7)
 
 Major rebuild of the nutrition logging system for best-in-class accuracy, copy features, meal templates, and data integrity.

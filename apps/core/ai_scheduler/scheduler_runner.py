@@ -234,3 +234,106 @@ def run_observability_snapshot():
     else:
         logger.warning("ISE: Observability snapshot generation failed")
         return {"generated": 0, "errors": 1}
+
+
+def run_architecture_pass():
+    """
+    Run nightly architecture pass for all active AI users.
+
+    Calls the CoS Architecture Engine to build tomorrow's plan for each user.
+
+    Returns:
+        dict — {generated: int, errors: int}
+    """
+    try:
+        from apps.core.blueprint.architecture_engine import run_architecture_pass as arch_pass
+    except ImportError:
+        logger.error("ISE: Architecture engine not available (import failed)")
+        return {"generated": 0, "errors": 0}
+
+    users = _get_active_ai_users()
+    generated = 0
+    errors = 0
+
+    for user in users:
+        try:
+            # Only run if auto_architect is enabled in blueprint
+            from apps.core.blueprint.engine import get_blueprint
+            blueprint = get_blueprint(user)
+            if not blueprint.auto_architect_enabled:
+                continue
+
+            arch_pass(user)
+            generated += 1
+        except Exception as e:
+            logger.warning(f"ISE: Architecture pass failed for {user.email}: {e}")
+            errors += 1
+
+    logger.info(f"ISE: Architecture pass completed — generated={generated}, errors={errors}")
+    return {"generated": generated, "errors": errors}
+
+
+def run_drift_scoring():
+    """
+    Compute daily drift scores and predictions for all active AI users.
+
+    Returns:
+        dict — {scored: int, errors: int}
+    """
+    try:
+        from apps.core.blueprint.drift_engine import (
+            compute_daily_drift_score,
+            predict_drift_probability,
+        )
+    except ImportError:
+        logger.error("ISE: Drift engine not available (import failed)")
+        return {"scored": 0, "errors": 0}
+
+    users = _get_active_ai_users()
+    scored = 0
+    errors = 0
+
+    for user in users:
+        try:
+            compute_daily_drift_score(user)
+            predict_drift_probability(user)
+            scored += 1
+        except Exception as e:
+            logger.warning(f"ISE: Drift scoring failed for {user.email}: {e}")
+            errors += 1
+
+    logger.info(f"ISE: Drift scoring completed — scored={scored}, errors={errors}")
+    return {"scored": scored, "errors": errors}
+
+
+def run_assistant_triggers():
+    """
+    Check and execute assistant trigger conditions for all active AI users.
+
+    Returns:
+        dict — {checked: int, triggered: int, errors: int}
+    """
+    try:
+        from apps.core.blueprint.assistant_triggers import execute_all_triggers
+    except ImportError:
+        logger.error("ISE: Assistant triggers not available (import failed)")
+        return {"checked": 0, "triggered": 0, "errors": 0}
+
+    users = _get_active_ai_users()
+    checked = 0
+    triggered = 0
+    errors = 0
+
+    for user in users:
+        try:
+            interventions = execute_all_triggers(user)
+            checked += 1
+            triggered += len(interventions)
+        except Exception as e:
+            logger.warning(f"ISE: Trigger check failed for {user.email}: {e}")
+            errors += 1
+
+    logger.info(
+        f"ISE: Trigger check completed — checked={checked}, triggered={triggered}, errors={errors}"
+    )
+    return {"checked": checked, "triggered": triggered, "errors": errors}

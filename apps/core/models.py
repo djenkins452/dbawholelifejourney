@@ -2255,3 +2255,14 @@ from apps.core.ai_quality.quality_models import (  # noqa: E402, F401
 from apps.core.ai_observability.models import (  # noqa: E402, F401
     IntelligenceMetricsSnapshot,
 )
+
+# Import blueprint models so Django discovers them for migrations
+from apps.core.blueprint.models import (  # noqa: E402, F401
+    ArchitecturePlan,
+    DriftEvent,
+    DriftScore,
+    InterventionLog,
+    NonNegotiable,
+    PersonalOperatingBlueprint,
+    ScheduledBlock,
+)

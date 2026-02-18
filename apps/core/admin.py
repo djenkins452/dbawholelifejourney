@@ -30,6 +30,7 @@ import apps.core.ai_state.admin  # noqa: E402, F401
 import apps.core.ai_semantics.admin  # noqa: E402, F401
 import apps.core.ai_guidance.admin  # noqa: E402, F401
 import apps.core.ai_quality.admin  # noqa: E402, F401
+import apps.core.blueprint.admin  # noqa: E402, F401
 
 
 @admin.register(Category)

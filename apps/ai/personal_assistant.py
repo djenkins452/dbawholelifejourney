@@ -2435,6 +2435,21 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         # (e.g., "what time is it?" queries). Urgency messaging is part of time context.
         system_prompt = self._build_system_prompt(include_time_context=True)
 
+        # Inject Chief of Staff operational context if personal assistant is enabled
+        # This gives the LLM full situational awareness of the user's blueprint,
+        # drift state, alignment score, capacity, and protected behaviors.
+        try:
+            if getattr(self.prefs, 'personal_assistant_enabled', False):
+                from apps.core.ai_orchestrator.cos_context import (
+                    build_cos_context,
+                    format_cos_system_injection,
+                )
+                cos_context = build_cos_context(self.user)
+                cos_injection = format_cos_system_injection(cos_context)
+                system_prompt = cos_injection + "\n" + system_prompt
+        except Exception as cos_err:
+            logger.debug("CoS context injection skipped: %s", cos_err)
+
         # Check if user is asking about tasks/priorities/habits/focus
         # Include full state data so the AI can give data-driven answers
         message_lower = message.lower()
@@ -2672,7 +2687,7 @@ Rules for this response:
         temperature = 0.3 if (has_personal_data or is_analysis or is_asking_about_tasks) else 0.5
 
         try:
-            return ai_service._call_api(
+            response = ai_service._call_api(
                 system_prompt,
                 user_prompt,
                 max_tokens=max_tokens,
@@ -2680,6 +2695,18 @@ Rules for this response:
                 image_mime_type=image_mime_type,
                 temperature=temperature,
             ) or self._get_fallback_response(message)
+
+            # Apply CoS executive formatting if context was injected
+            try:
+                if getattr(self.prefs, 'personal_assistant_enabled', False):
+                    from apps.core.ai_orchestrator.briefing_formatter import format_cos_response
+                    from apps.core.ai_orchestrator.cos_context import build_cos_context
+                    cos_ctx = build_cos_context(self.user)
+                    response = format_cos_response(response, cos_ctx)
+            except Exception:
+                pass
+
+            return response
         except Exception as e:
             logger.error(f"Response generation error: {e}")
             return self._get_fallback_response(message)

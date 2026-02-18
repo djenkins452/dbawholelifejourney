@@ -11,6 +11,19 @@
 
 ## 2026-02-18
 
+- **Feature:** CoS System-Level Upgrade Phase 2 — Context injection, identity unification, adaptive discipline, recovery architecture, alignment engine, predictive interventions, and 43 new tests
+  - CoS context injection: `build_cos_context()` + `format_cos_system_injection()` prepended to every LLM system prompt with full operational awareness
+  - Identity unification: Assistant dashboard rebranded to "Chief of Staff — Direct Channel" with updated chat header and placeholder
+  - Executive briefing formatter: `format_cos_response()` appends alignment/risk footer to LLM responses when metrics warrant
+  - Nightly architecture enhancement: Architecture pass now creates drift prediction update + nudge intervention when plan is ready
+  - Adaptive discipline engine: 5-level intensity (Gentle Reminder → Hard Block) computed from drift probability, override frequency, tier, capacity, biological risk
+  - Recovery architecture: Auto-adjusts plan on Tier-1 friction gate override — locks remaining Tier-1, defers Tier-3, recomputes drift, creates recovery nudge
+  - Alignment score engine: Tier-weighted scoring (T1=50%, T2=30%, T3=20%) with grade (A-F), trend analysis, drift/override penalties
+  - Predictive interventions: PRIE+PIE+PGE signal fusion with threshold-based intervention creation (25%/45%/65% drift probability)
+  - Admin guide registry updated: 6 new engine dependencies, 5 new component definitions, auto-generates 20 articles (up from 16)
+  - 43 new tests across 7 test classes covering all new components
+  - Files: apps/ai/personal_assistant.py, templates/ai/assistant_dashboard.html, apps/core/ai_orchestrator/cos_context.py, apps/core/ai_orchestrator/briefing_formatter.py, apps/core/blueprint/intervention_intensity.py, apps/core/blueprint/recovery_engine.py, apps/core/blueprint/alignment_engine.py, apps/core/blueprint/predictive_interventions.py, apps/core/blueprint/intervention_engine.py, apps/core/blueprint/assistant_triggers.py, apps/core/ai_scheduler/scheduler_runner.py, apps/core/ai_docs/cos_doc_registry.py, apps/core/blueprint/tests.py
+
 - **Feature:** Command Brief takeover with auto-architecture enforcement. Full-width strategic Command Brief renders above dashboard tiles on every load. Auto-generates architecture plan if none exists for today. Sidebar status changed from "Monitoring" to "Active". Removed all empty "No plan for today" states. 10 new tests.
   - Files: apps/dashboard/views.py, templates/components/assistant_command_brief.html, templates/dashboard/home.html, templates/components/assistant_panel.html, apps/core/blueprint/panel_views.py, static/css/assistant-panel.css, templates/base.html, apps/core/blueprint/tests.py
 

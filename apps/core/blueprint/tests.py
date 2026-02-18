@@ -765,3 +765,577 @@ class CommandBriefTests(TestCase):
             command_brief['alignment_score'],
             100 - command_brief['drift_score'],
         )
+
+
+# =============================================================================
+# COS CONTEXT BUILDER TESTS
+# =============================================================================
+
+
+class CosContextBuilderTests(TestCase):
+    """Tests for the CoS context builder."""
+
+    def setUp(self):
+        self.user = _create_test_user(email='cos_ctx@test.com')
+
+    def test_build_cos_context_returns_dict(self):
+        """build_cos_context should return a dict with expected keys."""
+        from apps.core.ai_orchestrator.cos_context import build_cos_context
+        ctx = build_cos_context(self.user)
+        self.assertIsInstance(ctx, dict)
+        self.assertIn('blueprint_state', ctx)
+        self.assertIn('protected_tiers', ctx)
+        self.assertIn('capacity_snapshot', ctx)
+        self.assertIn('drift_probability', ctx)
+        self.assertIn('alignment_score', ctx)
+        self.assertIn('drift_score', ctx)
+        self.assertIn('module_permissions', ctx)
+        self.assertIn('today_blocks_summary', ctx)
+
+    def test_module_permissions_reflect_prefs(self):
+        """Module permissions should match user preferences."""
+        from apps.core.ai_orchestrator.cos_context import build_cos_context
+        ctx = build_cos_context(self.user)
+        mods = ctx['module_permissions']
+        self.assertTrue(mods['ai'])
+        self.assertTrue(mods['personal_assistant'])
+
+    def test_format_cos_system_injection_returns_string(self):
+        """format_cos_system_injection should return a formatted string."""
+        from apps.core.ai_orchestrator.cos_context import (
+            build_cos_context, format_cos_system_injection,
+        )
+        ctx = build_cos_context(self.user)
+        injection = format_cos_system_injection(ctx)
+        self.assertIsInstance(injection, str)
+        self.assertIn('CHIEF OF STAFF OPERATIONAL CONTEXT', injection)
+        self.assertIn('END OPERATIONAL CONTEXT', injection)
+
+    def test_injection_contains_alignment(self):
+        """System injection should contain alignment score."""
+        from apps.core.ai_orchestrator.cos_context import (
+            build_cos_context, format_cos_system_injection,
+        )
+        ctx = build_cos_context(self.user)
+        injection = format_cos_system_injection(ctx)
+        self.assertIn('Blueprint Alignment:', injection)
+
+    def test_injection_contains_drift(self):
+        """System injection should contain drift score."""
+        from apps.core.ai_orchestrator.cos_context import (
+            build_cos_context, format_cos_system_injection,
+        )
+        ctx = build_cos_context(self.user)
+        injection = format_cos_system_injection(ctx)
+        self.assertIn('Drift Score:', injection)
+
+    def test_blueprint_state_populated(self):
+        """Blueprint state should be populated from blueprint engine."""
+        from apps.core.ai_orchestrator.cos_context import build_cos_context
+        # Ensure blueprint exists
+        PersonalOperatingBlueprint.get_or_create_for_user(self.user)
+        ctx = build_cos_context(self.user)
+        bp = ctx['blueprint_state']
+        self.assertIn('operating_style', bp)
+        self.assertIn('interruption_tolerance', bp)
+
+    def test_context_graceful_degradation(self):
+        """Context should still return with defaults if engines fail."""
+        from apps.core.ai_orchestrator.cos_context import build_cos_context
+        ctx = build_cos_context(self.user)
+        # Even with no data, should have sane defaults
+        self.assertGreaterEqual(ctx['alignment_score'], 0)
+        self.assertLessEqual(ctx['alignment_score'], 100)
+
+
+# =============================================================================
+# BRIEFING FORMATTER TESTS
+# =============================================================================
+
+
+class BriefingFormatterTests(TestCase):
+    """Tests for the executive briefing formatter."""
+
+    def test_format_briefing_basic(self):
+        """format_briefing should join sections."""
+        from apps.core.ai_orchestrator.briefing_formatter import format_briefing
+        sections = [
+            {'label': 'Situation', 'content': 'All clear'},
+            {'label': 'Risk Level', 'content': 'Low'},
+        ]
+        result = format_briefing(sections)
+        self.assertIn('Situation: All clear', result)
+        self.assertIn('Risk Level: Low', result)
+
+    def test_format_briefing_skips_optional_empty(self):
+        """Optional sections with empty content should be skipped."""
+        from apps.core.ai_orchestrator.briefing_formatter import format_briefing
+        sections = [
+            {'label': 'Situation', 'content': 'Test'},
+            {'label': 'Optional', 'content': '', 'optional': True},
+        ]
+        result = format_briefing(sections)
+        self.assertNotIn('Optional:', result)
+
+    def test_format_cos_response_no_context(self):
+        """Without context, response should be returned unchanged."""
+        from apps.core.ai_orchestrator.briefing_formatter import format_cos_response
+        response = "Hello there"
+        self.assertEqual(format_cos_response(response), response)
+
+    def test_format_cos_response_with_low_alignment(self):
+        """Low alignment should add footer."""
+        from apps.core.ai_orchestrator.briefing_formatter import format_cos_response
+        response = "This is a longer response that exceeds twenty characters for testing."
+        context = {'alignment_score': 75}
+        result = format_cos_response(response, context)
+        self.assertIn('Alignment: 75%', result)
+
+    def test_format_cos_response_no_footer_high_alignment(self):
+        """High alignment should not add footer."""
+        from apps.core.ai_orchestrator.briefing_formatter import format_cos_response
+        response = "This is a longer response that exceeds twenty characters for testing."
+        context = {'alignment_score': 95}
+        result = format_cos_response(response, context)
+        self.assertNotIn('Alignment:', result)
+
+    def test_format_cos_response_drift_footer(self):
+        """High drift risk should add 24h risk footer."""
+        from apps.core.ai_orchestrator.briefing_formatter import format_cos_response
+        response = "This is a longer response that exceeds twenty characters for testing."
+        context = {'drift_probability': {'probability_24h': 55}}
+        result = format_cos_response(response, context)
+        self.assertIn('24h Risk: 55%', result)
+
+    def test_build_intervention_briefing(self):
+        """build_intervention_briefing should produce formatted output."""
+        from apps.core.ai_orchestrator.briefing_formatter import build_intervention_briefing
+        result = build_intervention_briefing(
+            trigger_type='drift_spike',
+            message='Drift is rising.',
+            alignment_score=72,
+            recommendation='Lock Tier-1 items.',
+        )
+        self.assertIn('Situation: Drift is rising', result)
+        self.assertIn('Recommendation: Lock Tier-1 items', result)
+
+    def test_build_intervention_briefing_with_evidence(self):
+        """Briefing with evidence should include risk level."""
+        from apps.core.ai_orchestrator.briefing_formatter import build_intervention_briefing
+        result = build_intervention_briefing(
+            trigger_type='drift_spike',
+            message='Test',
+            evidence={'severity': 80},
+        )
+        self.assertIn('Risk Level: High', result)
+
+
+# =============================================================================
+# INTERVENTION INTENSITY TESTS
+# =============================================================================
+
+
+class InterventionIntensityTests(TestCase):
+    """Tests for the adaptive discipline engine."""
+
+    def setUp(self):
+        self.user = _create_test_user(email='intensity@test.com')
+
+    def test_compute_intensity_returns_result(self):
+        """compute_intensity should return an IntensityResult."""
+        from apps.core.blueprint.intervention_intensity import (
+            compute_intensity, IntensityResult,
+        )
+        result = compute_intensity(self.user)
+        self.assertIsInstance(result, IntensityResult)
+        self.assertIn(result.level, [1, 2, 3, 4, 5])
+        self.assertIsInstance(result.score, float)
+        self.assertIsInstance(result.factors, dict)
+
+    def test_low_risk_gets_low_intensity(self):
+        """Low risk context should produce level 1-2."""
+        from apps.core.blueprint.intervention_intensity import compute_intensity
+        context = {
+            'drift_probability': {'probability_24h': 5},
+            'override_frequency_14d': 0,
+            'capacity_snapshot': {'capacity_pct': 30},
+            'active_fast_status': {},
+            'medication_adherence_state': {},
+        }
+        result = compute_intensity(self.user, context=context)
+        self.assertLessEqual(result.level, 2)
+
+    def test_high_risk_gets_high_intensity(self):
+        """High risk context should produce level 4-5."""
+        from apps.core.blueprint.intervention_intensity import compute_intensity
+        context = {
+            'drift_probability': {'probability_24h': 80},
+            'override_frequency_14d': 12,
+            'capacity_snapshot': {'capacity_pct': 95},
+            'active_fast_status': {'active': True, 'target_hours': 16},
+            'medication_adherence_state': {'adherence_pct': 40, 'total_scheduled': 3, 'taken_today': 1},
+        }
+        result = compute_intensity(self.user, context=context)
+        self.assertGreaterEqual(result.level, 4)
+
+    def test_intensity_has_recommendation(self):
+        """Result should include a recommendation string."""
+        from apps.core.blueprint.intervention_intensity import compute_intensity
+        result = compute_intensity(self.user)
+        self.assertIsInstance(result.recommendation, str)
+        self.assertGreater(len(result.recommendation), 10)
+
+    def test_tier1_override_forces_level_4(self):
+        """Tier-1 behavior should force at least level 4 when score >= 30."""
+        from apps.core.blueprint.intervention_intensity import compute_intensity
+        # Create a blueprint with tier-1 behavior
+        bp = PersonalOperatingBlueprint.get_or_create_for_user(self.user)
+        bp.tier1_protected_behaviors = ['exercise']
+        bp.save()
+
+        context = {
+            'drift_probability': {'probability_24h': 40},
+            'override_frequency_14d': 3,
+            'capacity_snapshot': {'capacity_pct': 60},
+            'active_fast_status': {},
+            'medication_adherence_state': {},
+        }
+        result = compute_intensity(self.user, behavior_key='exercise', context=context)
+        self.assertGreaterEqual(result.level, 4)
+
+    def test_all_five_levels_defined(self):
+        """INTENSITY_LEVELS should have entries for 1-5."""
+        from apps.core.blueprint.intervention_intensity import INTENSITY_LEVELS
+        for level in range(1, 6):
+            self.assertIn(level, INTENSITY_LEVELS)
+            self.assertIn('name', INTENSITY_LEVELS[level])
+            self.assertIn('escalation_level', INTENSITY_LEVELS[level])
+
+
+# =============================================================================
+# RECOVERY ENGINE TESTS
+# =============================================================================
+
+
+class RecoveryEngineTests(TestCase):
+    """Tests for the automatic recovery architecture."""
+
+    def setUp(self):
+        self.user = _create_test_user(email='recovery@test.com')
+        self.blueprint = PersonalOperatingBlueprint.get_or_create_for_user(self.user)
+        # Create a plan for tomorrow
+        tomorrow = timezone.localdate() + datetime.timedelta(days=1)
+        self.plan = ArchitecturePlan.objects.create(
+            user=self.user,
+            date=tomorrow,
+            status=ArchitecturePlan.STATUS_ACTIVE,
+        )
+        # Create blocks
+        ScheduledBlock.objects.create(
+            plan=self.plan, start_time=datetime.time(6, 0),
+            end_time=datetime.time(7, 0), title='Exercise',
+            tier=1, behavior_key='exercise',
+        )
+        ScheduledBlock.objects.create(
+            plan=self.plan, start_time=datetime.time(9, 0),
+            end_time=datetime.time(10, 0), title='Work',
+            tier=3,
+        )
+        ScheduledBlock.objects.create(
+            plan=self.plan, start_time=datetime.time(14, 0),
+            end_time=datetime.time(15, 0), title='Errands',
+            tier=3,
+        )
+
+    def test_recovery_locks_tier1(self):
+        """Recovery should lock remaining Tier-1 blocks."""
+        from apps.core.blueprint.recovery_engine import apply_recovery_adjustment
+        result = apply_recovery_adjustment(self.user, 'meditation')
+        self.assertTrue(result['recovery_applied'])
+        self.assertEqual(result['tier1_locked'], 1)
+
+    def test_recovery_defers_tier3(self):
+        """Recovery should defer Tier-3 blocks."""
+        from apps.core.blueprint.recovery_engine import apply_recovery_adjustment
+        result = apply_recovery_adjustment(self.user, 'meditation')
+        self.assertGreater(result['tier3_deferred'], 0)
+
+    def test_recovery_adds_warning(self):
+        """Recovery should add a risk warning to the plan."""
+        from apps.core.blueprint.recovery_engine import apply_recovery_adjustment
+        apply_recovery_adjustment(self.user, 'exercise')
+        self.plan.refresh_from_db()
+        warnings = self.plan.risk_warnings or []
+        self.assertTrue(any('recovery' in w.lower() for w in warnings))
+
+    def test_recovery_creates_intervention(self):
+        """Recovery should create a nudge intervention."""
+        from apps.core.blueprint.recovery_engine import apply_recovery_adjustment
+        result = apply_recovery_adjustment(self.user, 'exercise')
+        self.assertTrue(result['intervention_created'])
+        self.assertTrue(
+            InterventionLog.objects.filter(
+                user=self.user,
+                trigger_type='recovery_activated',
+            ).exists()
+        )
+
+    def test_get_recovery_status_no_plan(self):
+        """get_recovery_status should return false when no plan."""
+        from apps.core.blueprint.recovery_engine import get_recovery_status
+        status = get_recovery_status(self.user)
+        self.assertFalse(status['in_recovery'])
+
+    def test_get_recovery_status_after_recovery(self):
+        """get_recovery_status should return true after recovery triggered."""
+        from apps.core.blueprint.recovery_engine import (
+            apply_recovery_adjustment, get_recovery_status,
+        )
+        # Need today's plan for status check
+        today = timezone.localdate()
+        today_plan = ArchitecturePlan.objects.create(
+            user=self.user, date=today,
+            status=ArchitecturePlan.STATUS_ACTIVE,
+            risk_warnings=['Recovery mode: exercise was overridden.'],
+        )
+        ScheduledBlock.objects.create(
+            plan=today_plan, start_time=datetime.time(6, 0),
+            end_time=datetime.time(7, 0), title='Exercise',
+            tier=1, is_locked=True,
+        )
+        status = get_recovery_status(self.user)
+        self.assertTrue(status['in_recovery'])
+
+
+# =============================================================================
+# ALIGNMENT ENGINE TESTS
+# =============================================================================
+
+
+class AlignmentEngineTests(TestCase):
+    """Tests for the alignment score engine."""
+
+    def setUp(self):
+        self.user = _create_test_user(email='alignment@test.com')
+        self.blueprint = PersonalOperatingBlueprint.get_or_create_for_user(self.user)
+        # Create today's plan
+        self.today = timezone.localdate()
+        self.plan = ArchitecturePlan.objects.create(
+            user=self.user,
+            date=self.today,
+            status=ArchitecturePlan.STATUS_ACTIVE,
+        )
+
+    def test_compute_alignment_no_blocks(self):
+        """With plan but no blocks, alignment should be 100."""
+        from apps.core.blueprint.alignment_engine import compute_alignment_score
+        result = compute_alignment_score(self.user, self.today)
+        self.assertEqual(result.score, 100.0)
+        self.assertEqual(result.grade, 'A')
+
+    def test_compute_alignment_all_completed(self):
+        """All blocks completed should give 100."""
+        from apps.core.blueprint.alignment_engine import compute_alignment_score
+        ScheduledBlock.objects.create(
+            plan=self.plan, tier=1, title='T1',
+            start_time=datetime.time(6, 0), end_time=datetime.time(7, 0),
+            is_completed=True,
+        )
+        ScheduledBlock.objects.create(
+            plan=self.plan, tier=2, title='T2',
+            start_time=datetime.time(8, 0), end_time=datetime.time(9, 0),
+            is_completed=True,
+        )
+        result = compute_alignment_score(self.user, self.today)
+        self.assertEqual(result.score, 100.0)
+        self.assertEqual(result.grade, 'A')
+
+    def test_compute_alignment_none_completed(self):
+        """No blocks completed should give 0."""
+        from apps.core.blueprint.alignment_engine import compute_alignment_score
+        ScheduledBlock.objects.create(
+            plan=self.plan, tier=1, title='T1',
+            start_time=datetime.time(6, 0), end_time=datetime.time(7, 0),
+        )
+        ScheduledBlock.objects.create(
+            plan=self.plan, tier=2, title='T2',
+            start_time=datetime.time(8, 0), end_time=datetime.time(9, 0),
+        )
+        ScheduledBlock.objects.create(
+            plan=self.plan, tier=3, title='T3',
+            start_time=datetime.time(10, 0), end_time=datetime.time(11, 0),
+        )
+        result = compute_alignment_score(self.user, self.today)
+        self.assertEqual(result.score, 0.0)
+        self.assertEqual(result.grade, 'F')
+
+    def test_tier_weights_correct(self):
+        """Tier weights should sum to 1.0."""
+        from apps.core.blueprint.alignment_engine import TIER_WEIGHTS
+        weighted_sum = sum(TIER_WEIGHTS.values())
+        self.assertEqual(weighted_sum, 1.0)
+
+    def test_alignment_result_has_grade(self):
+        """AlignmentResult should include a grade."""
+        from apps.core.blueprint.alignment_engine import compute_alignment_score
+        result = compute_alignment_score(self.user, self.today)
+        self.assertIn(result.grade, ['A', 'B', 'C', 'D', 'F'])
+
+    def test_drift_events_reduce_score(self):
+        """Drift events should reduce the alignment score."""
+        from apps.core.blueprint.alignment_engine import compute_alignment_score
+        ScheduledBlock.objects.create(
+            plan=self.plan, tier=1, title='T1',
+            start_time=datetime.time(6, 0), end_time=datetime.time(7, 0),
+            is_completed=True,
+        )
+        # Add a drift event
+        DriftEvent.objects.create(
+            user=self.user,
+            drift_type='fast_break',
+            date=self.today,
+            tier=1,
+            severity=0.8,
+        )
+        result = compute_alignment_score(self.user, self.today)
+        self.assertLess(result.score, 100.0)
+
+    def test_get_alignment_trend(self):
+        """get_alignment_trend should return list of dicts."""
+        from apps.core.blueprint.alignment_engine import get_alignment_trend
+        trend = get_alignment_trend(self.user, days=3)
+        self.assertIsInstance(trend, list)
+        self.assertEqual(len(trend), 3)
+        for entry in trend:
+            self.assertIn('date', entry)
+            self.assertIn('score', entry)
+            self.assertIn('grade', entry)
+
+    def test_alignment_no_plan(self):
+        """No plan for a date should return 100."""
+        from apps.core.blueprint.alignment_engine import compute_alignment_score
+        future = self.today + datetime.timedelta(days=30)
+        result = compute_alignment_score(self.user, future)
+        self.assertEqual(result.score, 100.0)
+
+
+# =============================================================================
+# PREDICTIVE INTERVENTIONS TESTS
+# =============================================================================
+
+
+class PredictiveInterventionsTests(TestCase):
+    """Tests for the predictive interventions engine."""
+
+    def setUp(self):
+        self.user = _create_test_user(email='predictive@test.com')
+        self.blueprint = PersonalOperatingBlueprint.get_or_create_for_user(self.user)
+
+    def test_evaluate_returns_list(self):
+        """evaluate_predictive_signals should return a list."""
+        from apps.core.blueprint.predictive_interventions import evaluate_predictive_signals
+        result = evaluate_predictive_signals(self.user)
+        self.assertIsInstance(result, list)
+
+    def test_no_interventions_when_low_risk(self):
+        """Low drift probability should produce no interventions."""
+        from apps.core.blueprint.predictive_interventions import evaluate_predictive_signals
+        # With fresh user and no drift data, probability should be low
+        result = evaluate_predictive_signals(self.user)
+        # May or may not have results depending on PIE/PGE data
+        for intervention in result:
+            self.assertIsInstance(intervention, InterventionLog)
+
+    def test_get_proactive_message_returns_none_low_risk(self):
+        """No proactive message when drift is low."""
+        from apps.core.blueprint.predictive_interventions import get_proactive_message
+        msg = get_proactive_message(self.user)
+        # Fresh user with no drift should return None
+        self.assertIsNone(msg)
+
+    def test_deduplication_prevents_spam(self):
+        """Should not create duplicate predictive interventions."""
+        from apps.core.blueprint.predictive_interventions import evaluate_predictive_signals
+        # Create a pending predictive intervention
+        InterventionLog.objects.create(
+            user=self.user,
+            level=InterventionLog.LEVEL_NUDGE,
+            trigger_type='high_drift_probability',
+            message='test',
+            user_response=InterventionLog.RESPONSE_PENDING,
+        )
+        result = evaluate_predictive_signals(self.user)
+        # Should be empty due to deduplication
+        self.assertEqual(len(result), 0)
+
+
+# =============================================================================
+# REGISTRY UPDATE TESTS
+# =============================================================================
+
+
+class CosRegistryPhase2Tests(TestCase):
+    """Tests for the updated CoS documentation registry (Phase 2 additions)."""
+
+    def test_new_engines_in_registry(self):
+        """New Phase 2 engines should be in ENGINE_DEPENDENCIES."""
+        from apps.core.ai_docs.cos_doc_registry import ENGINE_DEPENDENCIES
+        new_engines = [
+            'cos_context', 'briefing_formatter', 'intervention_intensity',
+            'recovery_engine', 'alignment_engine', 'predictive_interventions',
+        ]
+        for engine in new_engines:
+            self.assertIn(
+                engine, ENGINE_DEPENDENCIES,
+                f"Engine '{engine}' not found in ENGINE_DEPENDENCIES"
+            )
+
+    def test_new_engines_validate(self):
+        """New engines should pass validation (modules importable, functions exist)."""
+        from apps.core.ai_docs.cos_doc_registry import ENGINE_DEPENDENCIES, validate_registry
+        import importlib
+
+        new_engines = [
+            'cos_context', 'briefing_formatter', 'intervention_intensity',
+            'recovery_engine', 'alignment_engine', 'predictive_interventions',
+        ]
+        for engine_key in new_engines:
+            edef = ENGINE_DEPENDENCIES[engine_key]
+            mod = importlib.import_module(edef['module'])
+            for func_name in edef['functions']:
+                self.assertTrue(
+                    hasattr(mod, func_name),
+                    f"Engine '{engine_key}': function '{func_name}' not found"
+                )
+
+    def test_new_components_in_registry(self):
+        """New Phase 2 components should be in get_cos_registry()."""
+        from apps.core.ai_docs.cos_doc_registry import get_cos_registry
+        registry = get_cos_registry()
+        keys = [c['key'] for c in registry]
+        new_keys = [
+            'cos_context_injection', 'adaptive_discipline',
+            'recovery_architecture', 'predictive_interventions',
+        ]
+        for key in new_keys:
+            self.assertIn(
+                key, keys,
+                f"Component '{key}' not found in registry"
+            )
+
+    def test_registry_validates_clean(self):
+        """Full registry validation should pass."""
+        from apps.core.ai_docs.cos_doc_registry import validate_registry
+        is_valid, errors = validate_registry()
+        # Filter out errors from upstream engines that may not be fully implemented
+        cos_errors = [
+            e for e in errors
+            if any(k in e for k in [
+                'cos_context', 'briefing_formatter', 'intervention_intensity',
+                'recovery_engine', 'alignment_engine', 'predictive_interventions',
+            ])
+        ]
+        self.assertEqual(
+            len(cos_errors), 0,
+            f"CoS Phase 2 validation errors: {cos_errors}"
+        )

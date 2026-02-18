@@ -290,13 +290,22 @@ def execute_trigger(user, trigger_result):
 
 
 def execute_all_triggers(user):
-    """Check and execute all triggers for a user."""
+    """Check and execute all triggers for a user, including predictive signals."""
     results = check_triggers(user)
     interventions = []
     for result in results:
         intervention = execute_trigger(user, result)
         if intervention:
             interventions.append(intervention)
+
+    # Also evaluate predictive interventions from PRIE+PIE+PGE
+    try:
+        from .predictive_interventions import evaluate_predictive_signals
+        predictive = evaluate_predictive_signals(user)
+        interventions.extend(predictive)
+    except Exception as e:
+        logger.debug("Predictive intervention evaluation failed: %s", e)
+
     return interventions
 
 

@@ -117,6 +117,34 @@ ENGINE_DEPENDENCIES = {
         'module': 'apps.core.ai_persona.persona_engine',
         'functions': ['render_with_persona'],
     },
+    # CoS System-Level Engines (added Phase 2)
+    'cos_context': {
+        'module': 'apps.core.ai_orchestrator.cos_context',
+        'functions': ['build_cos_context', 'format_cos_system_injection'],
+    },
+    'briefing_formatter': {
+        'module': 'apps.core.ai_orchestrator.briefing_formatter',
+        'functions': [
+            'format_briefing', 'format_cos_response',
+            'build_intervention_briefing',
+        ],
+    },
+    'intervention_intensity': {
+        'module': 'apps.core.blueprint.intervention_intensity',
+        'functions': ['compute_intensity'],
+    },
+    'recovery_engine': {
+        'module': 'apps.core.blueprint.recovery_engine',
+        'functions': ['apply_recovery_adjustment', 'get_recovery_status'],
+    },
+    'alignment_engine': {
+        'module': 'apps.core.blueprint.alignment_engine',
+        'functions': ['compute_alignment_score', 'get_alignment_trend'],
+    },
+    'predictive_interventions': {
+        'module': 'apps.core.blueprint.predictive_interventions',
+        'functions': ['evaluate_predictive_signals', 'get_proactive_message'],
+    },
 }
 
 
@@ -494,24 +522,133 @@ def get_cos_registry():
         },
         {
             'key': 'alignment_index',
-            'name': 'Alignment Index',
+            'name': 'Alignment Score Engine',
             'description': (
-                'A composite daily measure of how well the user\'s actual '
-                'behavior aligns with their stated blueprint commitments. '
-                'Derived from the inverse of the drift score.'
+                'A tier-weighted alignment score that measures how well '
+                'the user\'s actual behavior matches their blueprint. '
+                'Tier 1 = 50%, Tier 2 = 30%, Tier 3 = 20% of the total score.'
             ),
-            'engines': ['drift_engine', 'blueprint_engine'],
-            'models': ['DriftScore'],
+            'engines': ['alignment_engine', 'drift_engine', 'blueprint_engine'],
+            'models': ['DriftScore', 'ArchitecturePlan', 'InterventionLog'],
             'calculation': {
                 'formula_description': (
-                    'Alignment = 100 − Drift Score. A drift score of 0 '
-                    'means 100% alignment. Per-pillar alignment is also '
-                    'available from pillar-level drift scores.'
+                    'Per-tier completion rate × tier weight, minus penalties '
+                    'for drift events (severity × 10 per event) and overrides '
+                    '(15 points per Tier-1 override). Yields A/B/C/D/F grade.'
                 ),
+                'tier_weights': {
+                    'Tier 1': '50% — Identity Protected',
+                    'Tier 2': '30% — Strategic Focus',
+                    'Tier 3': '20% — Supportive Activities',
+                    'Tier 4': '0% — Not scored (buffer time)',
+                },
             },
             'guardrails': [
                 'Only considers enabled modules in calculation',
                 'Missing data defaults to neutral (no penalty)',
+                'Trend analysis available for 7-day lookback',
+            ],
+        },
+        {
+            'key': 'cos_context_injection',
+            'name': 'CoS Context Injection',
+            'description': (
+                'Assembles full operational context from all engines and '
+                'injects it into every LLM request. The assistant always '
+                'operates with complete situational awareness.'
+            ),
+            'engines': ['cos_context', 'briefing_formatter'],
+            'models': [],
+            'behavior': {
+                'injection_point': 'Prepended to system prompt in PersonalAssistant._generate_response()',
+                'context_fields': [
+                    'blueprint_state', 'protected_tiers', 'capacity_snapshot',
+                    'drift_probability', 'alignment_score', 'medication_adherence',
+                    'active_fast_status', 'today_blocks_summary', 'risk_warnings',
+                ],
+            },
+            'guardrails': [
+                'All engine queries wrapped in try/except for graceful degradation',
+                'Context is never cached — always built from live engine data',
+                'Disabled modules are listed so LLM avoids referencing them',
+            ],
+        },
+        {
+            'key': 'adaptive_discipline',
+            'name': 'Adaptive Discipline Engine',
+            'description': (
+                'Dynamically computes intervention intensity (1-5) from '
+                'weighted risk factors. Higher risk = more aggressive intervention.'
+            ),
+            'engines': ['intervention_intensity', 'cos_context'],
+            'models': ['InterventionLog'],
+            'intensity_levels': {
+                1: 'Gentle Reminder — low-friction text nudge',
+                2: 'Prompt — call-to-action with supporting evidence',
+                3: 'Evidence Forecast — projected consequence shown',
+                4: 'Friction Gate — explicit confirmation required',
+                5: 'Hard Block — locked until recovery plan accepted',
+            },
+            'factors': {
+                'drift_probability_24h': '30% weight',
+                'override_frequency_14d': '20% weight',
+                'behavior_tier': '20% weight',
+                'capacity_pct': '15% weight',
+                'biological_risk': '15% weight (fasting + medication)',
+            },
+            'guardrails': [
+                'Tier-1 violations always reach at least level 4',
+                'Composite score normalized to 0-100 before level mapping',
+            ],
+        },
+        {
+            'key': 'recovery_architecture',
+            'name': 'Automatic Recovery Architecture',
+            'description': (
+                'When a Tier-1 override occurs, automatically adjusts '
+                'tomorrow\'s plan: locks remaining Tier-1, defers Tier-3, '
+                'recomputes drift, and creates a recovery nudge.'
+            ),
+            'engines': ['recovery_engine', 'intervention_engine', 'drift_engine'],
+            'models': ['ArchitecturePlan', 'ScheduledBlock', 'InterventionLog'],
+            'behavior': {
+                'trigger': 'User proceeds through a friction gate',
+                'steps': [
+                    'Lock all remaining Tier-1 blocks',
+                    'Defer up to 3 Tier-3 blocks by 1 hour',
+                    'Add recovery risk warning to plan',
+                    'Recompute drift prediction',
+                    'Create recovery nudge intervention',
+                ],
+            },
+            'guardrails': [
+                'Recovery only triggers on Tier-1 overrides with behavior_key',
+                'Deferred blocks get rationale explaining the shift',
+                'Recovery status queryable via get_recovery_status()',
+            ],
+        },
+        {
+            'key': 'predictive_interventions',
+            'name': 'Predictive Interventions (PRIE+PIE+PGE)',
+            'description': (
+                'Combines signals from PRIE (drift prediction), PIE (insights), '
+                'and PGE (guidance) to proactively create interventions '
+                'BEFORE drift occurs.'
+            ),
+            'engines': [
+                'predictive_interventions', 'drift_engine',
+                'ai_insights', 'ai_guidance', 'intervention_intensity',
+            ],
+            'models': ['InterventionLog'],
+            'thresholds': {
+                'nudge': '25% drift probability → gentle reminder',
+                'ping': '45% drift probability → proactive ping',
+                'interrupt': '65% drift probability → interrupt with evidence',
+            },
+            'guardrails': [
+                'Deduplication: won\'t create if pending predictive intervention exists',
+                'Max 1 insight-driven and 1 guidance-driven per cycle',
+                'Integrated into execute_all_triggers() for ISE scheduling',
             ],
         },
         {

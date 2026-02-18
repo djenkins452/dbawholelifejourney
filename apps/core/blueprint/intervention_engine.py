@@ -331,11 +331,10 @@ def _trigger_delivery(user, intervention):
 
 
 def _record_friction_override(intervention):
-    """Record that a user overrode a friction gate for learning purposes."""
+    """Record that a user overrode a friction gate and trigger recovery."""
+    # Record in GLOE for learning
     try:
         from apps.core.ai_guidance_learning.learning_engine import log_learning_event
-
-        # Create a synthetic guidance event for GLOE
         log_learning_event(
             user=intervention.user,
             guidance_item=None,
@@ -343,3 +342,12 @@ def _record_friction_override(intervention):
         )
     except Exception as e:
         logger.debug("Could not record friction override in GLOE: %s", e)
+
+    # Trigger automatic recovery architecture
+    try:
+        from .recovery_engine import apply_recovery_adjustment
+        behavior_key = intervention.behavior_key or ''
+        if behavior_key:
+            apply_recovery_adjustment(intervention.user, behavior_key)
+    except Exception as e:
+        logger.debug("Could not trigger recovery after override: %s", e)

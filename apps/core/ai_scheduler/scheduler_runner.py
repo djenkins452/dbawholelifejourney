@@ -241,6 +241,8 @@ def run_architecture_pass():
     Run nightly architecture pass for all active AI users.
 
     Calls the CoS Architecture Engine to build tomorrow's plan for each user.
+    Also runs drift prediction update and creates a nudge intervention
+    so the user knows their tomorrow plan is ready.
 
     Returns:
         dict — {generated: int, errors: int}
@@ -263,8 +265,36 @@ def run_architecture_pass():
             if not blueprint.auto_architect_enabled:
                 continue
 
-            arch_pass(user)
+            plan = arch_pass(user)
             generated += 1
+
+            # Update drift prediction alongside architecture
+            try:
+                from apps.core.blueprint.drift_engine import predict_drift_probability
+                predict_drift_probability(user)
+            except Exception:
+                pass
+
+            # Notify user that their plan is ready (nudge level)
+            try:
+                from apps.core.blueprint.intervention_engine import create_intervention
+                from apps.core.blueprint.models import InterventionLog
+                block_count = plan.blocks.count() if plan else 0
+                if block_count > 0:
+                    warnings = plan.risk_warnings or []
+                    msg = f"Tomorrow's architecture is ready: {block_count} blocks planned."
+                    if warnings:
+                        msg += f" {len(warnings)} risk warning(s) flagged."
+                    create_intervention(
+                        user=user,
+                        level=InterventionLog.LEVEL_NUDGE,
+                        trigger_type='architecture_ready',
+                        message=msg,
+                        delivered_via='in_app',
+                    )
+            except Exception:
+                pass
+
         except Exception as e:
             logger.warning(f"ISE: Architecture pass failed for {user.email}: {e}")
             errors += 1

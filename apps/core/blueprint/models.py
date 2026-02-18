@@ -190,6 +190,71 @@ class PersonalOperatingBlueprint(models.Model):
         ),
     )
 
+    # --- Governance Profile ---
+    ACCOUNTABILITY_LIGHT = 'light'
+    ACCOUNTABILITY_STANDARD = 'standard'
+    ACCOUNTABILITY_FIRM = 'firm'
+    ACCOUNTABILITY_CHOICES = [
+        (ACCOUNTABILITY_LIGHT, 'Light'),
+        (ACCOUNTABILITY_STANDARD, 'Standard'),
+        (ACCOUNTABILITY_FIRM, 'Firm'),
+    ]
+
+    QUESTION_LOW = 'low'
+    QUESTION_MEDIUM = 'medium'
+    QUESTION_HIGH = 'high'
+    QUESTION_FREQUENCY_CHOICES = [
+        (QUESTION_LOW, 'Low'),
+        (QUESTION_MEDIUM, 'Medium'),
+        (QUESTION_HIGH, 'High'),
+    ]
+
+    accountability_style = models.CharField(
+        max_length=10,
+        choices=ACCOUNTABILITY_CHOICES,
+        default=ACCOUNTABILITY_STANDARD,
+        help_text="How firm the CoS should be (light/standard/firm)",
+    )
+
+    question_frequency = models.CharField(
+        max_length=10,
+        choices=QUESTION_FREQUENCY_CHOICES,
+        default=QUESTION_MEDIUM,
+        help_text="How often CoS asks questions (low/medium/high)",
+    )
+
+    relationship_suggestions_enabled = models.BooleanField(
+        default=False,
+        help_text="Whether CoS suggests relationship actions",
+    )
+
+    event_reflections_enabled = models.BooleanField(
+        default=True,
+        help_text="Whether CoS follows up after events with reflections",
+    )
+
+    sensitivity_tags = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Topics requiring sensitivity (e.g. ['medicine','relationships','faith'])",
+    )
+
+    calibration_day = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="Day counter for calibration mode (0-14)",
+    )
+
+    calibration_complete = models.BooleanField(
+        default=False,
+        help_text="Whether initial calibration period is complete",
+    )
+
+    governance_overrides = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="User override history for CoS preferences",
+    )
+
     # --- Metadata ---
     last_architecture_run_at = models.DateTimeField(
         null=True,

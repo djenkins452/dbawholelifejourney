@@ -24,6 +24,7 @@ import logging
 
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import JsonResponse
+from django.shortcuts import redirect
 from django.views import View
 from django.views.generic import TemplateView
 
@@ -1018,3 +1019,100 @@ class AssistantDashboardView(LoginRequiredMixin, HelpContextMixin, AssistantMixi
             context['messages'] = []
 
         return context
+
+
+# =============================================================================
+# COS SETTINGS
+# =============================================================================
+
+class CosSettingsView(LoginRequiredMixin, TemplateView):
+    """
+    CoS governance settings — simple controls for adaptive authority.
+
+    5 primary controls:
+    1. Accountability style (light/standard/firm)
+    2. Question frequency (low/medium/high)
+    3. Relationship suggestions toggle
+    4. Event reflections toggle
+    5. Preferred notification channel
+    """
+
+    template_name = "ai/cos_settings.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+        prefs = user.preferences
+
+        # Get blueprint governance profile
+        try:
+            from apps.core.blueprint.models import PersonalOperatingBlueprint
+            blueprint = PersonalOperatingBlueprint.get_or_create_for_user(user)
+            context['blueprint'] = blueprint
+            context['sensitivity_tags'] = blueprint.sensitivity_tags or []
+
+            # Learned preferences from SLCME
+            try:
+                from apps.core.ai_memory.models import LearnedMapping
+                learned = LearnedMapping.objects.filter(
+                    user=user,
+                    meaning_type='governance_preference',
+                    is_active=True,
+                ).order_by('-confidence_score')[:10]
+                context['learned_preferences'] = learned
+            except Exception:
+                context['learned_preferences'] = []
+
+        except Exception as e:
+            logger.debug(f"CoS settings: blueprint unavailable: {e}")
+            context['blueprint'] = None
+
+        context['prefs'] = prefs
+        context['pa_enabled'] = getattr(prefs, 'personal_assistant_enabled', False)
+        return context
+
+
+class CosSettingsSaveView(LoginRequiredMixin, View):
+    """Handle CoS settings form submission."""
+
+    def post(self, request, *args, **kwargs):
+        from django.contrib import messages as django_messages
+
+        user = request.user
+
+        try:
+            from apps.core.blueprint.models import PersonalOperatingBlueprint
+            blueprint = PersonalOperatingBlueprint.get_or_create_for_user(user)
+
+            # Update governance fields
+            accountability = request.POST.get('accountability_style', 'standard')
+            if accountability in ('light', 'standard', 'firm'):
+                blueprint.accountability_style = accountability
+
+            frequency = request.POST.get('question_frequency', 'medium')
+            if frequency in ('low', 'medium', 'high'):
+                blueprint.question_frequency = frequency
+
+            blueprint.relationship_suggestions_enabled = (
+                request.POST.get('relationship_suggestions') == 'on'
+            )
+            blueprint.event_reflections_enabled = (
+                request.POST.get('event_reflections') == 'on'
+            )
+
+            # Sensitivity tags (comma-separated)
+            tags_raw = request.POST.get('sensitivity_tags', '')
+            if tags_raw.strip():
+                tags = [t.strip().lower() for t in tags_raw.split(',') if t.strip()]
+                blueprint.sensitivity_tags = tags
+            else:
+                blueprint.sensitivity_tags = []
+
+            blueprint.save()
+            django_messages.success(request, "CoS settings saved.")
+
+        except Exception as e:
+            logger.error(f"CoS settings save error: {e}", exc_info=True)
+            django_messages.error(request, "Could not save settings.")
+
+        return redirect('ai:cos_settings')

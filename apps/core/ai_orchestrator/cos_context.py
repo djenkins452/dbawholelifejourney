@@ -215,6 +215,22 @@ def build_cos_context(user):
     except Exception:
         pass
 
+    # Governance profile
+    try:
+        from apps.core.blueprint import engine as bp_engine
+        bp = bp_engine.get_blueprint(user)
+        context['governance_profile'] = {
+            'accountability_style': getattr(bp, 'accountability_style', 'standard'),
+            'question_frequency': getattr(bp, 'question_frequency', 'medium'),
+            'sensitivity_tags': getattr(bp, 'sensitivity_tags', []) or [],
+            'relationship_suggestions': getattr(bp, 'relationship_suggestions_enabled', False),
+            'event_reflections': getattr(bp, 'event_reflections_enabled', True),
+            'calibration_complete': getattr(bp, 'calibration_complete', False),
+            'calibration_day': getattr(bp, 'calibration_day', 0),
+        }
+    except Exception:
+        context['governance_profile'] = {}
+
     # Persona profile
     try:
         from apps.core.ai_persona.persona_registry import get_persona_profile
@@ -390,6 +406,23 @@ def format_cos_system_injection(context):
         lines.append("Risk Warnings:")
         for w in warnings:
             lines.append(f"  - {w}")
+
+    # Governance profile
+    gov = context.get('governance_profile', {})
+    if gov:
+        lines.append("")
+        lines.append("--- GOVERNANCE ---")
+        lines.append(f"Accountability Style: {gov.get('accountability_style', 'standard')}")
+        lines.append(f"Question Frequency: {gov.get('question_frequency', 'medium')}")
+        tags = gov.get('sensitivity_tags', [])
+        if tags:
+            lines.append(f"Sensitivity Topics: {', '.join(tags)}")
+        if not gov.get('calibration_complete', False):
+            lines.append(f"Calibration: Day {gov.get('calibration_day', 0)}/14 — still learning")
+        if not gov.get('relationship_suggestions', False):
+            lines.append("Relationship suggestions: OFF")
+        if not gov.get('event_reflections', True):
+            lines.append("Event reflections: OFF")
 
     # Module permissions
     mods = context.get('module_permissions', {})

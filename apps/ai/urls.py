@@ -45,4 +45,8 @@ urlpatterns = [
     # Reflection Prompts
     path('api/reflection/', views.ReflectionPromptView.as_view(), name='api_reflection'),
     path('api/reflection/used/', views.ReflectionPromptUsedView.as_view(), name='api_reflection_used'),
+
+    # CoS Settings
+    path('cos/settings/', views.CosSettingsView.as_view(), name='cos_settings'),
+    path('cos/settings/save/', views.CosSettingsSaveView.as_view(), name='cos_settings_save'),
 ]

@@ -72,25 +72,25 @@ class PersonalOperatingBlueprintTests(TestCase):
 
     def test_get_or_create_creates_blueprint(self):
         """Blueprint is created on first access."""
-        blueprint = PersonalOperatingBlueprint.get_or_create_for_user(self.user)
+        blueprint = PersonalOperatingBlueprint.get_or_create_for_user(self.user)  # noqa
         self.assertIsNotNone(blueprint)
         self.assertEqual(blueprint.user, self.user)
         self.assertEqual(blueprint.version, 1)
 
     def test_get_or_create_returns_existing(self):
         """Second call returns existing blueprint, not new one."""
-        b1 = PersonalOperatingBlueprint.get_or_create_for_user(self.user)
-        b2 = PersonalOperatingBlueprint.get_or_create_for_user(self.user)
+        b1 = PersonalOperatingBlueprint.get_or_create_for_user(self.user)  # noqa
+        b2 = PersonalOperatingBlueprint.get_or_create_for_user(self.user)  # noqa
         self.assertEqual(b1.pk, b2.pk)
 
     def test_default_operating_style(self):
         """Default operating style is executive_cos."""
-        blueprint = PersonalOperatingBlueprint.get_or_create_for_user(self.user)
+        blueprint = PersonalOperatingBlueprint.get_or_create_for_user(self.user)  # noqa
         self.assertEqual(blueprint.operating_style, 'executive_cos')
 
     def test_default_auto_architect(self):
         """Auto architect is enabled by default."""
-        blueprint = PersonalOperatingBlueprint.get_or_create_for_user(self.user)
+        blueprint = PersonalOperatingBlueprint.get_or_create_for_user(self.user)  # noqa
         self.assertTrue(blueprint.auto_architect_enabled)
 
     def test_sync_module_flags(self):
@@ -99,7 +99,7 @@ class PersonalOperatingBlueprintTests(TestCase):
         self.user.preferences.faith_enabled = False
         self.user.preferences.save()
 
-        blueprint = PersonalOperatingBlueprint.get_or_create_for_user(self.user)
+        blueprint = PersonalOperatingBlueprint.get_or_create_for_user(self.user)  # noqa
         blueprint.sync_module_flags()
         blueprint.save()
 
@@ -108,7 +108,7 @@ class PersonalOperatingBlueprintTests(TestCase):
 
     def test_is_module_enabled(self):
         """is_module_enabled checks the snapshot."""
-        blueprint = PersonalOperatingBlueprint.get_or_create_for_user(self.user)
+        blueprint = PersonalOperatingBlueprint.get_or_create_for_user(self.user)  # noqa
         blueprint.module_flags_snapshot = {'health': True, 'faith': False}
         blueprint.save()
 
@@ -118,7 +118,7 @@ class PersonalOperatingBlueprintTests(TestCase):
 
     def test_get_tier_for_behavior_tier1(self):
         """Tier 1 behaviors come from tier1_protected_behaviors."""
-        blueprint = PersonalOperatingBlueprint.get_or_create_for_user(self.user)
+        blueprint = PersonalOperatingBlueprint.get_or_create_for_user(self.user)  # noqa
         blueprint.tier1_protected_behaviors = ['WORKOUT', 'MEDS_ADHERENCE']
         blueprint.save()
 
@@ -127,7 +127,7 @@ class PersonalOperatingBlueprintTests(TestCase):
 
     def test_get_tier_for_behavior_tier2(self):
         """Non-negotiables not in tier1 are tier 2."""
-        blueprint = PersonalOperatingBlueprint.get_or_create_for_user(self.user)
+        blueprint = PersonalOperatingBlueprint.get_or_create_for_user(self.user)  # noqa
         NonNegotiable.objects.create(
             blueprint=blueprint,
             behavior_key='FAITH_BLOCK',
@@ -137,12 +137,12 @@ class PersonalOperatingBlueprintTests(TestCase):
 
     def test_get_tier_for_behavior_default(self):
         """Unknown behaviors default to tier 4."""
-        blueprint = PersonalOperatingBlueprint.get_or_create_for_user(self.user)
+        blueprint = PersonalOperatingBlueprint.get_or_create_for_user(self.user)  # noqa
         self.assertEqual(blueprint.get_tier_for_behavior('UNKNOWN'), 4)
 
     def test_get_pillar_weight(self):
         """First pillar gets highest weight."""
-        blueprint = PersonalOperatingBlueprint.get_or_create_for_user(self.user)
+        blueprint = PersonalOperatingBlueprint.get_or_create_for_user(self.user)  # noqa
         blueprint.pillars_ranked = ['FAITH', 'HEALTH', 'PURPOSE']
         blueprint.save()
 
@@ -843,7 +843,7 @@ class CosContextBuilderTests(TestCase):
         """Blueprint state should be populated from blueprint engine."""
         from apps.core.ai_orchestrator.cos_context import build_cos_context
         # Ensure blueprint exists
-        PersonalOperatingBlueprint.get_or_create_for_user(self.user)
+        PersonalOperatingBlueprint.get_or_create_for_user(self.user)  # noqa
         ctx = build_cos_context(self.user)
         bp = ctx['blueprint_state']
         self.assertIn('operating_style', bp)
@@ -999,7 +999,7 @@ class InterventionIntensityTests(TestCase):
         """Tier-1 behavior should force at least level 4 when score >= 30."""
         from apps.core.blueprint.intervention_intensity import compute_intensity
         # Create a blueprint with tier-1 behavior
-        bp = PersonalOperatingBlueprint.get_or_create_for_user(self.user)
+        bp = PersonalOperatingBlueprint.get_or_create_for_user(self.user)  # noqa
         bp.tier1_protected_behaviors = ['exercise']
         bp.save()
 
@@ -1032,7 +1032,7 @@ class RecoveryEngineTests(TestCase):
 
     def setUp(self):
         self.user = _create_test_user(email='recovery@test.com')
-        self.blueprint = PersonalOperatingBlueprint.get_or_create_for_user(self.user)
+        self.blueprint = PersonalOperatingBlueprint.get_or_create_for_user(self.user)  # noqa
         # Create a plan for tomorrow
         tomorrow = timezone.localdate() + datetime.timedelta(days=1)
         self.plan = ArchitecturePlan.objects.create(
@@ -1127,7 +1127,7 @@ class AlignmentEngineTests(TestCase):
 
     def setUp(self):
         self.user = _create_test_user(email='alignment@test.com')
-        self.blueprint = PersonalOperatingBlueprint.get_or_create_for_user(self.user)
+        self.blueprint = PersonalOperatingBlueprint.get_or_create_for_user(self.user)  # noqa
         # Create today's plan
         self.today = timezone.localdate()
         self.plan = ArchitecturePlan.objects.create(
@@ -1239,7 +1239,7 @@ class PredictiveInterventionsTests(TestCase):
 
     def setUp(self):
         self.user = _create_test_user(email='predictive@test.com')
-        self.blueprint = PersonalOperatingBlueprint.get_or_create_for_user(self.user)
+        self.blueprint = PersonalOperatingBlueprint.get_or_create_for_user(self.user)  # noqa
 
     def test_evaluate_returns_list(self):
         """evaluate_predictive_signals should return a list."""
@@ -2239,3 +2239,240 @@ class LiveBuildLoopTests(TestCase):
             self.assertIn('handleCommandModeInput', source)
             self.assertIn('assistant-chat-input', source)
             self.assertIn('cos-cm-input', source)
+
+
+class GovernanceFrameworkTests(TestCase):
+    """
+    Phase 1: Adaptive Authority Framework tests.
+
+    Tests governance profile, decision layer, calibration mode,
+    system prompt injection, and settings view.
+    """
+
+    def setUp(self):
+        self.user = _create_test_user(email='governance@test.com')
+        self.prefs = self.user.preferences
+        self.prefs.personal_assistant_enabled = True
+        self.prefs.save()
+
+    def test_blueprint_has_governance_fields(self):
+        """Blueprint should have all governance fields with defaults."""
+        from apps.core.blueprint.models import PersonalOperatingBlueprint
+        bp = PersonalOperatingBlueprint.get_or_create_for_user(self.user)
+        self.assertEqual(bp.accountability_style, 'standard')
+        self.assertEqual(bp.question_frequency, 'medium')
+        self.assertFalse(bp.relationship_suggestions_enabled)
+        self.assertTrue(bp.event_reflections_enabled)
+        self.assertEqual(bp.sensitivity_tags, [])
+        self.assertEqual(bp.calibration_day, 0)
+        self.assertFalse(bp.calibration_complete)
+        self.assertEqual(bp.governance_overrides, {})
+
+    def test_accountability_style_affects_instructions(self):
+        """Governance instructions should reflect accountability style."""
+        from apps.core.blueprint.models import PersonalOperatingBlueprint
+        from apps.core.blueprint.cos_governance import build_governance_instructions
+
+        bp = PersonalOperatingBlueprint.get_or_create_for_user(self.user)
+        bp.accountability_style = 'firm'
+        bp.save()
+
+        instructions = build_governance_instructions(self.user)
+        self.assertIn('FIRM', instructions)
+        self.assertIn('direct', instructions)
+
+    def test_light_accountability_produces_gentle_instructions(self):
+        """Light style should produce gentle language."""
+        from apps.core.blueprint.models import PersonalOperatingBlueprint
+        from apps.core.blueprint.cos_governance import build_governance_instructions
+
+        bp = PersonalOperatingBlueprint.get_or_create_for_user(self.user)
+        bp.accountability_style = 'light'
+        bp.save()
+
+        instructions = build_governance_instructions(self.user)
+        self.assertIn('LIGHT', instructions)
+        self.assertIn('gentle', instructions)
+
+    def test_sensitivity_tags_in_instructions(self):
+        """Sensitivity tags should appear in governance instructions."""
+        from apps.core.blueprint.models import PersonalOperatingBlueprint
+        from apps.core.blueprint.cos_governance import build_governance_instructions
+
+        bp = PersonalOperatingBlueprint.get_or_create_for_user(self.user)
+        bp.sensitivity_tags = ['medicine', 'relationships']
+        bp.save()
+
+        instructions = build_governance_instructions(self.user)
+        self.assertIn('medicine', instructions)
+        self.assertIn('relationships', instructions)
+        self.assertIn('Sensitivity', instructions)
+
+    def test_should_ask_question_respects_daily_cap(self):
+        """should_ask_question should return False when daily cap is exceeded."""
+        from apps.core.blueprint.models import PersonalOperatingBlueprint, InterventionLog
+        from apps.core.blueprint.cos_governance import should_ask_question
+
+        bp = PersonalOperatingBlueprint.get_or_create_for_user(self.user)
+        bp.question_frequency = 'low'  # cap = 1
+        bp.save()
+
+        # Create one governance interaction today
+        from django.utils import timezone as tz
+        InterventionLog.objects.create(
+            user=self.user,
+            level=1,
+            trigger_type='governance_question',
+            message='test',
+        )
+
+        result = should_ask_question(self.user, 'test_category')
+        self.assertFalse(result)
+
+    def test_should_ask_respects_declined_category(self):
+        """should_ask_question should return False for declined categories."""
+        from apps.core.blueprint.models import PersonalOperatingBlueprint
+        from apps.core.blueprint.cos_governance import should_ask_question
+
+        bp = PersonalOperatingBlueprint.get_or_create_for_user(self.user)
+        bp.governance_overrides = {'declined_categories': ['relationships']}
+        bp.save()
+
+        result = should_ask_question(self.user, 'relationships')
+        self.assertFalse(result)
+
+    def test_record_governance_interaction_decline(self):
+        """record_governance_interaction should store declined category."""
+        from apps.core.blueprint.models import PersonalOperatingBlueprint
+        from apps.core.blueprint.cos_governance import record_governance_interaction
+
+        bp = PersonalOperatingBlueprint.get_or_create_for_user(self.user)
+        record_governance_interaction(self.user, 'relationships', 'declined')
+
+        bp.refresh_from_db()
+        self.assertIn('relationships', bp.governance_overrides.get('declined_categories', []))
+
+    def test_calibration_question_returns_for_day_range(self):
+        """get_calibration_question should return questions based on day."""
+        from apps.core.blueprint.models import PersonalOperatingBlueprint
+        from apps.core.blueprint.cos_governance import get_calibration_question
+
+        bp = PersonalOperatingBlueprint.get_or_create_for_user(self.user)
+        bp.calibration_day = 1  # Day 1 = core_people phase
+        bp.save()
+
+        question = get_calibration_question(self.user)
+        self.assertIsNotNone(question)
+        self.assertEqual(question['category'], 'core_people')
+
+    def test_calibration_completes_after_day_14(self):
+        """advance_calibration_day should mark complete at day 14."""
+        from apps.core.blueprint.models import PersonalOperatingBlueprint
+        from apps.core.blueprint.cos_governance import advance_calibration_day
+
+        bp = PersonalOperatingBlueprint.get_or_create_for_user(self.user)
+        bp.calibration_day = 13
+        bp.save()
+
+        advance_calibration_day(self.user)
+        bp.refresh_from_db()
+        self.assertEqual(bp.calibration_day, 14)
+        self.assertTrue(bp.calibration_complete)
+
+    def test_calibration_no_question_when_complete(self):
+        """get_calibration_question should return None when complete."""
+        from apps.core.blueprint.models import PersonalOperatingBlueprint
+        from apps.core.blueprint.cos_governance import get_calibration_question
+
+        bp = PersonalOperatingBlueprint.get_or_create_for_user(self.user)
+        bp.calibration_complete = True
+        bp.save()
+
+        question = get_calibration_question(self.user)
+        self.assertIsNone(question)
+
+    def test_evaluate_governance_sensitive_topic_softens_tone(self):
+        """Governance should soften tone for sensitive topics."""
+        from apps.core.blueprint.models import PersonalOperatingBlueprint
+        from apps.core.blueprint.cos_governance import evaluate_governance
+
+        bp = PersonalOperatingBlueprint.get_or_create_for_user(self.user)
+        bp.accountability_style = 'firm'
+        bp.sensitivity_tags = ['medicine']
+        bp.save()
+
+        decision = evaluate_governance(
+            self.user, 'reminder',
+            context={'topic': 'medicine', 'tier': 2},
+        )
+        self.assertTrue(decision.sensitivity_active)
+        self.assertIn(decision.tone_intensity, ('gentle', 'warm_but_firm'))
+
+    def test_why_response_in_instructions(self):
+        """Governance instructions should include the 'why' standard response."""
+        from apps.core.blueprint.cos_governance import build_governance_instructions, WHY_RESPONSE
+        instructions = build_governance_instructions(self.user)
+        self.assertIn(WHY_RESPONSE, instructions)
+
+    def test_cos_context_includes_governance(self):
+        """CoS context should include governance profile."""
+        from apps.core.ai_orchestrator.cos_context import build_cos_context
+        context = build_cos_context(self.user)
+        self.assertIn('governance_profile', context)
+        gov = context['governance_profile']
+        self.assertIn('accountability_style', gov)
+        self.assertIn('question_frequency', gov)
+
+    def test_cos_context_format_includes_governance(self):
+        """Formatted CoS injection should include governance section."""
+        from apps.core.ai_orchestrator.cos_context import (
+            build_cos_context, format_cos_system_injection,
+        )
+        context = build_cos_context(self.user)
+        formatted = format_cos_system_injection(context)
+        self.assertIn('GOVERNANCE', formatted)
+
+    def test_settings_view_renders(self):
+        """CoS settings view should render for authenticated user."""
+        from apps.users.models import TermsAcceptance
+        TermsAcceptance.objects.create(
+            user=self.user,
+            terms_version=settings.WLJ_SETTINGS.get("TERMS_VERSION", "1.0"),
+        )
+        self.prefs.has_completed_onboarding = True
+        self.prefs.save()
+
+        client = Client()
+        client.login(email='governance@test.com', password='testpass123')
+        response = client.get('/assistant/cos/settings/')
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Chief of Staff Settings')
+
+    def test_settings_save_updates_blueprint(self):
+        """CoS settings save should update blueprint governance fields."""
+        from apps.users.models import TermsAcceptance
+        TermsAcceptance.objects.create(
+            user=self.user,
+            terms_version=settings.WLJ_SETTINGS.get("TERMS_VERSION", "1.0"),
+        )
+        self.prefs.has_completed_onboarding = True
+        self.prefs.save()
+
+        client = Client()
+        client.login(email='governance@test.com', password='testpass123')
+        response = client.post('/assistant/cos/settings/save/', {
+            'accountability_style': 'firm',
+            'question_frequency': 'low',
+            'event_reflections': 'on',
+            'sensitivity_tags': 'medicine, faith',
+        })
+        self.assertEqual(response.status_code, 302)
+
+        from apps.core.blueprint.models import PersonalOperatingBlueprint
+        bp = PersonalOperatingBlueprint.objects.get(user=self.user)
+        self.assertEqual(bp.accountability_style, 'firm')
+        self.assertEqual(bp.question_frequency, 'low')
+        self.assertTrue(bp.event_reflections_enabled)
+        self.assertFalse(bp.relationship_suggestions_enabled)
+        self.assertIn('medicine', bp.sensitivity_tags)
+        self.assertIn('faith', bp.sensitivity_tags)

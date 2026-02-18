@@ -11,6 +11,16 @@
 
 ## 2026-02-18
 
+- **Feature:** CoS Phase III / Phase 1 — Adaptive Authority Framework (Governor)
+  - **Governance profile** on `PersonalOperatingBlueprint`: accountability_style (light/standard/firm), question_frequency (low/medium/high), relationship_suggestions_enabled, event_reflections_enabled, sensitivity_tags, calibration_day/complete, governance_overrides
+  - **Governance decision layer** (`cos_governance.py`): `evaluate_governance()` for ask/skip/tone decisions, `should_ask_question()` with daily cap + declined category tracking, `record_governance_interaction()` stores via SLCME, `get_calibration_question()` for first 14 days, `build_governance_instructions()` produces compact system prompt block
+  - **System prompt injection**: Governance instructions prepended to every LLM request (accountability style, question frequency, sensitivity topics, calibration status, off-limits topics, standard "why" response)
+  - **CoS context enrichment**: Governance profile added to `build_cos_context()` and `format_cos_system_injection()`
+  - **CoS Settings page** (`/assistant/cos/settings/`): 5 simple controls (firmness, question frequency, reflections toggle, relationship suggestions toggle, sensitivity tags), learned preferences section, calibration status indicator
+  - **Calibration mode**: 14-day phased onboarding (core people → non-negotiables → preferred activities → negotiables), max 1-2 questions/day, auto-completes at day 14
+  - **16 new tests** (180 total blueprint): Governance fields/defaults, accountability affects instructions, sensitivity softens tone, daily cap enforcement, declined categories, calibration phases, "why" response, CoS context includes governance, settings view rendering + save
+  - Files: `apps/core/blueprint/models.py` (governance fields), `apps/core/blueprint/cos_governance.py` (NEW), `apps/core/ai_orchestrator/cos_context.py` (governance context), `apps/ai/personal_assistant.py` (governance injection), `apps/ai/views.py` (CosSettingsView), `apps/ai/urls.py` (routes), `templates/ai/cos_settings.html` (NEW), `apps/core/migrations/0070_blueprint_governance_fields.py`
+
 - **Feature:** Phase 4 — Live Build Loop (CoS post-scheduling chain)
   - **handle_create_event CoS integration**: After creating a LifeEvent, now runs the CoS post-scheduling chain:
     1. **Conflict detection**: Checks if new event overlaps with Tier 1/2 scheduled blocks and warns user ("⚠️ Overlaps protected commitment: Morning Prayer")

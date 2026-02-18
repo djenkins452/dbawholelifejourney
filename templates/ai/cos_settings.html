@@ -1,0 +1,298 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}CoS Settings — Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="page-container" style="max-width: 640px; margin: 0 auto; padding: 1rem;">
+    <h1 style="font-size: 1.5rem; font-weight: 600; margin-bottom: 0.25rem;">Chief of Staff Settings</h1>
+    <p style="color: var(--text-secondary); margin-bottom: 1.5rem; font-size: 0.9rem;">
+        Control how your CoS communicates. Everything else is learned through conversation.
+    </p>
+
+    {% if not pa_enabled %}
+    <div class="alert alert-info" style="padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; background: var(--surface); border: 1px solid var(--border);">
+        <strong>Personal Assistant is not enabled.</strong>
+        Enable it in your <a href="{% url 'users:preferences' %}">Preferences</a> to use CoS features.
+    </div>
+    {% endif %}
+
+    {% if messages %}
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags }}" style="padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem; background: var(--surface); border: 1px solid var(--border);">
+        {{ message }}
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    {% if blueprint %}
+    <form method="post" action="{% url 'ai:cos_settings_save' %}">
+        {% csrf_token %}
+
+        {# --- Accountability Style --- #}
+        <div class="cos-setting-group">
+            <label class="cos-setting-label">How firm should I be?</label>
+            <p class="cos-setting-help">Controls how directly the CoS holds you accountable.</p>
+            <div class="cos-radio-group">
+                <label class="cos-radio-option {% if blueprint.accountability_style == 'light' %}active{% endif %}">
+                    <input type="radio" name="accountability_style" value="light"
+                           {% if blueprint.accountability_style == 'light' %}checked{% endif %}>
+                    <span class="cos-radio-label">Light</span>
+                    <span class="cos-radio-desc">Gentle suggestions, no pressure</span>
+                </label>
+                <label class="cos-radio-option {% if blueprint.accountability_style == 'standard' %}active{% endif %}">
+                    <input type="radio" name="accountability_style" value="standard"
+                           {% if blueprint.accountability_style == 'standard' %}checked{% endif %}>
+                    <span class="cos-radio-label">Standard</span>
+                    <span class="cos-radio-desc">Balanced — clear but kind</span>
+                </label>
+                <label class="cos-radio-option {% if blueprint.accountability_style == 'firm' %}active{% endif %}">
+                    <input type="radio" name="accountability_style" value="firm"
+                           {% if blueprint.accountability_style == 'firm' %}checked{% endif %}>
+                    <span class="cos-radio-label">Firm</span>
+                    <span class="cos-radio-desc">Direct, calls out missed items</span>
+                </label>
+            </div>
+        </div>
+
+        {# --- Question Frequency --- #}
+        <div class="cos-setting-group">
+            <label class="cos-setting-label">How often should I ask questions?</label>
+            <p class="cos-setting-help">Controls how many check-in questions per day.</p>
+            <div class="cos-radio-group">
+                <label class="cos-radio-option {% if blueprint.question_frequency == 'low' %}active{% endif %}">
+                    <input type="radio" name="question_frequency" value="low"
+                           {% if blueprint.question_frequency == 'low' %}checked{% endif %}>
+                    <span class="cos-radio-label">Low</span>
+                    <span class="cos-radio-desc">Only when essential</span>
+                </label>
+                <label class="cos-radio-option {% if blueprint.question_frequency == 'medium' %}active{% endif %}">
+                    <input type="radio" name="question_frequency" value="medium"
+                           {% if blueprint.question_frequency == 'medium' %}checked{% endif %}>
+                    <span class="cos-radio-label">Medium</span>
+                    <span class="cos-radio-desc">1-2 per day when helpful</span>
+                </label>
+                <label class="cos-radio-option {% if blueprint.question_frequency == 'high' %}active{% endif %}">
+                    <input type="radio" name="question_frequency" value="high"
+                           {% if blueprint.question_frequency == 'high' %}checked{% endif %}>
+                    <span class="cos-radio-label">High</span>
+                    <span class="cos-radio-desc">Check in regularly</span>
+                </label>
+            </div>
+        </div>
+
+        {# --- Toggles --- #}
+        <div class="cos-setting-group">
+            <label class="cos-setting-label">Features</label>
+
+            <label class="cos-toggle-row">
+                <input type="checkbox" name="event_reflections" {% if blueprint.event_reflections_enabled %}checked{% endif %}>
+                <div>
+                    <span class="cos-toggle-title">Event reflections</span>
+                    <span class="cos-toggle-desc">Follow up after meetings, workouts, and events</span>
+                </div>
+            </label>
+
+            <label class="cos-toggle-row">
+                <input type="checkbox" name="relationship_suggestions" {% if blueprint.relationship_suggestions_enabled %}checked{% endif %}>
+                <div>
+                    <span class="cos-toggle-title">Relationship suggestions</span>
+                    <span class="cos-toggle-desc">Suggest reconnecting with important people</span>
+                </div>
+            </label>
+        </div>
+
+        {# --- Sensitivity Tags --- #}
+        <div class="cos-setting-group">
+            <label class="cos-setting-label">Sensitivity topics</label>
+            <p class="cos-setting-help">Topics where the CoS should be extra gentle (comma-separated).</p>
+            <input type="text" name="sensitivity_tags" class="cos-text-input"
+                   value="{{ sensitivity_tags|join:', ' }}"
+                   placeholder="e.g. medicine, relationships, faith">
+        </div>
+
+        <button type="submit" class="cos-save-btn">Save Settings</button>
+    </form>
+
+    {# --- Learned Preferences (expandable) --- #}
+    {% if learned_preferences %}
+    <details class="cos-learned-section">
+        <summary class="cos-learned-toggle">Learned preferences ({{ learned_preferences|length }})</summary>
+        <div class="cos-learned-list">
+            {% for lp in learned_preferences %}
+            <div class="cos-learned-item">
+                <span class="cos-learned-phrase">{{ lp.phrase }}</span>
+                <span class="cos-learned-confidence" title="Confidence: {{ lp.confidence_score }}">
+                    {% if lp.confidence_score >= 0.8 %}High{% elif lp.confidence_score >= 0.5 %}Medium{% else %}Low{% endif %}
+                </span>
+            </div>
+            {% endfor %}
+        </div>
+    </details>
+    {% endif %}
+
+    {% if not blueprint.calibration_complete %}
+    <div class="cos-calibration-status">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <span>Calibration: Day {{ blueprint.calibration_day }}/14 — I'm still learning your preferences through conversation.</span>
+    </div>
+    {% endif %}
+
+    {% endif %}
+</div>
+
+<style>
+.cos-setting-group {
+    margin-bottom: 1.5rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border, #e5e7eb);
+}
+.cos-setting-label {
+    font-weight: 600;
+    font-size: 1rem;
+    display: block;
+    margin-bottom: 0.25rem;
+}
+.cos-setting-help {
+    color: var(--text-secondary, #6b7280);
+    font-size: 0.85rem;
+    margin-bottom: 0.75rem;
+}
+.cos-radio-group {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+.cos-radio-option {
+    flex: 1;
+    min-width: 120px;
+    padding: 0.75rem;
+    border: 2px solid var(--border, #e5e7eb);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+.cos-radio-option input { display: none; }
+.cos-radio-option.active,
+.cos-radio-option:has(input:checked) {
+    border-color: var(--primary, #4f46e5);
+    background: var(--primary-bg, rgba(79, 70, 229, 0.05));
+}
+.cos-radio-label {
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+.cos-radio-desc {
+    font-size: 0.8rem;
+    color: var(--text-secondary, #6b7280);
+}
+.cos-toggle-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.75rem 0;
+    cursor: pointer;
+}
+.cos-toggle-row input[type="checkbox"] {
+    margin-top: 0.2rem;
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+}
+.cos-toggle-title {
+    font-weight: 500;
+    display: block;
+}
+.cos-toggle-desc {
+    font-size: 0.85rem;
+    color: var(--text-secondary, #6b7280);
+    display: block;
+}
+.cos-text-input {
+    width: 100%;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--border, #e5e7eb);
+    border-radius: 8px;
+    font-size: 0.9rem;
+    background: var(--surface, #fff);
+    color: var(--text-primary, #111);
+}
+.cos-text-input:focus {
+    outline: none;
+    border-color: var(--primary, #4f46e5);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+.cos-save-btn {
+    display: block;
+    width: 100%;
+    padding: 0.75rem;
+    background: var(--primary, #4f46e5);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    margin-bottom: 1.5rem;
+}
+.cos-save-btn:hover {
+    opacity: 0.9;
+}
+.cos-learned-section {
+    margin-top: 1rem;
+    margin-bottom: 1.5rem;
+}
+.cos-learned-toggle {
+    font-size: 0.9rem;
+    color: var(--text-secondary, #6b7280);
+    cursor: pointer;
+    padding: 0.5rem 0;
+}
+.cos-learned-list {
+    padding-top: 0.5rem;
+}
+.cos-learned-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.4rem 0;
+    font-size: 0.85rem;
+    border-bottom: 1px solid var(--border, #e5e7eb);
+}
+.cos-learned-phrase {
+    color: var(--text-primary, #111);
+}
+.cos-learned-confidence {
+    font-size: 0.75rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    background: var(--surface, #f3f4f6);
+    color: var(--text-secondary, #6b7280);
+}
+.cos-calibration-status {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    background: var(--surface, #f3f4f6);
+    border-radius: 8px;
+    font-size: 0.85rem;
+    color: var(--text-secondary, #6b7280);
+}
+.cos-calibration-status svg {
+    flex-shrink: 0;
+}
+
+@media (max-width: 480px) {
+    .cos-radio-group {
+        flex-direction: column;
+    }
+    .cos-radio-option {
+        min-width: auto;
+    }
+}
+</style>
+{% endblock %}

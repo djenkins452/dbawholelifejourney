@@ -2447,6 +2447,20 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                 cos_context = build_cos_context(self.user)
                 cos_injection = format_cos_system_injection(cos_context)
                 system_prompt = cos_injection + "\n" + system_prompt
+
+                # Inject governance instructions (adaptive authority framework)
+                try:
+                    from apps.core.blueprint.cos_governance import (
+                        build_governance_instructions,
+                        advance_calibration_day,
+                    )
+                    gov_instructions = build_governance_instructions(self.user)
+                    if gov_instructions:
+                        system_prompt = gov_instructions + "\n" + system_prompt
+                    # Advance calibration day once per day on first interaction
+                    advance_calibration_day(self.user)
+                except Exception as gov_err:
+                    logger.debug("Governance injection skipped: %s", gov_err)
         except Exception as cos_err:
             logger.debug("CoS context injection skipped: %s", cos_err)
 

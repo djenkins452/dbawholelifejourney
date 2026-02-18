@@ -27,6 +27,9 @@
     let currentResults = [];
     let isLoading = false;
 
+    // Per-serving snapshot (stored when food is selected, used for quantity scaling)
+    let perServingSnapshot = null;
+
     /**
      * Initialize autocomplete on a food name input
      */
@@ -51,6 +54,16 @@
                 hideDropdown(dropdown);
             }
         });
+
+        // Quantity change → recalculate totals preview
+        const form = inputElement.closest('form');
+        if (form) {
+            const qtyField = form.querySelector('[name="quantity"]');
+            if (qtyField) {
+                qtyField.addEventListener('input', () => recalculateTotals(form));
+                qtyField.addEventListener('change', () => recalculateTotals(form));
+            }
+        }
     }
 
     /**
@@ -266,12 +279,23 @@
         const form = inputElement.closest('form');
         if (!form) return;
 
+        // Store per-serving snapshot for quantity scaling
+        perServingSnapshot = {
+            calories: food.calories || 0,
+            protein_g: food.protein_g || 0,
+            carbohydrates_g: food.carbohydrates_g || 0,
+            fat_g: food.fat_g || 0,
+            fiber_g: food.fiber_g || 0,
+            sugar_g: food.sugar_g || 0,
+            saturated_fat_g: food.saturated_fat_g || 0,
+        };
+
         // Build display name
         const displayName = food.brand
             ? `${food.name} (${food.brand})`
             : food.name;
 
-        // Auto-fill all fields
+        // Auto-fill all fields (per-serving values)
         setFieldValue(form, 'food_name', displayName);
         setFieldValue(form, 'food_brand', food.brand || '');
         setFieldValue(form, 'total_calories', food.calories);
@@ -284,6 +308,9 @@
         setFieldValue(form, 'serving_size', food.serving_size);
         setFieldValue(form, 'serving_unit', food.serving_unit);
 
+        // Reset quantity to 1 when selecting a new food
+        setFieldValue(form, 'quantity', 1);
+
         hideDropdown(dropdown);
 
         // Visual feedback
@@ -291,6 +318,41 @@
 
         // Show success message
         showFillNotification(food.source);
+    }
+
+    /**
+     * Recalculate nutrition totals when quantity changes.
+     * Uses the per-serving snapshot stored when food was selected.
+     * This is a PREVIEW only — server recalculates on save.
+     */
+    function recalculateTotals(form) {
+        if (!perServingSnapshot) return;
+
+        const qtyField = form.querySelector('[name="quantity"]');
+        if (!qtyField) return;
+
+        const qty = parseFloat(qtyField.value) || 1;
+
+        const fieldMap = {
+            'total_calories': 'calories',
+            'total_protein_g': 'protein_g',
+            'total_carbohydrates_g': 'carbohydrates_g',
+            'total_fat_g': 'fat_g',
+            'total_fiber_g': 'fiber_g',
+            'total_sugar_g': 'sugar_g',
+            'total_saturated_fat_g': 'saturated_fat_g',
+        };
+
+        for (const [formField, snapshotKey] of Object.entries(fieldMap)) {
+            const field = form.querySelector(`[name="${formField}"]`);
+            const perServing = perServingSnapshot[snapshotKey] || 0;
+            if (field) {
+                const total = Math.round(perServing * qty * 100) / 100;
+                field.value = total;
+                field.classList.add('field-auto-filled');
+                setTimeout(() => field.classList.remove('field-auto-filled'), 1000);
+            }
+        }
     }
 
     /**

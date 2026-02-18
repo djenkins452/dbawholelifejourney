@@ -3865,10 +3865,20 @@ class FoodEntryCreateView(HelpContextMixin, SaveAddAnotherMixin, LoginRequiredMi
         entry_source = self.request.GET.get('entry_source', 'manual')
         if entry_source == 'camera':
             form.instance.entry_source = FoodEntry.SOURCE_CAMERA
+            form.instance.data_source_used = FoodEntry.DATA_SOURCE_FATSECRET
+            form.instance.confidence_score = 85
         elif entry_source == 'barcode':
             form.instance.entry_source = FoodEntry.SOURCE_BARCODE
+            form.instance.data_source_used = FoodEntry.DATA_SOURCE_LOCAL
+            form.instance.confidence_score = 95
         else:
             form.instance.entry_source = FoodEntry.SOURCE_MANUAL
+            form.instance.data_source_used = FoodEntry.DATA_SOURCE_MANUAL
+            form.instance.confidence_score = 100
+
+        # Capture FoodItem version if linked
+        if form.instance.food_item_id and form.instance.food_item:
+            form.instance.food_item_version = form.instance.food_item.version
 
         # Handle different submit buttons
         if 'save_and_scan' in self.request.POST:

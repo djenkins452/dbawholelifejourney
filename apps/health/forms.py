@@ -991,6 +991,69 @@ class FoodEntryForm(forms.ModelForm):
             self.initial["serving_size"] = 1
             self.initial["serving_unit"] = "serving"
 
+    def save(self, commit=True):
+        """
+        Save with snapshot + correct total calculation.
+
+        The form fields total_* are treated as per-serving values entered
+        by the user (or auto-filled from food search / barcode). We store
+        these as the immutable snapshot_nutrients, then compute final
+        total_* = snapshot * quantity.
+        """
+        from decimal import Decimal
+        from apps.health.services.nutrition_calculator import compute_totals
+
+        instance = super().save(commit=False)
+
+        # Build per-serving snapshot from the form's total_* values
+        # (which the user sees as per-serving amounts)
+        snapshot = {}
+        nutrient_map = {
+            'total_calories': 'calories',
+            'total_protein_g': 'protein_g',
+            'total_carbohydrates_g': 'carbohydrates_g',
+            'total_fiber_g': 'fiber_g',
+            'total_sugar_g': 'sugar_g',
+            'total_fat_g': 'fat_g',
+            'total_saturated_fat_g': 'saturated_fat_g',
+        }
+
+        for form_field, snapshot_key in nutrient_map.items():
+            val = self.cleaned_data.get(form_field)
+            if val is not None:
+                snapshot[snapshot_key] = float(val)
+            else:
+                snapshot[snapshot_key] = 0.0
+
+        # Only set snapshot if this is a new entry or snapshot is empty
+        # (for edits, preserve original snapshot unless user changed nutrients)
+        if not instance.snapshot_nutrients or not instance.pk:
+            instance.snapshot_nutrients = snapshot
+        elif instance.pk:
+            # On edit: check if user changed nutrient values
+            # If so, update the snapshot (this counts as a user override)
+            old_snapshot = instance.snapshot_nutrients or {}
+            if snapshot != old_snapshot:
+                instance.snapshot_nutrients = snapshot
+
+        # Compute totals from snapshot * quantity
+        quantity = instance.quantity or Decimal('1')
+        totals = compute_totals(instance.snapshot_nutrients, quantity)
+        instance.total_calories = totals.get('total_calories', 0) or 0
+        instance.total_protein_g = totals.get('total_protein_g', 0) or 0
+        instance.total_carbohydrates_g = totals.get('total_carbohydrates_g', 0) or 0
+        instance.total_fiber_g = totals.get('total_fiber_g', 0) or 0
+        instance.total_sugar_g = totals.get('total_sugar_g', 0) or 0
+        instance.total_fat_g = totals.get('total_fat_g', 0) or 0
+        instance.total_saturated_fat_g = totals.get('total_saturated_fat_g', 0) or 0
+        instance.total_sodium_mg = totals.get('total_sodium_mg')
+        instance.total_cholesterol_mg = totals.get('total_cholesterol_mg')
+        instance.total_potassium_mg = totals.get('total_potassium_mg')
+
+        if commit:
+            instance.save()
+        return instance
+
 
 class QuickAddFoodForm(forms.Form):
     """

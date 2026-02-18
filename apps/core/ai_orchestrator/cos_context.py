@@ -1,5 +1,5 @@
 """
-Whole Life Journey — CoS Context Builder
+Whole Life Journey — CoS Context Builder (Phase 4 — Executive Context)
 
 Project: Whole Life Journey
 Path: apps/core/ai_orchestrator/cos_context.py
@@ -10,12 +10,24 @@ Description:
     operational state. This context is injected into every LLM request
     so the assistant always operates with full situational awareness.
 
+    Phase 4 additions:
+    - Executive context object with strategic summary
+    - Active insights/predictions summary
+    - Relationship signals
+    - Journal mood trends
+    - Health signals
+    - Open loops (unfinished goals, friction gates)
+    - Feedback loop profiles (engagement, effectiveness)
+    - Learned user profile injection
+    - Executive tone mode selection
+
     The context is assembled from live engine queries — never cached
     stale data. All engine calls are wrapped in try/except for graceful
     degradation.
 
 Public API:
     - build_cos_context(user) -> dict
+    - build_executive_context(user) -> dict  (Phase 4)
     - format_cos_system_injection(context) -> str
 
 Copyright:
@@ -294,6 +306,139 @@ def build_cos_context(user):
     except Exception:
         pass
 
+    # =====================================================================
+    # PHASE 4 — EXECUTIVE CONTEXT SIGNALS
+    # =====================================================================
+
+    # Active PIE insights summary
+    try:
+        from apps.core.ai_insights.models import Insight
+        recent_insights = Insight.objects.filter(
+            user=user, status__in=["new", "read"],
+        ).order_by("-created_at")[:5]
+        context['active_insights'] = [
+            {
+                'type': i.insight_type,
+                'severity': i.severity,
+                'title': i.title,
+                'module': i.module,
+            }
+            for i in recent_insights
+        ]
+    except Exception:
+        context['active_insights'] = []
+
+    # Active PRIE predictions summary
+    try:
+        from apps.core.ai_predictions.models import Prediction
+        active_predictions = Prediction.objects.filter(
+            user=user, status="active",
+        ).order_by("-confidence_score")[:5]
+        context['active_predictions'] = [
+            {
+                'type': p.prediction_type,
+                'module': p.module,
+                'value': p.predicted_value,
+                'confidence': round(p.confidence_score, 2),
+            }
+            for p in active_predictions
+        ]
+    except Exception:
+        context['active_predictions'] = []
+
+    # Relationship signals
+    try:
+        from apps.core.ai_relationships.models import Relationship
+        relationships = Relationship.objects.filter(
+            user=user, importance_tier__lte=2,
+        ).select_related("person")[:5]
+        rel_signals = []
+        for rel in relationships:
+            days_since = None
+            if rel.last_interaction:
+                days_since = (timezone.now() - rel.last_interaction).days
+            rel_signals.append({
+                'name': rel.person.display_name if rel.person else 'Unknown',
+                'tier': rel.importance_tier,
+                'days_since_contact': days_since,
+                'drifting': days_since is not None and days_since > 14,
+            })
+        context['relationship_signals'] = rel_signals
+    except Exception:
+        context['relationship_signals'] = []
+
+    # Journal mood trends
+    try:
+        from apps.core.ai_state.state_engine import get_state_value
+        context['mood_status'] = {
+            'trend': get_state_value(user, 'journal.mood_trend', 'stable'),
+            'avg_7d': get_state_value(user, 'journal.mood_avg_7d'),
+            'entries_7d': get_state_value(user, 'journal.entries_7d', 0),
+        }
+    except Exception:
+        context['mood_status'] = {}
+
+    # Health signals
+    try:
+        from apps.core.ai_state.state_engine import get_state_value
+        context['health_signals'] = {
+            'sleep_avg_7d': get_state_value(user, 'health.sleep_avg_hours_7d'),
+            'sleep_trend': get_state_value(user, 'health.sleep_trend', 'stable'),
+            'workout_count_7d': get_state_value(user, 'health.workout_count_7d', 0),
+            'steps_avg_7d': get_state_value(user, 'health.steps_avg_7d'),
+        }
+    except Exception:
+        context['health_signals'] = {}
+
+    # Open loops (unfinished goals, friction gates)
+    try:
+        from apps.purpose.models import LifeGoal
+        overdue_goals = LifeGoal.objects.filter(
+            user=user, status="active",
+            target_date__lt=timezone.localdate(),
+        ).count()
+        context['open_loops'] = {
+            'overdue_goals': overdue_goals,
+        }
+        # Add pending friction gates
+        from apps.core.blueprint.models import InterventionLog
+        pending_gates = InterventionLog.objects.filter(
+            user=user, level=4, user_response='pending',
+        ).count()
+        context['open_loops']['pending_friction_gates'] = pending_gates
+    except Exception:
+        context['open_loops'] = {}
+
+    # Feedback loop profiles
+    try:
+        from apps.core.ai_feedback.models import (
+            BriefingEngagementProfile,
+            InsightEngagementProfile,
+            InterventionEffectivenessProfile,
+        )
+        ie_profile = InsightEngagementProfile.objects.filter(user=user).first()
+        be_profile = BriefingEngagementProfile.objects.filter(user=user).first()
+        iv_profile = InterventionEffectivenessProfile.objects.filter(user=user).first()
+        context['feedback_profiles'] = {
+            'insight_engagement': ie_profile.engagement_score if ie_profile else 0.5,
+            'briefing_open_rate': be_profile.open_rate if be_profile else 0.0,
+            'preferred_briefing_length': be_profile.preferred_length if be_profile else 'standard',
+            'intervention_effectiveness': iv_profile.effectiveness_score if iv_profile else 0.5,
+            'escalation_modifier': iv_profile.escalation_speed_modifier if iv_profile else 0.0,
+        }
+    except Exception:
+        context['feedback_profiles'] = {}
+
+    # Learned profile injection
+    try:
+        from apps.core.ai_learning.learning_extractor import get_profile_system_prompt
+        context['learned_profile_prompt'] = get_profile_system_prompt(user)
+    except Exception:
+        context['learned_profile_prompt'] = ''
+
+    # Executive tone mode (Phase 4 Step 5)
+    context['executive_tone_mode'] = _determine_tone_mode(user, context)
+
     return context
 
 
@@ -430,8 +575,296 @@ def format_cos_system_injection(context):
     if disabled:
         lines.append(f"Disabled Modules (do not reference): {', '.join(disabled)}")
 
+    # =====================================================================
+    # PHASE 4 — EXECUTIVE INTELLIGENCE SIGNALS
+    # =====================================================================
+
+    # Executive tone mode
+    tone_mode = context.get('executive_tone_mode', 'strategic_executive')
+    lines.append("")
+    lines.append("--- EXECUTIVE TONE ---")
+    lines.append(f"Active Mode: {TONE_MODE_INSTRUCTIONS.get(tone_mode, TONE_MODE_INSTRUCTIONS['strategic_executive'])}")
+
+    # Active insights
+    insights = context.get('active_insights', [])
+    if insights:
+        lines.append("")
+        lines.append("Active Insights:")
+        for i in insights[:5]:
+            lines.append(f"  [{i['severity']}] {i['title']} ({i['module']})")
+
+    # Active predictions
+    predictions = context.get('active_predictions', [])
+    if predictions:
+        lines.append("Active Predictions:")
+        for p in predictions[:5]:
+            lines.append(f"  {p['type']}: {p['value']} ({p['confidence']:.0%} confidence)")
+
+    # Relationship signals
+    rel_signals = context.get('relationship_signals', [])
+    drifting = [r for r in rel_signals if r.get('drifting')]
+    if drifting:
+        names = ', '.join(r['name'] for r in drifting[:3])
+        lines.append(f"Relational Drift: {names} (no contact >14d)")
+
+    # Mood status
+    mood = context.get('mood_status', {})
+    if mood.get('trend') and mood['trend'] != 'stable':
+        lines.append(f"Mood Trend: {mood['trend']}")
+
+    # Health signals
+    health_sig = context.get('health_signals', {})
+    sleep = health_sig.get('sleep_avg_7d')
+    if sleep and sleep < 6.5:
+        lines.append(f"Sleep Alert: {sleep:.1f}h avg (low)")
+
+    # Open loops
+    loops = context.get('open_loops', {})
+    if loops.get('overdue_goals'):
+        lines.append(f"Open Loops: {loops['overdue_goals']} overdue goals")
+    if loops.get('pending_friction_gates'):
+        lines.append(f"Pending Friction Gates: {loops['pending_friction_gates']}")
+
+    # Feedback profiles
+    feedback = context.get('feedback_profiles', {})
+    if feedback:
+        lines.append(f"Briefing Preference: {feedback.get('preferred_briefing_length', 'standard')}")
+
+    # Learned profile
+    learned = context.get('learned_profile_prompt', '')
+    if learned:
+        lines.append("")
+        lines.append(learned)
+
     lines.append("")
     lines.append("=== END OPERATIONAL CONTEXT ===")
     lines.append("")
 
     return '\n'.join(lines)
+
+
+# =========================================================================
+# PHASE 4 — EXECUTIVE CONTEXT BUILDER
+# =========================================================================
+
+# Executive tone mode instructions
+TONE_MODE_INSTRUCTIONS = {
+    'strategic_executive': (
+        "STRATEGIC EXECUTIVE — Lead with clarity and calm authority. "
+        "Surface what matters, filter noise, reference the governance layer. "
+        "No fluff, no over-questioning. Be present, grounded, strategic."
+    ),
+    'direct_accountability': (
+        "DIRECT ACCOUNTABILITY — The user is drifting. Be direct. "
+        "Name missed commitments. Challenge when necessary. "
+        "No sugarcoating, but stay respectful. Reference specific evidence."
+    ),
+    'reflective_support': (
+        "REFLECTIVE SUPPORT — The user's emotional state needs attention. "
+        "Lead with empathy. Ask reflective questions. Encourage without pushing. "
+        "Validate feelings before pivoting to action."
+    ),
+}
+
+
+def build_executive_context(user):
+    """
+    Build the unified Executive Context Object.
+
+    Aggregates all intelligence signals into a single strategic summary.
+    This is the primary intelligence injected into the assistant system prompt.
+
+    Returns:
+        dict — ExecutiveContextObject
+    """
+    context = build_cos_context(user)
+
+    # Build the strategic summary object
+    executive = {
+        'strategic_state_summary': _build_strategic_summary(context),
+        'risk_flags': _build_risk_flags(context),
+        'momentum_indicators': _build_momentum_indicators(context),
+        'pressure_indicators': _build_pressure_indicators(context),
+        'relational_status': _build_relational_status(context),
+        'health_status': _build_health_status(context),
+        'focus_conflicts': _build_focus_conflicts(context),
+        'recommended_focus_for_today': _build_focus_recommendation(context),
+        'noise_items': _build_noise_items(context),
+        'governance_tier': context.get('governance_profile', {}).get(
+            'accountability_style', 'standard'
+        ),
+        'intervention_level': _get_current_intervention_level(context),
+        'tone_mode': context.get('executive_tone_mode', 'strategic_executive'),
+    }
+
+    # Merge with full operational context
+    context['executive'] = executive
+    return context
+
+
+def _determine_tone_mode(user, context):
+    """
+    Select the executive tone mode based on current signals.
+
+    Modes:
+    - strategic_executive: Default calm authority
+    - direct_accountability: High drift → be direct
+    - reflective_support: High mood volatility → be empathetic
+    """
+    drift_score = context.get('drift_score', 0)
+    mood = context.get('mood_status', {})
+    mood_trend = mood.get('trend', 'stable')
+    weekly = context.get('weekly_pressure', {})
+    pressure_avg = weekly.get('avg_load', 0) if weekly else 0
+
+    # High drift → Direct Accountability
+    if drift_score >= 40:
+        return 'direct_accountability'
+
+    # Declining mood → Reflective Support
+    if mood_trend in ('declining', 'decreasing'):
+        return 'reflective_support'
+
+    # High pressure → Strategic Executive (stay calm, lead clearly)
+    return 'strategic_executive'
+
+
+def _build_strategic_summary(context):
+    """One-sentence strategic state summary."""
+    alignment = context.get('alignment_score', 100)
+    drift = context.get('drift_score', 0)
+    pressure = context.get('weekly_pressure', {}).get('avg_load', 0)
+
+    if drift >= 50:
+        return f"Significant drift ({drift}/100). Realignment needed."
+    if pressure >= 80:
+        return f"High pressure week ({pressure}%). Protect priorities."
+    if alignment >= 85:
+        return f"Strong alignment ({alignment}%). Maintain momentum."
+    return f"Alignment at {alignment}%, drift at {drift}/100. Steady course."
+
+
+def _build_risk_flags(context):
+    """Extract active risk flags."""
+    flags = list(context.get('risk_warnings', []))
+    insights = context.get('active_insights', [])
+    for i in insights:
+        if i['severity'] in ('warning', 'critical'):
+            flags.append(f"[{i['severity']}] {i['title']}")
+    loops = context.get('open_loops', {})
+    if loops.get('overdue_goals', 0) > 2:
+        flags.append(f"{loops['overdue_goals']} overdue goals")
+    return flags[:8]
+
+
+def _build_momentum_indicators(context):
+    """Positive momentum signals."""
+    indicators = []
+    alignment = context.get('alignment_score', 0)
+    if alignment >= 80:
+        indicators.append(f"Blueprint alignment: {alignment}%")
+    cap = context.get('capacity_snapshot', {})
+    completed = cap.get('completed_blocks', 0)
+    total = cap.get('total_blocks', 0)
+    if total > 0 and completed / total >= 0.5:
+        indicators.append(f"Schedule execution: {completed}/{total} blocks done")
+    insights = context.get('active_insights', [])
+    for i in insights:
+        if i['severity'] == 'positive':
+            indicators.append(i['title'])
+    return indicators[:5]
+
+
+def _build_pressure_indicators(context):
+    """Pressure and load signals."""
+    indicators = []
+    weekly = context.get('weekly_pressure', {})
+    if weekly.get('avg_load', 0) >= 70:
+        indicators.append(f"Weekly load: {weekly['avg_load']}%")
+    if weekly.get('heavy_days'):
+        indicators.append(f"Heavy days: {', '.join(weekly['heavy_days'][:3])}")
+    f24 = context.get('forecast_load_24h', 0)
+    if f24 >= 80:
+        indicators.append(f"Tomorrow: {f24}% capacity")
+    return indicators
+
+
+def _build_relational_status(context):
+    """Relationship health summary."""
+    signals = context.get('relationship_signals', [])
+    drifting = [r for r in signals if r.get('drifting')]
+    healthy = [r for r in signals if not r.get('drifting')]
+    return {
+        'total_tracked': len(signals),
+        'drifting': [r['name'] for r in drifting[:3]],
+        'healthy': [r['name'] for r in healthy[:3]],
+    }
+
+
+def _build_health_status(context):
+    """Health signal summary."""
+    health = context.get('health_signals', {})
+    med = context.get('medication_adherence_state', {})
+    fast = context.get('active_fast_status', {})
+    status = {}
+    if health.get('sleep_avg_7d'):
+        status['sleep'] = f"{health['sleep_avg_7d']:.1f}h avg"
+    if health.get('workout_count_7d'):
+        status['workouts_7d'] = health['workout_count_7d']
+    if med.get('adherence_pct') is not None:
+        status['med_adherence'] = f"{med['adherence_pct']}%"
+    if fast.get('active'):
+        status['fasting'] = True
+    return status
+
+
+def _build_focus_conflicts(context):
+    """Detect scheduling or priority conflicts."""
+    conflicts = []
+    loops = context.get('open_loops', {})
+    if loops.get('overdue_goals', 0) > 0 and loops.get('pending_friction_gates', 0) > 0:
+        conflicts.append("Overdue goals with pending friction gates — unresolved tension")
+    drift = context.get('drift_score', 0)
+    cap = context.get('capacity_snapshot', {})
+    if drift >= 30 and cap.get('capacity_pct', 0) >= 80:
+        conflicts.append("High drift with full schedule — no room to recover")
+    return conflicts
+
+
+def _build_focus_recommendation(context):
+    """Single directive for today's focus."""
+    drift = context.get('drift_score', 0)
+    if drift >= 50:
+        return "Realign with Tier-1 behaviors. Everything else is secondary."
+    loops = context.get('open_loops', {})
+    if loops.get('overdue_goals', 0) > 2:
+        return "Address overdue goals. Close open loops before adding new commitments."
+    insights = context.get('active_insights', [])
+    critical = [i for i in insights if i['severity'] == 'critical']
+    if critical:
+        return f"Address critical insight: {critical[0]['title']}"
+    return "Execute today's architecture plan. Protect Tier-1 blocks."
+
+
+def _build_noise_items(context):
+    """Items that can be safely deprioritized."""
+    noise = []
+    insights = context.get('active_insights', [])
+    for i in insights:
+        if i['severity'] == 'info':
+            noise.append(i['title'])
+    return noise[:3]
+
+
+def _get_current_intervention_level(context):
+    """Get the current intervention level from drift."""
+    drift = context.get('drift_score', 0)
+    if drift >= 70:
+        return 4  # friction gate
+    if drift >= 50:
+        return 3  # interrupt
+    if drift >= 30:
+        return 2  # ping
+    if drift >= 15:
+        return 1  # nudge
+    return 0  # silent

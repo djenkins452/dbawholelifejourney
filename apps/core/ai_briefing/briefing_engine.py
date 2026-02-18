@@ -165,72 +165,164 @@ def _get_predictions(user):
 
 def _generate_summary(ranked_items, state):
     """
-    Generate a human-readable summary from ranked items and state.
+    Generate a Strategic Narrative for the Day.
 
-    This is a template-based summary — no AI call needed.
-    Produces natural-language sentences from structured data.
+    Phase 4 upgrade: Instead of listing insights, generates a
+    6-section executive briefing narrative.
+
+    Structure:
+    1. Where you stand
+    2. What matters most today
+    3. Hidden risks
+    4. Relational considerations
+    5. Health considerations
+    6. One focus directive
     """
-    if not ranked_items and not state:
-        return "No briefing data available yet. Start logging activity to see your daily summary."
+    sections = []
 
+    # Section 1: Where you stand
+    standing = _build_standing_section(state, ranked_items)
+    if standing:
+        sections.append(f"WHERE YOU STAND: {standing}")
+
+    # Section 2: What matters most today
+    priorities = _build_priorities_section(ranked_items)
+    if priorities:
+        sections.append(f"WHAT MATTERS MOST: {priorities}")
+
+    # Section 3: Hidden risks
+    risks = _build_risks_section(ranked_items, state)
+    if risks:
+        sections.append(f"HIDDEN RISKS: {risks}")
+
+    # Section 4: Relational considerations
+    relational = _build_relational_section(state)
+    if relational:
+        sections.append(f"RELATIONSHIPS: {relational}")
+
+    # Section 5: Health considerations
+    health_section = _build_health_section(state)
+    if health_section:
+        sections.append(f"HEALTH: {health_section}")
+
+    # Section 6: Focus directive
+    directive = _build_focus_directive(ranked_items, state)
+    sections.append(f"TODAY'S DIRECTIVE: {directive}")
+
+    if not sections:
+        return "No briefing data available yet. Start logging activity to see your daily strategic narrative."
+
+    return "\n\n".join(sections)
+
+
+def _build_standing_section(state, ranked_items):
+    """Section 1: Where you stand — alignment, drift, momentum."""
     parts = []
-
-    for item in ranked_items:
-        item_type = item.get("type", "")
-        message = item.get("message", "").strip()
-        title = item.get("title", "").strip()
-
-        if message:
-            # Use the message directly (already human-readable from source engines)
-            parts.append(message)
-        elif title:
-            parts.append(title)
-
-    if not parts:
-        # Fallback: generate from state
-        parts = _state_summary_parts(state)
-
-    if not parts:
-        return "Your systems are running normally. No critical items to report."
-
-    return " ".join(parts)
-
-
-def _state_summary_parts(state):
-    """Generate summary sentences from state data when no items available."""
-    parts = []
-
-    health = state.get("health", {})
-    if health.get("weight_trend"):
-        trend = health["weight_trend"]
-        if trend == "decreasing":
-            parts.append("Your weight trend is improving.")
-        elif trend == "increasing":
-            parts.append("Your weight has been trending up recently.")
-        elif trend == "stable":
-            parts.append("Your weight has been stable.")
 
     goals = state.get("goals", {})
-    if goals.get("overdue_goal_count"):
-        count = goals["overdue_goal_count"]
-        parts.append(f"You have {count} overdue goal{'s' if count != 1 else ''}.")
-    elif goals.get("active_goal_count"):
-        count = goals["active_goal_count"]
-        parts.append(f"You have {count} active goal{'s' if count != 1 else ''}.")
-
     habits = state.get("habits", {})
-    if habits.get("avg_completion_rate"):
-        rate = habits["avg_completion_rate"]
-        if rate >= 0.8:
-            parts.append("Your habit completion rate remains strong.")
-        elif rate >= 0.5:
-            parts.append("Your habit completion is moderate.")
 
-    journal = state.get("journal", {})
-    if journal.get("days_since_entry") and journal["days_since_entry"] > 3:
-        parts.append(f"You haven't journaled in {journal['days_since_entry']} days.")
+    active_goals = goals.get("active_goal_count", 0)
+    overdue = goals.get("overdue_goal_count", 0)
+    completion = habits.get("avg_completion_rate", 0)
 
-    return parts
+    if completion >= 0.8:
+        parts.append(f"Habit execution is strong at {completion:.0%}.")
+    elif completion >= 0.5:
+        parts.append(f"Habit completion is moderate at {completion:.0%}.")
+    elif completion > 0:
+        parts.append(f"Habit completion has dropped to {completion:.0%}.")
+
+    if overdue > 0:
+        parts.append(f"{overdue} goal{'s are' if overdue > 1 else ' is'} overdue.")
+    elif active_goals > 0:
+        parts.append(f"{active_goals} active goal{'s' if active_goals > 1 else ''} on track.")
+
+    # Count critical/warning items
+    warnings = [i for i in ranked_items if i.get("severity") in ("warning", "critical")]
+    if warnings:
+        parts.append(f"{len(warnings)} item{'s' if len(warnings) > 1 else ''} need{'s' if len(warnings) == 1 else ''} attention.")
+
+    return " ".join(parts) if parts else "Systems nominal. No critical items."
+
+
+def _build_priorities_section(ranked_items):
+    """Section 2: What matters most today."""
+    high_priority = [
+        i for i in ranked_items
+        if i.get("priority", 5) <= 2 or i.get("severity") in ("critical", "warning")
+    ][:3]
+
+    if not high_priority:
+        return "Execute your scheduled plan. No urgent items surfaced."
+
+    return " ".join(
+        i.get("message", i.get("title", "")) for i in high_priority
+    )
+
+
+def _build_risks_section(ranked_items, state):
+    """Section 3: Hidden risks — things that aren't urgent yet but forming."""
+    risks = []
+    for item in ranked_items:
+        if item.get("type") == "prediction" and item.get("confidence", 0) >= 0.6:
+            risks.append(item.get("title", ""))
+        elif item.get("severity") == "warning" and item.get("type") == "insight":
+            if "cross_domain" in item.get("insight_type", ""):
+                risks.append(item.get("title", ""))
+
+    if not risks:
+        return None
+
+    return " ".join(risks[:3])
+
+
+def _build_relational_section(state):
+    """Section 4: Relational considerations."""
+    # Pull from state if available
+    relationships = state.get("relationships", {})
+    drifting = relationships.get("drifting_count", 0)
+    if drifting > 0:
+        return f"{drifting} key relationship{'s' if drifting > 1 else ''} showing drift. Consider reaching out."
+    return None
+
+
+def _build_health_section(state):
+    """Section 5: Health considerations."""
+    parts = []
+    health = state.get("health", {})
+
+    weight_trend = health.get("weight_trend")
+    if weight_trend and weight_trend != "stable":
+        parts.append(f"Weight trending {weight_trend}.")
+
+    sleep = health.get("sleep_avg_hours_7d")
+    if sleep and sleep < 6.5:
+        parts.append(f"Sleep averaging {sleep:.1f}h — below optimal.")
+
+    med = health.get("medication_adherence_pct")
+    if med is not None and med < 80:
+        parts.append(f"Medication adherence at {med}% — needs attention.")
+
+    return " ".join(parts) if parts else None
+
+
+def _build_focus_directive(ranked_items, state):
+    """Section 6: One clear focus directive."""
+    # Check for critical items first
+    critical = [i for i in ranked_items if i.get("severity") == "critical"]
+    if critical:
+        return f"Address: {critical[0].get('title', 'critical item')}."
+
+    overdue = state.get("goals", {}).get("overdue_goal_count", 0)
+    if overdue > 2:
+        return "Close overdue goals before taking on new commitments."
+
+    completion = state.get("habits", {}).get("avg_completion_rate", 1.0)
+    if completion < 0.5:
+        return "Focus on one key habit today. Rebuild momentum."
+
+    return "Execute today's plan. Protect your Tier-1 blocks."
 
 
 def _apply_persona(user, summary):

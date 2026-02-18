@@ -2266,3 +2266,20 @@ from apps.core.blueprint.models import (  # noqa: E402, F401
     PersonalOperatingBlueprint,
     ScheduledBlock,
 )
+
+# Phase 4 CoS — Feedback loop models
+from apps.core.ai_feedback.models import (  # noqa: E402, F401
+    BriefingEngagement,
+    BriefingEngagementProfile,
+    InsightEngagement,
+    InsightEngagementProfile,
+    InterventionEffectivenessProfile,
+    PredictionAccuracyProfile,
+    PredictionOutcome,
+)
+
+# Phase 4 CoS — Conversational learning models
+from apps.core.ai_learning.models import (  # noqa: E402, F401
+    LearningExtraction,
+    UserLearnedProfile,
+)

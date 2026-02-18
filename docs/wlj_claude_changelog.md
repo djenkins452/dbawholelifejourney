@@ -11,6 +11,19 @@
 
 ## 2026-02-18
 
+- **Feature:** Phase 4 CoS Integration — Unified Executive Intelligence
+  - **Step 1:** Extended ExecutiveContextBuilder (`cos_context.py`) with 8 new signals: active insights, predictions, relationship signals, mood trends, health signals, open loops, feedback profiles, learned profile
+  - **Step 2:** Added 6 cross-domain intelligence rules in PIE: Motivation Drift, Overtraining Risk, Financial Anxiety, Overextension Risk, Compliance Risk, Behavioral Instability
+  - **Step 3:** Closed 4 feedback loops: PredictionValidator, InsightEngagementTracker, BriefingEngagementTracker, InterventionEffectivenessTracker (7 new models)
+  - **Step 4:** Built LearningExtractor + UserLearnedProfile — transparent, user-editable conversational learning (2 new models)
+  - **Step 5:** Implemented 3 executive tone modes: Strategic Executive, Direct Accountability, Reflective Support — dynamically selected based on drift/mood/pressure
+  - **Step 6:** Upgraded DBE to 6-section Strategic Narrative (Where You Stand, What Matters Most, Hidden Risks, Relationships, Health, Focus Directive)
+  - **Step 7:** Upgraded WIRE to 7-section Strategic Review (Momentum, Drift Zones, Decisions, Avoidance, Relationships, Governance, Next Week)
+  - **Migration:** `0072_phase4_cos_feedback_learning` (9 new tables)
+  - **Tests:** 56 new tests (199 total engine tests passing)
+  - **Files:** `apps/core/ai_feedback/`, `apps/core/ai_learning/`, `apps/core/ai_insights/rules_cross_domain.py`, `apps/core/ai_orchestrator/cos_context.py`, `apps/core/ai_briefing/briefing_engine.py`, `apps/core/ai_weekly_report/report_engine.py`
+  - **Summary:** `docs/PHASE4_COS_INTEGRATION_SUMMARY.md`
+
 - **Feature:** CoS Phase III / Phase 3 — Relationship & Significance Intelligence (Icing)
   - **New module** `apps/core/ai_relationships/` — Person, Relationship, InteractionSignal models with admin registration
   - **Person model**: display_name, person_type (family/friend/colleague/mentor/other), is_active for soft-hide

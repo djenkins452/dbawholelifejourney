@@ -1,5 +1,5 @@
 {% load static %}
-{#
+{% comment %}
   Chief of Staff Assistant Panel
 
   Desktop: Pinned right panel (default open, collapsible)
@@ -7,7 +7,7 @@
 
   Renders: today's plan, active interventions, drift status, quick actions
   Supports: assistant-initiated pings, friction gates, curveball handling
-#}
+{% endcomment %}
 
 {% if user.is_authenticated and personal_assistant_enabled %}
 {# Desktop Panel (hidden on mobile) #}

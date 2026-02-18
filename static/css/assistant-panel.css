@@ -403,6 +403,10 @@ body.has-desktop-nav.assistant-panel-closed .desktop-main-area {
     padding: var(--space-4);
 }
 
+.friction-gate-overlay[hidden] {
+    display: none;
+}
+
 .friction-gate-modal {
     background: var(--color-background);
     border-radius: var(--radius-lg);

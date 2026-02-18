@@ -11,6 +11,18 @@
 
 ## 2026-02-18
 
+- **Feature:** Command Mode with Weekly Pressure Awareness — Transform login into a conversation-first experience with week-level foresight and human language throughout
+  - **Command Mode template** (`cos_command_mode.html`): Primary login experience with greeting, executive day summary, recommended moves (2-3), protected commitments, risk warning, morning build input, compact timeline, weekly pressure, and "Enter Data Mode" link
+  - **Human Translation Layer** (`human_language.py`): Sole authority for metric→language translation. Converts alignment% ("Locked in"/"Steady"), drift% ("Clear"/"Low risk"), capacity% ("Light day"/"Full day"), progress, weekly pressure, risk warnings, and status lines into natural language
+  - **Weekly Pressure engine** (`weekly_pressure.py`): 7-day pressure forecast computing per-day capacity, heavy/light days, peak day, opportunity windows (2+ hour gaps), and average load
+  - **ISE integration**: Weekly pressure registered as `compute_weekly_pressure` scheduled task (6h interval) in scheduler_registry
+  - **CoS context enrichment**: Weekly pressure data injected into LLM system prompt via cos_context.py (summary, heavy/light days, opportunity windows)
+  - **Human language in all primary UI**: Arrival briefing, command brief, and command mode templates now show labels ("Steady", "Clear", "Moderate") instead of raw percentages
+  - **architecture_engine bug fix**: Fixed `import Event` → `import LifeEvent` in `_get_calendar_events()` — calendar events now correctly load from the Life module
+  - **Dashboard integration**: Command Mode renders primary on login, arrival briefing + command brief shown as fallback when PA disabled, dashboard tiles muted with "Enter Data Mode" toggle
+  - **29 new tests** (154 total blueprint): Human language translations, command mode context/rendering/PA-disabled, weekly pressure computation/opportunity windows/day loads, no raw terminology in templates, architecture engine LifeEvent fix
+  - Files: `apps/core/blueprint/human_language.py` (new), `apps/core/blueprint/weekly_pressure.py` (new), `templates/components/cos_command_mode.html` (new), `apps/dashboard/views.py` (modified), `templates/dashboard/home.html` (modified), `templates/components/cos_arrival_briefing.html` (modified), `templates/components/assistant_command_brief.html` (modified), `static/css/assistant-panel.css` (modified), `apps/core/blueprint/architecture_engine.py` (modified), `apps/core/ai_orchestrator/cos_context.py` (modified), `apps/core/ai_scheduler/scheduler_registry.py` (modified), `apps/core/ai_scheduler/scheduler_runner.py` (modified), `apps/core/blueprint/tests.py` (modified), `templates/base.html` (modified)
+
 - **Feature:** CoS Presence Mode — Arrival intercept briefing, passive language removal, auto-initialized chat with CoS snapshot, drift visualization (green/amber/red), persistent alignment badge in nav, silent authority rule, and 24 new tests
   - Arrival briefing: Full-width `cos_arrival_briefing.html` renders above dashboard with alignment, drift risk, capacity, tier-1 protections, recovery status, and risk warnings
   - Passive language removal: Replaced all "Monitoring", "No plan", "Loading..." with active voice ("Governing", "Architecture initializing", "System stable. Tier-1 protected.")

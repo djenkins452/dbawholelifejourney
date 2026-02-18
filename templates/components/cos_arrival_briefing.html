@@ -2,6 +2,7 @@
 Chief of Staff — Arrival Briefing
 Renders above the dashboard grid on login / page load.
 Full-width, elevated surface, executive typography.
+Uses human language labels — raw % shown only in System Detail panels.
 Requires: command_brief dict from DashboardView._get_command_brief()
 {% endcomment %}
 
@@ -23,27 +24,27 @@ Requires: command_brief dict from DashboardView._get_command_brief()
         <div class="cos-arrival-metrics">
             <div class="cos-arrival-metric">
                 <span class="cos-arrival-metric-label">Alignment</span>
-                <span class="cos-arrival-metric-value {% if command_brief.alignment_score >= 80 %}drift-green{% elif command_brief.alignment_score >= 50 %}drift-amber{% else %}drift-red{% endif %}">{{ command_brief.alignment_score }}%</span>
+                <span class="cos-arrival-metric-value {% if command_brief.alignment_score >= 80 %}drift-green{% elif command_brief.alignment_score >= 50 %}drift-amber{% else %}drift-red{% endif %}">{{ command_brief.alignment_label|default:"Active" }}</span>
             </div>
             <div class="cos-arrival-metric">
                 <span class="cos-arrival-metric-label">Drift Risk</span>
-                <span class="cos-arrival-metric-value {% if command_brief.drift_risk_24h < 25 %}drift-green{% elif command_brief.drift_risk_24h < 50 %}drift-amber{% else %}drift-red{% endif %}">{{ command_brief.drift_risk_24h }}%</span>
+                <span class="cos-arrival-metric-value {% if command_brief.drift_risk_24h < 25 %}drift-green{% elif command_brief.drift_risk_24h < 50 %}drift-amber{% else %}drift-red{% endif %}">{{ command_brief.drift_label|default:"Clear" }}</span>
             </div>
             <div class="cos-arrival-metric">
                 <span class="cos-arrival-metric-label">Capacity</span>
-                <span class="cos-arrival-metric-value">{{ command_brief.capacity_pct }}%</span>
+                <span class="cos-arrival-metric-value">{{ command_brief.capacity_label|default:"Balanced" }}</span>
             </div>
             {% if command_brief.block_total > 0 %}
             <div class="cos-arrival-metric">
                 <span class="cos-arrival-metric-label">Progress</span>
-                <span class="cos-arrival-metric-value">{{ command_brief.blocks_completed }}/{{ command_brief.block_total }}</span>
+                <span class="cos-arrival-metric-value">{{ command_brief.progress_label|default:"Day ahead" }}</span>
             </div>
             {% endif %}
         </div>
 
         {% if command_brief.tier1_items %}
         <div class="cos-arrival-protections">
-            <div class="cos-arrival-section-label">Tier-1 Protected</div>
+            <div class="cos-arrival-section-label">Protected Today</div>
             <div class="cos-arrival-protection-items">
                 {% for item in command_brief.tier1_items %}
                 <span class="cos-arrival-protection {% if item.is_completed %}completed{% endif %}{% if item.is_locked %} locked{% endif %}">
@@ -62,7 +63,7 @@ Requires: command_brief dict from DashboardView._get_command_brief()
         {% if command_brief.recovery_active %}
         <div class="cos-arrival-recovery">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
-            <span>Recovery active — {{ command_brief.recovery_tier1_locked }} Tier-1 locked, {{ command_brief.recovery_tier3_deferred }} items deferred</span>
+            <span>Recovery active — {{ command_brief.recovery_tier1_locked }} commitments locked, {{ command_brief.recovery_tier3_deferred }} items deferred</span>
         </div>
         {% endif %}
 
@@ -79,13 +80,7 @@ Requires: command_brief dict from DashboardView._get_command_brief()
             <span class="cos-arrival-auto-tag">Architecture auto-generated</span>
             {% endif %}
             <span class="cos-arrival-status">
-                {% if command_brief.drift_risk_24h >= 50 %}
-                Elevated risk. Tier-1 locked.
-                {% elif command_brief.drift_risk_24h >= 25 %}
-                Moderate risk. Recalibrating schedule.
-                {% else %}
-                System stable. Tier-1 protected.
-                {% endif %}
+                {{ command_brief.status_line|default:"System stable. Protections in place." }}
             </span>
         </div>
     </div>

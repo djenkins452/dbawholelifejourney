@@ -1,0 +1,161 @@
+{% comment %}
+Chief of Staff — Command Mode
+Primary login experience. Conversation-first, dashboard secondary.
+Renders above the dashboard grid. Uses human language only — no raw %.
+Requires: command_mode dict from DashboardView._get_command_mode()
+{% endcomment %}
+
+{% if command_mode and command_mode.active %}
+<div class="cos-command-mode" id="cos-command-mode">
+    <div class="cos-cm-inner">
+        {# --- Greeting + Executive Summary --- #}
+        <div class="cos-cm-greeting">
+            <div class="cos-cm-greeting-text">
+                <h2 class="cos-cm-headline">{{ command_mode.greeting_line }}</h2>
+                <p class="cos-cm-summary">{{ command_mode.day_summary }}</p>
+            </div>
+            <div class="cos-cm-risk-dot-container">
+                <span class="cos-cm-risk-dot {% if command_mode.risk_level == 'green' %}dot-green{% elif command_mode.risk_level == 'amber' %}dot-amber{% else %}dot-red{% endif %}" title="{{ command_mode.risk_label }}"></span>
+            </div>
+        </div>
+
+        {# --- Recommended Moves --- #}
+        {% if command_mode.recommended_moves %}
+        <div class="cos-cm-moves">
+            <div class="cos-cm-section-label">Recommended moves</div>
+            <div class="cos-cm-moves-list">
+                {% for move in command_mode.recommended_moves %}
+                <div class="cos-cm-move">
+                    <span class="cos-cm-move-icon">
+                        {% if move.type == 'protect' %}
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                        {% elif move.type == 'adjust' %}
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                        {% elif move.type == 'add' %}
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        {% else %}
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+                        {% endif %}
+                    </span>
+                    <span class="cos-cm-move-text">{{ move.text }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {# --- Tier-1 Protections (human language) --- #}
+        {% if command_mode.protections %}
+        <div class="cos-cm-protections">
+            <div class="cos-cm-section-label">Protected today</div>
+            <div class="cos-cm-protection-items">
+                {% for item in command_mode.protections %}
+                <span class="cos-cm-protection {% if item.is_completed %}completed{% endif %}{% if item.is_locked %} locked{% endif %}">
+                    {% if item.is_completed %}
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                    {% elif item.is_locked %}
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    {% endif %}
+                    {{ item.title }}
+                </span>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {# --- Risk Warning (one, if applicable) --- #}
+        {% if command_mode.risk_warning %}
+        <div class="cos-cm-warning">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <span>{{ command_mode.risk_warning }}</span>
+        </div>
+        {% endif %}
+
+        {# --- Morning Build Input --- #}
+        <div class="cos-cm-input-area">
+            <form class="cos-cm-form" id="cos-cm-form" onsubmit="handleCommandModeInput(event)">
+                <input type="text" class="cos-cm-input" id="cos-cm-input" placeholder="Before I lock today — anything new?" autocomplete="off" />
+                <button type="submit" class="cos-cm-send" aria-label="Send">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                </button>
+            </form>
+        </div>
+
+        {# --- Mini Snapshot Section --- #}
+        <div class="cos-cm-snapshot">
+            {# Compact timeline preview #}
+            {% if command_mode.timeline_preview %}
+            <div class="cos-cm-timeline">
+                {% for block in command_mode.timeline_preview %}
+                <div class="cos-cm-timeline-item {% if block.is_completed %}completed{% endif %} {% if block.is_now %}now{% endif %}">
+                    <span class="cos-cm-timeline-time">{{ block.time }}</span>
+                    <span class="cos-cm-timeline-title">{{ block.title }}</span>
+                    {% if block.tier == 1 %}<span class="cos-cm-timeline-tier tier-1">T1</span>{% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {# Weekly pressure one-liner #}
+            {% if command_mode.weekly_pressure_summary %}
+            <div class="cos-cm-weekly">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                <span>{{ command_mode.weekly_pressure_summary }}</span>
+            </div>
+            {% endif %}
+
+            {# Status + Data Mode link #}
+            <div class="cos-cm-footer">
+                <span class="cos-cm-status">{{ command_mode.status_line }}</span>
+                <a href="#dashboard-tiles" class="cos-cm-data-mode" onclick="enterDataMode(event)">Enter Data Mode</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script nonce="{{ csp_nonce }}">
+function handleCommandModeInput(e) {
+    e.preventDefault();
+    var input = document.getElementById('cos-cm-input');
+    var text = input.value.trim();
+    if (!text) return;
+
+    // Navigate to assistant chat with the message pre-filled
+    var assistantBtn = document.getElementById('assistant-toggle-btn');
+    if (assistantBtn) {
+        assistantBtn.click();
+        // After panel opens, inject the message
+        setTimeout(function() {
+            var chatInput = document.querySelector('.assistant-chat-input, #assistant-chat-input');
+            if (chatInput) {
+                chatInput.value = text;
+                chatInput.dispatchEvent(new Event('input', { bubbles: true }));
+                // Auto-submit if there's a send button
+                var sendBtn = chatInput.closest('form')?.querySelector('button[type="submit"]');
+                if (sendBtn) sendBtn.click();
+            }
+        }, 300);
+    } else {
+        // Fallback: go to assistant dashboard with message
+        window.location.href = '{% url "ai:dashboard" %}?message=' + encodeURIComponent(text);
+    }
+    input.value = '';
+}
+
+function enterDataMode(e) {
+    e.preventDefault();
+    var commandMode = document.getElementById('cos-command-mode');
+    var tiles = document.getElementById('dashboard-tiles');
+    if (commandMode) {
+        commandMode.classList.add('cos-cm-collapsed');
+    }
+    if (tiles) {
+        tiles.classList.remove('data-mode-hidden');
+        tiles.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    // Also show the edit bar
+    var editBar = document.querySelector('.dashboard-edit-bar');
+    if (editBar) editBar.style.display = '';
+}
+</script>
+{% endif %}

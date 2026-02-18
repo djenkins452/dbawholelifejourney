@@ -23,7 +23,7 @@ import datetime
 import json
 
 from django.conf import settings
-from django.test import TestCase, RequestFactory
+from django.test import TestCase, RequestFactory, Client
 from django.utils import timezone
 
 from apps.users.models import User, TermsAcceptance
@@ -681,11 +681,21 @@ class CommandBriefTests(TestCase):
         self.assertNotContains(response, 'No plan for today')
 
     def test_command_brief_renders_for_authenticated_user(self):
-        """Command Brief should render for authenticated PA-enabled user."""
+        """Command Brief context should be populated for PA-enabled user.
+        Note: When Command Mode is active, Command Brief is hidden in HTML
+        but still present in context."""
         response = self.client.get('/dashboard/')
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'command-brief')
-        self.assertContains(response, 'Command Brief')
+        command_brief = response.context.get('command_brief')
+        self.assertIsNotNone(command_brief)
+        self.assertTrue(command_brief['active'])
+        # Command Mode should also be active
+        command_mode = response.context.get('command_mode')
+        if command_mode and command_mode.get('active'):
+            # Command Mode takes priority over Command Brief in HTML
+            self.assertContains(response, 'cos-command-mode')
+        else:
+            self.assertContains(response, 'command-brief')
 
     def test_command_brief_has_drift_risk(self):
         """Command Brief should include drift risk value."""
@@ -1694,7 +1704,7 @@ class SilentAuthorityTests(TestCase):
         self.assertNotIn('Generating plan', content)
 
     def test_arrival_briefing_always_has_status_line(self):
-        """Arrival briefing template should always show a status line."""
+        """Arrival briefing template should use human language status line."""
         import os
         template_path = os.path.join(
             settings.BASE_DIR,
@@ -1702,7 +1712,354 @@ class SilentAuthorityTests(TestCase):
         )
         with open(template_path, 'r') as f:
             content = f.read()
-        # Should have the conditional status lines
-        self.assertIn('System stable. Tier-1 protected.', content)
-        self.assertIn('Elevated risk. Tier-1 locked.', content)
-        self.assertIn('Moderate risk. Recalibrating schedule.', content)
+        # Template should reference the human-language status_line from context
+        self.assertIn('status_line', content)
+        # Fallback text should be human language
+        self.assertIn('Protections in place', content)
+
+    def test_human_language_status_lines(self):
+        """Human Translation Layer should produce correct status lines."""
+        from apps.core.blueprint.human_language import get_status_line
+        # Low risk
+        self.assertEqual(
+            get_status_line(0),
+            'Running clean. Protections in place.',
+        )
+        # Moderate risk
+        self.assertEqual(
+            get_status_line(30),
+            'Moderate pressure. Adjustments available.',
+        )
+        # High risk
+        self.assertEqual(
+            get_status_line(60),
+            'Under pressure. Protections locked.',
+        )
+
+
+# ---------------------------------------------------------------------------
+# Human Translation Layer Tests
+# ---------------------------------------------------------------------------
+
+class HumanLanguageTests(TestCase):
+    """Tests for the Human Translation Layer (human_language.py)."""
+
+    def test_translate_alignment_all_tiers(self):
+        """Alignment scores should map to correct labels."""
+        from apps.core.blueprint.human_language import translate_alignment
+        label, _ = translate_alignment(95)
+        self.assertEqual(label, 'Locked in')
+        label, _ = translate_alignment(85)
+        self.assertEqual(label, 'Steady')
+        label, _ = translate_alignment(70)
+        self.assertEqual(label, 'Drifting slightly')
+        label, _ = translate_alignment(55)
+        self.assertEqual(label, 'Under pressure')
+        label, _ = translate_alignment(30)
+        self.assertEqual(label, 'Off course')
+        label, _ = translate_alignment(None)
+        self.assertEqual(label, 'Calibrating')
+
+    def test_translate_drift_risk_all_tiers(self):
+        """Drift risk should map to correct labels."""
+        from apps.core.blueprint.human_language import translate_drift_risk
+        label, _ = translate_drift_risk(5)
+        self.assertEqual(label, 'Clear')
+        label, _ = translate_drift_risk(20)
+        self.assertEqual(label, 'Low risk')
+        label, _ = translate_drift_risk(35)
+        self.assertEqual(label, 'Moderate')
+        label, _ = translate_drift_risk(50)
+        self.assertEqual(label, 'Elevated')
+        label, _ = translate_drift_risk(70)
+        self.assertEqual(label, 'High')
+        label, _ = translate_drift_risk(85)
+        self.assertEqual(label, 'Critical')
+        label, _ = translate_drift_risk(None)
+        self.assertEqual(label, 'Unknown')
+
+    def test_translate_capacity_all_tiers(self):
+        """Capacity should map to correct labels."""
+        from apps.core.blueprint.human_language import translate_capacity
+        label, _ = translate_capacity(10)
+        self.assertEqual(label, 'Light day')
+        label, _ = translate_capacity(50)
+        self.assertEqual(label, 'Moderate')
+        label, _ = translate_capacity(75)
+        self.assertEqual(label, 'Full day')
+        label, _ = translate_capacity(85)
+        self.assertEqual(label, 'Heavy')
+        label, _ = translate_capacity(95)
+        self.assertEqual(label, 'Packed')
+        label, _ = translate_capacity(None)
+        self.assertEqual(label, 'No plan')
+
+    def test_translate_progress(self):
+        """Progress should calculate correctly."""
+        from apps.core.blueprint.human_language import translate_progress
+        label, _ = translate_progress(5, 5)
+        self.assertEqual(label, 'Complete')
+        label, _ = translate_progress(4, 5)
+        self.assertEqual(label, 'Almost there')
+        label, _ = translate_progress(3, 5)
+        self.assertEqual(label, 'Half done')
+        label, _ = translate_progress(1, 5)
+        self.assertEqual(label, 'Getting started')
+        label, _ = translate_progress(0, 5)
+        self.assertEqual(label, 'Day ahead')
+        label, _ = translate_progress(0, 0)
+        self.assertEqual(label, 'No blocks')
+
+    def test_translate_day_assessment(self):
+        """Day assessment should produce human-readable one-liner."""
+        from apps.core.blueprint.human_language import translate_day_assessment
+        result = translate_day_assessment(50, 10, 2, 0, 5)
+        self.assertIn('moderate', result.lower())
+        self.assertIn('protected', result.lower())
+
+    def test_translate_risk_warning(self):
+        """Risk warnings should be softened."""
+        from apps.core.blueprint.human_language import translate_risk_warning
+        result = translate_risk_warning('Density elevated beyond threshold')
+        self.assertNotIn('threshold', result)
+        self.assertIn('margin', result)
+
+    def test_translate_weekly_pressure(self):
+        """Weekly pressure should produce summary string."""
+        from apps.core.blueprint.human_language import translate_weekly_pressure
+        data = {
+            'avg_load': 45,
+            'peak_day': 'Wednesday',
+            'peak_load': 80,
+            'heavy_days': ['Wednesday'],
+            'light_days': ['Saturday'],
+        }
+        result = translate_weekly_pressure(data)
+        self.assertIn('Moderate', result)
+        self.assertIn('Wednesday', result)
+
+    def test_translate_weekly_pressure_empty(self):
+        """Empty weekly pressure should return fallback."""
+        from apps.core.blueprint.human_language import translate_weekly_pressure
+        result = translate_weekly_pressure(None)
+        self.assertEqual(result, 'Week not yet calculated.')
+
+    def test_no_raw_percentages_in_translation(self):
+        """Translation functions should never return raw % in labels."""
+        from apps.core.blueprint.human_language import (
+            translate_alignment,
+            translate_drift_risk,
+            translate_capacity,
+        )
+        for score in [0, 25, 50, 75, 100]:
+            label, desc = translate_alignment(score)
+            self.assertNotIn('%', label)
+            label, desc = translate_drift_risk(score)
+            self.assertNotIn('%', label)
+            label, desc = translate_capacity(score)
+            self.assertNotIn('%', label)
+
+
+# ---------------------------------------------------------------------------
+# Command Mode Tests
+# ---------------------------------------------------------------------------
+
+class CommandModeTests(TestCase):
+    """Tests for Command Mode login experience."""
+
+    def setUp(self):
+        self.user = _create_test_user(email='cmdmode@test.com')
+        self.user.preferences.personal_assistant_enabled = True
+        self.user.preferences.save()
+        self.client = Client()
+        self.client.login(email='cmdmode@test.com', password='testpass123')
+
+    def test_command_mode_in_context(self):
+        """Command Mode dict should be in dashboard context."""
+        response = self.client.get('/dashboard/')
+        self.assertEqual(response.status_code, 200)
+        command_mode = response.context.get('command_mode')
+        self.assertIsNotNone(command_mode)
+        self.assertTrue(command_mode['active'])
+
+    def test_command_mode_has_greeting(self):
+        """Command Mode should have a greeting line."""
+        response = self.client.get('/dashboard/')
+        command_mode = response.context.get('command_mode')
+        self.assertIn('greeting_line', command_mode)
+        self.assertIn(self.user.get_short_name(), command_mode['greeting_line'])
+
+    def test_command_mode_has_risk_level(self):
+        """Command Mode should have risk level (green/amber/red)."""
+        response = self.client.get('/dashboard/')
+        command_mode = response.context.get('command_mode')
+        self.assertIn(command_mode['risk_level'], ['green', 'amber', 'red'])
+
+    def test_command_mode_has_day_summary(self):
+        """Command Mode should have a human-language day summary."""
+        response = self.client.get('/dashboard/')
+        command_mode = response.context.get('command_mode')
+        self.assertIn('day_summary', command_mode)
+        self.assertIsInstance(command_mode['day_summary'], str)
+        self.assertNotIn('%', command_mode['day_summary'])
+
+    def test_command_mode_has_recommended_moves(self):
+        """Command Mode should have 0-3 recommended moves."""
+        response = self.client.get('/dashboard/')
+        command_mode = response.context.get('command_mode')
+        moves = command_mode.get('recommended_moves', [])
+        self.assertLessEqual(len(moves), 3)
+        for move in moves:
+            self.assertIn('type', move)
+            self.assertIn('text', move)
+
+    def test_command_mode_has_status_line(self):
+        """Command Mode should have a status line."""
+        response = self.client.get('/dashboard/')
+        command_mode = response.context.get('command_mode')
+        self.assertIn('status_line', command_mode)
+        self.assertIsInstance(command_mode['status_line'], str)
+
+    def test_command_mode_renders_in_html(self):
+        """Command Mode HTML should render on dashboard."""
+        response = self.client.get('/dashboard/')
+        self.assertContains(response, 'cos-command-mode')
+
+    def test_command_mode_hides_arrival_briefing(self):
+        """When Command Mode is active, arrival briefing should not render."""
+        response = self.client.get('/dashboard/')
+        content = response.content.decode()
+        # Command mode should be present
+        self.assertIn('cos-command-mode', content)
+        # Arrival briefing should NOT be in HTML (hidden by conditional)
+        self.assertNotIn('cos-arrival-briefing', content)
+
+    def test_command_mode_absent_without_pa(self):
+        """Command Mode should not render when PA is disabled."""
+        self.user.preferences.personal_assistant_enabled = False
+        self.user.preferences.save()
+        response = self.client.get('/dashboard/')
+        command_mode = response.context.get('command_mode')
+        self.assertIsNone(command_mode)
+        self.assertNotContains(response, 'cos-command-mode')
+
+    def test_dashboard_tiles_data_mode_hidden(self):
+        """Dashboard tiles should have data-mode-hidden class when Command Mode active."""
+        response = self.client.get('/dashboard/')
+        self.assertContains(response, 'data-mode-hidden')
+
+    def test_enter_data_mode_link_present(self):
+        """Enter Data Mode link should be present."""
+        response = self.client.get('/dashboard/')
+        self.assertContains(response, 'Enter Data Mode')
+
+
+# ---------------------------------------------------------------------------
+# Weekly Pressure Engine Tests
+# ---------------------------------------------------------------------------
+
+class WeeklyPressureTests(TestCase):
+    """Tests for the Weekly Pressure engine."""
+
+    def setUp(self):
+        self.user = _create_test_user(email='pressure@test.com')
+        self.user.preferences.personal_assistant_enabled = True
+        self.user.preferences.save()
+
+    def test_compute_weekly_pressure_returns_dict(self):
+        """compute_weekly_pressure should return a well-formed dict."""
+        from apps.core.blueprint.weekly_pressure import compute_weekly_pressure
+        result = compute_weekly_pressure(self.user)
+        self.assertIsInstance(result, dict)
+        self.assertIn('day_loads', result)
+        self.assertIn('avg_load', result)
+        self.assertIn('peak_day', result)
+        self.assertIn('peak_load', result)
+        self.assertIn('heavy_days', result)
+        self.assertIn('light_days', result)
+        self.assertIn('opportunity_windows', result)
+
+    def test_weekly_pressure_has_7_days(self):
+        """Should produce 7 day entries."""
+        from apps.core.blueprint.weekly_pressure import compute_weekly_pressure
+        result = compute_weekly_pressure(self.user)
+        self.assertEqual(len(result['day_loads']), 7)
+
+    def test_weekly_pressure_custom_days(self):
+        """Should allow custom day count."""
+        from apps.core.blueprint.weekly_pressure import compute_weekly_pressure
+        result = compute_weekly_pressure(self.user, days=3)
+        self.assertEqual(len(result['day_loads']), 3)
+
+    def test_weekly_pressure_avg_load_range(self):
+        """Average load should be 0-100."""
+        from apps.core.blueprint.weekly_pressure import compute_weekly_pressure
+        result = compute_weekly_pressure(self.user)
+        self.assertGreaterEqual(result['avg_load'], 0)
+        self.assertLessEqual(result['avg_load'], 100)
+
+    def test_opportunity_window_detection(self):
+        """With no blocks, should detect a wide-open opportunity window."""
+        from apps.core.blueprint.weekly_pressure import _detect_opportunity_windows
+        import datetime as dt
+        windows = _detect_opportunity_windows(dt.date.today(), [])
+        self.assertTrue(len(windows) > 0)
+        self.assertEqual(windows[0]['duration_hours'], 12)
+
+    def test_compute_day_load_empty(self):
+        """Empty block list should return 0% capacity."""
+        from apps.core.blueprint.weekly_pressure import _compute_day_load
+        import datetime as dt
+        pct, windows = _compute_day_load(dt.date.today(), [])
+        self.assertEqual(pct, 0.0)
+
+    def test_no_raw_terminology_in_templates(self):
+        """Primary UI templates should not contain raw engine terminology."""
+        import os
+        template_dir = os.path.join(
+            settings.BASE_DIR, 'templates', 'components',
+        )
+        templates_to_check = [
+            'cos_command_mode.html',
+            'cos_arrival_briefing.html',
+            'assistant_command_brief.html',
+        ]
+        raw_terms = [
+            'alignment_score }}%',
+            'drift_risk_24h }}%',
+            'capacity_pct }}%',
+        ]
+        for tpl_name in templates_to_check:
+            path = os.path.join(template_dir, tpl_name)
+            if os.path.exists(path):
+                with open(path, 'r') as f:
+                    content = f.read()
+                for term in raw_terms:
+                    self.assertNotIn(
+                        term, content,
+                        f"Raw percentage '{term}' found in {tpl_name}",
+                    )
+
+
+# ---------------------------------------------------------------------------
+# Architecture Engine Bug Fix Tests
+# ---------------------------------------------------------------------------
+
+class ArchitectureEngineCalendarTests(TestCase):
+    """Tests for the LifeEvent import fix in architecture_engine."""
+
+    def test_get_calendar_events_uses_life_event(self):
+        """_get_calendar_events should import LifeEvent, not Event."""
+        import inspect
+        from apps.core.blueprint.architecture_engine import _get_calendar_events
+        source = inspect.getsource(_get_calendar_events)
+        self.assertIn('LifeEvent', source)
+        self.assertNotIn("import Event", source)
+
+    def test_get_calendar_events_no_crash(self):
+        """_get_calendar_events should not crash when called."""
+        import datetime as dt
+        from apps.core.blueprint.architecture_engine import _get_calendar_events
+        user = _create_test_user(email='calendar@test.com')
+        events = _get_calendar_events(user, dt.date.today())
+        self.assertIsInstance(events, list)

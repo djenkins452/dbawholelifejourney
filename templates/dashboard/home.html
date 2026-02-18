@@ -295,14 +295,17 @@ body.edit-mode .tile-name-label {
 
     </header>
 
-    {% comment %} Chief of Staff — Arrival Briefing (login intercept layer) {% endcomment %}
-    {% include "components/cos_arrival_briefing.html" %}
+    {% comment %} Chief of Staff — Command Mode (conversation-first login) {% endcomment %}
+    {% include "components/cos_command_mode.html" %}
 
-    {% comment %} Chief of Staff Command Brief — strategic detail layer {% endcomment %}
+    {% if not command_mode or not command_mode.active %}
+    {% comment %} Arrival Briefing + Command Brief — fallback when Command Mode not available {% endcomment %}
+    {% include "components/cos_arrival_briefing.html" %}
     {% include "components/assistant_command_brief.html" %}
+    {% endif %}
 
     <!-- Edit Mode Bar -->
-    <div class="dashboard-edit-bar">
+    <div class="dashboard-edit-bar" {% if command_mode and command_mode.active %}style="display:none"{% endif %}>
         <button type="button" class="btn-customize" id="customize-btn" onclick="toggleEditMode()">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="3" y="3" width="7" height="7"/>
@@ -320,7 +323,7 @@ body.edit-mode .tile-name-label {
     {% endif %}
 
     <!-- Dynamic Tiles Container -->
-    <div class="dashboard-tiles" id="dashboard-tiles">
+    <div class="dashboard-tiles {% if command_mode and command_mode.active %}data-mode-hidden{% endif %}" id="dashboard-tiles">
         {% for tile in dashboard_tiles %}
         <div class="tile-wrapper {% if not tile.visible %}hidden-tile{% endif %}"
              data-tile-id="{{ tile.id }}"

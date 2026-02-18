@@ -62,6 +62,11 @@ SCHEDULED_TASKS = {
         "interval_seconds": 900,  # 15 minutes
         "description": "Check and execute assistant trigger conditions for active users (CoS).",
     },
+    "compute_weekly_pressure": {
+        "function_path": "apps.core.ai_scheduler.scheduler_runner.run_weekly_pressure",
+        "interval_seconds": 21600,  # 6 hours
+        "description": "Compute weekly pressure forecast for all active users (CoS).",
+    },
 }
 
 

@@ -1140,3 +1140,380 @@ body.has-desktop-nav.assistant-panel-closed .desktop-main-area {
         margin-right: calc(-1 * var(--space-4, 1rem));
     }
 }
+
+/* ==========================================================================
+   COMMAND MODE — Conversation-First Login Experience
+   ========================================================================== */
+
+.cos-command-mode {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg, 8px);
+    margin-bottom: var(--space-4, 1rem);
+    overflow: hidden;
+    animation: cosArrivalEntry 0.2s ease-out;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    transition: all 0.3s ease;
+}
+
+.cos-command-mode.cos-cm-collapsed {
+    max-height: 0;
+    margin-bottom: 0;
+    border: none;
+    opacity: 0;
+    overflow: hidden;
+}
+
+.cos-cm-inner {
+    padding: var(--space-4, 1rem) var(--space-5, 1.25rem);
+}
+
+/* Greeting */
+.cos-cm-greeting {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-3, 0.75rem);
+    margin-bottom: var(--space-4, 1rem);
+}
+
+.cos-cm-headline {
+    font-size: var(--font-size-lg, 1.125rem);
+    font-weight: 600;
+    color: var(--color-text);
+    margin: 0 0 var(--space-1, 0.25rem) 0;
+    line-height: 1.3;
+}
+
+.cos-cm-summary {
+    font-size: var(--font-size-sm, 0.875rem);
+    color: var(--color-text-muted);
+    margin: 0;
+    line-height: 1.5;
+}
+
+/* Risk dot */
+.cos-cm-risk-dot-container {
+    flex-shrink: 0;
+    padding-top: 4px;
+}
+
+.cos-cm-risk-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--color-text-muted);
+}
+
+.cos-cm-risk-dot.dot-green {
+    background: #16a34a;
+    box-shadow: 0 0 6px rgba(22, 163, 74, 0.3);
+}
+
+.cos-cm-risk-dot.dot-amber {
+    background: #d97706;
+    box-shadow: 0 0 6px rgba(217, 119, 6, 0.3);
+}
+
+.cos-cm-risk-dot.dot-red {
+    background: #dc2626;
+    box-shadow: 0 0 6px rgba(220, 38, 38, 0.3);
+}
+
+/* Section labels */
+.cos-cm-section-label {
+    font-size: var(--font-size-xs, 0.75rem);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-2, 0.5rem);
+}
+
+/* Recommended Moves */
+.cos-cm-moves {
+    margin-bottom: var(--space-4, 1rem);
+}
+
+.cos-cm-moves-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2, 0.5rem);
+}
+
+.cos-cm-move {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2, 0.5rem);
+    font-size: var(--font-size-sm, 0.875rem);
+    color: var(--color-text);
+    line-height: 1.4;
+}
+
+.cos-cm-move-icon {
+    flex-shrink: 0;
+    color: var(--color-accent);
+    padding-top: 1px;
+}
+
+.cos-cm-move-text {
+    flex: 1;
+}
+
+/* Protections */
+.cos-cm-protections {
+    margin-bottom: var(--space-4, 1rem);
+}
+
+.cos-cm-protection-items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2, 0.5rem);
+}
+
+.cos-cm-protection {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    font-size: var(--font-size-xs, 0.75rem);
+    font-weight: 500;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+    color: var(--color-accent);
+    white-space: nowrap;
+}
+
+.cos-cm-protection.completed {
+    opacity: 0.5;
+    text-decoration: line-through;
+}
+
+.cos-cm-protection.locked {
+    background: color-mix(in srgb, #d97706 10%, transparent);
+    color: #d97706;
+}
+
+.cos-cm-protection svg {
+    flex-shrink: 0;
+}
+
+/* Risk Warning */
+.cos-cm-warning {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2, 0.5rem);
+    padding: var(--space-2, 0.5rem) var(--space-3, 0.75rem);
+    background: color-mix(in srgb, #d97706 8%, transparent);
+    border-radius: var(--radius-sm, 4px);
+    font-size: var(--font-size-sm, 0.875rem);
+    color: #92400e;
+    margin-bottom: var(--space-4, 1rem);
+    line-height: 1.4;
+}
+
+.cos-cm-warning svg {
+    flex-shrink: 0;
+    color: #d97706;
+    margin-top: 1px;
+}
+
+/* Morning Build Input */
+.cos-cm-input-area {
+    margin-bottom: var(--space-4, 1rem);
+}
+
+.cos-cm-form {
+    display: flex;
+    gap: var(--space-2, 0.5rem);
+}
+
+.cos-cm-input {
+    flex: 1;
+    padding: var(--space-2, 0.5rem) var(--space-3, 0.75rem);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md, 6px);
+    font-size: 16px; /* Prevent iOS zoom */
+    background: var(--color-background);
+    color: var(--color-text);
+    transition: border-color 0.15s;
+}
+
+.cos-cm-input:focus {
+    outline: none;
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 20%, transparent);
+}
+
+.cos-cm-input::placeholder {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm, 0.875rem);
+}
+
+.cos-cm-send {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border: none;
+    border-radius: var(--radius-md, 6px);
+    background: var(--color-accent);
+    color: white;
+    cursor: pointer;
+    transition: background 0.15s;
+    flex-shrink: 0;
+}
+
+.cos-cm-send:hover {
+    filter: brightness(1.1);
+}
+
+/* Mini Snapshot Section */
+.cos-cm-snapshot {
+    border-top: 1px solid var(--color-border);
+    padding-top: var(--space-3, 0.75rem);
+}
+
+/* Timeline preview */
+.cos-cm-timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-bottom: var(--space-3, 0.75rem);
+    max-height: 180px;
+    overflow-y: auto;
+}
+
+.cos-cm-timeline-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2, 0.5rem);
+    padding: 3px 0;
+    font-size: var(--font-size-xs, 0.75rem);
+}
+
+.cos-cm-timeline-item.completed {
+    opacity: 0.45;
+}
+
+.cos-cm-timeline-item.completed .cos-cm-timeline-title {
+    text-decoration: line-through;
+}
+
+.cos-cm-timeline-item.now {
+    font-weight: 600;
+    color: var(--color-accent);
+}
+
+.cos-cm-timeline-time {
+    color: var(--color-text-muted);
+    min-width: 48px;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.cos-cm-timeline-title {
+    flex: 1;
+    color: var(--color-text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cos-cm-timeline-tier {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 5px;
+    border-radius: 6px;
+    flex-shrink: 0;
+}
+
+.cos-cm-timeline-tier.tier-1 {
+    background: color-mix(in srgb, #ef4444 15%, transparent);
+    color: #ef4444;
+}
+
+/* Weekly pressure */
+.cos-cm-weekly {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2, 0.5rem);
+    font-size: var(--font-size-xs, 0.75rem);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-3, 0.75rem);
+    line-height: 1.4;
+}
+
+.cos-cm-weekly svg {
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+
+/* Footer: status + data mode link */
+.cos-cm-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3, 0.75rem);
+}
+
+.cos-cm-status {
+    font-size: var(--font-size-xs, 0.75rem);
+    font-weight: 500;
+    color: var(--color-text-muted);
+}
+
+.cos-cm-data-mode {
+    font-size: var(--font-size-xs, 0.75rem);
+    font-weight: 600;
+    color: var(--color-accent);
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.cos-cm-data-mode:hover {
+    text-decoration: underline;
+}
+
+/* Data mode hidden state for dashboard tiles */
+.data-mode-hidden {
+    opacity: 0.4;
+    pointer-events: none;
+    max-height: 200px;
+    overflow: hidden;
+    position: relative;
+}
+
+.data-mode-hidden::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 80px;
+    background: linear-gradient(to bottom, transparent, var(--color-background));
+    pointer-events: none;
+}
+
+/* Mobile responsive */
+@media (max-width: 480px) {
+    .cos-cm-inner {
+        padding: var(--space-3, 0.75rem) var(--space-4, 1rem);
+    }
+
+    .cos-cm-headline {
+        font-size: var(--font-size-base, 1rem);
+    }
+}
+
+@media (max-width: 768px) {
+    .cos-command-mode {
+        border-radius: 0;
+        border-left: none;
+        border-right: none;
+        margin-left: calc(-1 * var(--space-4, 1rem));
+        margin-right: calc(-1 * var(--space-4, 1rem));
+    }
+}

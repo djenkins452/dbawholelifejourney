@@ -185,6 +185,23 @@ def build_cos_context(user):
     except Exception:
         pass
 
+    # Weekly pressure forecast
+    try:
+        from apps.core.blueprint.weekly_pressure import compute_weekly_pressure
+        from apps.core.blueprint.human_language import translate_weekly_pressure
+        pressure_data = compute_weekly_pressure(user)
+        context['weekly_pressure'] = {
+            'avg_load': pressure_data.get('avg_load', 0),
+            'peak_day': pressure_data.get('peak_day', ''),
+            'peak_load': pressure_data.get('peak_load', 0),
+            'heavy_days': pressure_data.get('heavy_days', []),
+            'light_days': pressure_data.get('light_days', []),
+            'opportunity_windows': pressure_data.get('opportunity_windows', [])[:3],
+            'summary': translate_weekly_pressure(pressure_data),
+        }
+    except Exception:
+        pass
+
     # Override frequency (14d)
     try:
         from apps.core.blueprint.models import InterventionLog
@@ -315,6 +332,31 @@ def format_cos_system_injection(context):
     f24 = context.get('forecast_load_24h', 0)
     if f24:
         lines.append(f"Tomorrow Load Forecast: {f24}%")
+
+    # Weekly pressure
+    weekly = context.get('weekly_pressure', {})
+    if weekly:
+        lines.append("")
+        lines.append("--- WEEKLY PRESSURE ---")
+        lines.append(f"Summary: {weekly.get('summary', 'Not computed')}")
+        lines.append(f"Average Load: {weekly.get('avg_load', 0)}%")
+        peak = weekly.get('peak_day', '')
+        if peak:
+            lines.append(f"Peak Day: {peak} ({weekly.get('peak_load', 0)}%)")
+        heavy = weekly.get('heavy_days', [])
+        if heavy:
+            lines.append(f"Heavy Days: {', '.join(heavy)}")
+        light = weekly.get('light_days', [])
+        if light:
+            lines.append(f"Light Days: {', '.join(light)}")
+        windows = weekly.get('opportunity_windows', [])
+        if windows:
+            for w in windows[:3]:
+                lines.append(
+                    f"Opportunity: {w.get('day_name', '')} "
+                    f"{w.get('start_time', '')}-{w.get('end_time', '')} "
+                    f"({w.get('duration_hours', 0)}h open)"
+                )
 
     # Override frequency
     overrides = context.get('override_frequency_14d', 0)

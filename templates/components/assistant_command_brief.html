@@ -19,20 +19,20 @@
             </div>
             <div class="command-brief-stat">
                 <span class="command-brief-stat-label">Capacity</span>
-                <span class="command-brief-stat-value">{{ command_brief.capacity_pct }}%</span>
+                <span class="command-brief-stat-value">{{ command_brief.capacity_label|default:"Balanced" }}</span>
             </div>
             <div class="command-brief-stat">
                 <span class="command-brief-stat-label">Drift Risk</span>
-                <span class="command-brief-stat-value {% if command_brief.drift_risk_24h >= 50 %}drift-red{% elif command_brief.drift_risk_24h >= 25 %}drift-amber{% else %}drift-green{% endif %}">{{ command_brief.drift_risk_24h }}%</span>
+                <span class="command-brief-stat-value {% if command_brief.drift_risk_24h >= 50 %}drift-red{% elif command_brief.drift_risk_24h >= 25 %}drift-amber{% else %}drift-green{% endif %}">{{ command_brief.drift_label|default:"Clear" }}</span>
             </div>
             <div class="command-brief-stat">
                 <span class="command-brief-stat-label">Alignment</span>
-                <span class="command-brief-stat-value {% if command_brief.alignment_score >= 80 %}drift-green{% elif command_brief.alignment_score >= 50 %}drift-amber{% else %}drift-red{% endif %}">{{ command_brief.alignment_score }}%</span>
+                <span class="command-brief-stat-value {% if command_brief.alignment_score >= 80 %}drift-green{% elif command_brief.alignment_score >= 50 %}drift-amber{% else %}drift-red{% endif %}">{{ command_brief.alignment_label|default:"Active" }}</span>
             </div>
             {% if command_brief.block_total > 0 %}
             <div class="command-brief-stat">
-                <span class="command-brief-stat-label">Blocks</span>
-                <span class="command-brief-stat-value">{{ command_brief.blocks_completed }}/{{ command_brief.block_total }}</span>
+                <span class="command-brief-stat-label">Progress</span>
+                <span class="command-brief-stat-value">{{ command_brief.progress_label|default:"Day ahead" }}</span>
             </div>
             {% endif %}
         </div>
@@ -84,8 +84,10 @@
                 <div class="command-brief-forecast">
                     {% if command_brief.tomorrow_capacity_pct > 0 %}
                     <div class="command-brief-forecast-row">
-                        <span class="command-brief-forecast-label">Tomorrow capacity</span>
-                        <span class="command-brief-forecast-value {% if command_brief.overload_risk %}stat-warning{% endif %}">{{ command_brief.tomorrow_capacity_pct }}%</span>
+                        <span class="command-brief-forecast-label">Tomorrow</span>
+                        <span class="command-brief-forecast-value {% if command_brief.overload_risk %}stat-warning{% endif %}">
+                            {% if command_brief.overload_risk %}Heavy{% elif command_brief.tomorrow_capacity_pct >= 60 %}Full{% elif command_brief.tomorrow_capacity_pct >= 40 %}Moderate{% else %}Light{% endif %}
+                        </span>
                     </div>
                     {% endif %}
                     {% if command_brief.overload_risk %}

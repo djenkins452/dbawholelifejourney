@@ -160,6 +160,9 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             # Chief of Staff — Command Brief (auto-architecture enforcement)
             context["command_brief"] = self._get_command_brief(user, prefs)
 
+            # Chief of Staff — Command Mode (conversation-first login)
+            context["command_mode"] = self._get_command_mode(user, prefs, context.get("command_brief"))
+
             # Dashboard tile configuration
             config_service = DashboardConfigService(user)
             context["dashboard_tiles"] = config_service.get_config().get('tiles', [])
@@ -370,7 +373,239 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         except Exception:
             pass
 
+        # Human language labels (for templates that want translated values)
+        try:
+            from apps.core.blueprint.human_language import (
+                translate_alignment,
+                translate_drift_risk,
+                translate_capacity,
+                translate_progress,
+                get_status_line,
+            )
+            al, al_desc = translate_alignment(brief['alignment_score'])
+            brief['alignment_label'] = al
+            brief['alignment_desc'] = al_desc
+            dl, dl_desc = translate_drift_risk(brief['drift_risk_24h'])
+            brief['drift_label'] = dl
+            brief['drift_desc'] = dl_desc
+            cl, cl_desc = translate_capacity(brief['capacity_pct'])
+            brief['capacity_label'] = cl
+            brief['capacity_desc'] = cl_desc
+            pl, pl_desc = translate_progress(
+                brief['blocks_completed'], brief['block_total'],
+            )
+            brief['progress_label'] = pl
+            brief['progress_desc'] = pl_desc
+            brief['status_line'] = get_status_line(brief['drift_risk_24h'])
+        except Exception:
+            brief['alignment_label'] = 'Active'
+            brief['drift_label'] = 'Clear'
+            brief['capacity_label'] = 'Balanced'
+            brief['progress_label'] = ''
+            brief['status_line'] = 'System stable.'
+
         return brief
+
+    def _get_command_mode(self, user, prefs, command_brief):
+        """
+        Build the Command Mode context — conversation-first login experience.
+
+        Uses the Human Translation Layer so no raw percentages appear in
+        the primary UI. Only human-readable labels and descriptions.
+        """
+        if not getattr(prefs, 'personal_assistant_enabled', False):
+            return None
+        if not command_brief or not command_brief.get('active'):
+            return None
+
+        try:
+            from apps.core.blueprint.human_language import (
+                translate_alignment,
+                translate_capacity,
+                translate_day_assessment,
+                translate_drift_risk,
+                translate_progress,
+                translate_risk_warning,
+                translate_weekly_pressure,
+                get_status_line,
+            )
+        except ImportError:
+            return None
+
+        import datetime as dt
+
+        alignment_score = command_brief.get('alignment_score', 100)
+        drift_risk = command_brief.get('drift_risk_24h', 0)
+        capacity_pct = command_brief.get('capacity_pct', 0)
+        tier1_items = command_brief.get('tier1_items', [])
+        blocks_completed = command_brief.get('blocks_completed', 0)
+        block_total = command_brief.get('block_total', 0)
+
+        # Risk level for the dot indicator
+        if drift_risk >= 50:
+            risk_level = 'red'
+        elif drift_risk >= 25:
+            risk_level = 'amber'
+        else:
+            risk_level = 'green'
+
+        # Greeting line
+        greeting = self._get_greeting()
+        short_name = user.get_short_name()
+        align_label, _ = translate_alignment(alignment_score)
+        greeting_line = f'{greeting}, {short_name}. {align_label}.'
+
+        # Day summary using human translation
+        day_summary = translate_day_assessment(
+            capacity_pct, drift_risk,
+            len(tier1_items), blocks_completed, block_total,
+        )
+
+        # Risk label for tooltip
+        _, risk_desc = translate_drift_risk(drift_risk)
+        risk_label = risk_desc
+
+        # Build recommended moves (2-3 contextual suggestions)
+        moves = self._build_recommended_moves(
+            command_brief, alignment_score, drift_risk, capacity_pct,
+        )
+
+        # Protections (tier-1 in human language)
+        protections = [
+            {
+                'title': item.get('title', ''),
+                'is_completed': item.get('is_completed', False),
+                'is_locked': item.get('is_locked', False),
+            }
+            for item in tier1_items
+        ]
+
+        # Risk warning — pick the most relevant one, translate to human language
+        risk_warning = None
+        raw_warnings = command_brief.get('risk_warnings', [])
+        if raw_warnings:
+            risk_warning = translate_risk_warning(raw_warnings[0])
+        elif command_brief.get('overload_risk'):
+            risk_warning = 'Tomorrow carries more load than typical.'
+
+        # Timeline preview — compact view of today's blocks
+        timeline_preview = []
+        now = timezone.localtime().time()
+        all_blocks = command_brief.get('blocks', [])
+        for block in all_blocks[:8]:  # Max 8 in preview
+            is_now = (
+                hasattr(block, 'start_time')
+                and hasattr(block, 'end_time')
+                and block.start_time
+                and block.end_time
+                and block.start_time <= now <= block.end_time
+            )
+            timeline_preview.append({
+                'time': block.start_time.strftime('%-I:%M') if hasattr(block, 'start_time') and block.start_time else '',
+                'title': block.title if hasattr(block, 'title') else str(block),
+                'tier': block.tier if hasattr(block, 'tier') else 3,
+                'is_completed': block.is_completed if hasattr(block, 'is_completed') else False,
+                'is_now': is_now,
+            })
+
+        # Weekly pressure summary (placeholder until Phase 2 builds the engine)
+        weekly_pressure_summary = None
+        try:
+            from apps.core.blueprint.weekly_pressure import compute_weekly_pressure
+            pressure_data = compute_weekly_pressure(user)
+            weekly_pressure_summary = translate_weekly_pressure(pressure_data)
+        except (ImportError, Exception):
+            # Engine not yet built — use basic fallback
+            weekly_pressure_summary = None
+
+        # Status line
+        status_line = get_status_line(drift_risk)
+
+        return {
+            'active': True,
+            'greeting_line': greeting_line,
+            'day_summary': day_summary,
+            'risk_level': risk_level,
+            'risk_label': risk_label,
+            'recommended_moves': moves,
+            'protections': protections,
+            'risk_warning': risk_warning,
+            'timeline_preview': timeline_preview,
+            'weekly_pressure_summary': weekly_pressure_summary,
+            'status_line': status_line,
+        }
+
+    def _build_recommended_moves(self, command_brief, alignment, drift_risk, capacity_pct):
+        """
+        Generate 2-3 contextual recommended moves based on current state.
+
+        Each move has: type ('protect', 'adjust', 'add', 'focus'), text (str)
+        """
+        from apps.core.blueprint.human_language import (
+            translate_capacity,
+            translate_drift_risk,
+        )
+
+        moves = []
+
+        tier1_items = command_brief.get('tier1_items', [])
+        incomplete_tier1 = [
+            i for i in tier1_items if not i.get('is_completed')
+        ]
+
+        # Move 1: Protect or celebrate tier-1
+        if incomplete_tier1:
+            count = len(incomplete_tier1)
+            if count == 1:
+                moves.append({
+                    'type': 'protect',
+                    'text': f'Protect your commitment: {incomplete_tier1[0]["title"]}.',
+                })
+            else:
+                moves.append({
+                    'type': 'protect',
+                    'text': f'{count} protected commitments today. Lock them in.',
+                })
+        elif tier1_items:
+            moves.append({
+                'type': 'protect',
+                'text': 'All protections completed. Strong day.',
+            })
+
+        # Move 2: Capacity-aware suggestion
+        cap_label, _ = translate_capacity(capacity_pct)
+        if capacity_pct >= 80:
+            moves.append({
+                'type': 'adjust',
+                'text': 'Schedule is dense. Consider deferring one flexible item.',
+            })
+        elif capacity_pct < 30:
+            moves.append({
+                'type': 'add',
+                'text': 'Light schedule today. Room to add something meaningful.',
+            })
+
+        # Move 3: Drift-aware suggestion
+        if drift_risk >= 50:
+            moves.append({
+                'type': 'adjust',
+                'text': 'Pressure building. Focus on what matters most.',
+            })
+        elif drift_risk >= 25:
+            drift_label, _ = translate_drift_risk(drift_risk)
+            moves.append({
+                'type': 'focus',
+                'text': f'{drift_label} risk. Stay close to the plan.',
+            })
+
+        # Recovery awareness
+        if command_brief.get('recovery_active'):
+            moves.append({
+                'type': 'protect',
+                'text': 'Recovery mode active. Tier-1 items are locked.',
+            })
+
+        return moves[:3]  # Max 3 moves
 
     def _get_daily_encouragement(self, faith_enabled):
         """Get daily encouragement message."""

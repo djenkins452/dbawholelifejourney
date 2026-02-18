@@ -367,3 +367,36 @@ def run_assistant_triggers():
         f"ISE: Trigger check completed — checked={checked}, triggered={triggered}, errors={errors}"
     )
     return {"checked": checked, "triggered": triggered, "errors": errors}
+
+
+def run_weekly_pressure():
+    """
+    Compute weekly pressure forecasts for all active PA users.
+
+    Returns:
+        dict — {computed: int, errors: int}
+    """
+    try:
+        from apps.core.blueprint.weekly_pressure import compute_weekly_pressure
+    except ImportError:
+        logger.error("ISE: Weekly pressure engine not available (import failed)")
+        return {"computed": 0, "errors": 0}
+
+    users = _get_active_ai_users().filter(
+        preferences__personal_assistant_enabled=True,
+    )
+    computed = 0
+    errors = 0
+
+    for user in users:
+        try:
+            compute_weekly_pressure(user)
+            computed += 1
+        except Exception as e:
+            logger.warning(f"ISE: Weekly pressure failed for {user.email}: {e}")
+            errors += 1
+
+    logger.info(
+        f"ISE: Weekly pressure completed — computed={computed}, errors={errors}"
+    )
+    return {"computed": computed, "errors": errors}

@@ -311,16 +311,16 @@ def _get_calendar_events(user, target_date):
     """Fetch calendar events for a date from the Life/Organize module."""
     events = []
     try:
-        from apps.life.models import Event
-        qs = Event.objects.filter(
+        from apps.life.models import LifeEvent
+        qs = LifeEvent.objects.filter(
             user=user,
-            start_date__date=target_date,
-        ).order_by('start_date')
+            start_date=target_date,
+        ).order_by('start_time')
         for event in qs[:20]:  # Limit
             events.append({
                 'title': event.title,
-                'start_time': event.start_date.time() if event.start_date else None,
-                'end_time': event.end_date.time() if event.end_date else None,
+                'start_time': event.start_time,
+                'end_time': event.end_time,
                 'source_id': str(event.pk),
             })
     except Exception as e:

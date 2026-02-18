@@ -19,21 +19,28 @@ from .models import (
     FastingWindow,
     FoodEntry,
     FoodItem,
+    FoodItemOverride,
     GlucoseEntry,
     HealthProfile,
     HeartRateEntry,
     InsightResult,
+    MealTemplate,
+    MealTemplateItem,
     MedicalProvider,
     Medicine,
     MedicineLog,
     MedicineSchedule,
+    NutritionEntryAudit,
     NutritionGoals,
+    NutritionLabelEvidence,
     PersonalRecord,
     ProviderStaff,
     TemplateExercise,
     WeightEntry,
     WorkoutExercise,
     WorkoutSession,
+    WorkoutPlan,
+    WorkoutSchedule,
     WorkoutTemplate,
 )
 
@@ -208,6 +215,21 @@ class WorkoutTemplateAdmin(admin.ModelAdmin):
     inlines = [TemplateExerciseInline]
 
 
+class WorkoutScheduleInline(admin.TabularInline):
+    model = WorkoutSchedule
+    extra = 0
+    raw_id_fields = ["template"]
+
+
+@admin.register(WorkoutPlan)
+class WorkoutPlanAdmin(admin.ModelAdmin):
+    list_display = ["user", "name", "is_active", "days_per_week", "goal", "status"]
+    list_filter = ["is_active", "status"]
+    search_fields = ["user__email", "name"]
+    raw_id_fields = ["user", "transformation_protocol"]
+    inlines = [WorkoutScheduleInline]
+
+
 # =============================================================================
 # Medicine Admin
 # =============================================================================
@@ -320,7 +342,7 @@ class FoodItemAdmin(admin.ModelAdmin):
             "fields": ("name", "brand", "description", "barcode")
         }),
         ("Source", {
-            "fields": ("data_source", "source_reference", "is_verified")
+            "fields": ("data_source", "source_reference", "is_verified", "version", "verified_by_user", "external_ids")
         }),
         ("Serving", {
             "fields": ("serving_size", "serving_unit", "servings_per_container")
@@ -391,7 +413,7 @@ class FoodEntryAdmin(admin.ModelAdmin):
     ]
     list_filter = ["meal_type", "entry_source", "location", "status", "logged_date"]
     search_fields = ["user__email", "food_name", "food_brand", "notes"]
-    raw_id_fields = ["user", "food_item", "custom_food"]
+    raw_id_fields = ["user", "food_item", "custom_food", "copied_from_entry", "applied_template"]
     date_hierarchy = "logged_date"
     ordering = ["-logged_date", "-logged_time"]
 
@@ -413,6 +435,15 @@ class FoodEntryAdmin(admin.ModelAdmin):
                 ("total_sodium_mg", "total_cholesterol_mg", "total_potassium_mg"),
             )
         }),
+        ("Snapshot & Source", {
+            "fields": (
+                "snapshot_nutrients",
+                "data_source_used",
+                "confidence_score",
+                "food_item_version",
+            ),
+            "classes": ("collapse",)
+        }),
         ("Timing", {
             "fields": ("logged_date", "logged_time", "meal_type")
         }),
@@ -426,7 +457,13 @@ class FoodEntryAdmin(admin.ModelAdmin):
             "classes": ("collapse",)
         }),
         ("Tracking", {
-            "fields": ("entry_source", "ai_confidence_score")
+            "fields": (
+                "entry_source",
+                "ai_confidence_score",
+                "is_favorite",
+                "copied_from_entry",
+                "applied_template",
+            )
         }),
     )
 
@@ -502,6 +539,52 @@ class NutritionGoalsAdmin(admin.ModelAdmin):
             "fields": ("notes",)
         }),
     )
+
+
+# =============================================================================
+# Nutrition Upgrade: Audit, Templates, Overrides, Label Evidence Admin
+# =============================================================================
+
+
+class MealTemplateItemInline(admin.TabularInline):
+    model = MealTemplateItem
+    extra = 1
+    raw_id_fields = ["food_item", "custom_food"]
+    fields = ["food_name", "food_brand", "quantity", "serving_size", "serving_unit", "sort_order"]
+
+
+@admin.register(MealTemplate)
+class MealTemplateAdmin(admin.ModelAdmin):
+    list_display = ["name", "user", "default_meal_type", "is_favorite", "use_count", "created_at"]
+    list_filter = ["default_meal_type", "is_favorite"]
+    search_fields = ["name", "user__email"]
+    raw_id_fields = ["user"]
+    inlines = [MealTemplateItemInline]
+
+
+@admin.register(NutritionEntryAudit)
+class NutritionEntryAuditAdmin(admin.ModelAdmin):
+    list_display = ["entry", "changed_by", "change_type", "changed_at"]
+    list_filter = ["change_type", "changed_at"]
+    search_fields = ["changed_by__email", "notes"]
+    raw_id_fields = ["entry", "changed_by"]
+    readonly_fields = ["entry", "changed_by", "changed_at", "change_type", "before_data", "after_data"]
+    date_hierarchy = "changed_at"
+
+
+@admin.register(FoodItemOverride)
+class FoodItemOverrideAdmin(admin.ModelAdmin):
+    list_display = ["food_item", "user", "override_reason", "created_at"]
+    search_fields = ["food_item__name", "user__email", "override_reason"]
+    raw_id_fields = ["user", "food_item"]
+
+
+@admin.register(NutritionLabelEvidence)
+class NutritionLabelEvidenceAdmin(admin.ModelAdmin):
+    list_display = ["food_item", "uploaded_by", "uploaded_at"]
+    search_fields = ["food_item__name", "uploaded_by__email"]
+    raw_id_fields = ["food_item", "uploaded_by"]
+    readonly_fields = ["uploaded_at"]
 
 
 # =============================================================================

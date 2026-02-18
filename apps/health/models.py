@@ -2486,12 +2486,16 @@ class FoodItem(models.Model):
     SOURCE_BARCODE = 'barcode'
     SOURCE_AI = 'ai'
     SOURCE_FATSECRET = 'fatsecret'
+    SOURCE_OPENFOODFACTS = 'openfoodfacts'
+    SOURCE_USER_CREATED = 'user_created'
     SOURCE_CHOICES = [
         (SOURCE_MANUAL, 'Manual Entry'),
         (SOURCE_USDA, 'USDA Database'),
         (SOURCE_BARCODE, 'Barcode Scan'),
         (SOURCE_AI, 'AI Recognition'),
         (SOURCE_FATSECRET, 'FatSecret API'),
+        (SOURCE_OPENFOODFACTS, 'Open Food Facts'),
+        (SOURCE_USER_CREATED, 'User Created'),
     ]
 
     # Basic info
@@ -2507,6 +2511,13 @@ class FoodItem(models.Model):
         help_text="FatSecret API food ID for re-verification",
     )
 
+    # External IDs for cross-referencing multiple data sources
+    external_ids = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text='{"fatsecret_id": "...", "off_barcode": "...", "usda_fdb_id": "..."}',
+    )
+
     # Source & verification
     data_source = models.CharField(
         max_length=20,
@@ -2519,6 +2530,22 @@ class FoodItem(models.Model):
         help_text="USDA ID, API reference, etc.",
     )
     is_verified = models.BooleanField(default=False)
+
+    # Version tracking — bumped on any nutrient change
+    version = models.PositiveIntegerField(
+        default=1,
+        help_text="Incremented when nutrient values change",
+    )
+
+    # Verification by user
+    verified_by_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='verified_food_items',
+        help_text="User who last verified/corrected this item",
+    )
 
     # Serving information
     serving_size = models.DecimalField(max_digits=8, decimal_places=2)
@@ -2799,6 +2826,83 @@ class FoodEntry(UserOwnedModel):
         help_text="AI confidence score for camera/voice entries",
     )
 
+    # === NEW: Hybrid History Model fields ===
+
+    # Immutable snapshot of per-serving nutrients at log time
+    snapshot_nutrients = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=(
+            "Per-serving nutrient values at time of logging. "
+            "Format: {calories: 10, protein_g: 0, carbohydrates_g: 4, ...}"
+        ),
+    )
+
+    # Reference to FoodItem version used at log time
+    food_item_version = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="FoodItem.version at the time this entry was logged",
+    )
+
+    # Data source used for this specific entry (more granular than entry_source)
+    DATA_SOURCE_LOCAL = 'local'
+    DATA_SOURCE_FATSECRET = 'fatsecret'
+    DATA_SOURCE_OPENFOODFACTS = 'openfoodfacts'
+    DATA_SOURCE_AI_GUESS = 'ai_guess'
+    DATA_SOURCE_USER_OVERRIDE = 'user_override'
+    DATA_SOURCE_QUICK_ADD = 'quick_add'
+    DATA_SOURCE_MANUAL = 'manual'
+    DATA_SOURCE_CHOICES = [
+        (DATA_SOURCE_LOCAL, 'Local Database'),
+        (DATA_SOURCE_FATSECRET, 'FatSecret API'),
+        (DATA_SOURCE_OPENFOODFACTS, 'Open Food Facts'),
+        (DATA_SOURCE_AI_GUESS, 'AI Estimate'),
+        (DATA_SOURCE_USER_OVERRIDE, 'User Override'),
+        (DATA_SOURCE_QUICK_ADD, 'Quick Add'),
+        (DATA_SOURCE_MANUAL, 'Manual Entry'),
+    ]
+    data_source_used = models.CharField(
+        max_length=30,
+        choices=DATA_SOURCE_CHOICES,
+        default=DATA_SOURCE_MANUAL,
+        blank=True,
+        help_text="Which data source provided the nutrient values for this entry",
+    )
+
+    # Confidence score for nutrient accuracy (0-100)
+    confidence_score = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Confidence in nutrient accuracy (0-100)",
+    )
+
+    # Copy/template tracking
+    copied_from_entry = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='copies',
+        help_text="Entry this was copied from",
+    )
+    applied_template = models.ForeignKey(
+        'MealTemplate',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='applied_entries',
+        help_text="Meal template that was applied to create this entry",
+    )
+
+    # Favorite for quick re-logging
+    is_favorite = models.BooleanField(
+        default=False,
+        help_text="Mark as favorite for quick access",
+    )
+
     class Meta:
         ordering = ['-logged_date', '-logged_time', '-created_at']
         verbose_name = "food entry"
@@ -2812,27 +2916,36 @@ class FoodEntry(UserOwnedModel):
         return f"{self.food_name} ({self.total_calories} cal) on {self.logged_date}"
 
     def calculate_totals(self):
-        """Calculate total nutrition based on quantity and serving."""
-        source = self.food_item or self.custom_food
-        if not source:
-            return
+        """
+        Calculate total nutrition from snapshot_nutrients * quantity.
 
-        multiplier = self.quantity
-        self.total_calories = source.calories * multiplier
-        self.total_protein_g = source.protein_g * multiplier
-        self.total_carbohydrates_g = source.carbohydrates_g * multiplier
-        self.total_fiber_g = source.fiber_g * multiplier
-        self.total_sugar_g = source.sugar_g * multiplier
-        self.total_fat_g = source.fat_g * multiplier
-        self.total_saturated_fat_g = source.saturated_fat_g * multiplier
+        Uses snapshot_nutrients (per-serving at log time) as the authoritative
+        source. Falls back to food_item/custom_food if no snapshot exists
+        (backward compat for pre-migration entries).
+        """
+        from apps.health.services.nutrition_calculator import compute_totals, build_snapshot
 
-        # Calculate optional micronutrients if available
-        if hasattr(source, 'sodium_mg') and source.sodium_mg is not None:
-            self.total_sodium_mg = source.sodium_mg * multiplier
-        if hasattr(source, 'cholesterol_mg') and source.cholesterol_mg is not None:
-            self.total_cholesterol_mg = source.cholesterol_mg * multiplier
-        if hasattr(source, 'potassium_mg') and source.potassium_mg is not None:
-            self.total_potassium_mg = source.potassium_mg * multiplier
+        # Use snapshot if available, otherwise build from source
+        if self.snapshot_nutrients:
+            snapshot = self.snapshot_nutrients
+        else:
+            source = self.food_item or self.custom_food
+            if not source:
+                return
+            snapshot = build_snapshot(source)
+            self.snapshot_nutrients = snapshot
+
+        totals = compute_totals(snapshot, self.quantity)
+        self.total_calories = totals.get('total_calories', 0) or 0
+        self.total_protein_g = totals.get('total_protein_g', 0) or 0
+        self.total_carbohydrates_g = totals.get('total_carbohydrates_g', 0) or 0
+        self.total_fiber_g = totals.get('total_fiber_g', 0) or 0
+        self.total_sugar_g = totals.get('total_sugar_g', 0) or 0
+        self.total_fat_g = totals.get('total_fat_g', 0) or 0
+        self.total_saturated_fat_g = totals.get('total_saturated_fat_g', 0) or 0
+        self.total_sodium_mg = totals.get('total_sodium_mg')
+        self.total_cholesterol_mg = totals.get('total_cholesterol_mg')
+        self.total_potassium_mg = totals.get('total_potassium_mg')
 
     @property
     def total_net_carbs_g(self):
@@ -4363,3 +4476,355 @@ class TransformationProtocol(UserOwnedModel):
         from apps.core.time.system_clock import get_current_time
         elapsed = (get_current_time().date() - self.start_date).days
         return min(100, round(elapsed / total * 100))
+
+
+# =============================================================================
+# Workout Planning Models
+# =============================================================================
+
+DAY_OF_WEEK_CHOICES = [
+    (0, "Monday"),
+    (1, "Tuesday"),
+    (2, "Wednesday"),
+    (3, "Thursday"),
+    (4, "Friday"),
+    (5, "Saturday"),
+    (6, "Sunday"),
+]
+
+
+class WorkoutPlan(UserOwnedModel):
+    """
+    A structured workout plan grouping multiple templates into a split.
+
+    Links templates into a named program (e.g., '2-Group Strength Split')
+    and optionally ties to a TransformationProtocol.
+    """
+
+    name = models.CharField(
+        max_length=200,
+        help_text="Plan name (e.g., '2-Group Strength Split')",
+    )
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Whether this plan is currently active",
+    )
+    days_per_week = models.PositiveIntegerField(
+        default=6,
+        help_text="Target training days per week",
+    )
+    goal = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Primary goal (e.g., 'fat loss', 'muscle gain')",
+    )
+    transformation_protocol = models.ForeignKey(
+        "TransformationProtocol",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="workout_plans",
+        help_text="Linked transformation protocol",
+    )
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "workout plan"
+        verbose_name_plural = "workout plans"
+        indexes = [
+            models.Index(fields=["user", "is_active"]),
+        ]
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def template_count(self):
+        """Number of unique templates in schedule."""
+        return self.schedule_entries.values("template").distinct().count()
+
+    @property
+    def scheduled_days(self):
+        """List of scheduled day names."""
+        days = self.schedule_entries.order_by("day_of_week").values_list(
+            "day_of_week", flat=True
+        )
+        day_names = dict(DAY_OF_WEEK_CHOICES)
+        return [day_names[d] for d in days]
+
+
+class WorkoutSchedule(models.Model):
+    """
+    Maps a day of the week to a workout template within a plan.
+
+    Defines the recurring weekly rotation (e.g., Mon→Group A, Tue→Group B).
+    """
+
+    plan = models.ForeignKey(
+        WorkoutPlan,
+        on_delete=models.CASCADE,
+        related_name="schedule_entries",
+    )
+    day_of_week = models.IntegerField(
+        choices=DAY_OF_WEEK_CHOICES,
+        help_text="0=Monday through 6=Sunday",
+    )
+    template = models.ForeignKey(
+        WorkoutTemplate,
+        on_delete=models.CASCADE,
+        related_name="schedule_entries",
+        help_text="Workout template for this day",
+    )
+    preferred_time = models.TimeField(
+        null=True,
+        blank=True,
+        help_text="Preferred workout time (e.g., 17:00)",
+    )
+    is_rest_day = models.BooleanField(
+        default=False,
+        help_text="Mark as rest day (template ignored if True)",
+    )
+
+    class Meta:
+        ordering = ["day_of_week"]
+        unique_together = ["plan", "day_of_week"]
+        verbose_name = "workout schedule entry"
+        verbose_name_plural = "workout schedule entries"
+
+    def __str__(self):
+        day_name = dict(DAY_OF_WEEK_CHOICES).get(self.day_of_week, "?")
+        if self.is_rest_day:
+            return f"{day_name}: Rest"
+        return f"{day_name}: {self.template.name}"
+
+
+# =============================================================================
+# Nutrition Upgrade: Audit, Templates, Overrides, Label Evidence
+# =============================================================================
+
+
+class NutritionEntryAudit(models.Model):
+    """
+    Audit trail for changes to FoodEntry records.
+
+    Tracks every meaningful change: quantity updates, nutrient overrides,
+    source changes, copy actions, and template applications.
+    """
+
+    CHANGE_QUANTITY = 'quantity_change'
+    CHANGE_OVERRIDE = 'override_nutrients'
+    CHANGE_SOURCE = 'source_change'
+    CHANGE_COPY = 'copy_action'
+    CHANGE_TEMPLATE = 'template_apply'
+    CHANGE_EDIT = 'edit'
+    CHANGE_CREATE = 'create'
+    CHANGE_TYPE_CHOICES = [
+        (CHANGE_QUANTITY, 'Quantity Changed'),
+        (CHANGE_OVERRIDE, 'Nutrients Overridden'),
+        (CHANGE_SOURCE, 'Source Changed'),
+        (CHANGE_COPY, 'Copied from Another Entry'),
+        (CHANGE_TEMPLATE, 'Template Applied'),
+        (CHANGE_EDIT, 'General Edit'),
+        (CHANGE_CREATE, 'Entry Created'),
+    ]
+
+    entry = models.ForeignKey(
+        FoodEntry,
+        on_delete=models.CASCADE,
+        related_name='audit_trail',
+    )
+    changed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='nutrition_audit_actions',
+    )
+    changed_at = models.DateTimeField(auto_now_add=True)
+    change_type = models.CharField(max_length=30, choices=CHANGE_TYPE_CHOICES)
+    before_data = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="State before the change",
+    )
+    after_data = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="State after the change",
+    )
+    notes = models.TextField(blank=True, help_text="Optional description of the change")
+
+    class Meta:
+        ordering = ['-changed_at']
+        verbose_name = "nutrition entry audit"
+        verbose_name_plural = "nutrition entry audits"
+        indexes = [
+            models.Index(fields=['entry', '-changed_at']),
+        ]
+
+    def __str__(self):
+        return f"Audit: {self.get_change_type_display()} on {self.entry} at {self.changed_at}"
+
+
+class MealTemplate(UserOwnedModel):
+    """
+    Named meal template (recipe) — a group of food items the user logs together.
+
+    Examples: "Turkey Sandwich", "Morning Smoothie", "Post-Workout Shake".
+    Users can apply a template to log all items in one action.
+    """
+
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    default_meal_type = models.CharField(
+        max_length=20,
+        choices=FoodEntry.MEAL_CHOICES,
+        default=FoodEntry.MEAL_SNACK,
+    )
+    is_favorite = models.BooleanField(default=False)
+    use_count = models.PositiveIntegerField(
+        default=0,
+        help_text="How many times this template has been applied",
+    )
+
+    class Meta:
+        ordering = ['-is_favorite', '-use_count', 'name']
+        verbose_name = "meal template"
+        verbose_name_plural = "meal templates"
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def total_calories(self):
+        """Sum of all template item calories."""
+        total = 0
+        for item in self.items.all():
+            snap = item.snapshot_nutrients or {}
+            cal = snap.get('calories', 0) or 0
+            total += float(cal) * float(item.quantity)
+        return round(total, 1)
+
+    @property
+    def item_count(self):
+        """Number of items in this template."""
+        return self.items.count()
+
+
+class MealTemplateItem(models.Model):
+    """
+    Individual food item within a meal template.
+
+    Stores a snapshot of per-serving nutrients so templates remain accurate
+    even if the source FoodItem changes later.
+    """
+
+    template = models.ForeignKey(
+        MealTemplate,
+        on_delete=models.CASCADE,
+        related_name='items',
+    )
+    food_item = models.ForeignKey(
+        FoodItem,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='template_items',
+    )
+    custom_food = models.ForeignKey(
+        CustomFood,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='template_items',
+    )
+
+    # Snapshot for display even if FK is deleted
+    food_name = models.CharField(max_length=300)
+    food_brand = models.CharField(max_length=200, blank=True)
+
+    # Quantity and serving
+    quantity = models.DecimalField(max_digits=8, decimal_places=2, default=1)
+    serving_size = models.DecimalField(max_digits=8, decimal_places=2, default=1)
+    serving_unit = models.CharField(max_length=50, default='serving')
+
+    # Per-serving nutrients snapshot at time of template creation
+    snapshot_nutrients = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Per-serving nutrient values when this item was added to the template",
+    )
+
+    sort_order = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ['sort_order', 'id']
+        verbose_name = "meal template item"
+        verbose_name_plural = "meal template items"
+
+    def __str__(self):
+        return f"{self.food_name} (x{self.quantity}) in {self.template.name}"
+
+
+class FoodItemOverride(UserOwnedModel):
+    """
+    Per-user nutrient correction for a FoodItem.
+
+    When a user scans a barcode and the API returns wrong data, they can
+    override the nutrients. This override applies only to that user's future
+    logs of the same FoodItem, without polluting the global database.
+    """
+
+    food_item = models.ForeignKey(
+        FoodItem,
+        on_delete=models.CASCADE,
+        related_name='user_overrides',
+    )
+    overridden_nutrients = models.JSONField(
+        help_text=(
+            "Per-serving nutrient values corrected by the user. "
+            "Format: {calories: 10, protein_g: 0, carbohydrates_g: 4, ...}"
+        ),
+    )
+    override_reason = models.TextField(
+        blank=True,
+        help_text="Why the user corrected these values (e.g., 'Label says 10 cal not 3')",
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "food item override"
+        verbose_name_plural = "food item overrides"
+        unique_together = ['user', 'food_item']
+
+    def __str__(self):
+        return f"Override for {self.food_item.name} by user {self.user_id}"
+
+
+class NutritionLabelEvidence(models.Model):
+    """
+    Photo evidence of a nutrition label uploaded by a user.
+
+    Attached to a FoodItem to support user overrides with visual proof.
+    """
+
+    food_item = models.ForeignKey(
+        FoodItem,
+        on_delete=models.CASCADE,
+        related_name='label_evidence',
+    )
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='uploaded_label_evidence',
+    )
+    image = models.ImageField(upload_to='nutrition_labels/%Y/%m/')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-uploaded_at']
+        verbose_name = "nutrition label evidence"
+        verbose_name_plural = "nutrition label evidence"
+
+    def __str__(self):
+        return f"Label photo for {self.food_item.name} by user {self.uploaded_by_id}"

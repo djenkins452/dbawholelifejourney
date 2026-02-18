@@ -11,6 +11,17 @@
 
 ## 2026-02-18
 
+- **Feature:** CoS Phase III / Phase 2 — Post-Event Reflection Loops (Alive Multiplier)
+  - **EventReflection model** on `PersonalOperatingBlueprint` models: source_type (calendar/workout/social/health), source_id, source_title, event_date, status (pending/delivered/completed/skipped/expired), scheduled_for, questions, answers, action_items_created
+  - **Reflection engine** (`reflection_engine.py`): `detect_reflectable_events()` scans LifeEvents (work/social/family/health or >60min) and WorkoutSessions, respects `event_reflections_enabled`, caps at 2/day; `generate_reflection_questions()` persona-aware templates by event type; `queue_reflection()` schedules for next morning 8am; `deliver_pending_reflections()` returns past-due pending; `process_reflection_answer()` detects action signals + marks completed; `skip_reflection()` + `expire_stale_reflections()` lifecycle
+  - **Assistant triggers**: `check_pending_reflections()` fires trigger when reflections are ready for delivery
+  - **ISE scheduler**: `queue_event_reflections` registered (24h interval) — scans previous day's events for all PA users, queues reflections, expires stale
+  - **Command Mode integration**: "Quick check-ins" section renders between protections and input with skip button; CSS in assistant-panel.css
+  - **Chat integration**: Pending reflections injected into LLM system prompt so CoS naturally mentions check-ins
+  - **Event Reflection API** (`/assistant/api/event-reflection/`): POST endpoint for skip/answer actions
+  - **17 new tests** (197 total blueprint): Detection (work meetings, social, workouts, disabled flag, daily cap, already queued), question generation by type, queue creation, delivery past-due, skip future, answer completion, action signal detection, skip, scheduler runner, trigger fires, API endpoint, ISE registry
+  - Files: `apps/core/blueprint/models.py` (EventReflection model), `apps/core/blueprint/reflection_engine.py` (NEW), `apps/core/blueprint/assistant_triggers.py` (reflection trigger), `apps/core/ai_scheduler/scheduler_registry.py` (registration), `apps/core/ai_scheduler/scheduler_runner.py` (runner), `apps/dashboard/views.py` (command mode), `templates/components/cos_command_mode.html` (check-ins UI), `static/css/assistant-panel.css` (reflection CSS), `apps/ai/personal_assistant.py` (reflection context), `apps/ai/views.py` (EventReflectionView), `apps/ai/urls.py` (route), `apps/core/migrations/0071_eventreflection.py`
+
 - **Feature:** CoS Phase III / Phase 1 — Adaptive Authority Framework (Governor)
   - **Governance profile** on `PersonalOperatingBlueprint`: accountability_style (light/standard/firm), question_frequency (low/medium/high), relationship_suggestions_enabled, event_reflections_enabled, sensitivity_tags, calibration_day/complete, governance_overrides
   - **Governance decision layer** (`cos_governance.py`): `evaluate_governance()` for ask/skip/tone decisions, `should_ask_question()` with daily cap + declined category tracking, `record_governance_interaction()` stores via SLCME, `get_calibration_question()` for first 14 days, `build_governance_instructions()` produces compact system prompt block

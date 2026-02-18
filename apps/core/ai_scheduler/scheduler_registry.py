@@ -67,6 +67,11 @@ SCHEDULED_TASKS = {
         "interval_seconds": 21600,  # 6 hours
         "description": "Compute weekly pressure forecast for all active users (CoS).",
     },
+    "queue_event_reflections": {
+        "function_path": "apps.core.ai_scheduler.scheduler_runner.run_reflection_queue",
+        "interval_seconds": 86400,  # 24 hours
+        "description": "Scan previous day's events and queue post-event reflections (CoS).",
+    },
 }
 
 

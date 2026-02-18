@@ -1116,3 +1116,40 @@ class CosSettingsSaveView(LoginRequiredMixin, View):
             django_messages.error(request, "Could not save settings.")
 
         return redirect('ai:cos_settings')
+
+
+class EventReflectionView(LoginRequiredMixin, View):
+    """
+    API endpoint for event reflection actions (answer, skip).
+
+    POST: { reflection_id: int, action: 'answer'|'skip', text: str (if answer) }
+    """
+
+    def post(self, request, *args, **kwargs):
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        user = request.user
+        reflection_id = data.get('reflection_id')
+        action = data.get('action', 'skip')
+
+        if not reflection_id:
+            return JsonResponse({'error': 'reflection_id required'}, status=400)
+
+        if action == 'skip':
+            from apps.core.blueprint.reflection_engine import skip_reflection
+            success = skip_reflection(user, reflection_id)
+            return JsonResponse({'success': success})
+
+        elif action == 'answer':
+            answer_text = data.get('text', '').strip()
+            if not answer_text:
+                return JsonResponse({'error': 'text required'}, status=400)
+
+            from apps.core.blueprint.reflection_engine import process_reflection_answer
+            result = process_reflection_answer(user, reflection_id, answer_text)
+            return JsonResponse(result)
+
+        return JsonResponse({'error': 'Unknown action'}, status=400)

@@ -521,6 +521,14 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         # Status line
         status_line = get_status_line(drift_risk)
 
+        # Pending reflections (non-intrusive check-ins)
+        reflections_pending = []
+        try:
+            from apps.core.blueprint.reflection_engine import deliver_pending_reflections
+            reflections_pending = deliver_pending_reflections(user)
+        except (ImportError, Exception):
+            pass
+
         return {
             'active': True,
             'greeting_line': greeting_line,
@@ -533,6 +541,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             'timeline_preview': timeline_preview,
             'weekly_pressure_summary': weekly_pressure_summary,
             'status_line': status_line,
+            'reflections_pending': reflections_pending,
         }
 
     def _build_recommended_moves(self, command_brief, alignment, drift_risk, capacity_pct):

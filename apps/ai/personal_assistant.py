@@ -2461,6 +2461,26 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                     advance_calibration_day(self.user)
                 except Exception as gov_err:
                     logger.debug("Governance injection skipped: %s", gov_err)
+
+                # Inject pending reflection context
+                try:
+                    from apps.core.blueprint.reflection_engine import deliver_pending_reflections
+                    pending_refs = deliver_pending_reflections(self.user)
+                    if pending_refs:
+                        ref_lines = ["--- PENDING CHECK-INS ---"]
+                        for ref in pending_refs[:2]:
+                            ref_lines.append(
+                                f"- After '{ref['title']}': {ref['question']} "
+                                f"(reflection_id={ref['id']})"
+                            )
+                        ref_lines.append(
+                            "If the user's message relates to any of these, "
+                            "treat it as a reflection response. Otherwise, "
+                            "naturally mention the check-in when appropriate."
+                        )
+                        system_prompt += "\n" + "\n".join(ref_lines)
+                except Exception as ref_err:
+                    logger.debug("Reflection context injection skipped: %s", ref_err)
         except Exception as cos_err:
             logger.debug("CoS context injection skipped: %s", cos_err)
 

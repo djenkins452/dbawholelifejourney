@@ -400,3 +400,50 @@ def run_weekly_pressure():
         f"ISE: Weekly pressure completed — computed={computed}, errors={errors}"
     )
     return {"computed": computed, "errors": errors}
+
+
+def run_reflection_queue():
+    """
+    Scan previous day's events and queue post-event reflections for all
+    active PA users with event_reflections_enabled.
+
+    Also expires stale reflections.
+
+    Returns:
+        dict — {queued: int, expired: int, errors: int}
+    """
+    try:
+        from apps.core.blueprint.reflection_engine import (
+            detect_reflectable_events,
+            expire_stale_reflections,
+            queue_reflection,
+        )
+    except ImportError:
+        logger.error("ISE: Reflection engine not available (import failed)")
+        return {"queued": 0, "expired": 0, "errors": 0}
+
+    # Step 1: Expire stale reflections globally
+    expired = expire_stale_reflections()
+
+    # Step 2: Queue new reflections per user
+    users = _get_active_ai_users().filter(
+        preferences__personal_assistant_enabled=True,
+    )
+    queued = 0
+    errors = 0
+
+    for user in users:
+        try:
+            events = detect_reflectable_events(user)
+            for event_dict in events:
+                queue_reflection(user, event_dict)
+                queued += 1
+        except Exception as e:
+            logger.warning(f"ISE: Reflection queue failed for {user.email}: {e}")
+            errors += 1
+
+    logger.info(
+        f"ISE: Reflection queue completed — queued={queued}, "
+        f"expired={expired}, errors={errors}"
+    )
+    return {"queued": queued, "expired": expired, "errors": errors}

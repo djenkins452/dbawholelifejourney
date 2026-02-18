@@ -49,4 +49,7 @@ urlpatterns = [
     # CoS Settings
     path('cos/settings/', views.CosSettingsView.as_view(), name='cos_settings'),
     path('cos/settings/save/', views.CosSettingsSaveView.as_view(), name='cos_settings_save'),
+
+    # Event Reflections (Post-Event Check-ins)
+    path('api/event-reflection/', views.EventReflectionView.as_view(), name='api_event_reflection'),
 ]

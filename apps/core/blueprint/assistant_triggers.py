@@ -159,6 +159,37 @@ def check_architecture_ready(user, blueprint):
     return []
 
 
+def check_pending_reflections(user, blueprint):
+    """Check for pending post-event reflections ready for delivery."""
+    if not blueprint.event_reflections_enabled:
+        return []
+
+    try:
+        from .reflection_engine import deliver_pending_reflections
+        delivered = deliver_pending_reflections(user)
+
+        if delivered:
+            # Build a single trigger with the first reflection question
+            first = delivered[0]
+            return [TriggerResult(
+                trigger_type='pending_reflection',
+                should_fire=True,
+                level=1,  # Nudge level
+                message=first['question'],
+                evidence={
+                    'reflection_id': first['id'],
+                    'source_type': first['source_type'],
+                    'title': first['title'],
+                    'count': len(delivered),
+                },
+                dedupe_key=f"reflection_{first['id']}",
+            )]
+    except Exception as e:
+        logger.debug("Reflection trigger check failed: %s", e)
+
+    return []
+
+
 def check_idle_during_focus(user, blueprint):
     """
     Check if user appears idle during a scheduled focus block.
@@ -241,6 +272,7 @@ def check_triggers(user):
         check_drift_spike,
         check_architecture_ready,
         check_idle_during_focus,
+        check_pending_reflections,
     ]
 
     for check_fn in trigger_checks:

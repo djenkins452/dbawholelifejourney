@@ -2476,3 +2476,315 @@ class GovernanceFrameworkTests(TestCase):
         self.assertFalse(bp.relationship_suggestions_enabled)
         self.assertIn('medicine', bp.sensitivity_tags)
         self.assertIn('faith', bp.sensitivity_tags)
+
+
+# =============================================================================
+# PHASE 2: POST-EVENT REFLECTION LOOP TESTS
+# =============================================================================
+
+
+class ReflectionEngineTests(TestCase):
+    """
+    Phase 2: Post-Event Reflection Loops tests.
+
+    Tests reflection detection, queuing, delivery, processing, and
+    integration with triggers, scheduler, and command mode.
+    """
+
+    def setUp(self):
+        self.user = _create_test_user(email='reflection@test.com')
+        # Ensure blueprint exists with reflections enabled
+        from apps.core.blueprint.models import PersonalOperatingBlueprint
+        self.bp = PersonalOperatingBlueprint.get_or_create_for_user(self.user)
+        self.bp.event_reflections_enabled = True
+        self.bp.module_flags_snapshot = {'health': True}
+        self.bp.sub_feature_flags_snapshot = {'health.fitness': True}
+        self.bp.save()
+
+        self.yesterday = timezone.localdate() - datetime.timedelta(days=1)
+
+    def _create_life_event(self, **kwargs):
+        """Helper to create a LifeEvent."""
+        from apps.life.models import LifeEvent
+        defaults = {
+            'user': self.user,
+            'title': 'Team Standup',
+            'event_type': 'work',
+            'start_date': self.yesterday,
+            'start_time': datetime.time(9, 0),
+            'end_time': datetime.time(10, 30),
+        }
+        defaults.update(kwargs)
+        return LifeEvent.objects.create(**defaults)
+
+    def _create_workout(self, **kwargs):
+        """Helper to create a WorkoutSession."""
+        from apps.health.models import WorkoutSession
+        defaults = {
+            'user': self.user,
+            'date': self.yesterday,
+            'name': 'Morning Run',
+            'duration_minutes': 45,
+        }
+        defaults.update(kwargs)
+        return WorkoutSession.objects.create(**defaults)
+
+    # --- Detection Tests ---
+
+    def test_detect_finds_work_meetings(self):
+        """detect_reflectable_events finds work meetings."""
+        from apps.core.blueprint.reflection_engine import detect_reflectable_events
+        self._create_life_event(event_type='work', title='Client Meeting')
+        events = detect_reflectable_events(self.user, self.yesterday)
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]['title'], 'Client Meeting')
+
+    def test_detect_finds_social_events(self):
+        """detect_reflectable_events finds social events."""
+        from apps.core.blueprint.reflection_engine import detect_reflectable_events
+        self._create_life_event(event_type='social', title='Dinner with Friends')
+        events = detect_reflectable_events(self.user, self.yesterday)
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]['source_type'], 'social')
+
+    def test_detect_finds_completed_workouts(self):
+        """detect_reflectable_events finds completed workouts when fitness enabled."""
+        from apps.core.blueprint.reflection_engine import detect_reflectable_events
+        self._create_workout(name='Push Day')
+        events = detect_reflectable_events(self.user, self.yesterday)
+        self.assertTrue(any(e['source_type'] == 'workout' for e in events))
+
+    def test_detect_respects_reflections_disabled(self):
+        """detect_reflectable_events returns empty when feature disabled."""
+        from apps.core.blueprint.reflection_engine import detect_reflectable_events
+        self.bp.event_reflections_enabled = False
+        self.bp.save()
+        self._create_life_event()
+        events = detect_reflectable_events(self.user, self.yesterday)
+        self.assertEqual(len(events), 0)
+
+    def test_detect_caps_at_daily_limit(self):
+        """detect_reflectable_events caps at DAILY_REFLECTION_CAP."""
+        from apps.core.blueprint.reflection_engine import (
+            detect_reflectable_events,
+            DAILY_REFLECTION_CAP,
+        )
+        for i in range(5):
+            self._create_life_event(
+                title=f'Meeting {i}',
+                start_time=datetime.time(9 + i, 0),
+                end_time=datetime.time(10 + i, 30),
+            )
+        events = detect_reflectable_events(self.user, self.yesterday)
+        self.assertLessEqual(len(events), DAILY_REFLECTION_CAP)
+
+    def test_detect_skips_already_queued(self):
+        """detect_reflectable_events skips events with existing reflections."""
+        from apps.core.blueprint.reflection_engine import (
+            detect_reflectable_events,
+            queue_reflection,
+        )
+        le = self._create_life_event(title='Already Reflected')
+        event_dict = {
+            'source_type': 'calendar',
+            'source_id': str(le.pk),
+            'title': le.title,
+            'event_date': self.yesterday,
+        }
+        queue_reflection(self.user, event_dict)
+        events = detect_reflectable_events(self.user, self.yesterday)
+        self.assertFalse(any(e['source_id'] == str(le.pk) for e in events))
+
+    # --- Question Generation Tests ---
+
+    def test_generate_questions_varies_by_type(self):
+        """generate_reflection_questions varies by source_type."""
+        from apps.core.blueprint.reflection_engine import generate_reflection_questions
+        meeting_qs = generate_reflection_questions({'source_type': 'calendar', 'title': 'Standup'})
+        workout_qs = generate_reflection_questions({'source_type': 'workout', 'title': 'Run'})
+        self.assertTrue(any('action items' in q.lower() for q in meeting_qs))
+        self.assertTrue(any('injuries' in q.lower() or 'go' in q.lower() for q in workout_qs))
+
+    # --- Queue Tests ---
+
+    def test_queue_creates_reflection(self):
+        """queue_reflection creates EventReflection with correct fields."""
+        from apps.core.blueprint.reflection_engine import queue_reflection
+        from apps.core.blueprint.models import EventReflection
+        event_dict = {
+            'source_type': 'calendar',
+            'source_id': '42',
+            'title': 'Design Review',
+            'event_date': self.yesterday,
+        }
+        ref = queue_reflection(self.user, event_dict)
+        self.assertIsInstance(ref, EventReflection)
+        self.assertEqual(ref.source_title, 'Design Review')
+        self.assertEqual(ref.status, EventReflection.STATUS_PENDING)
+        self.assertTrue(len(ref.questions) > 0)
+        self.assertIsNotNone(ref.scheduled_for)
+
+    # --- Delivery Tests ---
+
+    def test_deliver_returns_past_due_pending(self):
+        """deliver_pending_reflections returns past-due pending reflections."""
+        from apps.core.blueprint.reflection_engine import deliver_pending_reflections
+        from apps.core.blueprint.models import EventReflection
+        ref = EventReflection.objects.create(
+            user=self.user,
+            source_type='calendar',
+            source_id='99',
+            source_title='Sprint Retro',
+            event_date=self.yesterday,
+            scheduled_for=timezone.now() - datetime.timedelta(hours=1),
+            questions=['How did it go?'],
+        )
+        delivered = deliver_pending_reflections(self.user)
+        self.assertEqual(len(delivered), 1)
+        self.assertEqual(delivered[0]['id'], ref.pk)
+        ref.refresh_from_db()
+        self.assertEqual(ref.status, EventReflection.STATUS_DELIVERED)
+
+    def test_deliver_skips_future_scheduled(self):
+        """deliver_pending_reflections skips future-scheduled reflections."""
+        from apps.core.blueprint.reflection_engine import deliver_pending_reflections
+        from apps.core.blueprint.models import EventReflection
+        EventReflection.objects.create(
+            user=self.user,
+            source_type='calendar',
+            source_id='100',
+            source_title='Future Meeting',
+            event_date=self.yesterday,
+            scheduled_for=timezone.now() + datetime.timedelta(hours=12),
+            questions=['Follow up?'],
+        )
+        delivered = deliver_pending_reflections(self.user)
+        self.assertEqual(len(delivered), 0)
+
+    # --- Answer Processing Tests ---
+
+    def test_process_answer_marks_completed(self):
+        """process_reflection_answer marks reflection as completed."""
+        from apps.core.blueprint.reflection_engine import process_reflection_answer
+        from apps.core.blueprint.models import EventReflection
+        ref = EventReflection.objects.create(
+            user=self.user,
+            source_type='calendar',
+            source_id='101',
+            source_title='Standup',
+            event_date=self.yesterday,
+            scheduled_for=timezone.now() - datetime.timedelta(hours=1),
+            status=EventReflection.STATUS_DELIVERED,
+            questions=['Any action items?'],
+        )
+        result = process_reflection_answer(self.user, ref.pk, 'No, all good.')
+        self.assertTrue(result['completed'])
+        ref.refresh_from_db()
+        self.assertEqual(ref.status, EventReflection.STATUS_COMPLETED)
+
+    def test_process_answer_detects_action_signal(self):
+        """process_reflection_answer detects action-like language."""
+        from apps.core.blueprint.reflection_engine import process_reflection_answer
+        from apps.core.blueprint.models import EventReflection
+        ref = EventReflection.objects.create(
+            user=self.user,
+            source_type='calendar',
+            source_id='102',
+            source_title='Client Call',
+            event_date=self.yesterday,
+            scheduled_for=timezone.now() - datetime.timedelta(hours=1),
+            status=EventReflection.STATUS_DELIVERED,
+            questions=['Any follow-ups?'],
+        )
+        result = process_reflection_answer(
+            self.user, ref.pk, 'I need to follow up with the proposal by Friday.'
+        )
+        self.assertTrue(result['completed'])
+        self.assertTrue(result['has_action_signal'])
+
+    # --- Skip Tests ---
+
+    def test_skip_reflection(self):
+        """skip_reflection marks reflection as skipped."""
+        from apps.core.blueprint.reflection_engine import skip_reflection
+        from apps.core.blueprint.models import EventReflection
+        ref = EventReflection.objects.create(
+            user=self.user,
+            source_type='workout',
+            source_id='103',
+            source_title='Workout',
+            event_date=self.yesterday,
+            scheduled_for=timezone.now() - datetime.timedelta(hours=1),
+            status=EventReflection.STATUS_DELIVERED,
+            questions=['How did it go?'],
+        )
+        success = skip_reflection(self.user, ref.pk)
+        self.assertTrue(success)
+        ref.refresh_from_db()
+        self.assertEqual(ref.status, EventReflection.STATUS_SKIPPED)
+
+    # --- Scheduler Tests ---
+
+    def test_scheduler_runner_processes_without_crash(self):
+        """run_reflection_queue processes all users without crashing."""
+        from apps.core.ai_scheduler.scheduler_runner import run_reflection_queue
+        self._create_life_event()
+        result = run_reflection_queue()
+        self.assertIn('queued', result)
+        self.assertIn('errors', result)
+        self.assertEqual(result['errors'], 0)
+
+    # --- Trigger Tests ---
+
+    def test_reflection_trigger_fires(self):
+        """check_pending_reflections fires when reflections are ready."""
+        from apps.core.blueprint.assistant_triggers import check_pending_reflections
+        from apps.core.blueprint.models import EventReflection
+        EventReflection.objects.create(
+            user=self.user,
+            source_type='calendar',
+            source_id='200',
+            source_title='Planning Session',
+            event_date=self.yesterday,
+            scheduled_for=timezone.now() - datetime.timedelta(hours=1),
+            questions=['Any action items from Planning Session?'],
+        )
+        results = check_pending_reflections(self.user, self.bp)
+        self.assertTrue(len(results) > 0)
+        self.assertEqual(results[0].trigger_type, 'pending_reflection')
+
+    # --- API Tests ---
+
+    def test_event_reflection_skip_api(self):
+        """Event reflection skip API works."""
+        from apps.core.blueprint.models import EventReflection
+        ref = EventReflection.objects.create(
+            user=self.user,
+            source_type='calendar',
+            source_id='300',
+            source_title='Skip Test',
+            event_date=self.yesterday,
+            scheduled_for=timezone.now() - datetime.timedelta(hours=1),
+            status=EventReflection.STATUS_DELIVERED,
+            questions=['How did it go?'],
+        )
+        client = Client()
+        client.login(email='reflection@test.com', password='testpass123')
+        resp = client.post(
+            '/assistant/api/event-reflection/',
+            data=json.dumps({'reflection_id': ref.pk, 'action': 'skip'}),
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data['success'])
+        ref.refresh_from_db()
+        self.assertEqual(ref.status, EventReflection.STATUS_SKIPPED)
+
+    # --- ISE Registry Test ---
+
+    def test_reflection_task_registered_in_ise(self):
+        """queue_event_reflections is registered in ISE scheduler."""
+        from apps.core.ai_scheduler.scheduler_registry import get_registered_tasks
+        tasks = get_registered_tasks()
+        self.assertIn('queue_event_reflections', tasks)

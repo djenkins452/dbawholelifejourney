@@ -987,3 +987,140 @@ class InterventionLog(models.Model):
         self.user_response = response
         self.responded_at = timezone.now()
         self.save(update_fields=['user_response', 'responded_at'])
+
+
+# =============================================================================
+# EVENT REFLECTION
+# =============================================================================
+
+
+class EventReflection(models.Model):
+    """
+    A pending or completed post-event reflection check-in.
+
+    Created by the reflection engine after meetings, workouts, social events,
+    and other meaningful activities. Delivered via Command Mode or chat.
+    """
+
+    SOURCE_CALENDAR = 'calendar'
+    SOURCE_WORKOUT = 'workout'
+    SOURCE_SOCIAL = 'social'
+    SOURCE_HEALTH = 'health'
+
+    SOURCE_TYPE_CHOICES = [
+        (SOURCE_CALENDAR, 'Calendar Event'),
+        (SOURCE_WORKOUT, 'Workout'),
+        (SOURCE_SOCIAL, 'Social Event'),
+        (SOURCE_HEALTH, 'Health Anomaly'),
+    ]
+
+    STATUS_PENDING = 'pending'
+    STATUS_DELIVERED = 'delivered'
+    STATUS_COMPLETED = 'completed'
+    STATUS_SKIPPED = 'skipped'
+    STATUS_EXPIRED = 'expired'
+
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_DELIVERED, 'Delivered'),
+        (STATUS_COMPLETED, 'Completed'),
+        (STATUS_SKIPPED, 'Skipped'),
+        (STATUS_EXPIRED, 'Expired'),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='event_reflections',
+    )
+
+    source_type = models.CharField(
+        max_length=20,
+        choices=SOURCE_TYPE_CHOICES,
+    )
+
+    source_id = models.CharField(
+        max_length=100,
+        help_text="ID of the source object (LifeEvent.id, WorkoutSession.id, etc.)",
+    )
+
+    source_title = models.CharField(max_length=200)
+    event_date = models.DateField()
+
+    status = models.CharField(
+        max_length=15,
+        choices=STATUS_CHOICES,
+        default=STATUS_PENDING,
+        db_index=True,
+    )
+
+    scheduled_for = models.DateTimeField(
+        help_text="When to deliver this reflection (12-24h after event)",
+    )
+
+    questions = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Pre-generated reflection questions",
+    )
+
+    answers = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="User responses keyed by question index",
+    )
+
+    action_items_created = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Task/event IDs created from reflection answers",
+    )
+
+    delivered_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-scheduled_for']
+        verbose_name = "Event Reflection"
+        verbose_name_plural = "Event Reflections"
+        indexes = [
+            models.Index(fields=['user', 'status', 'scheduled_for']),
+        ]
+
+    def __str__(self):
+        return f"Reflection on '{self.source_title}' for {self.user.email} ({self.status})"
+
+    def mark_delivered(self):
+        """Mark this reflection as delivered to the user."""
+        self.status = self.STATUS_DELIVERED
+        self.delivered_at = timezone.now()
+        self.save(update_fields=['status', 'delivered_at', 'updated_at'])
+
+    def mark_completed(self, answers=None, action_items=None):
+        """Mark this reflection as completed with optional answers and action items."""
+        self.status = self.STATUS_COMPLETED
+        self.completed_at = timezone.now()
+        if answers:
+            self.answers = answers
+        if action_items:
+            self.action_items_created = action_items
+        self.save(update_fields=[
+            'status', 'completed_at', 'answers',
+            'action_items_created', 'updated_at',
+        ])
+
+    def mark_skipped(self):
+        """Mark this reflection as skipped by the user."""
+        self.status = self.STATUS_SKIPPED
+        self.save(update_fields=['status', 'updated_at'])
+
+    def expire_if_stale(self):
+        """Expire if more than 48h past scheduled time and still pending."""
+        if self.status == self.STATUS_PENDING:
+            cutoff = self.scheduled_for + timezone.timedelta(hours=48)
+            if timezone.now() > cutoff:
+                self.status = self.STATUS_EXPIRED
+                self.save(update_fields=['status', 'updated_at'])

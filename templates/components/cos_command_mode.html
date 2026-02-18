@@ -71,6 +71,24 @@ Requires: command_mode dict from DashboardView._get_command_mode()
         </div>
         {% endif %}
 
+        {# --- Quick Check-ins (Reflections) --- #}
+        {% if command_mode.reflections_pending %}
+        <div class="cos-cm-reflections">
+            <div class="cos-cm-section-label">Quick check-ins</div>
+            {% for r in command_mode.reflections_pending %}
+            <div class="cos-cm-reflection" data-reflection-id="{{ r.id }}">
+                <span class="cos-cm-reflection-icon">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                </span>
+                <span class="cos-cm-reflection-text">{{ r.question }}</span>
+                <button class="cos-cm-reflection-skip" onclick="skipReflection({{ r.id }})" title="Skip" aria-label="Skip check-in">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
         {# --- Morning Build Input --- #}
         <div class="cos-cm-input-area">
             <form class="cos-cm-form" id="cos-cm-form" onsubmit="handleCommandModeInput(event)">
@@ -140,6 +158,21 @@ function handleCommandModeInput(e) {
         window.location.href = '{% url "ai:dashboard" %}?message=' + encodeURIComponent(text);
     }
     input.value = '';
+}
+
+function skipReflection(reflectionId) {
+    var el = document.querySelector('[data-reflection-id="' + reflectionId + '"]');
+    if (el) el.style.display = 'none';
+    // Fire and forget skip API call
+    fetch('{% url "ai:api_event_reflection" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
+                           document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '',
+        },
+        body: JSON.stringify({ reflection_id: reflectionId, action: 'skip' }),
+    }).catch(function() {});
 }
 
 function enterDataMode(e) {

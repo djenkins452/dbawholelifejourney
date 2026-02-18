@@ -9,6 +9,50 @@
 
 # WLJ Change History
 
+## 2026-02-18 — Nutrition Log Upgrade (Phases 1-5, 7)
+
+Major rebuild of the nutrition logging system for best-in-class accuracy, copy features, meal templates, and data integrity.
+
+- **Phase 1 — Data Model Redesign**
+  - FoodItem: add `version`, `external_ids`, `verified_by_user`, new source types (openfoodfacts, user_created)
+  - FoodEntry: add `snapshot_nutrients` JSON (immutable per-serving at log time), `data_source_used`, `confidence_score`, `copied_from_entry`, `applied_template`, `is_favorite`
+  - New models: `NutritionEntryAudit`, `MealTemplate`, `MealTemplateItem`, `FoodItemOverride`, `NutritionLabelEvidence`
+  - Data migration backfills `snapshot_nutrients` from existing `total_*/quantity` for all entries
+  - Files: apps/health/models.py, apps/health/admin.py, apps/health/migrations/0045-0046
+
+- **Phase 2 — Correct Nutrient Math**
+  - New `nutrition_calculator.py` service: `compute_totals()` and `build_snapshot()` — single source of truth
+  - FoodEntryForm `save()` now builds snapshot and computes `total_* = snapshot * quantity`
+  - JS quantity change recalculates totals in real-time (preview; server recomputes on save)
+  - Files: apps/health/services/nutrition_calculator.py, apps/health/forms.py, static/js/food-autocomplete.js
+
+- **Phase 3 — Copy Features**
+  - `POST /nutrition/api/copy-entry/` — copy single entry to target date/meal
+  - `POST /nutrition/api/copy-meal/` — copy all entries from source meal
+  - `POST /nutrition/api/copy-day/` — copy full day with merge/replace mode
+  - All create audit trails and preserve snapshot_nutrients
+  - Files: apps/health/views.py, apps/health/urls.py
+
+- **Phase 4 — Meal Templates**
+  - Create templates from entries or manual input
+  - Apply template creates N food entries with correct computed totals
+  - Template list page with apply/delete actions
+  - Files: apps/health/views.py, apps/health/urls.py, templates/health/nutrition/templates_list.html
+
+- **Phase 5 — Barcode Accuracy**
+  - Barcode scan now passes `data_source` (local/fatsecret/openfoodfacts/ai_guess) and `confidence` through URL params
+  - CreateView reads and stores source/confidence for each entry
+  - FoodItemOverride model enables per-user nutrient corrections
+  - `build_snapshot()` prefers user override > FoodItem > API
+  - Files: apps/scan/views.py, apps/health/views.py
+
+- **Phase 7 — Tests**
+  - 30 new tests: compute_totals, build_snapshot, copy entry/meal/day, templates, overrides, audit
+  - All 124 nutrition tests pass (94 existing + 30 new)
+  - Files: apps/health/tests/test_nutrition_upgrade.py
+
+- **Phase 6 (UI rebuild) deferred** — awaiting UI polish master prompt
+
 ## 2026-02-18 — WorkoutPlan & WorkoutSchedule Models + 2-Group Strength Split
 
 - **Feature:** Add WorkoutPlan and WorkoutSchedule models for structured workout split planning. WorkoutPlan groups templates into a named program with optional TransformationProtocol link. WorkoutSchedule maps day-of-week to templates with preferred time.

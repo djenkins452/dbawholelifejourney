@@ -158,7 +158,7 @@ def _get_recent_insights(user):
 
         return Insight.objects.filter(
             user=user,
-        ).exclude(status="dismissed").order_by("-created_at")[:50]
+        ).exclude(status="dismissed").order_by("-created_at")
     except ImportError:
         logger.debug("PIE not available, using empty insights")
         return []
@@ -178,7 +178,7 @@ def _get_active_predictions(user):
         return Prediction.objects.filter(
             user=user,
             status="active",
-        ).order_by("-created_at")[:30]
+        ).order_by("-created_at")
     except ImportError:
         logger.debug("PRIE not available, using empty predictions")
         return []

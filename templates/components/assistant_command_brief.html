@@ -1,0 +1,105 @@
+{% if command_brief and command_brief.active %}
+<div class="command-brief" id="command-brief">
+    <div class="command-brief-header">
+        <div class="command-brief-title">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="m9 12 2 2 4-4"/>
+            </svg>
+            <span>Command Brief</span>
+            <span class="command-brief-date">{{ current_date|date:"l, M j" }}</span>
+        </div>
+    </div>
+
+    <div class="command-brief-body">
+        <div class="command-brief-status-bar">
+            <div class="command-brief-stat">
+                <span class="command-brief-stat-label">Status</span>
+                <span class="command-brief-stat-value status-active">Active</span>
+            </div>
+            <div class="command-brief-stat">
+                <span class="command-brief-stat-label">Capacity</span>
+                <span class="command-brief-stat-value">{{ command_brief.capacity_pct }}%</span>
+            </div>
+            <div class="command-brief-stat">
+                <span class="command-brief-stat-label">Drift Risk (24h)</span>
+                <span class="command-brief-stat-value {% if command_brief.drift_risk_24h > 50 %}stat-warning{% elif command_brief.drift_risk_24h > 30 %}stat-caution{% endif %}">{{ command_brief.drift_risk_24h }}%</span>
+            </div>
+            <div class="command-brief-stat">
+                <span class="command-brief-stat-label">Alignment</span>
+                <span class="command-brief-stat-value {% if command_brief.alignment_score >= 80 %}stat-good{% elif command_brief.alignment_score >= 50 %}stat-caution{% else %}stat-warning{% endif %}">{{ command_brief.alignment_score }}%</span>
+            </div>
+            {% if command_brief.block_total > 0 %}
+            <div class="command-brief-stat">
+                <span class="command-brief-stat-label">Blocks</span>
+                <span class="command-brief-stat-value">{{ command_brief.blocks_completed }}/{{ command_brief.block_total }}</span>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="command-brief-sections">
+            {% if command_brief.tier1_items %}
+            <div class="command-brief-section">
+                <div class="command-brief-section-title">Protected Commitments</div>
+                <div class="command-brief-items">
+                    {% for item in command_brief.tier1_items %}
+                    <div class="command-brief-item tier1{% if item.is_completed %} completed{% endif %}">
+                        <div class="command-brief-item-status">
+                            {% if item.is_completed %}
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                            {% elif item.is_locked %}
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                            {% else %}
+                            <div class="command-brief-dot"></div>
+                            {% endif %}
+                        </div>
+                        <span class="command-brief-item-title">{{ item.title }}</span>
+                        <span class="command-brief-item-time">{{ item.start_time|time:"g:i A" }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            {% if command_brief.strategic_focus %}
+            <div class="command-brief-section">
+                <div class="command-brief-section-title">Strategic Focus</div>
+                <div class="command-brief-items">
+                    {% for item in command_brief.strategic_focus %}
+                    <div class="command-brief-item tier2">
+                        <div class="command-brief-item-status">
+                            <div class="command-brief-dot"></div>
+                        </div>
+                        <span class="command-brief-item-title">{{ item.title }}</span>
+                        <span class="command-brief-item-time">{{ item.start_time|time:"g:i A" }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            {% if command_brief.tomorrow_capacity_pct > 0 or command_brief.risk_warnings %}
+            <div class="command-brief-section">
+                <div class="command-brief-section-title">Pressure Forecast</div>
+                <div class="command-brief-forecast">
+                    {% if command_brief.tomorrow_capacity_pct > 0 %}
+                    <div class="command-brief-forecast-row">
+                        <span class="command-brief-forecast-label">Tomorrow capacity</span>
+                        <span class="command-brief-forecast-value {% if command_brief.overload_risk %}stat-warning{% endif %}">{{ command_brief.tomorrow_capacity_pct }}%</span>
+                    </div>
+                    {% endif %}
+                    {% if command_brief.overload_risk %}
+                    <div class="command-brief-forecast-alert">
+                        Schedule density is elevated. Deferring items today will increase friction tomorrow.
+                    </div>
+                    {% endif %}
+                    {% for warning in command_brief.risk_warnings %}
+                    <div class="command-brief-forecast-alert">{{ warning }}</div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endif %}

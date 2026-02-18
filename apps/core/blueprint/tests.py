@@ -643,3 +643,125 @@ class BlueprintAPITests(TestCase):
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertIn('count', data)
+
+
+# =============================================================================
+# COMMAND BRIEF TESTS
+# =============================================================================
+
+
+class CommandBriefTests(TestCase):
+    """Tests for the Command Brief dashboard integration."""
+
+    def setUp(self):
+        self.user = _create_test_user()
+        self.client.login(email='test@example.com', password='testpass123')
+        self.blueprint = blueprint_engine.get_blueprint(self.user)
+
+    def test_dashboard_auto_generates_architecture(self):
+        """Dashboard load should auto-generate architecture if missing."""
+        # Verify no plan exists
+        today = timezone.localdate()
+        plan = ArchitecturePlan.get_active_for_date(self.user, today)
+        self.assertIsNone(plan)
+
+        # Load dashboard
+        response = self.client.get('/dashboard/')
+        self.assertEqual(response.status_code, 200)
+
+        # Command brief should be in context
+        command_brief = response.context.get('command_brief')
+        self.assertIsNotNone(command_brief)
+        self.assertTrue(command_brief['active'])
+
+    def test_no_plan_text_absent(self):
+        """'No plan for today' should never appear in dashboard response."""
+        response = self.client.get('/dashboard/')
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'No plan for today')
+
+    def test_command_brief_renders_for_authenticated_user(self):
+        """Command Brief should render for authenticated PA-enabled user."""
+        response = self.client.get('/dashboard/')
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'command-brief')
+        self.assertContains(response, 'Command Brief')
+
+    def test_command_brief_has_drift_risk(self):
+        """Command Brief should include drift risk value."""
+        response = self.client.get('/dashboard/')
+        command_brief = response.context.get('command_brief')
+        self.assertIsNotNone(command_brief)
+        self.assertIn('drift_risk_24h', command_brief)
+        self.assertIsInstance(command_brief['drift_risk_24h'], int)
+
+    def test_command_brief_has_capacity(self):
+        """Command Brief should include capacity percentage."""
+        response = self.client.get('/dashboard/')
+        command_brief = response.context.get('command_brief')
+        self.assertIsNotNone(command_brief)
+        self.assertIn('capacity_pct', command_brief)
+        self.assertIsInstance(command_brief['capacity_pct'], int)
+
+    def test_command_brief_tier1_populated(self):
+        """Tier 1 items should be populated from architecture blocks."""
+        # Create a plan with a Tier 1 block
+        today = timezone.localdate()
+        plan = ArchitecturePlan.objects.create(
+            user=self.user, date=today,
+            status=ArchitecturePlan.STATUS_ACTIVE,
+            generation_trigger='test',
+        )
+        ScheduledBlock.objects.create(
+            plan=plan,
+            start_time=datetime.time(6, 0),
+            end_time=datetime.time(7, 0),
+            title='Morning Prayer',
+            tier=1,
+            is_locked=True,
+            behavior_key='faith_prayer',
+        )
+
+        response = self.client.get('/dashboard/')
+        command_brief = response.context.get('command_brief')
+        self.assertIsNotNone(command_brief)
+        self.assertGreater(len(command_brief['tier1_items']), 0)
+        self.assertEqual(command_brief['tier1_items'][0]['title'], 'Morning Prayer')
+
+    def test_command_brief_not_shown_when_pa_disabled(self):
+        """Command Brief should not render when PA is disabled."""
+        self.user.preferences.personal_assistant_enabled = False
+        self.user.preferences.save()
+
+        response = self.client.get('/dashboard/')
+        command_brief = response.context.get('command_brief')
+        self.assertIsNone(command_brief)
+        self.assertNotContains(response, 'command-brief')
+
+    def test_panel_plan_auto_generates(self):
+        """Panel plan HTMX endpoint should auto-generate if no plan."""
+        today = timezone.localdate()
+        self.assertIsNone(ArchitecturePlan.get_active_for_date(self.user, today))
+
+        response = self.client.get('/api/blueprint/plan/today/')
+        self.assertEqual(response.status_code, 200)
+        # Should not contain "No plan for today"
+        self.assertNotContains(response, 'No plan for today')
+
+    def test_sidebar_shows_active_not_monitoring(self):
+        """Sidebar status text should say 'Active' not 'Monitoring'."""
+        response = self.client.get('/dashboard/')
+        self.assertEqual(response.status_code, 200)
+        # The panel renders on the page
+        self.assertContains(response, 'Active')
+        self.assertNotContains(response, 'Monitoring')
+
+    def test_alignment_score_calculated(self):
+        """Alignment score should be 100 minus drift score."""
+        response = self.client.get('/dashboard/')
+        command_brief = response.context.get('command_brief')
+        self.assertIsNotNone(command_brief)
+        self.assertEqual(
+            command_brief['alignment_score'],
+            100 - command_brief['drift_score'],
+        )

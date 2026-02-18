@@ -9,6 +9,14 @@
 
 # WLJ Change History
 
+## 2026-02-18
+
+- **Feature:** Command Brief takeover with auto-architecture enforcement. Full-width strategic Command Brief renders above dashboard tiles on every load. Auto-generates architecture plan if none exists for today. Sidebar status changed from "Monitoring" to "Active". Removed all empty "No plan for today" states. 10 new tests.
+  - Files: apps/dashboard/views.py, templates/components/assistant_command_brief.html, templates/dashboard/home.html, templates/components/assistant_panel.html, apps/core/blueprint/panel_views.py, static/css/assistant-panel.css, templates/base.html, apps/core/blueprint/tests.py
+
+- **Fix:** Fix "Cannot filter a query once a slice has been taken" error in PGE guidance engine — removed `[:50]` and `[:30]` slices from `_get_recent_insights()` and `_get_active_predictions()` so downstream guidance rules can call `.filter()` on the querysets
+  - Files: apps/core/ai_guidance/guidance_engine.py
+
 ## 2026-02-18 — Auto-Synchronizing Admin Guide for CoS Architecture
 
 - **Feature:** `ai_docs` module with code-validated documentation registry, Markdown generator, and admin guide sync for the Chief of Staff architecture. Documentation is auto-generated from live code references and never drifts from implementation.

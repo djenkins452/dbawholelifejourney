@@ -295,6 +295,9 @@ body.edit-mode .tile-name-label {
 
     </header>
 
+    {% comment %} Chief of Staff Command Brief — strategic layer above tiles {% endcomment %}
+    {% include "components/assistant_command_brief.html" %}
+
     <!-- Edit Mode Bar -->
     <div class="dashboard-edit-bar">
         <button type="button" class="btn-customize" id="customize-btn" onclick="toggleEditMode()">

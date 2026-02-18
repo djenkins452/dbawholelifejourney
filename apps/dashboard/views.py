@@ -157,6 +157,9 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             except Exception:
                 context["guidance_items"] = []
 
+            # Chief of Staff — Command Brief (auto-architecture enforcement)
+            context["command_brief"] = self._get_command_brief(user, prefs)
+
             # Dashboard tile configuration
             config_service = DashboardConfigService(user)
             context["dashboard_tiles"] = config_service.get_config().get('tiles', [])
@@ -192,6 +195,157 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         else:
             return "Good evening"
     
+    def _get_command_brief(self, user, prefs):
+        """
+        Build the Chief of Staff Command Brief for the dashboard.
+
+        Auto-generates today's architecture if none exists.
+        Returns a dict with status, plan, drift, non-negotiables,
+        strategic focus, and pressure forecast.
+        """
+        import datetime as dt
+
+        # Guard: only for users with personal assistant enabled
+        if not getattr(prefs, 'personal_assistant_enabled', False):
+            return None
+
+        try:
+            from apps.core.blueprint import architecture_engine
+            from apps.core.blueprint import engine as blueprint_engine
+            from apps.core.blueprint import drift_engine
+            from apps.core.blueprint import priority_engine
+            from apps.core.blueprint.models import ArchitecturePlan
+        except ImportError:
+            return None
+
+        brief = {
+            'active': True,
+            'plan': None,
+            'blocks': [],
+            'tier1_items': [],
+            'strategic_focus': [],
+            'drift_score': 0,
+            'drift_level': 'low',
+            'drift_risk_24h': 0,
+            'alignment_score': 100,
+            'capacity_pct': 0,
+            'tomorrow_capacity_pct': 0,
+            'overload_risk': False,
+            'risk_warnings': [],
+            'block_total': 0,
+            'blocks_completed': 0,
+            'auto_generated': False,
+        }
+
+        # Get or auto-generate today's plan
+        today = timezone.localdate()
+        plan = architecture_engine.get_todays_plan(user)
+
+        if not plan:
+            blueprint = blueprint_engine.get_blueprint(user)
+            if getattr(blueprint, 'auto_architect_enabled', True):
+                try:
+                    plan = architecture_engine.run_architecture_pass(
+                        user, target_date=today,
+                    )
+                    brief['auto_generated'] = True
+                except Exception:
+                    pass
+
+        if plan:
+            brief['plan'] = plan
+            all_blocks = list(plan.blocks.all().order_by('start_time'))
+            brief['blocks'] = all_blocks
+            brief['block_total'] = len(all_blocks)
+            brief['blocks_completed'] = sum(
+                1 for b in all_blocks if b.is_completed
+            )
+            brief['risk_warnings'] = plan.risk_warnings or []
+
+            # Tier 1 non-negotiables
+            brief['tier1_items'] = [
+                {
+                    'title': b.title,
+                    'start_time': b.start_time,
+                    'end_time': b.end_time,
+                    'is_completed': b.is_completed,
+                    'is_locked': b.is_locked,
+                    'behavior_key': b.behavior_key,
+                }
+                for b in all_blocks if b.tier == 1
+            ]
+
+            # Strategic focus: top 3 Tier 2 items
+            brief['strategic_focus'] = [
+                {
+                    'title': b.title,
+                    'start_time': b.start_time,
+                    'end_time': b.end_time,
+                    'tier': b.tier,
+                }
+                for b in all_blocks if b.tier == 2
+            ][:3]
+
+            # Capacity: scheduled hours vs waking hours (assume 16h)
+            total_minutes = 0
+            for b in all_blocks:
+                if b.start_time and b.end_time:
+                    start_dt = dt.datetime.combine(today, b.start_time)
+                    end_dt = dt.datetime.combine(today, b.end_time)
+                    delta = (end_dt - start_dt).total_seconds() / 60
+                    if delta > 0:
+                        total_minutes += delta
+            waking_minutes = 16 * 60
+            brief['capacity_pct'] = min(
+                100, round(total_minutes / waking_minutes * 100)
+            )
+
+        # Drift data
+        try:
+            summary = drift_engine.get_drift_summary(user, days=7)
+            score = summary.get('average_score', 0)
+            brief['drift_score'] = round(score)
+            brief['alignment_score'] = round(100 - score)
+
+            if score < 20:
+                brief['drift_level'] = 'low'
+            elif score < 50:
+                brief['drift_level'] = 'medium'
+            else:
+                brief['drift_level'] = 'high'
+
+            prediction = summary.get('latest_prediction', {})
+            brief['drift_risk_24h'] = round(
+                prediction.get('probability_24h', 0) * 100
+            )
+        except Exception:
+            pass
+
+        # Tomorrow pressure forecast
+        try:
+            tomorrow = today + dt.timedelta(days=1)
+            tomorrow_plan = ArchitecturePlan.get_active_for_date(
+                user, tomorrow,
+            )
+            if tomorrow_plan:
+                tmr_blocks = list(tomorrow_plan.blocks.all())
+                tmr_minutes = 0
+                for b in tmr_blocks:
+                    if b.start_time and b.end_time:
+                        s = dt.datetime.combine(tomorrow, b.start_time)
+                        e = dt.datetime.combine(tomorrow, b.end_time)
+                        d = (e - s).total_seconds() / 60
+                        if d > 0:
+                            tmr_minutes += d
+                brief['tomorrow_capacity_pct'] = min(
+                    100, round(tmr_minutes / waking_minutes * 100)
+                )
+                brief['overload_risk'] = brief['tomorrow_capacity_pct'] > 85
+        except Exception:
+            pass
+
+        return brief
+
     def _get_daily_encouragement(self, faith_enabled):
         """Get daily encouragement message."""
         today = timezone.now()

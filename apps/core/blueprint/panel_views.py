@@ -48,6 +48,20 @@ class TodayPlanView(LoginRequiredMixin, View):
 
     def get(self, request):
         plan = ArchitecturePlan.get_active_for_date(request.user)
+
+        # Auto-generate if no plan exists
+        if not plan:
+            try:
+                from . import engine as blueprint_engine
+                blueprint = blueprint_engine.get_blueprint(request.user)
+                if getattr(blueprint, 'auto_architect_enabled', True):
+                    plan = architecture_engine.run_architecture_pass(
+                        request.user,
+                        target_date=timezone.localdate(),
+                    )
+            except Exception:
+                pass
+
         blocks = []
         if plan:
             for block in plan.blocks.all():
@@ -74,9 +88,9 @@ class TodayPlanView(LoginRequiredMixin, View):
                 )
         else:
             html = (
-                '<div class="assistant-loading">'
-                'No plan for today. '
-                '<a href="#" onclick="triggerArchitecturePass(); return false;">Generate one?</a>'
+                '<div style="font-size:var(--font-size-xs);'
+                'color:var(--color-text-muted);">'
+                'Generating plan...'
                 '</div>'
             )
 

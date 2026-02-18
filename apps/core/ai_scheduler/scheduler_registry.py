@@ -72,6 +72,11 @@ SCHEDULED_TASKS = {
         "interval_seconds": 86400,  # 24 hours
         "description": "Scan previous day's events and queue post-event reflections (CoS).",
     },
+    "detect_relational_drift": {
+        "function_path": "apps.core.ai_scheduler.scheduler_runner.run_relational_drift",
+        "interval_seconds": 86400,  # 24 hours
+        "description": "Detect relational drift and generate reconnect guidance (CoS).",
+    },
 }
 
 

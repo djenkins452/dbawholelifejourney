@@ -388,10 +388,23 @@ def process_reflection_answer(user, reflection_id, answer_text):
     answer_lower = answer_text.lower()
     has_action_signal = any(kw in answer_lower for kw in action_keywords)
 
+    # Extract people mentions from the answer
+    people_extracted = []
+    try:
+        from apps.core.ai_relationships.relationship_engine import extract_people_from_text
+        signals = extract_people_from_text(
+            user, answer_text, 'reflection', str(reflection_id),
+        )
+        people_extracted = [s.person.display_name for s in signals]
+    except (ImportError, Exception):
+        pass
+
     # Store the answer
     answers = reflection.answers or {}
     answers['response'] = answer_text
     answers['has_action_signal'] = has_action_signal
+    if people_extracted:
+        answers['people_mentioned'] = people_extracted
 
     # Mark completed
     reflection.mark_completed(

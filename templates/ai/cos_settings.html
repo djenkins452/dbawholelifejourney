@@ -131,6 +131,21 @@
     </details>
     {% endif %}
 
+    {# --- Known People (expandable) --- #}
+    {% if known_people %}
+    <details class="cos-learned-section">
+        <summary class="cos-learned-toggle">Known people ({{ known_people|length }})</summary>
+        <div class="cos-learned-list">
+            {% for p in known_people %}
+            <div class="cos-learned-item">
+                <span class="cos-learned-phrase">{{ p.display_name }}</span>
+                <span class="cos-learned-confidence">{{ p.person_type }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </details>
+    {% endif %}
+
     {% if not blueprint.calibration_complete %}
     <div class="cos-calibration-status">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>

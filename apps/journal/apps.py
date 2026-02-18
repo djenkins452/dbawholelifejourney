@@ -9,3 +9,6 @@ class JournalConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
     name = "apps.journal"
     verbose_name = "Journal"
+
+    def ready(self):
+        import apps.journal.signals  # noqa: F401

@@ -1063,6 +1063,16 @@ class CosSettingsView(LoginRequiredMixin, TemplateView):
             except Exception:
                 context['learned_preferences'] = []
 
+            # Known people from AI Relationships
+            try:
+                from apps.core.ai_relationships.models import Person
+                people = Person.objects.filter(
+                    user=user, is_active=True,
+                ).order_by('display_name')[:20]
+                context['known_people'] = people
+            except Exception:
+                context['known_people'] = []
+
         except Exception as e:
             logger.debug(f"CoS settings: blueprint unavailable: {e}")
             context['blueprint'] = None

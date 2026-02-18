@@ -1389,6 +1389,16 @@ class SignificantEvent(UserOwnedModel):
         help_text="e.g., Mom, John & Jane, Grandpa"
     )
 
+    # Optional link to AI Relationships Person record (backward-compatible)
+    person = models.ForeignKey(
+        'ai_relationships.Person',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='significant_events',
+        help_text="Optional link to tracked Person record",
+    )
+
     # SMS Reminder Settings
     sms_reminder_enabled = models.BooleanField(
         default=False,

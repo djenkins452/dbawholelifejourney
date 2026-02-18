@@ -139,6 +139,7 @@ INSTALLED_APPS = [
     'apps.mobile',  # iOS/Android app integration
     'apps.brain_training',  # Premium brain training module
     'apps.medical',  # Medical lab ingestion & results
+    'apps.core.ai_relationships',  # Relationship intelligence (CoS Phase III)
     'assistant',
     'django_apscheduler',
     'djstripe',

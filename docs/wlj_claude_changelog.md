@@ -11,6 +11,21 @@
 
 ## 2026-02-18
 
+- **Feature:** CoS Phase III / Phase 3 — Relationship & Significance Intelligence (Icing)
+  - **New module** `apps/core/ai_relationships/` — Person, Relationship, InteractionSignal models with admin registration
+  - **Person model**: display_name, person_type (family/friend/colleague/mentor/other), is_active for soft-hide
+  - **Relationship model**: links User↔Person with relationship_type, importance_tier (1-3), cadence_target (daily→quarterly), last_interaction tracking
+  - **InteractionSignal model**: signal_date, signal_type, confidence (0-1), source_type (journal/calendar/reflection/chat/manual), source_id
+  - **Relationship engine** (`relationship_engine.py`): `extract_people_from_text()` with regex word-boundary matching + dedupe; `compute_interaction_baselines()` for 90-day frequency analysis; `detect_relational_drift()` flags gaps > 1.5x cadence target, sorted by importance_tier; `generate_relationship_suggestion()` persona-aware with sensitivity_tags respect; `suggest_opportunity_windows()` via weekly pressure engine
+  - **SignificantEvent.person FK**: Nullable FK to Person on `apps/life/models.py` (backward-compatible, existing events untouched)
+  - **Journal extraction**: Post-save signal on JournalEntry calls `extract_people_from_text()` when AI enabled + person records exist
+  - **Reflection extraction**: `process_reflection_answer()` now extracts people mentions from answers
+  - **ISE scheduler**: `detect_relational_drift` registered (24h interval) — scans relationships, creates reconnect GuidanceItems via PGE
+  - **Scheduler runner**: `run_relational_drift()` processes all PA users, `_create_relational_guidance()` creates GuidanceItem with dedupe (7-day window)
+  - **CoS Settings**: "Known people" expandable section showing tracked Person records
+  - **18 new tests**: Person creation/deactivation, InteractionSignal with confidence, extraction matches/creates/multiple/empty/dedupe, relational drift detection/disabled/recent, suggestion sensitivity/normal, SignificantEvent FK nullable+linked, baselines computation, ISE registration, scheduler runner no-crash
+  - Files: `apps/core/ai_relationships/` (NEW module: `__init__.py`, `apps.py`, `models.py`, `admin.py`, `relationship_engine.py`, `tests.py`), `apps/core/ai_relationships/migrations/0001_initial.py`, `config/settings.py` (INSTALLED_APPS), `apps/life/models.py` (person FK), `apps/life/migrations/0012_significantevent_person_fk.py`, `apps/journal/apps.py` (ready), `apps/journal/signals.py` (NEW), `apps/core/blueprint/reflection_engine.py` (extraction), `apps/core/ai_scheduler/scheduler_registry.py`, `apps/core/ai_scheduler/scheduler_runner.py`, `apps/ai/views.py` (known_people), `templates/ai/cos_settings.html` (known people section)
+
 - **Feature:** CoS Phase III / Phase 2 — Post-Event Reflection Loops (Alive Multiplier)
   - **EventReflection model** on `PersonalOperatingBlueprint` models: source_type (calendar/workout/social/health), source_id, source_title, event_date, status (pending/delivered/completed/skipped/expired), scheduled_for, questions, answers, action_items_created
   - **Reflection engine** (`reflection_engine.py`): `detect_reflectable_events()` scans LifeEvents (work/social/family/health or >60min) and WorkoutSessions, respects `event_reflections_enabled`, caps at 2/day; `generate_reflection_questions()` persona-aware templates by event type; `queue_reflection()` schedules for next morning 8am; `deliver_pending_reflections()` returns past-due pending; `process_reflection_answer()` detects action signals + marks completed; `skip_reflection()` + `expire_stale_reflections()` lifecycle

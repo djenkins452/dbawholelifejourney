@@ -447,3 +447,93 @@ def run_reflection_queue():
         f"expired={expired}, errors={errors}"
     )
     return {"queued": queued, "expired": expired, "errors": errors}
+
+
+def run_relational_drift():
+    """
+    Detect relational drift for all users with relationship_suggestions_enabled.
+
+    Generates GuidanceItem via PGE for each drift alert.
+
+    Returns:
+        dict — {checked: int, alerts: int, guidance_created: int, errors: int}
+    """
+    try:
+        from apps.core.ai_relationships.relationship_engine import (
+            detect_relational_drift,
+            generate_relationship_suggestion,
+        )
+    except ImportError:
+        logger.error("ISE: Relationship engine not available (import failed)")
+        return {"checked": 0, "alerts": 0, "guidance_created": 0, "errors": 0}
+
+    users = _get_active_ai_users().filter(
+        preferences__personal_assistant_enabled=True,
+    )
+    checked = 0
+    total_alerts = 0
+    guidance_created = 0
+    errors = 0
+
+    for user in users:
+        try:
+            alerts = detect_relational_drift(user)
+            checked += 1
+            total_alerts += len(alerts)
+
+            # Create guidance items for top alerts (max 2 per user)
+            for alert in alerts[:2]:
+                try:
+                    suggestion = generate_relationship_suggestion(user, alert)
+                    _create_relational_guidance(user, suggestion)
+                    guidance_created += 1
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.warning(f"ISE: Relational drift failed for {user.email}: {e}")
+            errors += 1
+
+    logger.info(
+        f"ISE: Relational drift completed — checked={checked}, "
+        f"alerts={total_alerts}, guidance={guidance_created}, errors={errors}"
+    )
+    return {
+        "checked": checked,
+        "alerts": total_alerts,
+        "guidance_created": guidance_created,
+        "errors": errors,
+    }
+
+
+def _create_relational_guidance(user, suggestion):
+    """Create a GuidanceItem from a relationship suggestion."""
+    try:
+        from apps.core.ai_guidance.models import GuidanceItem
+        from django.utils import timezone
+        import datetime
+
+        # Dedupe: don't create if similar guidance exists in last 7 days
+        recent = GuidanceItem.objects.filter(
+            user=user,
+            guidance_type='relational_drift',
+            evidence__person_id=suggestion.get('person_id'),
+            created_at__gte=timezone.now() - datetime.timedelta(days=7),
+        ).exists()
+
+        if not recent:
+            GuidanceItem.objects.create(
+                user=user,
+                title=suggestion['title'],
+                message=suggestion['message'],
+                priority=4,  # Low priority (non-intrusive)
+                guidance_type='relational_drift',
+                source='composite',
+                module='relationships',
+                evidence={
+                    'person_id': suggestion.get('person_id'),
+                    'suggestion_type': suggestion.get('suggestion_type'),
+                },
+                expires_at=timezone.now() + datetime.timedelta(days=14),
+            )
+    except (ImportError, Exception) as e:
+        logger.debug("Relational guidance creation failed: %s", e)

@@ -649,6 +649,9 @@ class Command(BaseCommand):
         # One-time: Reset fixtures for Chief of Staff Assistant (PK 51, PK 120, PK 96)
         self._reset_cos_assistant_fixtures(DataLoadConfig, force, verbosity)
 
+        # Auto-sync CoS documentation to admin guide (runs if checksum changed)
+        self._sync_cos_documentation(DataLoadConfig, force, verbosity)
+
         # Only output summary if something loaded or if verbose
         if verbosity >= 1 and loaded_count > 0:
             self.stdout.write(self.style.SUCCESS(f'Initial data: loaded {loaded_count} items'))
@@ -2031,3 +2034,28 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset CoS Assistant fixtures FAILED: {e}'))
+
+    def _sync_cos_documentation(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        Auto-sync CoS documentation to admin guide.
+
+        Runs on every deploy but only writes if the dependency checksum
+        has changed (or if force=True). This keeps the admin guide
+        documentation in sync with the actual code.
+        """
+        try:
+            from apps.core.ai_docs.cos_doc_sync import sync_cos_admin_guide
+
+            result = sync_cos_admin_guide(force=force)
+
+            if result['synced'] and verbosity >= 1:
+                self.stdout.write(
+                    f"  CoS docs synced: {result['articles_created']} created, "
+                    f"{result['articles_updated']} updated, "
+                    f"{result['articles_removed']} removed"
+                )
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.WARNING(
+                    f'  CoS doc sync skipped: {e}'
+                ))

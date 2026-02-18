@@ -4724,3 +4724,27 @@ class AdminGuideArticleEditView(HelpContextMixin, AdminRequiredMixin, UpdateView
     def form_valid(self, form):
         messages.success(self.request, f"Article '{form.instance.title}' updated.")
         return super().form_valid(form)
+
+
+class AdminGuideSyncCosView(AdminRequiredMixin, View):
+    """Trigger on-demand sync of CoS documentation to admin guide."""
+
+    def post(self, request):
+        try:
+            from apps.core.ai_docs.cos_doc_sync import sync_cos_admin_guide
+
+            result = sync_cos_admin_guide(force=True)
+
+            if result['synced']:
+                messages.success(
+                    request,
+                    f"CoS docs synced: {result['articles_created']} created, "
+                    f"{result['articles_updated']} updated, "
+                    f"{result['articles_removed']} removed."
+                )
+            else:
+                messages.info(request, f"Sync skipped: {result['reason']}")
+        except Exception as e:
+            messages.error(request, f"CoS doc sync failed: {e}")
+
+        return redirect('admin_console:admin_guide_manage')

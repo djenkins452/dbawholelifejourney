@@ -9,6 +9,23 @@
 
 # WLJ Change History
 
+## 2026-02-18 — Auto-Synchronizing Admin Guide for CoS Architecture
+
+- **Feature:** `ai_docs` module with code-validated documentation registry, Markdown generator, and admin guide sync for the Chief of Staff architecture. Documentation is auto-generated from live code references and never drifts from implementation.
+  - Registry (`cos_doc_registry.py`): 16 engine dependencies, 7 model field maps, 11 component definitions, `validate_registry()` checks all imports/fields exist
+  - Generator (`cos_doc_generator.py`): Produces 16 Markdown articles (overview, 11 components, engine map, data models, scheduled tasks, version stamp) with dependency checksum
+  - Sync (`cos_doc_sync.py`): Writes to AdminGuideSection/AdminGuideArticle, tracks checksum via DataLoadConfig, removes stale articles
+  - Management command: `python manage.py sync_cos_docs [--force] [--validate]`
+  - Deploy-time auto-sync: `load_initial_data` calls `_sync_cos_documentation()` on every deploy (only writes if checksum changed)
+  - Admin console endpoint: POST `/admin-console/admin-guide/sync-cos/` for on-demand sync
+  - 39 tests covering registry validation, generator output, sync idempotency, stale cleanup, and management command
+  - Files: apps/core/ai_docs/__init__.py, apps/core/ai_docs/cos_doc_registry.py, apps/core/ai_docs/cos_doc_generator.py, apps/core/ai_docs/cos_doc_sync.py, apps/core/ai_docs/tests.py, apps/core/management/commands/sync_cos_docs.py, apps/core/management/commands/load_initial_data.py, apps/admin_console/views.py, apps/admin_console/urls.py
+
+- **Fix:** CoS assistant panel template rendering bugs in production
+  - Multi-line `{# #}` comment changed to `{% comment %}{% endcomment %}` (Django requires block comment for multi-line)
+  - Friction gate modal CSS `display:flex` was overriding `hidden` attribute — added `[hidden]` rule
+  - Files: templates/components/assistant_panel.html, static/css/assistant-panel.css, templates/base.html
+
 ## 2026-02-18 — Save Meal as Template (from Daily Log)
 
 - **Feature:** "Save as Template" button on each meal section header in the daily nutrition log. Opens a modal where you name the template (e.g. "Italian Lunch"), then saves all entries from that meal as a reusable MealTemplate.

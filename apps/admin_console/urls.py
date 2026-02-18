@@ -133,6 +133,7 @@ urlpatterns = [
     path("admin-guide/", views.AdminGuideHomeView.as_view(), name="admin_guide_home"),
     path("admin-guide/manage/", views.AdminGuideManageView.as_view(), name="admin_guide_manage"),
     path("admin-guide/manage/<int:pk>/edit/", views.AdminGuideArticleEditView.as_view(), name="admin_guide_article_edit"),
+    path("admin-guide/sync-cos/", views.AdminGuideSyncCosView.as_view(), name="admin_guide_sync_cos"),
     path("admin-guide/<slug:section_key>/", views.AdminGuideSectionView.as_view(), name="admin_guide_section"),
     path("admin-guide/<slug:section_key>/<slug:slug>/", views.AdminGuideArticleView.as_view(), name="admin_guide_article"),
 

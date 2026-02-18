@@ -1660,7 +1660,12 @@ class ActionHandler:
                              location: str = "", event_type: str = "personal",
                              reminder_minutes: int = None, **kwargs) -> ActionResult:
         """
-        Create a calendar event.
+        Create a calendar event with CoS integration.
+
+        After creating the LifeEvent, runs the CoS post-scheduling chain:
+        1. Conflict detection (priority_engine)
+        2. Drift/pressure recomputation
+        3. Google Calendar sync (if connected)
 
         Args:
             title: Event title
@@ -1722,9 +1727,22 @@ class ActionHandler:
             date_str = event_date.strftime("%b %d")
             time_str = f" at {parsed_start_time.strftime('%I:%M %p')}" if parsed_start_time else ""
 
+            # Run CoS post-scheduling chain (conflict check, drift/pressure, gcal sync)
+            cos_context = self._run_cos_post_scheduling(event)
+
+            # Build response with CoS awareness
+            response_parts = [f"✓ Scheduled: {title} on {date_str}{time_str}"]
+
+            if cos_context.get('conflict_warning'):
+                response_parts.append(cos_context['conflict_warning'])
+            if cos_context.get('pressure_note'):
+                response_parts.append(cos_context['pressure_note'])
+            if cos_context.get('gcal_synced'):
+                response_parts.append("Synced to Google Calendar.")
+
             return ActionResult(
                 success=True,
-                message=f"✓ Scheduled: {title} on {date_str}{time_str}",
+                message=" — ".join(response_parts),
                 created_object={
                     'model': 'LifeEvent',
                     'id': event.id,
@@ -1742,6 +1760,123 @@ class ActionHandler:
                 message="Sorry, I couldn't create that event.",
                 error=str(e)
             )
+
+    def _run_cos_post_scheduling(self, life_event):
+        """
+        CoS post-scheduling chain — runs after LifeEvent creation.
+
+        1. Conflict detection: checks if the new event overlaps Tier 1/2 blocks
+        2. Drift/pressure recompute: updates daily drift and weekly pressure
+        3. Google Calendar sync: pushes to Google if user has it connected
+
+        Returns dict with:
+            conflict_warning: str or None
+            pressure_note: str or None
+            gcal_synced: bool
+        """
+        result = {
+            'conflict_warning': None,
+            'pressure_note': None,
+            'gcal_synced': False,
+        }
+
+        user = self.user
+
+        # --- 1. Conflict Detection ---
+        try:
+            if life_event.start_time and not life_event.is_all_day:
+                from apps.core.blueprint.architecture_engine import get_todays_plan
+                from apps.core.blueprint.models import ArchitecturePlan
+
+                plan = None
+                from django.utils import timezone as tz
+                today = tz.localdate()
+
+                if life_event.start_date == today:
+                    plan = get_todays_plan(user)
+                else:
+                    plan = ArchitecturePlan.get_active_for_date(
+                        user, life_event.start_date,
+                    )
+
+                if plan:
+                    blocks = list(plan.blocks.all().order_by('start_time'))
+                    overlapping = []
+                    for block in blocks:
+                        if not block.start_time or not block.end_time:
+                            continue
+                        # Check time overlap
+                        ev_end = life_event.end_time or life_event.start_time
+                        if (life_event.start_time < block.end_time
+                                and ev_end > block.start_time):
+                            overlapping.append(block)
+
+                    if overlapping:
+                        tier1_conflicts = [
+                            b for b in overlapping if b.tier == 1
+                        ]
+                        if tier1_conflicts:
+                            titles = ', '.join(
+                                b.title for b in tier1_conflicts
+                            )
+                            result['conflict_warning'] = (
+                                f"⚠️ Overlaps protected commitment: {titles}"
+                            )
+                        else:
+                            titles = ', '.join(
+                                b.title for b in overlapping[:2]
+                            )
+                            result['conflict_warning'] = (
+                                f"Overlaps with: {titles}"
+                            )
+        except Exception as e:
+            logger.debug(f"CoS conflict check skipped: {e}")
+
+        # --- 2. Drift & Pressure Recompute ---
+        try:
+            from apps.core.blueprint.drift_engine import compute_daily_drift_score
+            compute_daily_drift_score(user, date=life_event.start_date)
+        except Exception as e:
+            logger.debug(f"CoS drift recompute skipped: {e}")
+
+        try:
+            from apps.core.blueprint.weekly_pressure import compute_weekly_pressure
+            from apps.core.blueprint.human_language import translate_capacity
+
+            pressure = compute_weekly_pressure(user, start_date=life_event.start_date, days=1)
+            day_loads = pressure.get('day_loads', [])
+            if day_loads:
+                _, capacity_pct = day_loads[0]
+                if capacity_pct >= 85:
+                    label, _ = translate_capacity(capacity_pct)
+                    result['pressure_note'] = (
+                        f"Day is now at {label} capacity"
+                    )
+        except Exception as e:
+            logger.debug(f"CoS pressure recompute skipped: {e}")
+
+        # --- 3. Google Calendar Sync ---
+        try:
+            from apps.life.models import GoogleCalendarCredential
+
+            credential = user.google_calendar_credential
+            if (credential.is_connected
+                    and credential.sync_direction in ('export', 'both')
+                    and not credential.has_decryption_error()):
+
+                from apps.life.services.google_calendar import CalendarSyncService
+                sync_service = CalendarSyncService(user)
+                sync_result = sync_service.sync_to_google(
+                    life_event,
+                    credential.get_credentials_dict(),
+                    calendar_id=credential.selected_calendar_id or 'primary',
+                )
+                if sync_result:
+                    result['gcal_synced'] = True
+        except Exception as e:
+            logger.debug(f"CoS Google Calendar sync skipped: {e}")
+
+        return result
 
     def handle_add_reminder(self, title: str, event_type: str, event_date: str,
                              person_name: str = "", description: str = "",

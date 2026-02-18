@@ -124,7 +124,18 @@ def _run_intelligence_chain(user, enriched_action, action_result):
     except Exception as e:
         logger.error(f"SAE update failed for user {user.id}: {e}", exc_info=True)
 
-    # ── Step 2: Proactive Insight Engine (PIE) ───────────────────
+    # ── Step 2: CoS Blueprint Awareness ─────────────────────────
+    # For scheduling actions (create_event, create_task), recompute
+    # the architecture plan so CoS context stays current.
+    if enriched_action.intent_type in ('create_event', 'create_task', 'add_reminder'):
+        try:
+            from apps.core.blueprint.architecture_engine import get_todays_plan
+            # Touch today's plan to ensure it's aware of new events
+            get_todays_plan(user)
+        except Exception as e:
+            logger.debug(f"CoS plan refresh skipped: {e}")
+
+    # ── Step 3: Proactive Insight Engine (PIE) ───────────────────
     # PIE internally triggers PRIE (Step 3) via _trigger_predictions()
     try:
         from django.conf import settings as django_settings

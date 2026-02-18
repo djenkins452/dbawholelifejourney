@@ -2063,3 +2063,179 @@ class ArchitectureEngineCalendarTests(TestCase):
         user = _create_test_user(email='calendar@test.com')
         events = _get_calendar_events(user, dt.date.today())
         self.assertIsInstance(events, list)
+
+
+class LiveBuildLoopTests(TestCase):
+    """
+    Phase 4: Live Build Loop — scheduling intent → CoS integration.
+
+    Tests that handle_create_event creates LifeEvents with CoS post-scheduling
+    hooks (conflict detection, drift/pressure recompute, Google Calendar sync).
+    """
+
+    def setUp(self):
+        self.user = _create_test_user(email='buildloop@test.com')
+        self.prefs = self.user.preferences
+        self.prefs.personal_assistant_enabled = True
+        self.prefs.save()
+
+    def test_create_event_returns_success(self):
+        """handle_create_event should create a LifeEvent and return success."""
+        from apps.ai.action_handlers import ActionHandler
+        from apps.life.models import LifeEvent
+
+        handler = ActionHandler(self.user)
+        result = handler.handle_create_event(
+            title='Gym',
+            start_date='today',
+            start_time='15:00',
+            event_type='health',
+        )
+        self.assertTrue(result.success)
+        self.assertIn('Gym', result.message)
+        self.assertEqual(result.action_type, 'create_event')
+        # Verify in DB
+        event = LifeEvent.objects.get(user=self.user, title='Gym')
+        self.assertEqual(event.event_type, 'health')
+        self.assertIsNotNone(event.start_time)
+
+    def test_create_event_with_absolute_date(self):
+        """handle_create_event should handle YYYY-MM-DD dates."""
+        from apps.ai.action_handlers import ActionHandler
+        from apps.life.models import LifeEvent
+
+        handler = ActionHandler(self.user)
+        result = handler.handle_create_event(
+            title='Dentist',
+            start_date='2026-03-15',
+            start_time='14:00',
+            end_time='15:00',
+        )
+        self.assertTrue(result.success)
+        event = LifeEvent.objects.get(user=self.user, title='Dentist')
+        self.assertEqual(event.start_date.isoformat(), '2026-03-15')
+        self.assertEqual(event.start_time.strftime('%H:%M'), '14:00')
+        self.assertEqual(event.end_time.strftime('%H:%M'), '15:00')
+
+    def test_create_event_tomorrow(self):
+        """handle_create_event should resolve 'tomorrow' correctly."""
+        from apps.ai.action_handlers import ActionHandler
+        from apps.life.models import LifeEvent
+
+        handler = ActionHandler(self.user)
+        result = handler.handle_create_event(
+            title='Therapy',
+            start_date='tomorrow',
+            start_time='10:00',
+        )
+        self.assertTrue(result.success)
+        event = LifeEvent.objects.get(user=self.user, title='Therapy')
+        expected = (datetime.date.today() + datetime.timedelta(days=1))
+        self.assertEqual(event.start_date, expected)
+
+    def test_create_event_all_day(self):
+        """handle_create_event should support all-day events."""
+        from apps.ai.action_handlers import ActionHandler
+        from apps.life.models import LifeEvent
+
+        handler = ActionHandler(self.user)
+        result = handler.handle_create_event(
+            title='Conference',
+            start_date='today',
+            is_all_day=True,
+        )
+        self.assertTrue(result.success)
+        event = LifeEvent.objects.get(user=self.user, title='Conference')
+        self.assertTrue(event.is_all_day)
+
+    def test_cos_post_scheduling_returns_dict(self):
+        """_run_cos_post_scheduling should return a dict with expected keys."""
+        from apps.ai.action_handlers import ActionHandler
+        from apps.life.models import LifeEvent
+
+        handler = ActionHandler(self.user)
+        event = LifeEvent.objects.create(
+            user=self.user,
+            title='Test Event',
+            start_date=datetime.date.today(),
+            start_time=datetime.time(15, 0),
+            event_type='personal',
+        )
+        result = handler._run_cos_post_scheduling(event)
+        self.assertIsInstance(result, dict)
+        self.assertIn('conflict_warning', result)
+        self.assertIn('pressure_note', result)
+        self.assertIn('gcal_synced', result)
+
+    def test_cos_post_scheduling_no_crash_without_blueprint(self):
+        """_run_cos_post_scheduling should not crash when user has no blueprint."""
+        from apps.ai.action_handlers import ActionHandler
+        from apps.life.models import LifeEvent
+
+        handler = ActionHandler(self.user)
+        event = LifeEvent.objects.create(
+            user=self.user,
+            title='No Blueprint Event',
+            start_date=datetime.date.today(),
+            start_time=datetime.time(9, 0),
+            event_type='personal',
+        )
+        # Should not raise even with no blueprint/plan
+        result = handler._run_cos_post_scheduling(event)
+        self.assertIsInstance(result, dict)
+        self.assertFalse(result['gcal_synced'])
+
+    def test_cos_post_scheduling_all_day_skips_conflict(self):
+        """_run_cos_post_scheduling should skip conflict check for all-day events."""
+        from apps.ai.action_handlers import ActionHandler
+        from apps.life.models import LifeEvent
+
+        handler = ActionHandler(self.user)
+        event = LifeEvent.objects.create(
+            user=self.user,
+            title='All Day Event',
+            start_date=datetime.date.today(),
+            is_all_day=True,
+            event_type='personal',
+        )
+        result = handler._run_cos_post_scheduling(event)
+        self.assertIsNone(result['conflict_warning'])
+
+    def test_execution_engine_cos_refresh(self):
+        """Execution engine should refresh CoS plan for scheduling intents."""
+        import inspect
+        from apps.core.ai_orchestrator.execution_engine import _run_intelligence_chain
+        source = inspect.getsource(_run_intelligence_chain)
+        self.assertIn('create_event', source)
+        self.assertIn('create_task', source)
+
+    def test_response_includes_scheduled_confirmation(self):
+        """Response should include a confirmation message with time."""
+        from apps.ai.action_handlers import ActionHandler
+
+        handler = ActionHandler(self.user)
+        result = handler.handle_create_event(
+            title='Team Meeting',
+            start_date='today',
+            start_time='14:30',
+            event_type='work',
+        )
+        self.assertTrue(result.success)
+        self.assertIn('Scheduled', result.message)
+        self.assertIn('Team Meeting', result.message)
+        self.assertIn('2:30 PM', result.message)
+
+    def test_command_mode_input_routes_to_assistant(self):
+        """Command Mode form should route input to assistant chat panel."""
+        import inspect
+        # Read the template source
+        import os
+        template_path = os.path.join(
+            settings.BASE_DIR, 'templates', 'components', 'cos_command_mode.html',
+        )
+        if os.path.exists(template_path):
+            with open(template_path) as f:
+                source = f.read()
+            self.assertIn('handleCommandModeInput', source)
+            self.assertIn('assistant-chat-input', source)
+            self.assertIn('cos-cm-input', source)

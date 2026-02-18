@@ -11,6 +11,15 @@
 
 ## 2026-02-18
 
+- **Feature:** Phase 4 — Live Build Loop (CoS post-scheduling chain)
+  - **handle_create_event CoS integration**: After creating a LifeEvent, now runs the CoS post-scheduling chain:
+    1. **Conflict detection**: Checks if new event overlaps with Tier 1/2 scheduled blocks and warns user ("⚠️ Overlaps protected commitment: Morning Prayer")
+    2. **Drift/pressure recompute**: Recomputes daily drift score and per-day capacity, surfacing "Day is now at Heavy capacity" when load exceeds 85%
+    3. **Google Calendar sync**: Automatically pushes new events to Google Calendar if user has export/both sync enabled, with "Synced to Google Calendar" confirmation
+  - **Execution engine CoS refresh**: Post-execution intelligence chain now refreshes CoS plan awareness for `create_event`, `create_task`, and `add_reminder` intent types
+  - **10 new tests** (164 total blueprint): Event creation (today/tomorrow/absolute/all-day), CoS post-scheduling dict structure, no crash without blueprint, all-day skips conflict, execution engine source check, response formatting, Command Mode template routing
+  - Files: `apps/ai/action_handlers.py` (modified — added `_run_cos_post_scheduling`), `apps/core/ai_orchestrator/execution_engine.py` (modified — CoS plan refresh), `apps/core/blueprint/tests.py` (modified — added `LiveBuildLoopTests`)
+
 - **Feature:** Command Mode with Weekly Pressure Awareness — Transform login into a conversation-first experience with week-level foresight and human language throughout
   - **Command Mode template** (`cos_command_mode.html`): Primary login experience with greeting, executive day summary, recommended moves (2-3), protected commitments, risk warning, morning build input, compact timeline, weekly pressure, and "Enter Data Mode" link
   - **Human Translation Layer** (`human_language.py`): Sole authority for metric→language translation. Converts alignment% ("Locked in"/"Steady"), drift% ("Clear"/"Low risk"), capacity% ("Light day"/"Full day"), progress, weekly pressure, risk warnings, and status lines into natural language

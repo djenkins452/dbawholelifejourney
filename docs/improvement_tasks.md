@@ -152,6 +152,17 @@
 **Status:** ⚪ Pending
 **Impact:** Medium - Optimize for phone usage
 
+### Task 21: "My Story" Document Upload for CoS
+**Status:** ⚪ Pending
+**Impact:** High - Lets CoS deeply understand the user from day one
+**Context:** During calibration, the user wants to share extensive background (autobiography, life story, values doc) that's too long for chat. Build a document upload feature ("My Story" or "About Me") that the CoS always has access to. The uploaded text gets extracted and injected into the CoS system context so the AI knows the user's full background — not just what's in the data models.
+**Scope:**
+- File upload endpoint (PDF, text, Word) with pdfplumber/docx extraction
+- Storage tied to user profile (new model or field on UserPreferences)
+- Text injection into `build_calibration_system_injection()` and `build_cos_context()`
+- UI: upload area on Assistant page or Settings, with preview/edit/delete
+- Size limit + summarization for very long documents (token budget)
+
 ---
 
 ## Progress Log

@@ -353,7 +353,7 @@
             </svg>
             Back to Dashboard
         </a>
-        <button type="button" class="btn btn-outline" onclick="resetToDefaults()">
+        <button type="button" class="btn btn-outline" id="reset-defaults-btn">
             Reset to Defaults
         </button>
         <div class="save-status hidden" id="save-status">
@@ -378,8 +378,9 @@
                 <input type="checkbox" checked disabled title="This tile cannot be hidden">
                 {% else %}
                 <input type="checkbox"
+                       class="tile-visibility-checkbox"
                        {% if tile.visible %}checked{% endif %}
-                       onchange="toggleTileVisibility('{{ tile.id }}', this.checked)"
+                       data-tile-id="{{ tile.id }}"
                        title="Show/hide this tile">
                 {% endif %}
             </div>
@@ -397,15 +398,15 @@
             <div class="tile-size-selector">
                 <button type="button"
                         class="size-btn {% if tile.size == 'small' %}active{% endif %}"
-                        onclick="setTileSize('{{ tile.id }}', 'small')"
+                        data-tile-id="{{ tile.id }}" data-size="small"
                         title="Small">S</button>
                 <button type="button"
                         class="size-btn {% if tile.size == 'medium' %}active{% endif %}"
-                        onclick="setTileSize('{{ tile.id }}', 'medium')"
+                        data-tile-id="{{ tile.id }}" data-size="medium"
                         title="Medium">M</button>
                 <button type="button"
                         class="size-btn {% if tile.size == 'large' %}active{% endif %}"
-                        onclick="setTileSize('{{ tile.id }}', 'large')"
+                        data-tile-id="{{ tile.id }}" data-size="large"
                         title="Large">L</button>
             </div>
         </div>
@@ -423,6 +424,26 @@
     const statusEl = document.getElementById('save-status');
     let draggedEl = null;
     let saveTimeout = null;
+
+    // ==================================
+    // CSP-Compliant Event Delegation
+    // ==================================
+    document.getElementById('reset-defaults-btn').addEventListener('click', resetToDefaults);
+
+    document.addEventListener('click', function(e) {
+        var sizeBtn = e.target.closest('.size-btn[data-tile-id]');
+        if (sizeBtn) {
+            setTileSize(sizeBtn.dataset.tileId, sizeBtn.dataset.size);
+            return;
+        }
+    });
+
+    document.addEventListener('change', function(e) {
+        var checkbox = e.target.closest('.tile-visibility-checkbox');
+        if (checkbox) {
+            toggleTileVisibility(checkbox.dataset.tileId, checkbox.checked);
+        }
+    });
 
     // ==================================
     // Drag and Drop
@@ -482,7 +503,8 @@
         const card = container.querySelector(`[data-tile-id="${tileId}"]`);
         if (card) {
             card.querySelectorAll('.size-btn').forEach(btn => btn.classList.remove('active'));
-            card.querySelector(`.size-btn[onclick*="'${size}'"]`).classList.add('active');
+            var activeBtn = card.querySelector(`.size-btn[data-size="${size}"]`);
+            if (activeBtn) activeBtn.classList.add('active');
         }
 
         updateTile(tileId, { size: size });

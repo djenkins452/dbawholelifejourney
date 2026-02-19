@@ -737,7 +737,7 @@ let setsSavedCount = 0;
 let isEditing = {% if editing %}true{% else %}false{% endif %};
 
 // Template defaults for pre-populating form from last workout
-const templateDefaults = {{ template_defaults_json|default:"{}" }};
+const templateDefaults = {{ template_defaults_json|default:"{}"|safe }};
 
 // Rest timer state
 let restTimerInterval = null;

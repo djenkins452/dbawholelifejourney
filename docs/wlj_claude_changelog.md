@@ -11,6 +11,19 @@
 
 ## 2026-02-19
 
+- **CRITICAL Fix:** Workout form JS completely broken when loading from template (`?template=X`) — `template_defaults_json` was auto-escaped by Django, producing `&quot;` instead of `"` in the `<script>` block, which causes a JS syntax error that silently kills ALL JavaScript on the page (Done buttons, Add Set, Remove, rest timer, everything)
+  - **Root cause:** `{{ template_defaults_json|default:"{}" }}` missing `|safe` filter. Django auto-escapes HTML entities in template variables, turning valid JSON `{"1": ...}` into `{&amp;quot;1&amp;quot;: ...}` which is a JS syntax error.
+  - **Fix:** Changed to `{{ template_defaults_json|default:"{}"|safe }}` — safe because the data is all server-generated numeric values from `json.dumps()`.
+  - **File:** `templates/health/fitness/workout_form.html` (line 740)
+  - **Note:** This bug only manifests when using a workout template, not when creating a blank workout.
+
+- **Fix:** Phase 2 CSP compliance — fixed all inline event handlers in dashboard templates
+  - Replaced ~21 inline `onclick`/`onchange`/`onsubmit` handlers with event delegation
+  - Dashboard home: tile size/visibility, customize button, quick scan modal, guidance actions
+  - Dashboard configure: reset defaults, tile size/visibility
+  - Dashboard tiles: guidance actions, quick scan, module card stopPropagation, fasting end confirm
+  - **Files:** `templates/dashboard/home.html`, `templates/dashboard/configure.html`, `templates/dashboard/tiles/guidance.html`, `templates/dashboard/tiles/quick_actions.html`, `templates/dashboard/tiles/module_cards.html`, `templates/dashboard/tiles/current_fast.html`
+
 - **Fix:** Workout form Done/X/Add Set buttons broken by CSP nonce policy — replaced all inline onclick/onchange handlers with event delegation in nonced script blocks
   - **Root cause:** CSP nonce-based `script-src` policy silently ignores `'unsafe-inline'`, blocking all inline `onclick`/`onchange` event handlers. Buttons appeared but did nothing on click.
   - **Fix:** Removed all inline event handler attributes and added document-level event delegation inside the nonced `<script>` block, which works for both server-rendered and dynamically-added elements.

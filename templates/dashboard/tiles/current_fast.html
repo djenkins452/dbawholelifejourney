@@ -43,8 +43,7 @@ Shows live countdown timer for active fasting session
         </div>
         {% endif %}
         <div class="fast-actions">
-            <form method="post" action="{% url 'health:fasting_end' user_data.active_fast.pk %}" class="inline-form"
-                  onsubmit="return confirm('End your fast now?');">
+            <form method="post" action="{% url 'health:fasting_end' user_data.active_fast.pk %}" class="inline-form fast-end-form" data-confirm="End your fast now?">
                 {% csrf_token %}
                 <button type="submit" class="btn btn-primary btn-sm fast-end-btn">End Fast</button>
             </form>

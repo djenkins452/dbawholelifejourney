@@ -52,9 +52,9 @@ Navigation cards with summary stats for each enabled module
                             Goal reached!
                         {% endif %}
                     </span>
-                    <form method="post" action="{% url 'dashboard:clear_weight_goal' %}" class="clear-weight-goal-form" onclick="event.stopPropagation();">
+                    <form method="post" action="{% url 'dashboard:clear_weight_goal' %}" class="clear-weight-goal-form">
                         {% csrf_token %}
-                        <button type="submit" class="clear-goal-btn" title="Clear weight goal" onclick="event.stopPropagation();">✕</button>
+                        <button type="submit" class="clear-goal-btn" title="Clear weight goal">✕</button>
                     </form>
                 </div>
                 {% endif %}

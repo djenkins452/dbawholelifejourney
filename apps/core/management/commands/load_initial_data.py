@@ -652,6 +652,9 @@ class Command(BaseCommand):
         # One-time: Reset fixtures for CoS Unification Pass (PK 4 updated, PK 121 added)
         self._reset_cos_unification_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset fixtures for Feb 2026 doc audit (30 teaching dests, 5 release notes, 3 help topics)
+        self._reset_feb_2026_doc_audit_fixtures(DataLoadConfig, force, verbosity)
+
         # Auto-sync CoS documentation to admin guide (runs if checksum changed)
         self._sync_cos_documentation(DataLoadConfig, force, verbosity)
 
@@ -2068,6 +2071,38 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset CoS Unification fixtures FAILED: {e}'))
+
+    def _reset_feb_2026_doc_audit_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload fixtures after Feb 2026 documentation audit.
+        Adds 30 teaching destinations (PKs 122-151), 5 release notes (PKs 52-56),
+        and 3 help topics (PKs 97-99).
+        """
+        reset_tracker_name = 'reset_feb_2026_doc_audit_2026_02_19'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            for loader_name in ('teaching_destinations', 'release_notes', 'help_topics'):
+                try:
+                    config = DataLoadConfig.objects.get(loader_name=loader_name)
+                    config.reset()
+                    if verbosity >= 1:
+                        self.stdout.write(f'  Reset {loader_name} loader for doc audit')
+                except DataLoadConfig.DoesNotExist:
+                    pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for Feb 2026 documentation audit',
+                'command',
+                'One-time reset: 30 teaching destinations, 5 release notes, 3 help topics added'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset doc audit fixtures FAILED: {e}'))
 
     def _sync_cos_documentation(self, DataLoadConfig, force=False, verbosity=1):
         """

@@ -2048,5 +2048,515 @@
             "sort_order": 175,
             "is_active": true
         }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 122,
+        "fields": {
+            "destination_id": "faith-home",
+            "name": "Faith",
+            "path_description": "Faith",
+            "explanation": "Your faith hub for prayers, scripture, Bible reading plans, study tools, milestones, and reflections.",
+            "url": "/faith/",
+            "keywords": "faith,faith home,spiritual,religion,church,bible,prayer,christianity",
+            "module": "faith",
+            "sort_order": 176,
+            "is_active": true,
+            "created_at": "2026-02-19T00:00:00Z",
+            "updated_at": "2026-02-19T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 123,
+        "fields": {
+            "destination_id": "faith-reflections",
+            "name": "Faith Reflections",
+            "path_description": "Faith - Reflections",
+            "explanation": "Write and review reflections with a faith perspective for spiritual growth.",
+            "url": "/faith/reflections/",
+            "keywords": "faith reflection,spiritual reflection,faith journal,devotional writing,spiritual growth",
+            "module": "faith",
+            "sort_order": 177,
+            "is_active": true,
+            "created_at": "2026-02-19T00:00:00Z",
+            "updated_at": "2026-02-19T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 124,
+        "fields": {
+            "destination_id": "answered-prayers",
+            "name": "Answered Prayers",
+            "path_description": "Faith - Answered Prayers",
+            "explanation": "View all your prayers that have been answered. Celebrate and reflect on answered prayer over time.",
+            "url": "/faith/prayers/answered/",
+            "keywords": "answered prayers,answered prayer,prayer answers,testimony,praise report",
+            "module": "faith",
+            "sort_order": 178,
+            "is_active": true,
+            "created_at": "2026-02-19T00:00:00Z",
+            "updated_at": "2026-02-19T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 125,
+        "fields": {
+            "destination_id": "journal-home",
+            "name": "Journal",
+            "path_description": "Journal",
+            "explanation": "Your journal hub with recent entries, writing streaks, and quick access to create new entries.",
+            "url": "/journal/",
+            "keywords": "journal,journal home,diary,writing,my journal,journal dashboard",
+            "module": "journal",
+            "sort_order": 179,
+            "is_active": true,
+            "created_at": "2026-02-19T00:00:00Z",
+            "updated_at": "2026-02-19T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 126,
+        "fields": {
+            "destination_id": "journal-calendar",
+            "name": "Journal Calendar",
+            "path_description": "Journal - Calendar View",
+            "explanation": "View your journal entries on a calendar to see which days you wrote and browse entries by date.",
+            "url": "/journal/calendar/",
+            "keywords": "journal calendar,entries by date,writing calendar,journal history calendar",
+            "module": "journal",
+            "sort_order": 180,
+            "is_active": true,
+            "created_at": "2026-02-19T00:00:00Z",
+            "updated_at": "2026-02-19T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 127,
+        "fields": {
+            "destination_id": "journal-tags",
+            "name": "Journal Tags",
+            "path_description": "Journal - Tags",
+            "explanation": "Create and manage tags to organize your journal entries by topic, mood, or theme.",
+            "url": "/journal/tags/",
+            "keywords": "journal tags,tags,organize entries,label entries,categorize journal",
+            "module": "journal",
+            "sort_order": 181,
+            "is_active": true,
+            "created_at": "2026-02-19T00:00:00Z",
+            "updated_at": "2026-02-19T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 128,
+        "fields": {
+            "destination_id": "purpose-home",
+            "name": "Purpose & Goals",
+            "path_description": "Goals",
+            "explanation": "Your goals hub with access to annual direction, goals, habits, intentions, and reflections.",
+            "url": "/purpose/",
+            "keywords": "purpose,goals home,goals hub,life purpose,planning,personal development",
+            "module": "purpose",
+            "sort_order": 182,
+            "is_active": true,
+            "created_at": "2026-02-19T00:00:00Z",
+            "updated_at": "2026-02-19T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 129,
+        "fields": {
+            "destination_id": "life-home",
+            "name": "Organize",
+            "path_description": "Organize",
+            "explanation": "Your organization hub for tasks, projects, calendar, recipes, inventory, documents, pets, maintenance, and significant events.",
+            "url": "/life/",
+            "keywords": "organize,life,life home,tools,household,management",
+            "module": "life",
+            "sort_order": 183,
+            "is_active": true,
+            "created_at": "2026-02-19T00:00:00Z",
+            "updated_at": "2026-02-19T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 130,
+        "fields": {
+            "destination_id": "google-calendar",
+            "name": "Google Calendar",
+            "path_description": "Organize - Calendar - Google Calendar",
+            "explanation": "Connect and configure Google Calendar integration to sync events between WLJ and your Google Calendar.",
+            "url": "/life/calendar/google/",
+            "keywords": "google calendar,sync calendar,connect google,calendar integration,google sync,import events",
+            "module": "life",
+            "sort_order": 184,
+            "is_active": true,
+            "created_at": "2026-02-19T00:00:00Z",
+            "updated_at": "2026-02-19T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 131,
+        "fields": {
+            "destination_id": "gmail-integration",
+            "name": "Gmail Integration",
+            "path_description": "Organize - Gmail",
+            "explanation": "Connect Gmail to automatically detect events, tasks, and reminders from your email.",
+            "url": "/life/gmail/",
+            "keywords": "gmail,email,connect gmail,email integration,automatic events,email sync",
+            "module": "life",
+            "sort_order": 185,
+            "is_active": true,
+            "created_at": "2026-02-19T00:00:00Z",
+            "updated_at": "2026-02-19T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 132,
+        "fields": {
+            "destination_id": "fitness-home",
+            "name": "Fitness",
+            "path_description": "Health - Fitness",
+            "explanation": "Your fitness hub with access to workout logging, workout history, templates, personal records, and progress tracking.",
+            "url": "/health/physical/fitness/",
+            "keywords": "fitness,fitness home,workouts,exercise,gym,training,fitness hub",
+            "module": "health",
+            "sort_order": 186,
+            "is_active": true,
+            "created_at": "2026-02-19T00:00:00Z",
+            "updated_at": "2026-02-19T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 133,
+        "fields": {
+            "destination_id": "fitness-progress",
+            "name": "Fitness Progress",
+            "path_description": "Health - Fitness - Progress",
+            "explanation": "View your workout progress over time with charts showing volume, frequency, and exercise-specific trends.",
+            "url": "/health/physical/fitness/progress/",
+            "keywords": "fitness progress,workout progress,exercise trends,volume,gains,improvement,fitness charts",
+            "module": "health",
+            "sort_order": 187,
+            "is_active": true,
+            "created_at": "2026-02-19T00:00:00Z",
+            "updated_at": "2026-02-19T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 134,
+        "fields": {
+            "destination_id": "workout-history",
+            "name": "Workout History",
+            "path_description": "Health - Fitness - History",
+            "explanation": "Browse your past workouts, filter by date or exercise type, and review details of completed sessions.",
+            "url": "/health/physical/fitness/workouts/",
+            "keywords": "workout history,past workouts,workout list,exercise history,training log,gym history",
+            "module": "health",
+            "sort_order": 188,
+            "is_active": true,
+            "created_at": "2026-02-19T00:00:00Z",
+            "updated_at": "2026-02-19T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 135,
+        "fields": {
+            "destination_id": "nutrition-stats",
+            "name": "Nutrition Stats",
+            "path_description": "Health - Nutrition - Stats",
+            "explanation": "View your nutrition statistics including calorie averages, macro breakdowns, and eating pattern trends.",
+            "url": "/health/physical/nutrition/stats/",
+            "keywords": "nutrition stats,calorie stats,macro stats,nutrition trends,eating patterns,diet stats",
+            "module": "health",
+            "sort_order": 189,
+            "is_active": true,
+            "created_at": "2026-02-19T00:00:00Z",
+            "updated_at": "2026-02-19T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 136,
+        "fields": {
+            "destination_id": "nutrition-goals",
+            "name": "Nutrition Goals",
+            "path_description": "Health - Nutrition - Goals",
+            "explanation": "Set your daily calorie, protein, carb, and fat targets to track your nutrition against goals.",
+            "url": "/health/physical/nutrition/goals/",
+            "keywords": "nutrition goals,calorie goal,macro goals,protein target,calorie target,diet goals",
+            "module": "health",
+            "sort_order": 190,
+            "is_active": true,
+            "created_at": "2026-02-19T00:00:00Z",
+            "updated_at": "2026-02-19T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 137,
+        "fields": {
+            "destination_id": "custom-foods",
+            "name": "Custom Foods",
+            "path_description": "Health - Nutrition - Custom Foods",
+            "explanation": "Create and manage your own custom food items with specific nutrition data for foods not in the database.",
+            "url": "/health/physical/nutrition/foods/",
+            "keywords": "custom food,create food,add food,my foods,food database,custom nutrition,homemade food",
+            "module": "health",
+            "sort_order": 191,
+            "is_active": true,
+            "created_at": "2026-02-19T00:00:00Z",
+            "updated_at": "2026-02-19T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 138,
+        "fields": {
+            "destination_id": "food-history",
+            "name": "Food History",
+            "path_description": "Health - Nutrition - History",
+            "explanation": "Browse your food logging history to review past meals, calories, and nutrition data over time.",
+            "url": "/health/physical/nutrition/history/",
+            "keywords": "food history,meal history,nutrition history,past meals,what I ate,food log history",
+            "module": "health",
+            "sort_order": 192,
+            "is_active": true,
+            "created_at": "2026-02-19T00:00:00Z",
+            "updated_at": "2026-02-19T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 139,
+        "fields": {
+            "destination_id": "medicine-adherence",
+            "name": "Medicine Adherence",
+            "path_description": "Health - Medicine - Adherence",
+            "explanation": "View your medication adherence statistics showing how consistently you take your medicines on schedule.",
+            "url": "/health/physical/medicine/adherence/",
+            "keywords": "medicine adherence,medication compliance,adherence rate,missed doses,medicine stats",
+            "module": "health",
+            "sort_order": 193,
+            "is_active": true,
+            "created_at": "2026-02-19T00:00:00Z",
+            "updated_at": "2026-02-19T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 140,
+        "fields": {
+            "destination_id": "medicine-history",
+            "name": "Medicine History",
+            "path_description": "Health - Medicine - History",
+            "explanation": "View your medication history showing when you took or skipped each dose, with the ability to log past doses.",
+            "url": "/health/physical/medicine/history/",
+            "keywords": "medicine history,medication history,dose history,past doses,medicine log",
+            "module": "health",
+            "sort_order": 194,
+            "is_active": true,
+            "created_at": "2026-02-19T00:00:00Z",
+            "updated_at": "2026-02-19T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 141,
+        "fields": {
+            "destination_id": "cycle-calendar",
+            "name": "Cycle Calendar",
+            "path_description": "Health - Cycle - Calendar",
+            "explanation": "View your cycle data on a monthly calendar showing period days, predicted fertile windows, and logged symptoms.",
+            "url": "/health/physical/cycle/calendar/",
+            "keywords": "cycle calendar,period calendar,menstrual calendar,fertility calendar,cycle view",
+            "module": "health",
+            "sort_order": 195,
+            "is_active": true,
+            "created_at": "2026-02-19T00:00:00Z",
+            "updated_at": "2026-02-19T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 142,
+        "fields": {
+            "destination_id": "dexcom-connect",
+            "name": "Dexcom CGM",
+            "path_description": "Health - Glucose - Dexcom",
+            "explanation": "Connect your Dexcom continuous glucose monitor to automatically sync glucose readings into WLJ.",
+            "url": "/health/physical/glucose/dexcom/connect/",
+            "keywords": "dexcom,cgm,continuous glucose monitor,glucose sync,connect dexcom,blood sugar monitor",
+            "module": "health",
+            "sort_order": 196,
+            "is_active": true,
+            "created_at": "2026-02-19T00:00:00Z",
+            "updated_at": "2026-02-19T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 143,
+        "fields": {
+            "destination_id": "finance-accounts",
+            "name": "Financial Accounts",
+            "path_description": "Finance - Accounts",
+            "explanation": "Manage your bank accounts, credit cards, and cash accounts. Track balances and view account details.",
+            "url": "/finance/accounts/",
+            "keywords": "accounts,bank accounts,credit card,checking,savings,financial accounts,add account",
+            "module": "finance",
+            "sort_order": 197,
+            "is_active": true,
+            "created_at": "2026-02-19T00:00:00Z",
+            "updated_at": "2026-02-19T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 144,
+        "fields": {
+            "destination_id": "finance-metrics",
+            "name": "Financial Reports",
+            "path_description": "Finance - Reports",
+            "explanation": "View financial reports including spending trends, income vs expenses, and category breakdowns.",
+            "url": "/finance/metrics/",
+            "keywords": "financial reports,spending report,income report,expense report,finance metrics,money trends",
+            "module": "finance",
+            "sort_order": 198,
+            "is_active": true,
+            "created_at": "2026-02-19T00:00:00Z",
+            "updated_at": "2026-02-19T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 145,
+        "fields": {
+            "destination_id": "finance-categories",
+            "name": "Finance Categories",
+            "path_description": "Finance - Categories",
+            "explanation": "View and manage your transaction categories for organizing expenses and income.",
+            "url": "/finance/categories/",
+            "keywords": "categories,expense categories,transaction categories,finance categories,spending categories",
+            "module": "finance",
+            "sort_order": 199,
+            "is_active": true,
+            "created_at": "2026-02-19T00:00:00Z",
+            "updated_at": "2026-02-19T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 146,
+        "fields": {
+            "destination_id": "finance-import",
+            "name": "Import Transactions",
+            "path_description": "Finance - Import",
+            "explanation": "Import transactions from CSV files or bank exports to quickly populate your financial records.",
+            "url": "/finance/import/",
+            "keywords": "import,csv,bank export,import transactions,upload transactions,financial import",
+            "module": "finance",
+            "sort_order": 200,
+            "is_active": true,
+            "created_at": "2026-02-19T00:00:00Z",
+            "updated_at": "2026-02-19T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 147,
+        "fields": {
+            "destination_id": "finance-connections",
+            "name": "Bank Connections",
+            "path_description": "Finance - Bank Connections",
+            "explanation": "Connect your bank accounts via Plaid for automatic transaction syncing. Manage connected accounts and sync status.",
+            "url": "/finance/connections/",
+            "keywords": "bank connection,plaid,connect bank,link bank,automatic sync,bank sync,connected accounts",
+            "module": "finance",
+            "sort_order": 201,
+            "is_active": true,
+            "created_at": "2026-02-19T00:00:00Z",
+            "updated_at": "2026-02-19T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 148,
+        "fields": {
+            "destination_id": "scan-history",
+            "name": "Scan History",
+            "path_description": "Scan - History",
+            "explanation": "View your past camera scans including food and medicine recognition results.",
+            "url": "/scan/history/",
+            "keywords": "scan history,past scans,food scans,medicine scans,scan log",
+            "module": "scan",
+            "sort_order": 202,
+            "is_active": true,
+            "created_at": "2026-02-19T00:00:00Z",
+            "updated_at": "2026-02-19T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 149,
+        "fields": {
+            "destination_id": "billing-settings",
+            "name": "Billing Settings",
+            "path_description": "Billing - Settings",
+            "explanation": "View your current subscription, manage payment methods, access the customer portal, or cancel your plan.",
+            "url": "/billing/settings/",
+            "keywords": "billing settings,subscription settings,manage subscription,cancel plan,payment method,billing portal",
+            "module": "billing",
+            "sort_order": 203,
+            "is_active": true,
+            "created_at": "2026-02-19T00:00:00Z",
+            "updated_at": "2026-02-19T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 150,
+        "fields": {
+            "destination_id": "billing-credits",
+            "name": "Credit History",
+            "path_description": "Billing - Credits",
+            "explanation": "View your earned credits from referrals and promotions, and see how they have been applied to your account.",
+            "url": "/billing/credits/",
+            "keywords": "credits,credit history,referral credits,earned credits,account credits,billing credits",
+            "module": "billing",
+            "sort_order": 204,
+            "is_active": true,
+            "created_at": "2026-02-19T00:00:00Z",
+            "updated_at": "2026-02-19T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 151,
+        "fields": {
+            "destination_id": "security-dashboard",
+            "name": "Security Dashboard",
+            "path_description": "Security - Dashboard",
+            "explanation": "View security assessment results, findings, and improvement metrics for monitoring application security.",
+            "url": "/security/dashboard/",
+            "keywords": "security,security dashboard,security assessment,vulnerabilities,findings,security review",
+            "module": "security",
+            "sort_order": 205,
+            "is_active": true,
+            "created_at": "2026-02-19T00:00:00Z",
+            "updated_at": "2026-02-19T00:00:00Z"
+        }
     }
 ]

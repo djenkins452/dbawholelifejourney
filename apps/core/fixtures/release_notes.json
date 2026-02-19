@@ -802,5 +802,85 @@
             "created_at": "2026-02-15T00:00:00Z",
             "updated_at": "2026-02-15T00:00:00Z"
         }
+    },
+    {
+        "model": "core.releasenote",
+        "pk": 52,
+        "fields": {
+            "title": "Voice Conversation Mode",
+            "description": "Talk to your AI assistant hands-free. Click the microphone to start a voice conversation \u2014 the mic stays active through the full speak, AI responds, text-to-speech, speak again cycle. No more stopping and starting between each message. Works in both the Chief of Staff command mode and the chat widget. The AI responds conversationally when you speak, and you can choose your preferred text-to-speech voice.",
+            "entry_type": "feature",
+            "version": "",
+            "release_date": "2026-02-19",
+            "is_published": true,
+            "is_major": true,
+            "learn_more_url": "",
+            "created_at": "2026-02-19T00:00:00Z",
+            "updated_at": "2026-02-19T00:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
+        "pk": 53,
+        "fields": {
+            "title": "Relationship Tracking",
+            "description": "Keep important relationships healthy with automatic interaction tracking. The system learns who matters to you from your journal entries and reflections, tracks when you last connected, and gently nudges you when it has been too long. View your tracked relationships in Chief of Staff Settings with importance tiers and contact cadence targets.",
+            "entry_type": "feature",
+            "version": "",
+            "release_date": "2026-02-19",
+            "is_published": true,
+            "is_major": true,
+            "learn_more_url": "",
+            "created_at": "2026-02-19T00:00:00Z",
+            "updated_at": "2026-02-19T00:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
+        "pk": 54,
+        "fields": {
+            "title": "Workout Plans & Training Splits",
+            "description": "Organize your training with structured workout plans. Group your workout templates into named programs, assign them to specific days of the week with preferred times, and follow a consistent training split. Link plans to your transformation protocol for integrated progress tracking.",
+            "entry_type": "feature",
+            "version": "",
+            "release_date": "2026-02-19",
+            "is_published": true,
+            "is_major": false,
+            "learn_more_url": "",
+            "created_at": "2026-02-19T00:00:00Z",
+            "updated_at": "2026-02-19T00:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
+        "pk": 55,
+        "fields": {
+            "title": "Post-Event Reflection Check-ins",
+            "description": "After significant events like work meetings, social gatherings, or workouts, your Chief of Staff queues a brief morning check-in. Answer a few quick questions about how it went, capture action items, or skip if it is not relevant. Reflections appear in your command mode panel and can be toggled on or off in CoS Settings.",
+            "entry_type": "feature",
+            "version": "",
+            "release_date": "2026-02-19",
+            "is_published": true,
+            "is_major": false,
+            "learn_more_url": "",
+            "created_at": "2026-02-19T00:00:00Z",
+            "updated_at": "2026-02-19T00:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
+        "pk": 56,
+        "fields": {
+            "title": "Smart Scheduling with Conflict Detection",
+            "description": "When you create events through the AI assistant, it now checks for conflicts with your protected commitments and warns you before double-booking. Your daily capacity automatically updates and new events sync to Google Calendar if connected.",
+            "entry_type": "enhancement",
+            "version": "",
+            "release_date": "2026-02-19",
+            "is_published": true,
+            "is_major": false,
+            "learn_more_url": "",
+            "created_at": "2026-02-19T00:00:00Z",
+            "updated_at": "2026-02-19T00:00:00Z"
+        }
     }
 ]

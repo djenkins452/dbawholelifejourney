@@ -1514,5 +1514,53 @@
             "created_at": "2026-02-15T00:00:00Z",
             "updated_at": "2026-02-15T00:00:00Z"
         }
+    },
+    {
+        "model": "help.helptopic",
+        "pk": 97,
+        "fields": {
+            "context_id": "MEAL_TEMPLATES",
+            "help_id": "meal-templates",
+            "title": "Meal Templates: Save & Reuse Your Meals",
+            "description": "Create reusable meal templates from your daily nutrition log for one-tap meal logging.",
+            "content": "## Meal Templates\n\nMeal templates let you save meals you eat regularly so you can log them again with one tap.\n\n### Creating a Template\n\n1. Go to **Nutrition Home** and find a meal you want to save\n2. Click **Save as Template** on the meal\n3. Give it a name (e.g., \"Monday Breakfast\", \"Post-Workout Shake\")\n4. The template saves all food items with their portions\n\n### Using a Template\n\n1. Go to **Meal Templates** from the Nutrition menu\n2. Click **Use Template** on any saved template\n3. Choose the date and meal slot to apply it to\n4. All food items are logged instantly\n\n### Managing Templates\n\n- **Edit** — Change the template name or adjust food items and portions\n- **Delete** — Remove templates you no longer use\n- Templates are listed with their total calories and macro breakdown\n\n### Tips\n\n- Save your most common meals as templates to speed up daily logging\n- You can have as many templates as you like\n- Template nutrition values update if you edit the food items",
+            "app_name": "health",
+            "order": 97,
+            "is_active": true,
+            "created_at": "2026-02-19T00:00:00Z",
+            "updated_at": "2026-02-19T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.helptopic",
+        "pk": 98,
+        "fields": {
+            "context_id": "MEAL_TEMPLATE_EDIT",
+            "help_id": "meal-template-edit",
+            "title": "Edit Meal Template",
+            "description": "Modify your saved meal template name, food items, and portion sizes.",
+            "content": "## Edit Meal Template\n\nAdjust your saved meal template to keep it up to date with what you actually eat.\n\n### What You Can Change\n\n- **Template Name** — Rename it to something more descriptive\n- **Food Items** — Add or remove individual food entries\n- **Portion Sizes** — Adjust serving amounts for any item\n\n### How to Edit\n\n1. Go to **Meal Templates** from the Nutrition menu\n2. Click the template you want to change\n3. Make your edits\n4. Click **Save** to update the template\n\n### Deleting a Template\n\nIf you no longer need a template, click **Delete** on the template detail page. This does not affect any meals you previously logged using that template.\n\n### Tips\n\n- Update portion sizes if your serving habits change\n- Templates are personal — only you can see and edit yours",
+            "app_name": "health",
+            "order": 98,
+            "is_active": true,
+            "created_at": "2026-02-19T00:00:00Z",
+            "updated_at": "2026-02-19T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.helptopic",
+        "pk": 99,
+        "fields": {
+            "context_id": "ADMIN_GUIDE_MANAGE",
+            "help_id": "admin-guide-manage",
+            "title": "Manage Admin Guide Articles",
+            "description": "Create, edit, and organize supplemental admin guide articles alongside code-maintained documentation.",
+            "content": "## Manage Admin Guide Articles\n\nThis page lets staff manage supplemental articles in the Admin Guide. Core documentation articles are maintained through code deployments and cannot be edited here.\n\n### Article Types\n\n- **Core Articles** — Locked. Maintained through code and auto-synced on deploy. Shown with a lock icon.\n- **Supplemental Articles** — Editable. Created and managed from this page.\n\n### Creating an Article\n\n1. Click **Add Article**\n2. Choose the **Section** it belongs to\n3. Enter a **Title** and **Content** (Markdown supported)\n4. Set the **Sort Order** to control position within the section\n5. Click **Save**\n\n### Editing & Deleting\n\n- Click any supplemental article to edit its title, content, section, or sort order\n- Click **Delete** to remove an article permanently\n- Core articles cannot be edited or deleted from this interface\n\n### Tips\n\n- Use supplemental articles for team-specific procedures, temporary notices, or operational guides\n- Core articles are the authoritative source for system documentation",
+            "app_name": "admin_console",
+            "order": 99,
+            "is_active": true,
+            "created_at": "2026-02-19T00:00:00Z",
+            "updated_at": "2026-02-19T00:00:00Z"
+        }
     }
 ]

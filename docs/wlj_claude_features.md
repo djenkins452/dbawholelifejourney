@@ -4,7 +4,7 @@
 # Description: Detailed feature documentation for reference when needed
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-14
+# Last Updated: 2026-02-19
 # ==============================================================================
 
 # WLJ Feature Documentation
@@ -46,6 +46,15 @@ For core project context, see `CLAUDE.md` (project root).
 28. [Brain Training (Cognitive Health)](#brain-training-cognitive-health) *(Jan 2026)*
 29. [Dashboard Performance & Caching](#dashboard-performance--caching) *(Jan 2026)*
 30. [Medicine Adherence Calculation](#medicine-adherence-calculation) *(Jan 2026)*
+31. [Chief of Staff — Personal Operating System](#chief-of-staff--personal-operating-system) *(Feb 2026)*
+32. [Voice Conversation Mode](#voice-conversation-mode) *(Feb 2026)*
+33. [Finance Module](#finance-module) *(Feb 2026)*
+34. [Nutrition Log Upgrade](#nutrition-log-upgrade) *(Feb 2026)*
+35. [Intelligence Engine Stack](#intelligence-engine-stack) *(Jan-Feb 2026)*
+36. [Body Transformation Protocol](#body-transformation-protocol) *(Feb 2026)*
+37. [Admin Guide](#admin-guide) *(Feb 2026)*
+38. [Workout Plans & Training Splits](#workout-plans--training-splits) *(Feb 2026)*
+39. [Additional Jan-Feb 2026 Enhancements](#additional-jan-feb-2026-enhancements)
 
 ---
 
@@ -2567,6 +2576,247 @@ Counts ALL expected doses based on schedule, minus intentionally skipped ones. M
 
 ---
 
+## Chief of Staff — Personal Operating System
+
+### Overview
+The Chief of Staff (CoS) is the app's Life Operating System layer. It sits on top of all WLJ data and intelligence engines to orchestrate the user's day — building daily plans, detecting drift from commitments, and intervening at the right level.
+
+### Personal Operating Blueprint
+Users configure their blueprint at `/api/blueprint/` defining:
+- **Operating Style** — Executive CoS, Calm Guide, Minimal, Coach, or Custom
+- **Life Pillars** — Ranked list of what matters most (Faith, Health, Purpose, etc.)
+- **Tier 1 Protected Behaviors** — Identity-defining non-negotiables protected aggressively
+- **Interruption Tolerance** — Low/Medium/High controls intervention aggressiveness
+- **Sleep & Wake Preferences** — Target duration and wake time policy
+
+### Non-Negotiables
+Behaviors that must happen every day (or on specific days):
+- Each has a behavior key, time window, frequency, and optional hard deadline
+- Tier 1 non-negotiables are protected by Rule B: only displaced if all other options exhausted
+- The system monitors completion and escalates if deadlines approach
+
+### Daily Architecture Engine
+Each night, the system builds tomorrow's plan:
+1. Sleep blocks placed first
+2. Tier 1 non-negotiables scheduled in preferred windows
+3. Calendar events and tasks fill remaining time
+4. Buffer blocks added for transitions
+5. If disrupted ("curveball"), the system re-optimizes around it
+
+### Drift Detection
+- **Drift Events** — Missed medications, skipped workouts, broken fasts, etc.
+- **Drift Score** — Daily aggregate (0-100) weighted by tier importance
+- **Drift Prediction** — 24h/72h probability of future drift
+
+### Intervention Engine (5 Levels)
+| Level | Name | Behavior |
+|-------|------|----------|
+| 0 | Silent | Logged but not shown |
+| 1 | Nudge | Subtle reminder |
+| 2 | Ping | Attention-getting notification |
+| 3 | Interrupt | Modal or prominent alert |
+| 4 | Friction Gate | Must acknowledge with evidence before proceeding |
+
+### CoS UI Components
+- **Command Mode** — Full-screen dashboard with plan, drift status, alerts, text/voice input
+- **Assistant Panel** — Pinned right panel (desktop) / pull-up panel (mobile) with plan-at-a-glance
+- **Arrival Briefing** — Morning summary shown when user first visits the dashboard
+- **Command Brief** — Weekly pressure points and upcoming commitments
+- **Chat Widget** — Floating chat drawer for quick AI conversations
+
+### Proactive Questions & Calibration
+During initial calibration, the CoS asks getting-to-know-you questions. After calibration, it continues with relationship-deepening questions. Learned profile data (values, sacred items, goals) is injected into the system prompt for personalization.
+
+### Post-Event Reflection Loops
+After significant events, the system queues a brief morning reflection check-in. Users answer a few questions about how the event went and capture action items.
+
+### Relationship Intelligence
+Tracks important people with relationship types, importance tiers, and interaction cadence targets. Detects when the user hasn't connected with someone too long and suggests reconnection. People are extracted from journal entries and reflections.
+
+### Governance Onboarding
+When a user first enables the CoS, a governance session classifies their enabled modules, sets up non-negotiables, and asks for the CoS display name.
+
+### Configurable Display Name
+Users can rename the CoS via settings or natural language ("Call yourself Max"). The name persists in `UserPreferences.cos_display_name` and is available as `{{ cos_display_name }}` in all templates.
+
+### Key Files
+- `apps/core/blueprint/` — All CoS models, governance, engines, human language
+- `apps/core/ai_governance/` — Alignment sessions, governance profile
+- `templates/components/cos_command_mode.html` — Command mode UI
+- `templates/components/assistant_panel.html` — Assistant panel UI
+- `templates/components/cos_arrival_briefing.html` — Morning briefing
+- `templates/ai/cos_settings.html` — CoS settings page
+- `apps/dashboard/views.py` — Dashboard views with CoS context
+
+---
+
+## Voice Conversation Mode
+
+### Overview
+Users can have hands-free voice conversations with the AI assistant. The microphone stays active through the full speak → AI responds → TTS → speak again cycle, eliminating the choppy start/stop between each utterance.
+
+### How It Works
+1. User clicks the microphone button in Command Mode or the Chat Widget
+2. Web Speech API captures speech and converts to text
+3. Text is sent to the AI API with `voice_input: true` in page_context
+4. System prompt injects voice-mode instructions so AI responds conversationally (no markdown, no bullet points)
+5. Response is spoken via SpeechSynthesis text-to-speech
+6. Mic reactivates for the next utterance
+7. User clicks mic again to exit voice mode
+
+### TTS Voice Selection
+Priority-ordered voice selection: Samantha (macOS) > Karen > Moira > Google US English > first English non-male voice. Rate: 0.95, Pitch: 1.05 for warmth.
+
+### Key Files
+- `templates/components/cos_command_mode.html` — Voice input/output in command mode
+- `templates/components/chat_widget.html` — Voice input/output in chat drawer
+- `apps/ai/personal_assistant.py` — Voice-mode system prompt injection
+
+---
+
+## Finance Module
+
+### Overview
+The finance module (`apps/finance/`) provides personal financial tracking with bank connections, transactions, budgets, and reports. Currently gated behind the `finance_enabled` feature flag.
+
+### Features
+- **Bank Connections** — Connect bank accounts via Plaid for automatic transaction syncing
+- **Accounts** — Track bank accounts, credit cards, and cash accounts with balances
+- **Transactions** — View, categorize, and search financial transactions
+- **Categories** — Manage transaction categories for expense/income organization
+- **Budgets** — Set monthly budgets by category and track spending
+- **Recurring Transactions** — Define recurring income/expenses for forecasting
+- **Reports** — Spending trends, income vs expenses, category breakdowns
+- **CSV Import** — Import transactions from bank CSV exports
+
+### Key Files
+- `apps/finance/` — Models, views, services
+- `apps/finance/plaid_service.py` — Plaid integration
+- `templates/finance/` — All finance templates
+- `apps/finance/urls.py` — URL patterns
+
+---
+
+## Nutrition Log Upgrade
+
+### Overview (Feb 2026)
+Major 7-phase rebuild of the nutrition tracking system, improving data accuracy, adding copy/template features, and polishing the mobile experience.
+
+### Phase Highlights
+1. **Data Model Redesign** — Snapshot nutrients at log time, audit trails, meal templates, overrides, label evidence
+2. **Correct Nutrient Math** — Nutrients stored per-serving with multiplier, not pre-multiplied
+3. **Copy Features** — Copy individual food entries, entire meals, or full days to other dates
+4. **Meal Templates** — Save frequently-eaten meals as reusable templates for one-tap logging
+5. **Barcode Accuracy** — FatSecret barcode integration with per-serving validation
+6. **Source Badges** — Visual indicators showing where nutrition data came from (FatSecret, AI, Saved, Manual)
+7. **UI/UX Polish** — Date navigation arrows, sticky daily totals, improved mobile forms
+
+### Key Files
+- `apps/health/views.py` — Nutrition views (NutritionHomeView, FoodEntryCreateView, etc.)
+- `apps/health/models.py` — FoodEntry, MealTemplate models
+- `templates/health/nutrition/` — Nutrition templates
+
+---
+
+## Intelligence Engine Stack
+
+### Overview
+The app uses a 14-engine cognitive pipeline organized in three phases. For full architecture details, see `docs/INTELLIGENCE_ARCHITECTURE.md`.
+
+### Phase 1: Interpretation Engines
+| Engine | Code | Purpose |
+|--------|------|---------|
+| Health Trend Interpretation | HTIE | Detects health data trends and anomalies |
+| Spiritual/Life Context Mapping | SLCME | Maps faith and life events to meaning |
+| User Activity Intelligence Observer | UAIO | Tracks user behavior patterns |
+
+### Phase 2: Execution Engines
+| Engine | Code | Purpose |
+|--------|------|---------|
+| Sentiment Understanding | SUE | Understands emotional tone in text |
+| Pattern & Gap Learning Optimizer | GLOE | Identifies behavioral patterns and gaps |
+| Dynamic Briefing | DBE | Generates personalized daily briefings |
+| Insight Synthesis | ISE | Combines multi-domain data into insights |
+| Weekly Intelligence Report | WIRE | Produces weekly intelligence summaries |
+
+### Phase 3: Post-Execution Engines
+| Engine | Code | Purpose |
+|--------|------|---------|
+| Proactive Insight | PIE | Fires domain-specific insights proactively |
+| Predictive Risk & Intervention | PRIE | Predicts risks and suggests interventions |
+| State Awareness | SAE | Maintains real-time state across domains |
+| Proactive Guidance | PGE | Generates actionable coaching guidance |
+| Evidence & Explainability | E3 | Provides evidence chains for AI decisions |
+| Delivery & Notification | DNE | Routes intelligence to the right channel |
+
+### Integration Pattern
+New features must: fire PIE events for insight detection, fire PRIE predictions for risk assessment, and register SAE state providers for real-time tracking. See `docs/ENGINE_INTEGRATION_GUIDE.md` for step-by-step patterns.
+
+---
+
+## Body Transformation Protocol
+
+### Overview
+Complete body transformation intelligence system enabling users to set protocols (cut, bulk, recomp, maintenance, custom) with target weight, body fat %, and end date. The AI monitors progress across all health domains.
+
+### Components
+- **TransformationProtocol model** — Protocol type, targets, date range
+- **Transformation Dashboard** (`/dashboard/transformation/`) — Trend charts for weight, body fat, calories, protein, fasting, workouts
+- **Transformation Score** — Composite 0-100 metric from nutrition compliance, fasting consistency, workout frequency, and recovery
+- **Momentum Score** — How many health domains are actively being engaged
+- **Shopping Lists** — ShoppingList/ShoppingItem models linked to protocols
+
+### Intelligence Integration
+All 4 post-execution engines are wired:
+- **SAE** — Real-time transformation state tracking
+- **PIE** — Calorie trend, protein deficit, workout plateau, fasting consistency insights
+- **PRIE** — Weight projection, strength progression, protocol success probability
+- **PGE** — Personalized coaching recommendations
+
+### Key Files
+- `apps/health/models.py` — TransformationProtocol, ShoppingList, ShoppingItem
+- `apps/dashboard/views.py` — TransformationDashboardView
+- `templates/dashboard/transformation/` — Dashboard templates
+
+---
+
+## Admin Guide
+
+### Overview
+Staff documentation system providing a comprehensive guide to the WLJ system. Available at `/admin-console/guide/`.
+
+### Structure
+- **20 sections, 54+ articles** covering system overview, intelligence architecture, all engines, modules, security, deployment, and developer reference
+- **Core articles** — Code-maintained, auto-synced on deploy, locked from editing
+- **Supplemental articles** — Created/edited by staff from the Manage Articles page
+- **Auto-synchronizing** — CoS documentation registry keeps admin guide in sync with code
+
+### Key Files
+- `apps/admin_console/models.py` — AdminGuideSection, AdminGuideArticle
+- `apps/admin_console/views.py` — AdminGuideView, AdminGuideManageView
+- `apps/admin_console/fixtures/admin_guide.json` — Fixture content
+- `templates/admin_console/guide/` — Guide templates
+
+---
+
+## Workout Plans & Training Splits
+
+### Overview
+Structured workout programming system allowing users to create named plans with day-of-week scheduling and template grouping.
+
+### Features
+- **WorkoutPlan model** — Named plan with optional link to transformation protocol
+- **WorkoutSchedule model** — Day-of-week assignment with preferred time and linked workout template
+- **Training Splits** — Organize templates into splits (Push/Pull, Upper/Lower, etc.)
+- **25 tests** covering model behavior and plan management
+
+### Key Files
+- `apps/health/models.py` — WorkoutPlan, WorkoutSchedule
+- `apps/health/views.py` — Plan management views
+- `apps/health/tests/` — Test coverage
+
+---
+
 ## Additional Jan-Feb 2026 Enhancements
 
 ### Scroll Position Preservation
@@ -2598,4 +2848,4 @@ Counts ALL expected doses based on schedule, minus intentionally skipped ones. M
 
 ---
 
-*Last updated: 2026-02-14*
+*Last updated: 2026-02-19*

@@ -11,6 +11,15 @@
 
 ## 2026-02-19
 
+- **Full documentation audit and catch-up — all user-facing docs updated**
+  - **CLAUDE.md**: Added mandatory documentation maintenance checklist (release notes, help topics, teaching destinations, features doc, fixture resets) to "On Task Completion" section so docs never fall behind again
+  - **Release notes** (`release_notes.json`): Added 5 missing entries (PKs 52-56) — Voice Conversation Mode, Relationship Tracking, Workout Plans & Training Splits, Post-Event Reflection Check-ins, Smart Scheduling with Conflict Detection
+  - **Help topics** (`help_topics.json`): Added 3 missing entries (PKs 97-99) — Meal Templates, Meal Template Edit, Admin Guide Manage Articles
+  - **Teaching destinations** (`teaching_destinations.json`): Added 30 missing page entries (PKs 122-151) covering module home pages (Faith, Journal, Purpose, Organize, Fitness), finance sub-pages (Accounts, Reports, Categories, Import, Connections), health sub-pages (Fitness Progress, Workout History, Nutrition Stats/Goals/History, Custom Foods, Cycle Calendar, Medicine Adherence/History, Dexcom CGM), faith pages (Reflections, Answered Prayers), integrations (Google Calendar, Gmail), and other pages (Journal Calendar/Tags, Scan History, Billing Settings/Credits, Security Dashboard)
+  - **Features doc** (`wlj_claude_features.md`): Added 9 missing feature sections — Chief of Staff (Personal Operating System), Voice Conversation Mode, Finance Module, Nutrition Log Upgrade, Intelligence Engine Stack, Body Transformation Protocol, Admin Guide, Workout Plans & Training Splits. Fixed Table of Contents (was missing 2 existing sections, added 9 new entries)
+  - **Fixture loader** (`load_initial_data.py`): Added one-time reset method `_reset_feb_2026_doc_audit_fixtures` to reload all 3 modified fixtures on deploy
+  - **Files:** `CLAUDE.md`, `docs/wlj_claude_features.md`, `docs/wlj_claude_changelog.md`, `apps/core/fixtures/release_notes.json`, `apps/help/fixtures/help_topics.json`, `apps/help/fixtures/teaching_destinations.json`, `apps/core/management/commands/load_initial_data.py`
+
 - **Slim CLAUDE.md to fix "prompt too long" errors**
   - Reduced CLAUDE.md from 553 lines (23KB) to 159 lines (6.6KB) — 72% reduction
   - Removed mandatory boot sequence that auto-loaded 2,651 lines of architecture docs every session

@@ -2008,19 +2008,22 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                         )
 
         # Record calibration answer if active (advance stage for next question)
+        # Skip if welcome was just shown this cycle — user is acknowledging
+        # the welcome, not answering a calibration question.
         try:
-            from apps.core.blueprint.cos_governance import (
-                get_calibration_state,
-                record_calibration_answer,
-            )
-            cal_state = get_calibration_state(self.user)
-            if (cal_state and cal_state['active']
-                    and not cal_state['paused']
-                    and cal_state.get('next_question')):
-                next_q = cal_state['next_question']
-                record_calibration_answer(
-                    self.user, next_q['key'], message[:500],
+            if not getattr(self, '_calibration_welcome_just_shown', False):
+                from apps.core.blueprint.cos_governance import (
+                    get_calibration_state,
+                    record_calibration_answer,
                 )
+                cal_state = get_calibration_state(self.user)
+                if (cal_state and cal_state['active']
+                        and not cal_state['paused']
+                        and cal_state.get('next_question')):
+                    next_q = cal_state['next_question']
+                    record_calibration_answer(
+                        self.user, next_q['key'], message[:500],
+                    )
         except Exception:
             pass  # Calibration tracking must never break chat
 
@@ -2561,6 +2564,9 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                             )
                             if not cal_state['welcome_shown']:
                                 mark_calibration_welcome_shown(self.user)
+                                # Flag so answer recording skips this cycle
+                                # (user is acknowledging welcome, not answering)
+                                self._calibration_welcome_just_shown = True
                 except Exception:
                     pass  # Calibration must never break chat
 

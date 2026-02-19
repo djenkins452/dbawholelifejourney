@@ -17,6 +17,12 @@
   - Files: `apps/core/blueprint/cos_governance.py`, `apps/ai/intents/calibration_intents.py` (new), `apps/ai/intents/__init__.py`, `apps/ai/action_handlers.py`, `apps/ai/intent_service.py`, `apps/core/ai_orchestrator/intent_engine.py`, `apps/ai/personal_assistant.py`, `apps/dashboard/views.py`, `apps/core/blueprint/tests.py`, `apps/core/management/commands/reset_calibration_conversational.py` (new), `docs/PHASE5_CALIBRATION_REWRITE_REPORT.md` (new)
   - Tests: 16 new tests in `ConversationalCalibrationTests`
 
+- **Fix:** Calibration welcome acknowledgment consumed as Q1 answer — added `_calibration_welcome_just_shown` flag to skip answer recording when user is acknowledging the welcome message, not answering a real question.
+  - Files: `apps/ai/personal_assistant.py`
+
+- **Fix:** Calibration reset now runs automatically on deploy via `load_initial_data.py` — no manual management command needed.
+  - Files: `apps/core/management/commands/load_initial_data.py`
+
 - **Fix:** Dashboard tiles grayed out — removed `data-mode-hidden` class that dimmed tiles when command mode active
   - Files: `templates/dashboard/home.html`
 

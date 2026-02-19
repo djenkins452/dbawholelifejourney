@@ -11,6 +11,9 @@
 
 ## 2026-02-19
 
+- **Fix:** Fix 403 Forbidden on first login attempt — removed `Vary: Cookie` header from `NoCacheHTMLMiddleware` and added `EnsureCSRFOnAuthPages` middleware to force fresh CSRF cookies on auth pages
+  - Files: `apps/core/middleware.py`, `config/settings.py`
+
 - **Fix Xcode build issues for iOS app**
   - Added `com.apple.developer.healthkit.background-delivery` entitlement to `WLJWrapper.entitlements`
   - Added 3 missing `HKWorkoutActivityType` cases to exhaustive switch in `HealthKitManager.swift`: `danceInspiredTraining` (deprecated), `mixedMetabolicCardioTraining` (deprecated), `other` (3000)

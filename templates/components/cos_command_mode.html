@@ -90,6 +90,22 @@ Requires: command_mode dict from DashboardView._get_command_mode()
         </div>
         {% endif %}
 
+        {# --- CoS Proactive Question --- #}
+        {% if command_mode.cos_question %}
+        <div class="cos-cm-proactive-question" id="cos-cm-proactive-question">
+            <div class="cos-cm-proactive-icon">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </div>
+            <div class="cos-cm-proactive-content">
+                <span class="cos-cm-proactive-label">Chief of Staff</span>
+                <p class="cos-cm-proactive-text" data-question="{{ command_mode.cos_question.question|escapejs }}">{{ command_mode.cos_question.question }}</p>
+            </div>
+            <button type="button" class="cos-cm-proactive-skip" data-action="skip-cos-question" title="Skip this question" aria-label="Skip question">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+        </div>
+        {% endif %}
+
         {# --- Chief of Staff Interaction --- #}
         <div class="cos-cm-input-area">
             <form class="cos-cm-form" id="cos-cm-form">
@@ -168,6 +184,12 @@ Requires: command_mode dict from DashboardView._get_command_mode()
     var speakBtn = document.getElementById('cos-cm-speak-btn');
     var sendBtn = cmForm.querySelector('.cos-cm-send');
 
+    /* If CoS question is displayed, adjust placeholder */
+    var proactiveQuestion = document.getElementById('cos-cm-proactive-question');
+    if (proactiveQuestion && cmInput) {
+        cmInput.placeholder = 'Respond to your Chief of Staff...';
+    }
+
     /* Wire up form submit */
     cmForm.addEventListener('submit', handleCommandModeInput);
 
@@ -206,7 +228,12 @@ Requires: command_mode dict from DashboardView._get_command_mode()
             },
             body: JSON.stringify({
                 message: text,
-                page_context: { url: '/', module: 'Dashboard', page_title: 'Dashboard' },
+                page_context: {
+                    url: '/',
+                    module: 'Dashboard',
+                    page_title: 'Dashboard',
+                    voice_input: lastInputWasVoice,
+                },
             }),
         })
         .then(function(r) { return r.json(); })
@@ -324,12 +351,58 @@ Requires: command_mode dict from DashboardView._get_command_mode()
         });
     }
 
+    var preferredVoice = null;
+
+    function loadPreferredVoice() {
+        var voices = window.speechSynthesis.getVoices();
+        if (!voices.length) return;
+
+        // Priority list: natural-sounding mid-range female voices
+        // Samantha (macOS/iOS) is warm and confident; Zira (Windows) is clear and professional
+        var preferred = [
+            'Samantha',         // macOS — warm, natural, mid-range female
+            'Karen',            // macOS — Australian, confident female
+            'Moira',            // macOS — Irish, warm female
+            'Google US English', // Chrome — decent quality
+            'Microsoft Zira',   // Windows — clear female
+            'Shelley',          // macOS enhanced
+        ];
+
+        for (var i = 0; i < preferred.length; i++) {
+            for (var j = 0; j < voices.length; j++) {
+                if (voices[j].name.indexOf(preferred[i]) !== -1 && voices[j].lang.indexOf('en') === 0) {
+                    preferredVoice = voices[j];
+                    return;
+                }
+            }
+        }
+
+        // Fallback: first English female-sounding voice (heuristic: not "Male"/"David"/"Daniel")
+        var maleNames = ['daniel', 'david', 'james', 'thomas', 'male', 'alex', 'fred'];
+        for (var k = 0; k < voices.length; k++) {
+            if (voices[k].lang.indexOf('en') === 0) {
+                var vName = voices[k].name.toLowerCase();
+                var isMale = maleNames.some(function(m) { return vName.indexOf(m) !== -1; });
+                if (!isMale) {
+                    preferredVoice = voices[k];
+                    return;
+                }
+            }
+        }
+    }
+
+    if ('speechSynthesis' in window) {
+        loadPreferredVoice();
+        window.speechSynthesis.onvoiceschanged = loadPreferredVoice;
+    }
+
     function speakResponse(text) {
         if (!('speechSynthesis' in window)) return;
-        window.speechSynthesis.cancel(); // Stop any ongoing speech
+        window.speechSynthesis.cancel();
         var utterance = new SpeechSynthesisUtterance(text);
-        utterance.rate = 1.0;
-        utterance.pitch = 1.0;
+        if (preferredVoice) utterance.voice = preferredVoice;
+        utterance.rate = 0.95;
+        utterance.pitch = 1.05;
         utterance.lang = 'en-US';
         window.speechSynthesis.speak(utterance);
     }
@@ -368,11 +441,18 @@ Requires: command_mode dict from DashboardView._get_command_mode()
         if (editBar) editBar.style.display = '';
     }
 
-    /* Wire up delegated clicks for reflections and data mode */
+    /* Wire up delegated clicks for reflections, data mode, and CoS question */
     document.addEventListener('click', function(e) {
         var skipBtn = e.target.closest('[data-action="skip-reflection"]');
         if (skipBtn) {
             skipReflection(skipBtn.dataset.reflectionId);
+            return;
+        }
+        var skipQBtn = e.target.closest('[data-action="skip-cos-question"]');
+        if (skipQBtn) {
+            var qBlock = document.getElementById('cos-cm-proactive-question');
+            if (qBlock) qBlock.style.display = 'none';
+            if (cmInput) cmInput.placeholder = 'Talk to your Chief of Staff...';
             return;
         }
         var dataModeLink = e.target.closest('[data-action="enter-data-mode"]');

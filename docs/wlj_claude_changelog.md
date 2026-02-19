@@ -11,6 +11,13 @@
 
 ## 2026-02-19
 
+- **Voice Conversation Improvements + Dashboard JS Fix**
+  - **Voice mode context**: When user speaks via microphone, `voice_input: true` is now passed in page_context to the AI API. System prompt injects voice-mode instructions so AI responds conversationally (no markdown, no bullet points, natural speech) instead of saying "I can't hear you"
+  - **TTS voice quality**: Replaced default robotic `SpeechSynthesis` voice with priority-ordered voice selection — prefers Samantha (macOS), Karen, Moira, or Google US English. Falls back to first English non-male voice. Slightly tuned rate (0.95) and pitch (1.05) for warmth
+  - **Chat widget voice parity**: Chat drawer now also passes `voice_input` flag and tracks `lastInputWasVoice` state, matching CoS command mode behavior
+  - **Fix toggleEditMode ReferenceError**: `window.toggleEditMode` was referenced at line 554 before being defined at line 646 in dashboard `home.html`. Moved definition to top of IIFE. This uncaught error was breaking all dashboard edit functionality
+  - Files: `templates/components/cos_command_mode.html`, `templates/components/chat_widget.html`, `templates/dashboard/home.html`, `apps/ai/personal_assistant.py`
+
 - **Chief of Staff Dashboard UX Overhaul — Human Language, Interaction, and Clarity**
   - **Priority warning transparency**: `human_language.py` `translate_risk_warning()` now extracts specific item names from warnings; `dashboard/views.py` passes `warning_context` with the actual commitment name. No more vague "One of your top priorities may need attention."
   - **Text input box enlarged**: Changed `<input>` to `<textarea rows="2">` in `cos_command_mode.html`; updated CSS for min-height 52px, Shift+Enter for newlines, Enter to submit

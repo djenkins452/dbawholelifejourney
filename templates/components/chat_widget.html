@@ -1319,13 +1319,20 @@
                 currentPageContext = getPageContext();
             }
 
+            // Tag voice input so AI responds conversationally
+            var sendContext = Object.assign({}, currentPageContext || {});
+            if (lastInputWasVoice) {
+                sendContext.voice_input = true;
+                lastInputWasVoice = false;
+            }
+
             let response;
 
             if (sentImage) {
                 // Use FormData for multipart upload with image
                 const formData = new FormData();
                 formData.append('message', message);
-                formData.append('page_context', JSON.stringify(currentPageContext || {}));
+                formData.append('page_context', JSON.stringify(sendContext));
 
                 // Convert base64 to Blob for file upload
                 const byteString = atob(sentImage.data);
@@ -1355,7 +1362,7 @@
                     },
                     body: JSON.stringify({
                         message: message,
-                        page_context: currentPageContext
+                        page_context: sendContext
                     }),
                     signal: controller.signal
                 });
@@ -1398,6 +1405,7 @@
     const voiceBtn = document.getElementById('assistant-voice-btn');
     let speechRecognition = null;
     let isListening = false;
+    let lastInputWasVoice = false;
 
     // Feature detection — show button only if supported
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -1433,6 +1441,7 @@
             if (transcript) {
                 input.value = transcript;
                 input.dispatchEvent(new Event('input', { bubbles: true }));
+                lastInputWasVoice = true;
                 // Auto-submit after voice capture
                 setTimeout(function() {
                     if (input.value.trim()) {

@@ -2491,6 +2491,17 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                 except Exception as gov_err:
                     logger.debug("Governance injection skipped: %s", gov_err)
 
+                # Inject learned user profile (values, goals, relationships, identity)
+                try:
+                    from apps.core.ai_learning.learning_extractor import (
+                        get_profile_system_prompt,
+                    )
+                    learned_block = get_profile_system_prompt(self.user)
+                    if learned_block:
+                        system_prompt = learned_block + "\n" + system_prompt
+                except Exception as lp_err:
+                    logger.debug("Learned profile injection skipped: %s", lp_err)
+
                 # Phase 5: Governance alignment session injection
                 try:
                     from apps.core.ai_governance.alignment_session import (
@@ -2690,6 +2701,20 @@ PAGE CONTEXT (where the user is currently viewing):
 {content_description}
 When the user asks about "this page", "this scripture", "this entry", etc., they are referring to the content above.
 Use this context to provide relevant, contextual help. For scripture questions, explain the passage and its meaning.
+"""
+
+            # Voice mode: user is speaking via microphone, response will be read aloud
+            if page_context.get('voice_input'):
+                system_prompt += """
+VOICE MODE — The user is speaking to you via voice input. Your response will be read aloud using text-to-speech.
+Rules for voice responses:
+- Write in natural, conversational speech — as if you're talking face-to-face
+- NO markdown formatting (no **, no ##, no bullet points, no numbered lists)
+- NO special characters or symbols that sound awkward when read aloud
+- Use short, clear sentences. Pause naturally with periods.
+- Be warm and direct — you're having a spoken conversation
+- Keep responses concise (2-4 sentences for simple questions)
+- Never say "I can't hear you" — the speech was transcribed to text before reaching you
 """
 
         # Process message for personal data queries (weight, journal, medication, food, mood)

@@ -538,6 +538,18 @@ body.edit-mode .tile-name-label {
     let isEditMode = false;
     const csrfToken = '{{ csrf_token }}';
 
+    // Edit mode toggle — defined early so references below can use it
+    window.toggleEditMode = function() {
+        isEditMode = !isEditMode;
+        document.body.classList.toggle('edit-mode', isEditMode);
+
+        const btn = document.getElementById('customize-btn');
+        const btnText = document.getElementById('customize-btn-text');
+
+        btn.classList.toggle('active', isEditMode);
+        btnText.textContent = isEditMode ? 'Done' : 'Customize';
+    };
+
     // Auto-enable edit mode if ?edit=1 in URL
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('edit') === '1') {
@@ -641,18 +653,8 @@ body.edit-mode .tile-name-label {
     });
 
     // =====================================
-    // Edit Mode Functions
+    // Edit Mode Functions (toggleEditMode defined above, near top of IIFE)
     // =====================================
-    window.toggleEditMode = function() {
-        isEditMode = !isEditMode;
-        document.body.classList.toggle('edit-mode', isEditMode);
-
-        const btn = document.getElementById('customize-btn');
-        const btnText = document.getElementById('customize-btn-text');
-
-        btn.classList.toggle('active', isEditMode);
-        btnText.textContent = isEditMode ? 'Done' : 'Customize';
-    };
 
     window.setTileVisibility = function(tileId, visible) {
         const wrapper = document.querySelector(`[data-tile-id="${tileId}"]`);

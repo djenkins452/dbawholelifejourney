@@ -2565,10 +2565,24 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                         mark_calibration_welcome_shown,
                     )
                     cal_state = get_calibration_state(self.user)
+                    logger.info(
+                        "Calibration check: user=%s state=%s",
+                        self.user.email,
+                        {k: v for k, v in (cal_state or {}).items()
+                         if k != 'next_question'} if cal_state else None
+                    )
                     if (cal_state and cal_state['active']
                             and not cal_state['paused']):
                         cal_injection = build_calibration_system_injection(
                             self.user)
+                        logger.info(
+                            "Calibration injection: user=%s len=%d "
+                            "first_100=%s",
+                            self.user.email,
+                            len(cal_injection) if cal_injection else 0,
+                            (cal_injection[:100] if cal_injection
+                             else 'EMPTY'),
+                        )
                         if cal_injection:
                             system_prompt = (
                                 system_prompt + "\n\n" + cal_injection
@@ -2578,8 +2592,11 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                                 # Flag so answer recording skips this cycle
                                 # (user is acknowledging welcome, not answering)
                                 self._calibration_welcome_just_shown = True
-                except Exception:
-                    pass  # Calibration must never break chat
+                except Exception as e:
+                    logger.error(
+                        "Calibration injection FAILED: %s", e,
+                        exc_info=True
+                    )
 
                 # Inject pending reflection context
                 try:

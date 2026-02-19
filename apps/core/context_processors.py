@@ -122,16 +122,26 @@ def theme_context(request):
             # Calibration state for chat auto-start
             context['calibration_active'] = False
             context['calibration_summary'] = ''
+            context['calibration_welcome_shown'] = False
+            context['calibration_stage'] = 0
             if prefs.personal_assistant_enabled:
                 try:
                     from apps.core.blueprint.cos_governance import (
                         get_calibration_state,
                         _gather_user_snapshot,
                         _build_data_summary,
+                        CALIBRATION_QUESTIONS,
                     )
                     cal_state = get_calibration_state(request.user)
                     if cal_state and cal_state['active'] and not cal_state['paused']:
                         context['calibration_active'] = True
+                        context['calibration_welcome_shown'] = cal_state.get(
+                            'welcome_shown', False)
+                        context['calibration_stage'] = cal_state.get('stage', 0)
+                        # Show "I'm Ready" once they've done at least one full pass
+                        context['calibration_can_finish'] = (
+                            cal_state.get('stage', 0) >= len(CALIBRATION_QUESTIONS)
+                        )
                         try:
                             snapshot = _gather_user_snapshot(request.user)
                             context['calibration_summary'] = _build_data_summary(

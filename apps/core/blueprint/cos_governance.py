@@ -203,9 +203,9 @@ CALIBRATION_WELCOME_NO_DATA = (
 CALIBRATION_WELCOME_MESSAGE = CALIBRATION_WELCOME_NO_DATA
 
 CALIBRATION_COMPLETION_MESSAGE = (
-    "That's everything I needed to ask. I have a much better picture of what "
-    "matters to you now. If I ever see your actions drifting from what you told "
-    "me matters, I will say something."
+    "Got it — I have a solid picture of what matters to you. From here on, "
+    "I'll be watching your data and speaking up when something needs your "
+    "attention. If I ever get it wrong, tell me."
 )
 
 # Standard "why" response — used when user asks why CoS is asking something
@@ -465,18 +465,19 @@ def advance_calibration_day(user):
     """
     Advance the calibration day counter by 1.
 
-    Called once per day on first interaction.
+    Called once per day on first interaction. Day counter is tracked
+    for analytics but does NOT trigger auto-completion — only the
+    user can mark calibration complete.
     """
     blueprint = _get_blueprint(user)
     if not blueprint or blueprint.calibration_complete:
         return
 
     blueprint.calibration_day = min(14, blueprint.calibration_day + 1)
-    if blueprint.calibration_day >= 14:
-        blueprint.calibration_complete = True
-
+    # NOTE: No auto-complete at day 14. Calibration completes only
+    # when the user explicitly says they're ready.
     blueprint.save(update_fields=[
-        'calibration_day', 'calibration_complete', 'updated_at',
+        'calibration_day', 'updated_at',
     ])
 
 
@@ -586,14 +587,15 @@ def get_calibration_state(user):
 
 def get_next_calibration_question(user):
     """
-    Get the next unanswered calibration question regardless of day.
+    Get the next calibration question.
 
-    No day-range gating, no daily cap. Returns None if calibration
-    is complete, paused, or all questions have been asked.
+    Questions CYCLE — after the last question, wraps back to the first.
+    Calibration only ends when the user explicitly says they're done.
+    Returns None if calibration is complete or paused.
 
     Returns:
         dict with key, question, category, follow_up, meaning_type,
-        question_number, total_questions — or None.
+        question_number, total_questions, pass_number — or None.
     """
     blueprint = _get_blueprint(user)
     if not blueprint:
@@ -606,23 +608,26 @@ def get_next_calibration_question(user):
         return None
 
     stage = overrides.get('calibration_stage', 0)
-    if stage >= len(CALIBRATION_QUESTIONS):
-        # All questions asked — mark complete
-        _complete_calibration(user, blueprint)
-        return None
+    total = len(CALIBRATION_QUESTIONS)
+    # Cycle: stage 11 → question 0 (second pass), stage 22 → question 0, etc.
+    q_index = stage % total
+    pass_number = (stage // total) + 1  # 1-based pass counter
 
-    q = CALIBRATION_QUESTIONS[stage]
+    q = CALIBRATION_QUESTIONS[q_index]
     return {
         **q,
-        'question_number': stage + 1,
-        'total_questions': len(CALIBRATION_QUESTIONS),
+        'question_number': q_index + 1,
+        'total_questions': total,
+        'pass_number': pass_number,
     }
 
 
 def advance_calibration_stage(user):
     """
     Advance to the next calibration question.
-    Called after the user answers a calibration question.
+
+    Questions cycle indefinitely — calibration never auto-completes.
+    Only the user can mark it done (via complete_calibration_by_user).
     """
     blueprint = _get_blueprint(user)
     if not blueprint:
@@ -631,13 +636,8 @@ def advance_calibration_stage(user):
     overrides = blueprint.governance_overrides or {}
     stage = overrides.get('calibration_stage', 0)
     overrides['calibration_stage'] = stage + 1
-
-    if stage + 1 >= len(CALIBRATION_QUESTIONS):
-        blueprint.governance_overrides = overrides
-        _complete_calibration(user, blueprint)
-    else:
-        blueprint.governance_overrides = overrides
-        blueprint.save(update_fields=['governance_overrides', 'updated_at'])
+    blueprint.governance_overrides = overrides
+    blueprint.save(update_fields=['governance_overrides', 'updated_at'])
 
 
 def record_calibration_answer(user, question_key, answer_text):
@@ -1367,11 +1367,24 @@ def build_calibration_system_injection(user):
     # Build data-aware question context
     q_context = _build_question_context(next_q['key'], snapshot)
 
+    pass_number = next_q.get('pass_number', 1)
+
     lines.append("## QUESTION YOU MUST ASK")
-    lines.append(
-        f"Question {next_q['question_number']} of {next_q['total_questions']}: "
-        f"{next_q['question']}"
-    )
+    if pass_number == 1:
+        lines.append(
+            f"Question {next_q['question_number']} of "
+            f"{next_q['total_questions']}: {next_q['question']}"
+        )
+    else:
+        lines.append(
+            f"Revisiting (pass {pass_number}): {next_q['question']}"
+        )
+        lines.append(
+            "They answered this before. Now dig deeper — ask follow-ups, "
+            "challenge assumptions, explore what's changed, or connect it "
+            "to something else they've shared. Don't repeat the same question "
+            "verbatim — build on what they told you."
+        )
     if q_context:
         lines.append(f"Data context for this question: {q_context}")
     lines.append("")
@@ -1383,16 +1396,23 @@ def build_calibration_system_injection(user):
 
     # Preview next question so AI can transition naturally
     next_stage = overrides.get('calibration_stage', 0) + 1
-    if next_stage < len(CALIBRATION_QUESTIONS):
-        peek_q = CALIBRATION_QUESTIONS[next_stage]
-        lines.append(
-            f"(After they answer, the next question will be: {peek_q['question']})"
-        )
-    else:
-        lines.append(
-            "This is the LAST question. After they answer, say something like: "
-            f'"{CALIBRATION_COMPLETION_MESSAGE}"'
-        )
+    total = len(CALIBRATION_QUESTIONS)
+    peek_index = next_stage % total
+    peek_q = CALIBRATION_QUESTIONS[peek_index]
+    lines.append(
+        f"(After they answer, the next topic will be: {peek_q['question']})"
+    )
+
+    lines.append("")
+    lines.append("## HOW THIS CONVERSATION WORKS")
+    lines.append(
+        "This is an open-ended relationship. There is NO fixed endpoint. "
+        "Questions cycle — after covering all topics once, you revisit them "
+        "to go deeper. The user can come back many times over days/weeks to "
+        "share more. They finish whenever THEY say they're ready (e.g., "
+        "'I think you know me well enough', 'let's get to work', "
+        "'finish the intro'). Until then, keep learning about them."
+    )
 
     lines.append("")
     lines.append("## RULES")
@@ -1404,13 +1424,17 @@ def build_calibration_system_injection(user):
         "4. If the user gave a thoughtful answer, briefly acknowledge it "
         "(1 sentence) then ask the next question.\n"
         "5. If they say 'pause', 'enough', 'later', or similar, respect "
-        "it immediately.\n"
+        "it immediately — they'll come back.\n"
         "6. Never use words like 'calibration', 'governance', 'stage', "
         "'tier', 'module classification', or 'identity pillar'.\n"
-        "7. Keep it conversational — you're getting to know a person, "
+        "7. Keep it conversational — you're building a relationship, "
         "not filling out a form.\n"
         "8. NEVER ask something you can already answer from their data. "
-        "State what you see, then ask them to confirm or correct."
+        "State what you see, then ask them to confirm or correct.\n"
+        "9. If the user wants to talk about something else (not a question), "
+        "let them — then gently steer back to the question when appropriate.\n"
+        "10. Never tell them how many questions are left or that questions "
+        "'cycle'. Just have a natural conversation."
     )
     lines.append("")
     lines.append("##############################################################")
@@ -1420,21 +1444,51 @@ def build_calibration_system_injection(user):
     return '\n'.join(lines)
 
 
-def _complete_calibration(user, blueprint=None):
-    """Mark calibration as complete and set final state."""
+def complete_calibration_by_user(user):
+    """
+    Mark calibration complete — called when the USER decides they're done.
+
+    This is the ONLY way calibration should end. Never auto-complete.
+    Triggered by:
+      - User says "I think you know me well enough" / "finish intro" / etc.
+      - User clicks "Introduction Complete" button
+      - The complete_calibration intent handler
+
+    Returns:
+        bool — True if completed, False if already complete or no blueprint.
+    """
+    blueprint = _get_blueprint(user)
     if not blueprint:
-        blueprint = _get_blueprint(user)
-    if not blueprint:
-        return
+        return False
+    if blueprint.calibration_complete:
+        return False
 
     blueprint.calibration_complete = True
     overrides = blueprint.governance_overrides or {}
     overrides['calibration_completed_at'] = timezone.now().isoformat()
-    overrides['calibration_version'] = 'conversational_v1'
+    overrides['calibration_version'] = 'conversational_v2'
+    stage = overrides.get('calibration_stage', 0)
+    total = len(CALIBRATION_QUESTIONS)
+    overrides['calibration_passes_completed'] = stage // total
+    overrides['calibration_questions_answered'] = stage
     blueprint.governance_overrides = overrides
     blueprint.save(update_fields=[
         'calibration_complete', 'governance_overrides', 'updated_at',
     ])
+    logger.info(
+        "Calibration completed by user: %s (answered %d questions, %d passes)",
+        user.email, stage, stage // total,
+    )
+    return True
+
+
+def _complete_calibration(user, blueprint=None):
+    """
+    Legacy auto-complete — now redirects to user-controlled completion.
+
+    Kept for backward compatibility but should not be called directly.
+    """
+    return complete_calibration_by_user(user)
 
 
 # Ongoing relationship questions — used after calibration is complete.

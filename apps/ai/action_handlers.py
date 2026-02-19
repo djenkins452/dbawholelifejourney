@@ -2696,3 +2696,38 @@ class ActionHandler:
                 message="Something went wrong, but I'll stop asking for now.",
                 error=str(e),
             )
+
+    def handle_complete_calibration(self, **kwargs) -> ActionResult:
+        """
+        Complete the getting-to-know-you introduction.
+        Only called when the user explicitly says they're ready.
+        """
+        try:
+            from apps.core.blueprint.cos_governance import (
+                complete_calibration_by_user,
+            )
+            result = complete_calibration_by_user(self.user)
+            if result:
+                return ActionResult(
+                    success=True,
+                    message=(
+                        "Got it — I have a solid picture of what matters to you. "
+                        "From here on, I'll be watching your data and speaking up "
+                        "when something needs your attention. If I ever get it wrong, "
+                        "tell me."
+                    ),
+                    action_type='complete_calibration',
+                )
+            else:
+                return ActionResult(
+                    success=True,
+                    message="Introduction is already complete — we're good to go.",
+                    action_type='complete_calibration',
+                )
+        except Exception as e:
+            logger.error(f"Error completing calibration: {e}", exc_info=True)
+            return ActionResult(
+                success=False,
+                message="Something went wrong, but I'll consider the intro done.",
+                error=str(e),
+            )

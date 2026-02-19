@@ -8,42 +8,81 @@ Requires: command_mode dict from DashboardView._get_command_mode()
 
 {% if calibration_active %}
 <div class="cos-greeting-banner cos-calibration-banner">
-    {% if calibration_summary %}
-    <p>I've already been looking at what you've been doing here. {{ calibration_summary }} But I want to understand what actually matters to you — your priorities, what drives you, and what I should protect when things get busy.</p>
+    {% if not calibration_welcome_shown %}
+        {# First visit — haven't started yet #}
+        {% if calibration_summary %}
+        <p>I've already been looking at what you've been doing here. {{ calibration_summary }} But I want to understand what actually matters to you — your priorities, what drives you, and what I should protect when things get busy.</p>
+        {% else %}
+        <p>I'm your Chief of Staff. Before I can help, I need to understand what matters to you — your priorities, what drives you, and how I can actually be useful.</p>
+        {% endif %}
+        <button type="button" class="cos-start-chat-btn" id="cos-start-calibration-btn">
+            Let's Go →
+        </button>
+    {% elif calibration_can_finish %}
+        {# They've done at least one full pass — show option to finish or continue #}
+        <p>We've covered a lot of ground. You can keep going — there's always more to learn — or if you're ready, I'll start working as your CoS.</p>
+        <div class="cos-calibration-actions">
+            <button type="button" class="cos-start-chat-btn" id="cos-continue-calibration-btn">
+                Keep Going →
+            </button>
+            <button type="button" class="cos-finish-intro-btn" id="cos-finish-intro-btn">
+                I'm Ready — Let's Work
+            </button>
+        </div>
     {% else %}
-    <p>I'm your Chief of Staff. Before I can help, I need to understand what matters to you — your priorities, what drives you, and how I can actually be useful.</p>
+        {# In progress — they've started but haven't finished first pass #}
+        <p>We're still getting to know each other. Pick up where we left off whenever you're ready.</p>
+        <button type="button" class="cos-start-chat-btn" id="cos-continue-calibration-btn">
+            Continue →
+        </button>
     {% endif %}
-    <button type="button" class="cos-start-chat-btn" id="cos-start-calibration-btn">
-        Let's Go →
-    </button>
 </div>
 <script nonce="{{ csp_nonce }}">
 (function() {
-    var btn = document.getElementById('cos-start-calibration-btn');
-    if (!btn) return;
-    btn.addEventListener('click', function() {
-        // Switch to chat tab (panel is always visible on desktop)
-        var chatTab = document.querySelector('[data-tab="chat"]');
-        if (chatTab) chatTab.click();
-        // Focus the input
-        var input = document.getElementById('ap-chat-input');
-        if (input) {
-            input.focus();
-            // If no messages in the panel, auto-send greeting
-            var messages = document.getElementById('ap-chat-messages');
-            if (messages && !messages.querySelector('.ap-chat-message')) {
-                // Trigger the sendMessage by dispatching on the form
-                input.value = 'Hi, let\'s get started!';
+    // Start / Continue button — opens chat and sends greeting if needed
+    var startBtn = document.getElementById('cos-start-calibration-btn');
+    var continueBtn = document.getElementById('cos-continue-calibration-btn');
+    var activeBtn = startBtn || continueBtn;
+
+    if (activeBtn) {
+        activeBtn.addEventListener('click', function() {
+            var chatTab = document.querySelector('[data-tab="chat"]');
+            if (chatTab) chatTab.click();
+            var input = document.getElementById('ap-chat-input');
+            if (input) {
+                input.focus();
+                var messages = document.getElementById('ap-chat-messages');
+                if (messages && !messages.querySelector('.ap-chat-message')) {
+                    input.value = 'Hi, let\'s get started!';
+                    var form = document.getElementById('ap-chat-form');
+                    if (form) {
+                        var submitEvt = new Event('submit', { cancelable: true });
+                        form.dispatchEvent(submitEvt);
+                    }
+                }
+            }
+            activeBtn.closest('.cos-calibration-banner').style.display = 'none';
+        });
+    }
+
+    // "I'm Ready" button — finishes the intro via chat message
+    var finishBtn = document.getElementById('cos-finish-intro-btn');
+    if (finishBtn) {
+        finishBtn.addEventListener('click', function() {
+            var chatTab = document.querySelector('[data-tab="chat"]');
+            if (chatTab) chatTab.click();
+            var input = document.getElementById('ap-chat-input');
+            if (input) {
+                input.value = "I think you know me well enough. Let's get to work.";
                 var form = document.getElementById('ap-chat-form');
                 if (form) {
                     var submitEvt = new Event('submit', { cancelable: true });
                     form.dispatchEvent(submitEvt);
                 }
             }
-        }
-        // Hide the banner after clicking
-        btn.closest('.cos-calibration-banner').style.display = 'none';
-    });
+            finishBtn.closest('.cos-calibration-banner').style.display = 'none';
+        });
+    }
 })();
 </script>
 {% elif command_mode and command_mode.active %}

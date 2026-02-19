@@ -70,6 +70,7 @@ TRANSFORMATION_INTENTS = {
 
 CALIBRATION_INTENTS = {
     "pause_calibration",
+    "complete_calibration",
 }
 
 # All intents that support a recorded_at timestamp override

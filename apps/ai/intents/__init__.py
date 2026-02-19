@@ -88,6 +88,7 @@ INTENT_HANDLERS = {
     'set_cos_name': 'settings',
     # Calibration
     'pause_calibration': 'calibration',
+    'complete_calibration': 'calibration',
     # No action
     'no_action': None,
 }

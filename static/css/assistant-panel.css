@@ -2217,3 +2217,34 @@ body.has-desktop-nav .desktop-main-area {
 .cos-start-chat-btn:active {
     transform: translateY(0);
 }
+
+/* Calibration action row — side by side buttons */
+.cos-calibration-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+/* "I'm Ready" finish button — secondary style */
+.cos-finish-intro-btn {
+    display: inline-block;
+    padding: 10px 24px;
+    background: transparent;
+    color: var(--color-accent, #2563eb);
+    border: 2px solid var(--color-accent, #2563eb);
+    border-radius: 8px;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, transform 0.1s;
+}
+
+.cos-finish-intro-btn:hover {
+    background: var(--color-accent, #2563eb);
+    color: #fff;
+    transform: translateY(-1px);
+}
+
+.cos-finish-intro-btn:active {
+    transform: translateY(0);
+}

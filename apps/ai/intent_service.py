@@ -532,6 +532,8 @@ Examples of messages that should NOT trigger functions:
             # Calibration handlers
             elif intent_type == 'pause_calibration':
                 return handler.handle_pause_calibration(**parameters)
+            elif intent_type == 'complete_calibration':
+                return handler.handle_complete_calibration(**parameters)
 
             else:
                 return ActionResult(

@@ -1682,8 +1682,8 @@ class ConversationalCalibrationTests(TestCase):
         q = get_next_calibration_question(self.user)
         self.assertIsNotNone(q)
 
-    def test_calibration_completes_after_all_questions(self):
-        """Calibration completes when all questions answered."""
+    def test_calibration_cycles_after_all_questions(self):
+        """Calibration cycles (doesn't auto-complete) after all questions."""
         from apps.core.blueprint.cos_governance import (
             advance_calibration_stage,
             get_calibration_state,
@@ -1691,6 +1691,30 @@ class ConversationalCalibrationTests(TestCase):
         )
         for _ in range(len(CALIBRATION_QUESTIONS)):
             advance_calibration_stage(self.user)
+        state = get_calibration_state(self.user)
+        # Should still be active — questions cycle, user decides when done
+        self.assertFalse(state['complete'])
+        self.assertTrue(state['active'])
+        # Should be on pass 2 now
+        self.assertIsNotNone(state['next_question'])
+        self.assertEqual(state['next_question']['pass_number'], 2)
+
+    def test_calibration_completes_by_user(self):
+        """Calibration completes only when user explicitly says so."""
+        from apps.core.blueprint.cos_governance import (
+            advance_calibration_stage,
+            complete_calibration_by_user,
+            get_calibration_state,
+        )
+        # Answer a few questions
+        for _ in range(3):
+            advance_calibration_stage(self.user)
+        state = get_calibration_state(self.user)
+        self.assertTrue(state['active'])
+
+        # User decides they're done
+        result = complete_calibration_by_user(self.user)
+        self.assertTrue(result)
         state = get_calibration_state(self.user)
         self.assertTrue(state['complete'])
 
@@ -1701,7 +1725,7 @@ class ConversationalCalibrationTests(TestCase):
         )
         injection = build_calibration_system_injection(self.user)
         self.assertIn('GETTING TO KNOW YOU', injection)
-        self.assertIn('NEXT QUESTION', injection)
+        self.assertIn('QUESTION YOU MUST ASK', injection)
 
     def test_build_calibration_system_injection_paused_empty(self):
         """System injection is empty when paused."""
@@ -2619,8 +2643,8 @@ class GovernanceFrameworkTests(TestCase):
         self.assertIsNotNone(question)
         self.assertEqual(question['category'], 'core_people')
 
-    def test_calibration_completes_after_all_questions(self):
-        """Calibration should complete when all questions answered."""
+    def test_calibration_cycles_after_all_questions(self):
+        """Calibration should cycle (not auto-complete) after all questions."""
         from apps.core.blueprint.models import PersonalOperatingBlueprint
         from apps.core.blueprint.cos_governance import (
             get_next_calibration_question, CALIBRATION_QUESTIONS,
@@ -2634,9 +2658,13 @@ class GovernanceFrameworkTests(TestCase):
         bp.save()
 
         question = get_next_calibration_question(self.user)
-        self.assertIsNone(question)
+        # Questions cycle — should return first question on pass 2
+        self.assertIsNotNone(question)
+        self.assertEqual(question['question_number'], 1)
+        self.assertEqual(question['pass_number'], 2)
         bp.refresh_from_db()
-        self.assertTrue(bp.calibration_complete)
+        # Should NOT auto-complete
+        self.assertFalse(bp.calibration_complete)
 
     def test_calibration_no_question_when_complete(self):
         """get_next_calibration_question should return None when complete."""

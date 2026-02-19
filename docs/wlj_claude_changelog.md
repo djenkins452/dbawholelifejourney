@@ -11,6 +11,12 @@
 
 ## 2026-02-19
 
+- **Fix: calibration_complete=True stuck** — `calibration_complete` stayed `True` after calibration reset, preventing the system injection from being included. `reset_calibration_conversational` now clears `calibration_complete`. Also auto-completes stale alignment sessions that block calibration.
+  - Files: `apps/core/blueprint/cos_governance.py`, `apps/core/management/commands/reset_calibration_conversational.py`
+
+- **Calibration welcome banner** — Added a welcome banner with "Let's Chat" button that appears when calibration is active but the user hasn't started chatting yet. Replaced auto-open behavior with an explicit call-to-action.
+  - Files: `templates/components/assistant_panel.html`, `templates/components/chat_widget.html`
+
 - **Fix: Calibration blocked by stale alignment session** — `build_calibration_system_injection()` returned empty when a `GovernanceAlignmentSession` with `is_complete=False` existed, preventing the AI from receiving any calibration instructions. Now auto-completes stale alignment sessions (superseded by calibration). Also: chat panel clears stale messages and restarts fresh when calibration welcome hasn't been shown yet.
   - Files: `apps/core/blueprint/cos_governance.py`, `templates/components/assistant_panel.html`, `apps/ai/views.py`
   - Why: CoS responded with generic "How can I assist you?" instead of calibration introduction

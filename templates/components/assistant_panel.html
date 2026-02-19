@@ -29,9 +29,9 @@
 
     <div class="assistant-panel-body">
         {# Status indicator #}
-        <div class="assistant-status" id="assistant-status">
+        <div class="assistant-status" id="assistant-status" title="Your Chief of Staff is monitoring your plan and will alert you if anything needs attention">
             <div class="assistant-status-dot active"></div>
-            <span class="assistant-status-text">Active</span>
+            <span class="assistant-status-text">Monitoring your day</span>
         </div>
 
         {# Today's Architecture Plan #}
@@ -53,7 +53,7 @@
         {# Drift Status #}
         <div class="assistant-section" id="assistant-drift-section">
             <div class="assistant-section-header" data-action="toggle-section" data-section="assistant-drift">
-                <span>How You're Tracking</span>
+                <span>Plan Progress</span>
                 <svg class="section-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
             </div>
             <div class="assistant-section-content" id="assistant-drift">
@@ -266,6 +266,27 @@ function showToast(message) {
     setTimeout(function() { toast.classList.add('show'); }, 10);
     setTimeout(function() { toast.remove(); }, 3000);
 }
+
+/* Delegated click handler for all data-action buttons */
+document.addEventListener('click', function(e) {
+    var el = e.target.closest('[data-action]');
+    if (!el) return;
+    var action = el.getAttribute('data-action');
+    if (action === 'toggle-assistant-panel') toggleAssistantPanel();
+    else if (action === 'toggle-mobile-assistant') toggleMobileAssistant();
+    else if (action === 'toggle-section') {
+        var sectionId = el.getAttribute('data-section');
+        if (sectionId) toggleSection(sectionId);
+    }
+    else if (action === 'open-assistant-chat') openAssistantChat();
+    else if (action === 'trigger-curveball') triggerCurveball();
+    else if (action === 'view-blueprint') viewBlueprint();
+    else if (action === 'respond-friction-gate') {
+        var interventionId = el.getAttribute('data-intervention-id');
+        var response = el.getAttribute('data-response');
+        if (interventionId && response) respondFrictionGate(interventionId, response);
+    }
+});
 
 /* Poll for assistant pings every 60 seconds */
 setInterval(function() {

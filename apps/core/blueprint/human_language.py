@@ -301,7 +301,22 @@ def translate_risk_warning(warning, context=None):
     if 'density' in w and 'elevated' in w:
         return 'Schedule is dense — protect margin where possible.'
     elif 'tier 1' in w or 'tier-1' in w or 'protected' in w:
-        return 'One of your top priorities may need attention.'
+        # Extract specific item name if present in the warning string
+        # Warnings often contain item names after colons or in quotes
+        import re
+        quoted = re.search(r'["\']([^"\']+)["\']', warning)
+        after_colon = re.search(r':\s*(.+)', warning)
+        if quoted:
+            return f'{quoted.group(1)} needs your attention.'
+        elif after_colon:
+            detail = after_colon.group(1).strip().rstrip('.')
+            detail = detail.replace('Tier-1', '').replace('Tier 1', '').strip()
+            if detail:
+                return f'{detail}.'
+        # If we still can't extract specifics, say what category
+        if 'no tier 1' in w or 'no tier-1' in w:
+            return 'No top priorities are scheduled today — consider adding one.'
+        return 'A top priority hasn\'t been completed yet — check your plan.'
     elif 'sleep' in w:
         return "Sleep isn't scheduled — consider adding rest."
     elif 'overload' in w:

@@ -48,7 +48,7 @@
                     {% for format in export_formats %}
                     <div class="border rounded-lg p-4 hover:border-accent cursor-pointer export-format-card"
                          data-format="{{ format.id }}"
-                         onclick="selectFormat('{{ format.id }}')">
+                         data-format-select="{{ format.id }}">
                         <div class="flex items-start gap-3">
                             <input type="radio"
                                    name="export_format"
@@ -86,7 +86,7 @@
                 <button type="button"
                         class="btn btn-primary"
                         id="export-btn"
-                        onclick="downloadExport()">
+                        id="export-btn">
                     Download My Data
                 </button>
                 <a href="{% url 'users:preferences' %}" class="btn btn-ghost">
@@ -130,6 +130,15 @@ function downloadExport() {
 // Initialize default selection
 document.addEventListener('DOMContentLoaded', function() {
     selectFormat('csv');
+});
+
+// CSP-Compliant Event Delegation
+document.getElementById('export-btn').addEventListener('click', downloadExport);
+document.addEventListener('click', function(e) {
+    var card = e.target.closest('[data-format-select]');
+    if (card) {
+        selectFormat(card.dataset.formatSelect);
+    }
 });
 </script>
 {% endblock %}

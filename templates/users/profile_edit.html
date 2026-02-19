@@ -61,13 +61,12 @@
                             </svg>
                             Upload Photo
                         </label>
-                        <input 
-                            type="file" 
-                            name="avatar" 
-                            id="id_avatar" 
+                        <input
+                            type="file"
+                            name="avatar"
+                            id="id_avatar"
                             class="form-file-input visually-hidden"
                             accept="image/*"
-                            onchange="previewAvatar(this)"
                         >
                         <p class="form-help">JPG, PNG, or GIF. Max 2MB.</p>
                     </div>
@@ -257,6 +256,8 @@
 </style>
 
 <script nonce="{{ csp_nonce }}">
+document.getElementById('id_avatar').addEventListener('change', function() { previewAvatar(this); });
+
 function previewAvatar(input) {
     if (input.files && input.files[0]) {
         const reader = new FileReader();

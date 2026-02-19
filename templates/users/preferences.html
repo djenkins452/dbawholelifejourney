@@ -18,8 +18,8 @@
             <p class="page-subtitle">Customize your Whole Life Journey experience</p>
         </div>
         <div class="page-header-actions">
-            <button type="button" class="btn btn-ghost btn-sm" onclick="WLJAccordion.expandAll('preferences')">Expand All</button>
-            <button type="button" class="btn btn-ghost btn-sm" onclick="WLJAccordion.collapseAll('preferences')">Collapse All</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="expand-all-btn">Expand All</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="collapse-all-btn">Collapse All</button>
             <button type="submit" form="preferences-form" class="btn btn-primary">Save Changes</button>
         </div>
     </div>
@@ -94,7 +94,7 @@
                                 placeholder="Leave blank for theme default"
                                 readonly
                             >
-                            <button type="button" class="btn btn-ghost btn-sm" onclick="clearAccentColor()">Clear</button>
+                            <button type="button" class="btn btn-ghost btn-sm" id="clear-accent-btn">Clear</button>
                         </div>
                         <p class="form-help">Override the theme's accent color with your own choice.</p>
                     </div>
@@ -1032,7 +1032,7 @@ The AI will remember these to respond more thoughtfully in the future."
                                 maxlength="5"
                                 pattern="[0-9]{5}"
                             >
-                            <button type="button" class="btn btn-secondary btn-sm" onclick="lookupZip()">
+                            <button type="button" class="btn btn-secondary btn-sm" id="lookup-zip-btn">
                                 Lookup
                             </button>
                         </div>
@@ -1560,9 +1560,9 @@ The AI will remember these to respond more thoughtfully in the future."
                                             >
                                             {% if form.instance.phone_verified %}
                                             <span class="verified-badge">✓ Verified</span>
-                                            <button type="button" class="btn btn-ghost btn-sm" onclick="removePhone()">Remove</button>
+                                            <button type="button" class="btn btn-ghost btn-sm" id="remove-phone-btn">Remove</button>
                                             {% else %}
-                                            <button type="button" class="btn btn-primary btn-sm" id="send-code-btn" onclick="sendVerificationCode()">Verify</button>
+                                            <button type="button" class="btn btn-primary btn-sm" id="send-code-btn">Verify</button>
                                             {% endif %}
                                         </div>
                                         <p id="phone-status" class="form-help"></p>
@@ -1580,7 +1580,7 @@ The AI will remember these to respond more thoughtfully in the future."
                                                 maxlength="6"
                                                 pattern="[0-9]{6}"
                                             >
-                                            <button type="button" class="btn btn-primary btn-sm" onclick="checkVerificationCode()">Verify Code</button>
+                                            <button type="button" class="btn btn-primary btn-sm" id="check-code-btn">Verify Code</button>
                                         </div>
                                         <p class="form-help">Enter the 6-digit code sent to your phone.</p>
                                     </div>
@@ -1882,7 +1882,7 @@ The AI will remember these to respond more thoughtfully in the future."
                             <div class="accordion-body">
                                 <div class="form-group">
                                     <label for="id_default_fasting_type" class="form-label">Default Fasting Type</label>
-                                    <select name="default_fasting_type" id="id_default_fasting_type" class="form-select" onchange="updateFastingDescription()">
+                                    <select name="default_fasting_type" id="id_default_fasting_type" class="form-select">
                                         {% for value, label in form.fields.default_fasting_type.choices %}
                                             <option value="{{ value }}" {% if form.default_fasting_type.value == value %}selected{% endif %}>
                                                 {{ label }}
@@ -1969,7 +1969,6 @@ The AI will remember these to respond more thoughtfully in the future."
                                             placeholder="e.g., 2000"
                                             min="500"
                                             max="10000"
-                                            oninput="updateMacroGrams()"
                                         >
                                         <p class="form-help">Your target daily caloric intake in calories.</p>
                                     </div>
@@ -1991,7 +1990,6 @@ The AI will remember these to respond more thoughtfully in the future."
                                                         placeholder="30"
                                                         min="0"
                                                         max="100"
-                                                        oninput="updateMacroTotal()"
                                                     >
                                                     <span class="macro-percent">%</span>
                                                 </div>
@@ -2012,7 +2010,6 @@ The AI will remember these to respond more thoughtfully in the future."
                                                         placeholder="40"
                                                         min="0"
                                                         max="100"
-                                                        oninput="updateMacroTotal()"
                                                     >
                                                     <span class="macro-percent">%</span>
                                                 </div>
@@ -2033,7 +2030,6 @@ The AI will remember these to respond more thoughtfully in the future."
                                                         placeholder="30"
                                                         min="0"
                                                         max="100"
-                                                        oninput="updateMacroTotal()"
                                                     >
                                                     <span class="macro-percent">%</span>
                                                 </div>
@@ -2051,16 +2047,16 @@ The AI will remember these to respond more thoughtfully in the future."
                                     <div class="nutrition-tips mt-4">
                                         <h4 class="tips-title">Common Macro Splits:</h4>
                                         <div class="macro-presets">
-                                            <button type="button" class="btn btn-ghost btn-sm macro-preset" onclick="setMacroPreset(30, 40, 30)">
+                                            <button type="button" class="btn btn-ghost btn-sm macro-preset" data-protein="30" data-carbs="40" data-fat="30">
                                                 Balanced (30/40/30)
                                             </button>
-                                            <button type="button" class="btn btn-ghost btn-sm macro-preset" onclick="setMacroPreset(40, 30, 30)">
+                                            <button type="button" class="btn btn-ghost btn-sm macro-preset" data-protein="40" data-carbs="30" data-fat="30">
                                                 High Protein (40/30/30)
                                             </button>
-                                            <button type="button" class="btn btn-ghost btn-sm macro-preset" onclick="setMacroPreset(30, 20, 50)">
+                                            <button type="button" class="btn btn-ghost btn-sm macro-preset" data-protein="30" data-carbs="20" data-fat="50">
                                                 Low Carb (30/20/50)
                                             </button>
-                                            <button type="button" class="btn btn-ghost btn-sm macro-preset" onclick="setMacroPreset(20, 5, 75)">
+                                            <button type="button" class="btn btn-ghost btn-sm macro-preset" data-protein="20" data-carbs="5" data-fat="75">
                                                 Keto (20/5/75)
                                             </button>
                                         </div>
@@ -2100,7 +2096,7 @@ The AI will remember these to respond more thoughtfully in the future."
                                             <input type="checkbox"
                                                    id="cycle-tracking-toggle"
                                                    {% if cycle_tracking_enabled %}checked{% endif %}
-                                                   onchange="handleCycleTrackingToggle(this)">
+                                                   id="cycle-tracking-toggle">
                                             <span class="toggle-slider"></span>
                                         </label>
                                     </div>
@@ -2272,7 +2268,7 @@ The AI will remember these to respond more thoughtfully in the future."
                                     <span class="quick-link-url">{{ link.url }}</span>
                                 </div>
                             </div>
-                            <button type="button" class="btn btn-ghost btn-sm quick-link-delete" onclick="deleteQuickLink({{ link.id }}, this)" title="Remove link">
+                            <button type="button" class="btn btn-ghost btn-sm quick-link-delete" data-link-id="{{ link.id }}" title="Remove link">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
                                     <polyline points="3 6 5 6 21 6"/>
                                     <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
@@ -2295,7 +2291,7 @@ The AI will remember these to respond more thoughtfully in the future."
                             <div class="form-group mb-0">
                                 <input type="url" id="quick-link-url" class="form-input" placeholder="https://example.com" maxlength="500">
                             </div>
-                            <button type="button" class="btn btn-secondary btn-sm" onclick="addQuickLink()">
+                            <button type="button" class="btn btn-secondary btn-sm" id="add-quick-link-btn">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
                                     <line x1="12" y1="5" x2="12" y2="19"/>
                                     <line x1="5" y1="12" x2="19" y2="12"/>
@@ -4344,7 +4340,7 @@ function addQuickLink() {
                     <span class="quick-link-url">${data.link.url}</span>
                 </div>
             </div>
-            <button type="button" class="btn btn-ghost btn-sm quick-link-delete" onclick="deleteQuickLink(${data.link.id}, this)" title="Remove link">
+            <button type="button" class="btn btn-ghost btn-sm quick-link-delete" data-link-id="${data.link.id}" title="Remove link">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
                     <polyline points="3 6 5 6 21 6"/>
                     <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
@@ -4409,6 +4405,40 @@ document.getElementById('quick-link-url')?.addEventListener('keydown', function(
 });
 document.getElementById('quick-link-name')?.addEventListener('keydown', function(e) {
     if (e.key === 'Enter') { e.preventDefault(); document.getElementById('quick-link-url').focus(); }
+});
+
+// =====================================================
+// CSP-Compliant Event Delegation
+// =====================================================
+// Direct bindings for static elements
+document.getElementById('expand-all-btn')?.addEventListener('click', function() { WLJAccordion.expandAll('preferences'); });
+document.getElementById('collapse-all-btn')?.addEventListener('click', function() { WLJAccordion.collapseAll('preferences'); });
+document.getElementById('clear-accent-btn')?.addEventListener('click', clearAccentColor);
+document.getElementById('lookup-zip-btn')?.addEventListener('click', lookupZip);
+document.getElementById('remove-phone-btn')?.addEventListener('click', removePhone);
+document.getElementById('send-code-btn')?.addEventListener('click', sendVerificationCode);
+document.getElementById('check-code-btn')?.addEventListener('click', checkVerificationCode);
+document.getElementById('add-quick-link-btn')?.addEventListener('click', addQuickLink);
+document.getElementById('id_default_fasting_type')?.addEventListener('change', updateFastingDescription);
+document.getElementById('id_daily_calorie_goal')?.addEventListener('input', updateMacroGrams);
+document.getElementById('id_protein_percentage')?.addEventListener('input', updateMacroTotal);
+document.getElementById('id_carbs_percentage')?.addEventListener('input', updateMacroTotal);
+document.getElementById('id_fat_percentage')?.addEventListener('input', updateMacroTotal);
+document.getElementById('cycle-tracking-toggle')?.addEventListener('change', function() { handleCycleTrackingToggle(this); });
+
+// Delegated click handlers for dynamic content
+document.addEventListener('click', function(e) {
+    var presetBtn = e.target.closest('.macro-preset[data-protein]');
+    if (presetBtn) {
+        setMacroPreset(parseInt(presetBtn.dataset.protein), parseInt(presetBtn.dataset.carbs), parseInt(presetBtn.dataset.fat));
+        return;
+    }
+
+    var deleteBtn = e.target.closest('.quick-link-delete[data-link-id]');
+    if (deleteBtn) {
+        deleteQuickLink(parseInt(deleteBtn.dataset.linkId), deleteBtn);
+        return;
+    }
 });
 </script>
 <script src="{% static 'js/biometric.js' %}"></script>

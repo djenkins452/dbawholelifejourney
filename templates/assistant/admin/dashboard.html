@@ -344,7 +344,7 @@
             <form class="filters" method="get">
                 <div class="filter-group">
                     <label for="status">Status:</label>
-                    <select name="status" id="status" onchange="this.form.submit()">
+                    <select name="status" id="status" data-auto-submit>
                         <option value="">All Statuses</option>
                         {% for value, label in status_choices %}
                         <option value="{{ value }}" {% if current_status == value %}selected{% endif %}>{{ label }}</option>
@@ -353,7 +353,7 @@
                 </div>
                 <div class="filter-group">
                     <label for="severity">Severity:</label>
-                    <select name="severity" id="severity" onchange="this.form.submit()">
+                    <select name="severity" id="severity" data-auto-submit>
                         <option value="">All Severities</option>
                         {% for value, label in severity_choices %}
                         <option value="{{ value }}" {% if current_severity == value %}selected{% endif %}>{{ label }}</option>
@@ -387,7 +387,7 @@
                         <td>
                             <div class="task-title">{{ item.task.title }}</div>
                             <div class="task-id">{{ item.task.id }}</div>
-                            <button class="expand-btn" onclick="toggleDetails('{{ item.task.id }}')">
+                            <button class="expand-btn" data-toggle-details="{{ item.task.id }}">
                                 Show Details
                             </button>
                         </td>
@@ -406,14 +406,14 @@
                         <td>
                             <div class="actions">
                                 {% if item.task.status == 'pending_approval' %}
-                                <button class="btn btn-success btn-sm" onclick="approveTask('{{ item.task.id }}')">
+                                <button class="btn btn-success btn-sm" data-approve-task="{{ item.task.id }}">
                                     Approve
                                 </button>
-                                <button class="btn btn-danger btn-sm" onclick="openRejectModal('{{ item.task.id }}')">
+                                <button class="btn btn-danger btn-sm" data-reject-task="{{ item.task.id }}">
                                     Reject
                                 </button>
                                 {% elif item.task.status == 'completed' and item.task.git_commit_before %}
-                                <button class="btn btn-warning btn-sm" onclick="openRollbackModal('{{ item.task.id }}')">
+                                <button class="btn btn-warning btn-sm" data-rollback-task="{{ item.task.id }}">
                                     Rollback
                                 </button>
                                 {% endif %}
@@ -509,8 +509,8 @@
             <p>Please provide a reason for rejecting this task:</p>
             <textarea id="reject-reason" placeholder="Enter rejection reason..."></textarea>
             <div class="modal-actions">
-                <button class="btn btn-secondary" onclick="closeRejectModal()">Cancel</button>
-                <button class="btn btn-danger" onclick="submitReject()">Reject Task</button>
+                <button class="btn btn-secondary" id="close-reject-modal-btn">Cancel</button>
+                <button class="btn btn-danger" id="submit-reject-btn">Reject Task</button>
             </div>
         </div>
     </div>
@@ -523,8 +523,8 @@
             <p>Please provide a reason for rolling back this task:</p>
             <textarea id="rollback-reason" placeholder="Enter rollback reason (required)..."></textarea>
             <div class="modal-actions">
-                <button class="btn btn-secondary" onclick="closeRollbackModal()">Cancel</button>
-                <button class="btn btn-warning" onclick="submitRollback()">Rollback Task</button>
+                <button class="btn btn-secondary" id="close-rollback-modal-btn">Cancel</button>
+                <button class="btn btn-warning" id="submit-rollback-btn">Rollback Task</button>
             </div>
         </div>
     </div>
@@ -532,6 +532,26 @@
     <script nonce="{{ csp_nonce }}">
         let currentRejectTaskId = null;
         let currentRollbackTaskId = null;
+
+        // Event delegation
+        document.addEventListener('click', function(e) {
+            var btn;
+            if ((btn = e.target.closest('[data-toggle-details]'))) {
+                toggleDetails(btn.dataset.toggleDetails);
+            } else if ((btn = e.target.closest('[data-approve-task]'))) {
+                approveTask(btn.dataset.approveTask);
+            } else if ((btn = e.target.closest('[data-reject-task]'))) {
+                openRejectModal(btn.dataset.rejectTask);
+            } else if ((btn = e.target.closest('[data-rollback-task]'))) {
+                openRollbackModal(btn.dataset.rollbackTask);
+            }
+        });
+
+        // Modal button bindings
+        document.getElementById('close-reject-modal-btn').addEventListener('click', closeRejectModal);
+        document.getElementById('submit-reject-btn').addEventListener('click', submitReject);
+        document.getElementById('close-rollback-modal-btn').addEventListener('click', closeRollbackModal);
+        document.getElementById('submit-rollback-btn').addEventListener('click', submitRollback);
 
         function toggleDetails(taskId) {
             const details = document.getElementById('details-' + taskId);

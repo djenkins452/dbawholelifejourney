@@ -147,34 +147,34 @@
             <div class="guidance-inbox-actions">
                 {% if not item.is_read %}
                 <button type="button" class="guidance-inbox-action-btn guidance-inbox-btn-read"
-                        onclick="guidanceInboxAction({{ item.id }}, 'read')"
+                        data-guidance-action="read"
                         title="Mark as read">
                     👁 Read
                 </button>
                 {% endif %}
                 {% if not item.is_acknowledged %}
                 <button type="button" class="guidance-inbox-action-btn guidance-inbox-btn-ack"
-                        onclick="guidanceInboxAction({{ item.id }}, 'acknowledge')"
+                        data-guidance-action="acknowledge"
                         title="Acknowledge">
                     👍 Acknowledge
                 </button>
                 {% endif %}
                 {% if not item.is_acted_upon %}
                 <button type="button" class="guidance-inbox-action-btn guidance-inbox-btn-acted"
-                        onclick="guidanceInboxAction({{ item.id }}, 'acted')"
+                        data-guidance-action="acted"
                         title="I did it">
                     ✅ I did it
                 </button>
                 {% endif %}
                 {% if not item.is_snoozed %}
                 <button type="button" class="guidance-inbox-action-btn guidance-inbox-btn-snooze"
-                        onclick="guidanceInboxAction({{ item.id }}, 'snooze')"
+                        data-guidance-action="snooze"
                         title="Snooze 24 hours">
                     💤 Snooze
                 </button>
                 {% endif %}
                 <button type="button" class="guidance-inbox-action-btn guidance-inbox-btn-dismiss"
-                        onclick="guidanceInboxAction({{ item.id }}, 'dismiss')"
+                        data-guidance-action="dismiss"
                         title="Dismiss">
                     ✕ Dismiss
                 </button>
@@ -237,7 +237,19 @@
     'use strict';
     const csrfToken = '{{ csrf_token }}';
 
-    window.guidanceInboxAction = async function(itemId, action) {
+    // Event delegation for guidance action buttons
+    document.addEventListener('click', function(e) {
+        var btn = e.target.closest('[data-guidance-action]');
+        if (btn) {
+            var card = btn.closest('[id^="guidance-inbox-"]');
+            if (card) {
+                var itemId = card.id.replace('guidance-inbox-', '');
+                guidanceInboxAction(itemId, btn.dataset.guidanceAction);
+            }
+        }
+    });
+
+    async function guidanceInboxAction(itemId, action) {
         const card = document.getElementById('guidance-inbox-' + itemId);
         if (!card) return;
 

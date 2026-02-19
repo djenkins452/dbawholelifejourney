@@ -758,13 +758,12 @@ class CommandBriefTests(TestCase):
         # Should not contain "No plan for today"
         self.assertNotContains(response, 'No plan for today')
 
-    def test_sidebar_shows_active_not_monitoring(self):
-        """Sidebar status text should say 'Active' not 'Monitoring'."""
+    def test_sidebar_shows_monitoring_status(self):
+        """Sidebar status text should describe what CoS is doing."""
         response = self.client.get('/dashboard/')
         self.assertEqual(response.status_code, 200)
-        # The panel renders on the page
-        self.assertContains(response, 'Active')
-        self.assertNotContains(response, 'Monitoring')
+        # The panel renders with meaningful status
+        self.assertContains(response, 'Monitoring your day')
 
     def test_alignment_score_calculated(self):
         """Alignment score should be 100 minus drift score."""
@@ -1815,7 +1814,7 @@ class HumanLanguageTests(TestCase):
         from apps.core.blueprint.human_language import translate_day_assessment
         result = translate_day_assessment(50, 10, 2, 0, 5)
         self.assertIn('moderate', result.lower())
-        self.assertIn('protected', result.lower())
+        self.assertIn('priorities', result.lower())
 
     def test_translate_risk_warning(self):
         """Risk warnings should be softened."""
@@ -2226,9 +2225,7 @@ class LiveBuildLoopTests(TestCase):
         self.assertIn('2:30 PM', result.message)
 
     def test_command_mode_input_routes_to_assistant(self):
-        """Command Mode form should route input to assistant chat panel."""
-        import inspect
-        # Read the template source
+        """Command Mode form should send input to assistant API directly."""
         import os
         template_path = os.path.join(
             settings.BASE_DIR, 'templates', 'components', 'cos_command_mode.html',
@@ -2237,8 +2234,12 @@ class LiveBuildLoopTests(TestCase):
             with open(template_path) as f:
                 source = f.read()
             self.assertIn('handleCommandModeInput', source)
-            self.assertIn('assistant-chat-input', source)
+            self.assertIn('/assistant/api/chat/', source)
             self.assertIn('cos-cm-input', source)
+            # Voice input support
+            self.assertIn('cos-cm-voice-btn', source)
+            # Response area for inline display
+            self.assertIn('cos-cm-response', source)
 
 
 class GovernanceFrameworkTests(TestCase):

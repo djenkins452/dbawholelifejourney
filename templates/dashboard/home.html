@@ -306,6 +306,26 @@ body.edit-mode .tile-name-label {
     {% include "components/assistant_command_brief.html" %}
     {% endif %}
 
+    {% comment %} Today's Insight — always prominent, even in command mode {% endcomment %}
+    {% if command_mode and command_mode.active and ai_enabled and ai_insights %}
+    <section class="ai-insight-hero tile-size-large{% if ai_insights.is_onboarding %} onboarding-insight{% endif %}" data-tile-id="ai_insights">
+        <div class="ai-insight-content">
+            <div class="ai-badge">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"/>
+                    <path d="M12 6v6l4 2"/>
+                </svg>
+                {% if ai_insights.is_onboarding %}Getting Started{% else %}Today's Insight{% endif %}
+            </div>
+            {% if ai_insights.is_onboarding %}
+            <div class="ai-insight-text onboarding-content">{{ ai_insights.daily_insight|safe }}</div>
+            {% else %}
+            <p class="ai-insight-text">{{ ai_insights.daily_insight }}</p>
+            {% endif %}
+        </div>
+    </section>
+    {% endif %}
+
     <!-- Edit Mode Bar -->
     <div class="dashboard-edit-bar" {% if command_mode and command_mode.active %}style="display:none"{% endif %}>
         <button type="button" class="btn-customize" id="customize-btn">

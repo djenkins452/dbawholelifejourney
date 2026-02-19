@@ -2,9 +2,11 @@
 Dashboard Tile: AI Insights
 Shows personalized daily insight from AI analysis (MANDATORY - cannot be hidden)
 For new users without data, shows onboarding guidance instead.
+When command_mode is active, the insight is rendered above the grid (not here)
+to stay prominent and not get dimmed by data-mode-hidden.
 {% endcomment %}
 
-{% if ai_enabled and ai_insights %}
+{% if ai_enabled and ai_insights and not command_mode.active %}
 <section class="ai-insight-hero tile-size-{{ tile.size|default:'large' }}{% if ai_insights.is_onboarding %} onboarding-insight{% endif %}" data-tile-id="ai_insights">
     <div class="ai-insight-content">
         <div class="ai-badge">

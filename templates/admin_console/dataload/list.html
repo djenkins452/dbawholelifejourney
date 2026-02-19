@@ -59,7 +59,7 @@
     <div class="output-panel">
         <div class="output-header">
             <h3>Last Run Output</h3>
-            <button type="button" class="btn btn-ghost btn-sm" onclick="this.closest('.output-panel').remove()">Close</button>
+            <button type="button" class="btn btn-ghost btn-sm close-output-btn">Close</button>
         </div>
         <pre class="output-content">{{ dataload_output }}</pre>
     </div>
@@ -143,7 +143,7 @@
     {% if loaded_count > 0 %}
     <div class="section-footer">
         <form method="post" action="{% url 'admin_console:dataload_reset_all' %}"
-              onsubmit="return confirm('Are you sure you want to reset ALL loaders? They will all reload on next deploy.');">
+              data-confirm="Are you sure you want to reset ALL loaders? They will all reload on next deploy.">
             {% csrf_token %}
             <button type="submit" class="btn btn-ghost text-error">
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
@@ -397,4 +397,13 @@
     margin-bottom: var(--space-4);
 }
 </style>
+
+<script nonce="{{ csp_nonce }}">
+document.addEventListener('click', function(e) {
+    if (e.target.closest('.close-output-btn')) {
+        var panel = e.target.closest('.output-panel');
+        if (panel) panel.remove();
+    }
+});
+</script>
 {% endblock %}

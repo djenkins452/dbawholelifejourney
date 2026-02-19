@@ -68,7 +68,7 @@
     <div class="filters-bar mb-6">
         <form method="get" class="filters-form">
             <div class="filter-group">
-                <select name="category" class="form-select form-select-sm" onchange="this.form.submit()">
+                <select name="category" class="form-select form-select-sm" data-auto-submit>
                     <option value="">All Categories</option>
                     {% for category in categories %}
                         <option value="{{ category.slug }}" {% if active_filters.category == category.slug %}selected{% endif %}>
@@ -79,7 +79,7 @@
             </div>
             
             <div class="filter-group">
-                <select name="mood" class="form-select form-select-sm" onchange="this.form.submit()">
+                <select name="mood" class="form-select form-select-sm" data-auto-submit>
                     <option value="">All Moods</option>
                     {% for value, label in mood_choices %}
                         <option value="{{ value }}" {% if active_filters.mood == value %}selected{% endif %}>

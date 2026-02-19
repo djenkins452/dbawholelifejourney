@@ -9,7 +9,7 @@ Loaded via HTMX into the entry form page.
     <div class="tag-modal-content">
         <header class="tag-modal-header">
             <h2>Create New Tag</h2>
-            <button type="button" class="tag-modal-close" onclick="document.getElementById('tag-create-modal').remove();" aria-label="Close">
+            <button type="button" class="tag-modal-close" data-close-tag-modal aria-label="Close">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="6" x2="6" y2="18"/>
                     <line x1="6" y1="6" x2="18" y2="18"/>
@@ -61,7 +61,7 @@ Loaded via HTMX into the entry form page.
 
             <div class="tag-modal-actions">
                 <button type="submit" class="btn btn-primary">Create Tag</button>
-                <button type="button" class="btn btn-ghost" onclick="document.getElementById('tag-create-modal').remove();">Cancel</button>
+                <button type="button" class="btn btn-ghost" data-close-tag-modal>Cancel</button>
             </div>
         </form>
     </div>
@@ -74,9 +74,9 @@ Loaded via HTMX into the entry form page.
     const nameInput = document.getElementById('modal_tag_name');
     const tagPreview = document.getElementById('modalTagPreview');
 
-    // Close modal when clicking backdrop
+    // Close modal when clicking backdrop or close/cancel buttons
     modal.addEventListener('click', function(e) {
-        if (e.target === modal) {
+        if (e.target === modal || e.target.closest('[data-close-tag-modal]')) {
             modal.remove();
         }
     });

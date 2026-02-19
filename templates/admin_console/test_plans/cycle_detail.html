@@ -32,7 +32,7 @@
                 <button type="submit" class="btn btn-warning">Pause</button>
             </form>
             <form method="post" action="{% url 'admin_console:test_cycle_cancel' cycle.pk %}" class="inline-form"
-                  onsubmit="return confirm('Are you sure you want to cancel this test cycle? This cannot be undone.');">
+                  data-confirm="Are you sure you want to cancel this test cycle? This cannot be undone.">
                 {% csrf_token %}
                 <button type="submit" class="btn btn-ghost text-error">Cancel Test</button>
             </form>
@@ -46,7 +46,7 @@
                 <button type="submit" class="btn btn-success">Mark Complete</button>
             </form>
             <form method="post" action="{% url 'admin_console:test_cycle_cancel' cycle.pk %}" class="inline-form"
-                  onsubmit="return confirm('Are you sure you want to cancel this test cycle? This cannot be undone.');">
+                  data-confirm="Are you sure you want to cancel this test cycle? This cannot be undone.">
                 {% csrf_token %}
                 <button type="submit" class="btn btn-ghost text-error">Cancel Test</button>
             </form>
@@ -99,7 +99,7 @@
     <div class="phases-container">
         {% for phase in phases %}
         <div class="phase-card" data-phase-id="{{ phase.pk }}">
-            <div class="phase-header" onclick="togglePhase({{ phase.pk }})">
+            <div class="phase-header" data-toggle-phase="{{ phase.pk }}">
                 <div class="phase-info">
                     <span class="phase-expand-icon">
                         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
@@ -116,7 +116,7 @@
                     <span class="mini-stat blocked" title="Blocked">{{ phase.stats.blocked }}</span>
                     <span class="mini-stat total" title="Total">{{ phase.stats.total }}</span>
                 </div>
-                <div class="phase-actions" onclick="event.stopPropagation()">
+                <div class="phase-actions click-stop">
                     <a href="{% url 'admin_console:test_item_create' phase.pk %}" class="btn btn-ghost btn-xs">+ Item</a>
                     <a href="{% url 'admin_console:test_phase_delete' phase.pk %}" class="btn btn-ghost btn-xs text-error">Delete</a>
                 </div>
@@ -124,11 +124,10 @@
             <div class="phase-items" id="phase-items-{{ phase.pk }}">
                 {% for item in phase.items.all %}
                 <div class="test-item" data-item-id="{{ item.pk }}">
-                    <div class="item-row" onclick="toggleItem({{ item.pk }})">
+                    <div class="item-row" data-toggle-item="{{ item.pk }}">
                         <div class="item-status">
-                            <select class="status-select status-{{ item.status }}"
-                                    onchange="updateItemStatus({{ item.pk }}, this.value); event.stopPropagation();"
-                                    onclick="event.stopPropagation();">
+                            <select class="status-select status-{{ item.status }} click-stop"
+                                    data-update-item-status="{{ item.pk }}">
                                 {% for status_value, status_label in status_choices %}
                                 <option value="{{ status_value }}" {% if item.status == status_value %}selected{% endif %}>
                                     {{ status_label }}
@@ -157,20 +156,17 @@
                             </div>
                             <div class="detail-field">
                                 <label>Actual Result</label>
-                                <textarea class="detail-input"
-                                          placeholder="Enter actual result..."
-                                          onchange="updateItemField({{ item.pk }}, 'actual_result', this.value)">{{ item.actual_result }}</textarea>
+                                <textarea class="detail-input" data-update-field="actual_result"
+                                          placeholder="Enter actual result...">{{ item.actual_result }}</textarea>
                             </div>
                             <div class="detail-field">
                                 <label>Notes</label>
-                                <textarea class="detail-input"
-                                          placeholder="Additional notes, bug references..."
-                                          onchange="updateItemField({{ item.pk }}, 'notes', this.value)">{{ item.notes }}</textarea>
+                                <textarea class="detail-input" data-update-field="notes"
+                                          placeholder="Additional notes, bug references...">{{ item.notes }}</textarea>
                             </div>
                             <div class="detail-field">
                                 <label>Priority</label>
-                                <select class="detail-select"
-                                        onchange="updateItemField({{ item.pk }}, 'priority', this.value)">
+                                <select class="detail-select" data-update-field="priority">
                                     {% for priority_value, priority_label in priority_choices %}
                                     <option value="{{ priority_value }}" {% if item.priority == priority_value %}selected{% endif %}>
                                         {{ priority_label }}
@@ -626,6 +622,49 @@
 </style>
 
 <script nonce="{{ csp_nonce }}">
+// Event delegation for phase/item toggles and field updates
+document.addEventListener('click', function(e) {
+    // Stop propagation for click-stop elements
+    if (e.target.closest('.click-stop')) {
+        e.stopPropagation();
+        return;
+    }
+
+    // Toggle phase
+    var phaseHeader = e.target.closest('[data-toggle-phase]');
+    if (phaseHeader) {
+        var card = document.querySelector('[data-phase-id="' + phaseHeader.dataset.togglePhase + '"]');
+        if (card) card.classList.toggle('expanded');
+        return;
+    }
+
+    // Toggle item
+    var itemRow = e.target.closest('[data-toggle-item]');
+    if (itemRow) {
+        var item = document.querySelector('[data-item-id="' + itemRow.dataset.toggleItem + '"]');
+        if (item) item.classList.toggle('expanded');
+    }
+});
+
+// Status select change delegation
+document.addEventListener('change', function(e) {
+    var statusSelect = e.target.closest('[data-update-item-status]');
+    if (statusSelect) {
+        e.stopPropagation();
+        updateItemStatus(statusSelect.dataset.updateItemStatus, statusSelect.value);
+        return;
+    }
+
+    // Field update delegation
+    var fieldEl = e.target.closest('[data-update-field]');
+    if (fieldEl) {
+        var itemEl = fieldEl.closest('[data-item-id]');
+        if (itemEl) {
+            updateItemField(itemEl.dataset.itemId, fieldEl.dataset.updateField, fieldEl.value);
+        }
+    }
+});
+
 function togglePhase(phaseId) {
     const card = document.querySelector(`[data-phase-id="${phaseId}"]`);
     card.classList.toggle('expanded');

@@ -66,8 +66,8 @@ class TodayPlanView(LoginRequiredMixin, View):
         if plan:
             for block in plan.blocks.all():
                 blocks.append({
-                    'start_time': block.start_time.strftime('%H:%M'),
-                    'end_time': block.end_time.strftime('%H:%M'),
+                    'start_time': block.start_time.strftime('%-I:%M %p'),
+                    'end_time': block.end_time.strftime('%-I:%M %p'),
                     'title': block.title,
                     'tier': block.tier,
                     'is_completed': block.is_completed,
@@ -109,32 +109,42 @@ class DriftSummaryView(LoginRequiredMixin, View):
         score = summary.get('average_score', 0)
         prediction = summary.get('latest_prediction', {})
         p24 = prediction.get('probability_24h', 0) * 100
+        total_events = summary.get('total_events', 0)
 
-        # Determine level
+        # Determine level and human-readable description
         if score < 20:
             level = 'low'
-            label = 'Stable'
+            label = 'On Track'
+            description = (
+                "You're staying close to your plan."
+                if total_events > 0
+                else "No activity logged yet this week."
+            )
         elif score < 50:
             level = 'medium'
-            label = 'Moderate'
+            label = 'Drifting Slightly'
+            description = "You've missed a few things — nothing major, but worth a look."
         else:
             level = 'high'
-            label = 'Elevated'
+            label = 'Off Course'
+            description = "You've strayed from your plan. Consider re-focusing on priorities."
 
         html = (
-            f'<div class="drift-indicator drift-score-{level}">'
-            f'<div class="drift-bar"><div class="drift-bar-fill" style="width:{min(100, score)}%"></div></div>'
-            f'<span class="drift-value">{score:.0f}</span>'
+            f'<div style="margin-bottom:6px;">'
+            f'<span style="font-weight:600;color:var(--color-text);">{label}</span>'
             f'</div>'
-            f'<div style="font-size:var(--font-size-xs);color:var(--color-text-muted);margin-top:4px;">'
-            f'{label} &middot; {summary.get("total_events", 0)} events (7d)'
+            f'<div class="drift-indicator drift-score-{level}">'
+            f'<div class="drift-bar"><div class="drift-bar-fill" style="width:{max(5, min(100, score))}%"></div></div>'
+            f'</div>'
+            f'<div style="font-size:var(--font-size-xs);color:var(--color-text-muted);margin-top:6px;line-height:1.4;">'
+            f'{description}'
             f'</div>'
         )
 
         if p24 > 50:
             html += (
                 f'<div class="cos-alert cos-alert-warning" style="margin-top:var(--space-2);">'
-                f'24h drift risk: {p24:.0f}%'
+                f'Heads up — you may drift further in the next 24 hours.'
                 f'</div>'
             )
 
@@ -145,16 +155,31 @@ class PendingInterventionsView(LoginRequiredMixin, View):
     """Return HTML snippet of pending interventions."""
 
     def get(self, request):
-        pending = intervention_engine.get_pending_interventions(request.user)[:5]
+        # Only show recent alerts (today + yesterday) — stale alerts aren't useful
+        import datetime
+        cutoff = timezone.now() - datetime.timedelta(days=1)
+        pending = intervention_engine.get_pending_interventions(
+            request.user,
+        ).filter(created_at__gte=cutoff)[:10]
 
         if not pending.exists():
             return HttpResponse(
                 '<div style="font-size:var(--font-size-xs);color:var(--color-text-muted);">'
-                'System stable. Tier-1 protected.</div>'
+                'Nothing needs your attention right now.</div>'
             )
 
-        html = ''
+        # Deduplicate by message content — keep the most recent of each
+        seen_messages = {}
         for intervention in pending:
+            # Normalize message for comparison (strip whitespace, lowercase)
+            key = intervention.message.strip().lower()[:100]
+            if key not in seen_messages:
+                seen_messages[key] = intervention
+
+        unique_interventions = list(seen_messages.values())[:5]
+
+        html = ''
+        for intervention in unique_interventions:
             level_colors = {0: 'info', 1: 'info', 2: 'warning', 3: 'warning', 4: 'danger'}
             alert_class = level_colors.get(intervention.level, 'info')
             html += (
@@ -304,12 +329,12 @@ class MobilePanelView(LoginRequiredMixin, View):
 
         html += '</div>'  # snapshot-strip
 
-        # Quick actions
+        # Quick actions (use data-action for CSP-compliant delegation)
         html += (
             '<div class="assistant-quick-actions" style="margin-top:var(--space-3);">'
-            '<button class="assistant-action-btn" onclick="openAssistantChat()">Chat</button>'
-            '<button class="assistant-action-btn" onclick="triggerCurveball()">Curveball</button>'
-            '<button class="assistant-action-btn" onclick="viewBlueprint()">Blueprint</button>'
+            '<button class="assistant-action-btn" data-action="open-assistant-chat">Chat</button>'
+            '<button class="assistant-action-btn" data-action="trigger-curveball">Curveball</button>'
+            '<button class="assistant-action-btn" data-action="view-blueprint">Blueprint</button>'
             '</div>'
         )
 

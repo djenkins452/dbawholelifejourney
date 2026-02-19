@@ -11,6 +11,16 @@
 
 ## 2026-02-18
 
+- **CSP Phase 4: Fix remaining inline handlers in AI, journal, assistant admin, and admin console**
+  - `ai_guidance/inbox.html` — 5 onclick handlers replaced with `data-guidance-action` attribute + event delegation
+  - `ai_insights/inbox.html` — 2 onclick handlers replaced with `data-insight-action` attribute + event delegation; added missing `nonce="{{ csp_nonce }}"` to script tag
+  - `journal/entry_list.html` — 2 `onchange="this.form.submit()"` replaced with `data-auto-submit`
+  - `journal/tag_list.html` — `onsubmit="return confirm(...)"` replaced with `data-confirm` attribute
+  - `journal/partials/tag_create_modal.html` — 2 `onclick="...remove()"` replaced with `data-close-tag-modal` + delegation
+  - `assistant/admin/dashboard.html` — 10 inline handlers (onclick on approve/reject/rollback/toggle, onchange on filters) replaced with data attributes + delegation
+  - `admin_console/test_plans/cycle_detail.html` — 10 inline handlers (onclick on phase/item toggles, onchange on status/field updates) replaced with data attributes + delegation
+  - `admin_console/dataload/list.html` — `onclick="...remove()"` and `onsubmit="return confirm(...)"` replaced with class + `data-confirm`
+
 - **CSP Phase 3: Remove ALL remaining inline event handlers across templates**
   - Converted all `onsubmit="return confirm('...')"` to `data-confirm="..."` attribute (handled by main.js global submit delegation)
   - Converted all `onchange="this.form.submit()"` to `data-auto-submit` attribute (handled by main.js global change delegation)

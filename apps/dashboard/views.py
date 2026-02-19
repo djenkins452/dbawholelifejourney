@@ -497,10 +497,22 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         ]
 
         # Risk warning — pick the most relevant one, translate to human language
+        # Pass context with specific commitment names when possible
         risk_warning = None
         raw_warnings = command_brief.get('risk_warnings', [])
         if raw_warnings:
-            risk_warning = translate_risk_warning(raw_warnings[0])
+            # Build context from tier-1 items for specific warning messages
+            warning_context = None
+            incomplete_t1 = [
+                i for i in tier1_items if not i.get('is_completed')
+            ]
+            if incomplete_t1:
+                warning_context = {
+                    'commitment_name': incomplete_t1[0].get('title', ''),
+                }
+            risk_warning = translate_risk_warning(
+                raw_warnings[0], context=warning_context,
+            )
         elif command_brief.get('overload_risk'):
             risk_warning = 'Tomorrow carries more load than typical.'
 

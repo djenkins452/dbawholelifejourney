@@ -35,7 +35,7 @@
                 <span class="tag-count">{{ tag.journalentry_set.count }} entr{{ tag.journalentry_set.count|pluralize:"y,ies" }}</span>
             </div>
             <div class="tag-actions">
-                <form method="post" action="{% url 'journal:tag_delete' tag.pk %}" class="inline-form" onsubmit="return confirm('Delete this tag? Entries will not be deleted.')">
+                <form method="post" action="{% url 'journal:tag_delete' tag.pk %}" class="inline-form" data-confirm="Delete this tag? Entries will not be deleted.">
                     {% csrf_token %}
                     <button type="submit" class="btn btn-ghost btn-sm text-danger">Delete</button>
                 </form>

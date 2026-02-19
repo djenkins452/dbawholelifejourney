@@ -67,8 +67,7 @@
                 Manage Subscription
             </a>
             {% if not profile.cancel_at_period_end %}
-            <form method="post" action="{% url 'billing:cancel_subscription' %}"
-                  onsubmit="return confirm('Are you sure you want to cancel? You will retain access until the end of your billing period.');">
+            <form method="post" action="{% url 'billing:cancel_subscription' %}" data-confirm="Are you sure you want to cancel? You will retain access until the end of your billing period.">
                 {% csrf_token %}
                 <button type="submit" class="py-2 px-4 text-red-600 hover:text-red-700 text-sm">
                     Cancel Subscription
@@ -111,7 +110,7 @@
                 <input type="text" readonly value="{{ profile.referral_link }}"
                        class="flex-1 rounded-l-lg border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-800 text-sm"
                        id="referral-link">
-                <button onclick="copyReferralLink()"
+                <button id="copy-referral-btn"
                         class="px-4 py-2 bg-indigo-600 text-white rounded-r-lg hover:bg-indigo-700 text-sm">
                     Copy
                 </button>
@@ -138,5 +137,8 @@ function copyReferralLink() {
     document.execCommand('copy');
     alert('Referral link copied!');
 }
+
+// CSP-Compliant Event Delegation
+document.getElementById('copy-referral-btn').addEventListener('click', copyReferralLink);
 </script>
 {% endblock %}

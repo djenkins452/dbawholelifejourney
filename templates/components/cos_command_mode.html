@@ -9,9 +9,13 @@ Requires: command_mode dict from DashboardView._get_command_mode()
 {% if calibration_active %}
 <div class="cos-greeting-banner cos-calibration-banner">
     <h2>{{ command_mode.greeting_line|default:"Hi there!" }}</h2>
-    <p>Before we get into the day-to-day, let's take a minute to get to know each other. I want to understand what matters to you — your priorities, what drives you, and how I can actually help.</p>
+    {% if calibration_summary %}
+    <p>I've already been looking at what you've been doing here. {{ calibration_summary }} But I want to understand what actually matters to you — your priorities, what drives you, and what I should protect when things get busy.</p>
+    {% else %}
+    <p>I'm your Chief of Staff. Before I can help, I need to understand what matters to you — your priorities, what drives you, and how I can actually be useful.</p>
+    {% endif %}
     <button type="button" class="cos-start-chat-btn" id="cos-start-calibration-btn">
-        Let's Chat →
+        Let's Go →
     </button>
 </div>
 <script nonce="{{ csp_nonce }}">

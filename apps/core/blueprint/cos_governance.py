@@ -178,15 +178,29 @@ CALIBRATION_PHASES = {}  # Deprecated — use CALIBRATION_QUESTIONS
 
 
 # Welcome and completion messages for conversational calibration
-CALIBRATION_WELCOME_MESSAGE = (
-    "Before we get into the day-to-day, I'd like to take a minute to get to "
-    "know you. Not the surface stuff — the things that actually matter. "
-    "What are your priorities right now? What's important to you and what's "
-    "secondary? What drives you? I'm going to ask a few simple questions so "
-    "I can understand how to actually help you, not just throw generic advice "
-    "at you. You can pause anytime by saying 'that's enough for now' and "
-    "we'll pick up where we left off."
+# NOTE: This is a TEMPLATE — the actual welcome is built dynamically in
+# build_calibration_system_injection() using real user data.
+CALIBRATION_WELCOME_TEMPLATE = (
+    "I've already been looking at what you've been doing here. "
+    "{data_summary} "
+    "But numbers only tell me so much. I want to understand what actually "
+    "matters to you — what's a priority, what's secondary, what I should "
+    "protect when things get busy. I've got a few questions to fill in "
+    "the gaps. You can pause anytime by saying 'that's enough for now.'"
 )
+
+# Fallback for users with no data at all
+CALIBRATION_WELCOME_NO_DATA = (
+    "I'm your Chief of Staff — think of me as someone who pays attention "
+    "to what matters to you and helps you stay on track. Before I can do "
+    "that, I need to understand you. Not the surface stuff — what actually "
+    "drives you, what your priorities are, and what you'd want me to protect "
+    "when things get busy. A few quick questions and I'll be up to speed. "
+    "You can pause anytime by saying 'that's enough for now.'"
+)
+
+# Backward-compat alias for dashboard views that import this name
+CALIBRATION_WELCOME_MESSAGE = CALIBRATION_WELCOME_NO_DATA
 
 CALIBRATION_COMPLETION_MESSAGE = (
     "That's everything I needed to ask. I have a much better picture of what "
@@ -746,13 +760,261 @@ def reset_calibration_for_conversational(user):
     return False
 
 
+def _gather_user_snapshot(user):
+    """
+    Gather what the system already knows about a user for calibration.
+
+    Returns a dict with data points the AI can reference when asking
+    calibration questions, so it sounds informed rather than generic.
+    """
+    snapshot = {
+        'has_data': False,
+        'modules_active': [],
+        'health': {},
+        'goals': {},
+        'journal': {},
+        'faith': {},
+        'tasks': {},
+        'habits': {},
+        'relationships': [],
+    }
+
+    # Health data
+    try:
+        from apps.core.ai_state.state_engine import get_state_value
+        weight = get_state_value(user, 'health.weight_current')
+        if weight:
+            snapshot['health']['weight'] = weight
+            snapshot['health']['weight_trend'] = get_state_value(
+                user, 'health.weight_trend') or 'unknown'
+            snapshot['has_data'] = True
+    except Exception:
+        pass
+
+    try:
+        from apps.health.models import MedicineSchedule
+        med_count = MedicineSchedule.objects.filter(
+            user=user, is_active=True).count()
+        if med_count:
+            snapshot['health']['medicine_count'] = med_count
+            snapshot['modules_active'].append('medicines')
+            snapshot['has_data'] = True
+    except Exception:
+        pass
+
+    try:
+        from apps.health.models import FitnessLog
+        from django.utils import timezone as tz
+        week_ago = tz.now() - tz.timedelta(days=7)
+        workout_count = FitnessLog.objects.filter(
+            user=user, date__gte=week_ago.date()).count()
+        if workout_count:
+            snapshot['health']['workouts_7d'] = workout_count
+            snapshot['modules_active'].append('fitness')
+            snapshot['has_data'] = True
+    except Exception:
+        pass
+
+    # Goals
+    try:
+        from apps.purpose.models import Goal
+        active_goals = Goal.objects.filter(
+            user=user, status='active'
+        ).values_list('title', flat=True)[:5]
+        if active_goals:
+            snapshot['goals']['active'] = list(active_goals)
+            snapshot['goals']['count'] = len(active_goals)
+            snapshot['modules_active'].append('goals')
+            snapshot['has_data'] = True
+    except Exception:
+        pass
+
+    # Journal
+    try:
+        from apps.journal.models import JournalEntry
+        from django.utils import timezone as tz
+        total_entries = JournalEntry.objects.filter(user=user).count()
+        if total_entries:
+            week_entries = JournalEntry.objects.filter(
+                user=user,
+                entry_date__gte=(tz.now() - tz.timedelta(days=7)).date()
+            ).count()
+            snapshot['journal']['total'] = total_entries
+            snapshot['journal']['week'] = week_entries
+            snapshot['modules_active'].append('journal')
+            snapshot['has_data'] = True
+    except Exception:
+        pass
+
+    # Faith
+    try:
+        from apps.faith.models import Prayer
+        prayer_count = Prayer.objects.filter(user=user).count()
+        if prayer_count:
+            snapshot['faith']['prayer_count'] = prayer_count
+            snapshot['modules_active'].append('faith')
+            snapshot['has_data'] = True
+    except Exception:
+        pass
+
+    # Tasks
+    try:
+        from apps.life.models import Task
+        overdue = Task.objects.filter(
+            user=user, status='pending',
+            due_date__lt=timezone.now().date()
+        ).count()
+        active = Task.objects.filter(
+            user=user, status='pending').count()
+        if active:
+            snapshot['tasks']['active'] = active
+            snapshot['tasks']['overdue'] = overdue
+            snapshot['modules_active'].append('tasks')
+            snapshot['has_data'] = True
+    except Exception:
+        pass
+
+    # Habit goals
+    try:
+        from apps.purpose.models import HabitGoal
+        habits = HabitGoal.objects.filter(
+            user=user, is_active=True
+        ).values_list('name', flat=True)[:5]
+        if habits:
+            snapshot['habits']['active'] = list(habits)
+            snapshot['modules_active'].append('habits')
+            snapshot['has_data'] = True
+    except Exception:
+        pass
+
+    # Relationships
+    try:
+        from apps.life.models import Relationship
+        important = Relationship.objects.filter(
+            user=user, importance_tier__lte=2
+        ).values_list('name', flat=True)[:5]
+        if important:
+            snapshot['relationships'] = list(important)
+            snapshot['has_data'] = True
+    except Exception:
+        pass
+
+    return snapshot
+
+
+def _build_data_summary(snapshot):
+    """
+    Build a natural-language summary of what the system knows about the user.
+    Used in the calibration welcome message.
+    """
+    parts = []
+
+    # Health
+    if snapshot['health'].get('weight'):
+        trend = snapshot['health'].get('weight_trend', '')
+        trend_str = f" and it's trending {trend}" if trend and trend != 'unknown' else ""
+        parts.append(
+            f"You're tracking your weight at {snapshot['health']['weight']} lb{trend_str}."
+        )
+    if snapshot['health'].get('medicine_count'):
+        parts.append(
+            f"You're managing {snapshot['health']['medicine_count']} medicines."
+        )
+    if snapshot['health'].get('workouts_7d'):
+        parts.append(
+            f"You logged {snapshot['health']['workouts_7d']} workouts this week."
+        )
+
+    # Goals
+    if snapshot['goals'].get('active'):
+        goal_names = snapshot['goals']['active'][:3]
+        if len(goal_names) == 1:
+            parts.append(f"You've got an active goal: \"{goal_names[0]}\".")
+        else:
+            names = ', '.join(f'"{g}"' for g in goal_names)
+            total = snapshot['goals']['count']
+            extra = f" and {total - len(goal_names)} more" if total > len(goal_names) else ""
+            parts.append(f"You've got goals like {names}{extra}.")
+
+    # Journal
+    if snapshot['journal'].get('total'):
+        parts.append(
+            f"You've written {snapshot['journal']['total']} journal entries"
+            f" ({snapshot['journal'].get('week', 0)} this week)."
+        )
+
+    # Faith
+    if snapshot['faith'].get('prayer_count'):
+        parts.append(
+            f"You have {snapshot['faith']['prayer_count']} prayer requests tracked."
+        )
+
+    # Tasks
+    if snapshot['tasks'].get('overdue'):
+        parts.append(
+            f"You have {snapshot['tasks']['overdue']} overdue tasks."
+        )
+
+    # Habits
+    if snapshot['habits'].get('active'):
+        habit_names = snapshot['habits']['active'][:3]
+        parts.append(
+            f"You're building habits like {', '.join(habit_names)}."
+        )
+
+    return ' '.join(parts) if parts else ''
+
+
+def _build_question_context(question_key, snapshot):
+    """
+    Build data-aware context for a specific calibration question.
+
+    Returns a string the AI can use to make the question informed,
+    or empty string if no relevant data exists.
+    """
+    contexts = {
+        'core_people_1': lambda s: (
+            f"You have {', '.join(s['relationships'])} marked as important relationships. "
+            "Use this when asking about the people in their life — confirm or expand."
+        ) if s.get('relationships') else '',
+
+        'non_negotiables_1': lambda s: (
+            "DATA YOU HAVE: "
+            + (f"They work out ~{s['health']['workouts_7d']}x/week. " if s['health'].get('workouts_7d') else '')
+            + (f"They journal ~{s['journal']['week']}x/week. " if s['journal'].get('week') else '')
+            + (f"They track {s['faith']['prayer_count']} prayers. " if s['faith'].get('prayer_count') else '')
+            + (f"They manage {s['health']['medicine_count']} medicines daily. " if s['health'].get('medicine_count') else '')
+            + "Reference what you see them doing consistently when asking what's sacred to them."
+        ) if any([
+            s['health'].get('workouts_7d'),
+            s['journal'].get('week'),
+            s['faith'].get('prayer_count'),
+            s['health'].get('medicine_count'),
+        ]) else '',
+
+        'module_focus': lambda s: (
+            f"MODULES THEY ACTIVELY USE: {', '.join(s['modules_active'])}. "
+            "Don't ask generically which areas matter — tell them what you see them using "
+            "and ask which of those they want you to prioritize and protect."
+        ) if s.get('modules_active') else '',
+    }
+
+    builder = contexts.get(question_key)
+    if builder:
+        try:
+            return builder(snapshot)
+        except Exception:
+            return ''
+    return ''
+
+
 def build_calibration_system_injection(user):
     """
     Build system prompt injection for conversational calibration.
 
-    Follows the same pattern as alignment_session.py's
-    build_alignment_system_injection(). Injected into the system prompt
-    when calibration is active and not paused.
+    Uses actual user data to make the conversation intelligent — the AI
+    references what it already knows about the user rather than asking
+    generic questions.
 
     Returns:
         str — system prompt block, or empty string if not in calibration.
@@ -768,8 +1030,6 @@ def build_calibration_system_injection(user):
         return ""
 
     # Auto-complete stale alignment sessions — calibration replaces them.
-    # The old alignment session was a separate onboarding flow that is now
-    # superseded by conversational calibration.
     try:
         from apps.core.ai_governance.models import GovernanceAlignmentSession
         session = GovernanceAlignmentSession.objects.filter(user=user).first()
@@ -787,38 +1047,107 @@ def build_calibration_system_injection(user):
     if not next_q:
         return ""
 
+    # Gather what the system already knows
+    snapshot = _gather_user_snapshot(user)
+    data_summary = _build_data_summary(snapshot)
+
     lines = [
         "=== CRITICAL: GETTING TO KNOW YOU — THIS OVERRIDES ALL OTHER TASKS ==="
     ]
-    lines.append("")
-    lines.append(
-        "You are in an active getting-to-know-you conversation. "
-        "Your ONLY job right now is to ask the question below. "
-        "Do NOT give general advice, data summaries, or overviews. "
-        "Do NOT discuss the user's data or provide insights. "
-        "ONLY engage in this personal conversation."
-    )
     lines.append("")
 
     welcome_shown = overrides.get('calibration_welcome_shown', False)
 
     if not welcome_shown:
+        # First interaction — introduce yourself WITH what you already know
+        if snapshot['has_data'] and data_summary:
+            welcome = CALIBRATION_WELCOME_TEMPLATE.format(
+                data_summary=data_summary)
+        else:
+            welcome = CALIBRATION_WELCOME_NO_DATA
+
         lines.append(
-            "FIRST INTERACTION: This is your very first conversation with this "
-            "person. Do NOT jump into tasks, data, or focus areas. Instead, "
-            "introduce yourself warmly and explain that you want to take a "
-            "minute to get to know them first. Say something like: "
-            f'"{CALIBRATION_WELCOME_MESSAGE}" '
-            "Make it feel like a real introduction — you're a person meeting "
-            "someone for the first time, not a tool asking for configuration. "
-            "Wait for their response before asking the first question."
+            "FIRST INTERACTION: This is your very first conversation with "
+            "this person. You are NOT a blank slate — you already have data "
+            "about them. Lead with what you know. Show them you've been "
+            "paying attention. Then explain you want to fill in the gaps — "
+            "understand their priorities, what matters vs. what's secondary, "
+            "what drives them."
+        )
+        lines.append("")
+        lines.append(f"SAY SOMETHING LIKE: \"{welcome}\"")
+        lines.append("")
+        lines.append(
+            "CRITICAL: Do NOT ask a generic 'what do you want to focus on?' "
+            "You HAVE their data. Reference it. Then ask the first question."
+        )
+        lines.append("")
+    else:
+        # Continuing calibration — still reference data when relevant
+        lines.append(
+            "You are in an active getting-to-know-you conversation. "
+            "Your ONLY job right now is to ask the question below. "
+            "Do NOT give general advice or overviews. Stay in this "
+            "conversation."
         )
         lines.append("")
 
-    # Include what we've learned so far
+    # Inject what the system knows so the AI can reference it
+    if snapshot['has_data']:
+        lines.append("=== WHAT YOU ALREADY KNOW ABOUT THIS PERSON ===")
+        if snapshot['health']:
+            health_parts = []
+            if snapshot['health'].get('weight'):
+                health_parts.append(
+                    f"Weight: {snapshot['health']['weight']} lb "
+                    f"(trend: {snapshot['health'].get('weight_trend', 'unknown')})")
+            if snapshot['health'].get('medicine_count'):
+                health_parts.append(
+                    f"Medicines: {snapshot['health']['medicine_count']} active")
+            if snapshot['health'].get('workouts_7d'):
+                health_parts.append(
+                    f"Workouts this week: {snapshot['health']['workouts_7d']}")
+            if health_parts:
+                lines.append(f"  Health: {'; '.join(health_parts)}")
+
+        if snapshot['goals'].get('active'):
+            lines.append(
+                f"  Goals: {', '.join(snapshot['goals']['active'][:5])}")
+        if snapshot['journal'].get('total'):
+            lines.append(
+                f"  Journal: {snapshot['journal']['total']} entries "
+                f"({snapshot['journal'].get('week', 0)} this week)")
+        if snapshot['faith'].get('prayer_count'):
+            lines.append(
+                f"  Faith: {snapshot['faith']['prayer_count']} prayers tracked")
+        if snapshot['tasks'].get('active'):
+            lines.append(
+                f"  Tasks: {snapshot['tasks']['active']} active"
+                f" ({snapshot['tasks'].get('overdue', 0)} overdue)")
+        if snapshot['habits'].get('active'):
+            lines.append(
+                f"  Habits: {', '.join(snapshot['habits']['active'][:5])}")
+        if snapshot.get('relationships'):
+            lines.append(
+                f"  Key relationships: {', '.join(snapshot['relationships'])}")
+        lines.append(
+            f"  Modules in use: {', '.join(snapshot['modules_active'])}"
+            if snapshot.get('modules_active') else "  Modules: none yet")
+        lines.append("=== END KNOWN DATA ===")
+        lines.append("")
+        lines.append(
+            "USE THIS DATA in your questions. Don't ask things you already "
+            "know — confirm, expand, or dig deeper. If you see them working "
+            "out 5 days a week, don't ask 'do you exercise?' — ask 'your "
+            "workouts seem pretty consistent, is fitness one of your "
+            "non-negotiables or is something else more sacred?'"
+        )
+        lines.append("")
+
+    # Include what we've learned so far from calibration answers
     answers = overrides.get('calibration_answers', {})
     if answers:
-        lines.append("What you've learned so far:")
+        lines.append("What they've told you so far in this conversation:")
         for key, answer in answers.items():
             q_def = next(
                 (q for q in CALIBRATION_QUESTIONS if q['key'] == key), None
@@ -828,13 +1157,18 @@ def build_calibration_system_injection(user):
                 lines.append(f"  - {label}: {answer[:200]}")
         lines.append("")
 
+    # Build data-aware question context
+    q_context = _build_question_context(next_q['key'], snapshot)
+
     lines.append(
         f"YOUR NEXT QUESTION ({next_q['question_number']}/{next_q['total_questions']}): "
         f"{next_q['question']}"
     )
+    if q_context:
+        lines.append(f"CONTEXT FOR THIS QUESTION: {q_context}")
     lines.append(
-        "You MUST ask this question (in your own words) in your response. "
-        "This is not optional."
+        "Ask this question in your own words, informed by what you know. "
+        "This is not optional — you MUST ask it."
     )
 
     # Preview next question so AI can transition naturally
@@ -853,8 +1187,9 @@ def build_calibration_system_injection(user):
     lines.append("")
     lines.append(
         "RULES: "
-        "1. Ask the question naturally in your own words — but you MUST ask it. "
-        "2. ONE question per message — never batch. "
+        "1. Ask the question naturally in your own words, referencing "
+        "their data when relevant — but you MUST ask it. "
+        "2. ONE question per message — never batch multiple questions. "
         "3. If the user just said hello or is resuming, briefly greet them "
         "and then ask the question. "
         "4. If the user gave a thoughtful answer, briefly acknowledge it "
@@ -864,7 +1199,9 @@ def build_calibration_system_injection(user):
         "6. Never use words like 'calibration', 'governance', 'stage', "
         "'tier', 'module classification', or 'identity pillar'. "
         "7. Keep it conversational — you're getting to know a person, "
-        "not filling out a form."
+        "not filling out a form. "
+        "8. NEVER ask a question you can already answer from their data. "
+        "Instead, state what you see and ask them to confirm or correct."
     )
     lines.append(
         "=== END GETTING TO KNOW YOU ==="

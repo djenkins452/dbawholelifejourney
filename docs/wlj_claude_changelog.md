@@ -11,6 +11,9 @@
 
 ## 2026-02-19
 
+- **Data-aware calibration — CoS uses what it already knows** — Complete rewrite of the calibration/onboarding flow. Instead of asking generic questions ("What are your goals?"), the CoS now gathers a live data snapshot (weight, goals, journal stats, faith, medicines, habits, relationships, tasks) and presents what it already knows to the user. The system injection tells the AI to reference actual data, confirm/expand rather than ask from scratch, and never ask something it can already answer. Added `_gather_user_snapshot()` and `_build_data_summary()` helpers. Calibration banner now shows personalized data summary. Context processor passes snapshot to templates.
+  - Files: `apps/core/blueprint/cos_governance.py`, `apps/core/context_processors.py`, `templates/components/cos_command_mode.html`, `apps/core/management/commands/load_initial_data.py`
+
 - **Desktop chat panel always visible, fix floating button overlap** — Removed collapse/toggle functionality from the desktop assistant panel so it's always visible (never minimizable). Removed dead CSS for closed state (`data-state="closed"`, `assistant-panel-closed` body class). Hidden the floating chat button and drawer on desktop with `!important` to prevent z-index overlap with the panel's microphone button. Cleaned up all references to panel state toggling.
   - Files: `static/css/assistant-panel.css`, `templates/components/assistant_panel.html`, `templates/components/chat_widget.html`, `templates/components/cos_command_mode.html`
 

@@ -2360,7 +2360,7 @@ Tasks are sorted by priority (ascending) then creation date.""",
         Resets calibration to stage 0 with welcome_shown=False and clears
         chat history so everyone experiences the warmer first-time greeting.
         """
-        reset_tracker_name = 'reset_all_calibration_intro_v1_2026_02_19'
+        reset_tracker_name = 'reset_all_calibration_intro_v2_data_aware_2026_02_19'
 
         if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
             return

@@ -121,12 +121,23 @@ def theme_context(request):
             context['cos_display_name'] = prefs.get_cos_name()
             # Calibration state for chat auto-start
             context['calibration_active'] = False
+            context['calibration_summary'] = ''
             if prefs.personal_assistant_enabled:
                 try:
-                    from apps.core.blueprint.cos_governance import get_calibration_state
+                    from apps.core.blueprint.cos_governance import (
+                        get_calibration_state,
+                        _gather_user_snapshot,
+                        _build_data_summary,
+                    )
                     cal_state = get_calibration_state(request.user)
                     if cal_state and cal_state['active'] and not cal_state['paused']:
                         context['calibration_active'] = True
+                        try:
+                            snapshot = _gather_user_snapshot(request.user)
+                            context['calibration_summary'] = _build_data_summary(
+                                snapshot)
+                        except Exception:
+                            pass
                 except Exception:
                     pass
             # Cycle tracking - check if user has opted in

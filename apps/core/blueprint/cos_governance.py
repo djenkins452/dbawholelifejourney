@@ -595,15 +595,9 @@ def get_calibration_state(user):
             blueprint.save(update_fields=[
                 'calibration_complete', 'governance_overrides', 'updated_at',
             ])
-            # Clear stale chat history so they start fresh
-            try:
-                from apps.ai.models import AssistantConversation
-                conv = AssistantConversation.objects.filter(
-                    user=user, is_active=True).first()
-                if conv:
-                    conv.messages.all().delete()
-            except Exception:
-                pass
+            # Keep chat history — the user may have shared valuable info
+            # that the AI should remember during the new calibration flow.
+            # We only reset the calibration state, not the conversation.
             logger.info(
                 "Auto-reset calibration for %s (old version: %s)",
                 user.email, cal_version or 'none',
@@ -1361,6 +1355,8 @@ def build_calibration_system_injection(user):
         lines.append("## YOUR ROLE RIGHT NOW")
         lines.append(
             "You are in an active getting-to-know-you conversation. "
+            "If there is earlier conversation history, you ALREADY know "
+            "things they shared — reference them naturally. "
             "Your ONLY job is to ask the question below. Do NOT give "
             "general advice, data overviews, or helpful suggestions. "
             "Stay in THIS conversation."

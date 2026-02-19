@@ -85,23 +85,8 @@ class Command(BaseCommand):
                 'updated_at',
             ])
 
-            # Clear chat history
-            try:
-                from apps.ai.models import AssistantConversation
-                conv = AssistantConversation.objects.filter(
-                    user=user, is_active=True).first()
-                if conv:
-                    msg_count = conv.messages.count()
-                    conv.messages.all().delete()
-                    self.stdout.write(
-                        f"  Reset: {user.email} "
-                        f"(cleared {msg_count} messages)"
-                    )
-                else:
-                    self.stdout.write(f"  Reset: {user.email} (no conv)")
-            except Exception as e:
-                self.stdout.write(
-                    f"  Reset: {user.email} (chat clear failed: {e})")
+            # Preserve chat history — user may have shared valuable info
+            self.stdout.write(f"  Reset: {user.email} (calibration state reset, chat preserved)")
 
             reset_count += 1
 

@@ -13,7 +13,7 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 
-TRACKER_NAME = 'reset_calibration_data_aware_intro_v3'
+TRACKER_NAME = 'reset_calibration_data_aware_intro_v4'
 
 
 class Command(BaseCommand):

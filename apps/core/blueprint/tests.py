@@ -1507,7 +1507,7 @@ class PassiveLanguageTests(TestCase):
         self.assertNotIn('Loading...', content)
 
     def test_panel_views_silent_authority(self):
-        """Panel views should show 'System stable' instead of 'No active alerts'."""
+        """Panel views should show friendly empty state instead of 'No active alerts'."""
         from .panel_views import PendingInterventionsView
         factory = RequestFactory()
         user = _create_test_user(email='silent@test.com')
@@ -1515,7 +1515,7 @@ class PassiveLanguageTests(TestCase):
         request.user = user
         response = PendingInterventionsView.as_view()(request)
         content = response.content.decode()
-        self.assertIn('System stable', content)
+        self.assertIn('Nothing needs your attention right now', content)
         self.assertNotIn('No active alerts', content)
 
 
@@ -1679,7 +1679,7 @@ class SilentAuthorityTests(TestCase):
     """Tests for the Silent Authority Rule — no empty states."""
 
     def test_panel_interventions_empty_shows_stable(self):
-        """Empty interventions should show 'System stable' message."""
+        """Empty interventions should show friendly empty state message."""
         user = _create_test_user(email='silent2@test.com')
         factory = RequestFactory()
         request = factory.get('/api/blueprint/interventions/pending/')
@@ -1687,8 +1687,7 @@ class SilentAuthorityTests(TestCase):
         from .panel_views import PendingInterventionsView
         response = PendingInterventionsView.as_view()(request)
         content = response.content.decode()
-        self.assertIn('System stable', content)
-        self.assertIn('Tier-1 protected', content)
+        self.assertIn('Nothing needs your attention right now', content)
 
     def test_plan_view_empty_shows_initializing(self):
         """Empty plan should show architecture initializing message."""

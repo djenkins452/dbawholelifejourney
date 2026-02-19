@@ -9,6 +9,22 @@
 
 # WLJ Change History
 
+## 2026-02-19
+
+- **Chief of Staff Dashboard UX Overhaul — Human Language, Interaction, and Clarity**
+  - **Priority warning transparency**: `human_language.py` `translate_risk_warning()` now extracts specific item names from warnings; `dashboard/views.py` passes `warning_context` with the actual commitment name. No more vague "One of your top priorities may need attention."
+  - **Text input box enlarged**: Changed `<input>` to `<textarea rows="2">` in `cos_command_mode.html`; updated CSS for min-height 52px, Shift+Enter for newlines, Enter to submit
+  - **"Active" status clarified**: Changed to "Monitoring your day" with tooltip in `assistant_panel.html`; added risk label text ("On track"/"Needs attention"/"At risk") next to green dot in command mode
+  - **AM/PM time format**: `panel_views.py` `TodayPlanView` changed from `strftime('%H:%M')` to `strftime('%-I:%M %p')`
+  - **"How You're Tracking" redesigned**: Renamed to "Plan Progress"; drift summary now shows human labels ("On Track"/"Drifting Slightly"/"Off Course") with descriptions; removed raw scores
+  - **Alerts deduplication**: `PendingInterventionsView` now filters to 24-hour window, deduplicates by content, limits to 5; friendly empty state "Nothing needs your attention right now."
+  - **Today's Insight prominence**: AI insight tile now renders ABOVE the `data-mode-hidden` grid when command mode is active (no longer dimmed by opacity)
+  - **CoS interactive chat**: Full rewrite of `cos_command_mode.html` — direct chat via `/assistant/api/chat/`, Web Speech API voice input (microphone button), SpeechSynthesis text-to-speech for responses, auto-speaks when input was via voice
+  - **Loading text active voice**: Changed "Loading plan..." → "Preparing your plan...", "Checking status..." → "Reviewing progress...", "Checking interventions..." → "Scanning for alerts..."
+  - **CSP fix**: Mobile panel view inline onclick handlers replaced with data-action attributes
+  - Updated 5 tests to match new human-friendly text
+  - Files: `apps/core/blueprint/human_language.py`, `apps/dashboard/views.py`, `templates/components/cos_command_mode.html`, `templates/components/assistant_panel.html`, `apps/core/blueprint/panel_views.py`, `static/css/assistant-panel.css`, `templates/dashboard/home.html`, `templates/dashboard/tiles/ai_insights.html`, `apps/core/blueprint/tests.py`
+
 ## 2026-02-18
 
 - **CSP Phase 4: Fix remaining inline handlers in AI, journal, assistant admin, and admin console**

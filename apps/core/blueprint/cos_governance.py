@@ -791,9 +791,10 @@ def _gather_user_snapshot(user):
     except Exception:
         pass
 
+    # Medicines (Medicine model, not MedicineSchedule — schedules have no user FK)
     try:
-        from apps.health.models import MedicineSchedule
-        med_count = MedicineSchedule.objects.filter(
+        from apps.health.models import Medicine
+        med_count = Medicine.objects.filter(
             user=user, is_active=True).count()
         if med_count:
             snapshot['health']['medicine_count'] = med_count
@@ -802,11 +803,12 @@ def _gather_user_snapshot(user):
     except Exception:
         pass
 
+    # Workouts (WorkoutSession, not FitnessLog)
     try:
-        from apps.health.models import FitnessLog
+        from apps.health.models import WorkoutSession
         from django.utils import timezone as tz
         week_ago = tz.now() - tz.timedelta(days=7)
-        workout_count = FitnessLog.objects.filter(
+        workout_count = WorkoutSession.objects.filter(
             user=user, date__gte=week_ago.date()).count()
         if workout_count:
             snapshot['health']['workouts_7d'] = workout_count
@@ -815,10 +817,10 @@ def _gather_user_snapshot(user):
     except Exception:
         pass
 
-    # Goals
+    # Goals (LifeGoal, not Goal)
     try:
-        from apps.purpose.models import Goal
-        active_goals = Goal.objects.filter(
+        from apps.purpose.models import LifeGoal
+        active_goals = LifeGoal.objects.filter(
             user=user, status='active'
         ).values_list('title', flat=True)[:5]
         if active_goals:
@@ -846,10 +848,10 @@ def _gather_user_snapshot(user):
     except Exception:
         pass
 
-    # Faith
+    # Faith (PrayerRequest, not Prayer)
     try:
-        from apps.faith.models import Prayer
-        prayer_count = Prayer.objects.filter(user=user).count()
+        from apps.faith.models import PrayerRequest
+        prayer_count = PrayerRequest.objects.filter(user=user).count()
         if prayer_count:
             snapshot['faith']['prayer_count'] = prayer_count
             snapshot['modules_active'].append('faith')
@@ -857,15 +859,15 @@ def _gather_user_snapshot(user):
     except Exception:
         pass
 
-    # Tasks
+    # Tasks (is_completed=False, not status='pending')
     try:
         from apps.life.models import Task
         overdue = Task.objects.filter(
-            user=user, status='pending',
+            user=user, is_completed=False,
             due_date__lt=timezone.now().date()
         ).count()
         active = Task.objects.filter(
-            user=user, status='pending').count()
+            user=user, is_completed=False).count()
         if active:
             snapshot['tasks']['active'] = active
             snapshot['tasks']['overdue'] = overdue
@@ -874,11 +876,11 @@ def _gather_user_snapshot(user):
     except Exception:
         pass
 
-    # Habit goals
+    # Habit goals (status='active', not is_active=True)
     try:
         from apps.purpose.models import HabitGoal
         habits = HabitGoal.objects.filter(
-            user=user, is_active=True
+            user=user, status='active'
         ).values_list('name', flat=True)[:5]
         if habits:
             snapshot['habits']['active'] = list(habits)
@@ -887,14 +889,158 @@ def _gather_user_snapshot(user):
     except Exception:
         pass
 
-    # Relationships
+    # Sleep tracking
     try:
-        from apps.life.models import Relationship
-        important = Relationship.objects.filter(
-            user=user, importance_tier__lte=2
-        ).values_list('name', flat=True)[:5]
-        if important:
-            snapshot['relationships'] = list(important)
+        from apps.health.models import SleepEntry
+        from django.utils import timezone as tz
+        week_ago = tz.now() - tz.timedelta(days=7)
+        sleep_count = SleepEntry.objects.filter(
+            user=user, date__gte=week_ago.date()).count()
+        if sleep_count:
+            snapshot['health']['sleep_entries_7d'] = sleep_count
+            if 'sleep' not in snapshot['modules_active']:
+                snapshot['modules_active'].append('sleep')
+            snapshot['has_data'] = True
+    except Exception:
+        pass
+
+    # Steps tracking
+    try:
+        from apps.health.models import StepsEntry
+        from django.utils import timezone as tz
+        week_ago = tz.now() - tz.timedelta(days=7)
+        steps_count = StepsEntry.objects.filter(
+            user=user, date__gte=week_ago.date()).count()
+        if steps_count:
+            snapshot['health']['steps_entries_7d'] = steps_count
+            if 'steps' not in snapshot['modules_active']:
+                snapshot['modules_active'].append('steps')
+            snapshot['has_data'] = True
+    except Exception:
+        pass
+
+    # Nutrition / food tracking
+    try:
+        from apps.health.models import FoodEntry
+        from django.utils import timezone as tz
+        week_ago = tz.now() - tz.timedelta(days=7)
+        food_count = FoodEntry.objects.filter(
+            user=user, date__gte=week_ago.date()).count()
+        if food_count:
+            snapshot['health']['food_entries_7d'] = food_count
+            snapshot['modules_active'].append('nutrition')
+            snapshot['has_data'] = True
+    except Exception:
+        pass
+
+    # Fasting
+    try:
+        from apps.health.models import FastingWindow
+        from django.utils import timezone as tz
+        month_ago = tz.now() - tz.timedelta(days=30)
+        fast_count = FastingWindow.objects.filter(
+            user=user, start_time__gte=month_ago).count()
+        if fast_count:
+            snapshot['health']['fasts_30d'] = fast_count
+            snapshot['modules_active'].append('fasting')
+            snapshot['has_data'] = True
+    except Exception:
+        pass
+
+    # Vitals (blood pressure, glucose, heart rate)
+    try:
+        from apps.health.models import (
+            BloodPressureEntry, GlucoseEntry, HeartRateEntry,
+        )
+        vitals = []
+        if BloodPressureEntry.objects.filter(user=user).exists():
+            vitals.append('blood pressure')
+        if GlucoseEntry.objects.filter(user=user).exists():
+            vitals.append('glucose')
+        if HeartRateEntry.objects.filter(user=user).exists():
+            vitals.append('heart rate')
+        if vitals:
+            snapshot['health']['vitals_tracked'] = vitals
+            snapshot['modules_active'].append('vitals')
+            snapshot['has_data'] = True
+    except Exception:
+        pass
+
+    # Medical providers
+    try:
+        from apps.health.models import MedicalProvider
+        provider_count = MedicalProvider.objects.filter(user=user).count()
+        if provider_count:
+            snapshot['health']['provider_count'] = provider_count
+            snapshot['modules_active'].append('providers')
+            snapshot['has_data'] = True
+    except Exception:
+        pass
+
+    # Lab results
+    try:
+        from apps.medical.models import LabResult
+        lab_count = LabResult.objects.filter(user=user).count()
+        if lab_count:
+            snapshot['health']['lab_results'] = lab_count
+            snapshot['modules_active'].append('labs')
+            snapshot['has_data'] = True
+    except Exception:
+        pass
+
+    # Bible reading plans
+    try:
+        from apps.faith.models import UserReadingPlan
+        reading_plans = UserReadingPlan.objects.filter(
+            user=user, status='active').count()
+        if reading_plans:
+            snapshot['faith']['reading_plans'] = reading_plans
+            if 'faith' not in snapshot['modules_active']:
+                snapshot['modules_active'].append('faith')
+            snapshot['has_data'] = True
+    except Exception:
+        pass
+
+    # Annual direction / word of the year
+    try:
+        from apps.purpose.models import AnnualDirection
+        from django.utils import timezone as tz
+        current_year = tz.now().year
+        direction = AnnualDirection.objects.filter(
+            user=user, year=current_year).first()
+        if direction:
+            snapshot['purpose'] = {}
+            if direction.word_of_year:
+                snapshot['purpose']['word_of_year'] = direction.word_of_year
+            if direction.theme:
+                snapshot['purpose']['theme'] = direction.theme
+            snapshot['has_data'] = True
+    except Exception:
+        pass
+
+    # Finance
+    try:
+        from apps.finance.models import FinancialAccount, Budget
+        accounts = FinancialAccount.objects.filter(user=user).count()
+        budgets = Budget.objects.filter(user=user, is_active=True).count()
+        if accounts or budgets:
+            snapshot['finance'] = {
+                'accounts': accounts,
+                'budgets': budgets,
+            }
+            snapshot['modules_active'].append('finance')
+            snapshot['has_data'] = True
+    except Exception:
+        pass
+
+    # Change intentions
+    try:
+        from apps.purpose.models import ChangeIntention
+        intentions = ChangeIntention.objects.filter(
+            user=user, status='active'
+        ).values_list('intention', flat=True)[:3]
+        if intentions:
+            snapshot['goals']['intentions'] = list(intentions)
             snapshot['has_data'] = True
     except Exception:
         pass
@@ -905,36 +1051,90 @@ def _gather_user_snapshot(user):
 def _build_data_summary(snapshot):
     """
     Build a natural-language summary of what the system knows about the user.
-    Used in the calibration welcome message.
+    Used in the calibration welcome message and system prompt injection.
     """
     parts = []
 
-    # Health
+    # Weight
     if snapshot['health'].get('weight'):
         trend = snapshot['health'].get('weight_trend', '')
         trend_str = f" and it's trending {trend}" if trend and trend != 'unknown' else ""
         parts.append(
             f"You're tracking your weight at {snapshot['health']['weight']} lb{trend_str}."
         )
+
+    # Medicines
     if snapshot['health'].get('medicine_count'):
         parts.append(
             f"You're managing {snapshot['health']['medicine_count']} medicines."
         )
+
+    # Workouts
     if snapshot['health'].get('workouts_7d'):
         parts.append(
             f"You logged {snapshot['health']['workouts_7d']} workouts this week."
         )
 
-    # Goals
+    # Sleep
+    if snapshot['health'].get('sleep_entries_7d'):
+        parts.append(
+            f"You've logged sleep {snapshot['health']['sleep_entries_7d']} times this week."
+        )
+
+    # Steps
+    if snapshot['health'].get('steps_entries_7d'):
+        parts.append("You're tracking your steps.")
+
+    # Nutrition
+    if snapshot['health'].get('food_entries_7d'):
+        parts.append(
+            f"You've logged {snapshot['health']['food_entries_7d']} food entries this week."
+        )
+
+    # Fasting
+    if snapshot['health'].get('fasts_30d'):
+        parts.append(
+            f"You've done {snapshot['health']['fasts_30d']} fasts in the last month."
+        )
+
+    # Vitals
+    if snapshot['health'].get('vitals_tracked'):
+        vitals = snapshot['health']['vitals_tracked']
+        parts.append(
+            f"You're tracking {', '.join(vitals)}."
+        )
+
+    # Providers
+    if snapshot['health'].get('provider_count'):
+        parts.append(
+            f"You have {snapshot['health']['provider_count']} medical providers on file."
+        )
+
+    # Lab results
+    if snapshot['health'].get('lab_results'):
+        parts.append(
+            f"You have {snapshot['health']['lab_results']} lab results stored."
+        )
+
+    # Goals — show ALL of them
     if snapshot['goals'].get('active'):
-        goal_names = snapshot['goals']['active'][:3]
-        if len(goal_names) == 1:
-            parts.append(f"You've got an active goal: \"{goal_names[0]}\".")
-        else:
-            names = ', '.join(f'"{g}"' for g in goal_names)
-            total = snapshot['goals']['count']
-            extra = f" and {total - len(goal_names)} more" if total > len(goal_names) else ""
-            parts.append(f"You've got goals like {names}{extra}.")
+        goal_names = snapshot['goals']['active']
+        names = ', '.join(f'"{g}"' for g in goal_names)
+        parts.append(f"Your active goals: {names}.")
+
+    # Change intentions
+    if snapshot['goals'].get('intentions'):
+        intentions = snapshot['goals']['intentions']
+        parts.append(
+            f"You've set intentions: {', '.join(intentions)}."
+        )
+
+    # Habits
+    if snapshot['habits'].get('active'):
+        habit_names = snapshot['habits']['active']
+        parts.append(
+            f"You're building habits: {', '.join(habit_names)}."
+        )
 
     # Journal
     if snapshot['journal'].get('total'):
@@ -944,23 +1144,45 @@ def _build_data_summary(snapshot):
         )
 
     # Faith
+    faith_parts = []
     if snapshot['faith'].get('prayer_count'):
-        parts.append(
-            f"You have {snapshot['faith']['prayer_count']} prayer requests tracked."
-        )
+        faith_parts.append(
+            f"{snapshot['faith']['prayer_count']} prayer requests")
+    if snapshot['faith'].get('reading_plans'):
+        faith_parts.append(
+            f"{snapshot['faith']['reading_plans']} active reading plans")
+    if faith_parts:
+        parts.append(f"Faith: {', '.join(faith_parts)}.")
+
+    # Purpose / word of the year
+    if snapshot.get('purpose'):
+        if snapshot['purpose'].get('word_of_year'):
+            parts.append(
+                f"Your word of the year is \"{snapshot['purpose']['word_of_year']}\"."
+            )
+        if snapshot['purpose'].get('theme'):
+            parts.append(
+                f"Your annual theme: \"{snapshot['purpose']['theme']}\"."
+            )
 
     # Tasks
-    if snapshot['tasks'].get('overdue'):
-        parts.append(
-            f"You have {snapshot['tasks']['overdue']} overdue tasks."
-        )
+    if snapshot['tasks'].get('active'):
+        task_str = f"You have {snapshot['tasks']['active']} active tasks"
+        if snapshot['tasks'].get('overdue'):
+            task_str += f" ({snapshot['tasks']['overdue']} overdue)"
+        parts.append(task_str + ".")
 
-    # Habits
-    if snapshot['habits'].get('active'):
-        habit_names = snapshot['habits']['active'][:3]
-        parts.append(
-            f"You're building habits like {', '.join(habit_names)}."
-        )
+    # Finance
+    if snapshot.get('finance'):
+        finance_parts = []
+        if snapshot['finance'].get('accounts'):
+            finance_parts.append(
+                f"{snapshot['finance']['accounts']} financial accounts")
+        if snapshot['finance'].get('budgets'):
+            finance_parts.append(
+                f"{snapshot['finance']['budgets']} active budgets")
+        if finance_parts:
+            parts.append(f"Finance: {', '.join(finance_parts)}.")
 
     return ' '.join(parts) if parts else ''
 
@@ -1095,44 +1317,10 @@ def build_calibration_system_injection(user):
     # Inject what the system knows so the AI can reference it
     if snapshot['has_data']:
         lines.append("=== WHAT YOU ALREADY KNOW ABOUT THIS PERSON ===")
-        if snapshot['health']:
-            health_parts = []
-            if snapshot['health'].get('weight'):
-                health_parts.append(
-                    f"Weight: {snapshot['health']['weight']} lb "
-                    f"(trend: {snapshot['health'].get('weight_trend', 'unknown')})")
-            if snapshot['health'].get('medicine_count'):
-                health_parts.append(
-                    f"Medicines: {snapshot['health']['medicine_count']} active")
-            if snapshot['health'].get('workouts_7d'):
-                health_parts.append(
-                    f"Workouts this week: {snapshot['health']['workouts_7d']}")
-            if health_parts:
-                lines.append(f"  Health: {'; '.join(health_parts)}")
-
-        if snapshot['goals'].get('active'):
+        lines.append(data_summary)
+        if snapshot.get('modules_active'):
             lines.append(
-                f"  Goals: {', '.join(snapshot['goals']['active'][:5])}")
-        if snapshot['journal'].get('total'):
-            lines.append(
-                f"  Journal: {snapshot['journal']['total']} entries "
-                f"({snapshot['journal'].get('week', 0)} this week)")
-        if snapshot['faith'].get('prayer_count'):
-            lines.append(
-                f"  Faith: {snapshot['faith']['prayer_count']} prayers tracked")
-        if snapshot['tasks'].get('active'):
-            lines.append(
-                f"  Tasks: {snapshot['tasks']['active']} active"
-                f" ({snapshot['tasks'].get('overdue', 0)} overdue)")
-        if snapshot['habits'].get('active'):
-            lines.append(
-                f"  Habits: {', '.join(snapshot['habits']['active'][:5])}")
-        if snapshot.get('relationships'):
-            lines.append(
-                f"  Key relationships: {', '.join(snapshot['relationships'])}")
-        lines.append(
-            f"  Modules in use: {', '.join(snapshot['modules_active'])}"
-            if snapshot.get('modules_active') else "  Modules: none yet")
+                f"Modules in active use: {', '.join(snapshot['modules_active'])}")
         lines.append("=== END KNOWN DATA ===")
         lines.append("")
         lines.append(

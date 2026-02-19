@@ -107,7 +107,7 @@ All data comes from SAE — no direct domain table queries.
                 {% if habits.avg_completion_rate %}
                 <div class="state-row">
                     <span class="state-key">Avg Completion</span>
-                    <span class="state-value">{{ habits.avg_completion_rate|floatformat:0 }}%</span>
+                    <span class="state-value">{% widthratio habits.avg_completion_rate 1 100 %}%</span>
                 </div>
                 {% endif %}
             </div>

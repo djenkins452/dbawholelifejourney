@@ -11,6 +11,14 @@
 
 ## 2026-02-19
 
+- **Fix: Journal nudge contradicts daily insight** — The "Today's Insight" (AI-generated) queries the DB directly and correctly sees the user journaled today, but the nudge card uses stale SAE state for `days_since_journal` and shows "22 days since you journaled." Added a DB check in `_get_journal_data()` — if the user journaled today, `days_since_journal` is forced to 0 regardless of SAE state, which suppresses the nudge.
+  - Files: `apps/dashboard/views.py`
+  - Why: User saw contradicting messages — insight said "You've journaled today" while nudge said "22 days since you journaled"
+
+- **Fix: 870% habit execution rate in Daily Briefing** — `habit.completion_rate` returns 0-100 (e.g., 87.0), but the briefing engine formats with `:.0%` which multiplies by 100 again (87 → 8700%). Fixed `build_habit_state()` to normalize `avg_completion_rate` to 0-1 decimal (the format all consumers expect, per docs showing `0.82` as example). Also fixed the state_snapshot template which was the one consumer that happened to work with the old buggy 0-100 values — now uses `widthratio` to convert 0-1 → percentage for display.
+  - Files: `apps/core/ai_state/state_builder.py`, `templates/dashboard/tiles/state_snapshot.html`
+  - Why: Daily Briefing showed "Habit execution is strong at 870%" — nonsensical percentage
+
 - **Calibration is a relationship, not a form** — Completely redesigned calibration to be user-controlled. Questions now cycle (after question 11, wraps to question 1 for deeper follow-ups). Calibration NEVER auto-completes — only the user can end it by saying "I think you know me well enough" or clicking "I'm Ready — Let's Work." Removed legacy day-14 auto-complete gate. On subsequent passes, the AI digs deeper into previous answers instead of repeating the same surface questions. Banner adapts to three states: first visit ("Let's Go"), in-progress ("Continue"), and ready to finish (two buttons: "Keep Going" / "I'm Ready"). Added `complete_calibration` intent + handler so the AI can process natural language finish requests.
   - Files: `apps/core/blueprint/cos_governance.py`, `apps/ai/intents/calibration_intents.py`, `apps/ai/action_handlers.py`, `apps/ai/intent_service.py`, `apps/core/ai_orchestrator/intent_engine.py`, `apps/ai/intents/__init__.py`, `apps/core/context_processors.py`, `templates/components/cos_command_mode.html`, `static/css/assistant-panel.css`, `apps/core/blueprint/tests.py`
   - Why: User insight — "You don't learn everything on the first date. There needs to be several before things get comfortable."

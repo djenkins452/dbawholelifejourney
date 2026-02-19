@@ -246,8 +246,9 @@ def build_habit_state(user):
                 last_activity = last_entry
 
     state["longest_streak"] = longest_streak
+    # habit.completion_rate returns 0-100; normalize to 0-1 for consumers
     state["avg_completion_rate"] = round(
-        total_completion_rate / state["active_habit_count"], 2
+        (total_completion_rate / state["active_habit_count"]) / 100, 2
     )
 
     if last_activity:

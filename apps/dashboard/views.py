@@ -816,6 +816,11 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                 except (ValueError, TypeError):
                     last_journal_date = None
 
+        # DB check: did user journal today? SAE state may be stale.
+        journal_done_today = entries.filter(entry_date=today).exists()
+        if journal_done_today:
+            days_since_journal = 0
+
         # Calculate streak (requires full history scan — legitimate DB access)
         streak = self._calculate_journal_streak(user, today)
 

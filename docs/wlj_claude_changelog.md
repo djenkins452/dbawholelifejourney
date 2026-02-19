@@ -11,6 +11,11 @@
 
 ## 2026-02-19
 
+- **Fix Xcode build issues for iOS app**
+  - Added `com.apple.developer.healthkit.background-delivery` entitlement to `WLJWrapper.entitlements`
+  - Added 3 missing `HKWorkoutActivityType` cases to exhaustive switch in `HealthKitManager.swift`: `danceInspiredTraining` (deprecated), `mixedMetabolicCardioTraining` (deprecated), `other` (3000)
+  - Files: `ios/WLJWrapper/WLJWrapper/WLJWrapper.entitlements`, `ios/WLJWrapper/WLJWrapper/Services/HealthKitManager.swift`
+
 - **Full documentation audit and catch-up — all user-facing docs updated**
   - **CLAUDE.md**: Added mandatory documentation maintenance checklist (release notes, help topics, teaching destinations, features doc, fixture resets) to "On Task Completion" section so docs never fall behind again
   - **Release notes** (`release_notes.json`): Added 5 missing entries (PKs 52-56) — Voice Conversation Mode, Relationship Tracking, Workout Plans & Training Splits, Post-Event Reflection Check-ins, Smart Scheduling with Conflict Detection

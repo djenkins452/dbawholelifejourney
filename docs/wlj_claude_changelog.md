@@ -11,6 +11,18 @@
 
 ## 2026-02-19
 
+- **Phase 5: Conversational Calibration Rewrite** — Replaced 14-day trickle calibration with conversational chat-driven onboarding session. CoS now asks 11 getting-to-know-you questions in real-time conversation. User can pause anytime ("enough for now") and resume next session. System prompt injection follows alignment_session.py pattern.
+  - New: `pause_calibration` intent + handler
+  - New: Management command `reset_calibration_conversational` for existing users
+  - Files: `apps/core/blueprint/cos_governance.py`, `apps/ai/intents/calibration_intents.py` (new), `apps/ai/intents/__init__.py`, `apps/ai/action_handlers.py`, `apps/ai/intent_service.py`, `apps/core/ai_orchestrator/intent_engine.py`, `apps/ai/personal_assistant.py`, `apps/dashboard/views.py`, `apps/core/blueprint/tests.py`, `apps/core/management/commands/reset_calibration_conversational.py` (new), `docs/PHASE5_CALIBRATION_REWRITE_REPORT.md` (new)
+  - Tests: 16 new tests in `ConversationalCalibrationTests`
+
+- **Fix:** Dashboard tiles grayed out — removed `data-mode-hidden` class that dimmed tiles when command mode active
+  - Files: `templates/dashboard/home.html`
+
+- **Fix:** Alerts showing raw data ("Ongoing relationship question: motivational_triggers") — `mark_ongoing_question_shown()` now stores human-friendly question text instead of raw category name
+  - Files: `apps/core/blueprint/cos_governance.py`, `apps/dashboard/views.py`
+
 - **Fix:** Fix 403 Forbidden on first login attempt — removed `Vary: Cookie` header from `NoCacheHTMLMiddleware` and added `EnsureCSRFOnAuthPages` middleware to force fresh CSRF cookies on auth pages
   - Files: `apps/core/middleware.py`, `config/settings.py`
 

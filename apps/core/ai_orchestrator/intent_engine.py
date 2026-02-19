@@ -68,6 +68,10 @@ TRANSFORMATION_INTENTS = {
     "complete_shopping_item",
 }
 
+CALIBRATION_INTENTS = {
+    "pause_calibration",
+}
+
 # All intents that support a recorded_at timestamp override
 TIME_AWARE_INTENTS = (
     HEALTH_INTENTS
@@ -120,6 +124,8 @@ def get_intent_module(intent_type):
             return "life"
         else:
             return "health"
+    if intent_type in CALIBRATION_INTENTS:
+        return "core"
     return "unknown"
 
 

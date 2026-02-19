@@ -1525,36 +1525,36 @@ class CosProactiveQuestionTests(TestCase):
     def setUp(self):
         self.user = _create_test_user('cos_q_test@example.com')
 
-    def test_calibration_question_returned_before_day_14(self):
-        """get_calibration_question returns question when calibration not complete."""
-        from apps.core.blueprint.cos_governance import get_calibration_question
-        q = get_calibration_question(self.user)
+    def test_calibration_question_returned_via_new_api(self):
+        """get_next_calibration_question returns first question for new user."""
+        from apps.core.blueprint.cos_governance import get_next_calibration_question
+        q = get_next_calibration_question(self.user)
         self.assertIsNotNone(q)
         self.assertIn('question', q)
-        self.assertIn('category', q)
+        self.assertIn('key', q)
+        self.assertEqual(q['key'], 'core_people_1')
 
-    def test_mark_calibration_question_asked_prevents_repeat(self):
-        """After marking a question asked, same question is not returned again."""
+    def test_calibration_advance_prevents_repeat(self):
+        """After advancing stage, a different question is returned."""
         from apps.core.blueprint.cos_governance import (
-            get_calibration_question,
-            mark_calibration_question_asked,
+            get_next_calibration_question,
+            advance_calibration_stage,
         )
-        q1 = get_calibration_question(self.user)
+        q1 = get_next_calibration_question(self.user)
         self.assertIsNotNone(q1)
-        mark_calibration_question_asked(self.user, q1['category'], q1['question'])
-        q2 = get_calibration_question(self.user)
-        # Should be different question or None (if only one in phase)
-        if q2:
-            self.assertNotEqual(q1['question'], q2['question'])
+        advance_calibration_stage(self.user)
+        q2 = get_next_calibration_question(self.user)
+        self.assertIsNotNone(q2)
+        self.assertNotEqual(q1['key'], q2['key'])
 
     def test_no_calibration_question_when_complete(self):
-        """get_calibration_question returns None after calibration complete."""
+        """get_next_calibration_question returns None after calibration complete."""
         from apps.core.blueprint.models import PersonalOperatingBlueprint
-        from apps.core.blueprint.cos_governance import get_calibration_question
+        from apps.core.blueprint.cos_governance import get_next_calibration_question
         blueprint = PersonalOperatingBlueprint.get_or_create_for_user(self.user)
         blueprint.calibration_complete = True
         blueprint.save()
-        q = get_calibration_question(self.user)
+        q = get_next_calibration_question(self.user)
         self.assertIsNone(q)
 
     def test_ongoing_question_returned_after_calibration(self):
@@ -1599,6 +1599,187 @@ class CosProactiveQuestionTests(TestCase):
             timezone.now().date().isoformat(),
         )
         self.assertIn('test_category', overrides.get('ongoing_asked', []))
+
+
+class ConversationalCalibrationTests(TestCase):
+    """Tests for the Phase 5 conversational calibration flow."""
+
+    def setUp(self):
+        self.user = _create_test_user('cal_conv@example.com')
+
+    def test_get_calibration_state_active_for_new_user(self):
+        """New user has active calibration state."""
+        from apps.core.blueprint.cos_governance import get_calibration_state
+        state = get_calibration_state(self.user)
+        self.assertIsNotNone(state)
+        self.assertTrue(state['active'])
+        self.assertFalse(state['paused'])
+        self.assertFalse(state['welcome_shown'])
+        self.assertEqual(state['stage'], 0)
+        self.assertFalse(state['complete'])
+
+    def test_get_next_calibration_question_first(self):
+        """First question is core_people_1."""
+        from apps.core.blueprint.cos_governance import get_next_calibration_question
+        q = get_next_calibration_question(self.user)
+        self.assertIsNotNone(q)
+        self.assertEqual(q['key'], 'core_people_1')
+        self.assertEqual(q['question_number'], 1)
+
+    def test_advance_calibration_stage(self):
+        """Advancing stage moves to next question."""
+        from apps.core.blueprint.cos_governance import (
+            get_next_calibration_question,
+            advance_calibration_stage,
+        )
+        advance_calibration_stage(self.user)
+        q = get_next_calibration_question(self.user)
+        self.assertEqual(q['key'], 'core_people_2')
+        self.assertEqual(q['question_number'], 2)
+
+    def test_record_calibration_answer_stores_and_advances(self):
+        """Recording an answer stores it and advances stage."""
+        from apps.core.blueprint.cos_governance import (
+            record_calibration_answer,
+            get_calibration_state,
+        )
+        record_calibration_answer(
+            self.user, 'core_people_1', 'My wife Sarah and my mom',
+        )
+        state = get_calibration_state(self.user)
+        self.assertEqual(state['stage'], 1)
+
+    def test_calibration_answers_persisted(self):
+        """Answers are stored in governance_overrides."""
+        from apps.core.blueprint.cos_governance import record_calibration_answer
+        from apps.core.blueprint.models import PersonalOperatingBlueprint
+        record_calibration_answer(
+            self.user, 'core_people_1', 'Sarah and John',
+        )
+        bp = PersonalOperatingBlueprint.get_or_create_for_user(self.user)
+        answers = bp.governance_overrides.get('calibration_answers', {})
+        self.assertEqual(answers['core_people_1'], 'Sarah and John')
+
+    def test_pause_calibration(self):
+        """Pausing stops question delivery."""
+        from apps.core.blueprint.cos_governance import (
+            pause_calibration,
+            get_next_calibration_question,
+        )
+        pause_calibration(self.user)
+        q = get_next_calibration_question(self.user)
+        self.assertIsNone(q)
+
+    def test_resume_calibration(self):
+        """Resuming re-enables question delivery."""
+        from apps.core.blueprint.cos_governance import (
+            pause_calibration,
+            resume_calibration,
+            get_next_calibration_question,
+        )
+        pause_calibration(self.user)
+        resume_calibration(self.user)
+        q = get_next_calibration_question(self.user)
+        self.assertIsNotNone(q)
+
+    def test_calibration_completes_after_all_questions(self):
+        """Calibration completes when all questions answered."""
+        from apps.core.blueprint.cos_governance import (
+            advance_calibration_stage,
+            get_calibration_state,
+            CALIBRATION_QUESTIONS,
+        )
+        for _ in range(len(CALIBRATION_QUESTIONS)):
+            advance_calibration_stage(self.user)
+        state = get_calibration_state(self.user)
+        self.assertTrue(state['complete'])
+
+    def test_build_calibration_system_injection_active(self):
+        """System injection is returned when calibration is active."""
+        from apps.core.blueprint.cos_governance import (
+            build_calibration_system_injection,
+        )
+        injection = build_calibration_system_injection(self.user)
+        self.assertIn('GETTING TO KNOW YOU', injection)
+        self.assertIn('NEXT QUESTION', injection)
+
+    def test_build_calibration_system_injection_paused_empty(self):
+        """System injection is empty when paused."""
+        from apps.core.blueprint.cos_governance import (
+            build_calibration_system_injection,
+            pause_calibration,
+        )
+        pause_calibration(self.user)
+        injection = build_calibration_system_injection(self.user)
+        self.assertEqual(injection, "")
+
+    def test_build_calibration_system_injection_complete_empty(self):
+        """System injection is empty when calibration is complete."""
+        from apps.core.blueprint.cos_governance import (
+            build_calibration_system_injection,
+        )
+        from apps.core.blueprint.models import PersonalOperatingBlueprint
+        bp = PersonalOperatingBlueprint.get_or_create_for_user(self.user)
+        bp.calibration_complete = True
+        bp.save()
+        injection = build_calibration_system_injection(self.user)
+        self.assertEqual(injection, "")
+
+    def test_reset_calibration_for_old_users(self):
+        """Reset works for users who completed old system."""
+        from apps.core.blueprint.cos_governance import (
+            reset_calibration_for_conversational,
+        )
+        from apps.core.blueprint.models import PersonalOperatingBlueprint
+        bp = PersonalOperatingBlueprint.get_or_create_for_user(self.user)
+        bp.calibration_complete = True
+        bp.calibration_day = 14
+        bp.save()
+        result = reset_calibration_for_conversational(self.user)
+        self.assertTrue(result)
+        bp.refresh_from_db()
+        self.assertFalse(bp.calibration_complete)
+        self.assertEqual(bp.governance_overrides['calibration_stage'], 0)
+
+    def test_reset_noop_for_new_system_users(self):
+        """Reset does nothing for users already using new system."""
+        from apps.core.blueprint.cos_governance import (
+            reset_calibration_for_conversational,
+            advance_calibration_stage,
+        )
+        # Creates calibration_stage key
+        advance_calibration_stage(self.user)
+        result = reset_calibration_for_conversational(self.user)
+        self.assertFalse(result)
+
+    def test_should_ask_question_no_cap_during_calibration(self):
+        """During active calibration, daily cap is bypassed."""
+        from apps.core.blueprint.cos_governance import should_ask_question
+        result = should_ask_question(self.user, 'core_people')
+        self.assertTrue(result)
+
+    def test_welcome_message_flag(self):
+        """Welcome message flag is tracked."""
+        from apps.core.blueprint.cos_governance import (
+            mark_calibration_welcome_shown,
+            get_calibration_state,
+        )
+        mark_calibration_welcome_shown(self.user)
+        state = get_calibration_state(self.user)
+        self.assertTrue(state['welcome_shown'])
+
+    def test_calibration_injection_includes_learned_context(self):
+        """Injection includes previously learned answers."""
+        from apps.core.blueprint.cos_governance import (
+            record_calibration_answer,
+            build_calibration_system_injection,
+        )
+        record_calibration_answer(
+            self.user, 'core_people_1', 'Sarah and Mom',
+        )
+        injection = build_calibration_system_injection(self.user)
+        self.assertIn('Sarah and Mom', injection)
+        self.assertIn('Core People', injection)
 
 
 class ChatInitializationTests(TestCase):

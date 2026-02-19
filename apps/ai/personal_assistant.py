@@ -2007,6 +2007,23 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                             feature_request_service=feature_request_service
                         )
 
+        # Record calibration answer if active (advance stage for next question)
+        try:
+            from apps.core.blueprint.cos_governance import (
+                get_calibration_state,
+                record_calibration_answer,
+            )
+            cal_state = get_calibration_state(self.user)
+            if (cal_state and cal_state['active']
+                    and not cal_state['paused']
+                    and cal_state.get('next_question')):
+                next_q = cal_state['next_question']
+                record_calibration_answer(
+                    self.user, next_q['key'], message[:500],
+                )
+        except Exception:
+            pass  # Calibration tracking must never break chat
+
         # Save assistant response
         msg_type = 'action' if actions_taken else 'text'
         AssistantMessage.objects.create(
@@ -2525,6 +2542,27 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                         system_prompt = recal_injection + "\n" + system_prompt
                 except Exception:
                     pass  # Recalibration must never break chat
+
+                # Phase 5: Conversational calibration injection
+                try:
+                    from apps.core.blueprint.cos_governance import (
+                        build_calibration_system_injection,
+                        get_calibration_state,
+                        mark_calibration_welcome_shown,
+                    )
+                    cal_state = get_calibration_state(self.user)
+                    if (cal_state and cal_state['active']
+                            and not cal_state['paused']):
+                        cal_injection = build_calibration_system_injection(
+                            self.user)
+                        if cal_injection:
+                            system_prompt = (
+                                cal_injection + "\n" + system_prompt
+                            )
+                            if not cal_state['welcome_shown']:
+                                mark_calibration_welcome_shown(self.user)
+                except Exception:
+                    pass  # Calibration must never break chat
 
                 # Inject pending reflection context
                 try:

@@ -561,26 +561,55 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         cos_question = None
         try:
             from apps.core.blueprint.cos_governance import (
-                get_calibration_question,
+                get_calibration_state,
                 get_ongoing_relationship_question,
-                mark_calibration_question_asked,
                 mark_ongoing_question_shown,
+                resume_calibration,
+                CALIBRATION_WELCOME_MESSAGE,
             )
-            from apps.core.blueprint.models import PersonalOperatingBlueprint
-            blueprint = PersonalOperatingBlueprint.get_or_create_for_user(user)
 
-            if not blueprint.calibration_complete:
-                raw_q = get_calibration_question(user)
-                if raw_q:
-                    cos_question = raw_q
-                    mark_calibration_question_asked(
-                        user, raw_q['category'], raw_q['question'],
-                    )
-            else:
+            cal_state = get_calibration_state(user)
+            if cal_state and cal_state['active']:
+                if cal_state['paused']:
+                    # Auto-resume on dashboard load (next session)
+                    resume_calibration(user)
+                    next_q = cal_state['next_question']
+                    if next_q:
+                        cos_question = {
+                            'question': (
+                                "Ready to pick up where we left off? "
+                                + next_q['question']
+                            ),
+                            'category': next_q['category'],
+                            'follow_up': next_q['follow_up'],
+                            'meaning_type': next_q['meaning_type'],
+                        }
+                elif not cal_state['welcome_shown']:
+                    # First calibration session — show welcome prompt
+                    cos_question = {
+                        'question': CALIBRATION_WELCOME_MESSAGE,
+                        'category': 'calibration_welcome',
+                        'follow_up': '',
+                        'meaning_type': 'calibration_welcome',
+                    }
+                else:
+                    # Active calibration — show next question
+                    next_q = cal_state['next_question']
+                    if next_q:
+                        cos_question = {
+                            'question': next_q['question'],
+                            'category': next_q['category'],
+                            'follow_up': next_q['follow_up'],
+                            'meaning_type': next_q['meaning_type'],
+                        }
+            elif cal_state and cal_state['complete']:
+                # Post-calibration: ongoing relationship questions
                 raw_q = get_ongoing_relationship_question(user)
                 if raw_q:
                     cos_question = raw_q
-                    mark_ongoing_question_shown(user, raw_q['category'], raw_q['question'])
+                    mark_ongoing_question_shown(
+                        user, raw_q['category'], raw_q['question'],
+                    )
         except Exception:
             cos_question = None
 

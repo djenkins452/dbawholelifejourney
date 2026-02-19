@@ -32,6 +32,7 @@ from .purpose_intents import PURPOSE_INTENT_TOOLS
 from .life_intents import LIFE_INTENT_TOOLS
 from .fitness_intents import FITNESS_INTENT_TOOLS
 from .settings_intents import SETTINGS_INTENT_TOOLS
+from .calibration_intents import CALIBRATION_INTENT_TOOLS
 
 # Combine all intent tools for the OpenAI API
 ALL_INTENT_TOOLS = (
@@ -43,7 +44,8 @@ ALL_INTENT_TOOLS = (
     PURPOSE_INTENT_TOOLS +
     LIFE_INTENT_TOOLS +
     FITNESS_INTENT_TOOLS +
-    SETTINGS_INTENT_TOOLS
+    SETTINGS_INTENT_TOOLS +
+    CALIBRATION_INTENT_TOOLS
 )
 
 # Intent type to handler mapping (for routing)
@@ -84,6 +86,8 @@ INTENT_HANDLERS = {
     'log_cardio': 'fitness',
     # Settings
     'set_cos_name': 'settings',
+    # Calibration
+    'pause_calibration': 'calibration',
     # No action
     'no_action': None,
 }
@@ -100,4 +104,5 @@ __all__ = [
     'LIFE_INTENT_TOOLS',
     'FITNESS_INTENT_TOOLS',
     'SETTINGS_INTENT_TOOLS',
+    'CALIBRATION_INTENT_TOOLS',
 ]

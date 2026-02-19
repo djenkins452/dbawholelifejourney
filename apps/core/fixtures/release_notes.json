@@ -1,6 +1,22 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 57,
+        "fields": {
+            "title": "Chief of Staff Gets to Know You",
+            "description": "Your Chief of Staff now conducts a real getting-to-know-you conversation when you first start using it. Instead of asking one question per day over two weeks, it walks through a series of questions about your priorities, non-negotiables, preferred activities, and accountability style in a natural back-and-forth conversation. Say 'enough for now' at any time to pause, and it picks up where you left off next time.",
+            "entry_type": "enhancement",
+            "version": "",
+            "release_date": "2026-02-19",
+            "is_published": true,
+            "is_major": false,
+            "learn_more_url": "",
+            "created_at": "2026-02-19T00:00:00Z",
+            "updated_at": "2026-02-19T00:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 51,
         "fields": {
             "title": "Chief of Staff Assistant",

@@ -2668,3 +2668,31 @@ class ActionHandler:
                 message="Sorry, I couldn't update the name right now.",
                 error=str(e)
             )
+
+    # =========================================================================
+    # CALIBRATION HANDLERS
+    # =========================================================================
+
+    def handle_pause_calibration(self, **kwargs) -> ActionResult:
+        """
+        Pause the getting-to-know-you / calibration flow.
+        User can resume next session.
+        """
+        try:
+            from apps.core.blueprint.cos_governance import pause_calibration
+            pause_calibration(self.user)
+            return ActionResult(
+                success=True,
+                message=(
+                    "No problem. We'll pick this up where we left off "
+                    "whenever you're ready."
+                ),
+                action_type='pause_calibration',
+            )
+        except Exception as e:
+            logger.error(f"Error pausing calibration: {e}", exc_info=True)
+            return ActionResult(
+                success=False,
+                message="Something went wrong, but I'll stop asking for now.",
+                error=str(e),
+            )

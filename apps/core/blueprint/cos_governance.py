@@ -20,12 +20,23 @@ Public API:
     - evaluate_governance(user, action_type, context) -> GovernanceDecision
     - should_ask_question(user, question_category) -> bool
     - record_governance_interaction(user, question_category, user_response) -> None
-    - get_calibration_question(user) -> dict or None
-    - mark_calibration_question_asked(user, phase_key, question_text) -> None
+    - get_calibration_question(user) -> dict or None  [deprecated]
+    - mark_calibration_question_asked(user, phase_key, question_text) -> None  [deprecated]
     - get_ongoing_relationship_question(user) -> dict or None
     - mark_ongoing_question_shown(user, category, question_text='') -> None
     - build_governance_instructions(user) -> str
-    - advance_calibration_day(user) -> None
+    - advance_calibration_day(user) -> None  [deprecated]
+
+    Conversational Calibration API (Phase 5):
+    - get_calibration_state(user) -> dict or None
+    - get_next_calibration_question(user) -> dict or None
+    - advance_calibration_stage(user) -> None
+    - record_calibration_answer(user, question_key, answer_text) -> None
+    - mark_calibration_welcome_shown(user) -> None
+    - pause_calibration(user) -> None
+    - resume_calibration(user) -> None
+    - reset_calibration_for_conversational(user) -> bool
+    - build_calibration_system_injection(user) -> str
 
 Copyright:
     (c) Whole Life Journey. All rights reserved.
@@ -61,85 +72,124 @@ class GovernanceDecision:
 
 
 # =============================================================================
-# CALIBRATION QUESTIONS
+# CALIBRATION QUESTIONS — Conversational (Phase 5 rewrite)
 # =============================================================================
 
-# High-leverage questions organized by calibration phase.
-# Each phase runs for ~3 days. Max 2 questions per day.
-CALIBRATION_PHASES = {
-    # Days 1-3: Core people
-    'core_people': {
-        'day_range': (0, 3),
-        'questions': [
-            {
-                'category': 'core_people',
-                'question': "Who are the most important people in your daily life?",
-                'follow_up': "I'll remember them so I can help you stay connected.",
-                'meaning_type': 'core_people',
-            },
-            {
-                'category': 'core_people',
-                'question': "Is there anyone you've been meaning to reconnect with?",
-                'follow_up': "I can help you find time for that.",
-                'meaning_type': 'reconnection_target',
-            },
-        ],
+# Flat ordered list — no day-range gating. Asked conversationally in chat.
+CALIBRATION_QUESTIONS = [
+    # Core people
+    {
+        'key': 'core_people_1',
+        'category': 'core_people',
+        'question': "Who are the most important people in your daily life?",
+        'follow_up': "I'll remember them so I can help you stay connected.",
+        'meaning_type': 'core_people',
     },
-    # Days 4-6: Non-negotiables
-    'non_negotiables': {
-        'day_range': (3, 6),
-        'questions': [
-            {
-                'category': 'non_negotiables',
-                'question': "What activities are sacred to you — things you'd never want to skip?",
-                'follow_up': "Those become Tier 1 — I'll protect them first.",
-                'meaning_type': 'sacred_activity',
-            },
-            {
-                'category': 'non_negotiables',
-                'question': "What time of day do you feel most productive?",
-                'follow_up': "I'll schedule your most important work there.",
-                'meaning_type': 'peak_productivity',
-            },
-        ],
+    {
+        'key': 'core_people_2',
+        'category': 'core_people',
+        'question': "Is there anyone you've been meaning to reconnect with?",
+        'follow_up': "I can help you find time for that.",
+        'meaning_type': 'reconnection_target',
     },
-    # Days 7-10: Preferred activities
-    'preferred_activities': {
-        'day_range': (6, 10),
-        'questions': [
-            {
-                'category': 'preferred_activities',
-                'question': "What do you enjoy doing when you have free time?",
-                'follow_up': "I'll suggest these when I find open windows in your week.",
-                'meaning_type': 'leisure_preference',
-            },
-            {
-                'category': 'preferred_activities',
-                'question': "Do you prefer mornings or evenings for personal time?",
-                'follow_up': "That helps me plan better opportunity windows.",
-                'meaning_type': 'personal_time_preference',
-            },
-        ],
+    # Non-negotiables
+    {
+        'key': 'non_negotiables_1',
+        'category': 'non_negotiables',
+        'question': "What activities are sacred to you — things you'd never want to skip?",
+        'follow_up': "Those are the first things I protect.",
+        'meaning_type': 'sacred_activity',
     },
-    # Days 11-14: Negotiables
-    'negotiables': {
-        'day_range': (10, 14),
-        'questions': [
-            {
-                'category': 'negotiables',
-                'question': "What can be moved or dropped when things get busy?",
-                'follow_up': "Good — those stay flexible when curveballs hit.",
-                'meaning_type': 'negotiable_activity',
-            },
-            {
-                'category': 'negotiables',
-                'question': "When I check in with questions, do you prefer morning or evening?",
-                'follow_up': "I'll time my questions accordingly.",
-                'meaning_type': 'checkin_time_preference',
-            },
-        ],
+    {
+        'key': 'non_negotiables_2',
+        'category': 'non_negotiables',
+        'question': "What time of day do you feel most productive?",
+        'follow_up': "I'll keep that in mind when it matters most.",
+        'meaning_type': 'peak_productivity',
     },
-}
+    # Preferred activities
+    {
+        'key': 'preferred_1',
+        'category': 'preferred_activities',
+        'question': "What do you enjoy doing when you have free time?",
+        'follow_up': "I'll suggest these when I find open windows in your week.",
+        'meaning_type': 'leisure_preference',
+    },
+    {
+        'key': 'preferred_2',
+        'category': 'preferred_activities',
+        'question': "Do you prefer mornings or evenings for personal time?",
+        'follow_up': "That helps me plan better.",
+        'meaning_type': 'personal_time_preference',
+    },
+    # Negotiables
+    {
+        'key': 'negotiables_1',
+        'category': 'negotiables',
+        'question': "What can be moved or dropped when things get busy?",
+        'follow_up': "Good — those stay flexible when curveballs hit.",
+        'meaning_type': 'negotiable_activity',
+    },
+    {
+        'key': 'checkin_time',
+        'category': 'negotiables',
+        'question': "When I check in with questions, do you prefer morning or evening?",
+        'follow_up': "I'll time my questions accordingly.",
+        'meaning_type': 'checkin_time_preference',
+    },
+    # Accountability & communication style
+    {
+        'key': 'accountability_style',
+        'category': 'accountability',
+        'question': (
+            "When you fall behind on something important, how do you want me "
+            "to handle it? Some people want a gentle nudge, others prefer a "
+            "direct heads-up."
+        ),
+        'follow_up': "Got it. I'll match that energy.",
+        'meaning_type': 'accountability_preference',
+    },
+    {
+        'key': 'communication_frequency',
+        'category': 'communication',
+        'question': (
+            "How often is it okay for me to reach out with questions or "
+            "observations? Some people like regular check-ins, others prefer "
+            "I keep it minimal."
+        ),
+        'follow_up': "Understood. I'll respect that boundary.",
+        'meaning_type': 'communication_frequency',
+    },
+    # Focus areas
+    {
+        'key': 'module_focus',
+        'category': 'focus_areas',
+        'question': (
+            "Of everything you track here — health, goals, journaling, faith, "
+            "tasks — which areas matter most to you right now?"
+        ),
+        'follow_up': "I'll prioritize those in our conversations.",
+        'meaning_type': 'module_priority',
+    },
+]
+
+# Backward-compat alias for old code referencing CALIBRATION_PHASES
+CALIBRATION_PHASES = {}  # Deprecated — use CALIBRATION_QUESTIONS
+
+
+# Welcome and completion messages for conversational calibration
+CALIBRATION_WELCOME_MESSAGE = (
+    "I'd like to get to know you better so I can actually be useful. "
+    "I'll ask you a few questions — nothing complicated, just the kind of "
+    "things that help me understand what matters to you. You can pause anytime "
+    "by saying 'that's enough for now' and we'll pick up where we left off."
+)
+
+CALIBRATION_COMPLETION_MESSAGE = (
+    "That's everything I needed to ask. I have a much better picture of what "
+    "matters to you now. If I ever see your actions drifting from what you told "
+    "me matters, I will say something."
+)
 
 # Standard "why" response — used when user asks why CoS is asking something
 WHY_RESPONSE = (
@@ -249,9 +299,9 @@ def should_ask_question(user, question_category=''):
     Determine if CoS should ask a question right now.
 
     Checks:
-    1. Daily question count vs frequency cap
-    2. Whether user previously declined this category
-    3. Calibration status
+    1. During conversational calibration: always allow (no daily cap)
+    2. Daily question count vs frequency cap
+    3. Whether user previously declined this category
 
     Args:
         user: Django User instance.
@@ -264,7 +314,13 @@ def should_ask_question(user, question_category=''):
     if not blueprint:
         return False
 
-    # Check daily cap
+    # During active conversational calibration, skip daily cap
+    if not blueprint.calibration_complete:
+        overrides = blueprint.governance_overrides or {}
+        if not overrides.get('calibration_paused', False):
+            return True
+
+    # Check daily cap (post-calibration only)
     cap = DAILY_QUESTION_CAPS.get(blueprint.question_frequency, 2)
     today_count = _get_today_question_count(user)
     if today_count >= cap:
@@ -481,6 +537,328 @@ def mark_ongoing_question_shown(user, category, question_text=''):
         logger.debug("InterventionLog write skipped: %s", e)
 
 
+# =============================================================================
+# CONVERSATIONAL CALIBRATION (Phase 5 Rewrite)
+# =============================================================================
+
+
+def get_calibration_state(user):
+    """
+    Get the full calibration state for a user.
+
+    Returns:
+        dict with keys: active, paused, welcome_shown, stage,
+        total_questions, complete, next_question — or None if no blueprint.
+    """
+    blueprint = _get_blueprint(user)
+    if not blueprint:
+        return None
+
+    overrides = blueprint.governance_overrides or {}
+
+    return {
+        'active': not blueprint.calibration_complete,
+        'paused': overrides.get('calibration_paused', False),
+        'welcome_shown': overrides.get('calibration_welcome_shown', False),
+        'stage': overrides.get('calibration_stage', 0),
+        'total_questions': len(CALIBRATION_QUESTIONS),
+        'complete': blueprint.calibration_complete,
+        'next_question': get_next_calibration_question(user),
+    }
+
+
+def get_next_calibration_question(user):
+    """
+    Get the next unanswered calibration question regardless of day.
+
+    No day-range gating, no daily cap. Returns None if calibration
+    is complete, paused, or all questions have been asked.
+
+    Returns:
+        dict with key, question, category, follow_up, meaning_type,
+        question_number, total_questions — or None.
+    """
+    blueprint = _get_blueprint(user)
+    if not blueprint:
+        return None
+    if blueprint.calibration_complete:
+        return None
+
+    overrides = blueprint.governance_overrides or {}
+    if overrides.get('calibration_paused', False):
+        return None
+
+    stage = overrides.get('calibration_stage', 0)
+    if stage >= len(CALIBRATION_QUESTIONS):
+        # All questions asked — mark complete
+        _complete_calibration(user, blueprint)
+        return None
+
+    q = CALIBRATION_QUESTIONS[stage]
+    return {
+        **q,
+        'question_number': stage + 1,
+        'total_questions': len(CALIBRATION_QUESTIONS),
+    }
+
+
+def advance_calibration_stage(user):
+    """
+    Advance to the next calibration question.
+    Called after the user answers a calibration question.
+    """
+    blueprint = _get_blueprint(user)
+    if not blueprint:
+        return
+
+    overrides = blueprint.governance_overrides or {}
+    stage = overrides.get('calibration_stage', 0)
+    overrides['calibration_stage'] = stage + 1
+
+    if stage + 1 >= len(CALIBRATION_QUESTIONS):
+        blueprint.governance_overrides = overrides
+        _complete_calibration(user, blueprint)
+    else:
+        blueprint.governance_overrides = overrides
+        blueprint.save(update_fields=['governance_overrides', 'updated_at'])
+
+
+def record_calibration_answer(user, question_key, answer_text):
+    """
+    Record a user's answer to a calibration question.
+
+    Stores in governance_overrides['calibration_answers'], advances
+    the calibration stage, and logs to InterventionLog + SLCME.
+    """
+    blueprint = _get_blueprint(user)
+    if not blueprint:
+        return
+
+    overrides = blueprint.governance_overrides or {}
+    answers = overrides.get('calibration_answers', {})
+    answers[question_key] = answer_text[:500]
+    overrides['calibration_answers'] = answers
+    blueprint.governance_overrides = overrides
+    blueprint.save(update_fields=['governance_overrides', 'updated_at'])
+
+    # Find question definition for metadata
+    q_def = next(
+        (q for q in CALIBRATION_QUESTIONS if q['key'] == question_key), None
+    )
+
+    # Store in SLCME for long-term learning
+    if q_def:
+        try:
+            from apps.core.ai_memory.memory_engine import store_learned_mapping
+            store_learned_mapping(
+                user=user,
+                phrase=f"calibration_{question_key}",
+                meaning_type=q_def.get('meaning_type', 'calibration_response'),
+                meaning_identifier=question_key,
+                confidence=0.9,
+            )
+        except Exception as e:
+            logger.debug("SLCME store skipped for calibration: %s", e)
+
+    # Record in InterventionLog for audit trail
+    try:
+        from .models import InterventionLog
+        InterventionLog.objects.create(
+            user=user,
+            level=InterventionLog.LEVEL_NUDGE,
+            trigger_type='governance_calibration',
+            behavior_key=question_key,
+            message=answer_text[:500],
+        )
+    except Exception:
+        pass
+
+    # Advance to next question
+    advance_calibration_stage(user)
+
+
+def mark_calibration_welcome_shown(user):
+    """Mark that the calibration welcome message has been shown."""
+    blueprint = _get_blueprint(user)
+    if not blueprint:
+        return
+    overrides = blueprint.governance_overrides or {}
+    overrides['calibration_welcome_shown'] = True
+    blueprint.governance_overrides = overrides
+    blueprint.save(update_fields=['governance_overrides', 'updated_at'])
+
+
+def pause_calibration(user):
+    """Pause calibration. User can resume next session."""
+    blueprint = _get_blueprint(user)
+    if not blueprint:
+        return
+    overrides = blueprint.governance_overrides or {}
+    overrides['calibration_paused'] = True
+    blueprint.governance_overrides = overrides
+    blueprint.save(update_fields=['governance_overrides', 'updated_at'])
+
+
+def resume_calibration(user):
+    """Resume calibration from saved stage."""
+    blueprint = _get_blueprint(user)
+    if not blueprint:
+        return
+    overrides = blueprint.governance_overrides or {}
+    overrides['calibration_paused'] = False
+    blueprint.governance_overrides = overrides
+    blueprint.save(update_fields=['governance_overrides', 'updated_at'])
+
+
+def reset_calibration_for_conversational(user):
+    """
+    Reset calibration for users who completed the old 14-day trickle
+    but never did conversational onboarding.
+
+    Only resets if calibration_complete is True but no 'calibration_stage'
+    key exists in governance_overrides (old system indicator).
+
+    Returns:
+        bool — True if reset was performed.
+    """
+    blueprint = _get_blueprint(user)
+    if not blueprint:
+        return False
+
+    overrides = blueprint.governance_overrides or {}
+
+    # Only reset if they completed the OLD system (no calibration_stage key)
+    if blueprint.calibration_complete and 'calibration_stage' not in overrides:
+        blueprint.calibration_complete = False
+        overrides['calibration_stage'] = 0
+        overrides['calibration_paused'] = False
+        overrides['calibration_welcome_shown'] = False
+        overrides['calibration_reset_from_old'] = True
+        overrides['calibration_reset_at'] = timezone.now().isoformat()
+        blueprint.governance_overrides = overrides
+        blueprint.save(update_fields=[
+            'calibration_complete', 'governance_overrides', 'updated_at',
+        ])
+        return True
+    return False
+
+
+def build_calibration_system_injection(user):
+    """
+    Build system prompt injection for conversational calibration.
+
+    Follows the same pattern as alignment_session.py's
+    build_alignment_system_injection(). Injected into the system prompt
+    when calibration is active and not paused.
+
+    Returns:
+        str — system prompt block, or empty string if not in calibration.
+    """
+    blueprint = _get_blueprint(user)
+    if not blueprint:
+        return ""
+    if blueprint.calibration_complete:
+        return ""
+
+    overrides = blueprint.governance_overrides or {}
+    if overrides.get('calibration_paused', False):
+        return ""
+
+    # Don't inject if alignment session is actively in progress
+    try:
+        from apps.core.ai_governance.models import GovernanceAlignmentSession
+        session = GovernanceAlignmentSession.objects.filter(user=user).first()
+        if session and not session.is_complete:
+            return ""  # Let alignment session take priority
+    except Exception:
+        pass
+
+    next_q = get_next_calibration_question(user)
+    if not next_q:
+        return ""
+
+    lines = ["--- GETTING TO KNOW YOU (IN PROGRESS) ---"]
+    lines.append("")
+
+    welcome_shown = overrides.get('calibration_welcome_shown', False)
+
+    if not welcome_shown:
+        lines.append(
+            "FIRST INTERACTION: Before asking any questions, say something like: "
+            f'"{CALIBRATION_WELCOME_MESSAGE}" '
+            "Then wait for their response before asking the first question."
+        )
+        lines.append("")
+
+    # Include what we've learned so far
+    answers = overrides.get('calibration_answers', {})
+    if answers:
+        lines.append("What you've learned so far:")
+        for key, answer in answers.items():
+            q_def = next(
+                (q for q in CALIBRATION_QUESTIONS if q['key'] == key), None
+            )
+            if q_def:
+                label = q_def['category'].replace('_', ' ').title()
+                lines.append(f"  - {label}: {answer[:200]}")
+        lines.append("")
+
+    lines.append(
+        f"NEXT QUESTION ({next_q['question_number']}/{next_q['total_questions']}): "
+        f"{next_q['question']}"
+    )
+
+    # Preview next question so AI can transition naturally
+    next_stage = overrides.get('calibration_stage', 0) + 1
+    if next_stage < len(CALIBRATION_QUESTIONS):
+        peek_q = CALIBRATION_QUESTIONS[next_stage]
+        lines.append(
+            f"AFTER THEY ANSWER, FOLLOW UP WITH: {peek_q['question']}"
+        )
+    else:
+        lines.append(
+            "THIS IS THE LAST QUESTION. After they answer, say something like: "
+            f'"{CALIBRATION_COMPLETION_MESSAGE}"'
+        )
+
+    lines.append("")
+    lines.append(
+        "RULES: "
+        "1. Ask this question naturally in your own words after responding "
+        "to whatever they said. "
+        "2. ONE question per message — never batch. "
+        "3. Acknowledge what they just shared before asking the next one. "
+        "4. If they gave a thoughtful answer, briefly summarize what you "
+        "understood before moving on. "
+        "5. If they say 'pause', 'enough', 'later', or similar, respect "
+        "it immediately — the pause_calibration intent will handle it. "
+        "6. Never use words like 'calibration', 'governance', 'stage', "
+        "'tier', 'module classification', or 'identity pillar'. "
+        "7. Keep it conversational — you're getting to know a person, "
+        "not filling out a form."
+    )
+    lines.append("--- END GETTING TO KNOW YOU ---")
+
+    return '\n'.join(lines)
+
+
+def _complete_calibration(user, blueprint=None):
+    """Mark calibration as complete and set final state."""
+    if not blueprint:
+        blueprint = _get_blueprint(user)
+    if not blueprint:
+        return
+
+    blueprint.calibration_complete = True
+    overrides = blueprint.governance_overrides or {}
+    overrides['calibration_completed_at'] = timezone.now().isoformat()
+    overrides['calibration_version'] = 'conversational_v1'
+    blueprint.governance_overrides = overrides
+    blueprint.save(update_fields=[
+        'calibration_complete', 'governance_overrides', 'updated_at',
+    ])
+
+
 # Ongoing relationship questions — used after calibration is complete.
 # Priority: profile gaps first, then relationship follow-ups, then contextual.
 ONGOING_QUESTIONS = [
@@ -663,9 +1041,15 @@ def build_governance_instructions(user):
 
     # Calibration status
     if not blueprint.calibration_complete:
-        lines.append("Calibration: Still learning this user's preferences. "
-                     "You may ask ONE getting-to-know-you question per session "
-                     "if it feels natural.")
+        overrides_gov = blueprint.governance_overrides or {}
+        if overrides_gov.get('calibration_paused', False):
+            lines.append("Calibration: Paused by user. Do not ask calibration "
+                         "questions unless the user says they want to continue.")
+        else:
+            stage = overrides_gov.get('calibration_stage', 0)
+            total = len(CALIBRATION_QUESTIONS)
+            lines.append(f"Calibration: In progress ({stage}/{total} questions answered). "
+                         "Getting-to-know-you conversation is active.")
 
     # Declined categories
     overrides = blueprint.governance_overrides or {}

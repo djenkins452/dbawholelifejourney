@@ -179,10 +179,13 @@ CALIBRATION_PHASES = {}  # Deprecated — use CALIBRATION_QUESTIONS
 
 # Welcome and completion messages for conversational calibration
 CALIBRATION_WELCOME_MESSAGE = (
-    "I'd like to get to know you better so I can actually be useful. "
-    "I'll ask you a few questions — nothing complicated, just the kind of "
-    "things that help me understand what matters to you. You can pause anytime "
-    "by saying 'that's enough for now' and we'll pick up where we left off."
+    "Before we get into the day-to-day, I'd like to take a minute to get to "
+    "know you. Not the surface stuff — the things that actually matter. "
+    "What are your priorities right now? What's important to you and what's "
+    "secondary? What drives you? I'm going to ask a few simple questions so "
+    "I can understand how to actually help you, not just throw generic advice "
+    "at you. You can pause anytime by saying 'that's enough for now' and "
+    "we'll pick up where we left off."
 )
 
 CALIBRATION_COMPLETION_MESSAGE = (
@@ -801,9 +804,14 @@ def build_calibration_system_injection(user):
 
     if not welcome_shown:
         lines.append(
-            "FIRST INTERACTION: Before asking any questions, say something like: "
+            "FIRST INTERACTION: This is your very first conversation with this "
+            "person. Do NOT jump into tasks, data, or focus areas. Instead, "
+            "introduce yourself warmly and explain that you want to take a "
+            "minute to get to know them first. Say something like: "
             f'"{CALIBRATION_WELCOME_MESSAGE}" '
-            "Then wait for their response before asking the first question."
+            "Make it feel like a real introduction — you're a person meeting "
+            "someone for the first time, not a tool asking for configuration. "
+            "Wait for their response before asking the first question."
         )
         lines.append("")
 

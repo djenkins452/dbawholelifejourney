@@ -9,7 +9,7 @@ Requires: command_mode dict from DashboardView._get_command_mode()
 {% if calibration_active %}
 <div class="cos-greeting-banner cos-calibration-banner">
     <h2>{{ command_mode.greeting_line|default:"Hi there!" }}</h2>
-    <p>I'd like to get to know you better so I can actually be useful. I'll ask you a few questions — nothing complicated, just the kind of things that help me understand what matters to you.</p>
+    <p>Before we get into the day-to-day, let's take a minute to get to know each other. I want to understand what matters to you — your priorities, what drives you, and how I can actually help.</p>
     <button type="button" class="cos-start-chat-btn" id="cos-start-calibration-btn">
         Let's Chat →
     </button>
@@ -19,14 +19,7 @@ Requires: command_mode dict from DashboardView._get_command_mode()
     var btn = document.getElementById('cos-start-calibration-btn');
     if (!btn) return;
     btn.addEventListener('click', function() {
-        // Open the panel if closed
-        var panel = document.getElementById('assistant-panel');
-        if (panel) {
-            panel.setAttribute('data-state', 'open');
-            document.body.classList.remove('assistant-panel-closed');
-            try { localStorage.setItem('ap_state', 'open'); } catch(e) {}
-        }
-        // Switch to chat tab
+        // Switch to chat tab (panel is always visible on desktop)
         var chatTab = document.querySelector('[data-tab="chat"]');
         if (chatTab) chatTab.click();
         // Focus the input

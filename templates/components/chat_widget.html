@@ -608,6 +608,17 @@
     flex: 1;
 }
 
+/* Desktop: hide floating button and drawer — assistant panel handles chat */
+@media (min-width: 1025px) {
+    .assistant-toggle-btn {
+        display: none !important;
+    }
+    .assistant-drawer,
+    .assistant-overlay {
+        display: none !important;
+    }
+}
+
 /* Mobile adjustments */
 @media (max-width: 768px) {
     /* Move chat button above the bottom tab bar */
@@ -1223,9 +1234,9 @@
     function showEmptyState() {
         messagesContainer.innerHTML = `
             <div class="assistant-empty">
-                <div class="assistant-empty-icon">&#128172;</div>
+                <div class="assistant-empty-icon">\u{1F4AC}</div>
                 <h4>Start a Conversation</h4>
-                <p>I'm here to help you get things done. Ask me about your priorities, what needs attention, or how to tackle your goals.</p>
+                <p>Ask about your priorities, what needs attention, or how to stay on track.</p>
             </div>
         `;
     }

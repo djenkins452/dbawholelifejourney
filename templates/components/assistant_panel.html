@@ -2,7 +2,7 @@
 {% comment %}
   Chief of Staff — Persistent Chat Panel
 
-  Desktop: Pinned right panel (default open, collapsible) with Chat + Status tabs
+  Desktop: Pinned right panel (always visible, not collapsible) with Chat + Status tabs
   Mobile: Pull-up panel from bottom with chat interface
 
   Chat tab (default): Full chat with message history, image attachments, voice I/O
@@ -12,7 +12,7 @@
 
 {% if user.is_authenticated and personal_assistant_enabled %}
 {# Desktop Panel (hidden on mobile via CSS) #}
-<aside id="assistant-panel" class="assistant-panel" data-state="open"
+<aside id="assistant-panel" class="assistant-panel"
        data-calibration-active="{{ calibration_active|yesno:'true,false' }}"
        aria-label="Chief of Staff Chat">
     <div class="assistant-panel-header">
@@ -27,11 +27,6 @@
             <button class="ap-tab active" data-action="switch-ap-tab" data-tab="chat">Chat</button>
             <button class="ap-tab" data-action="switch-ap-tab" data-tab="status">Status <span class="ap-status-badge" id="ap-status-badge" hidden></span></button>
         </div>
-        <button class="assistant-panel-toggle" data-action="toggle-assistant-panel" aria-label="Toggle panel" title="Toggle panel">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="15 18 9 12 15 6"/>
-            </svg>
-        </button>
     </div>
 
     <div class="assistant-panel-body">
@@ -291,16 +286,8 @@
     }
 
     /* ================================================================
-       PANEL TOGGLE
+       PANEL — always visible on desktop, toggle on mobile only
        ================================================================ */
-    function toggleAssistantPanel() {
-        var state = panel.getAttribute('data-state');
-        var newState = state === 'open' ? 'closed' : 'open';
-        panel.setAttribute('data-state', newState);
-        document.body.classList.toggle('assistant-panel-closed', newState === 'closed');
-        try { localStorage.setItem('ap_state', newState); } catch(e) {}
-    }
-
     function toggleMobileAssistant() {
         var pullup = document.getElementById('assistant-pullup');
         var expanding = !pullup.classList.contains('expanded');
@@ -311,22 +298,7 @@
         }
     }
 
-    /* Restore panel state from localStorage (unless calibration forces open) */
-    function restorePanelState() {
-        var calibrating = panel.getAttribute('data-calibration-active') === 'true';
-        if (calibrating) {
-            panel.setAttribute('data-state', 'open');
-            document.body.classList.remove('assistant-panel-closed');
-            return;
-        }
-        try {
-            var saved = localStorage.getItem('ap_state');
-            if (saved === 'closed') {
-                panel.setAttribute('data-state', 'closed');
-                document.body.classList.add('assistant-panel-closed');
-            }
-        } catch(e) {}
-    }
+    /* Desktop panel is always visible — no toggle */
 
     /* ================================================================
        TOGGLE SECTION (for status tab)
@@ -446,12 +418,22 @@
     }
 
     function showEmptyState(container) {
-        container.innerHTML =
-            '<div class="ap-chat-empty">' +
-            '<div class="ap-chat-empty-icon">&#128172;</div>' +
-            '<h4>Start a Conversation</h4>' +
-            '<p>Ask about your priorities, what needs attention, or how to stay on track.</p>' +
-            '</div>';
+        var isCalibrating = panel && panel.getAttribute('data-calibration-active') === 'true';
+        if (isCalibrating) {
+            container.innerHTML =
+                '<div class="ap-chat-empty">' +
+                '<div class="ap-chat-empty-icon">&#128075;</div>' +
+                '<h4>Let\u2019s Get to Know Each Other</h4>' +
+                '<p>Say hello and I\u2019ll walk you through a few questions to understand your priorities, what drives you, and how I can best help.</p>' +
+                '</div>';
+        } else {
+            container.innerHTML =
+                '<div class="ap-chat-empty">' +
+                '<div class="ap-chat-empty-icon">&#128172;</div>' +
+                '<h4>Start a Conversation</h4>' +
+                '<p>Ask about your priorities, what needs attention, or how to stay on track.</p>' +
+                '</div>';
+        }
         hasMessages = false;
     }
 
@@ -913,8 +895,7 @@
         if (!el) return;
         var action = el.getAttribute('data-action');
 
-        if (action === 'toggle-assistant-panel') toggleAssistantPanel();
-        else if (action === 'toggle-mobile-assistant') toggleMobileAssistant();
+        if (action === 'toggle-mobile-assistant') toggleMobileAssistant();
         else if (action === 'switch-ap-tab') switchTab(el.getAttribute('data-tab'));
         else if (action === 'toggle-section') {
             var sectionId = el.getAttribute('data-section');
@@ -1014,12 +995,7 @@
 
                 if (data.friction_gate) showFrictionGate(data.friction_gate);
 
-                if (data.should_ping) {
-                    if (panel && panel.getAttribute('data-state') === 'closed') {
-                        panel.setAttribute('data-state', 'open');
-                        document.body.classList.remove('assistant-panel-closed');
-                    }
-                }
+                /* Panel is always visible — no need to open on ping */
             }
         })
         .catch(function() {});
@@ -1038,7 +1014,6 @@
     /* ================================================================
        INIT
        ================================================================ */
-    restorePanelState();
     loadChatHistory(chatMessages, chatLoading);
 
 })();

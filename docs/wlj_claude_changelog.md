@@ -11,6 +11,12 @@
 
 ## 2026-02-19
 
+- **Desktop chat panel always visible, fix floating button overlap** — Removed collapse/toggle functionality from the desktop assistant panel so it's always visible (never minimizable). Removed dead CSS for closed state (`data-state="closed"`, `assistant-panel-closed` body class). Hidden the floating chat button and drawer on desktop with `!important` to prevent z-index overlap with the panel's microphone button. Cleaned up all references to panel state toggling.
+  - Files: `static/css/assistant-panel.css`, `templates/components/assistant_panel.html`, `templates/components/chat_widget.html`, `templates/components/cos_command_mode.html`
+
+- **First-time user greeting — proper introduction flow** — Rewrote the calibration welcome message to be a warmer, more intentional introduction. Instead of jumping to "I'll ask you questions," the CoS now positions the first interaction as genuinely getting to know the user — their priorities, what drives them, what's important vs. secondary. Updated the system prompt injection to explicitly prevent the AI from jumping into tasks/data for first-time users. Updated the empty state in the chat panel to show a calibration-specific welcome when the user hasn't started yet.
+  - Files: `apps/core/blueprint/cos_governance.py`, `templates/components/assistant_panel.html`, `templates/components/cos_command_mode.html`, `templates/components/chat_widget.html`
+
 - **Fix: calibration_complete=True stuck** — `calibration_complete` stayed `True` after calibration reset, preventing the system injection from being included. `reset_calibration_conversational` now clears `calibration_complete`. Also auto-completes stale alignment sessions that block calibration.
   - Files: `apps/core/blueprint/cos_governance.py`, `apps/core/management/commands/reset_calibration_conversational.py`
 

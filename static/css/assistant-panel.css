@@ -1,7 +1,7 @@
 /* ==========================================================================
    Chief of Staff Assistant Panel
    ==========================================================================
-   Desktop: Pinned right panel (default open, collapsible)
+   Desktop: Pinned right panel (always visible, not collapsible)
    Mobile: Pull-up panel from bottom tab bar area
    ========================================================================== */
 
@@ -20,32 +20,12 @@
     display: flex;
     flex-direction: column;
     z-index: 40;
-    transition: transform 0.25s ease, width 0.25s ease;
     overflow: hidden;
 }
 
-.assistant-panel[data-state="closed"] {
-    transform: translateX(280px);
-    width: 40px;
-}
-
-.assistant-panel[data-state="closed"] .assistant-panel-body,
-.assistant-panel[data-state="closed"] .assistant-panel-title span {
-    opacity: 0;
-    pointer-events: none;
-}
-
-.assistant-panel[data-state="closed"] .assistant-panel-toggle svg {
-    transform: rotate(180deg);
-}
-
-/* Adjust main content when panel is open */
-body.has-desktop-nav:not(.assistant-panel-closed) .desktop-main-area {
+/* Adjust main content when panel is present */
+body.has-desktop-nav .desktop-main-area {
     margin-right: 320px;
-}
-
-body.has-desktop-nav.assistant-panel-closed .desktop-main-area {
-    margin-right: 40px;
 }
 
 /* Header */
@@ -74,25 +54,7 @@ body.has-desktop-nav.assistant-panel-closed .desktop-main-area {
     flex-shrink: 0;
 }
 
-.assistant-panel-toggle {
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: var(--space-1);
-    border-radius: var(--radius-md);
-    color: var(--color-text-muted);
-    transition: all 0.15s;
-    flex-shrink: 0;
-}
-
-.assistant-panel-toggle:hover {
-    background: var(--color-surface);
-    color: var(--color-text);
-}
-
-.assistant-panel-toggle svg {
-    transition: transform 0.25s ease;
-}
+/* Toggle button removed — panel is always visible on desktop */
 
 /* Body */
 .assistant-panel-body {
@@ -632,8 +594,7 @@ body.has-desktop-nav.assistant-panel-closed .desktop-main-area {
         display: none;
     }
 
-    body.has-desktop-nav:not(.assistant-panel-closed) .desktop-main-area,
-    body.has-desktop-nav.assistant-panel-closed .desktop-main-area {
+    body.has-desktop-nav .desktop-main-area {
         margin-right: 0;
     }
 }
@@ -651,7 +612,7 @@ body.has-desktop-nav.assistant-panel-closed .desktop-main-area {
         width: 360px;
     }
 
-    body.has-desktop-nav:not(.assistant-panel-closed) .desktop-main-area {
+    body.has-desktop-nav .desktop-main-area {
         margin-right: 360px;
     }
 }

@@ -564,6 +564,10 @@ def get_calibration_state(user):
     """
     Get the full calibration state for a user.
 
+    Includes auto-reset: if calibration was completed by the OLD system
+    (not user-controlled v2), reset it so the user gets the new
+    relationship-building flow.
+
     Returns:
         dict with keys: active, paused, welcome_shown, stage,
         total_questions, complete, next_question — or None if no blueprint.
@@ -573,6 +577,37 @@ def get_calibration_state(user):
         return None
 
     overrides = blueprint.governance_overrides or {}
+
+    # Auto-reset: if completed by old system, give them the new flow
+    if blueprint.calibration_complete:
+        cal_version = overrides.get('calibration_version', '')
+        if cal_version != 'conversational_v2':
+            # Old completion — reset inline
+            blueprint.calibration_complete = False
+            overrides['calibration_stage'] = 0
+            overrides['calibration_paused'] = False
+            overrides['calibration_welcome_shown'] = False
+            overrides['calibration_answers'] = {}
+            overrides['calibration_auto_reset'] = timezone.now().isoformat()
+            overrides.pop('calibration_completed_at', None)
+            overrides.pop('calibration_version', None)
+            blueprint.governance_overrides = overrides
+            blueprint.save(update_fields=[
+                'calibration_complete', 'governance_overrides', 'updated_at',
+            ])
+            # Clear stale chat history so they start fresh
+            try:
+                from apps.ai.models import AssistantConversation
+                conv = AssistantConversation.objects.filter(
+                    user=user, is_active=True).first()
+                if conv:
+                    conv.messages.all().delete()
+            except Exception:
+                pass
+            logger.info(
+                "Auto-reset calibration for %s (old version: %s)",
+                user.email, cal_version or 'none',
+            )
 
     return {
         'active': not blueprint.calibration_complete,

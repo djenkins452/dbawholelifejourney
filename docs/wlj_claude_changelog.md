@@ -11,6 +11,16 @@
 
 ## 2026-02-19
 
+- **Slim CLAUDE.md to fix "prompt too long" errors**
+  - Reduced CLAUDE.md from 553 lines (23KB) to 159 lines (6.6KB) — 72% reduction
+  - Removed mandatory boot sequence that auto-loaded 2,651 lines of architecture docs every session
+  - Moved iOS app details to `docs/CLAUDE_IOS.md` (read on-demand)
+  - Moved Bible reading plan details to `docs/CLAUDE_BIBLE_PLANS.md` (read on-demand)
+  - Moved documentation update procedures to `docs/CLAUDE_DOC_UPDATES.md` (read on-demand)
+  - Intelligence architecture docs now loaded on-demand when working on AI features, not every session
+  - Total startup context reduced from ~3,200 lines to ~160 lines (95% reduction)
+  - Files: `CLAUDE.md`, `docs/CLAUDE_IOS.md`, `docs/CLAUDE_BIBLE_PLANS.md`, `docs/CLAUDE_DOC_UPDATES.md`
+
 - **CoS Proactive Questions + Voice Conversation Mode + Calendar Fix**
   - **CoS proactive questions**: Chief of Staff now asks getting-to-know-you questions during calibration and ongoing relationship-deepening questions after calibration. Displays as a styled card in command mode with skip option.
   - **Voice conversation mode**: Mic now stays active through the full speak→AI responds→TTS→speak again cycle. Click mic to enter voice conversation, click again to exit. No more choppy start/stop between each utterance. Works in both command mode and chat widget.

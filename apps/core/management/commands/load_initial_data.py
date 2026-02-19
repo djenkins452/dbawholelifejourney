@@ -667,6 +667,9 @@ class Command(BaseCommand):
         # One-time: Re-reset calibration after corrupted answers from chat panel v1
         self._reset_calibration_after_chat_panel(DataLoadConfig, force, verbosity)
 
+        # One-time: Fix calibration_complete=True stuck after prior reset + auto-complete alignment
+        self._fix_calibration_complete_flag(DataLoadConfig, force, verbosity)
+
         # Auto-sync CoS documentation to admin guide (runs if checksum changed)
         self._sync_cos_documentation(DataLoadConfig, force, verbosity)
 
@@ -2283,6 +2286,70 @@ Tasks are sorted by priority (ascending) then creation date.""",
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(
                     f'Reset calibration after chat panel FAILED: {e}'))
+
+    def _fix_calibration_complete_flag(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time fix: calibration_complete model field stuck at True despite
+        governance_overrides showing stage=0 and answers={}. Also auto-completes
+        any stale alignment sessions blocking calibration injection.
+        """
+        reset_tracker_name = 'fix_calibration_complete_flag_v2_2026_02_19'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            from django.utils import timezone
+            from apps.core.blueprint.models import PersonalOperatingBlueprint
+
+            fixed = 0
+            for bp in PersonalOperatingBlueprint.objects.filter(calibration_complete=True):
+                overrides = bp.governance_overrides or {}
+                stage = overrides.get('calibration_stage', 0)
+                answers = overrides.get('calibration_answers', {})
+                # If complete but stage=0 and no answers, the flag is wrong
+                if stage == 0 and not answers:
+                    bp.calibration_complete = False
+                    overrides['calibration_welcome_shown'] = False
+                    overrides['calibration_paused'] = False
+                    bp.governance_overrides = overrides
+                    bp.save(update_fields=[
+                        'calibration_complete', 'governance_overrides',
+                        'updated_at',
+                    ])
+                    fixed += 1
+                    if verbosity >= 1:
+                        self.stdout.write(f'  Fixed calibration_complete for user {bp.user_id}')
+
+            # Auto-complete all stale alignment sessions
+            alignment_fixed = 0
+            try:
+                from apps.core.ai_governance.models import GovernanceAlignmentSession
+                for session in GovernanceAlignmentSession.objects.filter(is_complete=False):
+                    session.is_complete = True
+                    session.completed_at = timezone.now()
+                    session.save(update_fields=['is_complete', 'completed_at', 'updated_at'])
+                    alignment_fixed += 1
+                    if verbosity >= 1:
+                        self.stdout.write(f'  Auto-completed alignment session for user {session.user_id}')
+            except Exception:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                f'Fixed {fixed} calibration flags, {alignment_fixed} alignment sessions',
+                'command',
+                'One-time fix for calibration_complete=True stuck + stale alignment sessions'
+            )
+
+            if verbosity >= 1:
+                self.stdout.write(
+                    f'  Calibration fix: {fixed} blueprints, {alignment_fixed} alignment sessions')
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(
+                    f'Fix calibration_complete flag FAILED: {e}'))
 
     def _sync_cos_documentation(self, DataLoadConfig, force=False, verbosity=1):
         """

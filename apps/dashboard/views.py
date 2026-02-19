@@ -580,7 +580,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                 raw_q = get_ongoing_relationship_question(user)
                 if raw_q:
                     cos_question = raw_q
-                    mark_ongoing_question_shown(user, raw_q['category'])
+                    mark_ongoing_question_shown(user, raw_q['category'], raw_q['question'])
         except Exception:
             cos_question = None
 

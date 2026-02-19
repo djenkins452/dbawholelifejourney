@@ -345,7 +345,7 @@ body.edit-mode .tile-name-label {
     {% endif %}
 
     <!-- Dynamic Tiles Container -->
-    <div class="dashboard-tiles {% if command_mode and command_mode.active %}data-mode-hidden{% endif %}" id="dashboard-tiles">
+    <div class="dashboard-tiles" id="dashboard-tiles">
         {% for tile in dashboard_tiles %}
         <div class="tile-wrapper {% if not tile.visible %}hidden-tile{% endif %}"
              data-tile-id="{{ tile.id }}"

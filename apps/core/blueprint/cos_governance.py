@@ -23,7 +23,7 @@ Public API:
     - get_calibration_question(user) -> dict or None
     - mark_calibration_question_asked(user, phase_key, question_text) -> None
     - get_ongoing_relationship_question(user) -> dict or None
-    - mark_ongoing_question_shown(user, category) -> None
+    - mark_ongoing_question_shown(user, category, question_text='') -> None
     - build_governance_instructions(user) -> str
     - advance_calibration_day(user) -> None
 
@@ -442,7 +442,7 @@ def mark_calibration_question_asked(user, phase_key, question_text):
         logger.debug("InterventionLog write skipped: %s", e)
 
 
-def mark_ongoing_question_shown(user, category):
+def mark_ongoing_question_shown(user, category, question_text=''):
     """
     Record that an ongoing relationship question was shown today.
 
@@ -475,7 +475,7 @@ def mark_ongoing_question_shown(user, category):
             level=InterventionLog.LEVEL_NUDGE,
             trigger_type='governance_ongoing',
             behavior_key=category,
-            message=f'Ongoing relationship question: {category}',
+            message=question_text or category,
         )
     except Exception as e:
         logger.debug("InterventionLog write skipped: %s", e)

@@ -440,6 +440,17 @@ def health_ingest(request):
                 "error": str(e),
             })
             skipped += 1
+        except Exception as e:
+            logger.exception(
+                f"Unexpected error processing metric {i} "
+                f"(type={metric.get('type', 'unknown')})"
+            )
+            errors.append({
+                "index": i,
+                "type": metric.get("type", "unknown"),
+                "error": f"Internal error: {type(e).__name__}: {e}",
+            })
+            skipped += 1
 
     # Update ingestion run
     if errors:

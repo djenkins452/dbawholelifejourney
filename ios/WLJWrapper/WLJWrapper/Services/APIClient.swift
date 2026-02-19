@@ -102,7 +102,9 @@ class APIClient {
             throw APIError.payloadTooLarge
         default:
             let error = try? JSONDecoder().decode(APIErrorResponse.self, from: data)
-            throw APIError.serverError(error?.message ?? "Ingestion failed")
+            let body = String(data: data, encoding: .utf8) ?? "(no body)"
+            let detail = error?.message ?? "HTTP \(httpResponse.statusCode): \(body.prefix(500))"
+            throw APIError.serverError(detail)
         }
     }
 

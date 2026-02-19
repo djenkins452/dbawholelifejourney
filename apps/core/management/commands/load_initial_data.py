@@ -658,6 +658,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for Phase 5 calibration rewrite (PK 57)
         self._reset_calibration_rewrite_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset existing user calibration to conversational system
+        self._reset_existing_user_calibration(DataLoadConfig, force, verbosity)
+
         # Auto-sync CoS documentation to admin guide (runs if checksum changed)
         self._sync_cos_documentation(DataLoadConfig, force, verbosity)
 
@@ -2136,6 +2139,44 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset calibration rewrite fixtures FAILED: {e}'))
+
+    def _reset_existing_user_calibration(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset of existing users from old calibration system to conversational.
+        Equivalent to running: python manage.py reset_calibration_conversational
+        """
+        reset_tracker_name = 'reset_existing_user_calibration_2026_02_19'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            from apps.core.blueprint.cos_governance import reset_calibration_for_conversational
+            from apps.users.models import User
+
+            reset_count = 0
+            for user in User.objects.filter(is_active=True):
+                try:
+                    if reset_calibration_for_conversational(user):
+                        reset_count += 1
+                        if verbosity >= 1:
+                            self.stdout.write(f'  Reset calibration for {user.email}')
+                except Exception:
+                    pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                f'Reset {reset_count} users to conversational calibration',
+                'command',
+                'One-time reset of existing users from old trickle calibration to conversational system'
+            )
+
+            if verbosity >= 1:
+                self.stdout.write(f'  Calibration reset complete: {reset_count} users reset')
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset existing user calibration FAILED: {e}'))
 
     def _sync_cos_documentation(self, DataLoadConfig, force=False, verbosity=1):
         """

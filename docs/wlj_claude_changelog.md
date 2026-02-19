@@ -11,6 +11,11 @@
 
 ## 2026-02-19
 
+- **Bugfix:** CoS command mode input not sending messages to Assistant
+  - **Root cause:** Selector mismatch — `handleCommandModeInput()` looked for `.assistant-chat-input` / `#assistant-chat-input` but the actual input has `id="assistant-input"`
+  - **Fix:** Updated selectors to use correct element IDs (`#assistant-input`, `#assistant-send-btn`, `#assistant-form`), increased timeout from 300ms to 500ms for drawer animation
+  - **File:** `templates/components/cos_command_mode.html`
+
 - **Feature:** Phase 5 — Governance Onboarding + Adaptive Authority
   - **Models:** GovernanceProfile (per-user, per-module commitment classification) + GovernanceAlignmentSession (multi-stage onboarding state)
   - **ConsistencyEvaluator:** DriftPressure formula comparing declared importance vs observed behavior (MissRate×ImportanceWeight + GoalImpact + TimeSensitivity + Capacity - Responsiveness)

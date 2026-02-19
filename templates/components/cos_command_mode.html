@@ -142,17 +142,21 @@ function handleCommandModeInput(e) {
     var assistantBtn = document.getElementById('assistant-toggle-btn');
     if (assistantBtn) {
         assistantBtn.click();
-        // After panel opens, inject the message
+        // After panel opens, inject the message and submit
         setTimeout(function() {
-            var chatInput = document.querySelector('.assistant-chat-input, #assistant-chat-input');
+            var chatInput = document.getElementById('assistant-input');
             if (chatInput) {
                 chatInput.value = text;
+                // Trigger input event to enable the send button
                 chatInput.dispatchEvent(new Event('input', { bubbles: true }));
-                // Auto-submit if there's a send button
-                var sendBtn = chatInput.closest('form')?.querySelector('button[type="submit"]');
-                if (sendBtn) sendBtn.click();
+                // Click the now-enabled send button to submit
+                var sendBtn = document.getElementById('assistant-send-btn');
+                if (sendBtn) {
+                    sendBtn.disabled = false;
+                    sendBtn.click();
+                }
             }
-        }, 300);
+        }, 500);
     } else {
         // Fallback: go to assistant dashboard with message
         window.location.href = '{% url "ai:dashboard" %}?message=' + encodeURIComponent(text);

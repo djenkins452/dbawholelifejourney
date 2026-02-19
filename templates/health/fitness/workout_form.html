@@ -24,7 +24,7 @@
         <div class="rest-timer">
             <span class="rest-label">Rest:</span>
             <span id="restTimerDisplay" class="rest-time">0:00</span>
-            <button type="button" class="rest-timer-close" onclick="dismissRestTimer()" aria-label="Close timer">&times;</button>
+            <button type="button" class="rest-timer-close" id="restTimerCloseBtn" aria-label="Close timer">&times;</button>
         </div>
     </div>
 
@@ -119,7 +119,7 @@
                             {% endfor %}
                         </optgroup>
                     </select>
-                    <button type="button" class="btn btn-secondary" onclick="addExercise()">
+                    <button type="button" class="btn btn-secondary" id="addExerciseBtn">
                         <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <line x1="12" y1="5" x2="12" y2="19"></line>
                             <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -152,7 +152,7 @@
         <input type="hidden" name="exercise_id" value="EXERCISE_ID">
         <div class="exercise-header">
             <h3 class="exercise-name">EXERCISE_NAME</h3>
-            <button type="button" class="remove-btn" onclick="removeExercise(this)">
+            <button type="button" class="remove-btn">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="6" x2="6" y2="18"></line>
                     <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -167,7 +167,7 @@
                     <span class="input-suffix">lbs</span>
                     <input type="number" name="exercise_EXERCISE_ID_set_1_reps" placeholder="Reps" class="reps-input">
                     <span class="input-suffix">reps</span>
-                    <button type="button" class="done-btn" onclick="markSetDone(this, EXERCISE_ID, 1)">Done</button>
+                    <button type="button" class="done-btn">Done</button>
                 </div>
                 <span class="set-saved-indicator" style="display: none;">&#10003;</span>
             </div>
@@ -178,7 +178,7 @@
                     <span class="input-suffix">lbs</span>
                     <input type="number" name="exercise_EXERCISE_ID_set_2_reps" placeholder="Reps" class="reps-input">
                     <span class="input-suffix">reps</span>
-                    <button type="button" class="done-btn" onclick="markSetDone(this, EXERCISE_ID, 2)">Done</button>
+                    <button type="button" class="done-btn">Done</button>
                 </div>
                 <span class="set-saved-indicator" style="display: none;">&#10003;</span>
             </div>
@@ -189,12 +189,12 @@
                     <span class="input-suffix">lbs</span>
                     <input type="number" name="exercise_EXERCISE_ID_set_3_reps" placeholder="Reps" class="reps-input">
                     <span class="input-suffix">reps</span>
-                    <button type="button" class="done-btn" onclick="markSetDone(this, EXERCISE_ID, 3)">Done</button>
+                    <button type="button" class="done-btn">Done</button>
                 </div>
                 <span class="set-saved-indicator" style="display: none;">&#10003;</span>
             </div>
         </div>
-        <button type="button" class="add-set-btn" onclick="addSet(this)">+ Add Set</button>
+        <button type="button" class="add-set-btn">+ Add Set</button>
     </div>
 </template>
 
@@ -203,7 +203,7 @@
         <input type="hidden" name="exercise_id" value="EXERCISE_ID">
         <div class="exercise-header">
             <h3 class="exercise-name">EXERCISE_NAME</h3>
-            <button type="button" class="remove-btn" onclick="removeExercise(this)">
+            <button type="button" class="remove-btn">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="6" x2="6" y2="18"></line>
                     <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -235,7 +235,7 @@
             </div>
             <div class="cardio-field cardio-done-field">
                 <label>&nbsp;</label>
-                <button type="button" class="done-btn cardio-done-btn" onclick="markCardioDone(this, EXERCISE_ID)">Done</button>
+                <button type="button" class="done-btn cardio-done-btn">Done</button>
                 <span class="set-saved-indicator" style="display: none;">&#10003;</span>
             </div>
         </div>
@@ -247,7 +247,7 @@
         <input type="hidden" name="exercise_id" value="EXERCISE_ID">
         <div class="exercise-header">
             <h3 class="exercise-name">EXERCISE_NAME</h3>
-            <button type="button" class="remove-btn" onclick="removeExercise(this)">
+            <button type="button" class="remove-btn">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="6" x2="6" y2="18"></line>
                     <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -272,7 +272,7 @@
             </div>
             <div class="class-field class-done-field">
                 <label>&nbsp;</label>
-                <button type="button" class="done-btn class-done-btn" onclick="markClassDone(this, EXERCISE_ID)">Done</button>
+                <button type="button" class="done-btn class-done-btn">Done</button>
                 <span class="set-saved-indicator" style="display: none;">&#10003;</span>
             </div>
         </div>
@@ -1118,7 +1118,7 @@ function addSet(btn) {
                 <span class="input-suffix">lbs</span>
                 <input type="number" name="exercise_${exerciseId}_set_${setCount}_reps" placeholder="Reps" class="reps-input">
                 <span class="input-suffix">reps</span>
-                <button type="button" class="done-btn" onclick="markSetDone(this, ${exerciseId}, ${setCount})">Done</button>
+                <button type="button" class="done-btn">Done</button>
             </div>
             <span class="set-saved-indicator" style="display: none;">&#10003;</span>
         </div>
@@ -1185,6 +1185,73 @@ function applyTemplateDefaults() {
         }
     }
 }
+
+// =====================================================
+// Event Delegation — replaces all inline onclick handlers
+// CSP nonce-based policy blocks inline event handlers,
+// so all clicks are handled here via delegation.
+// =====================================================
+document.addEventListener('click', function(e) {
+    const target = e.target;
+
+    // --- Done button (resistance set) ---
+    // Match .done-btn that is NOT .cardio-done-btn or .class-done-btn
+    const doneBtn = target.closest('.done-btn:not(.cardio-done-btn):not(.class-done-btn)');
+    if (doneBtn) {
+        const exerciseRow = doneBtn.closest('.exercise-row');
+        const setRow = doneBtn.closest('.set-row');
+        if (exerciseRow && setRow) {
+            const exerciseId = exerciseRow.dataset.exerciseId;
+            const setNumber = setRow.dataset.setNumber;
+            markSetDone(doneBtn, exerciseId, parseInt(setNumber));
+        }
+        return;
+    }
+
+    // --- Done button (cardio) ---
+    const cardioDoneBtn = target.closest('.cardio-done-btn');
+    if (cardioDoneBtn) {
+        const exerciseRow = cardioDoneBtn.closest('.exercise-row');
+        if (exerciseRow) {
+            markCardioDone(cardioDoneBtn, exerciseRow.dataset.exerciseId);
+        }
+        return;
+    }
+
+    // --- Done button (class) ---
+    const classDoneBtn = target.closest('.class-done-btn');
+    if (classDoneBtn) {
+        const exerciseRow = classDoneBtn.closest('.exercise-row');
+        if (exerciseRow) {
+            markClassDone(classDoneBtn, exerciseRow.dataset.exerciseId);
+        }
+        return;
+    }
+
+    // --- Remove exercise button (X) ---
+    const removeBtn = target.closest('.remove-btn');
+    if (removeBtn) {
+        removeExercise(removeBtn);
+        return;
+    }
+
+    // --- Add set button ---
+    const addSetBtn = target.closest('.add-set-btn');
+    if (addSetBtn) {
+        addSet(addSetBtn);
+        return;
+    }
+
+    // --- Rest timer close button ---
+    const timerCloseBtn = target.closest('.rest-timer-close');
+    if (timerCloseBtn) {
+        dismissRestTimer();
+        return;
+    }
+});
+
+// Add Exercise button (static, so use direct binding)
+document.getElementById('addExerciseBtn').addEventListener('click', addExercise);
 
 // Auto-start workout when template is selected via URL
 document.addEventListener('DOMContentLoaded', function() {

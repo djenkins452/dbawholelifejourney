@@ -14,7 +14,7 @@ Variables:
     <input type="hidden" name="exercise_id" value="{{ exercise.pk }}">
     <div class="exercise-header">
         <h3 class="exercise-name">{{ exercise.name }}</h3>
-        <button type="button" class="remove-btn" onclick="removeExercise(this)">
+        <button type="button" class="remove-btn">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="18" y1="6" x2="6" y2="18"></line>
                 <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -35,7 +35,7 @@ Variables:
                             <input type="number" name="exercise_{{ exercise.pk }}_set_{{ set.set_number }}_reps"
                                    value="{{ set.reps|default:'' }}" placeholder="Reps" class="reps-input">
                             <span class="input-suffix">reps</span>
-                            <button type="button" class="done-btn" onclick="markSetDone(this, {{ exercise.pk }}, {{ set.set_number }})">Done</button>
+                            <button type="button" class="done-btn">Done</button>
                         </div>
                         <span class="set-saved-indicator" style="display: none;">&#10003;</span>
                     </div>
@@ -53,7 +53,7 @@ Variables:
                                     <input type="number" name="exercise_{{ exercise.pk }}_set_{{ forloop.counter }}_reps"
                                            placeholder="Reps" class="reps-input">
                                     <span class="input-suffix">reps</span>
-                                    <button type="button" class="done-btn" onclick="markSetDone(this, {{ exercise.pk }}, {{ forloop.counter }})">Done</button>
+                                    <button type="button" class="done-btn">Done</button>
                                 </div>
                                 <span class="set-saved-indicator" style="display: none;">&#10003;</span>
                             </div>
@@ -62,7 +62,7 @@ Variables:
                 {% endwith %}
             {% endif %}
         </div>
-        <button type="button" class="add-set-btn" onclick="addSet(this)">+ Add Set</button>
+        <button type="button" class="add-set-btn">+ Add Set</button>
     {% elif exercise.category == "cardio" %}
         <div class="cardio-inputs">
             <div class="cardio-field">
@@ -91,7 +91,7 @@ Variables:
             </div>
             <div class="cardio-field cardio-done-field">
                 <label>&nbsp;</label>
-                <button type="button" class="done-btn cardio-done-btn" onclick="markCardioDone(this, {{ exercise.pk }})">Done</button>
+                <button type="button" class="done-btn cardio-done-btn">Done</button>
                 <span class="set-saved-indicator" style="display: none;">&#10003;</span>
             </div>
         </div>
@@ -115,7 +115,7 @@ Variables:
             </div>
             <div class="class-field class-done-field">
                 <label>&nbsp;</label>
-                <button type="button" class="done-btn class-done-btn" onclick="markClassDone(this, {{ exercise.pk }})">Done</button>
+                <button type="button" class="done-btn class-done-btn">Done</button>
                 <span class="set-saved-indicator" style="display: none;">&#10003;</span>
             </div>
         </div>

@@ -46,7 +46,7 @@
                             <input type="hidden" name="exercise_id" value="{{ te.exercise.pk }}">
                             <div class="exercise-header-row">
                                 <span class="exercise-name">{{ te.exercise.name }}</span>
-                                <button type="button" class="remove-btn" onclick="removeExercise(this)">
+                                <button type="button" class="remove-btn">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <line x1="18" y1="6" x2="6" y2="18"></line>
                                         <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -58,8 +58,8 @@
                                     <div class="sets-header">
                                         <label>Sets:</label>
                                         <input type="number" name="exercise_{{ te.exercise.pk }}_default_sets"
-                                               value="{{ te.default_sets }}" min="1" max="10" class="sets-count-input"
-                                               onchange="updateSetRows(this, {{ te.exercise.pk }})">
+                                               value="{{ te.default_sets }}" min="1" max="10"
+                                               class="sets-count-input">
                                     </div>
                                     <div class="set-defaults-container" data-exercise-id="{{ te.exercise.pk }}">
                                         {% for set_default in te.set_defaults.all %}
@@ -116,7 +116,7 @@
                             {% endfor %}
                         </optgroup>
                     </select>
-                    <button type="button" class="btn btn-secondary" onclick="addExercise()">
+                    <button type="button" class="btn btn-secondary" id="addExerciseBtn">
                         <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <line x1="12" y1="5" x2="12" y2="19"></line>
                             <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -421,7 +421,7 @@ function addExercise() {
             <input type="hidden" name="exercise_id" value="${exerciseId}">
             <div class="exercise-header-row">
                 <span class="exercise-name">${exerciseName}</span>
-                <button type="button" class="remove-btn" onclick="removeExercise(this)">
+                <button type="button" class="remove-btn">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <line x1="18" y1="6" x2="6" y2="18"></line>
                         <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -436,7 +436,7 @@ function addExercise() {
                 <div class="sets-header">
                     <label>Sets:</label>
                     <input type="number" name="exercise_${exerciseId}_default_sets" value="3" min="1" max="10"
-                           class="sets-count-input" onchange="updateSetRows(this, ${exerciseId})">
+                           class="sets-count-input">
                 </div>
                 <div class="set-defaults-container" data-exercise-id="${exerciseId}">
                     ${generateSetRows(exerciseId, 3)}
@@ -456,5 +456,26 @@ function addExercise() {
 function removeExercise(btn) {
     btn.closest('.template-exercise-row').remove();
 }
+
+// Event delegation — replaces inline onclick/onchange handlers (blocked by CSP nonce policy)
+document.addEventListener('click', function(e) {
+    const removeBtn = e.target.closest('.remove-btn');
+    if (removeBtn) {
+        removeExercise(removeBtn);
+        return;
+    }
+});
+
+document.addEventListener('change', function(e) {
+    const setsInput = e.target.closest('.sets-count-input');
+    if (setsInput) {
+        const exerciseRow = setsInput.closest('.template-exercise-row');
+        if (exerciseRow) {
+            updateSetRows(setsInput, exerciseRow.dataset.exerciseId);
+        }
+    }
+});
+
+document.getElementById('addExerciseBtn').addEventListener('click', addExercise);
 </script>
 {% endblock %}

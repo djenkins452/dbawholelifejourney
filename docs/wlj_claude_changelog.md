@@ -11,6 +11,11 @@
 
 ## 2026-02-19
 
+- **Fix:** Workout form Done/X/Add Set buttons broken by CSP nonce policy — replaced all inline onclick/onchange handlers with event delegation in nonced script blocks
+  - **Root cause:** CSP nonce-based `script-src` policy silently ignores `'unsafe-inline'`, blocking all inline `onclick`/`onchange` event handlers. Buttons appeared but did nothing on click.
+  - **Fix:** Removed all inline event handler attributes and added document-level event delegation inside the nonced `<script>` block, which works for both server-rendered and dynamically-added elements.
+  - **Files:** `templates/health/fitness/workout_form.html`, `templates/health/fitness/partials/exercise_row.html`, `templates/health/fitness/template_form.html`
+
 - **Bugfix:** CoS command mode input not sending messages to Assistant
   - **Root cause:** Selector mismatch — `handleCommandModeInput()` looked for `.assistant-chat-input` / `#assistant-chat-input` but the actual input has `id="assistant-input"`
   - **Fix:** Updated selectors to use correct element IDs (`#assistant-input`, `#assistant-send-btn`, `#assistant-form`), increased timeout from 300ms to 500ms for drawer animation

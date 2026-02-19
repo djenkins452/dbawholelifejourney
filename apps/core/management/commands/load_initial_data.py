@@ -664,6 +664,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for persistent chat panel (PK 58)
         self._reset_chat_panel_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Re-reset calibration after corrupted answers from chat panel v1
+        self._reset_calibration_after_chat_panel(DataLoadConfig, force, verbosity)
+
         # Auto-sync CoS documentation to admin guide (runs if checksum changed)
         self._sync_cos_documentation(DataLoadConfig, force, verbosity)
 
@@ -2210,6 +2213,76 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset chat panel fixtures FAILED: {e}'))
+
+    def _reset_calibration_after_chat_panel(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time re-reset of calibration after chat panel v1 corrupted answers.
+        The first chat panel deployment recorded generic messages as calibration
+        answers. This resets all users back to stage 0 with clean state.
+        """
+        reset_tracker_name = 'reset_calibration_after_chat_panel_2026_02_19'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            from apps.core.blueprint.models import PersonalOperatingBlueprint
+            from apps.users.models import User
+
+            reset_count = 0
+            for user in User.objects.filter(is_active=True):
+                try:
+                    blueprint = PersonalOperatingBlueprint.objects.filter(
+                        user=user).first()
+                    if not blueprint:
+                        continue
+                    # Force-reset calibration to stage 0 with clean answers
+                    blueprint.calibration_complete = False
+                    overrides = blueprint.governance_overrides or {}
+                    overrides['calibration_stage'] = 0
+                    overrides['calibration_paused'] = False
+                    overrides['calibration_welcome_shown'] = False
+                    overrides['calibration_answers'] = {}
+                    overrides['calibration_force_reset_at'] = (
+                        __import__('django.utils.timezone', fromlist=['now'])
+                        .now().isoformat()
+                    )
+                    blueprint.governance_overrides = overrides
+                    blueprint.save(update_fields=[
+                        'calibration_complete', 'governance_overrides',
+                        'updated_at',
+                    ])
+                    # Clear existing chat so calibration starts fresh
+                    try:
+                        from apps.ai.models import AssistantConversation
+                        conv = AssistantConversation.objects.filter(
+                            user=user, is_active=True).first()
+                        if conv:
+                            conv.messages.all().delete()
+                    except Exception:
+                        pass
+                    reset_count += 1
+                    if verbosity >= 1:
+                        self.stdout.write(
+                            f'  Force-reset calibration for {user.email}')
+                except Exception:
+                    pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                f'Force-reset {reset_count} users after chat panel v1 corrupted calibration',
+                'command',
+                'One-time force-reset: cleared corrupted answers and chat history'
+            )
+
+            if verbosity >= 1:
+                self.stdout.write(
+                    f'  Calibration force-reset complete: {reset_count} users')
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(
+                    f'Reset calibration after chat panel FAILED: {e}'))
 
     def _sync_cos_documentation(self, DataLoadConfig, force=False, verbosity=1):
         """

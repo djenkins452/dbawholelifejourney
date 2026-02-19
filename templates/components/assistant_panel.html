@@ -553,10 +553,28 @@
                         msg.image_data_url || null, msg);
                 });
                 container.scrollTop = container.scrollHeight;
+
+                // Resume calibration if active and last message was from assistant
+                // (meaning user hasn't answered yet, or assistant gave a generic reply)
+                if (data.calibration_active && !calibrationAutoStarted) {
+                    var lastMsg = data.messages[data.messages.length - 1];
+                    if (lastMsg.role === 'assistant') {
+                        // Check if the last assistant message already contains a calibration question
+                        // If not, send a nudge to re-engage the calibration flow
+                        var hasQuestion = lastMsg.content && lastMsg.content.indexOf('?') !== -1;
+                        // Even if it has a question mark, it might be generic "let me know"
+                        // Check if calibration has a pending question that hasn't been asked
+                        if (data.calibration_next_question) {
+                            calibrationAutoStarted = true;
+                            // Send a resume message that triggers the calibration injection
+                            sendMessage("Let's continue where we left off.", container, chatInput, sendBtn);
+                        }
+                    }
+                }
             } else {
                 showEmptyState(container);
 
-                // Auto-start calibration if active and no messages
+                // Auto-start calibration if active and no messages yet
                 if (data.calibration_active && !calibrationAutoStarted) {
                     calibrationAutoStarted = true;
                     sendMessage('Hello', container, chatInput, sendBtn);

@@ -378,11 +378,16 @@ class ConversationHistoryView(LoginRequiredMixin, AssistantMixin, View):
 
             # Add calibration state for chat auto-start
             calibration_active = False
+            calibration_next_question = None
+            calibration_welcome_needed = False
             try:
                 from apps.core.blueprint.cos_governance import get_calibration_state
                 cal_state = get_calibration_state(request.user)
                 if cal_state and cal_state['active'] and not cal_state['paused']:
                     calibration_active = True
+                    calibration_welcome_needed = not cal_state.get('welcome_shown', False)
+                    if cal_state.get('next_question'):
+                        calibration_next_question = cal_state['next_question'].get('question')
             except Exception:
                 pass
 
@@ -392,6 +397,8 @@ class ConversationHistoryView(LoginRequiredMixin, AssistantMixin, View):
                 'session_type': conversation.session_type,
                 'messages': messages_list,
                 'calibration_active': calibration_active,
+                'calibration_next_question': calibration_next_question,
+                'calibration_welcome_needed': calibration_welcome_needed,
             })
 
         except AssistantConversation.DoesNotExist:

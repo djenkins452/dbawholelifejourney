@@ -291,6 +291,7 @@ body.edit-mode .tile-name-label {
 <div class="container">
     <!-- Header -->
     <header class="dashboard-header">
+        {% if not command_mode or not command_mode.active %}
         <div class="greeting">
             <h1>{{ greeting }}, {{ user.get_short_name }}.</h1>
             <p class="current-date">{{ current_date|date:"l, F j, Y" }}</p>
@@ -300,6 +301,7 @@ body.edit-mode .tile-name-label {
             </a>
             {% endif %}
         </div>
+        {% endif %}
 
     </header>
 

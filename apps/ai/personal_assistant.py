@@ -2008,10 +2008,21 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                         )
 
         # Record calibration answer if active (advance stage for next question)
-        # Skip if welcome was just shown this cycle — user is acknowledging
-        # the welcome, not answering a calibration question.
+        # Skip if:
+        # - Welcome was just shown this cycle (user acknowledging, not answering)
+        # - Message is a system-initiated resume (auto-sent by chat panel on load)
+        CALIBRATION_RESUME_PHRASES = {
+            "let's continue where we left off.",
+            "hello",
+        }
         try:
-            if not getattr(self, '_calibration_welcome_just_shown', False):
+            skip_recording = getattr(
+                self, '_calibration_welcome_just_shown', False
+            )
+            if not skip_recording and message.strip().lower() in CALIBRATION_RESUME_PHRASES:
+                skip_recording = True
+
+            if not skip_recording:
                 from apps.core.blueprint.cos_governance import (
                     get_calibration_state,
                     record_calibration_answer,
@@ -2560,7 +2571,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                             self.user)
                         if cal_injection:
                             system_prompt = (
-                                cal_injection + "\n" + system_prompt
+                                system_prompt + "\n\n" + cal_injection
                             )
                             if not cal_state['welcome_shown']:
                                 mark_calibration_welcome_shown(self.user)

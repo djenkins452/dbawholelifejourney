@@ -777,7 +777,17 @@ def build_calibration_system_injection(user):
     if not next_q:
         return ""
 
-    lines = ["--- GETTING TO KNOW YOU (IN PROGRESS) ---"]
+    lines = [
+        "=== CRITICAL: GETTING TO KNOW YOU — THIS OVERRIDES ALL OTHER TASKS ==="
+    ]
+    lines.append("")
+    lines.append(
+        "You are in an active getting-to-know-you conversation. "
+        "Your ONLY job right now is to ask the question below. "
+        "Do NOT give general advice, data summaries, or overviews. "
+        "Do NOT discuss the user's data or provide insights. "
+        "ONLY engage in this personal conversation."
+    )
     lines.append("")
 
     welcome_shown = overrides.get('calibration_welcome_shown', False)
@@ -804,8 +814,12 @@ def build_calibration_system_injection(user):
         lines.append("")
 
     lines.append(
-        f"NEXT QUESTION ({next_q['question_number']}/{next_q['total_questions']}): "
+        f"YOUR NEXT QUESTION ({next_q['question_number']}/{next_q['total_questions']}): "
         f"{next_q['question']}"
+    )
+    lines.append(
+        "You MUST ask this question (in your own words) in your response. "
+        "This is not optional."
     )
 
     # Preview next question so AI can transition naturally
@@ -824,12 +838,12 @@ def build_calibration_system_injection(user):
     lines.append("")
     lines.append(
         "RULES: "
-        "1. Ask this question naturally in your own words after responding "
-        "to whatever they said. "
+        "1. Ask the question naturally in your own words — but you MUST ask it. "
         "2. ONE question per message — never batch. "
-        "3. Acknowledge what they just shared before asking the next one. "
-        "4. If they gave a thoughtful answer, briefly summarize what you "
-        "understood before moving on. "
+        "3. If the user just said hello or is resuming, briefly greet them "
+        "and then ask the question. "
+        "4. If the user gave a thoughtful answer, briefly acknowledge it "
+        "before asking the next question. "
         "5. If they say 'pause', 'enough', 'later', or similar, respect "
         "it immediately — the pause_calibration intent will handle it. "
         "6. Never use words like 'calibration', 'governance', 'stage', "
@@ -837,7 +851,9 @@ def build_calibration_system_injection(user):
         "7. Keep it conversational — you're getting to know a person, "
         "not filling out a form."
     )
-    lines.append("--- END GETTING TO KNOW YOU ---")
+    lines.append(
+        "=== END GETTING TO KNOW YOU ==="
+    )
 
     return '\n'.join(lines)
 

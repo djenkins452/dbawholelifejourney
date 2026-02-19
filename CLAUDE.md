@@ -1,180 +1,71 @@
-# Whole Life Journey — System Bootloader
+# Whole Life Journey — Claude Code Instructions
 
 **Project:** Django 5.x personal wellness/journaling app
-**Repo:** C:\dbawholelifejourney | GitHub: djenkins452/dbawholelifejourney
+**Repo:** GitHub: djenkins452/dbawholelifejourney
 
 ---
 
-## System Boot Sequence
+## Behavior Rules
 
-When Claude Code begins any session, it must operate in this order:
+**Do NOT ask permission for:** reading files, searching, grepping, running tests/migrations, making commits, deploying.
 
-1. **Load CLAUDE.md** — This file (system bootloader and operational authority)
-2. **Load `docs/INTELLIGENCE_ARCHITECTURE.md`** — Engine inventory, pipeline, and contracts
-3. **Load `docs/DOMAIN_INTELLIGENCE_ARCHITECTURE.md`** — Per-module intelligence integration map
-4. **Load `docs/ENGINE_INTEGRATION_GUIDE.md`** — Step-by-step integration patterns for new features
-5. **Load relevant module code** — As needed for the current task
-6. **Execute tasks** — In compliance with architecture
+**Ask permission for:** destructive operations (deleting files, dropping tables), genuinely ambiguous or risky actions.
 
-This ensures system-wide architectural integrity across every session.
+**Task Discussion Flow** (when fetching tasks from backlog):
+1. Present the task and explore as needed
+2. Discuss scope and approach
+3. **Wait for "go"** — do NOT implement until user says "go"
 
----
+**Communication:** Be direct, skip "Would you like me to...", execute don't propose, summarize results not intentions.
 
-## Intelligence Architecture Compliance (MANDATORY)
+**Auto-fix rule:** Fix broken/non-compliant code (CSP violations, quality issues) when you encounter it in files you're touching.
 
-Whole Life Journey uses a layered intelligence architecture defined in:
-
-| Document | Purpose |
-|----------|---------|
-| `docs/INTELLIGENCE_ARCHITECTURE.md` | Engine inventory, execution pipeline, adding rules |
-| `docs/DOMAIN_INTELLIGENCE_ARCHITECTURE.md` | Per-module integration map |
-| `docs/ENGINE_INTEGRATION_GUIDE.md` | Step-by-step guide for wiring new features into engines |
-
-Claude Code **MUST** read and follow these documents before implementing any feature that touches AI, data logging, insights, predictions, or user interactions.
-
-### Intelligence Execution Phases (MANDATORY)
-
-Whole Life Journey operates using **three-phase intelligence execution**:
-
-**Interpretation → Execution → Post-Execution**
-
-Claude Code must integrate new features into the correct phase. Claude Code must NOT violate phase boundaries.
-
-| Phase | Engines | Purpose |
-|-------|---------|---------|
-| **Phase 1 — Interpretation** | SUE, SLCME, HTIE | Understand user meaning. Do NOT execute actions. |
-| **Phase 2 — Execution** | UAIO | Execute domain actions. Sole execution authority. |
-| **Phase 3 — Post-Execution** | SAE, PIE, PRIE, PGE | Update state, detect patterns, predict, guide. Do NOT execute actions. |
-
-### Intelligence Engines
-
-All intelligence must flow through these engines — no module may bypass them:
-
-| Engine | Phase | Location | Purpose |
-|--------|-------|----------|---------|
-| **SUE** — Semantic Understanding Engine | 1 | `apps/core/ai_semantics/` | Interpret human meaning, extract entities, detect ambiguity |
-| **SLCME** — Self-Learning Context Memory Engine | 1 | `apps/core/ai_memory/` | Learn from clarifications, auto-reuse with confidence |
-| **HTIE** — Human Temporal Intelligence Engine | 1 | `apps/core/time/` | Parse natural language time → precise timestamps |
-| **UAIO** — Unified AI Orchestrator | 2 | `apps/core/ai_orchestrator/` | Central brain connecting all engines to AI pipeline |
-| **SAE** — State Awareness Engine | 3 | `apps/core/ai_state/` | Persistent user state snapshot, authoritative current condition |
-| **PIE** — Proactive Insight Engine | 3 | `apps/core/ai_insights/` | Event-driven + scheduled factual insights |
-| **PRIE** — Predictive Intelligence Engine | 3 | `apps/core/ai_predictions/` | Trajectory projection using linear regression |
-| **PGE** — Proactive Guidance Engine | 3 | `apps/core/ai_guidance/` | Surface evidence-based guidance from state/insights/predictions |
-| **GLOE** — Guidance Learning Optimization Engine | 3 | `apps/core/ai_guidance_learning/` | Learn from user guidance interactions to improve PGE ranking |
-| **DBE** — Daily Briefing Engine | 3 | `apps/core/ai_briefing/` | Aggregate daily intelligence summaries from all engines |
-| **ISE** — Intelligence Scheduler Engine | 3 | `apps/core/ai_scheduler/` | Centrally manage scheduled execution of all intelligence engines |
-| **WIRE** — Weekly Intelligence Report Engine | 3 | `apps/core/ai_weekly_report/` | Generate weekly longitudinal intelligence summaries |
-| **E3** — Evidence & Explainability Engine | 3 | `apps/core/ai_explain/` | Attach evidence and explanations to PGE, DBE, WIRE outputs |
-| **DNE** — Delivery & Notification Engine | 3 | `apps/core/ai_delivery/` | Deliver intelligence through in-app/email/SMS with throttling/dedupe |
-
-### Intelligence Execution Pipeline
-
-```
-User Input
-  → PHASE 1 — INTERPRETATION
-    → SUE (Semantic Understanding)
-    → SLCME (Memory Resolution)
-    → HTIE (Time Resolution)
-  → PHASE 2 — EXECUTION
-    → UAIO (Orchestrator → Action Handlers)
-  → PHASE 3 — POST-EXECUTION
-    → SAE (State Update)
-    → PIE (Insight Generation)
-    → PRIE (Prediction Generation)
-    → PGE (Guidance Generation — scheduled/on-demand)
-    → GLOE (Learning Optimization — on user interaction)
-    → DBE (Daily Briefing — scheduled daily)
-    → WIRE (Weekly Report — scheduled weekly)
-    → ISE (Scheduler — orchestrates all scheduled engines)
-  → Response
-```
-
-This pipeline must never be bypassed. Phase boundaries must never be violated.
-
-### Architectural Authority
-
-- The intelligence architecture documents are **system authority**
-- If existing code violates architecture, Claude Code must refactor it to comply
-- All new features must integrate with the correct phase
-- New data-logging features must fire PIE events and PRIE predictions
+**Conserve limits:** Keep responses concise. Batch changes. Use Task/Explore agent for broad searches. Warn before high-token operations.
 
 ---
 
-## ⚠️ BEHAVIOR RULES (FOLLOW IMMEDIATELY)
+## Tech Stack & Architecture
 
-**Do NOT ask permission for:**
-- Reading files, searching, grepping
-- Running tests or migrations
-- Making commits when task is complete
-- Deploying (changelog → commit → merge → push)
-
-**Still ask permission for:**
-- Destructive operations (deleting files, dropping tables)
-- Genuinely ambiguous or risky actions
-
-**⚠️ IMPORTANT: Task Discussion Flow**
-When fetching a new task from the improvement backlog:
-1. **Present the task** - Show what's next and explore the codebase as needed
-2. **Discuss scope** - Talk through the approach and implementation details with the user
-3. **Wait for "go"** - Do NOT start implementation until the user explicitly says "go"
-4. Only after "go" → proceed with implementation
-
-**Communication style:**
-- Be direct - skip "Would you like me to..."
-- Execute (after "go"), don't propose
-- If something fails, fix it and move on
-- Summarize results, not intentions
-
-**⚠️ AUTO-FIX RULE:**
-When you encounter broken or non-compliant code while working on any task, **fix it automatically** — don't just flag it. This includes:
-- Inline event handlers blocked by CSP (see "CSP Compliance" section)
-- Any other code quality issues discovered in files you're already touching
-
-**⚠️ CONSERVE CLAUDE LIMITS:**
-- Keep responses concise - no verbose explanations
-- Don't re-read files already seen in the conversation
-- Batch related changes together
-- Use Task tool with Explore agent for broad searches (reduces back-and-forth)
-- Avoid unnecessary tool calls
-- When user says "be brief" - minimize output further
-- **WARN before high-token operations:** If a task will require reading many files, extensive searches, or generating large amounts of code, warn the user first with an estimate (e.g., "This will require reading ~10 files and generating significant code - proceed?")
+- Django 5.x, django-allauth | PostgreSQL (prod) / SQLite (dev)
+- Railway deployment with Nixpacks | Gunicorn WSGI
+- OpenAI API for AI features | iOS app: Swift/SwiftUI wrapper
+- **Apps:** users, core, dashboard, journal, faith, health, purpose, ai, life, admin_console, help, scan, mobile, medical, billing, brain_training, capture, finance, security, sms
+- **User model:** Custom User (email-based auth) | UserPreferences for settings
+- **Soft deletes:** Models use `soft_delete()`, not hard deletes. See `docs/wlj_claude_troubleshoot.md` #7 for SoftDeleteManager pattern
 
 ---
 
-## ⚠️ CRITICAL: ALWAYS DEPLOY AFTER CODE CHANGES
+## Intelligence Architecture
 
-**After ANY code changes, you MUST:**
-1. Update changelog (`docs/wlj_claude_changelog.md`)
-2. Update user-facing documentation (see "Documentation Updates" below)
-3. Commit changes
-4. Push worktree branch to GitHub
-5. Merge to main and push to deploy (see "On Task Completion" section)
+The app uses a three-phase intelligence pipeline: **Interpretation → Execution → Post-Execution** with 14 engines. When working on AI, data logging, insights, predictions, or user interaction features, **read these docs first:**
 
-**A task is NOT complete until it is deployed to production.**
+- `docs/INTELLIGENCE_ARCHITECTURE.md` — Engine inventory, pipeline, contracts
+- `docs/DOMAIN_INTELLIGENCE_ARCHITECTURE.md` — Per-module integration map
+- `docs/ENGINE_INTEGRATION_GUIDE.md` — Step-by-step integration patterns
 
-### Documentation Updates (Required After Every Feature/Enhancement)
+New features must integrate with the correct phase. New data-logging features must fire PIE events and PRIE predictions.
 
-When adding **new features, pages, or significant enhancements**, update ALL of these:
+---
 
-1. **What's New Release Notes** (`apps/core/fixtures/release_notes.json`)
-   - Add a new entry with next PK, user-friendly title and description
-   - Include `created_at`/`updated_at` timestamps (required by auto_now fields)
-   - Set `is_major: true` for big features, `false` for enhancements
-   - Add a one-time reset in `load_initial_data.py` so the fixture reloads on deploy
+## CSP Compliance (REQUIRED)
 
-2. **Teaching Destinations** (`apps/help/fixtures/teaching_destinations.json`)
-   - Add entries for any new pages/features users can navigate to
-   - Include relevant keywords for search matching
-   - Check for duplicate `destination_id` values before adding
+Nonce-based CSP. Browsers ignore `'unsafe-inline'` when nonce is present.
 
-3. **Help Topics** (`apps/help/fixtures/help_topics.json`)
-   - Add/update help topics for any new `help_context_id` referenced in views
-   - Include comprehensive content covering what the feature does and how to use it
+- **NEVER** use inline event handlers (`onclick`, `onchange`, `onsubmit`, etc.) — silently blocked
+- **ALWAYS** use `addEventListener()` inside `<script nonce="{{ csp_nonce }}">`
+- For dynamic elements, use event delegation on parent/document
+- Derive context from `data-*` attributes, not function arguments
 
-4. **Fixture Loader Resets** (`apps/core/management/commands/load_initial_data.py`)
-   - If you modified any fixture that was already loaded in production, add a one-time reset method so it reloads on next deploy
+---
 
-**Skip documentation updates for:** bug fixes, CSS tweaks, refactors, test-only changes, and backend-only changes invisible to users.
+## Responsive Design (REQUIRED)
+
+Mobile: `max-width: 480px` | Tablet: `max-width: 768px` | Desktop: `min-width: 769px`
+
+- Mobile-friendly defaults first, `@media` queries for larger screens
+- Touch targets ≥ 44x44px, `font-size: 16px` min on inputs (iOS zoom prevention)
+- No fixed widths — use `max-width`, `%`, or `vw`
+- Verify layouts work at 375px width (iPhone SE)
 
 ---
 
@@ -182,242 +73,29 @@ When adding **new features, pages, or significant enhancements**, update ALL of 
 
 | Item | Value |
 |------|-------|
-| **API Key** | Set `WLJ_CLAUDE_API_KEY` in your `.env` file (see `.env.example`) |
-| **Ready Tasks** | `GET /admin-console/api/claude/ready-tasks/?auto_start=true` |
-| **Update Status** | `POST /admin-console/api/claude/tasks/<id>/status/` |
+| **Task API** | `GET /admin-console/api/claude/ready-tasks/?auto_start=true` |
+| **Task Status** | `POST /admin-console/api/claude/tasks/<id>/status/` |
+| **API Key Header** | `X-Claude-API-Key: $WLJ_CLAUDE_API_KEY` |
 | **Test Count** | ~4,400 tests |
-| **Push From** | Main repo (C:\dbawholelifejourney), NOT worktrees |
-
-**Commands:**
-```bash
-# Fetch next task (marks as in_progress automatically)
-curl -s -H "X-Claude-API-Key: $WLJ_CLAUDE_API_KEY" "https://wholelifejourney.com/admin-console/api/claude/ready-tasks/?limit=1&auto_start=true"
-
-# Mark task done
-curl -s -X POST -H "X-Claude-API-Key: $WLJ_CLAUDE_API_KEY" -H "Content-Type: application/json" -d '{"status": "done"}' "https://wholelifejourney.com/admin-console/api/claude/tasks/<ID>/status/"
-```
-
-## Testing & Migrations
-
-**RESOLVED (2026-01-06):** `manage.py` commands now work. Ensure `.env` file exists with at minimum:
-```
-SECRET_KEY=dev-secret-key-for-local-testing-only
-DEBUG=True
-ALLOWED_HOSTS=localhost,127.0.0.1
-```
+| **Git Push** | `GIT_SSH_COMMAND="ssh -p 443" git push git@ssh.github.com:djenkins452/dbawholelifejourney.git main` |
 
 **Testing:**
 ```bash
-# Test specific app module
-python manage.py test apps.health.tests.test_fitness -v 1 --failfast
-
-# Run all tests
-python manage.py test -v 1
-
-# Check for issues
-python manage.py check
+python manage.py test apps.health.tests.test_fitness -v 1 --failfast  # specific module
+python manage.py test -v 1                                             # all tests
+python manage.py check                                                 # check for issues
 ```
+**Migrations:** `python manage.py makemigrations && python manage.py migrate`
 
-**Migrations:**
-```bash
-# Create migrations
-python manage.py makemigrations
-
-# Apply migrations
-python manage.py migrate
-```
+**Troubleshooting:** Read `docs/wlj_claude_troubleshoot.md` FIRST. Common issues: property shadowing, migration state, Nixpacks caching, test user onboarding, CSRF origins, SoftDeleteManager filtering.
 
 ---
 
-## Tech Stack
+## Task Standard
 
-- Django 5.x with django-allauth | PostgreSQL (prod) / SQLite (dev)
-- Railway deployment with Nixpacks | Gunicorn WSGI
-- OpenAI API for AI coaching features
-- **iOS App:** Native Swift/SwiftUI wrapper with WKWebView + HealthKit
+AdminTask `description` fields must be JSON: `{"objective": "...", "inputs": [...], "actions": [...], "output": "..."}`
 
-## CSP Compliance (REQUIRED)
-
-**This app uses nonce-based Content Security Policy (CSP).** All inline JavaScript must comply.
-
-**The Rule:** When a CSP nonce is present, browsers ignore `'unsafe-inline'` per spec. This means:
-- `<script nonce="{{ csp_nonce }}">` blocks work ✅
-- `onclick="..."`, `onchange="..."`, `onsubmit="..."` etc. are **silently blocked** ❌
-
-**When writing JavaScript:**
-1. **NEVER** use inline event handler attributes (`onclick`, `onchange`, `onsubmit`, `oninput`, etc.)
-2. **ALWAYS** use `addEventListener()` inside a `<script nonce="{{ csp_nonce }}">` block
-3. For dynamically-added elements, use **event delegation** on a parent/document
-4. Derive context (IDs, data) from `data-*` attributes and DOM traversal, not function arguments
-
-**Pattern — Event Delegation (preferred for dynamic content):**
-```javascript
-<script nonce="{{ csp_nonce }}">
-document.addEventListener('click', function(e) {
-    const btn = e.target.closest('.my-button');
-    if (btn) {
-        const id = btn.closest('[data-item-id]').dataset.itemId;
-        doSomething(id);
-    }
-});
-</script>
-```
-
-**Pattern — Direct Binding (for static elements with IDs):**
-```javascript
-<script nonce="{{ csp_nonce }}">
-document.getElementById('myBtn').addEventListener('click', myFunction);
-</script>
-```
-
-**Auto-fix rule:** When encountering inline event handlers during any task, fix them proactively — don't leave broken code behind.
-
----
-
-## Responsive Design (REQUIRED)
-
-**This app is used on phones, tablets, and desktops.** All UI changes MUST be responsive.
-
-**Breakpoints:**
-- Mobile: `max-width: 480px`
-- Tablet: `max-width: 768px`
-- Desktop: `min-width: 769px`
-
-**When writing CSS:**
-1. Start with mobile-friendly defaults (reasonable padding, readable font sizes)
-2. Add `@media` queries for tablet/desktop enhancements
-3. Test that touch targets are at least 44x44px on mobile
-4. Use `font-size: 16px` minimum on inputs (prevents iOS auto-zoom)
-5. Avoid fixed widths - use `max-width`, `%`, or `vw` units
-
-**Common mobile issues to avoid:**
-- Horizontal scrolling (content wider than viewport)
-- Text too small to read
-- Buttons/links too close together
-- Forms that don't fit on screen
-- Modals/drawers that overflow
-
-**Before completing UI tasks:** Mentally verify the layout works at 375px width (iPhone SE).
-
-## Key Architecture
-
-- **Apps:** users, core, dashboard, journal, faith, health, purpose, ai, life, admin_console, help, scan, mobile, medical, billing, brain_training, capture, finance, security, sms
-- **User model:** Custom User (email-based auth) | UserPreferences for settings
-- **Soft deletes:** Models use `soft_delete()` method, not hard deletes. See troubleshoot.md #7 for SoftDeleteManager pattern
-
----
-
-## Reference Documentation
-
-| Doc | Purpose |
-|-----|---------|
-| `docs/INTELLIGENCE_ARCHITECTURE.md` | **Intelligence engine inventory and pipeline** |
-| `docs/DOMAIN_INTELLIGENCE_ARCHITECTURE.md` | **Per-module intelligence integration map** |
-| `docs/ENGINE_INTEGRATION_GUIDE.md` | **Integration patterns for new features** |
-| `.claude/commands/README.md` | **Slash commands** (`/next`, `/run-task`, `/troubleshoot`, `/log-change`, `/close`, `/process-emails`) |
-| `docs/wlj_claude_troubleshoot.md` | Known issues & solutions (CHECK FIRST) |
-| `docs/wlj_claude_deploy.md` | Railway deployment, Nixpacks, migrations |
-| `docs/wlj_claude_features.md` | Feature documentation (AI, scan, health) |
-| `docs/wlj_claude_changelog.md` | Historical changes and fixes |
-| `docs/wlj_third_party_services.md` | External service inventory |
-| `docs/improvement_tasks.md` | **Improvement backlog** - prioritized feature tasks |
-| `docs/task9_ai_assistant_search.md` | **Active:** AI Assistant search gateway design & sub-tasks |
-| `docs/ios-wrapper-setup.md` | iOS app Xcode setup and running guide |
-| `docs/ios-healthkit-integration.md` | HealthKit technical documentation |
-| `docs/ios-app-store-submission.md` | Complete App Store submission guide |
-
-## Slash Commands
-
-| Command | Model | Purpose |
-|---------|-------|---------|
-| `/next` | Default | Fetch next ready task, mark in_progress |
-| `/run-task` | Sonnet | Execute task with full context, auto-changelog |
-| `/troubleshoot` | Haiku | Match error to known issues |
-| `/log-change <desc>` | Haiku | Append entry to changelog |
-| `/close` | Sonnet | End-of-session review: changelog, docs, git status |
-| `/process-emails` | Default | Check Automate folder, create tasks from emails |
-
----
-
-## Executable Task Standard
-
-All AdminTask `description` fields MUST be JSON with these keys:
-
-```json
-{
-    "objective": "What the task should accomplish",
-    "inputs": ["Required context (can be empty [])"],
-    "actions": ["Step 1", "Step 2 (at least one required)"],
-    "output": "Expected deliverable"
-}
-```
-
-**Validation:** All 4 fields required. Empty objective/output/actions = FAIL.
-
----
-
-## Run Task Mode Contract
-
-When executing tasks from the API:
-1. **Context:** CLAUDE.md is already loaded (don't re-read)
-2. **Validate:** Task has objective, inputs, actions, output
-3. **Execute:** Actions in order, exactly as written
-4. **Verify:** Output criteria met
-5. **Complete:** Mark `done` only on full success
-
-**On failure:** HALT, log error, do NOT mark complete.
-
----
-
-## When Something Isn't Working
-
-**READ FIRST:** `docs/wlj_claude_troubleshoot.md`
-
-Common issues: property shadowing fields, migration state, Nixpacks caching, test user onboarding, CSRF origins, PostgreSQL schema checks, **SoftDeleteManager filtering**.
-
----
-
-## Teaching Tool Navigation Destinations
-
-When adding new features or pages to the application, **review and update the Teaching Tool destinations** to ensure users can find the new functionality.
-
-**Fixture file:** `apps/help/fixtures/teaching_destinations.json`
-
-Each destination entry includes:
-- `destination_id`: Unique slug identifier
-- `name`: Display name shown to users
-- `path_description`: Navigation breadcrumb (e.g., "Health - Weight")
-- `explanation`: Brief description of what users can do there
-- `url`: Direct URL path to the destination
-- `keywords`: Comma-separated search terms for intent matching
-- `module`: App module name (health, journal, life, purpose, ai, etc.)
-- `sort_order`: Display priority for suggestions
-
-**To add a new destination:**
-1. Add an entry to `teaching_destinations.json`
-2. Fixture loads automatically on deploy (see "Production Data Loading" section)
-
-**API endpoints:**
-- `GET /help/api/teaching/search/?q=<query>` - Search for destinations
-- `GET /help/api/teaching/suggestions/` - Get popular destinations
-
----
-
-## Production Data Loading
-
-**IMPORTANT:** The user cannot run scripts in production manually. All data loading happens automatically on deploy.
-
-**How it works:**
-- The `Procfile` runs `python manage.py load_initial_data` on every deploy
-- `load_initial_data` uses `DataLoadConfig` to track what's been loaded
-- New fixtures/commands only run once (tracked by name in database)
-
-**To add new fixtures or data:**
-1. Create the fixture file in `apps/<app>/fixtures/<name>.json`
-2. Register it in `apps/core/management/commands/load_initial_data.py` under `FIXTURE_LOADERS`
-3. Commit and push to deploy - it loads automatically
-
-**DO NOT** tell the user to run `loaddata` or any management command in production. Just push the code and it deploys automatically.
+**Run Task Contract:** Validate → Execute actions in order → Verify output → Mark `done` only on success. On failure: HALT, do NOT mark complete.
 
 ---
 
@@ -425,129 +103,57 @@ Each destination entry includes:
 
 After ANY code changes:
 
-1. Append to `docs/wlj_claude_changelog.md`:
-   - Date, what changed, files modified, why
-   - Include migration names if created
+1. **Changelog:** Append to `docs/wlj_claude_changelog.md` (date, changes, files, why)
+2. **User-facing docs:** If feature/enhancement, see `docs/CLAUDE_DOC_UPDATES.md` for full checklist
+3. **Deploy:**
+   - Push branch: `GIT_SSH_COMMAND="ssh -p 443" git push git@ssh.github.com:djenkins452/dbawholelifejourney.git <branch>:<branch>`
+   - Fetch: `GIT_SSH_COMMAND="ssh -p 443" git fetch git@ssh.github.com:djenkins452/dbawholelifejourney.git <branch>:refs/remotes/origin/<branch>`
+   - Merge: `git checkout main && git merge origin/<branch> --no-edit`
+   - Push main: `GIT_SSH_COMMAND="ssh -p 443" git push git@ssh.github.com:djenkins452/dbawholelifejourney.git main`
 
-2. **Update user-facing docs** (if feature/enhancement — see "Documentation Updates" section above):
-   - What's New release notes
-   - Teaching destinations for new pages
-   - Help topics for new context IDs
-   - Fixture loader resets if needed
+**A task is NOT complete until deployed.**
 
-3. **Merge and Deploy:**
-   - **Push worktree branch first:** `GIT_SSH_COMMAND="ssh -p 443" git push git@ssh.github.com:djenkins452/dbawholelifejourney.git <branch>:<branch>`
-   - Go to main repo: `cd /Users/dannyjenkins/Projects/dbawholelifejourney`
-   - Fetch worktree branch: `GIT_SSH_COMMAND="ssh -p 443" git fetch git@ssh.github.com:djenkins452/dbawholelifejourney.git <branch>:refs/remotes/origin/<branch>`
-   - Checkout main and merge: `git checkout main && git merge origin/<branch> --no-edit`
-   - Push to GitHub: `GIT_SSH_COMMAND="ssh -p 443" git push git@ssh.github.com:djenkins452/dbawholelifejourney.git main`
+---
 
-**Note:** Use SSH on port 443 (`ssh -p 443` via `ssh.github.com`) as port 22 may timeout.
+## Slash Commands
+
+| Command | Purpose |
+|---------|---------|
+| `/next` | Fetch next ready task, mark in_progress |
+| `/run-task` | Execute task with full context, auto-changelog |
+| `/troubleshoot` | Match error to known issues |
+| `/log-change <desc>` | Append entry to changelog |
+| `/close` | End-of-session review |
+| `/process-emails` | Check Automate folder, create tasks from emails |
 
 ---
 
 ## "What's Next?" Protocol
 
-Use `/next` slash command or say "What's Next?"
-
-1. Output: `Fetching next task...`
-2. Run curl with `auto_start=true`
-3. Output: `**Session: <Task Title>**`
-4. Show the task objective and actions
-5. Output: `Run /run-task to execute.`
-
-**DO NOT:** Read CLAUDE.md again, execute the task automatically.
+1. Run curl with `auto_start=true`
+2. Show task title, objective, and actions
+3. Output: `Run /run-task to execute.`
+4. Do NOT execute automatically — wait for user.
 
 ---
 
-## Bible Reading Plans Project
+## Reference Docs (Read On-Demand)
 
-**Roadmap:** `docs/reading_plans_roadmap.md`
-
-An ongoing project to create comprehensive Bible reading plans across multiple categories. Each plan includes:
-- Context summaries for each day
-- Commentary appropriate to each level
-- Reflection prompts
-
-**Quality Standards:**
-- Biblical accuracy (verified Scripture, no assumptions)
-- Non-denominational, Bible-based content
-- Appropriate complexity per difficulty level
-- Pastor review before deployment
-
-**To continue this project:**
-1. Read `docs/reading_plans_roadmap.md` for current status
-2. Implement the next plan marked as "Next Plan to Implement"
-3. After deployment, update the roadmap status
-4. Prompt user for confirmation before starting next plan
-
-**Current Status:** Starting with "Jonah: The Reluctant Prophet" (Phase 1)
-
-**Command pattern:** `apps/faith/management/commands/load_<plan>_plan.py`
+| Doc | When to Read |
+|-----|-------------|
+| `docs/INTELLIGENCE_ARCHITECTURE.md` | AI/intelligence feature work |
+| `docs/DOMAIN_INTELLIGENCE_ARCHITECTURE.md` | AI/intelligence feature work |
+| `docs/ENGINE_INTEGRATION_GUIDE.md` | Wiring new features into engines |
+| `docs/CLAUDE_DOC_UPDATES.md` | After completing features/enhancements |
+| `docs/CLAUDE_IOS.md` | iOS app / mobile API work |
+| `docs/CLAUDE_BIBLE_PLANS.md` | Bible reading plan work |
+| `docs/wlj_claude_troubleshoot.md` | When something isn't working (CHECK FIRST) |
+| `docs/wlj_claude_deploy.md` | Deployment issues |
+| `docs/wlj_claude_features.md` | Feature documentation |
+| `docs/improvement_tasks.md` | Improvement backlog |
+| `docs/ios-healthkit-integration.md` | HealthKit technical details |
+| `docs/ios-app-store-submission.md` | App Store submission guide |
 
 ---
 
-## iOS App (Native Wrapper)
-
-**Location:** `ios/WLJWrapper/`
-
-Native iOS wrapper that loads WLJ in a WKWebView with HealthKit integration for App Store approval.
-
-**Key Components:**
-- `WLJWrapper.xcodeproj` - Xcode project (open to build/run)
-- `WLJWrapper/Views/MainWebView.swift` - WKWebView with domain allowlist + JS bridge
-- `WLJWrapper/Views/SettingsView.swift` - Native settings (required for App Store)
-- `WLJWrapper/Views/HealthSyncView.swift` - HealthKit authorization + sync
-- `WLJWrapper/Services/HealthKitManager.swift` - HealthKit queries (steps, weight, sleep, HR)
-- `WLJWrapper/Services/KeychainManager.swift` - Secure token storage
-- `WLJWrapper/Services/APIClient.swift` - HTTP client for mobile API
-
-**Django Backend:** `apps/mobile/`
-- Bearer token authentication (not session-based)
-- Token exchange flow: web session → one-time code → API token
-- Health data ingestion endpoint with audit logging
-- Device registration and management
-
-**Mobile API Endpoints:**
-| Endpoint | Purpose |
-|----------|---------|
-| `POST /api/mobile/generate-code/` | Get one-time exchange code (from web session) |
-| `POST /api/mobile/token/exchange/` | Exchange code for Bearer token |
-| `POST /api/mobile/health/ingest/` | Submit HealthKit data |
-| `GET /api/mobile/health/sync-status/` | Check last sync status |
-| `POST /api/mobile/push/register/` | Register APNs push token for device |
-| `POST /api/mobile/push/unregister/` | Unregister push token for device |
-
-**Token Authentication:**
-```
-Authorization: Bearer <token>
-```
-All mobile API endpoints require Bearer token auth (added via `MobileAuthenticationMiddleware`).
-
-**HealthKit Data Synced (23 types):**
-- Steps, Active Calories, Distance, Resting Calories, Flights Climbed, Exercise Minutes, Stand Hours → `StepsEntry`
-- Weight, Body Fat %, Lean Body Mass → `WeightEntry`
-- Sleep, Heart Rate, Respiratory Rate, HRV, VO2 Max, Caffeine, Mindful Minutes → `SleepEntry`
-- Blood Glucose → `BloodGlucoseReading`
-- Blood Oxygen → stored as note
-- Water Intake → `WaterEntry`
-- Workouts → `WorkoutSession`
-- Blood Pressure → `BloodPressureEntry`
-- Body Temperature → `BodyTemperatureEntry`
-
-**Testing iOS Locally:**
-1. Open `ios/WLJWrapper/WLJWrapper.xcodeproj` in Xcode
-2. Configure signing (your Apple Developer team)
-3. Connect iPhone, enable Developer Mode
-4. Build and run (Cmd+R)
-
-**App Store Submission:**
-See `docs/ios-app-store-submission.md` for complete guide including:
-- Apple Developer Portal setup
-- Privacy nutrition label answers
-- HealthKit justification text
-- WKWebView defense (why it's not "just a website")
-
----
-
-*Last updated: 2026-02-15*
+*Last updated: 2026-02-19*

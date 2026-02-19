@@ -20,7 +20,6 @@ Requirements:
         type="button"
         class="notification-bell-button"
         id="notification-bell-trigger"
-        onclick="toggleNotificationDropdown()"
         aria-expanded="false"
         aria-haspopup="true"
         aria-label="Notifications"
@@ -42,7 +41,7 @@ Requirements:
             <button
                 type="button"
                 class="notification-mark-all-btn"
-                onclick="markAllNotificationsRead()"
+                data-action="mark-all-read"
                 title="Mark all as read"
             >
                 Mark all read

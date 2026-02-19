@@ -18,7 +18,7 @@ Include this once in base.html for authenticated users.
                 </svg>
             </div>
             <h2>Welcome to the Journey!</h2>
-            <button type="button" class="dev-notice-modal-close" onclick="dismissDevNotice()" aria-label="Close">
+            <button type="button" class="dev-notice-modal-close" data-action="dismiss-dev-notice" aria-label="Close">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="6" x2="6" y2="18"/>
                     <line x1="6" y1="6" x2="18" y2="18"/>
@@ -53,7 +53,7 @@ Include this once in base.html for authenticated users.
         </div>
 
         <footer class="dev-notice-modal-footer">
-            <button type="button" class="btn btn-primary" onclick="dismissDevNotice()">
+            <button type="button" class="btn btn-primary" data-action="dismiss-dev-notice">
                 Got it, thanks!
             </button>
         </footer>

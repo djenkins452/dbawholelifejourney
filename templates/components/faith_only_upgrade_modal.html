@@ -19,7 +19,7 @@ Include this in faith/home.html for Faith Only users.
                 </svg>
             </div>
             <h2 id="faith-upgrade-title">Enjoying Your Faith Journey?</h2>
-            <button type="button" class="faith-upgrade-modal-close" onclick="dismissFaithUpgrade()" aria-label="Close">
+            <button type="button" class="faith-upgrade-modal-close" data-action="dismiss-faith-upgrade" aria-label="Close">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="6" x2="6" y2="18"/>
                     <line x1="6" y1="6" x2="18" y2="18"/>
@@ -59,7 +59,7 @@ Include this in faith/home.html for Faith Only users.
 
         <footer class="faith-upgrade-modal-footer">
             <a href="{% url 'billing:select_plan' %}" class="btn btn-primary">View Plans</a>
-            <button type="button" class="btn btn-ghost" onclick="dismissFaithUpgrade()">
+            <button type="button" class="btn btn-ghost" data-action="dismiss-faith-upgrade">
                 Maybe Later
             </button>
         </footer>

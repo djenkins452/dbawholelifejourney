@@ -19,7 +19,7 @@ Or set in the page's base block:
     data-help-type="{{ help_type|default:'user' }}"
     aria-label="Get help for this page"
     title="Help"
-    onclick="openHelpModal()"
+    data-action="open-help"
 >
     <svg class="help-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="10"/>
@@ -32,7 +32,7 @@ Or set in the page's base block:
     <div class="help-modal-content">
         <header class="help-modal-header">
             <h2 id="help-modal-title">Help</h2>
-            <button type="button" class="help-modal-close" onclick="closeHelpModal()" aria-label="Close help">
+            <button type="button" class="help-modal-close" data-action="close-help" aria-label="Close help">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="6" x2="6" y2="18"/>
                     <line x1="6" y1="6" x2="18" y2="18"/>

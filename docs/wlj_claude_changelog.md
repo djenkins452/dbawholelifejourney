@@ -16,6 +16,12 @@
   - **Fix:** Removed all inline event handler attributes and added document-level event delegation inside the nonced `<script>` block, which works for both server-rendered and dynamically-added elements.
   - **Files:** `templates/health/fitness/workout_form.html`, `templates/health/fitness/partials/exercise_row.html`, `templates/health/fitness/template_form.html`
 
+- **Fix:** Phase 1 CSP compliance — fixed all inline event handlers in global components (every page affected)
+  - Replaced ~45 inline `onclick`/`onchange`/`onsubmit` handlers with `data-action` attributes
+  - Added centralized event delegation in `static/js/main.js` using a switch-case pattern
+  - Updated CLAUDE.md with CSP compliance rules and auto-fix directive
+  - **Files:** `static/js/main.js`, `CLAUDE.md`, `templates/base.html`, `templates/components/navigation.html`, `templates/components/desktop_left_rail.html`, `templates/components/desktop_top_bar.html`, `templates/components/top_utility_icons.html`, `templates/components/notification_bell.html`, `templates/components/help_modal.html`, `templates/components/help_button.html`, `templates/components/whats_new_modal.html`, `templates/components/intro_banner.html`, `templates/components/system_announcement_modal.html`, `templates/components/development_notice_modal.html`, `templates/components/pending_capture_banner.html`, `templates/components/faith_only_upgrade_modal.html`, `templates/components/assistant_panel.html`, `templates/components/cos_command_mode.html`, `templates/components/cos_arrival_briefing.html`, `templates/core/notifications.html`, `templates/admin/base_site.html`
+
 - **Bugfix:** CoS command mode input not sending messages to Assistant
   - **Root cause:** Selector mismatch — `handleCommandModeInput()` looked for `.assistant-chat-input` / `#assistant-chat-input` but the actual input has `id="assistant-input"`
   - **Fix:** Updated selectors to use correct element IDs (`#assistant-input`, `#assistant-send-btn`, `#assistant-form`), increased timeout from 300ms to 500ms for drawer animation

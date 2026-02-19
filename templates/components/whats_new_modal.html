@@ -11,7 +11,7 @@ JavaScript in whats_new.js handles showing/hiding and API calls.
     <div class="whats-new-modal-content">
         <header class="whats-new-modal-header">
             <h2>What's New</h2>
-            <button type="button" class="whats-new-modal-close" onclick="dismissWhatsNew()" aria-label="Close">
+            <button type="button" class="whats-new-modal-close" data-action="dismiss-whats-new" aria-label="Close">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="6" x2="6" y2="18"/>
                     <line x1="6" y1="6" x2="18" y2="18"/>
@@ -31,7 +31,7 @@ JavaScript in whats_new.js handles showing/hiding and API calls.
             <a href="{% url 'core:whats_new_list' %}" class="whats-new-link">
                 View All Updates
             </a>
-            <button type="button" class="btn btn-primary" onclick="dismissWhatsNew()">
+            <button type="button" class="btn btn-primary" data-action="dismiss-whats-new">
                 Got it
             </button>
         </footer>

@@ -14,20 +14,20 @@ Requires: command_brief dict from DashboardView._get_command_brief()
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
                 </svg>
-                <span>Operational Briefing</span>
+                <span>Today's Overview</span>
             </div>
-            <button type="button" class="cos-arrival-dismiss" onclick="dismissArrivalBriefing()" aria-label="Dismiss briefing">
+            <button type="button" class="cos-arrival-dismiss" data-action="dismiss-arrival-briefing" aria-label="Dismiss briefing">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
         </div>
 
         <div class="cos-arrival-metrics">
             <div class="cos-arrival-metric">
-                <span class="cos-arrival-metric-label">Alignment</span>
+                <span class="cos-arrival-metric-label">On Track</span>
                 <span class="cos-arrival-metric-value {% if command_brief.alignment_score >= 80 %}drift-green{% elif command_brief.alignment_score >= 50 %}drift-amber{% else %}drift-red{% endif %}">{{ command_brief.alignment_label|default:"Active" }}</span>
             </div>
             <div class="cos-arrival-metric">
-                <span class="cos-arrival-metric-label">Drift Risk</span>
+                <span class="cos-arrival-metric-label">Pressure</span>
                 <span class="cos-arrival-metric-value {% if command_brief.drift_risk_24h < 25 %}drift-green{% elif command_brief.drift_risk_24h < 50 %}drift-amber{% else %}drift-red{% endif %}">{{ command_brief.drift_label|default:"Clear" }}</span>
             </div>
             <div class="cos-arrival-metric">
@@ -77,7 +77,7 @@ Requires: command_brief dict from DashboardView._get_command_brief()
 
         <div class="cos-arrival-footer">
             {% if command_brief.auto_generated %}
-            <span class="cos-arrival-auto-tag">Architecture auto-generated</span>
+            <span class="cos-arrival-auto-tag">Auto-generated plan</span>
             {% endif %}
             <span class="cos-arrival-status">
                 {{ command_brief.status_line|default:"System stable. Protections in place." }}

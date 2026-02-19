@@ -125,6 +125,11 @@ When fetching a new task from the improvement backlog:
 - If something fails, fix it and move on
 - Summarize results, not intentions
 
+**⚠️ AUTO-FIX RULE:**
+When you encounter broken or non-compliant code while working on any task, **fix it automatically** — don't just flag it. This includes:
+- Inline event handlers blocked by CSP (see "CSP Compliance" section)
+- Any other code quality issues discovered in files you're already touching
+
 **⚠️ CONSERVE CLAUDE LIMITS:**
 - Keep responses concise - no verbose explanations
 - Don't re-read files already seen in the conversation
@@ -230,6 +235,44 @@ python manage.py migrate
 - Railway deployment with Nixpacks | Gunicorn WSGI
 - OpenAI API for AI coaching features
 - **iOS App:** Native Swift/SwiftUI wrapper with WKWebView + HealthKit
+
+## CSP Compliance (REQUIRED)
+
+**This app uses nonce-based Content Security Policy (CSP).** All inline JavaScript must comply.
+
+**The Rule:** When a CSP nonce is present, browsers ignore `'unsafe-inline'` per spec. This means:
+- `<script nonce="{{ csp_nonce }}">` blocks work ✅
+- `onclick="..."`, `onchange="..."`, `onsubmit="..."` etc. are **silently blocked** ❌
+
+**When writing JavaScript:**
+1. **NEVER** use inline event handler attributes (`onclick`, `onchange`, `onsubmit`, `oninput`, etc.)
+2. **ALWAYS** use `addEventListener()` inside a `<script nonce="{{ csp_nonce }}">` block
+3. For dynamically-added elements, use **event delegation** on a parent/document
+4. Derive context (IDs, data) from `data-*` attributes and DOM traversal, not function arguments
+
+**Pattern — Event Delegation (preferred for dynamic content):**
+```javascript
+<script nonce="{{ csp_nonce }}">
+document.addEventListener('click', function(e) {
+    const btn = e.target.closest('.my-button');
+    if (btn) {
+        const id = btn.closest('[data-item-id]').dataset.itemId;
+        doSomething(id);
+    }
+});
+</script>
+```
+
+**Pattern — Direct Binding (for static elements with IDs):**
+```javascript
+<script nonce="{{ csp_nonce }}">
+document.getElementById('myBtn').addEventListener('click', myFunction);
+</script>
+```
+
+**Auto-fix rule:** When encountering inline event handlers during any task, fix them proactively — don't leave broken code behind.
+
+---
 
 ## Responsive Design (REQUIRED)
 

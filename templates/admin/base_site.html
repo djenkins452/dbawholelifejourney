@@ -19,7 +19,7 @@
         data-help-type="admin"
         aria-label="Get admin help for this page"
         title="Admin Help"
-        onclick="openHelpModal(); return false;"
+        data-action="open-help"
     >?</button>
 </h1>
 {% endblock %}
@@ -90,7 +90,7 @@
     <div class="help-modal-content">
         <header class="help-modal-header">
             <h2 id="help-modal-title">Admin Help</h2>
-            <button type="button" class="help-modal-close" onclick="closeHelpModal()" aria-label="Close help">
+            <button type="button" class="help-modal-close" data-action="close-help" aria-label="Close help">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="6" x2="6" y2="18"/>
                     <line x1="6" y1="6" x2="18" y2="18"/>

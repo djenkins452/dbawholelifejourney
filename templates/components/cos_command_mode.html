@@ -81,7 +81,7 @@ Requires: command_mode dict from DashboardView._get_command_mode()
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                 </span>
                 <span class="cos-cm-reflection-text">{{ r.question }}</span>
-                <button class="cos-cm-reflection-skip" onclick="skipReflection({{ r.id }})" title="Skip" aria-label="Skip check-in">
+                <button class="cos-cm-reflection-skip" data-action="skip-reflection" data-reflection-id="{{ r.id }}" title="Skip" aria-label="Skip check-in">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 </button>
             </div>
@@ -91,7 +91,7 @@ Requires: command_mode dict from DashboardView._get_command_mode()
 
         {# --- Morning Build Input --- #}
         <div class="cos-cm-input-area">
-            <form class="cos-cm-form" id="cos-cm-form" onsubmit="handleCommandModeInput(event)">
+            <form class="cos-cm-form" id="cos-cm-form">
                 <input type="text" class="cos-cm-input" id="cos-cm-input" placeholder="Before I lock today — anything new?" autocomplete="off" />
                 <button type="submit" class="cos-cm-send" aria-label="Send">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
@@ -108,7 +108,7 @@ Requires: command_mode dict from DashboardView._get_command_mode()
                 <div class="cos-cm-timeline-item {% if block.is_completed %}completed{% endif %} {% if block.is_now %}now{% endif %}">
                     <span class="cos-cm-timeline-time">{{ block.time }}</span>
                     <span class="cos-cm-timeline-title">{{ block.title }}</span>
-                    {% if block.tier == 1 %}<span class="cos-cm-timeline-tier tier-1">T1</span>{% endif %}
+                    {% if block.tier == 1 %}<span class="cos-cm-timeline-tier tier-1" title="Priority">🔒</span>{% endif %}
                 </div>
                 {% endfor %}
             </div>
@@ -125,7 +125,7 @@ Requires: command_mode dict from DashboardView._get_command_mode()
             {# Status + Data Mode link #}
             <div class="cos-cm-footer">
                 <span class="cos-cm-status">{{ command_mode.status_line }}</span>
-                <a href="#dashboard-tiles" class="cos-cm-data-mode" onclick="enterDataMode(event)">Enter Data Mode</a>
+                <a href="#dashboard-tiles" class="cos-cm-data-mode" data-action="enter-data-mode">Enter Data Mode</a>
             </div>
         </div>
     </div>

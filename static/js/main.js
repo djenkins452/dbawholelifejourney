@@ -561,3 +561,214 @@ document.addEventListener('DOMContentLoaded', function() {
         currentY = 0;
     }, { passive: true });
 })();
+
+// ==========================================================================
+// CSP-Compliant Global Event Delegation
+// ==========================================================================
+// Nonce-based CSP blocks inline event handlers (onclick, onchange, etc.).
+// This section provides delegated handlers for common patterns used across
+// the app, so templates don't need inline handlers.
+
+(function() {
+    'use strict';
+
+    // --- CLICK delegation ---
+    document.addEventListener('click', function(e) {
+        var target = e.target;
+
+        // Message close button (base.html)
+        var msgClose = target.closest('.message-close');
+        if (msgClose) {
+            msgClose.parentElement.remove();
+            return;
+        }
+
+        // Mobile menu toggle (navigation.html)
+        if (target.closest('.nav-mobile-toggle')) {
+            toggleMobileMenu();
+            return;
+        }
+
+        // User menu toggle (navigation.html)
+        if (target.closest('.nav-user-button')) {
+            toggleUserMenu();
+            return;
+        }
+
+        // Desktop left rail toggle
+        if (target.closest('.rail-collapse-toggle')) {
+            toggleDesktopRail();
+            return;
+        }
+
+        // --- data-action delegation (CSP-compliant replacement for onclick) ---
+        var actionEl = target.closest('[data-action]');
+        if (actionEl) {
+            var action = actionEl.dataset.action;
+
+            switch (action) {
+                // Help modal
+                case 'open-help':
+                    if (typeof openHelpModal === 'function') openHelpModal(e);
+                    e.preventDefault();
+                    break;
+                case 'close-help':
+                    if (typeof closeHelpModal === 'function') closeHelpModal();
+                    break;
+
+                // What's New modal
+                case 'dismiss-whats-new':
+                    if (typeof dismissWhatsNew === 'function') dismissWhatsNew();
+                    break;
+
+                // Intro banner
+                case 'dismiss-intro':
+                    if (typeof dismissIntroBanner === 'function') dismissIntroBanner(actionEl.dataset.module);
+                    break;
+
+                // System announcement
+                case 'dismiss-announcement':
+                    if (typeof dismissAnnouncement === 'function') dismissAnnouncement(actionEl.dataset.announcementId);
+                    break;
+
+                // Development notice
+                case 'dismiss-dev-notice':
+                    if (typeof dismissDevNotice === 'function') dismissDevNotice();
+                    break;
+
+                // Pending capture banner
+                case 'dismiss-capture-banner':
+                    if (typeof dismissPendingCaptureBanner === 'function') dismissPendingCaptureBanner();
+                    break;
+
+                // Faith upgrade
+                case 'dismiss-faith-upgrade':
+                    if (typeof dismissFaithUpgrade === 'function') dismissFaithUpgrade();
+                    break;
+
+                // CoS arrival briefing
+                case 'dismiss-arrival-briefing':
+                    if (typeof dismissArrivalBriefing === 'function') dismissArrivalBriefing();
+                    break;
+
+                // Assistant panel
+                case 'toggle-assistant-panel':
+                    if (typeof toggleAssistantPanel === 'function') toggleAssistantPanel();
+                    break;
+                case 'toggle-section':
+                    if (typeof toggleSection === 'function') toggleSection(actionEl.dataset.section);
+                    break;
+                case 'open-assistant-chat':
+                    if (typeof openAssistantChat === 'function') openAssistantChat();
+                    break;
+                case 'open-assistant':
+                    var assistantBtn = document.getElementById('assistant-toggle-btn');
+                    if (assistantBtn) assistantBtn.click();
+                    break;
+                case 'trigger-curveball':
+                    if (typeof triggerCurveball === 'function') triggerCurveball();
+                    break;
+                case 'view-blueprint':
+                    if (typeof viewBlueprint === 'function') viewBlueprint();
+                    break;
+                case 'toggle-mobile-assistant':
+                    if (typeof toggleMobileAssistant === 'function') toggleMobileAssistant();
+                    break;
+                case 'respond-friction-gate':
+                    if (typeof respondFrictionGate === 'function') {
+                        respondFrictionGate(actionEl.dataset.interventionId, actionEl.dataset.response);
+                    }
+                    break;
+
+                // CoS command mode
+                case 'skip-reflection':
+                    if (typeof skipReflection === 'function') skipReflection(actionEl.dataset.reflectionId);
+                    break;
+                case 'enter-data-mode':
+                    if (typeof enterDataMode === 'function') enterDataMode(e);
+                    e.preventDefault();
+                    break;
+
+                // Notifications
+                case 'mark-all-read':
+                    if (typeof markAllNotificationsRead === 'function') markAllNotificationsRead();
+                    break;
+                case 'notification-click':
+                    if (typeof handleNotificationClick === 'function') {
+                        var notifItem = actionEl.closest('[data-notification-id]');
+                        var notifId = notifItem ? notifItem.dataset.notificationId : null;
+                        handleNotificationClick(notifId, actionEl.dataset.notificationUrl);
+                    }
+                    break;
+
+                // Generic dismiss (removes own closest container)
+                case 'dismiss':
+                    var dismissTarget = actionEl.dataset.dismissTarget;
+                    if (dismissTarget) {
+                        var el = document.getElementById(dismissTarget);
+                        if (el) el.remove();
+                    } else {
+                        actionEl.parentElement.remove();
+                    }
+                    break;
+
+                // Generic self-remove
+                case 'self-remove':
+                    actionEl.remove();
+                    break;
+            }
+            return;
+        }
+
+        // Notification bell toggle (class-based, for notification_bell.html)
+        if (target.closest('.notification-bell-button')) {
+            if (typeof toggleNotificationDropdown === 'function') {
+                toggleNotificationDropdown();
+            }
+            return;
+        }
+    });
+
+    // --- SUBMIT delegation for confirm dialogs and form handlers ---
+    document.addEventListener('submit', function(e) {
+        var form = e.target;
+
+        // Confirm dialog: <form data-confirm="Are you sure?">
+        var confirmMsg = form.dataset.confirm;
+        if (confirmMsg) {
+            if (!confirm(confirmMsg)) {
+                e.preventDefault();
+            }
+        }
+
+        // CoS command mode form
+        if (form.id === 'cos-cm-form') {
+            if (typeof handleCommandModeInput === 'function') {
+                handleCommandModeInput(e);
+            } else {
+                e.preventDefault();
+            }
+        }
+    });
+
+    // --- CHANGE delegation for auto-submit selects ---
+    document.addEventListener('change', function(e) {
+        var target = e.target;
+
+        // Auto-submit select: <select data-auto-submit>
+        if (target.dataset.autoSubmit !== undefined) {
+            var form = target.closest('form');
+            if (form) {
+                form.submit();
+            }
+            return;
+        }
+
+        // Navigation change: <select data-navigate-param="type">
+        var navParam = target.dataset.navigateParam;
+        if (navParam) {
+            location.href = '?' + navParam + '=' + target.value;
+            return;
+        }
+    });
+})();

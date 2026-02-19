@@ -50,7 +50,7 @@
             </div>
 
             <!-- Context-Aware Help -->
-            <button type="button" class="desktop-utility-icon" data-help-context="{{ help_context_id|default:'GENERAL' }}" data-help-type="user" aria-label="Help" title="Help" onclick="openHelpModal(event)">
+            <button type="button" class="desktop-utility-icon" data-help-context="{{ help_context_id|default:'GENERAL' }}" data-help-type="user" aria-label="Help" title="Help" data-action="open-help">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="12" cy="12" r="10"/>
                     <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
@@ -60,7 +60,7 @@
 
             {% comment %} CoS Alignment Badge {% endcomment %}
             {% if personal_assistant_enabled and command_brief and command_brief.active %}
-            <a href="{% url 'ai:dashboard' %}" class="cos-alignment-badge {% if command_brief.alignment_score >= 80 %}align-good{% elif command_brief.alignment_score >= 50 %}align-caution{% else %}align-warning{% endif %}" title="Blueprint Alignment — Click for details">
+            <a href="{% url 'ai:dashboard' %}" class="cos-alignment-badge {% if command_brief.alignment_score >= 80 %}align-good{% elif command_brief.alignment_score >= 50 %}align-caution{% else %}align-warning{% endif %}" title="Status — Click for details">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                 {{ command_brief.alignment_score }}%
             </a>
@@ -68,7 +68,7 @@
 
             <!-- Chat Bot / AI Assistant -->
             {% if ai_enabled and personal_assistant_enabled %}
-            <button type="button" class="desktop-utility-icon" aria-label="Assistant" title="Assistant" onclick="document.getElementById('assistant-toggle-btn')?.click()">
+            <button type="button" class="desktop-utility-icon" aria-label="Assistant" title="Assistant" data-action="open-assistant">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
                 </svg>

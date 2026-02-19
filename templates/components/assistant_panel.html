@@ -18,9 +18,9 @@
                 <circle cx="12" cy="12" r="10"/>
                 <path d="m9 12 2 2 4-4"/>
             </svg>
-            <span>Chief of Staff</span>
+            <span>{{ cos_display_name|default:"Chief of Staff" }}</span>
         </div>
-        <button class="assistant-panel-toggle" onclick="toggleAssistantPanel()" aria-label="Toggle assistant panel" title="Toggle panel">
+        <button class="assistant-panel-toggle" data-action="toggle-assistant-panel" aria-label="Toggle assistant panel" title="Toggle panel">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="15 18 9 12 15 6"/>
             </svg>
@@ -31,12 +31,12 @@
         {# Status indicator #}
         <div class="assistant-status" id="assistant-status">
             <div class="assistant-status-dot active"></div>
-            <span class="assistant-status-text">Governing</span>
+            <span class="assistant-status-text">Active</span>
         </div>
 
         {# Today's Architecture Plan #}
         <div class="assistant-section" id="assistant-plan-section">
-            <div class="assistant-section-header" onclick="toggleSection('assistant-plan')">
+            <div class="assistant-section-header" data-action="toggle-section" data-section="assistant-plan">
                 <span>Today's Plan</span>
                 <svg class="section-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
             </div>
@@ -45,15 +45,15 @@
                      hx-get="/api/blueprint/plan/today/"
                      hx-trigger="load"
                      hx-swap="outerHTML">
-                    Loading architecture...
+                    Loading plan...
                 </div>
             </div>
         </div>
 
         {# Drift Status #}
         <div class="assistant-section" id="assistant-drift-section">
-            <div class="assistant-section-header" onclick="toggleSection('assistant-drift')">
-                <span>Drift Monitor</span>
+            <div class="assistant-section-header" data-action="toggle-section" data-section="assistant-drift">
+                <span>How You're Tracking</span>
                 <svg class="section-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
             </div>
             <div class="assistant-section-content" id="assistant-drift">
@@ -61,14 +61,14 @@
                      hx-get="/api/blueprint/drift/summary/"
                      hx-trigger="load"
                      hx-swap="outerHTML">
-                    Calculating drift...
+                    Checking status...
                 </div>
             </div>
         </div>
 
         {# Active Interventions #}
         <div class="assistant-section" id="assistant-interventions-section">
-            <div class="assistant-section-header" onclick="toggleSection('assistant-interventions')">
+            <div class="assistant-section-header" data-action="toggle-section" data-section="assistant-interventions">
                 <span>Alerts</span>
                 <span class="assistant-badge" id="intervention-count" hidden>0</span>
                 <svg class="section-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
@@ -90,19 +90,19 @@
             </div>
             <div class="assistant-section-content">
                 <div class="assistant-quick-actions">
-                    <button class="assistant-action-btn" onclick="openAssistantChat()" title="Open chat">
+                    <button class="assistant-action-btn" data-action="open-assistant-chat" title="Open chat">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="m3 21 1.9-5.7a8.5 8.5 0 1 1 3.8 3.8z"/>
                         </svg>
                         Chat
                     </button>
-                    <button class="assistant-action-btn" onclick="triggerCurveball()" title="Report curveball">
+                    <button class="assistant-action-btn" data-action="trigger-curveball" title="Report curveball">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M12 2v20M2 12h20"/>
                         </svg>
                         Curveball
                     </button>
-                    <button class="assistant-action-btn" onclick="viewBlueprint()" title="View blueprint">
+                    <button class="assistant-action-btn" data-action="view-blueprint" title="View blueprint">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <rect width="18" height="18" x="3" y="4" rx="2" ry="2"/>
                             <line x1="16" x2="16" y1="2" y2="6"/>
@@ -119,14 +119,14 @@
 
 {# Mobile Pull-Up Panel #}
 <div id="assistant-pullup" class="assistant-pullup" aria-label="Assistant">
-    <div class="assistant-pullup-handle" onclick="toggleMobileAssistant()">
+    <div class="assistant-pullup-handle" data-action="toggle-mobile-assistant">
         <div class="assistant-pullup-grip"></div>
         <div class="assistant-pullup-header">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="10"/>
                 <path d="m9 12 2 2 4-4"/>
             </svg>
-            <span>Chief of Staff</span>
+            <span>{{ cos_display_name|default:"Chief of Staff" }}</span>
             <span class="assistant-badge mobile-badge" id="mobile-intervention-count" hidden>0</span>
         </div>
     </div>
@@ -227,8 +227,8 @@ function showFrictionGate(data) {
     var html = '';
     (data.options || []).forEach(function(opt) {
         html += '<button class="btn btn-' + (opt.style || 'secondary') +
-            '" onclick="respondFrictionGate(' + data.intervention_id + ', \'' +
-            opt.key + '\')">' + opt.label + '</button>';
+            '" data-action="respond-friction-gate" data-intervention-id="' + data.intervention_id +
+            '" data-response="' + opt.key + '">' + opt.label + '</button>';
     });
     actions.innerHTML = html;
 

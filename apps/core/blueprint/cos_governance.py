@@ -1274,7 +1274,13 @@ def build_calibration_system_injection(user):
     data_summary = _build_data_summary(snapshot)
 
     lines = [
-        "=== CRITICAL: GETTING TO KNOW YOU — THIS OVERRIDES ALL OTHER TASKS ==="
+        "##############################################################",
+        "# MANDATORY OVERRIDE — GETTING TO KNOW YOU SESSION           #",
+        "# This section SUPERSEDES all other instructions below.      #",
+        "# You are in a calibration conversation. Your ONLY job is    #",
+        "# to follow these instructions. Ignore the base prompt's     #",
+        "# 'OPENING A NEW CONVERSATION' section entirely.             #",
+        "##############################################################",
     ]
     lines.append("")
 
@@ -1288,54 +1294,67 @@ def build_calibration_system_injection(user):
         else:
             welcome = CALIBRATION_WELCOME_NO_DATA
 
+        lines.append("## YOUR ROLE RIGHT NOW")
         lines.append(
-            "FIRST INTERACTION: This is your very first conversation with "
-            "this person. You are NOT a blank slate — you already have data "
-            "about them. Lead with what you know. Show them you've been "
-            "paying attention. Then explain you want to fill in the gaps — "
-            "understand their priorities, what matters vs. what's secondary, "
-            "what drives them."
+            "This is your FIRST conversation with this person. You are their "
+            "Chief of Staff — someone who has already analyzed everything they "
+            "have been doing in this app. You are NOT a blank slate. You have "
+            "studied their data and you are coming to THEM with observations."
         )
         lines.append("")
-        lines.append(f"SAY SOMETHING LIKE: \"{welcome}\"")
+        lines.append("## WHAT TO SAY (follow this structure closely)")
+        lines.append(
+            f'"{welcome}"'
+        )
         lines.append("")
         lines.append(
-            "CRITICAL: Do NOT ask a generic 'what do you want to focus on?' "
-            "You HAVE their data. Reference it. Then ask the first question."
+            "Then naturally transition into the first question below."
+        )
+        lines.append("")
+        lines.append("## ABSOLUTE PROHIBITIONS FOR THIS MESSAGE")
+        lines.append(
+            "- Do NOT say 'What area would you like to focus on today?'\n"
+            "- Do NOT say 'Let me know how I can help'\n"
+            "- Do NOT give a data dump and then ask a generic question\n"
+            "- Do NOT ask 'What are your goals?' — you already KNOW their goals\n"
+            "- Do NOT summarize their data without connecting it to a question\n"
+            "- Your response MUST end with the calibration question below"
         )
         lines.append("")
     else:
-        # Continuing calibration — still reference data when relevant
+        # Continuing calibration — stay focused
+        lines.append("## YOUR ROLE RIGHT NOW")
         lines.append(
             "You are in an active getting-to-know-you conversation. "
-            "Your ONLY job right now is to ask the question below. "
-            "Do NOT give general advice or overviews. Stay in this "
-            "conversation."
+            "Your ONLY job is to ask the question below. Do NOT give "
+            "general advice, data overviews, or helpful suggestions. "
+            "Stay in THIS conversation."
         )
         lines.append("")
 
     # Inject what the system knows so the AI can reference it
     if snapshot['has_data']:
-        lines.append("=== WHAT YOU ALREADY KNOW ABOUT THIS PERSON ===")
+        lines.append("## WHAT YOU ALREADY KNOW ABOUT THIS PERSON")
         lines.append(data_summary)
         if snapshot.get('modules_active'):
             lines.append(
                 f"Modules in active use: {', '.join(snapshot['modules_active'])}")
-        lines.append("=== END KNOWN DATA ===")
         lines.append("")
         lines.append(
-            "USE THIS DATA in your questions. Don't ask things you already "
-            "know — confirm, expand, or dig deeper. If you see them working "
-            "out 5 days a week, don't ask 'do you exercise?' — ask 'your "
-            "workouts seem pretty consistent, is fitness one of your "
-            "non-negotiables or is something else more sacred?'"
+            "USE THIS DATA when asking questions. Do not ask things you "
+            "already know — instead state what you see and ask them to "
+            "confirm, correct, or expand. Example: if you see they work "
+            "out 5 days a week, do not ask 'do you exercise?' — instead "
+            "say 'your workouts look pretty consistent — is fitness one "
+            "of your non-negotiables or is something else more sacred to "
+            "you?'"
         )
         lines.append("")
 
     # Include what we've learned so far from calibration answers
     answers = overrides.get('calibration_answers', {})
     if answers:
-        lines.append("What they've told you so far in this conversation:")
+        lines.append("## WHAT THEY HAVE TOLD YOU SO FAR")
         for key, answer in answers.items():
             q_def = next(
                 (q for q in CALIBRATION_QUESTIONS if q['key'] == key), None
@@ -1348,15 +1367,18 @@ def build_calibration_system_injection(user):
     # Build data-aware question context
     q_context = _build_question_context(next_q['key'], snapshot)
 
+    lines.append("## QUESTION YOU MUST ASK")
     lines.append(
-        f"YOUR NEXT QUESTION ({next_q['question_number']}/{next_q['total_questions']}): "
+        f"Question {next_q['question_number']} of {next_q['total_questions']}: "
         f"{next_q['question']}"
     )
     if q_context:
-        lines.append(f"CONTEXT FOR THIS QUESTION: {q_context}")
+        lines.append(f"Data context for this question: {q_context}")
+    lines.append("")
     lines.append(
-        "Ask this question in your own words, informed by what you know. "
-        "This is not optional — you MUST ask it."
+        "Rephrase this question in your own words using what you know "
+        "about this person. Your message MUST contain this question. "
+        "This is mandatory — do not skip it or replace it with something else."
     )
 
     # Preview next question so AI can transition naturally
@@ -1364,36 +1386,36 @@ def build_calibration_system_injection(user):
     if next_stage < len(CALIBRATION_QUESTIONS):
         peek_q = CALIBRATION_QUESTIONS[next_stage]
         lines.append(
-            f"AFTER THEY ANSWER, FOLLOW UP WITH: {peek_q['question']}"
+            f"(After they answer, the next question will be: {peek_q['question']})"
         )
     else:
         lines.append(
-            "THIS IS THE LAST QUESTION. After they answer, say something like: "
+            "This is the LAST question. After they answer, say something like: "
             f'"{CALIBRATION_COMPLETION_MESSAGE}"'
         )
 
     lines.append("")
+    lines.append("## RULES")
     lines.append(
-        "RULES: "
-        "1. Ask the question naturally in your own words, referencing "
-        "their data when relevant — but you MUST ask it. "
-        "2. ONE question per message — never batch multiple questions. "
+        "1. Your message MUST end with the question above (rephrased naturally).\n"
+        "2. ONE question per message — never batch multiple questions.\n"
         "3. If the user just said hello or is resuming, briefly greet them "
-        "and then ask the question. "
+        "with a data-informed observation, then ask the question.\n"
         "4. If the user gave a thoughtful answer, briefly acknowledge it "
-        "before asking the next question. "
+        "(1 sentence) then ask the next question.\n"
         "5. If they say 'pause', 'enough', 'later', or similar, respect "
-        "it immediately — the pause_calibration intent will handle it. "
+        "it immediately.\n"
         "6. Never use words like 'calibration', 'governance', 'stage', "
-        "'tier', 'module classification', or 'identity pillar'. "
+        "'tier', 'module classification', or 'identity pillar'.\n"
         "7. Keep it conversational — you're getting to know a person, "
-        "not filling out a form. "
-        "8. NEVER ask a question you can already answer from their data. "
-        "Instead, state what you see and ask them to confirm or correct."
+        "not filling out a form.\n"
+        "8. NEVER ask something you can already answer from their data. "
+        "State what you see, then ask them to confirm or correct."
     )
-    lines.append(
-        "=== END GETTING TO KNOW YOU ==="
-    )
+    lines.append("")
+    lines.append("##############################################################")
+    lines.append("# END MANDATORY OVERRIDE                                     #")
+    lines.append("##############################################################")
 
     return '\n'.join(lines)
 

@@ -151,6 +151,8 @@ When a question is outside wellness, just answer it directly and helpfully. Don'
 
 ## OPENING A NEW CONVERSATION
 
+**IMPORTANT: If a "GETTING TO KNOW YOU" calibration block is present at the top of these instructions, IGNORE THIS SECTION ENTIRELY and follow the calibration instructions instead.**
+
 When the user starts a new conversation (says "hi", "hello", "hey", "let's get started", or any simple greeting) and there is NO conversation history yet:
 
 **DO NOT** open with a generic "What area would you like to focus on today?" or "What can I help with?"
@@ -2033,6 +2035,12 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         CALIBRATION_RESUME_PHRASES = {
             "let's continue where we left off.",
             "hello",
+            "hi",
+            "hey",
+            "hi, let's get started!",
+            "let's get started!",
+            "let's get started",
+            "let's go",
         }
         try:
             skip_recording = getattr(
@@ -2603,8 +2611,10 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                              else 'EMPTY'),
                         )
                         if cal_injection:
+                            # PREPEND so calibration overrides all other
+                            # instructions (base prompt, CoS context, etc.)
                             system_prompt = (
-                                system_prompt + "\n\n" + cal_injection
+                                cal_injection + "\n\n" + system_prompt
                             )
                             if not cal_state['welcome_shown']:
                                 mark_calibration_welcome_shown(self.user)

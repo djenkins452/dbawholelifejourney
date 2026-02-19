@@ -11,6 +11,10 @@
 
 ## 2026-02-19
 
+- **Fix: Calibration injection ignored by AI — prompt priority and strength** — The calibration system injection was being appended AFTER the base system prompt, so the AI followed the base prompt's "OPENING A NEW CONVERSATION" instructions instead of the calibration instructions. Three fixes: (1) Moved calibration injection to PREPEND (before all other instructions) so it takes priority. (2) Made the base prompt's "OPENING A NEW CONVERSATION" section explicitly defer to calibration when present. (3) Completely rewrote the calibration injection format to use mandatory override headers, explicit prohibitions, and structured sections that GPT models follow more reliably. Also added common greeting phrases ("hi", "hey", "let's get started!") to the skip list for calibration answer recording to prevent greetings from being consumed as answers to question 1. Bumped reset tracker to v3 to force a fresh calibration reset on deploy.
+  - Files: `apps/ai/personal_assistant.py`, `apps/core/blueprint/cos_governance.py`, `apps/core/management/commands/reset_calibration_for_intro.py`
+  - Why: AI responded with generic "What do you want to focus on?" instead of following calibration instructions to introduce itself as CoS and ask informed questions
+
 - **Data-aware calibration — CoS uses what it already knows** — Complete rewrite of the calibration/onboarding flow. Instead of asking generic questions ("What are your goals?"), the CoS now gathers a live data snapshot (weight, goals, journal stats, faith, medicines, habits, relationships, tasks) and presents what it already knows to the user. The system injection tells the AI to reference actual data, confirm/expand rather than ask from scratch, and never ask something it can already answer. Added `_gather_user_snapshot()` and `_build_data_summary()` helpers. Calibration banner now shows personalized data summary. Context processor passes snapshot to templates.
   - Files: `apps/core/blueprint/cos_governance.py`, `apps/core/context_processors.py`, `templates/components/cos_command_mode.html`, `apps/core/management/commands/load_initial_data.py`
 

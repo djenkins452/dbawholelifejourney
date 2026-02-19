@@ -11,6 +11,17 @@
 
 ## 2026-02-19
 
+- **Fix: CoS Unification Pass — missed items**
+  - Chat widget toggle button: "Chat with your Assistant" → "Chat with {{ cos_display_name }}"
+  - `assistant_dashboard.html` `injectCosSnapshot()`: raw Alignment%/Drift%/Capacity% → human labels ("Locked in", "Clear", "Full day"), "OPERATIONAL STATE" → "YOUR STATUS", "Tier-1 Protected" → "Top Priorities"
+  - `assistant_dashboard.html`: inline `onclick` on priority toggle/dismiss → event delegation (CSP compliance)
+  - `assistant_panel.html` friction gate: raw "Identity Cost: XX/100" → "This conflicts with who you said you are" / "This pulls against your priorities"
+  - Wired `translate_missed_commitment()` into `predictive_interventions.py` — drift message builders now use human language and name specific non-negotiable commitments from GovernanceProfile
+  - All raw percentages and internal terms removed from drift nudge/warning/intervention messages
+  - Added teaching destination PK 121 (CoS Settings), updated PK 4 (AI Assistant → Chief of Staff)
+  - Added fixture reload reset for deploy
+  - **Files:** `templates/components/chat_widget.html`, `templates/ai/assistant_dashboard.html`, `templates/components/assistant_panel.html`, `apps/core/blueprint/predictive_interventions.py`, `apps/help/fixtures/teaching_destinations.json`, `apps/core/management/commands/load_initial_data.py`
+
 - **CRITICAL Fix:** Workout form JS completely broken when loading from template (`?template=X`) — `template_defaults_json` was auto-escaped by Django, producing `&quot;` instead of `"` in the `<script>` block, which causes a JS syntax error that silently kills ALL JavaScript on the page (Done buttons, Add Set, Remove, rest timer, everything)
   - **Root cause:** `{{ template_defaults_json|default:"{}" }}` missing `|safe` filter. Django auto-escapes HTML entities in template variables, turning valid JSON `{"1": ...}` into `{&amp;quot;1&amp;quot;: ...}` which is a JS syntax error.
   - **Fix:** Changed to `{{ template_defaults_json|default:"{}"|safe }}` — safe because the data is all server-generated numeric values from `json.dumps()`.

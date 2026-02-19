@@ -18,6 +18,23 @@
     },
     {
         "model": "help.teachingdestination",
+        "pk": 121,
+        "fields": {
+            "destination_id": "cos-settings",
+            "name": "Chief of Staff Settings",
+            "path_description": "Chief of Staff - Settings",
+            "explanation": "Customize your Chief of Staff — change the display name, voice style, notification preferences, and operating mode.",
+            "url": "/assistant/cos/settings/",
+            "keywords": "cos settings, chief of staff settings, assistant settings, rename cos, change name, display name, voice, cos preferences, cos configuration",
+            "module": "ai",
+            "sort_order": 121,
+            "is_active": true,
+            "created_at": "2026-02-19T00:00:00Z",
+            "updated_at": "2026-02-19T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
         "pk": 118,
         "fields": {
             "destination_id": "transformation-dashboard",
@@ -89,16 +106,16 @@
         "pk": 4,
         "fields": {
             "destination_id": "ai-assistant",
-            "name": "AI Assistant",
-            "path_description": "Assistant",
-            "explanation": "Chat with your personal AI assistant for guidance and support.",
+            "name": "Chief of Staff",
+            "path_description": "Chief of Staff - Direct Channel",
+            "explanation": "Open a direct conversation with your Chief of Staff for guidance, logging data, adjusting your plan, or asking questions.",
             "url": "/assistant/",
-            "keywords": "ai coach, ai assistant, coach, assistant, ai, talk to ai, chat, personal assistant, help me, guidance",
+            "keywords": "chief of staff, cos, ai coach, ai assistant, coach, assistant, ai, talk to ai, chat, personal assistant, help me, guidance, direct channel",
             "module": "ai",
             "sort_order": 4,
             "is_active": true,
             "created_at": "2026-01-13T00:00:00Z",
-            "updated_at": "2026-01-13T00:00:00Z"
+            "updated_at": "2026-02-19T00:00:00Z"
         }
     },
     {

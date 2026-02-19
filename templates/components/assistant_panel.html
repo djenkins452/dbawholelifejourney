@@ -219,9 +219,10 @@ function showFrictionGate(data) {
     var actions = document.getElementById('friction-gate-actions');
 
     content.innerHTML = '<p class="friction-gate-message">' + data.message + '</p>';
-    if (data.identity_cost > 30) {
-        content.innerHTML += '<div class="friction-gate-cost">Identity Cost: ' +
-            Math.round(data.identity_cost) + '/100</div>';
+    if (data.identity_cost > 70) {
+        content.innerHTML += '<div class="friction-gate-cost">This conflicts with who you said you are.</div>';
+    } else if (data.identity_cost > 30) {
+        content.innerHTML += '<div class="friction-gate-cost">This pulls against your priorities.</div>';
     }
 
     var html = '';

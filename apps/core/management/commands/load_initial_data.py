@@ -649,6 +649,9 @@ class Command(BaseCommand):
         # One-time: Reset fixtures for Chief of Staff Assistant (PK 51, PK 120, PK 96)
         self._reset_cos_assistant_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset fixtures for CoS Unification Pass (PK 4 updated, PK 121 added)
+        self._reset_cos_unification_fixtures(DataLoadConfig, force, verbosity)
+
         # Auto-sync CoS documentation to admin guide (runs if checksum changed)
         self._sync_cos_documentation(DataLoadConfig, force, verbosity)
 
@@ -2034,6 +2037,37 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset CoS Assistant fixtures FAILED: {e}'))
+
+    def _reset_cos_unification_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload fixtures for CoS Unification Pass.
+        Updates teaching_destinations PK 4 (AI Assistant → Chief of Staff) and adds PK 121 (CoS Settings).
+        """
+        reset_tracker_name = 'reset_cos_unification_fixtures_2026_02_19'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            for loader_name in ('teaching_destinations',):
+                try:
+                    config = DataLoadConfig.objects.get(loader_name=loader_name)
+                    config.reset()
+                    if verbosity >= 1:
+                        self.stdout.write(f'  Reset {loader_name} loader for CoS Unification')
+                except DataLoadConfig.DoesNotExist:
+                    pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for CoS Unification Pass (Feb 2026)',
+                'command',
+                'One-time reset to reload teaching destinations for CoS Settings and updated AI Assistant entry'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset CoS Unification fixtures FAILED: {e}'))
 
     def _sync_cos_documentation(self, DataLoadConfig, force=False, verbosity=1):
         """

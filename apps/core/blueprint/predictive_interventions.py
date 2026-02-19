@@ -250,48 +250,78 @@ def _gather_signals(user):
     return signals
 
 
+def _get_non_negotiables(user):
+    """Get user's non-negotiable commitment names from GovernanceProfile."""
+    try:
+        from apps.core.ai_governance.models import GovernanceProfile
+        return list(
+            GovernanceProfile.objects.filter(
+                user=user,
+                commitment_level=GovernanceProfile.COMMITMENT_NON_NEGOTIABLE,
+            ).values_list('display_name', flat=True)[:3]
+        )
+    except Exception:
+        return []
+
+
 def _build_drift_intervention_message(user, drift_24h, signals):
     """Build an intervention message for high drift probability."""
-    pct = round(drift_24h * 100)
-    factors = signals.get('drift_factors', {})
+    from .human_language import translate_missed_commitment
 
-    parts = [f"24-hour drift probability is at {pct}%."]
+    factors = signals.get('drift_factors', {})
+    non_negs = _get_non_negotiables(user)
+
+    parts = ["You're under real pressure right now."]
 
     if factors.get('recent_drift_trend', 0) > 0.5:
-        parts.append("Recent drift trend is elevated.")
+        parts.append("Things have been slipping recently.")
     if factors.get('schedule_density', 0) > 0.7:
-        parts.append("Tomorrow's schedule is dense.")
+        parts.append("Tomorrow's schedule is packed.")
     if factors.get('streak_fatigue', 0) > 0.2:
         clean_days = factors.get('clean_streak_days', 0)
-        parts.append(f"Streak fatigue after {clean_days} consecutive days.")
+        if clean_days > 14:
+            parts.append(f"You've been solid for {clean_days} days — watch for burnout.")
 
     alignment = signals.get('alignment_score', 100)
-    if alignment < 80:
-        parts.append(f"Current alignment is {round(alignment)}%.")
+    if alignment < 65:
+        parts.append("Several areas need attention.")
+    elif alignment < 80:
+        parts.append("A few things are pulling off course.")
+
+    # Name specific non-negotiable commitments at risk
+    if non_negs:
+        msg = translate_missed_commitment(non_negs[0])
+        if msg:
+            parts.append(msg)
+        else:
+            names = ', '.join(non_negs[:2])
+            parts.append(f"Protect {names} first.")
 
     return " ".join(parts)
 
 
 def _build_drift_warning_message(user, drift_24h, signals):
     """Build a warning-level drift message."""
-    pct = round(drift_24h * 100)
-    return (
-        f"Pressure is building ({pct}% in the next 24 hours). "
-        f"Consider reviewing your priorities."
-    )
+    non_negs = _get_non_negotiables(user)
+    if non_negs:
+        names = ', '.join(non_negs[:2])
+        return (
+            f"Pressure is building. Make sure {names} "
+            f"{'happen' if len(non_negs) > 1 else 'happens'} today."
+        )
+    return "Pressure is building. Consider reviewing your priorities."
 
 
 def _build_drift_nudge_message(drift_24h):
     """Build a nudge-level drift message."""
-    pct = round(drift_24h * 100)
-    return f"Drift probability is {pct}%. Stay focused on Tier-1 priorities."
+    return "Some background pressure building — stay focused on what matters most."
 
 
 def _get_recommendation(drift_24h):
     """Get a recommendation based on drift probability."""
     if drift_24h >= DRIFT_THRESHOLD_INTERRUPT:
-        return "Review and lock your Tier-1 commitments immediately."
+        return "Lock in your top priorities now."
     elif drift_24h >= DRIFT_THRESHOLD_PING:
-        return "Consider simplifying tomorrow's plan to protect core behaviors."
+        return "Consider simplifying tomorrow to protect what matters most."
     else:
-        return "Monitor closely. No immediate action required."
+        return "On track. No action needed."

@@ -979,7 +979,7 @@
         list.innerHTML = '';
 
         if (!priorities || priorities.length === 0) {
-            list.innerHTML = '<p class="text-muted">Architecture loaded. No priority overrides required.</p>';
+            list.innerHTML = '<p class="text-muted">All set. No priority changes needed.</p>';
             return;
         }
 
@@ -989,7 +989,7 @@
             item.dataset.id = p.id;
 
             item.innerHTML = `
-                <div class="priority-checkbox" onclick="togglePriority(${p.id}, ${p.is_completed})">
+                <div class="priority-checkbox" data-action="toggle-priority" data-priority-id="${p.id}" data-completed="${p.is_completed}">
                     ${p.is_completed ? '✓' : ''}
                 </div>
                 <div class="priority-content">
@@ -997,7 +997,7 @@
                     <div class="priority-title">${p.title}</div>
                     <div class="priority-why">${p.why_important || p.description || ''}</div>
                 </div>
-                <button class="priority-dismiss" onclick="dismissPriority(${p.id})" title="Dismiss">
+                <button class="priority-dismiss" data-action="dismiss-priority" data-priority-id="${p.id}" title="Dismiss">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <line x1="18" y1="6" x2="6" y2="18"></line>
                         <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -1009,31 +1009,56 @@
         });
     }
 
-    // Toggle priority completion
-    window.togglePriority = async function(id, currentState) {
-        if (currentState) return; // Don't un-complete
-
-        try {
-            const response = await fetch(`/assistant/api/priorities/${id}/complete/`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': getCsrfToken()
+    // Event delegation for priority actions (CSP-compliant)
+    document.addEventListener('click', function(e) {
+        const toggleEl = e.target.closest('[data-action="toggle-priority"]');
+        if (toggleEl) {
+            const id = parseInt(toggleEl.dataset.priorityId, 10);
+            const completed = toggleEl.dataset.completed === 'true';
+            if (completed) return; // Don't un-complete
+            (async function() {
+                try {
+                    const response = await fetch(`/assistant/api/priorities/${id}/complete/`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCsrfToken()
+                        }
+                    });
+                    const data = await response.json();
+                    const item = document.querySelector(`.priority-item[data-id="${id}"]`);
+                    item.classList.add('completed');
+                    item.querySelector('.priority-checkbox').textContent = '✓';
+                    toggleEl.dataset.completed = 'true';
+                    showCompletionFeedback(data.feedback || 'Great job! Keep up the momentum.');
+                } catch (error) {
+                    console.error('Error completing priority:', error);
                 }
-            });
-
-            const data = await response.json();
-            const item = document.querySelector(`.priority-item[data-id="${id}"]`);
-            item.classList.add('completed');
-            item.querySelector('.priority-checkbox').textContent = '✓';
-
-            // Show positive feedback
-            showCompletionFeedback(data.feedback || 'Great job! Keep up the momentum.');
-
-        } catch (error) {
-            console.error('Error completing priority:', error);
+            })();
+            return;
         }
-    };
+
+        const dismissEl = e.target.closest('[data-action="dismiss-priority"]');
+        if (dismissEl) {
+            const id = parseInt(dismissEl.dataset.priorityId, 10);
+            (async function() {
+                try {
+                    await fetch(`/assistant/api/priorities/${id}/dismiss/`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCsrfToken()
+                        }
+                    });
+                    const item = document.querySelector(`.priority-item[data-id="${id}"]`);
+                    item.remove();
+                } catch (error) {
+                    console.error('Error dismissing priority:', error);
+                }
+            })();
+            return;
+        }
+    });
 
     // Show completion feedback toast
     function showCompletionFeedback(message) {
@@ -1059,24 +1084,7 @@
         }, 3000);
     }
 
-    // Dismiss priority
-    window.dismissPriority = async function(id) {
-        try {
-            await fetch(`/assistant/api/priorities/${id}/dismiss/`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': getCsrfToken()
-                }
-            });
-
-            const item = document.querySelector(`.priority-item[data-id="${id}"]`);
-            item.remove();
-
-        } catch (error) {
-            console.error('Error dismissing priority:', error);
-        }
-    };
+    // Priority toggle/dismiss handled by event delegation above
 
     // Refresh priorities
     document.getElementById('refresh-priorities').addEventListener('click', async function() {
@@ -1112,33 +1120,52 @@
         const tier1 = snapshot.tier1_protected || [];
         const inRecovery = snapshot.in_recovery || false;
 
-        function driftClass(val, invert) {
+        function humanLabel(val, invert) {
             if (invert) {
-                if (val >= 80) return 'drift-green';
-                if (val >= 50) return 'drift-amber';
-                return 'drift-red';
+                // Alignment: higher = better
+                if (val >= 90) return { text: 'Locked in', cls: 'drift-green' };
+                if (val >= 80) return { text: 'Steady', cls: 'drift-green' };
+                if (val >= 65) return { text: 'Drifting slightly', cls: 'drift-amber' };
+                if (val >= 50) return { text: 'Under pressure', cls: 'drift-amber' };
+                return { text: 'Off course', cls: 'drift-red' };
             }
-            if (val < 25) return 'drift-green';
-            if (val < 50) return 'drift-amber';
-            return 'drift-red';
+            // Drift/Pressure: lower = better
+            if (val < 15) return { text: 'Clear', cls: 'drift-green' };
+            if (val < 25) return { text: 'Low', cls: 'drift-green' };
+            if (val < 40) return { text: 'Moderate', cls: 'drift-amber' };
+            if (val < 60) return { text: 'Elevated', cls: 'drift-amber' };
+            return { text: 'High', cls: 'drift-red' };
         }
 
-        let html = '<div class="proactive-label">OPERATIONAL STATE</div>';
+        function capacityLabel(val) {
+            if (val < 20) return 'Light day';
+            if (val < 40) return 'Easy pace';
+            if (val < 60) return 'Moderate';
+            if (val < 80) return 'Full day';
+            if (val < 90) return 'Heavy';
+            return 'Packed';
+        }
+
+        const alignInfo = humanLabel(align, true);
+        const driftInfo = humanLabel(drift, false);
+        const capText = capacityLabel(cap);
+
+        let html = '<div class="proactive-label">YOUR STATUS</div>';
         html += `<div style="display:flex;gap:16px;flex-wrap:wrap;margin:6px 0 8px;">`;
-        html += `<span><strong>Alignment</strong> <span class="${driftClass(align, true)}">${align}%</span></span>`;
-        html += `<span><strong>Drift</strong> <span class="${driftClass(drift, false)}">${drift}%</span></span>`;
-        html += `<span><strong>Capacity</strong> ${cap}%</span>`;
+        html += `<span><strong>On Track</strong> <span class="${alignInfo.cls}">${alignInfo.text}</span></span>`;
+        html += `<span><strong>Pressure</strong> <span class="${driftInfo.cls}">${driftInfo.text}</span></span>`;
+        html += `<span><strong>Schedule</strong> ${capText}</span>`;
         html += `</div>`;
 
         if (tier1.length > 0) {
-            html += `<div style="font-size:12px;color:var(--color-text-muted);margin-bottom:4px;"><strong>Tier-1 Protected:</strong> ${tier1.join(', ')}</div>`;
+            html += `<div style="font-size:12px;color:var(--color-text-muted);margin-bottom:4px;"><strong>Top Priorities:</strong> ${tier1.join(', ')}</div>`;
         }
 
         if (inRecovery) {
             html += `<div style="font-size:12px;color:#d97706;margin-bottom:4px;">Recovery mode active.</div>`;
         }
 
-        html += `<div style="margin-top:6px;font-weight:500;">State loaded. What are we adjusting?</div>`;
+        html += `<div style="margin-top:6px;font-weight:500;">Ready. What would you like to adjust?</div>`;
 
         const msgEl = document.createElement('div');
         msgEl.className = 'chat-message assistant proactive';

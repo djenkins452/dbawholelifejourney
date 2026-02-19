@@ -547,23 +547,25 @@
             if (loadingEl) loadingEl.style.display = 'none';
 
             if (data.success && data.messages && data.messages.length > 0) {
-                // If calibration hasn't started yet (welcome not shown) but
-                // there are stale messages, clear and restart fresh
+                // If calibration welcome hasn't been shown but stale
+                // messages exist, clear them so calibration can start fresh
                 if (data.calibration_active && data.calibration_welcome_needed
                         && !calibrationAutoStarted) {
                     calibrationAutoStarted = true;
-                    // Clear old conversation, then auto-start calibration
                     fetch('/assistant/api/clear/', {
                         method: 'POST',
-                        headers: {
-                            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')
-                                ? document.querySelector('[name=csrfmiddlewaretoken]').value
-                                : document.cookie.match(/csrftoken=([^;]+)/)?.[1] || ''
-                        }
+                        headers: { 'X-CSRFToken': getCsrfToken() }
                     }).then(function() {
                         container.innerHTML = '';
                         showEmptyState(container);
-                        sendMessage('Hello', container, chatInput, sendBtn);
+                        // Don't auto-send — the banner button drives this
+                    }).catch(function() {
+                        // Clear failed, show messages anyway
+                        container.innerHTML = '';
+                        data.messages.forEach(function(msg) {
+                            addMessage(container, msg.content, msg.role === 'user', false,
+                                msg.image_data_url || null, msg);
+                        });
                     });
                     return;
                 }
@@ -574,24 +576,8 @@
                         msg.image_data_url || null, msg);
                 });
                 container.scrollTop = container.scrollHeight;
-
-                // Resume calibration if active and last message was from assistant
-                if (data.calibration_active && !calibrationAutoStarted
-                        && data.calibration_next_question) {
-                    var lastMsg = data.messages[data.messages.length - 1];
-                    if (lastMsg.role === 'assistant') {
-                        calibrationAutoStarted = true;
-                        sendMessage("Let's continue where we left off.", container, chatInput, sendBtn);
-                    }
-                }
             } else {
                 showEmptyState(container);
-
-                // Auto-start calibration if active and no messages yet
-                if (data.calibration_active && !calibrationAutoStarted) {
-                    calibrationAutoStarted = true;
-                    sendMessage('Hello', container, chatInput, sendBtn);
-                }
             }
         })
         .catch(function() {

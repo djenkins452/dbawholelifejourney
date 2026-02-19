@@ -291,7 +291,7 @@ body.edit-mode .tile-name-label {
 <div class="container">
     <!-- Header -->
     <header class="dashboard-header">
-        {% if not command_mode or not command_mode.active %}
+        {% if not command_mode or not command_mode.active or calibration_active %}
         <div class="greeting">
             <h1>{{ greeting }}, {{ user.get_short_name }}.</h1>
             <p class="current-date">{{ current_date|date:"l, F j, Y" }}</p>

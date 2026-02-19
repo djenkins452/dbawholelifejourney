@@ -2220,3 +2220,39 @@ body.has-desktop-nav.assistant-panel-closed .desktop-main-area {
     color: #d97706;
     font-weight: 500;
 }
+
+/* Calibration welcome banner — prominent call to action */
+.cos-calibration-banner {
+    background: linear-gradient(135deg, var(--color-surface, #f3f4f6), var(--color-accent-bg, #eff6ff));
+    border-color: var(--color-accent, #2563eb);
+    border-width: 2px;
+}
+
+.cos-calibration-banner p {
+    font-size: 0.9375rem;
+    line-height: 1.5;
+    color: var(--color-text, #1f2937);
+    margin-bottom: 12px;
+}
+
+.cos-start-chat-btn {
+    display: inline-block;
+    padding: 10px 24px;
+    background: var(--color-accent, #2563eb);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+}
+
+.cos-start-chat-btn:hover {
+    background: var(--color-accent-hover, #1d4ed8);
+    transform: translateY(-1px);
+}
+
+.cos-start-chat-btn:active {
+    transform: translateY(0);
+}

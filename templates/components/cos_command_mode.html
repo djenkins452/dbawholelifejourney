@@ -1,11 +1,56 @@
 {% comment %}
 Chief of Staff — Greeting Banner (slim)
 Shows greeting + day summary above the dashboard grid.
+When calibration is active, shows a welcome message with a button to start chatting.
 All conversation now happens in the persistent chat panel (right rail).
 Requires: command_mode dict from DashboardView._get_command_mode()
 {% endcomment %}
 
-{% if command_mode and command_mode.active %}
+{% if calibration_active %}
+<div class="cos-greeting-banner cos-calibration-banner">
+    <h2>{{ command_mode.greeting_line|default:"Hi there!" }}</h2>
+    <p>I'd like to get to know you better so I can actually be useful. I'll ask you a few questions — nothing complicated, just the kind of things that help me understand what matters to you.</p>
+    <button type="button" class="cos-start-chat-btn" id="cos-start-calibration-btn">
+        Let's Chat →
+    </button>
+</div>
+<script nonce="{{ csp_nonce }}">
+(function() {
+    var btn = document.getElementById('cos-start-calibration-btn');
+    if (!btn) return;
+    btn.addEventListener('click', function() {
+        // Open the panel if closed
+        var panel = document.getElementById('assistant-panel');
+        if (panel) {
+            panel.setAttribute('data-state', 'open');
+            document.body.classList.remove('assistant-panel-closed');
+            try { localStorage.setItem('ap_state', 'open'); } catch(e) {}
+        }
+        // Switch to chat tab
+        var chatTab = document.querySelector('[data-tab="chat"]');
+        if (chatTab) chatTab.click();
+        // Focus the input
+        var input = document.getElementById('ap-chat-input');
+        if (input) {
+            input.focus();
+            // If no messages in the panel, auto-send greeting
+            var messages = document.getElementById('ap-chat-messages');
+            if (messages && !messages.querySelector('.ap-chat-message')) {
+                // Trigger the sendMessage by dispatching on the form
+                input.value = 'Hi, let\'s get started!';
+                var form = document.getElementById('ap-chat-form');
+                if (form) {
+                    var submitEvt = new Event('submit', { cancelable: true });
+                    form.dispatchEvent(submitEvt);
+                }
+            }
+        }
+        // Hide the banner after clicking
+        btn.closest('.cos-calibration-banner').style.display = 'none';
+    });
+})();
+</script>
+{% elif command_mode and command_mode.active %}
 <div class="cos-greeting-banner">
     <h2>{{ command_mode.greeting_line }}</h2>
     <p>{{ command_mode.day_summary }}</p>

@@ -161,6 +161,7 @@ MIDDLEWARE = [
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
+    "apps.core.middleware.EnsureCSRFOnAuthPages",  # Force fresh CSRF cookie on login/signup pages
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "apps.mobile.middleware.MobileAuthenticationMiddleware",  # Bearer token auth for native apps
     "django.contrib.messages.middleware.MessageMiddleware",

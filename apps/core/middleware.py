@@ -53,14 +53,47 @@ class NoCacheHTMLMiddleware:
         # Only affect HTML responses
         content_type = response.get('Content-Type', '')
         if 'text/html' in content_type:
-            # Prevent caching of HTML pages and disable bfcache
+            # Prevent caching of HTML pages
             response['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
             response['Pragma'] = 'no-cache'
             response['Expires'] = '0'
-            # Vary header helps prevent incorrect cache hits
-            response['Vary'] = 'Accept-Encoding, Cookie'
+            # Note: We intentionally do NOT set Vary here. The no-cache/no-store
+            # directives already prevent caching. Setting Vary: Cookie can interfere
+            # with CSRF cookie handling on login pages and cause 403 Forbidden errors
+            # on first login attempts.
 
         return response
+
+
+class EnsureCSRFOnAuthPages:
+    """
+    Ensures a fresh CSRF cookie is always set on authentication pages.
+
+    Fixes a bug where users logging in "from scratch" (no existing session)
+    could get a 403 Forbidden on their first login attempt. This happens when
+    the browser has a stale CSRF cookie from a previous session or no cookie
+    at all, causing a mismatch with the form token.
+
+    By forcing the CSRF cookie to be set on every GET to auth pages, we
+    guarantee the cookie and form token are always in sync.
+    """
+
+    AUTH_PATHS = ['/accounts/login/', '/accounts/signup/']
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        from django.middleware.csrf import get_token
+
+        # On GET requests to auth pages, force a fresh CSRF cookie
+        if request.method == 'GET' and any(
+            request.path.startswith(p) for p in self.AUTH_PATHS
+        ):
+            # get_token() forces the CSRF cookie to be set on the response
+            get_token(request)
+
+        return self.get_response(request)
 
 
 class PageViewTrackingMiddleware:

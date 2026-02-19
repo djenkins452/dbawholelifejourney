@@ -64,9 +64,9 @@
                         <button type="submit" class="btn btn-primary btn-sm">Activate</button>
                     </form>
                     {% endif %}
-                    <form method="post" action="{% url 'health:medicine_schedule_delete' medicine_pk=medicine.pk schedule_pk=schedule.pk %}" class="delete-form">
+                    <form method="post" action="{% url 'health:medicine_schedule_delete' medicine_pk=medicine.pk schedule_pk=schedule.pk %}" class="delete-form" data-confirm="Remove this schedule?">
                         {% csrf_token %}
-                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Remove this schedule?');">Remove</button>
+                        <button type="submit" class="btn btn-danger btn-sm">Remove</button>
                     </form>
                 </div>
             </div>

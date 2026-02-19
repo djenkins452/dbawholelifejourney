@@ -48,10 +48,16 @@
 
             <div class="form-actions">
                 <button type="submit" class="btn btn-primary">Create Project</button>
-                <button type="button" class="btn btn-ghost" onclick="window.close()">Cancel</button>
+                <button type="button" class="btn btn-ghost" id="cancel-popup-btn">Cancel</button>
             </div>
         </form>
     </div>
+
+    <script nonce="{{ csp_nonce }}">
+    document.getElementById('cancel-popup-btn').addEventListener('click', function() {
+        window.close();
+    });
+    </script>
 
     {% if created_project %}
     <script nonce="{{ csp_nonce }}">

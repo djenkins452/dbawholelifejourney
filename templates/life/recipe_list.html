@@ -51,7 +51,7 @@
     <div class="recipe-grid" data-bulk-container data-bulk-delete-url="{% url 'life:recipe_bulk_delete' %}" data-item-type="recipe" data-item-type-plural="recipes">
         {% for recipe in recipes %}
         <a href="{{ recipe.get_absolute_url }}" class="recipe-card" data-bulk-item data-item-id="{{ recipe.pk }}">
-            <input type="checkbox" data-item-checkbox class="bulk-checkbox item-checkbox" onclick="event.stopPropagation(); event.preventDefault();">
+            <input type="checkbox" data-item-checkbox class="bulk-checkbox item-checkbox click-stop">
             {% if recipe.image %}
             <div class="recipe-image" style="background-image: url('{{ recipe.image.url }}')">
                 {% if recipe.is_favorite %}

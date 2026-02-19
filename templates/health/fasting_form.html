@@ -22,7 +22,7 @@
         
         <div class="form-group">
             <label for="id_fasting_type" class="form-label">Fasting Type</label>
-            <select name="fasting_type" id="id_fasting_type" class="form-select" onchange="updateFastingDescription()">
+            <select name="fasting_type" id="id_fasting_type" class="form-select">
                 {% for value, label in form.fields.fasting_type.choices %}
                     <option value="{{ value }}" {% if form.fasting_type.value == value or form.initial.fasting_type == value %}selected{% endif %}>
                         {{ label }}
@@ -228,6 +228,9 @@ function updateFastingDescription() {
         }
     });
 }
+
+// Bind change event for fasting type select
+document.getElementById('id_fasting_type').addEventListener('change', updateFastingDescription);
 
 // Make cards clickable to select fasting type
 document.querySelectorAll('.fasting-type-card').forEach(card => {

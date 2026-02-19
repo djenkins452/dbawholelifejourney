@@ -61,7 +61,7 @@
     
     <!-- Filters -->
     <div class="filters-bar mb-6">
-        <select onchange="location.href='?type=' + this.value" class="form-select form-select-sm">
+        <select data-navigate-param="type" class="form-select form-select-sm">
             <option value="">All Types</option>
             <option value="repair" {% if request.GET.type == 'repair' %}selected{% endif %}>Repair</option>
             <option value="maintenance" {% if request.GET.type == 'maintenance' %}selected{% endif %}>Maintenance</option>
@@ -71,7 +71,7 @@
             <option value="inspection" {% if request.GET.type == 'inspection' %}selected{% endif %}>Inspection</option>
         </select>
         
-        <select onchange="location.href='?area=' + this.value" class="form-select form-select-sm">
+        <select data-navigate-param="area" class="form-select form-select-sm">
             <option value="">All Areas</option>
             {% for area in areas %}
             <option value="{{ area }}" {% if request.GET.area == area %}selected{% endif %}>{{ area }}</option>
@@ -96,7 +96,7 @@
     <div class="log-list" data-bulk-container data-bulk-delete-url="{% url 'life:maintenance_bulk_delete' %}" data-item-type="log" data-item-type-plural="logs">
         {% for log in logs %}
         <a href="{{ log.get_absolute_url }}" class="log-card" data-bulk-item data-item-id="{{ log.pk }}">
-            <input type="checkbox" data-item-checkbox class="bulk-checkbox item-checkbox" onclick="event.stopPropagation(); event.preventDefault();">
+            <input type="checkbox" data-item-checkbox class="bulk-checkbox item-checkbox click-stop">
             <div class="log-date">
                 <span class="log-day">{{ log.date|date:"j" }}</span>
                 <span class="log-month">{{ log.date|date:"M" }}</span>

@@ -46,7 +46,7 @@
             <div class="note-actions">
                 <a href="{% url 'faith:study_note_edit' pk=note.pk %}" class="btn btn-ghost">Edit</a>
                 <form method="post" action="{% url 'faith:study_note_delete' pk=note.pk %}" class="inline-form"
-                      onsubmit="return confirm('Delete this study note?');">
+                      data-confirm="Delete this study note?">
                     {% csrf_token %}
                     <button type="submit" class="btn btn-ghost text-error">Delete</button>
                 </form>

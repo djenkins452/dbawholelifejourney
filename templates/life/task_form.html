@@ -26,7 +26,7 @@
                     <label class="checkbox-label recurring-toggle">
                         <input type="checkbox" name="is_recurring" id="id_is_recurring"
                                {% if form.is_recurring.value %}checked{% endif %}
-                               onchange="toggleTaskType()">
+                              >
                         <span class="toggle-label">This is a recurring task</span>
                     </label>
                     <p class="form-help" style="margin-top: var(--space-2);">
@@ -179,6 +179,7 @@ function toggleTaskType() {
     }
 }
 
+document.getElementById('id_is_recurring').addEventListener('change', toggleTaskType);
 // Run on page load to set initial state
 document.addEventListener('DOMContentLoaded', toggleTaskType);
 </script>

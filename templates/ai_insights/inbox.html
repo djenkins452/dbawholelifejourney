@@ -49,14 +49,14 @@
                 {% if insight.status != 'dismissed' %}
                 <div style="display: flex; gap: 6px; flex-shrink: 0;">
                     {% if insight.status == 'new' %}
-                    <button onclick="insightAction({{ insight.pk }}, 'read')"
-                            class="btn btn-sm btn-outline-primary"
+                    <button class="btn btn-sm btn-outline-primary insight-action-btn"
+                            data-insight-action="read"
                             style="min-width: 44px; min-height: 44px; font-size: 0.8rem;">
                         Mark Read
                     </button>
                     {% endif %}
-                    <button onclick="insightAction({{ insight.pk }}, 'dismiss')"
-                            class="btn btn-sm btn-outline-secondary"
+                    <button class="btn btn-sm btn-outline-secondary insight-action-btn"
+                            data-insight-action="dismiss"
                             style="min-width: 44px; min-height: 44px; font-size: 0.8rem;">
                         Dismiss
                     </button>
@@ -89,7 +89,18 @@
     {% endif %}
 </div>
 
-<script>
+<script nonce="{{ csp_nonce }}">
+// Event delegation for insight action buttons
+document.addEventListener('click', function(e) {
+    var btn = e.target.closest('[data-insight-action]');
+    if (btn) {
+        var card = btn.closest('[data-id]');
+        if (card) {
+            insightAction(card.dataset.id, btn.dataset.insightAction);
+        }
+    }
+});
+
 function insightAction(pk, action) {
     fetch(`/insights/${pk}/action/`, {
         method: 'POST',

@@ -39,7 +39,7 @@
     
     <!-- Filters -->
     <div class="filters-bar mb-6">
-        <select onchange="location.href='?category=' + this.value" class="form-select form-select-sm">
+        <select data-navigate-param="category" class="form-select form-select-sm">
             <option value="">All Categories</option>
             {% for value, label in categories %}
             <option value="{{ value }}" {% if request.GET.category == value %}selected{% endif %}>{{ label }}</option>
@@ -47,7 +47,7 @@
         </select>
         
         <label class="checkbox-label">
-            <input type="checkbox" onchange="location.href='?archived=' + (this.checked ? '1' : '')"
+            <input type="checkbox" id="archived-filter"
                    {% if request.GET.archived %}checked{% endif %}>
             Show archived
         </label>
@@ -71,7 +71,7 @@
     <div class="document-grid" data-bulk-container data-bulk-delete-url="{% url 'life:document_bulk_delete' %}" data-item-type="document" data-item-type-plural="documents">
         {% for doc in documents %}
         <a href="{{ doc.get_absolute_url }}" class="document-card {% if doc.is_expired %}expired{% elif doc.is_expiring_soon %}expiring{% endif %}" data-bulk-item data-item-id="{{ doc.pk }}">
-            <input type="checkbox" data-item-checkbox class="bulk-checkbox item-checkbox" onclick="event.stopPropagation(); event.preventDefault();">
+            <input type="checkbox" data-item-checkbox class="bulk-checkbox item-checkbox click-stop">
             <div class="document-icon">
                 {% if doc.file_type == 'pdf' %}
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -322,4 +322,9 @@
 </style>
 
 <script src="{% static 'js/bulk-actions.js' %}"></script>
+<script nonce="{{ csp_nonce }}">
+document.getElementById('archived-filter').addEventListener('change', function() {
+    location.href = '?archived=' + (this.checked ? '1' : '');
+});
+</script>
 {% endblock %}

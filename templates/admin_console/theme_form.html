@@ -281,7 +281,7 @@
                 </div>
             </div>
             <div class="preview-toggle">
-                <button type="button" class="btn btn-secondary btn-sm" onclick="togglePreviewMode()">
+                <button type="button" class="btn btn-secondary btn-sm" id="toggle-preview-btn">
                     Toggle Dark/Light
                 </button>
             </div>
@@ -497,6 +497,8 @@ function togglePreviewMode() {
     previewDarkMode = !previewDarkMode;
     updatePreview();
 }
+
+document.getElementById('toggle-preview-btn').addEventListener('click', togglePreviewMode);
 
 // Initial preview
 updatePreview();

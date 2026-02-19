@@ -45,8 +45,8 @@
             
             <form method="post" action="{% url 'faith:prayer_answered' prayer.pk %}" class="inline-form answer-form">
                 {% csrf_token %}
-                <button type="button" class="btn btn-primary" onclick="showAnswerModal()">
-                    🙏 Mark as Answered
+                <button type="button" class="btn btn-primary" id="show-answer-btn">
+                    Mark as Answered
                 </button>
             </form>
             
@@ -59,25 +59,25 @@
     
     <!-- Answer Modal -->
     <div id="answer-modal" class="modal" hidden>
-        <div class="modal-backdrop" onclick="hideAnswerModal()"></div>
+        <div class="modal-backdrop" data-hide-answer-modal></div>
         <div class="modal-content card">
             <h2>Prayer Answered!</h2>
             <p class="text-muted">How did God answer this prayer?</p>
-            
+
             <form method="post" action="{% url 'faith:prayer_answered' prayer.pk %}">
                 {% csrf_token %}
                 <div class="form-group">
-                    <textarea 
-                        name="notes" 
+                    <textarea
+                        name="notes"
                         class="form-textarea"
                         placeholder="Describe how God answered this prayer... (optional)"
                         rows="4"
                     ></textarea>
                 </div>
-                
+
                 <div class="modal-actions">
                     <button type="submit" class="btn btn-primary">Confirm Answered</button>
-                    <button type="button" class="btn btn-ghost" onclick="hideAnswerModal()">Cancel</button>
+                    <button type="button" class="btn btn-ghost" data-hide-answer-modal>Cancel</button>
                 </div>
             </form>
         </div>
@@ -199,5 +199,13 @@ function showAnswerModal() {
 function hideAnswerModal() {
     document.getElementById('answer-modal').hidden = true;
 }
+
+document.getElementById('show-answer-btn').addEventListener('click', showAnswerModal);
+
+document.addEventListener('click', function(e) {
+    if (e.target.closest('[data-hide-answer-modal]')) {
+        hideAnswerModal();
+    }
+});
 </script>
 {% endblock %}

@@ -173,7 +173,7 @@
                         Edit
                     </a>
                     <form method="post" action="{% url 'faith:saved_verse_delete' verse.pk %}" class="inline-form"
-                          onsubmit="return confirm('Remove this verse from your library?');">
+                          data-confirm="Remove this verse from your library?">
                         {% csrf_token %}
                         <button type="submit" class="btn btn-ghost btn-sm text-error">
                             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
@@ -213,11 +213,11 @@
 
 <!-- Save Verse Modal -->
 <div id="save-modal" class="modal" style="display: none;">
-    <div class="modal-backdrop" onclick="closeSaveModal()"></div>
+    <div class="modal-backdrop" data-close-save-modal></div>
     <div class="modal-content">
         <div class="modal-header">
             <h3>Save Scripture</h3>
-            <button type="button" class="modal-close" onclick="closeSaveModal()">&times;</button>
+            <button type="button" class="modal-close" data-close-save-modal>&times;</button>
         </div>
         <form id="save-verse-form" method="post" action="{% url 'faith:scripture_save' %}">
             {% csrf_token %}
@@ -249,7 +249,7 @@
             
             <div class="modal-actions">
                 <button type="submit" class="btn btn-primary">Save to Library</button>
-                <button type="button" class="btn btn-ghost" onclick="closeSaveModal()">Cancel</button>
+                <button type="button" class="btn btn-ghost" data-close-save-modal>Cancel</button>
             </div>
         </form>
     </div>
@@ -1029,6 +1029,13 @@ function openSaveModal() {
 function closeSaveModal() {
     document.getElementById('save-modal').style.display = 'none';
 }
+
+// Delegation for close save modal
+document.addEventListener('click', function(e) {
+    if (e.target.closest('[data-close-save-modal]')) {
+        closeSaveModal();
+    }
+});
 
 // Parse a scripture reference like "Luke 18:1-8" or "Genesis 1:1"
 function parseScriptureReference(reference) {

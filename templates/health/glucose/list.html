@@ -78,10 +78,9 @@
                             <td class="entry-notes">{{ entry.notes|truncatewords:8|default:"-" }}</td>
                             <td class="entry-actions">
                                 <a href="{% url 'health:glucose_update' entry.pk %}" class="btn btn-ghost btn-sm">Edit</a>
-                                <form method="post" action="{% url 'health:glucose_delete' entry.pk %}" class="inline-form">
+                                <form method="post" action="{% url 'health:glucose_delete' entry.pk %}" class="inline-form" data-confirm="Delete this glucose reading?">
                                     {% csrf_token %}
-                                    <button type="submit" class="btn btn-ghost btn-sm text-error"
-                                            onclick="return confirm('Delete this glucose reading?')">Delete</button>
+                                    <button type="submit" class="btn btn-ghost btn-sm text-error">Delete</button>
                                 </form>
                             </td>
                         </tr>

@@ -39,7 +39,7 @@
             <p class="section-description">Select an exercise to see your progress over time</p>
 
             <form method="get" class="exercise-filter">
-                <select name="exercise" onchange="this.form.submit()">
+                <select name="exercise" data-auto-submit>
                     <option value="">Select an exercise...</option>
                     {% for exercise in exercises_done %}
                         <option value="{{ exercise.pk }}" {% if selected_exercise.pk == exercise.pk %}selected{% endif %}>

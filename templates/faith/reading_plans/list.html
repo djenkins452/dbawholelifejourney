@@ -144,7 +144,7 @@
             <h2 class="section-title mb-0">All Reading Plans</h2>
             {% if available_topics %}
             <div class="filter-dropdown">
-                <select onchange="window.location.href='?topic='+this.value" class="form-select">
+                <select data-navigate-param="topic" class="form-select">
                     <option value="">All Topics</option>
                     {% for topic in available_topics %}
                     <option value="{{ topic }}" {% if selected_topic == topic %}selected{% endif %}>

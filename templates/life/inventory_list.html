@@ -40,7 +40,7 @@
     <!-- Filters -->
     <div class="filters-bar mb-6">
         <div class="filter-group">
-            <select onchange="location.href='?category=' + this.value" class="form-select form-select-sm">
+            <select data-navigate-param="category" class="form-select form-select-sm">
                 <option value="">All Categories</option>
                 {% for cat in categories %}
                 <option value="{{ cat }}" {% if request.GET.category == cat %}selected{% endif %}>{{ cat }}</option>
@@ -48,7 +48,7 @@
             </select>
         </div>
         <div class="filter-group">
-            <select onchange="location.href='?location=' + this.value" class="form-select form-select-sm">
+            <select data-navigate-param="location" class="form-select form-select-sm">
                 <option value="">All Locations</option>
                 {% for loc in locations %}
                 <option value="{{ loc }}" {% if request.GET.location == loc %}selected{% endif %}>{{ loc }}</option>
@@ -73,7 +73,7 @@
     <div class="inventory-grid" data-bulk-container data-bulk-delete-url="{% url 'life:inventory_bulk_delete' %}" data-item-type="item" data-item-type-plural="items">
         {% for item in items %}
         <a href="{{ item.get_absolute_url }}" class="inventory-card" data-bulk-item data-item-id="{{ item.pk }}">
-            <input type="checkbox" data-item-checkbox class="bulk-checkbox item-checkbox" onclick="event.stopPropagation(); event.preventDefault();">
+            <input type="checkbox" data-item-checkbox class="bulk-checkbox item-checkbox click-stop">
             {% if item.photos.exists %}
             <div class="inventory-image" style="background-image: url('{{ item.photos.first.image.url }}')"></div>
             {% else %}

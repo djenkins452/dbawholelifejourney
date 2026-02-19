@@ -15,7 +15,7 @@
             <h1 class="page-title" id="doc-title">{{ document.original_filename }}</h1>
             <p class="page-subtitle">Uploaded {{ document.created_at|date:"M j, Y g:i A" }}</p>
         </div>
-        <button class="btn btn-outline btn-sm" onclick="toggleRename()" id="rename-toggle-btn">Rename</button>
+        <button class="btn btn-outline btn-sm" id="rename-toggle-btn">Rename</button>
     </div>
 
     <!-- Rename Form (hidden by default) -->
@@ -24,7 +24,7 @@
         <div class="rename-row">
             <input type="text" name="filename" value="{{ document.original_filename }}" class="rename-input" id="rename-input" required>
             <button type="submit" class="btn btn-primary btn-sm">Save</button>
-            <button type="button" class="btn btn-outline btn-sm" onclick="toggleRename()">Cancel</button>
+            <button type="button" class="btn btn-outline btn-sm" id="rename-cancel-btn">Cancel</button>
         </div>
     </form>
 
@@ -66,7 +66,7 @@
     </div>
 
     <div class="actions-bar">
-        <form method="post" action="{% url 'medical:document_delete' pk=document.pk %}" onsubmit="return confirm('Delete this document and all {{ result_count }} associated lab results? This cannot be undone.');">
+        <form method="post" action="{% url 'medical:document_delete' pk=document.pk %}" data-confirm="Delete this document and all {{ result_count }} associated lab results? This cannot be undone.">
             {% csrf_token %}
             <button type="submit" class="btn btn-sm btn-danger">
                 Delete Document & All Results ({{ result_count }})
@@ -176,5 +176,8 @@ function toggleRename() {
         btn.style.display = '';
     }
 }
+
+document.getElementById('rename-toggle-btn').addEventListener('click', toggleRename);
+document.getElementById('rename-cancel-btn').addEventListener('click', toggleRename);
 </script>
 {% endblock %}

@@ -94,7 +94,7 @@
                                 {% if r.canonical_test %}{{ r.canonical_test.name }}{% else %}{{ r.raw_test_name }}{% endif %}
                             </a>
                             {% if r.canonical_test %}
-                            <button class="edu-btn" onclick="openEduModal('{{ r.canonical_test.pk }}', '{{ r.abnormal_flag }}')" title="About this test">
+                            <button class="edu-btn" data-test-id="{{ r.canonical_test.pk }}" data-flag="{{ r.abnormal_flag }}" title="About this test">
                                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
                                     <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
                                 </svg>
@@ -171,7 +171,7 @@
                                 {% if r.canonical_test %}{{ r.canonical_test.name }}{% else %}{{ r.raw_test_name }}{% endif %}
                             </a>
                             {% if r.canonical_test %}
-                            <button class="edu-btn" onclick="openEduModal('{{ r.canonical_test.pk }}', '{{ r.abnormal_flag }}')" title="About this test">
+                            <button class="edu-btn" data-test-id="{{ r.canonical_test.pk }}" data-flag="{{ r.abnormal_flag }}" title="About this test">
                                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
                                     <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
                                 </svg>
@@ -251,11 +251,11 @@
 
 <!-- Education Modal -->
 <div id="edu-modal" class="edu-modal" role="dialog" aria-modal="true" aria-labelledby="edu-modal-title" hidden>
-    <div class="edu-modal-backdrop" onclick="closeEduModal()"></div>
+    <div class="edu-modal-backdrop" data-close-edu-modal></div>
     <div class="edu-modal-dialog">
         <div class="edu-modal-header">
             <h3 id="edu-modal-title">About This Test</h3>
-            <button onclick="closeEduModal()" class="edu-modal-close" aria-label="Close">&times;</button>
+            <button class="edu-modal-close" data-close-edu-modal aria-label="Close">&times;</button>
         </div>
         <div id="edu-modal-body" class="edu-modal-body">
             <p>Loading...</p>
@@ -723,7 +723,7 @@
     var modalBody = document.getElementById('edu-modal-body');
     var cache = {};
 
-    window.openEduModal = function(testId, flag) {
+    function openEduModal(testId, flag) {
         var cacheKey = testId + '_' + flag;
         modal.hidden = false;
         document.body.style.overflow = 'hidden';
@@ -752,12 +752,24 @@
         .catch(function() {
             modalBody.innerHTML = '<p style="text-align:center;color:var(--color-text-muted)">Unable to load education content.</p>';
         });
-    };
+    }
 
-    window.closeEduModal = function() {
+    function closeEduModal() {
         modal.hidden = true;
         document.body.style.overflow = '';
-    };
+    }
+
+    // Delegation: open edu modal from .edu-btn
+    document.addEventListener('click', function(e) {
+        var eduBtn = e.target.closest('.edu-btn');
+        if (eduBtn) {
+            openEduModal(eduBtn.dataset.testId, eduBtn.dataset.flag);
+            return;
+        }
+        if (e.target.closest('[data-close-edu-modal]')) {
+            closeEduModal();
+        }
+    });
 
     // Close on Escape
     document.addEventListener('keydown', function(e) {

@@ -36,7 +36,7 @@
 
     <div class="quick-look-footer">
         <a href="{% url 'health:medicine_home' %}" class="btn btn-secondary">Back to Medicines</a>
-        <button onclick="window.print()" class="btn btn-primary">Print / Screenshot</button>
+        <button type="button" id="print-btn" class="btn btn-primary">Print / Screenshot</button>
     </div>
 </div>
 
@@ -129,4 +129,10 @@
     }
 }
 </style>
+
+<script nonce="{{ csp_nonce }}">
+document.getElementById('print-btn').addEventListener('click', function() {
+    window.print();
+});
+</script>
 {% endblock %}

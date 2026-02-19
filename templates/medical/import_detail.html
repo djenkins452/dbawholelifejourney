@@ -149,7 +149,7 @@
 
     <!-- Actions -->
     <div class="import-actions">
-        <form method="post" action="{% url 'medical:import_delete' pk=batch.pk %}" onsubmit="return confirm('Delete this import and all {{ batch.rows_imported }} imported lab results? This cannot be undone.');">
+        <form method="post" action="{% url 'medical:import_delete' pk=batch.pk %}" data-confirm="Delete this import and all {{ batch.rows_imported }} imported lab results? This cannot be undone.">
             {% csrf_token %}
             <button type="submit" class="btn btn-sm btn-danger">
                 Delete Import & All Results ({{ batch.rows_imported }})

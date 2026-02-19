@@ -57,7 +57,7 @@
                     <label class="checkbox-label">
                         <input type="checkbox" name="is_all_day" id="id_is_all_day" 
                                {% if form.is_all_day.value %}checked{% endif %}
-                               onchange="toggleTimeFields()">
+                              >
                         All day event
                     </label>
                 </div>
@@ -133,6 +133,7 @@ function toggleTimeFields() {
         field.style.display = isAllDay ? 'none' : 'block';
     });
 }
+document.getElementById('id_is_all_day').addEventListener('change', toggleTimeFields);
 // Run on page load
 toggleTimeFields();
 </script>

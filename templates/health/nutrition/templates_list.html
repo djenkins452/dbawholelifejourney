@@ -92,7 +92,7 @@
     <div class="nutrition-modal-content">
         <header class="nutrition-modal-header">
             <h2 id="apply-template-title">Log Template</h2>
-            <button type="button" class="nutrition-modal-close" onclick="document.getElementById('apply-template-modal').close()" aria-label="Close">&times;</button>
+            <button type="button" class="nutrition-modal-close" data-close-modal aria-label="Close">&times;</button>
         </header>
         <div class="nutrition-modal-body">
             <p class="apply-template-name text-muted"></p>
@@ -102,7 +102,7 @@
             </div>
         </div>
         <footer class="nutrition-modal-footer">
-            <button type="button" class="btn btn-secondary" onclick="document.getElementById('apply-template-modal').close()">Cancel</button>
+            <button type="button" class="btn btn-secondary" data-close-modal>Cancel</button>
             <button type="button" class="btn btn-primary" id="apply-template-confirm">Log Template</button>
         </footer>
     </div>
@@ -297,6 +297,15 @@
     var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
                     document.cookie.split('csrftoken=')[1]?.split(';')[0] || '';
     var todayISO = new Date().toISOString().split('T')[0];
+
+    // Close modal buttons (data-close-modal)
+    document.addEventListener('click', function(e) {
+        var btn = e.target.closest('[data-close-modal]');
+        if (btn) {
+            var dialog = btn.closest('dialog');
+            if (dialog) dialog.close();
+        }
+    });
 
     function toast(msg, type) {
         if (typeof window.showToast === 'function') {

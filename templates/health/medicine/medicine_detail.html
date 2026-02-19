@@ -232,7 +232,7 @@
             <button type="submit" class="btn btn-primary">Resume Medicine</button>
         </form>
         {% endif %}
-        <form method="post" action="{% url 'health:medicine_delete' pk=medicine.pk %}" class="inline-form" onsubmit="return confirm('Are you sure you want to delete {{ medicine.name }}?');">
+        <form method="post" action="{% url 'health:medicine_delete' pk=medicine.pk %}" class="inline-form" data-confirm="Are you sure you want to delete {{ medicine.name }}?">
             {% csrf_token %}
             <button type="submit" class="btn btn-danger">Delete</button>
         </form>

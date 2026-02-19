@@ -59,7 +59,7 @@
             </div>
             <div class="bookmark-actions">
                 <form method="post" action="{% url 'faith:bookmark_delete' pk=bookmark.pk %}" class="inline-form"
-                      onsubmit="return confirm('Remove this bookmark?');">
+                      data-confirm="Remove this bookmark?">
                     {% csrf_token %}
                     <button type="submit" class="btn btn-ghost btn-sm text-error">Remove</button>
                 </form>

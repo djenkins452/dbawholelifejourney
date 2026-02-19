@@ -113,7 +113,7 @@
     {% endif %}
 
     <div class="actions-bar">
-        <form method="post" action="{% url 'medical:result_delete' pk=result.pk %}" onsubmit="return confirm('Delete this result?');">
+        <form method="post" action="{% url 'medical:result_delete' pk=result.pk %}" data-confirm="Delete this result?">
             {% csrf_token %}
             <button type="submit" class="btn btn-sm btn-danger">Delete Result</button>
         </form>

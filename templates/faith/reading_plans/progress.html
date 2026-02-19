@@ -38,7 +38,7 @@
                 </form>
                 {% endif %}
                 <form method="post" action="{% url 'faith:abandon_reading_plan' pk=user_plan.pk %}" class="inline-form"
-                      onsubmit="return confirm('Are you sure you want to abandon this reading plan?');">
+                      data-confirm="Are you sure you want to abandon this reading plan?">
                     {% csrf_token %}
                     <button type="submit" class="btn btn-ghost btn-sm text-error">Remove Plan</button>
                 </form>

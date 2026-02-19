@@ -56,7 +56,7 @@
                     {% csrf_token %}
                     <button type="submit" class="btn btn-primary btn-sm">Yes, mark complete</button>
                 </form>
-                <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('milestone-suggestion').remove()">Not yet</button>
+                <button type="button" class="btn btn-ghost btn-sm" id="dismiss-milestone-btn">Not yet</button>
             </div>
         </div>
         {% endif %}
@@ -376,4 +376,16 @@
     }
 }
 </style>
+
+<script nonce="{{ csp_nonce }}">
+(function() {
+    var dismissBtn = document.getElementById('dismiss-milestone-btn');
+    if (dismissBtn) {
+        dismissBtn.addEventListener('click', function() {
+            var el = document.getElementById('milestone-suggestion');
+            if (el) el.remove();
+        });
+    }
+})();
+</script>
 {% endblock %}

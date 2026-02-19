@@ -45,7 +45,7 @@
     <div class="event-grid" data-bulk-container data-bulk-delete-url="{% url 'life:significant_event_bulk_delete' %}" data-item-type="event" data-item-type-plural="events">
         {% for event in events %}
         <a href="{{ event.get_absolute_url }}" class="event-card {% if event.days_until == 0 %}today{% elif event.days_until <= 7 %}soon{% endif %}" data-bulk-item data-item-id="{{ event.pk }}">
-            <input type="checkbox" data-item-checkbox class="bulk-checkbox item-checkbox" onclick="event.stopPropagation(); event.preventDefault();">
+            <input type="checkbox" data-item-checkbox class="bulk-checkbox item-checkbox click-stop">
             <div class="event-icon">
                 {% if event.event_type == 'birthday' %}🎂
                 {% elif event.event_type == 'anniversary' %}💍

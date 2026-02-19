@@ -84,7 +84,7 @@
             </thead>
             <tbody>
                 {% for entry in entries %}
-                <tr style="cursor: pointer;" onclick="window.location='{% url 'capture:detail' entry.pk %}'">
+                <tr style="cursor: pointer;" data-row-link="{% url 'capture:detail' entry.pk %}">
                     <td>
                         <a href="{% url 'capture:detail' entry.pk %}" style="text-decoration: none; color: inherit;">
                             <div style="font-weight: 500;">
@@ -146,7 +146,7 @@
                         <div>{{ entry.created_at|date:"M d, Y" }}</div>
                         <div style="font-size: 0.75rem; color: var(--color-text-secondary);">{{ entry.created_at|time:"g:i A" }}</div>
                     </td>
-                    <td onclick="event.stopPropagation();">
+                    <td class="click-stop">
                         <div class="action-icons">
                             {% if entry.audio_file_url and entry.status == 'ready' %}
                             <button type="button" class="btn-icon play-btn" data-audio-url="{{ entry.audio_file_url }}" data-entry-title="{{ entry.title|default:'Untitled Recording' }}" title="Play audio">
@@ -416,8 +416,16 @@
 </style>
 
 <script nonce="{{ csp_nonce }}">
+    // Row click navigation
+    document.addEventListener('click', function(e) {
+        var row = e.target.closest('[data-row-link]');
+        if (row && !e.target.closest('.click-stop')) {
+            window.location = row.dataset.rowLink;
+        }
+    });
+
     document.addEventListener('DOMContentLoaded', function() {
-        const deleteModal = document.getElementById('delete-modal');
+        var deleteModal = document.getElementById('delete-modal');
         const deleteModalBackdrop = document.getElementById('delete-modal-backdrop');
         const deleteModalClose = document.getElementById('delete-modal-close');
         const deleteCancelBtn = document.getElementById('delete-cancel-btn');

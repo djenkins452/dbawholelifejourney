@@ -81,7 +81,7 @@
 
     <!-- Delete Form -->
     <div class="danger-zone mt-8">
-        <form method="post" action="{% url 'health:template_delete' template.pk %}" onsubmit="return confirm('Delete this template? This cannot be undone.');">
+        <form method="post" action="{% url 'health:template_delete' template.pk %}" data-confirm="Delete this template? This cannot be undone.">
             {% csrf_token %}
             <button type="submit" class="btn btn-danger">Delete Template</button>
         </form>

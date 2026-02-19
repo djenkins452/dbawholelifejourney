@@ -63,19 +63,20 @@
                 </div>
                 <div class="connection-actions">
                     {% if connection.connection_status == 'reauth_required' %}
-                    <button class="btn btn-warning btn-sm"
-                            onclick="reconnectBank({{ connection.pk }})">
+                    <button class="btn btn-warning btn-sm btn-reconnect-bank"
+                            data-connection-id="{{ connection.pk }}">
                         Reconnect
                     </button>
                     {% elif connection.connection_status == 'active' %}
-                    <button class="btn btn-secondary btn-sm"
-                            onclick="syncConnection({{ connection.pk }})"
+                    <button class="btn btn-secondary btn-sm btn-sync-connection"
+                            data-connection-id="{{ connection.pk }}"
                             id="sync-btn-{{ connection.pk }}">
                         Sync Now
                     </button>
                     {% endif %}
-                    <button class="btn btn-outline btn-sm btn-danger"
-                            onclick="disconnectBank({{ connection.pk }}, '{{ connection.institution_name }}')">
+                    <button class="btn btn-outline btn-sm btn-danger btn-disconnect-bank"
+                            data-connection-id="{{ connection.pk }}"
+                            data-institution-name="{{ connection.institution_name }}">
                         Disconnect
                     </button>
                 </div>
@@ -108,7 +109,7 @@
     {% if plaid_configured %}
     <!-- Add Bank Button -->
     <div class="add-bank-section">
-        <button id="connect-bank-btn" class="btn btn-primary btn-lg" onclick="connectBank()">
+        <button id="connect-bank-btn" class="btn btn-primary btn-lg">
             + Connect a Bank
         </button>
         <p class="security-note">
@@ -279,6 +280,19 @@ async function disconnectBank(connectionId, institutionName) {
         alert('Failed to disconnect. Please try again.');
     }
 }
+
+// Event delegation for bank action buttons
+document.addEventListener('click', function(e) {
+    var btn;
+    btn = e.target.closest('#connect-bank-btn');
+    if (btn) { connectBank(); return; }
+    btn = e.target.closest('.btn-reconnect-bank');
+    if (btn) { reconnectBank(btn.dataset.connectionId); return; }
+    btn = e.target.closest('.btn-sync-connection');
+    if (btn) { syncConnection(btn.dataset.connectionId); return; }
+    btn = e.target.closest('.btn-disconnect-bank');
+    if (btn) { disconnectBank(btn.dataset.connectionId, btn.dataset.institutionName); return; }
+});
 </script>
 
 <style nonce="{{ csp_nonce }}">

@@ -171,7 +171,7 @@
                 {% endif %}
                 <div class="staff-actions">
                     <a href="{% url 'health:staff_update' pk=staff.pk %}" class="btn btn-text btn-sm">Edit</a>
-                    <form method="post" action="{% url 'health:staff_delete' pk=staff.pk %}" class="inline-form" onsubmit="return confirm('Remove {{ staff.name }} from staff list?');">
+                    <form method="post" action="{% url 'health:staff_delete' pk=staff.pk %}" class="inline-form" data-confirm="Remove {{ staff.name }} from staff list?">
                         {% csrf_token %}
                         <button type="submit" class="btn btn-text btn-sm text-error">Remove</button>
                     </form>
@@ -187,7 +187,7 @@
     <!-- Actions -->
     <div class="provider-actions mt-6">
         <a href="{% url 'health:provider_update' pk=provider.pk %}" class="btn btn-secondary">Edit Provider</a>
-        <form method="post" action="{% url 'health:provider_delete' pk=provider.pk %}" class="inline-form" onsubmit="return confirm('Delete {{ provider.name }}? This will also remove all associated staff.');">
+        <form method="post" action="{% url 'health:provider_delete' pk=provider.pk %}" class="inline-form" data-confirm="Delete {{ provider.name }}? This will also remove all associated staff.">
             {% csrf_token %}
             <button type="submit" class="btn btn-danger">Delete Provider</button>
         </form>

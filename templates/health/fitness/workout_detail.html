@@ -142,7 +142,7 @@
 
     <!-- Delete Form -->
     <div class="danger-zone mt-8">
-        <form method="post" action="{% url 'health:workout_delete' workout.pk %}" onsubmit="return confirm('Delete this workout? This cannot be undone.');">
+        <form method="post" action="{% url 'health:workout_delete' workout.pk %}" data-confirm="Delete this workout? This cannot be undone.">
             {% csrf_token %}
             <button type="submit" class="btn btn-danger">Delete Workout</button>
         </form>

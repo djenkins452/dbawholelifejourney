@@ -771,4 +771,23 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
     });
+
+    // --- CLICK delegation for stop-propagation (.click-stop) ---
+    // Elements with class "click-stop" prevent click from bubbling to parent
+    // Used for checkboxes/buttons inside clickable rows/cards
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.click-stop')) {
+            e.stopPropagation();
+        }
+    }, true); // Use capture phase so it runs before other click handlers
+
+    // --- CLICK delegation for closing modals (data-close-modal) ---
+    // Buttons with data-close-modal close the nearest parent <dialog>
+    document.addEventListener('click', function(e) {
+        var btn = e.target.closest('[data-close-modal]');
+        if (btn) {
+            var dialog = btn.closest('dialog');
+            if (dialog) dialog.close();
+        }
+    });
 })();

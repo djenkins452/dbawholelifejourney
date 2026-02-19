@@ -9,6 +9,24 @@
 
 # WLJ Change History
 
+## 2026-02-18
+
+- **CSP Phase 3: Remove ALL remaining inline event handlers across templates**
+  - Converted all `onsubmit="return confirm('...')"` to `data-confirm="..."` attribute (handled by main.js global submit delegation)
+  - Converted all `onchange="this.form.submit()"` to `data-auto-submit` attribute (handled by main.js global change delegation)
+  - Converted all `onchange="location.href='?param='+this.value"` to `data-navigate-param="param"` attribute (handled by main.js global change delegation)
+  - Converted all `onclick="event.stopPropagation()"` to `click-stop` CSS class with new global capture-phase delegation in main.js
+  - Converted all modal close `onclick` handlers to `data-close-modal` / `data-close-*-modal` attributes with delegation
+  - Converted all page-specific function calls (showModal, toggleRename, etc.) from inline `onclick` to `addEventListener` in page script blocks
+  - Added two new global handlers to `static/js/main.js`: `.click-stop` (capture phase stopPropagation) and `[data-close-modal]` (close nearest `<dialog>`)
+  - **Health module:** `food_entry_detail.html`, `_food_entry_row.html`, `history.html`, `custom_food_list.html`, `templates_list.html`, `home.html` (8 modal close buttons), `fasting_form.html`, `glucose/list.html`, `fitness/workout_detail.html`, `fitness/template_detail.html`, `fitness/progress.html`, `medicine/quick_look.html`, `medicine/history.html`, `medicine/medicine_detail.html`, `medicine/medicine_schedules.html`, `providers/provider_detail.html`
+  - **Medical module:** `labs_summary.html` (edu modal open/close), `document_detail.html` (rename toggle), `result_detail.html`, `import_detail.html`
+  - **Faith module:** `scripture_list.html` (save modal + delete confirm), `saved_verse_form.html`, `prayer_detail.html` (answer modal), `reading_plans/progress.html`, `reading_plans/list.html`, `study_tools/bookmark_list.html`, `study_tools/highlight_list.html`, `study_tools/note_detail.html`, `study_tools/note_list.html`
+  - **Life module:** `event_form.html`, `inventory_list.html`, `inventory_photo_form.html`, `project_detail.html`, `significant_event_list.html`, `task_form.html`, `maintenance_list.html`, `recipe_list.html`, `document_list.html`, `home.html`
+  - **Other modules:** `ai_insights/inbox.html`, `journal/entry_detail.html`, `capture/capture_list.html`, `finance/bank_connection_list.html`, `admin_console/admin_project_form_popup.html`, `admin_console/theme_form.html`
+  - **main.js:** Added `.click-stop` and `[data-close-modal]` global delegation handlers
+  - Zero inline `onclick`, `onchange`, or `onsubmit` attributes remain in any active `.html` template
+
 ## 2026-02-19
 
 - **Fix: CoS Unification Pass — missed items**

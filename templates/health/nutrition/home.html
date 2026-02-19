@@ -291,7 +291,7 @@
     <div class="nutrition-modal-content">
         <header class="nutrition-modal-header">
             <h2 id="copy-entry-title">Copy Entry</h2>
-            <button type="button" class="nutrition-modal-close" onclick="document.getElementById('copy-entry-modal').close()" aria-label="Close">&times;</button>
+            <button type="button" class="nutrition-modal-close" data-close-modal aria-label="Close">&times;</button>
         </header>
         <div class="nutrition-modal-body">
             <p class="copy-entry-name text-muted"></p>
@@ -310,7 +310,7 @@
             </div>
         </div>
         <footer class="nutrition-modal-footer">
-            <button type="button" class="btn btn-secondary" onclick="document.getElementById('copy-entry-modal').close()">Cancel</button>
+            <button type="button" class="btn btn-secondary" data-close-modal>Cancel</button>
             <button type="button" class="btn btn-primary" id="copy-entry-confirm">Copy</button>
         </footer>
     </div>
@@ -321,7 +321,7 @@
     <div class="nutrition-modal-content">
         <header class="nutrition-modal-header">
             <h2 id="copy-meal-title">Copy Meal</h2>
-            <button type="button" class="nutrition-modal-close" onclick="document.getElementById('copy-meal-modal').close()" aria-label="Close">&times;</button>
+            <button type="button" class="nutrition-modal-close" data-close-modal aria-label="Close">&times;</button>
         </header>
         <div class="nutrition-modal-body">
             <p class="copy-meal-name text-muted"></p>
@@ -340,7 +340,7 @@
             </div>
         </div>
         <footer class="nutrition-modal-footer">
-            <button type="button" class="btn btn-secondary" onclick="document.getElementById('copy-meal-modal').close()">Cancel</button>
+            <button type="button" class="btn btn-secondary" data-close-modal>Cancel</button>
             <button type="button" class="btn btn-primary" id="copy-meal-confirm">Copy</button>
         </footer>
     </div>
@@ -351,7 +351,7 @@
     <div class="nutrition-modal-content">
         <header class="nutrition-modal-header">
             <h2 id="copy-day-title">Copy Day</h2>
-            <button type="button" class="nutrition-modal-close" onclick="document.getElementById('copy-day-modal').close()" aria-label="Close">&times;</button>
+            <button type="button" class="nutrition-modal-close" data-close-modal aria-label="Close">&times;</button>
         </header>
         <div class="nutrition-modal-body">
             <p class="text-muted">Copy all entries from <strong>{{ view_date|date:"M j" }}</strong> to another day.</p>
@@ -374,7 +374,7 @@
             </div>
         </div>
         <footer class="nutrition-modal-footer">
-            <button type="button" class="btn btn-secondary" onclick="document.getElementById('copy-day-modal').close()">Cancel</button>
+            <button type="button" class="btn btn-secondary" data-close-modal>Cancel</button>
             <button type="button" class="btn btn-primary" id="copy-day-confirm">Copy Day</button>
         </footer>
     </div>
@@ -385,7 +385,7 @@
     <div class="nutrition-modal-content">
         <header class="nutrition-modal-header">
             <h2 id="save-template-title">Save as Template</h2>
-            <button type="button" class="nutrition-modal-close" onclick="document.getElementById('save-template-modal').close()" aria-label="Close">&times;</button>
+            <button type="button" class="nutrition-modal-close" data-close-modal aria-label="Close">&times;</button>
         </header>
         <div class="nutrition-modal-body">
             <p class="save-template-desc text-muted"></p>
@@ -396,7 +396,7 @@
             </div>
         </div>
         <footer class="nutrition-modal-footer">
-            <button type="button" class="btn btn-secondary" onclick="document.getElementById('save-template-modal').close()">Cancel</button>
+            <button type="button" class="btn btn-secondary" data-close-modal>Cancel</button>
             <button type="button" class="btn btn-primary" id="save-template-confirm">Save Template</button>
         </footer>
     </div>
@@ -951,6 +951,15 @@
                     document.cookie.split('csrftoken=')[1]?.split(';')[0] || '';
     var viewDate = '{{ view_date|date:"Y-m-d" }}';
     var todayISO = new Date().toISOString().split('T')[0];
+
+    // Close modal buttons (data-close-modal)
+    document.addEventListener('click', function(e) {
+        var btn = e.target.closest('[data-close-modal]');
+        if (btn) {
+            var dialog = btn.closest('dialog');
+            if (dialog) dialog.close();
+        }
+    });
 
     function toast(msg, type) {
         if (typeof window.showToast === 'function') {

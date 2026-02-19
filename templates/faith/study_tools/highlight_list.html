@@ -24,7 +24,7 @@
     <div class="filters mb-6">
         <div class="filter-group">
             <label for="color-filter">Color:</label>
-            <select id="color-filter" onchange="applyFilters()" class="form-select">
+            <select id="color-filter" class="form-select">
                 <option value="">All Colors</option>
                 {% for value, label in color_choices %}
                 <option value="{{ value }}" {% if selected_color == value %}selected{% endif %}>
@@ -35,7 +35,7 @@
         </div>
         <div class="filter-group">
             <label for="book-filter">Book:</label>
-            <select id="book-filter" onchange="applyFilters()" class="form-select">
+            <select id="book-filter" class="form-select">
                 <option value="">All Books</option>
                 {% for book in available_books %}
                 <option value="{{ book }}" {% if selected_book == book %}selected{% endif %}>
@@ -70,7 +70,7 @@
             <div class="highlight-footer">
                 <span class="highlight-date">{{ highlight.created_at|date:"M j, Y" }}</span>
                 <form method="post" action="{% url 'faith:highlight_delete' pk=highlight.pk %}" class="inline-form"
-                      onsubmit="return confirm('Remove this highlight?');">
+                      data-confirm="Remove this highlight?">
                     {% csrf_token %}
                     <button type="submit" class="btn btn-ghost btn-sm text-error">Remove</button>
                 </form>
@@ -108,13 +108,16 @@
 
 <script nonce="{{ csp_nonce }}">
 function applyFilters() {
-    const color = document.getElementById('color-filter').value;
-    const book = document.getElementById('book-filter').value;
-    let url = '?';
+    var color = document.getElementById('color-filter').value;
+    var book = document.getElementById('book-filter').value;
+    var url = '?';
     if (color) url += 'color=' + encodeURIComponent(color) + '&';
     if (book) url += 'book=' + encodeURIComponent(book) + '&';
     window.location.href = url.slice(0, -1) || '?';
 }
+
+document.getElementById('color-filter').addEventListener('change', applyFilters);
+document.getElementById('book-filter').addEventListener('change', applyFilters);
 </script>
 
 <style nonce="{{ csp_nonce }}">

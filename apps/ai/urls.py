@@ -52,4 +52,7 @@ urlpatterns = [
 
     # Event Reflections (Post-Event Check-ins)
     path('api/event-reflection/', views.EventReflectionView.as_view(), name='api_event_reflection'),
+
+    # Temporary debug endpoint (remove after calibration is working)
+    path('api/calibration-debug/', views.CalibrationDebugView.as_view(), name='api_calibration_debug'),
 ]

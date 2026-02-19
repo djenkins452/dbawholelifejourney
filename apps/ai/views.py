@@ -42,6 +42,46 @@ from .services import AIService
 logger = logging.getLogger(__name__)
 
 
+class CalibrationDebugView(LoginRequiredMixin, View):
+    """Temporary debug view to check calibration state in production."""
+
+    def get(self, request, *args, **kwargs):
+        if not request.user.is_staff:
+            return JsonResponse({'error': 'staff only'}, status=403)
+        try:
+            from apps.core.blueprint.cos_governance import get_calibration_state
+            from apps.core.blueprint.models import PersonalOperatingBlueprint
+            from apps.core.ai_governance.models import GovernanceAlignmentSession
+
+            cal_state = get_calibration_state(request.user)
+            blueprint = PersonalOperatingBlueprint.objects.filter(
+                user=request.user).first()
+            alignment = GovernanceAlignmentSession.objects.filter(
+                user=request.user).first()
+            prefs = request.user.preferences
+
+            return JsonResponse({
+                'calibration_state': cal_state,
+                'blueprint_exists': blueprint is not None,
+                'calibration_complete': blueprint.calibration_complete if blueprint else None,
+                'governance_overrides_keys': list(
+                    (blueprint.governance_overrides or {}).keys()
+                ) if blueprint else None,
+                'calibration_stage': (blueprint.governance_overrides or {}).get(
+                    'calibration_stage') if blueprint else None,
+                'calibration_welcome_shown': (blueprint.governance_overrides or {}).get(
+                    'calibration_welcome_shown') if blueprint else None,
+                'calibration_answers': (blueprint.governance_overrides or {}).get(
+                    'calibration_answers') if blueprint else None,
+                'alignment_session_exists': alignment is not None,
+                'alignment_is_complete': alignment.is_complete if alignment else None,
+                'pa_enabled': prefs.personal_assistant_enabled,
+                'pa_consent': prefs.personal_assistant_consent,
+            })
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
+
+
 class AssistantMixin:
     """Mixin providing common assistant functionality."""
 

@@ -66,8 +66,57 @@ class APIClient {
 
     // MARK: - Health Data Ingestion
 
-    /// Submit health metrics to the server.
+    /// Maximum metrics per batch to avoid server timeouts.
+    /// CGM devices can produce ~2000 glucose readings per week, so batching is essential.
+    private let batchSize = 500
+
+    /// Submit health metrics to the server in batches.
+    /// Splits large payloads into chunks of 500 to prevent request timeouts.
     func submitHealthMetrics(_ metrics: [HealthMetric]) async throws -> IngestionResponse {
+        guard KeychainManager.shared.getAPIToken() != nil else {
+            throw APIError.notAuthenticated
+        }
+
+        // Small payloads: send in one request
+        if metrics.count <= batchSize {
+            return try await submitBatch(metrics)
+        }
+
+        // Large payloads: split into batches and aggregate results
+        var totalCreated = 0
+        var totalUpdated = 0
+        var totalSkipped = 0
+        var totalErrors: [IngestionError] = []
+        var lastIngestionId = 0
+
+        let batches = stride(from: 0, to: metrics.count, by: batchSize).map {
+            Array(metrics[$0..<min($0 + batchSize, metrics.count)])
+        }
+
+        print("Submitting \(metrics.count) metrics in \(batches.count) batches of ≤\(batchSize)")
+
+        for (i, batch) in batches.enumerated() {
+            print("  Batch \(i + 1)/\(batches.count): \(batch.count) metrics")
+            let response = try await submitBatch(batch)
+            totalCreated += response.created
+            totalUpdated += response.updated
+            totalSkipped += response.skipped
+            totalErrors.append(contentsOf: response.errors)
+            lastIngestionId = response.ingestionId
+        }
+
+        return IngestionResponse(
+            success: totalErrors.isEmpty,
+            ingestionId: lastIngestionId,
+            created: totalCreated,
+            updated: totalUpdated,
+            skipped: totalSkipped,
+            errors: totalErrors
+        )
+    }
+
+    /// Submit a single batch of metrics to the server.
+    private func submitBatch(_ metrics: [HealthMetric]) async throws -> IngestionResponse {
         guard let token = KeychainManager.shared.getAPIToken() else {
             throw APIError.notAuthenticated
         }

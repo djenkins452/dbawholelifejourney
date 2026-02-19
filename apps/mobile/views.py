@@ -418,6 +418,22 @@ def health_ingest(request):
 
     ingestion_run.mark_processing()
 
+    # Pre-fetch existing sync_ids for high-volume metric types (e.g. CGM glucose).
+    # This replaces N individual DB queries with 1 bulk query per type.
+    glucose_sync_ids = set(
+        metric.get("sync_id", "")
+        for metric in metrics
+        if metric.get("type", "").lower() == "blood_glucose" and metric.get("sync_id")
+    )
+    existing_glucose_sync_ids = set()
+    if glucose_sync_ids:
+        existing_glucose_sync_ids = set(
+            GlucoseEntry.objects.filter(
+                user=user,
+                sync_id__in=glucose_sync_ids,
+            ).values_list("sync_id", flat=True)
+        )
+
     # Process metrics
     created = 0
     updated = 0
@@ -426,7 +442,7 @@ def health_ingest(request):
 
     for i, metric in enumerate(metrics):
         try:
-            result = process_health_metric(user, metric)
+            result = process_health_metric(user, metric, existing_glucose_sync_ids)
             if result == "created":
                 created += 1
             elif result == "updated":
@@ -473,12 +489,17 @@ def health_ingest(request):
     })
 
 
-def process_health_metric(user, metric):
+def process_health_metric(user, metric, existing_glucose_sync_ids=None):
     """
     Process a single health metric.
 
     Returns: "created", "updated", or "skipped"
     Raises: ValueError if invalid
+
+    Args:
+        existing_glucose_sync_ids: Pre-fetched set of sync_ids that already exist
+            in GlucoseEntry for this user. Used to skip DB queries for unchanged
+            CGM readings (which can number 2000+ per sync).
     """
     metric_type = metric.get("type", "").lower()
     metric_date = metric.get("date")
@@ -535,6 +556,10 @@ def process_health_metric(user, metric):
     handler = handlers.get(metric_type)
     if not handler:
         raise ValueError(f"Unknown metric type: {metric_type}")
+
+    # For blood glucose, pass the pre-fetched sync_id cache
+    if metric_type == "blood_glucose" and existing_glucose_sync_ids is not None:
+        return handler(user, metric_date, source, sync_id, metric, existing_glucose_sync_ids)
 
     return handler(user, metric_date, source, sync_id, metric)
 
@@ -862,7 +887,7 @@ def process_heart_rate_metric(user, metric_date, source, sync_id, data):
     return "created"
 
 
-def process_blood_glucose_metric(user, metric_date, source, sync_id, data):
+def process_blood_glucose_metric(user, metric_date, source, sync_id, data, existing_sync_ids=None):
     """
     Process blood glucose metric from Apple HealthKit.
 
@@ -872,6 +897,11 @@ def process_blood_glucose_metric(user, metric_date, source, sync_id, data):
     - recorded_at (datetime)
     - source, sync_id for deduplication
     - context defaults to 'cgm' for synced data
+
+    Args:
+        existing_sync_ids: Pre-fetched set of sync_ids already in the DB.
+            When provided, readings with unchanged sync_ids skip the DB
+            entirely. This is critical for CGM data (~2000 readings/week).
     """
     # For blood glucose, the date field is actually a timestamp
     glucose_value = data.get("glucose_value")
@@ -918,8 +948,12 @@ def process_blood_glucose_metric(user, metric_date, source, sync_id, data):
     else:
         recorded_at = timezone.now()
 
-    # Check for existing entry with same sync_id
-    if sync_id:
+    # Fast path: if sync_id exists in pre-fetched cache, skip (already in DB, unchanged)
+    if sync_id and existing_sync_ids is not None and sync_id in existing_sync_ids:
+        return "skipped"
+
+    # Check for existing entry with same sync_id (fallback if no cache)
+    if sync_id and existing_sync_ids is None:
         existing = GlucoseEntry.objects.filter(
             user=user,
             sync_id=sync_id,

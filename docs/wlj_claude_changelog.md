@@ -31,6 +31,11 @@
   - Added 3 missing `HKWorkoutActivityType` cases to exhaustive switch in `HealthKitManager.swift`: `danceInspiredTraining` (deprecated), `mixedMetabolicCardioTraining` (deprecated), `other` (3000)
   - Files: `ios/WLJWrapper/WLJWrapper/WLJWrapper.entitlements`, `ios/WLJWrapper/WLJWrapper/Services/HealthKitManager.swift`
 
+- **Fix health data sync timeout (CGM data volume)** — POST to `/api/mobile/health/ingest/` was timing out because CGM devices produce ~2000 glucose readings per week, all sent in a single request causing 4000+ individual DB queries
+  - **iOS**: Added batched submission — `submitHealthMetrics` now chunks metrics into batches of 500, sends each as a separate request, and aggregates results. Prevents request timeouts for large payloads.
+  - **Server**: Added bulk sync_id pre-fetch for glucose metrics — single query fetches all existing sync_ids upfront, then each glucose reading does an O(1) set lookup instead of a DB query. Unchanged readings (majority on re-sync) skip the DB entirely.
+  - Files: `ios/WLJWrapper/WLJWrapper/Services/APIClient.swift`, `apps/mobile/views.py`
+
 - **Full documentation audit and catch-up — all user-facing docs updated**
   - **CLAUDE.md**: Added mandatory documentation maintenance checklist (release notes, help topics, teaching destinations, features doc, fixture resets) to "On Task Completion" section so docs never fall behind again
   - **Release notes** (`release_notes.json`): Added 5 missing entries (PKs 52-56) — Voice Conversation Mode, Relationship Tracking, Workout Plans & Training Splits, Post-Event Reflection Check-ins, Smart Scheduling with Conflict Detection

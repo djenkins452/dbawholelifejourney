@@ -21,6 +21,9 @@ Public API:
     - should_ask_question(user, question_category) -> bool
     - record_governance_interaction(user, question_category, user_response) -> None
     - get_calibration_question(user) -> dict or None
+    - mark_calibration_question_asked(user, phase_key, question_text) -> None
+    - get_ongoing_relationship_question(user) -> dict or None
+    - mark_ongoing_question_shown(user, category) -> None
     - build_governance_instructions(user) -> str
     - advance_calibration_day(user) -> None
 
@@ -402,6 +405,210 @@ def advance_calibration_day(user):
     blueprint.save(update_fields=[
         'calibration_day', 'calibration_complete', 'updated_at',
     ])
+
+
+def mark_calibration_question_asked(user, phase_key, question_text):
+    """
+    Record that a calibration question was surfaced to the user.
+
+    Writes to governance_overrides['calibration_asked'] to prevent the same
+    question from being shown again. Also creates an InterventionLog entry
+    so _get_today_question_count() reflects the daily cap.
+    """
+    blueprint = _get_blueprint(user)
+    if not blueprint:
+        return
+
+    overrides = blueprint.governance_overrides or {}
+    asked = overrides.get('calibration_asked', [])
+    q_key = f"{phase_key}:{question_text[:30]}"
+    if q_key not in asked:
+        asked.append(q_key)
+        overrides['calibration_asked'] = asked
+        blueprint.governance_overrides = overrides
+        blueprint.save(update_fields=['governance_overrides', 'updated_at'])
+
+    # Record in InterventionLog so daily cap is respected
+    try:
+        from .models import InterventionLog
+        InterventionLog.objects.create(
+            user=user,
+            level=InterventionLog.LEVEL_NUDGE,
+            trigger_type='governance_calibration',
+            behavior_key=phase_key,
+            message=question_text,
+        )
+    except Exception as e:
+        logger.debug("InterventionLog write skipped: %s", e)
+
+
+def mark_ongoing_question_shown(user, category):
+    """
+    Record that an ongoing relationship question was shown today.
+
+    Sets last_cos_question_date to today and appends the category
+    to ongoing_asked (capped at 20 entries for rotation).
+    """
+    blueprint = _get_blueprint(user)
+    if not blueprint:
+        return
+
+    overrides = blueprint.governance_overrides or {}
+    overrides['last_cos_question_date'] = timezone.now().date().isoformat()
+
+    ongoing_asked = overrides.get('ongoing_asked', [])
+    if category not in ongoing_asked:
+        ongoing_asked.append(category)
+    # Cap at 20 — when full, oldest categories become eligible again
+    if len(ongoing_asked) > 20:
+        ongoing_asked = ongoing_asked[-20:]
+    overrides['ongoing_asked'] = ongoing_asked
+
+    blueprint.governance_overrides = overrides
+    blueprint.save(update_fields=['governance_overrides', 'updated_at'])
+
+    # Record in InterventionLog for daily cap
+    try:
+        from .models import InterventionLog
+        InterventionLog.objects.create(
+            user=user,
+            level=InterventionLog.LEVEL_NUDGE,
+            trigger_type='governance_ongoing',
+            behavior_key=category,
+            message=f'Ongoing relationship question: {category}',
+        )
+    except Exception as e:
+        logger.debug("InterventionLog write skipped: %s", e)
+
+
+# Ongoing relationship questions — used after calibration is complete.
+# Priority: profile gaps first, then relationship follow-ups, then contextual.
+ONGOING_QUESTIONS = [
+    {
+        'category': 'motivational_triggers',
+        'profile_field': 'motivational_triggers',
+        'question': "What gets you energized to push through hard days?",
+        'follow_up': "I'll keep that in mind when things get tough.",
+        'meaning_type': 'motivational_trigger',
+    },
+    {
+        'category': 'identity_statements',
+        'profile_field': 'identity_statements',
+        'question': "How would you describe yourself at your best?",
+        'follow_up': "That's a strong identity anchor.",
+        'meaning_type': 'identity_statement',
+    },
+    {
+        'category': 'avoidance_patterns',
+        'profile_field': 'avoidance_patterns',
+        'question': "Is there something you keep putting off that you wish you'd tackle?",
+        'follow_up': "I'll help you build momentum toward it.",
+        'meaning_type': 'avoidance_pattern',
+    },
+    {
+        'category': 'stated_values',
+        'profile_field': 'stated_values',
+        'question': "What matters most to you right now — what are you protecting?",
+        'follow_up': "I'll make sure those stay front and center.",
+        'meaning_type': 'stated_value',
+    },
+    {
+        'category': 'recurring_goals',
+        'profile_field': 'recurring_goals',
+        'question': "What's one thing you're working toward that you'd like me to help track?",
+        'follow_up': "I'll keep an eye on that for you.",
+        'meaning_type': 'recurring_goal',
+    },
+]
+
+
+def get_ongoing_relationship_question(user):
+    """
+    Generate a relationship-building question after calibration is complete.
+
+    Priority:
+    1. Profile gaps (categories with no data yet)
+    2. Relationship follow-up (if relationship_priorities exist)
+    3. Day-of-week contextual questions (Monday / Friday)
+
+    Returns dict with 'question', 'category', 'follow_up', 'meaning_type'
+    or None if no question is appropriate today.
+    """
+    blueprint = _get_blueprint(user)
+    if not blueprint:
+        return None
+
+    # Respect daily cap
+    if not should_ask_question(user, 'ongoing'):
+        return None
+
+    # Only 1 CoS question per calendar day
+    overrides = blueprint.governance_overrides or {}
+    last_question_date = overrides.get('last_cos_question_date')
+    today_str = timezone.now().date().isoformat()
+    if last_question_date == today_str:
+        return None
+
+    declined = overrides.get('declined_categories', [])
+    recently_asked = overrides.get('ongoing_asked', [])
+
+    # Try profile-gap questions first
+    try:
+        from apps.core.ai_learning.learning_extractor import get_learned_profile
+        profile = get_learned_profile(user)
+
+        for q_def in ONGOING_QUESTIONS:
+            category = q_def['category']
+            profile_field = q_def.get('profile_field')
+
+            if category in declined or category in recently_asked:
+                continue
+
+            if profile_field and not getattr(profile, profile_field, []):
+                return {
+                    'question': q_def['question'],
+                    'category': category,
+                    'follow_up': q_def['follow_up'],
+                    'meaning_type': q_def['meaning_type'],
+                }
+
+        # Relationship follow-up — if we know who matters to the user
+        if 'relationship_followup' not in declined \
+                and 'relationship_followup' not in recently_asked:
+            rel_priorities = getattr(profile, 'relationship_priorities', [])
+            if rel_priorities:
+                person = rel_priorities[0].split()[0] if rel_priorities[0] else ''
+                q = (f"How are things going with {person}?"
+                     if person
+                     else "How are things with the people who matter most to you?")
+                return {
+                    'question': q,
+                    'category': 'relationship_followup',
+                    'follow_up': "Good to hear — those connections matter.",
+                    'meaning_type': 'relationship_checkin',
+                }
+
+    except Exception as e:
+        logger.debug("Ongoing question profile check failed: %s", e)
+
+    # Day-of-week contextual fallback
+    day = timezone.now().weekday()  # 0=Monday
+    if day == 0 and 'weekly_intention' not in recently_asked:
+        return {
+            'question': "What's one thing you want to make sure happens this week?",
+            'category': 'weekly_intention',
+            'follow_up': "I'll keep that front of mind.",
+            'meaning_type': 'recurring_goal',
+        }
+    elif day == 4 and 'weekly_reflection' not in recently_asked:
+        return {
+            'question': "What went well this week that you want to remember?",
+            'category': 'weekly_reflection',
+            'follow_up': "Good to note — pattern recognition builds momentum.",
+            'meaning_type': 'stated_value',
+        }
+
+    return None
 
 
 def build_governance_instructions(user):

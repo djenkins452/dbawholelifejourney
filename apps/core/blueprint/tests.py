@@ -1519,6 +1519,88 @@ class PassiveLanguageTests(TestCase):
         self.assertNotIn('No active alerts', content)
 
 
+class CosProactiveQuestionTests(TestCase):
+    """Tests for CoS proactive question surfacing — calibration and ongoing."""
+
+    def setUp(self):
+        self.user = _create_test_user('cos_q_test@example.com')
+
+    def test_calibration_question_returned_before_day_14(self):
+        """get_calibration_question returns question when calibration not complete."""
+        from apps.core.blueprint.cos_governance import get_calibration_question
+        q = get_calibration_question(self.user)
+        self.assertIsNotNone(q)
+        self.assertIn('question', q)
+        self.assertIn('category', q)
+
+    def test_mark_calibration_question_asked_prevents_repeat(self):
+        """After marking a question asked, same question is not returned again."""
+        from apps.core.blueprint.cos_governance import (
+            get_calibration_question,
+            mark_calibration_question_asked,
+        )
+        q1 = get_calibration_question(self.user)
+        self.assertIsNotNone(q1)
+        mark_calibration_question_asked(self.user, q1['category'], q1['question'])
+        q2 = get_calibration_question(self.user)
+        # Should be different question or None (if only one in phase)
+        if q2:
+            self.assertNotEqual(q1['question'], q2['question'])
+
+    def test_no_calibration_question_when_complete(self):
+        """get_calibration_question returns None after calibration complete."""
+        from apps.core.blueprint.models import PersonalOperatingBlueprint
+        from apps.core.blueprint.cos_governance import get_calibration_question
+        blueprint = PersonalOperatingBlueprint.get_or_create_for_user(self.user)
+        blueprint.calibration_complete = True
+        blueprint.save()
+        q = get_calibration_question(self.user)
+        self.assertIsNone(q)
+
+    def test_ongoing_question_returned_after_calibration(self):
+        """get_ongoing_relationship_question returns a question post-calibration."""
+        from apps.core.blueprint.models import PersonalOperatingBlueprint
+        from apps.core.blueprint.cos_governance import get_ongoing_relationship_question
+        blueprint = PersonalOperatingBlueprint.get_or_create_for_user(self.user)
+        blueprint.calibration_complete = True
+        blueprint.save()
+        q = get_ongoing_relationship_question(self.user)
+        # Should return a profile-gap or day-of-week question
+        if q:
+            self.assertIn('question', q)
+            self.assertIn('category', q)
+
+    def test_no_duplicate_question_same_day(self):
+        """A second call on the same day returns None (daily throttle)."""
+        from apps.core.blueprint.models import PersonalOperatingBlueprint
+        from apps.core.blueprint.cos_governance import (
+            get_ongoing_relationship_question,
+            mark_ongoing_question_shown,
+        )
+        blueprint = PersonalOperatingBlueprint.get_or_create_for_user(self.user)
+        blueprint.calibration_complete = True
+        blueprint.save()
+        q = get_ongoing_relationship_question(self.user)
+        if q:
+            mark_ongoing_question_shown(self.user, q['category'])
+            q2 = get_ongoing_relationship_question(self.user)
+            self.assertIsNone(q2)
+
+    def test_mark_ongoing_question_shown_writes_date(self):
+        """mark_ongoing_question_shown sets last_cos_question_date."""
+        from apps.core.blueprint.models import PersonalOperatingBlueprint
+        from apps.core.blueprint.cos_governance import mark_ongoing_question_shown
+        from django.utils import timezone
+        mark_ongoing_question_shown(self.user, 'test_category')
+        blueprint = PersonalOperatingBlueprint.get_or_create_for_user(self.user)
+        overrides = blueprint.governance_overrides or {}
+        self.assertEqual(
+            overrides.get('last_cos_question_date'),
+            timezone.now().date().isoformat(),
+        )
+        self.assertIn('test_category', overrides.get('ongoing_asked', []))
+
+
 class ChatInitializationTests(TestCase):
     """Tests for auto-initialized chat with CoS snapshot."""
 

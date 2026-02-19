@@ -557,6 +557,33 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         except (ImportError, Exception):
             pass
 
+        # CoS proactive question (calibration or ongoing relationship-building)
+        cos_question = None
+        try:
+            from apps.core.blueprint.cos_governance import (
+                get_calibration_question,
+                get_ongoing_relationship_question,
+                mark_calibration_question_asked,
+                mark_ongoing_question_shown,
+            )
+            from apps.core.blueprint.models import PersonalOperatingBlueprint
+            blueprint = PersonalOperatingBlueprint.get_or_create_for_user(user)
+
+            if not blueprint.calibration_complete:
+                raw_q = get_calibration_question(user)
+                if raw_q:
+                    cos_question = raw_q
+                    mark_calibration_question_asked(
+                        user, raw_q['category'], raw_q['question'],
+                    )
+            else:
+                raw_q = get_ongoing_relationship_question(user)
+                if raw_q:
+                    cos_question = raw_q
+                    mark_ongoing_question_shown(user, raw_q['category'])
+        except Exception:
+            cos_question = None
+
         return {
             'active': True,
             'greeting_line': greeting_line,
@@ -570,6 +597,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             'weekly_pressure_summary': weekly_pressure_summary,
             'status_line': status_line,
             'reflections_pending': reflections_pending,
+            'cos_question': cos_question,
         }
 
     def _build_recommended_moves(self, command_brief, alignment, drift_risk, capacity_pct):

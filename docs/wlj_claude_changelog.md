@@ -11,6 +11,14 @@
 
 ## 2026-02-19
 
+- **CoS Proactive Questions + Voice Conversation Mode + Calendar Fix**
+  - **CoS proactive questions**: Chief of Staff now asks getting-to-know-you questions during calibration and ongoing relationship-deepening questions after calibration. Displays as a styled card in command mode with skip option.
+  - **Voice conversation mode**: Mic now stays active through the full speak→AI responds→TTS→speak again cycle. Click mic to enter voice conversation, click again to exit. No more choppy start/stop between each utterance. Works in both command mode and chat widget.
+  - **Chat widget TTS**: Added text-to-speech to the chat drawer widget with preferred voice selection (matching command mode). Auto-speaks AI responses during voice conversation.
+  - **Calendar query fix**: Added 'event'/'calendar' to type_mappings in assistant views so calendar questions route to task data instead of falling through to gap detector and returning irrelevant responses.
+  - **Learned profile in system prompt**: CoS governance now injects learned user profile data (values, sacred items, goals, etc.) into the system prompt for more personalized responses.
+  - Files: `templates/components/cos_command_mode.html`, `templates/components/chat_widget.html`, `static/css/assistant-panel.css`, `apps/core/blueprint/cos_governance.py`, `apps/core/blueprint/tests.py`, `apps/dashboard/views.py`, `assistant/views.py`
+
 - **Voice Conversation Improvements + Dashboard JS Fix**
   - **Voice mode context**: When user speaks via microphone, `voice_input: true` is now passed in page_context to the AI API. System prompt injects voice-mode instructions so AI responds conversationally (no markdown, no bullet points, natural speech) instead of saying "I can't hear you"
   - **TTS voice quality**: Replaced default robotic `SpeechSynthesis` voice with priority-ordered voice selection — prefers Samantha (macOS), Karen, Moira, or Google US English. Falls back to first English non-male voice. Slightly tuned rate (0.95) and pitch (1.05) for warmth

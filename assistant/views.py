@@ -172,6 +172,8 @@ def process_assistant_message(
     type_mappings = {
         'habit': 'journal',
         'reading_plan': 'faith',
+        'event': 'task',       # Calendar events → task data (Life module)
+        'calendar': 'task',    # Calendar queries → task data (Life module)
     }
 
     # First, collect directly supported types

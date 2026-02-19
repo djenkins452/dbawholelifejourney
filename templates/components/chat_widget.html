@@ -1374,6 +1374,10 @@
 
             if (data.success) {
                 addMessage(data.response, false);
+                // Auto-speak response in voice conversation mode
+                if (voiceConversationMode && 'speechSynthesis' in window) {
+                    speakResponse(data.response);
+                }
             } else {
                 addMessage(data.error || 'Sorry, something went wrong. Please try again.', false);
             }
@@ -1399,30 +1403,51 @@
     }
 
     // =========================================================================
-    // VOICE INPUT (Web Speech API)
+    // VOICE CONVERSATION MODE — Continuous voice interaction
+    // Mic stays active: speak → AI responds → TTS → speak again
+    // Only stops when user explicitly clicks the mic button.
     // =========================================================================
 
     const voiceBtn = document.getElementById('assistant-voice-btn');
     let speechRecognition = null;
     let isListening = false;
     let lastInputWasVoice = false;
+    let voiceConversationMode = false;
+    let pendingRestart = false;
 
-    // Feature detection — show button only if supported
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition && voiceBtn) {
         voiceBtn.style.display = 'flex';
 
         voiceBtn.addEventListener('click', function() {
-            if (isListening) {
-                stopListening();
+            if (voiceConversationMode) {
+                exitVoiceConversation();
             } else {
-                startListening();
+                enterVoiceConversation();
             }
         });
     }
 
+    function enterVoiceConversation() {
+        voiceConversationMode = true;
+        voiceBtn.classList.add('voice-conversation');
+        startListening();
+    }
+
+    function exitVoiceConversation() {
+        voiceConversationMode = false;
+        pendingRestart = false;
+        voiceBtn.classList.remove('voice-conversation');
+        if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+        stopListening();
+    }
+
     function startListening() {
         if (!SpeechRecognition) return;
+        if (speechRecognition) {
+            try { speechRecognition.stop(); } catch(e) {}
+            speechRecognition = null;
+        }
 
         speechRecognition = new SpeechRecognition();
         speechRecognition.lang = 'en-US';
@@ -1433,7 +1458,7 @@
         speechRecognition.onstart = function() {
             isListening = true;
             voiceBtn.classList.add('listening');
-            voiceBtn.title = 'Stop listening';
+            voiceBtn.title = 'End voice conversation';
         };
 
         speechRecognition.onresult = function(event) {
@@ -1442,7 +1467,6 @@
                 input.value = transcript;
                 input.dispatchEvent(new Event('input', { bubbles: true }));
                 lastInputWasVoice = true;
-                // Auto-submit after voice capture
                 setTimeout(function() {
                     if (input.value.trim()) {
                         sendMessage();
@@ -1452,22 +1476,35 @@
         };
 
         speechRecognition.onerror = function(event) {
-            console.error('Speech recognition error:', event.error);
             if (event.error === 'not-allowed') {
                 addMessage('Microphone access denied. Please allow microphone in your browser settings.', false);
+                exitVoiceConversation();
+                return;
             }
-            stopListening();
+            if (voiceConversationMode && event.error !== 'aborted') {
+                setTimeout(function() { if (voiceConversationMode) startListening(); }, 300);
+            } else {
+                stopListening();
+            }
         };
 
         speechRecognition.onend = function() {
-            stopListening();
+            isListening = false;
+            voiceBtn.classList.remove('listening');
+            if (voiceConversationMode && !pendingRestart) {
+                if (!('speechSynthesis' in window) || !window.speechSynthesis.speaking) {
+                    setTimeout(function() { if (voiceConversationMode) startListening(); }, 300);
+                }
+            }
+            speechRecognition = null;
         };
 
         try {
             speechRecognition.start();
         } catch (e) {
-            console.error('Failed to start speech recognition:', e);
-            stopListening();
+            if (voiceConversationMode) {
+                setTimeout(function() { if (voiceConversationMode) startListening(); }, 500);
+            }
         }
     }
 
@@ -1481,6 +1518,48 @@
             try { speechRecognition.stop(); } catch(e) {}
             speechRecognition = null;
         }
+    }
+
+    // TTS for voice conversation mode
+    let preferredVoice = null;
+
+    function loadPreferredVoice() {
+        const voices = window.speechSynthesis.getVoices();
+        if (!voices.length) return;
+        const preferred = ['Samantha', 'Karen', 'Moira', 'Google US English', 'Microsoft Zira', 'Shelley'];
+        for (const name of preferred) {
+            const match = voices.find(v => v.name.indexOf(name) !== -1 && v.lang.indexOf('en') === 0);
+            if (match) { preferredVoice = match; return; }
+        }
+        const maleNames = ['daniel', 'david', 'james', 'thomas', 'male', 'alex', 'fred'];
+        const fallback = voices.find(v => v.lang.indexOf('en') === 0 && !maleNames.some(m => v.name.toLowerCase().indexOf(m) !== -1));
+        if (fallback) preferredVoice = fallback;
+    }
+
+    if ('speechSynthesis' in window) {
+        loadPreferredVoice();
+        window.speechSynthesis.onvoiceschanged = loadPreferredVoice;
+    }
+
+    function speakResponse(text) {
+        if (!('speechSynthesis' in window)) return;
+        window.speechSynthesis.cancel();
+        if (speechRecognition) { try { speechRecognition.stop(); } catch(e) {} }
+        pendingRestart = true;
+        const utterance = new SpeechSynthesisUtterance(text);
+        if (preferredVoice) utterance.voice = preferredVoice;
+        utterance.rate = 0.95;
+        utterance.pitch = 1.05;
+        utterance.lang = 'en-US';
+        utterance.onend = function() {
+            pendingRestart = false;
+            if (voiceConversationMode) setTimeout(function() { startListening(); }, 300);
+        };
+        utterance.onerror = function() {
+            pendingRestart = false;
+            if (voiceConversationMode) setTimeout(function() { startListening(); }, 300);
+        };
+        window.speechSynthesis.speak(utterance);
     }
 
     // =========================================================================

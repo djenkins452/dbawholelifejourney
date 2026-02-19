@@ -264,26 +264,49 @@ Requires: command_mode dict from DashboardView._get_command_mode()
     }
 
     /* ================================================================
-       VOICE INPUT — Web Speech API (speech-to-text)
+       VOICE CONVERSATION MODE — Continuous voice interaction
+       Mic stays active through: speak → AI responds → TTS → speak again
+       Only stops when user explicitly clicks the mic button.
        ================================================================ */
     var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     var speechRec = null;
     var isListening = false;
     var lastInputWasVoice = false;
+    var voiceConversationMode = false;  // true = keep mic alive through full cycle
+    var pendingRestart = false;         // waiting for TTS to finish before re-listening
 
     if (SpeechRecognition && voiceBtn) {
         voiceBtn.style.display = 'flex';
         voiceBtn.addEventListener('click', function() {
-            if (isListening) {
-                stopListening();
+            if (voiceConversationMode) {
+                exitVoiceConversation();
             } else {
-                startListening();
+                enterVoiceConversation();
             }
         });
     }
 
+    function enterVoiceConversation() {
+        voiceConversationMode = true;
+        voiceBtn.classList.add('voice-conversation');
+        startListening();
+    }
+
+    function exitVoiceConversation() {
+        voiceConversationMode = false;
+        pendingRestart = false;
+        voiceBtn.classList.remove('voice-conversation');
+        window.speechSynthesis.cancel();  // Stop any TTS in progress
+        stopListening();
+    }
+
     function startListening() {
         if (!SpeechRecognition) return;
+        // Clean up any existing recognizer
+        if (speechRec) {
+            try { speechRec.stop(); } catch(e) {}
+            speechRec = null;
+        }
         speechRec = new SpeechRecognition();
         speechRec.lang = 'en-US';
         speechRec.interimResults = false;
@@ -293,7 +316,7 @@ Requires: command_mode dict from DashboardView._get_command_mode()
         speechRec.onstart = function() {
             isListening = true;
             voiceBtn.classList.add('listening');
-            voiceBtn.title = 'Stop listening';
+            voiceBtn.title = 'End voice conversation';
         };
 
         speechRec.onresult = function(event) {
@@ -314,18 +337,37 @@ Requires: command_mode dict from DashboardView._get_command_mode()
             if (event.error === 'not-allowed') {
                 responseArea.style.display = 'block';
                 responseText.textContent = 'Microphone access denied. Please allow microphone in your browser settings.';
+                exitVoiceConversation();
+                return;
             }
-            stopListening();
+            // For no-speech or other transient errors, restart if in conversation mode
+            if (voiceConversationMode && event.error !== 'aborted') {
+                setTimeout(function() { if (voiceConversationMode) startListening(); }, 300);
+            } else {
+                stopListening();
+            }
         };
 
         speechRec.onend = function() {
-            stopListening();
+            isListening = false;
+            voiceBtn.classList.remove('listening');
+            // In conversation mode, don't kill the session — we'll restart after TTS
+            if (voiceConversationMode && !pendingRestart) {
+                // If no TTS is playing, restart listening immediately
+                if (!window.speechSynthesis.speaking) {
+                    setTimeout(function() { if (voiceConversationMode) startListening(); }, 300);
+                }
+                // Otherwise, speakResponse's onend callback will restart
+            }
+            speechRec = null;
         };
 
         try {
             speechRec.start();
         } catch (e) {
-            stopListening();
+            if (voiceConversationMode) {
+                setTimeout(function() { if (voiceConversationMode) startListening(); }, 500);
+            }
         }
     }
 
@@ -399,11 +441,29 @@ Requires: command_mode dict from DashboardView._get_command_mode()
     function speakResponse(text) {
         if (!('speechSynthesis' in window)) return;
         window.speechSynthesis.cancel();
+        // Stop listening while TTS plays so it doesn't hear itself
+        if (speechRec) {
+            try { speechRec.stop(); } catch(e) {}
+        }
+        pendingRestart = true;
         var utterance = new SpeechSynthesisUtterance(text);
         if (preferredVoice) utterance.voice = preferredVoice;
         utterance.rate = 0.95;
         utterance.pitch = 1.05;
         utterance.lang = 'en-US';
+        utterance.onend = function() {
+            pendingRestart = false;
+            // Resume listening after TTS finishes in voice conversation mode
+            if (voiceConversationMode) {
+                setTimeout(function() { startListening(); }, 300);
+            }
+        };
+        utterance.onerror = function() {
+            pendingRestart = false;
+            if (voiceConversationMode) {
+                setTimeout(function() { startListening(); }, 300);
+            }
+        };
         window.speechSynthesis.speak(utterance);
     }
 

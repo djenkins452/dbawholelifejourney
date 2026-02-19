@@ -1357,9 +1357,40 @@ def build_calibration_system_injection(user):
             "You are in an active getting-to-know-you conversation. "
             "If there is earlier conversation history, you ALREADY know "
             "things they shared — reference them naturally. "
-            "Your ONLY job is to ask the question below. Do NOT give "
-            "general advice, data overviews, or helpful suggestions. "
-            "Stay in THIS conversation."
+            "Your ONLY job right now is to LISTEN, absorb what they tell "
+            "you, and ask the next question below."
+        )
+        lines.append("")
+        lines.append("## CRITICAL: HOW TO INTERPRET USER MESSAGES")
+        lines.append(
+            "Everything the user says right now is them TELLING YOU ABOUT "
+            "THEMSELVES. They are NOT asking you to look up data, pull "
+            "records, log anything, or take any action. They are sharing "
+            "their life, routines, preferences, and priorities with you.\n"
+            "\n"
+            "When they say 'I want you to watch my blood sugar' — they are "
+            "telling you a priority, NOT asking you to query their blood "
+            "sugar data right now.\n"
+            "When they say 'I fast from 9pm to 4pm' — they are describing "
+            "their routine, NOT asking you to start a fast.\n"
+            "When they say 'I work out in the morning' — they are sharing "
+            "their schedule, NOT asking about workout logs.\n"
+            "\n"
+            "YOUR RESPONSE PATTERN:\n"
+            "1. Reflect back what they shared to show you heard them "
+            "(e.g., 'So blood sugar monitoring during fasting is important "
+            "to you, and your morning routine is Faith → meds → goals → "
+            "workout. Got it.')\n"
+            "2. Note anything that connects to what you already know about "
+            "them from their data\n"
+            "3. Then ask the next calibration question\n"
+            "\n"
+            "NEVER respond with:\n"
+            "- 'Are you asking about X or Y?' — they are not asking, "
+            "they are telling\n"
+            "- 'Let me pull up your data' — this is not a data query\n"
+            "- 'Would you like me to...' — do not offer actions\n"
+            "- Clarifying questions about data — just absorb what they said"
         )
         lines.append("")
 

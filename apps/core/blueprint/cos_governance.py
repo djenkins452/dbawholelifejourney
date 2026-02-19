@@ -764,12 +764,19 @@ def build_calibration_system_injection(user):
     if overrides.get('calibration_paused', False):
         return ""
 
-    # Don't inject if alignment session is actively in progress
+    # Auto-complete stale alignment sessions — calibration replaces them.
+    # The old alignment session was a separate onboarding flow that is now
+    # superseded by conversational calibration.
     try:
         from apps.core.ai_governance.models import GovernanceAlignmentSession
         session = GovernanceAlignmentSession.objects.filter(user=user).first()
         if session and not session.is_complete:
-            return ""  # Let alignment session take priority
+            session.is_complete = True
+            session.save(update_fields=['is_complete', 'updated_at'])
+            logger.info(
+                "Auto-completed stale alignment session for %s "
+                "(superseded by calibration)", user.email
+            )
     except Exception:
         pass
 

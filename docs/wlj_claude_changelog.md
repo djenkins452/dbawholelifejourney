@@ -11,6 +11,10 @@
 
 ## 2026-02-19
 
+- **Fix: Calibration blocked by stale alignment session** — `build_calibration_system_injection()` returned empty when a `GovernanceAlignmentSession` with `is_complete=False` existed, preventing the AI from receiving any calibration instructions. Now auto-completes stale alignment sessions (superseded by calibration). Also: chat panel clears stale messages and restarts fresh when calibration welcome hasn't been shown yet.
+  - Files: `apps/core/blueprint/cos_governance.py`, `templates/components/assistant_panel.html`, `apps/ai/views.py`
+  - Why: CoS responded with generic "How can I assist you?" instead of calibration introduction
+
 - **Fix: Mobile dashboard text cutoff** — Dashboard content was being clipped on the right side on mobile devices. Added `overflow-x: hidden` to html/body, `overflow: hidden` on tile wrappers and card sections, fixed flex layout issues in state snapshot rows, nudge cards, and medicine schedule. Applied `min()` pattern to grid `minmax()` calls to prevent cards from exceeding viewport width on small screens.
   - Files: `static/css/main.css`, `static/css/dashboard.css`, `templates/dashboard/home.html`
   - Why: Right-side text cutoff on iPhone — values like "310.6 lbs", "improving", "480 min" were partially hidden

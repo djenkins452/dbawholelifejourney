@@ -547,6 +547,27 @@
             if (loadingEl) loadingEl.style.display = 'none';
 
             if (data.success && data.messages && data.messages.length > 0) {
+                // If calibration hasn't started yet (welcome not shown) but
+                // there are stale messages, clear and restart fresh
+                if (data.calibration_active && data.calibration_welcome_needed
+                        && !calibrationAutoStarted) {
+                    calibrationAutoStarted = true;
+                    // Clear old conversation, then auto-start calibration
+                    fetch('/assistant/api/clear/', {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')
+                                ? document.querySelector('[name=csrfmiddlewaretoken]').value
+                                : document.cookie.match(/csrftoken=([^;]+)/)?.[1] || ''
+                        }
+                    }).then(function() {
+                        container.innerHTML = '';
+                        showEmptyState(container);
+                        sendMessage('Hello', container, chatInput, sendBtn);
+                    });
+                    return;
+                }
+
                 container.innerHTML = '';
                 data.messages.forEach(function(msg) {
                     addMessage(container, msg.content, msg.role === 'user', false,
@@ -555,20 +576,12 @@
                 container.scrollTop = container.scrollHeight;
 
                 // Resume calibration if active and last message was from assistant
-                // (meaning user hasn't answered yet, or assistant gave a generic reply)
-                if (data.calibration_active && !calibrationAutoStarted) {
+                if (data.calibration_active && !calibrationAutoStarted
+                        && data.calibration_next_question) {
                     var lastMsg = data.messages[data.messages.length - 1];
                     if (lastMsg.role === 'assistant') {
-                        // Check if the last assistant message already contains a calibration question
-                        // If not, send a nudge to re-engage the calibration flow
-                        var hasQuestion = lastMsg.content && lastMsg.content.indexOf('?') !== -1;
-                        // Even if it has a question mark, it might be generic "let me know"
-                        // Check if calibration has a pending question that hasn't been asked
-                        if (data.calibration_next_question) {
-                            calibrationAutoStarted = true;
-                            // Send a resume message that triggers the calibration injection
-                            sendMessage("Let's continue where we left off.", container, chatInput, sendBtn);
-                        }
+                        calibrationAutoStarted = true;
+                        sendMessage("Let's continue where we left off.", container, chatInput, sendBtn);
                     }
                 }
             } else {

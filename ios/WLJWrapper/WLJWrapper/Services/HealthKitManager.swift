@@ -1181,6 +1181,9 @@ class HealthKitManager {
         case .swimBikeRun: return "Triathlon"
         case .transition: return "Transition"
         case .underwaterDiving: return "Underwater Diving"
+        case .danceInspiredTraining: return "Dance"
+        case .mixedMetabolicCardioTraining: return "Mixed Cardio"
+        case .other: return "Other"
         @unknown default: return "Other"
         }
     }

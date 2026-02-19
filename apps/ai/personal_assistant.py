@@ -1887,7 +1887,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                     if action_result.action_type == 'cancelled':
                         response = action_result.message
                     else:
-                        response = action_result.message
+                        response = action_result.message + self._format_confirmation_detail(action_result)
                         actions_taken.append(self._build_action_taken(action_result))
                 else:
                     # Response wasn't yes/no, ask again
@@ -1941,7 +1941,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                                 else:
                                     for ar in orch_actions:
                                         if ar.success:
-                                            response_parts.append(ar.message)
+                                            response_parts.append(ar.message + self._format_confirmation_detail(ar))
 
                             # Add confirmation message for the pending one
                             response_parts.append(first_confirm.confirmation_message)
@@ -1962,7 +1962,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                             else:
                                 response_parts = []
                                 for ar in orch_actions:
-                                    response_parts.append(ar.message)
+                                    response_parts.append(ar.message + self._format_confirmation_detail(ar))
                                 response = " ".join(response_parts)
                 else:
                     # No action intent - check for bug reports first ("Fix this:", "Bug:", etc.)
@@ -2035,11 +2035,40 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
 
     def _build_action_taken(self, action_result) -> dict:
         """Build the action_taken dict for API response."""
-        return {
+        result = {
             'type': action_result.action_type,
             'success': action_result.success,
-            'created': action_result.created_object
+            'created': action_result.created_object,
         }
+        if getattr(action_result, 'confirmation_detail', None):
+            result['confirmation_detail'] = action_result.confirmation_detail
+        return result
+
+    @staticmethod
+    def _format_confirmation_detail(action_result) -> str:
+        """
+        Format confirmation_detail into response text.
+
+        Appends location, trend, and risk below the action message.
+        """
+        detail = getattr(action_result, 'confirmation_detail', None)
+        if not detail:
+            return ''
+
+        parts = []
+        where = detail.get('where')
+        if where:
+            parts.append(f"({where})")
+        trend = detail.get('trend')
+        if trend:
+            parts.append(trend)
+        risk = detail.get('risk')
+        if risk:
+            parts.append(risk)
+
+        if parts:
+            return '\n' + '\n'.join(parts)
+        return ''
 
     def _check_feature_request(
         self,

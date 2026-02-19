@@ -284,7 +284,9 @@ body.edit-mode .tile-name-label {
     <!-- Header -->
     <header class="dashboard-header">
         <div class="greeting">
+            {% if not command_mode or not command_mode.active %}
             <h1>{{ greeting }}, {{ user.get_short_name }}.</h1>
+            {% endif %}
             <p class="current-date">{{ current_date|date:"l, F j, Y" }}</p>
             {% if health_enabled and user_data.cycle_tracking_enabled and user_data.cycle_data.phase %}
             <a href="{% url 'health:cycle_dashboard' %}" class="cycle-day-subtle" title="View Cycle Dashboard">
@@ -306,7 +308,7 @@ body.edit-mode .tile-name-label {
 
     <!-- Edit Mode Bar -->
     <div class="dashboard-edit-bar" {% if command_mode and command_mode.active %}style="display:none"{% endif %}>
-        <button type="button" class="btn-customize" id="customize-btn" onclick="toggleEditMode()">
+        <button type="button" class="btn-customize" id="customize-btn">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="3" y="3" width="7" height="7"/>
                 <rect x="14" y="3" width="7" height="7"/>
@@ -340,17 +342,18 @@ body.edit-mode .tile-name-label {
                 </div>
                 <label class="tile-visibility-toggle" title="Show/Hide">
                     <input type="checkbox"
+                           class="tile-visibility-checkbox"
                            {% if tile.visible %}checked{% endif %}
                            {% if tile.mandatory %}disabled{% endif %}
-                           onchange="setTileVisibility('{{ tile.id }}', this.checked)">
+                           data-tile-id="{{ tile.id }}">
                     {% if tile.mandatory %}<span>Required</span>{% endif %}
                 </label>
                 <button type="button" class="size-btn {% if tile.size == 'small' %}active{% endif %}"
-                        onclick="setTileSize('{{ tile.id }}', 'small')">S</button>
+                        data-tile-id="{{ tile.id }}" data-size="small">S</button>
                 <button type="button" class="size-btn {% if tile.size == 'medium' %}active{% endif %}"
-                        onclick="setTileSize('{{ tile.id }}', 'medium')">M</button>
+                        data-tile-id="{{ tile.id }}" data-size="medium">M</button>
                 <button type="button" class="size-btn {% if tile.size == 'large' %}active{% endif %}"
-                        onclick="setTileSize('{{ tile.id }}', 'large')">L</button>
+                        data-tile-id="{{ tile.id }}" data-size="large">L</button>
             </div>
 
             <!-- Tile name label for edit mode -->
@@ -429,7 +432,7 @@ body.edit-mode .tile-name-label {
     <div class="quick-scan-content">
         <div class="quick-scan-header">
             <h2 id="quick-scan-title">📷 Quick Scan</h2>
-            <button type="button" class="quick-scan-close" onclick="closeQuickScan()">&times;</button>
+            <button type="button" class="quick-scan-close" id="quick-scan-close-btn">&times;</button>
         </div>
 
         <!-- Camera State -->
@@ -441,12 +444,12 @@ body.edit-mode .tile-name-label {
                 </div>
             </div>
             <div class="scan-controls">
-                <button type="button" class="btn btn-primary" id="capture-btn" onclick="captureImage()" disabled>
+                <button type="button" class="btn btn-primary" id="capture-btn" disabled>
                     📸 Capture
                 </button>
                 <label class="btn btn-secondary upload-btn">
                     📁 Upload
-                    <input type="file" id="file-input" accept="image/*" onchange="handleFileUpload(event)" hidden>
+                    <input type="file" id="file-input" accept="image/*" hidden>
                 </label>
             </div>
             <p class="scan-hint">Point camera at food, medicine, tools, or any item</p>
@@ -458,10 +461,10 @@ body.edit-mode .tile-name-label {
                 <img id="preview-image" class="preview-image" alt="Captured image">
             </div>
             <div class="scan-controls">
-                <button type="button" class="btn btn-primary" onclick="analyzeImage()">
+                <button type="button" class="btn btn-primary" id="analyze-btn">
                     🔍 Analyze
                 </button>
-                <button type="button" class="btn btn-secondary" onclick="retakePhoto()">
+                <button type="button" class="btn btn-secondary retake-btn">
                     ↩️ Retake
                 </button>
             </div>
@@ -497,7 +500,7 @@ body.edit-mode .tile-name-label {
                 <span class="error-icon">⚠️</span>
                 <h3 id="error-title">Error</h3>
                 <p id="error-message">Something went wrong.</p>
-                <button type="button" class="btn btn-primary" onclick="retakePhoto()">Try Again</button>
+                <button type="button" class="btn btn-primary retake-btn">Try Again</button>
             </div>
         </div>
 
@@ -524,6 +527,98 @@ body.edit-mode .tile-name-label {
             window.history.replaceState({}, '', window.location.pathname);
         });
     }
+
+    // =====================================
+    // CSP-Compliant Event Delegation
+    // =====================================
+    document.getElementById('customize-btn').addEventListener('click', toggleEditMode);
+
+    // Tile edit overlay: size buttons and visibility checkboxes
+    document.addEventListener('click', function(e) {
+        var sizeBtn = e.target.closest('.size-btn[data-tile-id]');
+        if (sizeBtn) {
+            setTileSize(sizeBtn.dataset.tileId, sizeBtn.dataset.size);
+            return;
+        }
+
+        // Guidance action buttons
+        var guidanceBtn = e.target.closest('.guidance-action-btn');
+        if (guidanceBtn) {
+            var card = guidanceBtn.closest('.guidance-card');
+            if (card) {
+                var itemId = card.dataset.itemId;
+                if (guidanceBtn.classList.contains('guidance-btn-done')) {
+                    guidanceAction(itemId, 'acted');
+                } else if (guidanceBtn.classList.contains('guidance-btn-snooze')) {
+                    guidanceAction(itemId, 'snooze');
+                } else if (guidanceBtn.classList.contains('guidance-btn-dismiss')) {
+                    guidanceAction(itemId, 'dismiss');
+                }
+            }
+            return;
+        }
+
+        // Quick scan buttons
+        var quickScanBtn = e.target.closest('#quick-scan-btn');
+        if (quickScanBtn) {
+            openQuickScan();
+            return;
+        }
+
+        var scanCloseBtn = e.target.closest('#quick-scan-close-btn');
+        if (scanCloseBtn) {
+            closeQuickScan();
+            return;
+        }
+
+        var captureBtn = e.target.closest('#capture-btn');
+        if (captureBtn && !captureBtn.disabled) {
+            captureImage();
+            return;
+        }
+
+        var analyzeBtn = e.target.closest('#analyze-btn');
+        if (analyzeBtn) {
+            analyzeImage();
+            return;
+        }
+
+        var retakeBtn = e.target.closest('.retake-btn');
+        if (retakeBtn) {
+            retakePhoto();
+            return;
+        }
+
+        // Module cards: stop propagation on clear weight goal form/button
+        var clearGoalForm = e.target.closest('.clear-weight-goal-form');
+        if (clearGoalForm) {
+            e.stopPropagation();
+            return;
+        }
+    });
+
+    document.addEventListener('change', function(e) {
+        var checkbox = e.target.closest('.tile-visibility-checkbox');
+        if (checkbox) {
+            setTileVisibility(checkbox.dataset.tileId, checkbox.checked);
+        }
+
+        // File input for quick scan
+        var fileInput = e.target.closest('#file-input');
+        if (fileInput) {
+            handleFileUpload(e);
+        }
+    });
+
+    // Fasting end form: confirm dialog via delegation
+    document.addEventListener('submit', function(e) {
+        var fastEndForm = e.target.closest('.fast-end-form');
+        if (fastEndForm) {
+            if (!confirm('End your fast now?')) {
+                e.preventDefault();
+            }
+        }
+    });
 
     // =====================================
     // Edit Mode Functions
@@ -962,9 +1057,8 @@ body.edit-mode .tile-name-label {
 
         const retakeBtn = document.createElement('button');
         retakeBtn.type = 'button';
-        retakeBtn.className = 'btn btn-secondary btn-sm';
+        retakeBtn.className = 'btn btn-secondary btn-sm retake-btn';
         retakeBtn.textContent = 'Scan Another';
-        retakeBtn.onclick = retakePhoto;
         actionsContainer.appendChild(retakeBtn);
 
         showScanState('results');

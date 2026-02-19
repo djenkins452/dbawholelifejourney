@@ -73,7 +73,7 @@ def translate_drift_risk(pct):
     elif pct < 80:
         return ('High', 'Schedule is under real pressure.')
     else:
-        return ('Critical', 'Overload risk. Tier-1 items need protection.')
+        return ('Critical', 'Overload risk. Your top priorities need protection.')
 
 
 # ---------------------------------------------------------------------------
@@ -238,7 +238,7 @@ def translate_day_assessment(capacity_pct, drift_risk_pct, tier1_count,
     # Tier-1 protections
     if tier1_count and tier1_count > 0:
         parts.append(
-            f'{tier1_count} protected commitment{"s" if tier1_count > 1 else ""}.'
+            f'{tier1_count} priorit{"ies" if tier1_count > 1 else "y"} locked in.'
         )
 
     # Drift risk if notable
@@ -258,26 +258,121 @@ def translate_day_assessment(capacity_pct, drift_risk_pct, tier1_count,
 # Risk Warnings → Human Language
 # ---------------------------------------------------------------------------
 
-def translate_risk_warning(warning):
+def translate_risk_warning(warning, context=None):
     """
-    Translate a raw risk warning string into softer human language.
+    Translate a raw risk warning string into specific human language.
+
+    Args:
+        warning: Raw warning string from the governance engine
+        context: Optional dict with keys:
+            - commitment_name: Name of the specific commitment
+            - time_remaining_minutes: Minutes until window closes
+            - recommended_action: What the user should do
 
     Returns: str
     """
     if not warning:
         return ''
-    # Common patterns from architecture engine
+
+    # If we have specific context, generate a precise alert
+    if context:
+        name = context.get('commitment_name', '')
+        minutes = context.get('time_remaining_minutes')
+        action = context.get('recommended_action', '')
+
+        if name and minutes is not None:
+            if minutes > 0:
+                if minutes <= 15:
+                    return f"{name} hasn't happened yet — only {minutes} minutes left."
+                else:
+                    hours = minutes // 60
+                    mins = minutes % 60
+                    time_str = f"{hours}h {mins}m" if hours else f"{minutes} minutes"
+                    return f"{name} hasn't happened yet, and you have {time_str} before your window closes."
+            else:
+                return f"{name} window has passed."
+        elif name and action:
+            return f"{name}: {action}"
+        elif name:
+            return f"{name} needs attention."
+
+    # Fallback: category-based translation (no internal terms)
     w = warning.lower()
     if 'density' in w and 'elevated' in w:
         return 'Schedule is dense — protect margin where possible.'
-    elif 'tier 1' in w or 'tier-1' in w:
-        return 'A protected commitment may be at risk.'
+    elif 'tier 1' in w or 'tier-1' in w or 'protected' in w:
+        return 'One of your top priorities may need attention.'
     elif 'sleep' in w:
-        return 'Sleep block isn\'t scheduled — consider adding rest.'
+        return "Sleep isn't scheduled — consider adding rest."
     elif 'overload' in w:
         return 'Tomorrow carries more load than typical.'
-    # Pass through if no match
-    return warning
+    # Pass through if no match (but strip internal terms)
+    cleaned = warning.replace('Tier-1', 'priority').replace('tier-1', 'priority')
+    cleaned = cleaned.replace('Tier 1', 'priority').replace('tier 1', 'priority')
+    return cleaned
+
+
+# ---------------------------------------------------------------------------
+# Missed Commitment → Human Language (Drift Response)
+# ---------------------------------------------------------------------------
+
+def translate_missed_commitment(item_name, time_remaining_minutes=None,
+                                 miss_count_week=0, accountability_style='standard'):
+    """
+    Generate a specific message when a commitment is missed or at risk.
+
+    Args:
+        item_name: Name of the commitment (e.g., "Morning Prayer", "Gym session")
+        time_remaining_minutes: Minutes until the window closes (None if already passed)
+        miss_count_week: Number of times missed this week
+        accountability_style: 'light', 'standard', or 'firm'
+
+    Returns: str
+    """
+    if not item_name:
+        return ''
+
+    parts = []
+
+    # Time-based message
+    if time_remaining_minutes is not None and time_remaining_minutes > 0:
+        if time_remaining_minutes <= 15:
+            parts.append(f"You have {time_remaining_minutes} minutes left for {item_name}.")
+        elif time_remaining_minutes <= 60:
+            parts.append(f"You still have {time_remaining_minutes} minutes to get {item_name} done.")
+        else:
+            hours = time_remaining_minutes // 60
+            mins = time_remaining_minutes % 60
+            time_str = f"{hours}h {mins}m" if mins else f"{hours} hour{'s' if hours > 1 else ''}"
+            parts.append(f"{item_name} has {time_str} remaining.")
+    elif time_remaining_minutes is not None and time_remaining_minutes <= 0:
+        parts.append(f"{item_name} window has passed.")
+
+    # Pattern detection
+    if miss_count_week >= 3:
+        if accountability_style == 'light':
+            parts.append(f"That's {miss_count_week} times this week — worth thinking about.")
+        elif accountability_style == 'firm':
+            parts.append(
+                f"You marked this non-negotiable. You've missed it "
+                f"{miss_count_week} times this week. We're off track."
+            )
+        else:
+            parts.append(f"This is the {_ordinal(miss_count_week)} miss this week.")
+    elif miss_count_week == 2:
+        if accountability_style != 'light':
+            parts.append("Second miss this week.")
+
+    return ' '.join(parts)
+
+
+def _ordinal(n):
+    """Return ordinal string for a number (1st, 2nd, 3rd, etc.)."""
+    if 11 <= (n % 100) <= 13:
+        suffix = 'th'
+    else:
+        suffix = {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')
+    return f"{n}{suffix}"
 
 
 # ---------------------------------------------------------------------------

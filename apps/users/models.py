@@ -668,6 +668,20 @@ class UserPreferences(models.Model):
         help_text="Require confirmation before AI assistant logs health data (default: log immediately)",
     )
 
+    # Chief of Staff Display Name
+    # User-configurable name for the CoS (e.g., "Max", "Jarvis")
+    # If blank, defaults to "Chief of Staff"
+    cos_display_name = models.CharField(
+        max_length=50,
+        default='',
+        blank=True,
+        help_text="Custom display name for the Chief of Staff (leave blank for default)",
+    )
+
+    def get_cos_name(self):
+        """Return the user's chosen CoS name, or 'Chief of Staff' if not set."""
+        return self.cos_display_name.strip() or 'Chief of Staff'
+
     # ===================
     # PROACTIVE CHECK-INS
     # ===================

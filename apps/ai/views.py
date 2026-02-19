@@ -1087,6 +1087,7 @@ class CosSettingsView(LoginRequiredMixin, TemplateView):
 
         context['prefs'] = prefs
         context['pa_enabled'] = getattr(prefs, 'personal_assistant_enabled', False)
+        context['cos_display_name_raw'] = getattr(prefs, 'cos_display_name', '')
         return context
 
 
@@ -1127,7 +1128,15 @@ class CosSettingsSaveView(LoginRequiredMixin, View):
                 blueprint.sensitivity_tags = []
 
             blueprint.save()
-            django_messages.success(request, "CoS settings saved.")
+
+            # Update CoS display name on user preferences
+            cos_name = request.POST.get('cos_display_name', '').strip()[:50]
+            prefs = user.preferences
+            if prefs.cos_display_name != cos_name:
+                prefs.cos_display_name = cos_name
+                prefs.save(update_fields=['cos_display_name'])
+
+            django_messages.success(request, "Settings saved.")
 
         except Exception as e:
             logger.error(f"CoS settings save error: {e}", exc_info=True)

@@ -94,6 +94,82 @@ class ActionHandler:
         from apps.core.utils import get_user_today
         return get_user_today(self.user)
 
+    # =========================================================================
+    # TREND HELPERS (for execution confirmation detail)
+    # =========================================================================
+
+    def _get_trend_text(self, model_class, value_field='value', days=7, label='',
+                         unit='', direction='lower_is_better'):
+        """
+        Generic trend helper — compare latest entry to 7-day average.
+
+        Returns: str or None (e.g., "Down 2 lbs this week" or None if insufficient data)
+        """
+        from django.utils import timezone as tz
+        import datetime as dt
+
+        cutoff = tz.now() - dt.timedelta(days=days)
+        entries = list(
+            model_class.objects.filter(
+                user=self.user,
+                created_at__gte=cutoff,
+            ).order_by('-created_at').values_list(value_field, flat=True)[:30]
+        )
+        if len(entries) < 2:
+            return None
+
+        latest = float(entries[0])
+        avg = sum(float(e) for e in entries[1:]) / len(entries[1:])
+        diff = latest - avg
+
+        if abs(diff) < 0.01:
+            return None
+
+        direction_word = 'down' if diff < 0 else 'up'
+        if unit:
+            return f"{direction_word.capitalize()} {abs(diff):.1f} {unit} vs. {days}-day avg"
+        else:
+            return f"{direction_word.capitalize()} {abs(diff):.1f} vs. {days}-day avg"
+
+    def _get_daily_count(self, model_class, date_field='created_at'):
+        """Count entries logged today."""
+        from django.utils import timezone as tz
+        today = self._get_user_today()
+        return model_class.objects.filter(
+            user=self.user,
+            **{f'{date_field}__date': today}
+        ).count()
+
+    def _get_weekly_count(self, model_class, date_field='created_at'):
+        """Count entries logged this week."""
+        from django.utils import timezone as tz
+        import datetime as dt
+        today = self._get_user_today()
+        week_start = today - dt.timedelta(days=today.weekday())
+        return model_class.objects.filter(
+            user=self.user,
+            **{f'{date_field}__date__gte': week_start}
+        ).count()
+
+    def _build_confirmation(self, what, where, trend=None, risk=None):
+        """
+        Build a confirmation_detail dict for ActionResult.
+
+        Args:
+            what: What was recorded (e.g., "185 lb")
+            where: Where it lives (e.g., "Health > Weight")
+            trend: 7-day trend text or None
+            risk: Risk/context note or None
+
+        Returns: dict
+        """
+        detail = {'what': what, 'where': where}
+        if trend:
+            detail['trend'] = trend
+        if risk:
+            detail['risk'] = risk
+        return detail
+
     def _fetch_verse_text(self, book_name: str, chapter: int, verse_start: int,
                           verse_end: int = None, translation: str = None) -> str:
         """
@@ -188,6 +264,13 @@ class ActionHandler:
 
             time_str = entry.recorded_at.strftime("%I:%M %p")
 
+            # Trend lookup (safe — never blocks action)
+            trend = None
+            try:
+                trend = self._get_trend_text(HeartRateEntry, 'bpm', 7, '', 'BPM')
+            except Exception:
+                pass
+
             return ActionResult(
                 success=True,
                 message=f"✓ Logged heart rate: {bpm} BPM ({context}) at {time_str}",
@@ -198,7 +281,12 @@ class ActionHandler:
                     'context': entry.context,
                     'recorded_at': entry.recorded_at.isoformat()
                 },
-                action_type='log_heart_rate'
+                action_type='log_heart_rate',
+                confirmation_detail=self._build_confirmation(
+                    what=f"{bpm} BPM ({context})",
+                    where="Health > Heart Rate",
+                    trend=trend,
+                )
             )
 
         except Exception as e:
@@ -244,6 +332,13 @@ class ActionHandler:
             bp_str = f"{systolic}/{diastolic}"
             pulse_str = f", pulse {pulse}" if pulse else ""
 
+            # Trend lookup (safe — never blocks action)
+            trend = None
+            try:
+                trend = self._get_trend_text(BloodPressureEntry, 'systolic', 7, '', 'mmHg')
+            except Exception:
+                pass
+
             return ActionResult(
                 success=True,
                 message=f"✓ Logged blood pressure: {bp_str} mmHg{pulse_str} at {time_str}",
@@ -256,7 +351,12 @@ class ActionHandler:
                     'category': entry.category,
                     'recorded_at': entry.recorded_at.isoformat()
                 },
-                action_type='log_blood_pressure'
+                action_type='log_blood_pressure',
+                confirmation_detail=self._build_confirmation(
+                    what=f"{systolic}/{diastolic} mmHg",
+                    where="Health > Blood Pressure",
+                    trend=trend,
+                )
             )
 
         except Exception as e:
@@ -288,6 +388,13 @@ class ActionHandler:
                 recorded_at=self._get_recorded_at(kwargs)
             )
 
+            # Trend lookup (safe — never blocks action)
+            trend = None
+            try:
+                trend = self._get_trend_text(WeightEntry, 'value', 7, '', unit)
+            except Exception:
+                pass
+
             return ActionResult(
                 success=True,
                 message=f"✓ Logged weight: {value} {unit}",
@@ -298,7 +405,12 @@ class ActionHandler:
                     'unit': entry.unit,
                     'recorded_at': entry.recorded_at.isoformat()
                 },
-                action_type='log_weight'
+                action_type='log_weight',
+                confirmation_detail=self._build_confirmation(
+                    what=f"{value} {unit}",
+                    where="Health > Weight",
+                    trend=trend,
+                )
             )
 
         except Exception as e:
@@ -334,6 +446,13 @@ class ActionHandler:
                 recorded_at=self._get_recorded_at(kwargs)
             )
 
+            # Trend lookup (safe — never blocks action)
+            trend = None
+            try:
+                trend = self._get_trend_text(GlucoseEntry, 'value', 7, '', unit)
+            except Exception:
+                pass
+
             return ActionResult(
                 success=True,
                 message=f"✓ Logged blood glucose: {value} {unit} ({context})",
@@ -346,7 +465,12 @@ class ActionHandler:
                     'glucose_status': entry.glucose_status,
                     'recorded_at': entry.recorded_at.isoformat()
                 },
-                action_type='log_glucose'
+                action_type='log_glucose',
+                confirmation_detail=self._build_confirmation(
+                    what=f"{value} {unit} ({context})",
+                    where="Health > Blood Glucose",
+                    trend=trend,
+                )
             )
 
         except Exception as e:
@@ -398,7 +522,11 @@ class ActionHandler:
                     'category': entry.category,
                     'recorded_at': entry.recorded_at.isoformat()
                 },
-                action_type='log_blood_oxygen'
+                action_type='log_blood_oxygen',
+                confirmation_detail=self._build_confirmation(
+                    what=f"{spo2}% SpO2",
+                    where="Health > Blood Oxygen",
+                )
             )
 
         except Exception as e:
@@ -542,6 +670,19 @@ class ActionHandler:
             if matched_name.lower() != food_name.lower():
                 name_note = f" (matched: {matched_name})"
 
+            # Trend lookup — daily calorie total (safe — never blocks action)
+            trend = None
+            try:
+                from django.db.models import Sum
+                daily_cals = FoodEntry.objects.filter(
+                    user=self.user,
+                    logged_date=today,
+                ).aggregate(total=Sum('total_calories'))['total']
+                if daily_cals:
+                    trend = f"Today's total: {int(daily_cals)} cal"
+            except Exception:
+                pass
+
             return ActionResult(
                 success=True,
                 message=f"✓ Logged {quantity} {matched_name}{cal_str} for {meal_type}{source_note}{name_note}",
@@ -558,7 +699,12 @@ class ActionHandler:
                     'logged_date': entry.logged_date.isoformat(),
                     'source': food_match.source if food_match else 'manual',
                 },
-                action_type='log_food'
+                action_type='log_food',
+                confirmation_detail=self._build_confirmation(
+                    what=f"{quantity} {matched_name}{cal_str}",
+                    where="Health > Nutrition",
+                    trend=trend,
+                )
             )
 
         except Exception as e:
@@ -713,7 +859,11 @@ class ActionHandler:
                 'dose': medicine.dose,
                 'taken_at': log.taken_at.isoformat() if log.taken_at else None
             },
-            action_type='take_medicine'
+            action_type='take_medicine',
+            confirmation_detail=self._build_confirmation(
+                what=f"{medicine.name} ({medicine.dose})",
+                where="Health > Medicine",
+            )
         )
 
     # =========================================================================
@@ -788,7 +938,11 @@ class ActionHandler:
                     'target_hours': fast.target_hours,
                     'target_end_time': fast.target_end_time.isoformat() if fast.target_end_time else None
                 },
-                action_type='start_fast'
+                action_type='start_fast',
+                confirmation_detail=self._build_confirmation(
+                    what=f"Started {fasting_type} fast",
+                    where="Health > Fasting",
+                )
             )
 
         except Exception as e:
@@ -842,6 +996,11 @@ class ActionHandler:
                 else:
                     message = f"✓ Fast ended after {duration:.1f} hours"
 
+            # Format duration for confirmation
+            hours = int(duration)
+            minutes = int((duration - hours) * 60)
+            duration_text = f"{hours}h {minutes}m" if minutes else f"{hours}h"
+
             return ActionResult(
                 success=True,
                 message=message,
@@ -854,7 +1013,11 @@ class ActionHandler:
                     'duration_hours': round(duration, 1),
                     'goal_reached': goal_reached
                 },
-                action_type='end_fast'
+                action_type='end_fast',
+                confirmation_detail=self._build_confirmation(
+                    what=f"Ended fast ({duration_text})",
+                    where="Health > Fasting",
+                )
             )
 
         except Exception as e:
@@ -911,9 +1074,20 @@ class ActionHandler:
                     )
                     entry.categories.add(category)
 
+            # Trend lookup — weekly journal count (safe — never blocks action)
+            trend = None
+            try:
+                weekly = self._get_weekly_count(JournalEntry, 'entry_date')
+                if weekly:
+                    trend = f"{weekly} entr{'ies' if weekly != 1 else 'y'} this week"
+            except Exception:
+                pass
+
+            display_title = f"{title[:30]}..." if len(title) > 30 else title
+
             return ActionResult(
                 success=True,
-                message=f"✓ Created journal entry: \"{title[:30]}...\"" if len(title) > 30 else f"✓ Created journal entry: \"{title}\"",
+                message=f"✓ Created journal entry: \"{display_title}\"",
                 created_object={
                     'model': 'JournalEntry',
                     'id': entry.id,
@@ -921,7 +1095,12 @@ class ActionHandler:
                     'mood': entry.mood,
                     'entry_date': entry.entry_date.isoformat()
                 },
-                action_type='create_journal_entry'
+                action_type='create_journal_entry',
+                confirmation_detail=self._build_confirmation(
+                    what=display_title,
+                    where="Journal",
+                    trend=trend,
+                )
             )
 
         except Exception as e:
@@ -967,6 +1146,9 @@ class ActionHandler:
             )
             entry.categories.add(category)
 
+            # Truncate for confirmation detail
+            gratitude_short = gratitude[:50] + "..." if len(gratitude) > 50 else gratitude
+
             return ActionResult(
                 success=True,
                 message=f"✓ Logged gratitude: {gratitude}",
@@ -976,7 +1158,11 @@ class ActionHandler:
                     'title': entry.title,
                     'entry_date': entry.entry_date.isoformat()
                 },
-                action_type='add_gratitude'
+                action_type='add_gratitude',
+                confirmation_detail=self._build_confirmation(
+                    what=gratitude_short,
+                    where="Journal > Gratitude",
+                )
             )
 
         except Exception as e:
@@ -1027,7 +1213,11 @@ class ActionHandler:
                     'priority': prayer.priority,
                     'created_at': prayer.created_at.isoformat()
                 },
-                action_type='log_prayer'
+                action_type='log_prayer',
+                confirmation_detail=self._build_confirmation(
+                    what=title,
+                    where="Faith > Prayer",
+                )
             )
 
         except Exception as e:
@@ -1083,7 +1273,11 @@ class ActionHandler:
                         'prayer_status': 'answered',
                         'answered_at': prayer.answered_at.isoformat() if prayer.answered_at else None
                     },
-                    action_type='mark_prayer_answered'
+                    action_type='mark_prayer_answered',
+                    confirmation_detail=self._build_confirmation(
+                        what=prayer.title,
+                        where="Faith > Prayer",
+                    )
                 )
             else:
                 # Multiple matches
@@ -1177,7 +1371,11 @@ class ActionHandler:
                     'is_memory_verse': verse.is_memory_verse,
                     'created_at': verse.created_at.isoformat()
                 },
-                action_type='save_verse'
+                action_type='save_verse',
+                confirmation_detail=self._build_confirmation(
+                    what=reference,
+                    where="Faith > Verses",
+                )
             )
 
         except Exception as e:
@@ -1233,7 +1431,11 @@ class ActionHandler:
                     'milestone_type': milestone.milestone_type,
                     'date': milestone.date.isoformat()
                 },
-                action_type='add_faith_milestone'
+                action_type='add_faith_milestone',
+                confirmation_detail=self._build_confirmation(
+                    what=title,
+                    where="Faith > Milestones",
+                )
             )
 
         except Exception as e:
@@ -1297,7 +1499,11 @@ class ActionHandler:
                     'timeframe': goal.timeframe,
                     'created_at': goal.created_at.isoformat()
                 },
-                action_type='create_goal'
+                action_type='create_goal',
+                confirmation_detail=self._build_confirmation(
+                    what=title,
+                    where="Goals",
+                )
             )
 
         except Exception as e:
@@ -1364,7 +1570,11 @@ class ActionHandler:
                         'title': goal.title,
                         'goal_status': goal.goal_status
                     },
-                    action_type='update_goal_progress'
+                    action_type='update_goal_progress',
+                    confirmation_detail=self._build_confirmation(
+                        what=f"{goal.title}: {progress_notes[:40]}",
+                        where="Goals",
+                    )
                 )
             else:
                 titles = [f"• {g.title}" for g in goals[:5]]
@@ -1412,7 +1622,11 @@ class ActionHandler:
                     'intention': intent.intention,
                     'created_at': intent.created_at.isoformat()
                 },
-                action_type='set_intention'
+                action_type='set_intention',
+                confirmation_detail=self._build_confirmation(
+                    what=intention,
+                    where="Goals > Intentions",
+                )
             )
 
         except Exception as e:
@@ -1472,6 +1686,15 @@ class ActionHandler:
 
                 status = "completed" if completed else "skipped"
 
+                # Trend lookup — weekly habit count (safe — never blocks action)
+                trend = None
+                try:
+                    weekly = self._get_weekly_count(HabitEntry, 'date')
+                    if weekly:
+                        trend = f"{weekly} habit log{'s' if weekly != 1 else ''} this week"
+                except Exception:
+                    pass
+
                 return ActionResult(
                     success=True,
                     message=f"✓ Logged habit: {habit.name} - {status}",
@@ -1482,7 +1705,12 @@ class ActionHandler:
                         'completed': entry.completed,
                         'date': entry.date.isoformat()
                     },
-                    action_type='log_habit'
+                    action_type='log_habit',
+                    confirmation_detail=self._build_confirmation(
+                        what=habit.name,
+                        where="Goals > Habits",
+                        trend=trend,
+                    )
                 )
             else:
                 names = [f"• {h.name}" for h in habits[:5]]
@@ -1567,6 +1795,23 @@ class ActionHandler:
             task_url = "/life/tasks/"
             location_hint = f" You can find it in [Organize → Tasks]({task_url})."
 
+            # Risk lookup — tasks due this week (safe — never blocks action)
+            risk = None
+            try:
+                import datetime as dt
+                today = self._get_user_today()
+                week_end = today + dt.timedelta(days=(6 - today.weekday()))
+                due_this_week = Task.objects.filter(
+                    user=self.user,
+                    is_completed=False,
+                    status='active',
+                    due_date__lte=week_end,
+                ).count()
+                if due_this_week > 1:
+                    risk = f"{due_this_week} tasks due this week"
+            except Exception:
+                pass
+
             return ActionResult(
                 success=True,
                 message=f"✓ Created task: {title}{due_str}{project_str}.{location_hint}",
@@ -1579,7 +1824,12 @@ class ActionHandler:
                     'project_id': project.id if project else None,
                     'url': task_url
                 },
-                action_type='create_task'
+                action_type='create_task',
+                confirmation_detail=self._build_confirmation(
+                    what=title,
+                    where="Organize > Tasks",
+                    risk=risk,
+                )
             )
 
         except Exception as e:
@@ -1636,7 +1886,11 @@ class ActionHandler:
                         'title': task.title,
                         'completed_at': task.completed_at.isoformat()
                     },
-                    action_type='complete_task'
+                    action_type='complete_task',
+                    confirmation_detail=self._build_confirmation(
+                        what=task.title,
+                        where="Organize > Tasks",
+                    )
                 )
             else:
                 titles = [f"• {t.title}" for t in tasks[:5]]
@@ -1750,7 +2004,11 @@ class ActionHandler:
                     'start_date': event.start_date.isoformat(),
                     'event_type': event.event_type
                 },
-                action_type='create_event'
+                action_type='create_event',
+                confirmation_detail=self._build_confirmation(
+                    what=f"{title} on {date_str}{time_str}",
+                    where="Organize > Calendar",
+                )
             )
 
         except Exception as e:
@@ -1934,7 +2192,11 @@ class ActionHandler:
                     'event_type': event.event_type,
                     'event_date': event.event_date.isoformat()
                 },
-                action_type='add_reminder'
+                action_type='add_reminder',
+                confirmation_detail=self._build_confirmation(
+                    what=title,
+                    where="Organize > Reminders",
+                )
             )
 
         except Exception as e:
@@ -1979,6 +2241,15 @@ class ActionHandler:
 
             duration_str = f" ({duration_minutes} min)" if duration_minutes else ""
 
+            # Trend lookup — weekly workout count (safe — never blocks action)
+            trend = None
+            try:
+                weekly = self._get_weekly_count(WorkoutSession, 'date')
+                if weekly:
+                    trend = f"{weekly} workout{'s' if weekly != 1 else ''} this week"
+            except Exception:
+                pass
+
             return ActionResult(
                 success=True,
                 message=f"✓ Logged workout: {name}{duration_str}",
@@ -1989,7 +2260,12 @@ class ActionHandler:
                     'duration_minutes': session.duration_minutes,
                     'date': session.date.isoformat()
                 },
-                action_type='log_workout'
+                action_type='log_workout',
+                confirmation_detail=self._build_confirmation(
+                    what=f"{name}{duration_str}",
+                    where="Health > Fitness",
+                    trend=trend,
+                )
             )
 
         except Exception as e:
@@ -2081,7 +2357,11 @@ class ActionHandler:
                     'reps': reps,
                     'is_pr': is_pr
                 },
-                action_type='log_exercise_set'
+                action_type='log_exercise_set',
+                confirmation_detail=self._build_confirmation(
+                    what=f"{exercise_name} {weight} x {reps}",
+                    where="Health > Fitness",
+                )
             )
 
         except Exception as e:
@@ -2157,6 +2437,15 @@ class ActionHandler:
             distance_str = f" - {distance} {distance_unit}" if distance else ""
             cal_str = f" ({calories_burned} cal)" if calories_burned else ""
 
+            # Trend lookup — weekly cardio count (safe — never blocks action)
+            trend = None
+            try:
+                weekly = self._get_weekly_count(WorkoutSession, 'date')
+                if weekly:
+                    trend = f"{weekly} session{'s' if weekly != 1 else ''} this week"
+            except Exception:
+                pass
+
             return ActionResult(
                 success=True,
                 message=f"✓ Logged: {activity.title()} - {duration_minutes} min{distance_str}{cal_str}",
@@ -2168,7 +2457,12 @@ class ActionHandler:
                     'distance': float(distance) if distance else None,
                     'calories_burned': calories_burned
                 },
-                action_type='log_cardio'
+                action_type='log_cardio',
+                confirmation_detail=self._build_confirmation(
+                    what=f"{activity.title()} {duration_minutes} min",
+                    where="Health > Fitness",
+                    trend=trend,
+                )
             )
 
         except Exception as e:
@@ -2210,7 +2504,11 @@ class ActionHandler:
                 success=True,
                 message=f"Started transformation protocol: {name}",
                 created_object={'id': protocol.id, 'name': name},
-                action_type='log_transformation_protocol'
+                action_type='log_transformation_protocol',
+                confirmation_detail=self._build_confirmation(
+                    what=name,
+                    where="Transformation",
+                )
             )
 
         except Exception as e:
@@ -2258,7 +2556,11 @@ class ActionHandler:
                 success=True,
                 message=f"Added '{item_name}' to {list_name}",
                 created_object={'id': item.id, 'name': item_name, 'list_id': shopping_list.id},
-                action_type='log_shopping_item'
+                action_type='log_shopping_item',
+                confirmation_detail=self._build_confirmation(
+                    what=item_name,
+                    where="Shopping List",
+                )
             )
 
         except Exception as e:
@@ -2310,7 +2612,11 @@ class ActionHandler:
                 success=True,
                 message=f"Marked '{item.name}' as purchased",
                 created_object={'id': item.id, 'name': item.name},
-                action_type='complete_shopping_item'
+                action_type='complete_shopping_item',
+                confirmation_detail=self._build_confirmation(
+                    what=item.name,
+                    where="Shopping List",
+                )
             )
 
         except Exception as e:
@@ -2318,5 +2624,47 @@ class ActionHandler:
             return ActionResult(
                 success=False,
                 message="Sorry, I couldn't mark that item as purchased.",
+                error=str(e)
+            )
+
+    # =========================================================================
+    # SETTINGS HANDLERS
+    # =========================================================================
+
+    def handle_set_cos_name(self, name: str = '', **kwargs) -> ActionResult:
+        """
+        Change the Chief of Staff display name.
+
+        Args:
+            name: The new display name (empty string resets to default)
+        """
+        try:
+            clean_name = name.strip()[:50]
+            prefs = self.user.preferences
+            old_name = prefs.get_cos_name()
+            prefs.cos_display_name = clean_name
+            prefs.save(update_fields=['cos_display_name'])
+            new_name = prefs.get_cos_name()
+
+            if clean_name:
+                msg = f"Done — I'm {new_name} now."
+            else:
+                msg = "Done — I'm back to Chief of Staff."
+
+            return ActionResult(
+                success=True,
+                message=msg,
+                created_object={
+                    'old_name': old_name,
+                    'new_name': new_name,
+                },
+                action_type='set_cos_name'
+            )
+
+        except Exception as e:
+            logger.error(f"Error setting CoS name: {e}", exc_info=True)
+            return ActionResult(
+                success=False,
+                message="Sorry, I couldn't update the name right now.",
                 error=str(e)
             )

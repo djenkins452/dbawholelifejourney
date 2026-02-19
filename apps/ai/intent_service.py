@@ -51,6 +51,7 @@ class ActionResult:
     created_object: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
     action_type: Optional[str] = None
+    confirmation_detail: Optional[Dict[str, Any]] = None
 
 
 class IntentService:
@@ -523,6 +524,10 @@ Examples of messages that should NOT trigger functions:
 
             elif intent_type == 'complete_shopping_item':
                 return handler.handle_complete_shopping_item(**parameters)
+
+            # Settings handlers
+            elif intent_type == 'set_cos_name':
+                return handler.handle_set_cos_name(**parameters)
 
             else:
                 return ActionResult(

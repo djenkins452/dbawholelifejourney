@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Chief of Staff — Direct Channel{% endblock %}
+{% block title %}{{ cos_display_name|default:"Chief of Staff" }} — Direct Channel{% endblock %}
 
 {% block extra_css %}
 <style nonce="{{ csp_nonce }}">
@@ -822,7 +822,7 @@
     <div class="chat-sidebar">
         <div class="chat-sidebar-header">
             <div class="chat-header-content">
-                <h3>Chief of Staff — Direct Channel</h3>
+                <h3>{{ cos_display_name|default:"Chief of Staff" }} — Direct Channel</h3>
                 <p>Operational intelligence &amp; executive guidance</p>
             </div>
             <button id="clear-chat-btn" class="clear-chat-btn" title="Clear conversation" style="display: none;">
@@ -870,7 +870,7 @@
                     type="text"
                     class="chat-input"
                     id="chat-input"
-                    placeholder="Message your Chief of Staff..."
+                    placeholder="Message your {{ cos_display_name|default:'Chief of Staff' }}..."
                     autocomplete="off"
                     maxlength="2000"
                     {% if not personal_assistant_accessible %}disabled{% endif %}
@@ -895,6 +895,7 @@
     const personalAssistantEnabled = {{ personal_assistant_enabled|yesno:"true,false" }};
     const personalAssistantConsent = {{ personal_assistant_consent|yesno:"true,false" }};
     const personalAssistantAccessible = {{ personal_assistant_accessible|yesno:"true,false" }};
+    const cosDisplayName = '{{ cos_display_name|default:"Chief of Staff"|escapejs }}';
 
     // Set current date
     const dateEl = document.getElementById('current-date');
@@ -914,8 +915,8 @@
     // Load opening message
     async function loadOpening() {
         if (!personalAssistantAccessible) {
-            document.getElementById('greeting').textContent = 'Chief of Staff — Standby';
-            document.getElementById('assessment').textContent = 'Enable Personal Assistant in your preferences to activate operational governance.';
+            document.getElementById('greeting').textContent = cosDisplayName + ' — Standby';
+            document.getElementById('assessment').textContent = 'Enable Personal Assistant in your preferences to get started.';
             return;
         }
 
@@ -961,14 +962,14 @@
                 }
 
             } else {
-                document.getElementById('greeting').textContent = 'Chief of Staff — Active';
-                document.getElementById('assessment').textContent = data.error || 'System recalibrating. Tier-1 protections remain locked.';
+                document.getElementById('greeting').textContent = cosDisplayName + ' — Active';
+                document.getElementById('assessment').textContent = data.error || 'Recalibrating. Your priorities are still protected.';
             }
 
         } catch (error) {
             console.error('Error loading opening:', error);
-            document.getElementById('greeting').textContent = 'Chief of Staff — Active';
-            document.getElementById('assessment').textContent = 'Connection interrupted. Tier-1 protections remain locked. Refresh to re-establish.';
+            document.getElementById('greeting').textContent = cosDisplayName + ' — Active';
+            document.getElementById('assessment').textContent = 'Connection interrupted. Your priorities are still protected. Refresh to reconnect.';
         }
     }
 

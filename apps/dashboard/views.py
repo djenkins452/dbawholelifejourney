@@ -469,7 +469,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         greeting = self._get_greeting()
         short_name = user.get_short_name()
         align_label, _ = translate_alignment(alignment_score)
-        greeting_line = f'{greeting}, {short_name}. {align_label}.'
+        greeting_line = f'{greeting}, {short_name}.'
 
         # Day summary using human translation
         day_summary = translate_day_assessment(
@@ -508,7 +508,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         timeline_preview = []
         now = timezone.localtime().time()
         all_blocks = command_brief.get('blocks', [])
-        for block in all_blocks[:8]:  # Max 8 in preview
+        for block in all_blocks[:6]:  # Max 6 surfaced items
             is_now = (
                 hasattr(block, 'start_time')
                 and hasattr(block, 'end_time')
@@ -517,7 +517,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                 and block.start_time <= now <= block.end_time
             )
             timeline_preview.append({
-                'time': block.start_time.strftime('%-I:%M') if hasattr(block, 'start_time') and block.start_time else '',
+                'time': block.start_time.strftime('%-I:%M %p') if hasattr(block, 'start_time') and block.start_time else '',
                 'title': block.title if hasattr(block, 'title') else str(block),
                 'tier': block.tier if hasattr(block, 'tier') else 3,
                 'is_completed': block.is_completed if hasattr(block, 'is_completed') else False,
@@ -584,12 +584,12 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             if count == 1:
                 moves.append({
                     'type': 'protect',
-                    'text': f'Protect your commitment: {incomplete_tier1[0]["title"]}.',
+                    'text': f'Lock in {incomplete_tier1[0]["title"]}.',
                 })
             else:
                 moves.append({
                     'type': 'protect',
-                    'text': f'{count} protected commitments today. Lock them in.',
+                    'text': f'{count} priorities today. Lock them in.',
                 })
         elif tier1_items:
             moves.append({
@@ -627,7 +627,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         if command_brief.get('recovery_active'):
             moves.append({
                 'type': 'protect',
-                'text': 'Recovery mode active. Tier-1 items are locked.',
+                'text': 'Recovery mode active. Your top priorities are locked.',
             })
 
         return moves[:3]  # Max 3 moves

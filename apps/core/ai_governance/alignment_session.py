@@ -282,6 +282,17 @@ def build_alignment_system_injection(user):
                 f"After this module, there are {remaining - 1} more to classify. "
                 "You can classify multiple at once if the user volunteers them."
             )
+        elif remaining == 1:
+            # Last module — after classifying, ask about CoS display name
+            lines.append(
+                "This is the last area to classify. After the user answers, "
+                "wrap up the alignment warmly, then ask ONE more thing: "
+                "\"One more thing — what would you like to call me? "
+                "Some people use a name, others keep 'Chief of Staff'. "
+                "Totally up to you.\" "
+                "If they give a name, use the set_cos_name function to save it. "
+                "If they say 'Chief of Staff' or similar, that's fine — no action needed."
+            )
 
     lines.append("")
     lines.append(

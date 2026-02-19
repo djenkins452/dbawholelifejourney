@@ -27,6 +27,35 @@
   - **Fix:** Updated selectors to use correct element IDs (`#assistant-input`, `#assistant-send-btn`, `#assistant-form`), increased timeout from 300ms to 500ms for drawer animation
   - **File:** `templates/components/cos_command_mode.html`
 
+- **Feature: Chief of Staff Unification Pass (Phases A–D)**
+  - **Phase A — Foundation:**
+    - Added `cos_display_name` field to UserPreferences + `get_cos_name()` method + migration `0064`
+    - Context processor passes `cos_display_name` to all templates
+    - Unified "Your Assistant" and hardcoded "Chief of Staff" under configurable display name
+    - Added `set_cos_name` intent + handler for natural language name change ("Call yourself Max")
+    - Deduplicated dashboard greeting (hidden when command mode active)
+    - Removed trailing alignment label from greeting line
+    - Fixed time format: `strftime('%-I:%M')` → `strftime('%-I:%M %p')` for 12-hour AM/PM
+    - Added `TIME_FORMAT` and `DATETIME_FORMAT` to Django settings
+    - Fixed spinner: AbortController with 30s timeout, input preservation on failure
+  - **Phase B — Human Language:**
+    - Replaced all banned internal terms across 8 templates: "Drift Monitor" → "How You're Tracking", "Governing" → "Active", "T1" badge → lock icon, "protected commitment" → "priority", etc.
+    - Enhanced `translate_risk_warning()` with context-aware alerts (commitment name + time remaining)
+    - Capped timeline to 6 items, recommended moves to 3
+  - **Phase C — Enhanced UX:**
+    - Added voice input via Web Speech API (microphone button, pulse animation, auto-submit)
+    - Added `confirmation_detail` to ActionResult dataclass
+    - Enhanced all 29 action handlers with trend/risk confirmation data
+    - Added trend helpers: `_build_confirmation()`, `_get_trend_text()`, `_get_daily_count()`, `_get_weekly_count()`
+    - Added `translate_missed_commitment()` for drift response with accountability styles
+  - **Phase D — Governance + Tests:**
+    - Added CoS naming prompt to governance onboarding (last module classification)
+    - Verified module classification filters by user's enabled modules
+    - 179 new tests across 5 test files
+    - Full implementation report: `docs/COS_UNIFICATION_IMPLEMENTATION_REPORT.md`
+  - **Files:** `apps/users/models.py`, `apps/users/migrations/0064_add_cos_display_name.py`, `apps/core/context_processors.py`, `apps/dashboard/views.py`, `apps/core/blueprint/human_language.py`, `apps/core/blueprint/predictive_interventions.py`, `apps/ai/intent_service.py`, `apps/ai/action_handlers.py`, `apps/ai/personal_assistant.py`, `apps/ai/intents/settings_intents.py`, `apps/ai/intents/__init__.py`, `apps/ai/views.py`, `apps/core/ai_governance/alignment_session.py`, `config/settings.py`, `templates/components/chat_widget.html`, `templates/components/assistant_panel.html`, `templates/components/cos_command_mode.html`, `templates/components/cos_arrival_briefing.html`, `templates/components/assistant_command_brief.html`, `templates/components/navigation.html`, `templates/components/desktop_top_bar.html`, `templates/dashboard/home.html`, `templates/ai/assistant_dashboard.html`, `templates/ai/cos_settings.html`
+  - **Migration:** `0064_add_cos_display_name`
+
 - **Feature:** Phase 5 — Governance Onboarding + Adaptive Authority
   - **Models:** GovernanceProfile (per-user, per-module commitment classification) + GovernanceAlignmentSession (multi-stage onboarding state)
   - **ConsistencyEvaluator:** DriftPressure formula comparing declared importance vs observed behavior (MissRate×ImportanceWeight + GoalImpact + TimeSensitivity + Capacity - Responsiveness)

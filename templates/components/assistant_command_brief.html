@@ -6,7 +6,7 @@
                 <circle cx="12" cy="12" r="10"/>
                 <path d="m9 12 2 2 4-4"/>
             </svg>
-            <span>Command Brief</span>
+            <span>Daily Snapshot</span>
             <span class="command-brief-date">{{ current_date|date:"l, M j" }}</span>
         </div>
     </div>
@@ -15,18 +15,18 @@
         <div class="command-brief-status-bar">
             <div class="command-brief-stat">
                 <span class="command-brief-stat-label">System</span>
-                <span class="command-brief-stat-value status-active">Governing</span>
+                <span class="command-brief-stat-value status-active">Active</span>
             </div>
             <div class="command-brief-stat">
                 <span class="command-brief-stat-label">Capacity</span>
                 <span class="command-brief-stat-value">{{ command_brief.capacity_label|default:"Balanced" }}</span>
             </div>
             <div class="command-brief-stat">
-                <span class="command-brief-stat-label">Drift Risk</span>
+                <span class="command-brief-stat-label">Pressure</span>
                 <span class="command-brief-stat-value {% if command_brief.drift_risk_24h >= 50 %}drift-red{% elif command_brief.drift_risk_24h >= 25 %}drift-amber{% else %}drift-green{% endif %}">{{ command_brief.drift_label|default:"Clear" }}</span>
             </div>
             <div class="command-brief-stat">
-                <span class="command-brief-stat-label">Alignment</span>
+                <span class="command-brief-stat-label">On Track</span>
                 <span class="command-brief-stat-value {% if command_brief.alignment_score >= 80 %}drift-green{% elif command_brief.alignment_score >= 50 %}drift-amber{% else %}drift-red{% endif %}">{{ command_brief.alignment_label|default:"Active" }}</span>
             </div>
             {% if command_brief.block_total > 0 %}
@@ -40,7 +40,7 @@
         <div class="command-brief-sections">
             {% if command_brief.tier1_items %}
             <div class="command-brief-section">
-                <div class="command-brief-section-title">Protected Commitments</div>
+                <div class="command-brief-section-title">Today's Priorities</div>
                 <div class="command-brief-items">
                     {% for item in command_brief.tier1_items %}
                     <div class="command-brief-item tier1{% if item.is_completed %} completed{% endif %}">
@@ -92,7 +92,7 @@
                     {% endif %}
                     {% if command_brief.overload_risk %}
                     <div class="command-brief-forecast-alert">
-                        Density elevated. Tier-3 items flagged for deferral.
+                        Schedule is heavy. Some items may need to shift.
                     </div>
                     {% endif %}
                     {% for warning in command_brief.risk_warnings %}

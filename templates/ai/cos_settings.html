@@ -5,9 +5,9 @@
 
 {% block content %}
 <div class="page-container" style="max-width: 640px; margin: 0 auto; padding: 1rem;">
-    <h1 style="font-size: 1.5rem; font-weight: 600; margin-bottom: 0.25rem;">Chief of Staff Settings</h1>
+    <h1 style="font-size: 1.5rem; font-weight: 600; margin-bottom: 0.25rem;">{{ cos_display_name|default:"Chief of Staff" }} Settings</h1>
     <p style="color: var(--text-secondary); margin-bottom: 1.5rem; font-size: 0.9rem;">
-        Control how your CoS communicates. Everything else is learned through conversation.
+        Control how your {{ cos_display_name|default:"Chief of Staff" }} communicates. Everything else is learned through conversation.
     </p>
 
     {% if not pa_enabled %}
@@ -28,6 +28,16 @@
     {% if blueprint %}
     <form method="post" action="{% url 'ai:cos_settings_save' %}">
         {% csrf_token %}
+
+        {# --- Display Name --- #}
+        <div class="cos-setting-group">
+            <label class="cos-setting-label">Display Name</label>
+            <p class="cos-setting-help">Give your {{ cos_display_name|default:"Chief of Staff" }} a custom name, or leave blank for "Chief of Staff".</p>
+            <input type="text" name="cos_display_name" class="cos-text-input"
+                   value="{{ cos_display_name_raw }}"
+                   placeholder="e.g. Max, Jarvis, Friday"
+                   maxlength="50">
+        </div>
 
         {# --- Accountability Style --- #}
         <div class="cos-setting-group">

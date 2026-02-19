@@ -118,6 +118,7 @@ def theme_context(request):
             # Personal Assistant toggles
             context['personal_assistant_enabled'] = prefs.personal_assistant_enabled
             context['personal_assistant_consent'] = prefs.personal_assistant_consent
+            context['cos_display_name'] = prefs.get_cos_name()
             # Cycle tracking - check if user has opted in
             try:
                 from apps.health.models import CycleSettings

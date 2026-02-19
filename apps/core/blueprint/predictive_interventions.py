@@ -276,8 +276,8 @@ def _build_drift_warning_message(user, drift_24h, signals):
     """Build a warning-level drift message."""
     pct = round(drift_24h * 100)
     return (
-        f"Drift risk is building ({pct}% probability in next 24h). "
-        f"Consider reviewing your protected commitments."
+        f"Pressure is building ({pct}% in the next 24 hours). "
+        f"Consider reviewing your priorities."
     )
 
 

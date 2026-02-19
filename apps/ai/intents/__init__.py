@@ -31,6 +31,7 @@ from .faith_intents import FAITH_INTENT_TOOLS
 from .purpose_intents import PURPOSE_INTENT_TOOLS
 from .life_intents import LIFE_INTENT_TOOLS
 from .fitness_intents import FITNESS_INTENT_TOOLS
+from .settings_intents import SETTINGS_INTENT_TOOLS
 
 # Combine all intent tools for the OpenAI API
 ALL_INTENT_TOOLS = (
@@ -41,7 +42,8 @@ ALL_INTENT_TOOLS = (
     FAITH_INTENT_TOOLS +
     PURPOSE_INTENT_TOOLS +
     LIFE_INTENT_TOOLS +
-    FITNESS_INTENT_TOOLS
+    FITNESS_INTENT_TOOLS +
+    SETTINGS_INTENT_TOOLS
 )
 
 # Intent type to handler mapping (for routing)
@@ -80,6 +82,8 @@ INTENT_HANDLERS = {
     'log_workout': 'fitness',
     'log_exercise_set': 'fitness',
     'log_cardio': 'fitness',
+    # Settings
+    'set_cos_name': 'settings',
     # No action
     'no_action': None,
 }
@@ -95,4 +99,5 @@ __all__ = [
     'PURPOSE_INTENT_TOOLS',
     'LIFE_INTENT_TOOLS',
     'FITNESS_INTENT_TOOLS',
+    'SETTINGS_INTENT_TOOLS',
 ]

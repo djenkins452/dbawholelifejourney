@@ -24,7 +24,7 @@
             <img src="{% static 'icons/common/logo.svg' %}" alt="WLJ" class="assistant-avatar-logo">
             {% endif %}
             <div class="assistant-header-text">
-                <span class="assistant-title">Your Assistant</span>
+                <span class="assistant-title">{{ cos_display_name|default:"Chief of Staff" }}</span>
                 <span class="assistant-subtitle">Ask questions or get personalized guidance</span>
             </div>
         </div>
@@ -83,6 +83,16 @@
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="12" y1="5" x2="12" y2="19"></line>
                     <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+            </button>
+
+            <!-- Voice input button (shown only if Web Speech API is supported) -->
+            <button type="button" id="assistant-voice-btn" class="assistant-voice-btn" title="Voice input" style="display: none;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                    <line x1="12" y1="19" x2="12" y2="23"></line>
+                    <line x1="8" y1="23" x2="16" y2="23"></line>
                 </svg>
             </button>
 
@@ -463,6 +473,38 @@
     background: var(--color-accent, #6366f1);
     color: white;
     border-color: var(--color-accent, #6366f1);
+}
+
+.assistant-voice-btn {
+    width: 40px;
+    height: 40px;
+    min-width: 44px;
+    min-height: 44px;
+    border-radius: 50%;
+    background: transparent;
+    border: 1px solid var(--color-border, #e5e7eb);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-text-muted, #6b7280);
+    transition: background 0.2s, color 0.2s, border-color 0.2s;
+    flex-shrink: 0;
+}
+.assistant-voice-btn:hover {
+    background: var(--color-surface, #f3f4f6);
+    color: var(--color-accent, #6366f1);
+    border-color: var(--color-accent, #6366f1);
+}
+.assistant-voice-btn.listening {
+    background: #ef4444;
+    color: white;
+    border-color: #ef4444;
+    animation: voice-pulse 1.5s ease-in-out infinite;
+}
+@keyframes voice-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+    50% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
 }
 
 .assistant-input {
@@ -1247,6 +1289,9 @@
         const message = input.value.trim();
         if (!message && !attachedImage) return;
 
+        // Save message for restoration on failure
+        const savedMessage = message;
+
         // Build the image data URL for display if we have an attachment
         const imageDataUrl = attachedImage
             ? `data:${attachedImage.mimeType};base64,${attachedImage.data}`
@@ -1262,6 +1307,10 @@
         clearAttachment();
 
         showTyping();
+
+        // Timeout protection — 30 seconds max
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
 
         try {
             // Use current page context (already captured when drawer opened)
@@ -1293,7 +1342,8 @@
                     headers: {
                         'X-CSRFToken': getCsrfToken()
                     },
-                    body: formData
+                    body: formData,
+                    signal: controller.signal
                 });
             } else {
                 // Regular JSON request
@@ -1306,10 +1356,12 @@
                     body: JSON.stringify({
                         message: message,
                         page_context: currentPageContext
-                    })
+                    }),
+                    signal: controller.signal
                 });
             }
 
+            clearTimeout(timeoutId);
             hideTyping();
             const data = await response.json();
 
@@ -1320,9 +1372,105 @@
             }
 
         } catch (error) {
+            clearTimeout(timeoutId);
             hideTyping();
-            console.error('Chat error:', error);
-            addMessage('Sorry, I had trouble responding. Please try again.', false);
+
+            if (error.name === 'AbortError') {
+                console.error('Chat request timed out after 30 seconds');
+                addMessage('Request timed out. Please try again.', false);
+            } else {
+                console.error('Chat error:', error);
+                addMessage('Sorry, I had trouble responding. Please try again.', false);
+            }
+
+            // Restore user input on failure so they don't lose their message
+            if (savedMessage) {
+                input.value = savedMessage;
+                updateSendButton();
+            }
+        }
+    }
+
+    // =========================================================================
+    // VOICE INPUT (Web Speech API)
+    // =========================================================================
+
+    const voiceBtn = document.getElementById('assistant-voice-btn');
+    let speechRecognition = null;
+    let isListening = false;
+
+    // Feature detection — show button only if supported
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition && voiceBtn) {
+        voiceBtn.style.display = 'flex';
+
+        voiceBtn.addEventListener('click', function() {
+            if (isListening) {
+                stopListening();
+            } else {
+                startListening();
+            }
+        });
+    }
+
+    function startListening() {
+        if (!SpeechRecognition) return;
+
+        speechRecognition = new SpeechRecognition();
+        speechRecognition.lang = 'en-US';
+        speechRecognition.interimResults = false;
+        speechRecognition.continuous = false;
+        speechRecognition.maxAlternatives = 1;
+
+        speechRecognition.onstart = function() {
+            isListening = true;
+            voiceBtn.classList.add('listening');
+            voiceBtn.title = 'Stop listening';
+        };
+
+        speechRecognition.onresult = function(event) {
+            const transcript = event.results[0][0].transcript;
+            if (transcript) {
+                input.value = transcript;
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                // Auto-submit after voice capture
+                setTimeout(function() {
+                    if (input.value.trim()) {
+                        sendMessage();
+                    }
+                }, 200);
+            }
+        };
+
+        speechRecognition.onerror = function(event) {
+            console.error('Speech recognition error:', event.error);
+            if (event.error === 'not-allowed') {
+                addMessage('Microphone access denied. Please allow microphone in your browser settings.', false);
+            }
+            stopListening();
+        };
+
+        speechRecognition.onend = function() {
+            stopListening();
+        };
+
+        try {
+            speechRecognition.start();
+        } catch (e) {
+            console.error('Failed to start speech recognition:', e);
+            stopListening();
+        }
+    }
+
+    function stopListening() {
+        isListening = false;
+        if (voiceBtn) {
+            voiceBtn.classList.remove('listening');
+            voiceBtn.title = 'Voice input';
+        }
+        if (speechRecognition) {
+            try { speechRecognition.stop(); } catch(e) {}
+            speechRecognition = null;
         }
     }
 

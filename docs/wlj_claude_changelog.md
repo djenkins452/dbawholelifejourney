@@ -11,6 +11,13 @@
 
 ## 2026-02-19
 
+- **Fix: Mobile dashboard text cutoff** — Dashboard content was being clipped on the right side on mobile devices. Added `overflow-x: hidden` to html/body, `overflow: hidden` on tile wrappers and card sections, fixed flex layout issues in state snapshot rows, nudge cards, and medicine schedule. Applied `min()` pattern to grid `minmax()` calls to prevent cards from exceeding viewport width on small screens.
+  - Files: `static/css/main.css`, `static/css/dashboard.css`, `templates/dashboard/home.html`
+  - Why: Right-side text cutoff on iPhone — values like "310.6 lbs", "improving", "480 min" were partially hidden
+
+- **CLAUDE.md update** — Made deploy instructions explicit: commit and deploy automatically without asking for permission.
+  - Files: `CLAUDE.md`
+
 - **Phase 5: Conversational Calibration Rewrite** — Replaced 14-day trickle calibration with conversational chat-driven onboarding session. CoS now asks 11 getting-to-know-you questions in real-time conversation. User can pause anytime ("enough for now") and resume next session. System prompt injection follows alignment_session.py pattern.
   - New: `pause_calibration` intent + handler
   - New: Management command `reset_calibration_conversational` for existing users

@@ -101,7 +101,7 @@ AdminTask `description` fields must be JSON: `{"objective": "...", "inputs": [..
 
 ## On Task Completion
 
-After ANY code changes:
+After ANY code changes, do ALL of the following **automatically without asking**:
 
 1. **Changelog:** Append to `docs/wlj_claude_changelog.md` (date, changes, files, why)
 2. **User-facing docs (MANDATORY for features/enhancements):** Update ALL of the following. See `docs/CLAUDE_DOC_UPDATES.md` for full checklist.
@@ -110,13 +110,11 @@ After ANY code changes:
    - **Teaching destinations** (`apps/help/fixtures/teaching_destinations.json`) — if new navigable page
    - **Features doc** (`docs/wlj_claude_features.md`) — if major feature, add/update section + ToC
    - **Fixture loader reset** (`apps/core/management/commands/load_initial_data.py`) — if any fixture modified
-3. **Deploy:**
-   - Push branch: `GIT_SSH_COMMAND="ssh -p 443" git push git@ssh.github.com:djenkins452/dbawholelifejourney.git <branch>:<branch>`
-   - Fetch: `GIT_SSH_COMMAND="ssh -p 443" git fetch git@ssh.github.com:djenkins452/dbawholelifejourney.git <branch>:refs/remotes/origin/<branch>`
-   - Merge: `git checkout main && git merge origin/<branch> --no-edit`
+3. **Commit & Deploy** — do this immediately, never ask "ready to deploy?":
+   - Commit all changed files with a descriptive message
    - Push main: `GIT_SSH_COMMAND="ssh -p 443" git push git@ssh.github.com:djenkins452/dbawholelifejourney.git main`
 
-**A task is NOT complete until deployed.**
+**A task is NOT complete until deployed. Deploy automatically — never wait for permission.**
 
 ---
 

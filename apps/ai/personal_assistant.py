@@ -1896,6 +1896,22 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                         'success': True,
                         'created': action_result.get('data'),
                     })
+            # During active calibration, skip action intent recognition.
+            # The AI should only listen and ask questions, not log data.
+            # Exception: calibration intents (pause/complete) still work.
+            elif self._is_calibration_active():
+                # Check for calibration-specific intents only
+                _cal_response = self._try_calibration_intents(
+                    message, intent_service, actions_taken)
+                if _cal_response:
+                    response = _cal_response
+                else:
+                    response = self._generate_response(
+                        message, conversation,
+                        page_context=page_context,
+                        image_data=image_data,
+                        image_mime_type=image_mime_type
+                    )
             # Then check for pending data visibility confirmation
             elif self._handle_data_visibility_confirmation(message, conversation):
                 response = self._data_visibility_response
@@ -2923,6 +2939,58 @@ Rules for this response:
         except Exception as e:
             logger.error(f"Response generation error: {e}")
             return self._get_fallback_response(message)
+
+    def _try_calibration_intents(self, message, intent_service, actions_taken):
+        """During calibration, only allow pause/complete intents.
+
+        Returns response string if a calibration intent was matched,
+        or None to fall through to normal _generate_response().
+        """
+        CALIBRATION_ONLY_INTENTS = {'pause_calibration', 'complete_calibration'}
+        try:
+            results = intent_service.recognize_intents(message, self.user)
+            cal_intents = [
+                r for r in results
+                if r.intent_type in CALIBRATION_ONLY_INTENTS
+            ]
+            if not cal_intents:
+                return None
+
+            from apps.core.ai_orchestrator.orchestrator import enrich_and_execute
+            from apps.core.ai_orchestrator.orchestrator import (
+                process_user_input as orchestrator_process,
+            )
+            orch_result = orchestrator_process(self.user, message)
+            orch_actions = enrich_and_execute(
+                self.user, cal_intents, orch_result)
+            parts = []
+            for ar in orch_actions:
+                if ar.success:
+                    actions_taken.append(self._build_action_taken(ar))
+                parts.append(ar.message)
+            return " ".join(parts) if parts else None
+        except Exception as e:
+            logger.debug("Calibration intent check failed: %s", e)
+            return None
+
+    def _is_calibration_active(self) -> bool:
+        """Check if user is in active calibration (getting-to-know-you) mode.
+
+        During calibration, the AI should only listen and ask questions —
+        no action intents should be recognized or executed.
+        """
+        try:
+            if not getattr(self.prefs, 'personal_assistant_enabled', False):
+                return False
+            from apps.core.blueprint.cos_governance import get_calibration_state
+            cal_state = get_calibration_state(self.user)
+            return (
+                cal_state is not None
+                and cal_state['active']
+                and not cal_state['paused']
+            )
+        except Exception:
+            return False
 
     def _get_fallback_response(self, message: str) -> str:
         """Get fallback response when AI is unavailable, matching coaching style."""

@@ -1469,7 +1469,16 @@ def build_calibration_system_injection(user):
         "9. If the user wants to talk about something else (not a question), "
         "let them — then gently steer back to the question when appropriate.\n"
         "10. Never tell them how many questions are left or that questions "
-        "'cycle'. Just have a natural conversation."
+        "'cycle'. Just have a natural conversation.\n"
+        "11. DO NOT TAKE ACTIONS. If the user mentions data (food, fasting, "
+        "weight, exercise, etc.), just ABSORB it and remember it. Do NOT "
+        "log anything, start any tracking, or execute any commands. You are "
+        "in listening mode. Acknowledge what they shared and keep the "
+        "conversation going.\n"
+        "12. If the user shares something important about their life, habits, "
+        "or routines, reflect it back naturally ('So fasting is part of your "
+        "routine — that tells me discipline matters to you') rather than "
+        "treating it as a command to execute."
     )
     lines.append("")
     lines.append("##############################################################")

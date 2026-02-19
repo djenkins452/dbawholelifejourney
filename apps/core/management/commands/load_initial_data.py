@@ -670,6 +670,9 @@ class Command(BaseCommand):
         # One-time: Fix calibration_complete=True stuck after prior reset + auto-complete alignment
         self._fix_calibration_complete_flag(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset ALL users for new intro/calibration experience
+        self._reset_all_calibration_for_intro(DataLoadConfig, force, verbosity)
+
         # Auto-sync CoS documentation to admin guide (runs if checksum changed)
         self._sync_cos_documentation(DataLoadConfig, force, verbosity)
 
@@ -2350,6 +2353,69 @@ Tasks are sorted by priority (ascending) then creation date.""",
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(
                     f'Fix calibration_complete flag FAILED: {e}'))
+
+    def _reset_all_calibration_for_intro(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset: All users get the new introduction/calibration flow.
+        Resets calibration to stage 0 with welcome_shown=False and clears
+        chat history so everyone experiences the warmer first-time greeting.
+        """
+        reset_tracker_name = 'reset_all_calibration_intro_v1_2026_02_19'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            from django.utils import timezone
+            from apps.core.blueprint.models import PersonalOperatingBlueprint
+
+            reset_count = 0
+            for bp in PersonalOperatingBlueprint.objects.select_related('user').all():
+                try:
+                    bp.calibration_complete = False
+                    overrides = bp.governance_overrides or {}
+                    overrides['calibration_stage'] = 0
+                    overrides['calibration_paused'] = False
+                    overrides['calibration_welcome_shown'] = False
+                    overrides['calibration_answers'] = {}
+                    overrides['calibration_complete'] = False
+                    overrides['calibration_intro_reset_at'] = timezone.now().isoformat()
+                    bp.governance_overrides = overrides
+                    bp.save(update_fields=[
+                        'calibration_complete', 'governance_overrides',
+                        'updated_at',
+                    ])
+                    # Clear chat history so calibration starts fresh
+                    try:
+                        from apps.ai.models import AssistantConversation
+                        conv = AssistantConversation.objects.filter(
+                            user=bp.user, is_active=True).first()
+                        if conv:
+                            conv.messages.all().delete()
+                    except Exception:
+                        pass
+                    reset_count += 1
+                    if verbosity >= 1:
+                        self.stdout.write(
+                            f'  Reset calibration for intro: {bp.user.email}')
+                except Exception:
+                    pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                f'Reset {reset_count} users for new intro/calibration experience',
+                'command',
+                'One-time: all users restart calibration with new welcome flow'
+            )
+
+            if verbosity >= 1:
+                self.stdout.write(
+                    f'  Calibration intro reset complete: {reset_count} users')
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(
+                    f'Reset all calibration for intro FAILED: {e}'))
 
     def _sync_cos_documentation(self, DataLoadConfig, force=False, verbosity=1):
         """

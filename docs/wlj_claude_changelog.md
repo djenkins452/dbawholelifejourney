@@ -17,6 +17,12 @@
 - **First-time user greeting — proper introduction flow** — Rewrote the calibration welcome message to be a warmer, more intentional introduction. Instead of jumping to "I'll ask you questions," the CoS now positions the first interaction as genuinely getting to know the user — their priorities, what drives them, what's important vs. secondary. Updated the system prompt injection to explicitly prevent the AI from jumping into tasks/data for first-time users. Updated the empty state in the chat panel to show a calibration-specific welcome when the user hasn't started yet.
   - Files: `apps/core/blueprint/cos_governance.py`, `templates/components/assistant_panel.html`, `templates/components/cos_command_mode.html`, `templates/components/chat_widget.html`
 
+- **Returning-user conversation opener** — Added "OPENING A NEW CONVERSATION" section to the personal assistant system prompt. When a calibrated user starts a new chat, the AI now leads with something specific from their data (overdue tasks, health trends, streaks) instead of a generic "What area would you like to focus on today?"
+  - Files: `apps/ai/personal_assistant.py`
+
+- **Reset all users for new intro experience** — Added one-time `_reset_all_calibration_for_intro` to `load_initial_data.py`. Resets ALL users' calibration to stage 0 with `welcome_shown=False`, clears chat history so everyone gets the new warmer introduction flow on next visit.
+  - Files: `apps/core/management/commands/load_initial_data.py`
+
 - **Fix: calibration_complete=True stuck** — `calibration_complete` stayed `True` after calibration reset, preventing the system injection from being included. `reset_calibration_conversational` now clears `calibration_complete`. Also auto-completes stale alignment sessions that block calibration.
   - Files: `apps/core/blueprint/cos_governance.py`, `apps/core/management/commands/reset_calibration_conversational.py`
 

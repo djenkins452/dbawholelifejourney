@@ -131,7 +131,8 @@ class APIClient {
             KeychainManager.shared.deleteAPIToken()
             throw APIError.notAuthenticated
         } else {
-            throw APIError.serverError("Failed to get sync status")
+            let body = String(data: data, encoding: .utf8) ?? "(no body)"
+            throw APIError.serverError("Sync status failed (\(httpResponse.statusCode)): \(body)")
         }
     }
 

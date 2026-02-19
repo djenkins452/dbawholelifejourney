@@ -2001,51 +2001,58 @@ def sync_status(request):
         }
     }
     """
-    user = request.user
-    device = request.mobile_device
+    try:
+        user = request.user
+        device = request.mobile_device
 
-    # Get last ingestion run
-    last_run = HealthIngestionRun.objects.filter(
-        user=user,
-        device=device,
-    ).first()
+        # Get last ingestion run
+        last_run = HealthIngestionRun.objects.filter(
+            user=user,
+            device=device,
+        ).first()
 
-    # Get latest dates for each metric type
-    latest_steps = StepsEntry.objects.filter(
-        user=user,
-        source="apple_health",
-    ).order_by("-logged_date").values_list("logged_date", flat=True).first()
+        # Get latest dates for each metric type
+        latest_steps = StepsEntry.objects.filter(
+            user=user,
+            source="apple_health",
+        ).order_by("-logged_date").values_list("logged_date", flat=True).first()
 
-    # WeightEntry doesn't have source field, just get latest
-    latest_weight = WeightEntry.objects.filter(
-        user=user,
-    ).order_by("-recorded_at").values_list("recorded_at", flat=True).first()
+        # WeightEntry doesn't have source field, just get latest
+        latest_weight = WeightEntry.objects.filter(
+            user=user,
+        ).order_by("-recorded_at").values_list("recorded_at", flat=True).first()
 
-    latest_sleep = SleepEntry.objects.filter(
-        user=user,
-        source="apple_health",
-    ).order_by("-sleep_date").values_list("sleep_date", flat=True).first()
+        latest_sleep = SleepEntry.objects.filter(
+            user=user,
+            source="apple_health",
+        ).order_by("-sleep_date").values_list("sleep_date", flat=True).first()
 
-    latest_glucose = GlucoseEntry.objects.filter(
-        user=user,
-        source="apple_health",
-    ).order_by("-recorded_at").values_list("recorded_at", flat=True).first()
+        latest_glucose = GlucoseEntry.objects.filter(
+            user=user,
+            source="apple_health",
+        ).order_by("-recorded_at").values_list("recorded_at", flat=True).first()
 
-    return JsonResponse({
-        "last_sync": last_run.created_at.isoformat() if last_run else None,
-        "last_sync_status": last_run.status if last_run else None,
-        "metrics_synced": {
-            "steps": latest_steps.isoformat() if latest_steps else None,
-            # latest_weight is a datetime, get just the date
-            "weight": latest_weight.date().isoformat() if latest_weight else None,
-            "sleep": latest_sleep.isoformat() if latest_sleep else None,
-            "blood_glucose": latest_glucose.isoformat() if latest_glucose else None,
-        },
-        "device": {
-            "name": device.device_name or device.device_model or "Unknown",
-            "last_seen": device.last_seen_at.isoformat() if device.last_seen_at else None,
-        },
-    })
+        return JsonResponse({
+            "last_sync": last_run.created_at.isoformat() if last_run else None,
+            "last_sync_status": last_run.status if last_run else None,
+            "metrics_synced": {
+                "steps": latest_steps.isoformat() if latest_steps else None,
+                # latest_weight is a datetime, get just the date
+                "weight": latest_weight.date().isoformat() if latest_weight else None,
+                "sleep": latest_sleep.isoformat() if latest_sleep else None,
+                "blood_glucose": latest_glucose.isoformat() if latest_glucose else None,
+            },
+            "device": {
+                "name": device.device_name or device.device_model or "Unknown",
+                "last_seen": device.last_seen_at.isoformat() if device.last_seen_at else None,
+            },
+        })
+    except Exception as e:
+        logger.exception("sync_status error")
+        return JsonResponse(
+            {"error": "sync_status_error", "message": str(e)},
+            status=500,
+        )
 
 
 # =============================================================================

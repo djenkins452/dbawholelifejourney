@@ -292,9 +292,7 @@ body.edit-mode .tile-name-label {
     <!-- Header -->
     <header class="dashboard-header">
         <div class="greeting">
-            {% if not command_mode or not command_mode.active %}
             <h1>{{ greeting }}, {{ user.get_short_name }}.</h1>
-            {% endif %}
             <p class="current-date">{{ current_date|date:"l, F j, Y" }}</p>
             {% if health_enabled and user_data.cycle_tracking_enabled and user_data.cycle_data.phase %}
             <a href="{% url 'health:cycle_dashboard' %}" class="cycle-day-subtle" title="View Cycle Dashboard">
@@ -314,8 +312,8 @@ body.edit-mode .tile-name-label {
     {% include "components/assistant_command_brief.html" %}
     {% endif %}
 
-    {% comment %} Today's Insight — always prominent, even in command mode {% endcomment %}
-    {% if command_mode and command_mode.active and ai_enabled and ai_insights %}
+    {% comment %} Today's Insight — always prominent {% endcomment %}
+    {% if ai_enabled and ai_insights %}
     <section class="ai-insight-hero tile-size-large{% if ai_insights.is_onboarding %} onboarding-insight{% endif %}" data-tile-id="ai_insights">
         <div class="ai-insight-content">
             <div class="ai-badge">
@@ -335,7 +333,7 @@ body.edit-mode .tile-name-label {
     {% endif %}
 
     <!-- Edit Mode Bar -->
-    <div class="dashboard-edit-bar" {% if command_mode and command_mode.active %}style="display:none"{% endif %}>
+    <div class="dashboard-edit-bar">
         <button type="button" class="btn-customize" id="customize-btn">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="3" y="3" width="7" height="7"/>

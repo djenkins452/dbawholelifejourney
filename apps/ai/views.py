@@ -376,11 +376,22 @@ class ConversationHistoryView(LoginRequiredMixin, AssistantMixin, View):
                     msg_data['quick_reply_used'] = msg['quick_reply_used']
                 messages_list.append(msg_data)
 
+            # Add calibration state for chat auto-start
+            calibration_active = False
+            try:
+                from apps.core.blueprint.cos_governance import get_calibration_state
+                cal_state = get_calibration_state(request.user)
+                if cal_state and cal_state['active'] and not cal_state['paused']:
+                    calibration_active = True
+            except Exception:
+                pass
+
             return JsonResponse({
                 'success': True,
                 'conversation_id': conversation.id,
                 'session_type': conversation.session_type,
                 'messages': messages_list,
+                'calibration_active': calibration_active,
             })
 
         except AssistantConversation.DoesNotExist:

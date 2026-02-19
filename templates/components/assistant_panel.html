@@ -1,17 +1,20 @@
 {% load static %}
 {% comment %}
-  Chief of Staff Assistant Panel
+  Chief of Staff — Persistent Chat Panel
 
-  Desktop: Pinned right panel (default open, collapsible)
-  Mobile: Pull-up panel from bottom
+  Desktop: Pinned right panel (default open, collapsible) with Chat + Status tabs
+  Mobile: Pull-up panel from bottom with chat interface
 
-  Renders: today's plan, active interventions, drift status, quick actions
-  Supports: assistant-initiated pings, friction gates, curveball handling
+  Chat tab (default): Full chat with message history, image attachments, voice I/O
+  Status tab: Today's plan, drift, alerts (HTMX-loaded)
+  Supports: calibration auto-start, intervention pings, friction gates, voice conversation
 {% endcomment %}
 
 {% if user.is_authenticated and personal_assistant_enabled %}
-{# Desktop Panel (hidden on mobile) #}
-<aside id="assistant-panel" class="assistant-panel" data-state="open" aria-label="Assistant Panel">
+{# Desktop Panel (hidden on mobile via CSS) #}
+<aside id="assistant-panel" class="assistant-panel" data-state="open"
+       data-calibration-active="{{ calibration_active|yesno:'true,false' }}"
+       aria-label="Chief of Staff Chat">
     <div class="assistant-panel-header">
         <div class="assistant-panel-title">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -20,7 +23,11 @@
             </svg>
             <span>{{ cos_display_name|default:"Chief of Staff" }}</span>
         </div>
-        <button class="assistant-panel-toggle" data-action="toggle-assistant-panel" aria-label="Toggle assistant panel" title="Toggle panel">
+        <div class="ap-tabs">
+            <button class="ap-tab active" data-action="switch-ap-tab" data-tab="chat">Chat</button>
+            <button class="ap-tab" data-action="switch-ap-tab" data-tab="status">Status <span class="ap-status-badge" id="ap-status-badge" hidden></span></button>
+        </div>
+        <button class="assistant-panel-toggle" data-action="toggle-assistant-panel" aria-label="Toggle panel" title="Toggle panel">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="15 18 9 12 15 6"/>
             </svg>
@@ -28,89 +35,125 @@
     </div>
 
     <div class="assistant-panel-body">
-        {# Status indicator #}
-        <div class="assistant-status" id="assistant-status" title="Your Chief of Staff is monitoring your plan and will alert you if anything needs attention">
-            <div class="assistant-status-dot active"></div>
-            <span class="assistant-status-text">Monitoring your day</span>
-        </div>
-
-        {# Today's Architecture Plan #}
-        <div class="assistant-section" id="assistant-plan-section">
-            <div class="assistant-section-header" data-action="toggle-section" data-section="assistant-plan">
-                <span>Today's Plan</span>
-                <svg class="section-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-            </div>
-            <div class="assistant-section-content" id="assistant-plan">
-                <div class="assistant-loading"
-                     hx-get="/api/blueprint/plan/today/"
-                     hx-trigger="load"
-                     hx-swap="outerHTML">
-                    Preparing your plan...
+        {# ====== CHAT TAB (default) ====== #}
+        <div class="ap-tab-content ap-tab-chat" id="ap-tab-chat">
+            <div class="ap-chat-messages" id="ap-chat-messages">
+                <div id="ap-chat-loading" class="ap-chat-loading">
+                    <div class="ap-chat-loading-spinner"></div>
+                    <span>Connecting...</span>
                 </div>
             </div>
+
+            <div class="ap-chat-input-area">
+                {# Image Preview #}
+                <div id="ap-attachment-preview" class="ap-attachment-preview" style="display: none;">
+                    <img id="ap-preview-image" class="ap-preview-image" alt="Attached image">
+                    <button type="button" id="ap-remove-attachment" class="ap-remove-attachment" title="Remove">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
+                </div>
+
+                <form id="ap-chat-form" class="ap-chat-form">
+                    {% csrf_token %}
+                    <input type="file" id="ap-file-input" accept="image/jpeg,image/png,image/gif,image/webp" hidden>
+
+                    <button type="button" id="ap-attach-btn" class="ap-attach-btn" title="Attach image">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                    </button>
+
+                    <input type="text" id="ap-chat-input" class="ap-chat-input"
+                           placeholder="Message your {{ cos_display_name|default:'Chief of Staff' }}..."
+                           autocomplete="off" maxlength="2000">
+
+                    <button type="button" id="ap-voice-btn" class="ap-voice-btn" title="Voice input" style="display:none;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                            <line x1="12" y1="19" x2="12" y2="23"/>
+                            <line x1="8" y1="23" x2="16" y2="23"/>
+                        </svg>
+                    </button>
+
+                    <button type="submit" id="ap-send-btn" class="ap-send-btn" disabled>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="22" y1="2" x2="11" y2="13"></line>
+                            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                        </svg>
+                    </button>
+                </form>
+            </div>
         </div>
 
-        {# Drift Status #}
-        <div class="assistant-section" id="assistant-drift-section">
-            <div class="assistant-section-header" data-action="toggle-section" data-section="assistant-drift">
-                <span>Plan Progress</span>
-                <svg class="section-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        {# ====== STATUS TAB ====== #}
+        <div class="ap-tab-content ap-tab-status" id="ap-tab-status" style="display:none;">
+            <div class="assistant-status" title="Monitoring your day">
+                <div class="assistant-status-dot active"></div>
+                <span class="assistant-status-text">Monitoring your day</span>
             </div>
-            <div class="assistant-section-content" id="assistant-drift">
-                <div class="assistant-loading"
-                     hx-get="/api/blueprint/drift/summary/"
-                     hx-trigger="load"
-                     hx-swap="outerHTML">
-                    Reviewing progress...
+
+            <div class="assistant-section" id="assistant-plan-section">
+                <div class="assistant-section-header" data-action="toggle-section" data-section="assistant-plan">
+                    <span>Today's Plan</span>
+                    <svg class="section-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                </div>
+                <div class="assistant-section-content" id="assistant-plan">
+                    <div class="assistant-loading" hx-get="/api/blueprint/plan/today/" hx-trigger="revealed" hx-swap="outerHTML">
+                        Preparing your plan...
+                    </div>
                 </div>
             </div>
-        </div>
 
-        {# Active Interventions #}
-        <div class="assistant-section" id="assistant-interventions-section">
-            <div class="assistant-section-header" data-action="toggle-section" data-section="assistant-interventions">
-                <span>Alerts</span>
-                <span class="assistant-badge" id="intervention-count" hidden>0</span>
-                <svg class="section-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-            </div>
-            <div class="assistant-section-content" id="assistant-interventions">
-                <div class="assistant-loading"
-                     hx-get="/api/blueprint/interventions/pending/"
-                     hx-trigger="load"
-                     hx-swap="outerHTML">
-                    Scanning for alerts...
+            <div class="assistant-section" id="assistant-drift-section">
+                <div class="assistant-section-header" data-action="toggle-section" data-section="assistant-drift">
+                    <span>Plan Progress</span>
+                    <svg class="section-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                </div>
+                <div class="assistant-section-content" id="assistant-drift">
+                    <div class="assistant-loading" hx-get="/api/blueprint/drift/summary/" hx-trigger="revealed" hx-swap="outerHTML">
+                        Reviewing progress...
+                    </div>
                 </div>
             </div>
-        </div>
 
-        {# Quick Actions #}
-        <div class="assistant-section">
-            <div class="assistant-section-header">
-                <span>Quick Actions</span>
+            <div class="assistant-section" id="assistant-interventions-section">
+                <div class="assistant-section-header" data-action="toggle-section" data-section="assistant-interventions">
+                    <span>Alerts</span>
+                    <span class="assistant-badge" id="intervention-count" hidden>0</span>
+                    <svg class="section-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                </div>
+                <div class="assistant-section-content" id="assistant-interventions">
+                    <div class="assistant-loading" hx-get="/api/blueprint/interventions/pending/" hx-trigger="revealed" hx-swap="outerHTML">
+                        Scanning for alerts...
+                    </div>
+                </div>
             </div>
-            <div class="assistant-section-content">
-                <div class="assistant-quick-actions">
-                    <button class="assistant-action-btn" data-action="open-assistant-chat" title="Open chat">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="m3 21 1.9-5.7a8.5 8.5 0 1 1 3.8 3.8z"/>
-                        </svg>
-                        Chat
-                    </button>
-                    <button class="assistant-action-btn" data-action="trigger-curveball" title="Report curveball">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M12 2v20M2 12h20"/>
-                        </svg>
-                        Curveball
-                    </button>
-                    <button class="assistant-action-btn" data-action="view-blueprint" title="View blueprint">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <rect width="18" height="18" x="3" y="4" rx="2" ry="2"/>
-                            <line x1="16" x2="16" y1="2" y2="6"/>
-                            <line x1="8" x2="8" y1="2" y2="6"/>
-                            <line x1="3" x2="21" y1="10" y2="10"/>
-                        </svg>
-                        Blueprint
-                    </button>
+
+            <div class="assistant-section">
+                <div class="assistant-section-header"><span>Quick Actions</span></div>
+                <div class="assistant-section-content">
+                    <div class="assistant-quick-actions">
+                        <button class="assistant-action-btn" data-action="trigger-curveball" title="Report curveball">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 2v20M2 12h20"/>
+                            </svg>
+                            Curveball
+                        </button>
+                        <button class="assistant-action-btn" data-action="view-blueprint" title="View blueprint">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect width="18" height="18" x="3" y="4" rx="2" ry="2"/>
+                                <line x1="16" x2="16" y1="2" y2="6"/>
+                                <line x1="8" x2="8" y1="2" y2="6"/>
+                                <line x1="3" x2="21" y1="10" y2="10"/>
+                            </svg>
+                            Blueprint
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -131,16 +174,29 @@
         </div>
     </div>
     <div class="assistant-pullup-body" id="assistant-pullup-body">
-        {# Same content as desktop panel, loaded via HTMX when opened #}
-        <div class="assistant-pullup-content"
-             hx-get="/api/blueprint/panel/mobile/"
-             hx-trigger="revealed"
-             hx-swap="innerHTML">
+        <div class="ap-chat-messages" id="mobile-chat-messages">
+            <div id="mobile-chat-loading" class="ap-chat-loading">
+                <div class="ap-chat-loading-spinner"></div>
+                <span>Connecting...</span>
+            </div>
+        </div>
+        <div class="ap-chat-input-area">
+            <form id="mobile-chat-form" class="ap-chat-form">
+                {% csrf_token %}
+                <input type="text" id="mobile-chat-input" class="ap-chat-input"
+                       placeholder="Message..." autocomplete="off" maxlength="2000">
+                <button type="submit" id="mobile-send-btn" class="ap-send-btn" disabled>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                    </svg>
+                </button>
+            </form>
         </div>
     </div>
 </div>
 
-{# Friction Gate Modal #}
+{# Friction Gate Modal (preserved) #}
 <div id="friction-gate-modal" class="friction-gate-overlay" hidden>
     <div class="friction-gate-modal">
         <div class="friction-gate-icon">
@@ -150,170 +206,824 @@
                 <line x1="12" y1="17" x2="12.01" y2="17"/>
             </svg>
         </div>
-        <div class="friction-gate-content" id="friction-gate-content">
-            {# Content loaded dynamically #}
-        </div>
-        <div class="friction-gate-actions" id="friction-gate-actions">
-            {# Buttons loaded dynamically #}
-        </div>
+        <div class="friction-gate-content" id="friction-gate-content"></div>
+        <div class="friction-gate-actions" id="friction-gate-actions"></div>
     </div>
 </div>
 
 <script nonce="{{ csp_nonce }}">
-/* Assistant Panel Logic */
-function toggleAssistantPanel() {
+/* ================================================================
+   Chief of Staff — Chat Panel Engine
+   ================================================================ */
+(function() {
+    'use strict';
+
+    /* ---- Config ---- */
+    var paEnabled = {{ personal_assistant_enabled|yesno:"true,false" }};
+    var paConsent = {{ personal_assistant_consent|yesno:"true,false" }};
+    var paAccessible = paEnabled && paConsent;
+    var cosName = '{{ cos_display_name|default:"Chief of Staff"|escapejs }}';
+
+    /* ---- DOM refs (desktop) ---- */
     var panel = document.getElementById('assistant-panel');
-    var state = panel.getAttribute('data-state');
-    panel.setAttribute('data-state', state === 'open' ? 'closed' : 'open');
-    document.body.classList.toggle('assistant-panel-closed', state === 'open');
-}
+    var chatMessages = document.getElementById('ap-chat-messages');
+    var chatLoading = document.getElementById('ap-chat-loading');
+    var chatForm = document.getElementById('ap-chat-form');
+    var chatInput = document.getElementById('ap-chat-input');
+    var sendBtn = document.getElementById('ap-send-btn');
+    var voiceBtn = document.getElementById('ap-voice-btn');
+    var attachBtn = document.getElementById('ap-attach-btn');
+    var fileInput = document.getElementById('ap-file-input');
+    var attachmentPreview = document.getElementById('ap-attachment-preview');
+    var previewImage = document.getElementById('ap-preview-image');
+    var removeAttachBtn = document.getElementById('ap-remove-attachment');
 
-function toggleSection(sectionId) {
-    var section = document.getElementById(sectionId);
-    if (section) {
-        section.classList.toggle('collapsed');
+    /* ---- DOM refs (mobile) ---- */
+    var mobileChatMessages = document.getElementById('mobile-chat-messages');
+    var mobileChatForm = document.getElementById('mobile-chat-form');
+    var mobileChatInput = document.getElementById('mobile-chat-input');
+    var mobileSendBtn = document.getElementById('mobile-send-btn');
+
+    /* ---- State ---- */
+    var hasMessages = false;
+    var attachedImage = null; // { data: base64, mimeType: string }
+    var calibrationAutoStarted = false;
+
+    /* ---- Helpers ---- */
+    function getCsrfToken() {
+        var el = document.querySelector('[name=csrfmiddlewaretoken]');
+        return el ? el.value : '';
     }
-}
 
-function toggleMobileAssistant() {
-    var pullup = document.getElementById('assistant-pullup');
-    pullup.classList.toggle('expanded');
-    document.body.classList.toggle('assistant-pullup-open');
-}
+    function getCookie(name) {
+        var value = '; ' + document.cookie;
+        var parts = value.split('; ' + name + '=');
+        if (parts.length === 2) return parts.pop().split(';').shift();
+        return '';
+    }
 
-function openAssistantChat() {
-    /* Open the existing chat widget */
-    var chatToggle = document.querySelector('.chat-toggle-button, [data-chat-toggle]');
-    if (chatToggle) chatToggle.click();
-    else window.location.href = '/assistant/';
-}
+    /* ================================================================
+       TAB SWITCHING
+       ================================================================ */
+    function switchTab(tabName) {
+        var chatTab = document.getElementById('ap-tab-chat');
+        var statusTab = document.getElementById('ap-tab-status');
+        var tabs = document.querySelectorAll('.ap-tab');
 
-function triggerCurveball() {
-    var desc = prompt("What's the curveball? Describe the unexpected event:");
-    if (desc) {
-        fetch('/api/blueprint/curveball/', {
+        tabs.forEach(function(t) {
+            t.classList.toggle('active', t.getAttribute('data-tab') === tabName);
+        });
+
+        if (tabName === 'chat') {
+            chatTab.style.display = '';
+            statusTab.style.display = 'none';
+        } else {
+            chatTab.style.display = 'none';
+            statusTab.style.display = '';
+            // Trigger HTMX revealed for lazy-loaded content
+            var loaders = statusTab.querySelectorAll('[hx-trigger="revealed"]');
+            loaders.forEach(function(el) {
+                if (typeof htmx !== 'undefined') {
+                    htmx.trigger(el, 'revealed');
+                }
+            });
+        }
+    }
+
+    /* ================================================================
+       PANEL TOGGLE
+       ================================================================ */
+    function toggleAssistantPanel() {
+        var state = panel.getAttribute('data-state');
+        var newState = state === 'open' ? 'closed' : 'open';
+        panel.setAttribute('data-state', newState);
+        document.body.classList.toggle('assistant-panel-closed', newState === 'closed');
+        try { localStorage.setItem('ap_state', newState); } catch(e) {}
+    }
+
+    function toggleMobileAssistant() {
+        var pullup = document.getElementById('assistant-pullup');
+        var expanding = !pullup.classList.contains('expanded');
+        pullup.classList.toggle('expanded');
+        document.body.classList.toggle('assistant-pullup-open');
+        if (expanding) {
+            loadMobileChatHistory();
+        }
+    }
+
+    /* Restore panel state from localStorage (unless calibration forces open) */
+    function restorePanelState() {
+        var calibrating = panel.getAttribute('data-calibration-active') === 'true';
+        if (calibrating) {
+            panel.setAttribute('data-state', 'open');
+            document.body.classList.remove('assistant-panel-closed');
+            return;
+        }
+        try {
+            var saved = localStorage.getItem('ap_state');
+            if (saved === 'closed') {
+                panel.setAttribute('data-state', 'closed');
+                document.body.classList.add('assistant-panel-closed');
+            }
+        } catch(e) {}
+    }
+
+    /* ================================================================
+       TOGGLE SECTION (for status tab)
+       ================================================================ */
+    function toggleSection(sectionId) {
+        var section = document.getElementById(sectionId);
+        if (section) section.classList.toggle('collapsed');
+    }
+
+    /* ================================================================
+       MESSAGE FORMATTING
+       ================================================================ */
+    function formatAssistantMessage(content) {
+        var paragraphs = content.split(/\n\n+/);
+        return paragraphs.map(function(para) {
+            var lines = para.split('\n');
+            var isNumberedList = lines.every(function(l) { return /^\d+\.\s/.test(l.trim()) || l.trim() === ''; });
+            var isBulletList = lines.every(function(l) { return /^[-*]\s/.test(l.trim()) || l.trim() === ''; });
+
+            if (isNumberedList && lines.some(function(l) { return /^\d+\.\s/.test(l.trim()); })) {
+                var items = lines.filter(function(l) { return /^\d+\.\s/.test(l.trim()); })
+                    .map(function(l) { return '<li>' + formatInline(l.replace(/^\d+\.\s*/, '')) + '</li>'; }).join('');
+                return '<ol style="margin:6px 0;padding-left:18px;">' + items + '</ol>';
+            }
+            if (isBulletList && lines.some(function(l) { return /^[-*]\s/.test(l.trim()); })) {
+                var bItems = lines.filter(function(l) { return /^[-*]\s/.test(l.trim()); })
+                    .map(function(l) { return '<li>' + formatInline(l.replace(/^[-*]\s*/, '')) + '</li>'; }).join('');
+                return '<ul style="margin:6px 0;padding-left:18px;">' + bItems + '</ul>';
+            }
+            return '<p style="margin:6px 0;">' + lines.map(formatInline).join('<br>') + '</p>';
+        }).join('');
+    }
+
+    function formatInline(text) {
+        return text
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    }
+
+    /* ================================================================
+       CHAT MESSAGES
+       ================================================================ */
+    function addMessage(container, content, isUser, scroll, imageDataUrl, msgData) {
+        if (typeof scroll === 'undefined') scroll = true;
+        var msg = document.createElement('div');
+        msg.className = 'ap-chat-message ' + (isUser ? 'user' : 'assistant');
+
+        if (msgData && msgData.is_proactive) msg.classList.add('proactive');
+        if (msgData && msgData.id) msg.dataset.messageId = msgData.id;
+
+        if (!isUser) {
+            if (msgData && msgData.is_proactive) {
+                var label = document.createElement('div');
+                label.className = 'ap-proactive-label';
+                label.textContent = 'Check-in';
+                msg.appendChild(label);
+            }
+            var contentDiv = document.createElement('div');
+            contentDiv.innerHTML = formatAssistantMessage(content);
+            msg.appendChild(contentDiv);
+
+            // Quick reply buttons
+            if (msgData && msgData.quick_replies && msgData.quick_replies.length > 0) {
+                var btnsDiv = document.createElement('div');
+                btnsDiv.className = 'ap-quick-replies';
+                msgData.quick_replies.forEach(function(reply) {
+                    var btn = document.createElement('button');
+                    btn.className = 'ap-quick-reply-btn ' + (reply.style || 'secondary');
+                    btn.textContent = reply.label;
+                    btn.dataset.replyId = reply.id;
+                    btn.dataset.action = 'ap-quick-reply';
+                    btn.dataset.replyAction = reply.action;
+                    btn.dataset.params = JSON.stringify(reply.params || {});
+                    btn.dataset.messageId = msgData.id;
+                    btnsDiv.appendChild(btn);
+                });
+                msg.appendChild(btnsDiv);
+            } else if (msgData && msgData.quick_reply_used) {
+                var usedDiv = document.createElement('div');
+                usedDiv.className = 'ap-quick-replies';
+                usedDiv.innerHTML = '<span class="ap-quick-reply-btn used">Responded</span>';
+                msg.appendChild(usedDiv);
+            }
+        } else {
+            if (imageDataUrl) {
+                var imgEl = document.createElement('img');
+                imgEl.src = imageDataUrl;
+                imgEl.className = 'ap-chat-message-image';
+                msg.appendChild(imgEl);
+                if (content && content !== '(Image attached)') {
+                    var textEl = document.createElement('div');
+                    textEl.textContent = content;
+                    msg.appendChild(textEl);
+                }
+            } else {
+                msg.textContent = content;
+            }
+        }
+
+        container.appendChild(msg);
+        if (scroll) container.scrollTop = container.scrollHeight;
+        hasMessages = true;
+    }
+
+    function showTyping(container) {
+        var typing = document.createElement('div');
+        typing.className = 'ap-typing-indicator';
+        typing.id = 'ap-typing';
+        typing.innerHTML = '<span></span><span></span><span></span>';
+        container.appendChild(typing);
+        container.scrollTop = container.scrollHeight;
+    }
+
+    function hideTyping() {
+        var el = document.getElementById('ap-typing');
+        if (el) el.remove();
+    }
+
+    function showEmptyState(container) {
+        container.innerHTML =
+            '<div class="ap-chat-empty">' +
+            '<div class="ap-chat-empty-icon">&#128172;</div>' +
+            '<h4>Start a Conversation</h4>' +
+            '<p>Ask about your priorities, what needs attention, or how to stay on track.</p>' +
+            '</div>';
+        hasMessages = false;
+    }
+
+    /* ================================================================
+       SEND MESSAGE
+       ================================================================ */
+    function sendMessage(message, container, inputEl, btnEl, imageOverride) {
+        var sentImage = imageOverride || attachedImage;
+        var imageDataUrl = sentImage
+            ? 'data:' + sentImage.mimeType + ';base64,' + sentImage.data
+            : null;
+
+        inputEl.value = '';
+        btnEl.disabled = true;
+        clearAttachment();
+
+        // Remove empty state
+        var empty = container.querySelector('.ap-chat-empty');
+        if (empty) empty.remove();
+
+        addMessage(container, message || '(Image attached)', true, true, imageDataUrl);
+        showTyping(container);
+
+        var fetchOpts;
+        if (sentImage) {
+            var formData = new FormData();
+            formData.append('message', message);
+            var byteString = atob(sentImage.data);
+            var ab = new ArrayBuffer(byteString.length);
+            var ia = new Uint8Array(ab);
+            for (var i = 0; i < byteString.length; i++) ia[i] = byteString.charCodeAt(i);
+            var blob = new Blob([ab], { type: sentImage.mimeType });
+            formData.append('image', blob, 'attachment.png');
+            fetchOpts = {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCsrfToken() },
+                body: formData
+            };
+        } else {
+            fetchOpts = {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()
+                },
+                body: JSON.stringify({
+                    message: message,
+                    page_context: {
+                        url: window.location.pathname,
+                        module: 'Chat Panel',
+                        page_title: document.title
+                    }
+                })
+            };
+        }
+
+        fetch('/assistant/api/chat/', fetchOpts)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            hideTyping();
+            if (data.success && data.response) {
+                addMessage(container, data.response, false, true);
+                // Speak if voice conversation mode is active
+                if (voiceConversationMode) {
+                    speakResponse(data.response);
+                }
+            } else {
+                addMessage(container, data.error || 'Sorry, something went wrong.', false, true);
+            }
+        })
+        .catch(function() {
+            hideTyping();
+            addMessage(container, 'Could not reach the server. Please try again.', false, true);
+        })
+        .finally(function() {
+            btnEl.disabled = !inputEl.value.trim();
+        });
+    }
+
+    /* ================================================================
+       LOAD HISTORY
+       ================================================================ */
+    function loadChatHistory(container, loadingEl) {
+        if (!paAccessible) {
+            if (loadingEl) loadingEl.style.display = 'none';
+            showEmptyState(container);
+            return;
+        }
+
+        fetch('/assistant/api/history/')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (loadingEl) loadingEl.style.display = 'none';
+
+            if (data.success && data.messages && data.messages.length > 0) {
+                container.innerHTML = '';
+                data.messages.forEach(function(msg) {
+                    addMessage(container, msg.content, msg.role === 'user', false,
+                        msg.image_data_url || null, msg);
+                });
+                container.scrollTop = container.scrollHeight;
+            } else {
+                showEmptyState(container);
+
+                // Auto-start calibration if active and no messages
+                if (data.calibration_active && !calibrationAutoStarted) {
+                    calibrationAutoStarted = true;
+                    sendMessage('Hello', container, chatInput, sendBtn);
+                }
+            }
+        })
+        .catch(function() {
+            if (loadingEl) loadingEl.style.display = 'none';
+            showEmptyState(container);
+        });
+    }
+
+    function refreshChatHistory(container) {
+        if (!paAccessible) return;
+        fetch('/assistant/api/history/')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success || !data.messages) return;
+            var current = container.querySelectorAll('.ap-chat-message');
+            var needsUpdate = data.messages.length !== current.length;
+            if (!needsUpdate && data.messages.length > 0 && current.length > 0) {
+                var lastServer = data.messages[data.messages.length - 1].content;
+                var lastDisplay = current[current.length - 1].textContent.trim();
+                if (lastServer.substring(0, 50) !== lastDisplay.substring(0, 50)) needsUpdate = true;
+            }
+            if (needsUpdate) {
+                container.innerHTML = '';
+                if (data.messages.length > 0) {
+                    data.messages.forEach(function(msg) {
+                        addMessage(container, msg.content, msg.role === 'user', false,
+                            msg.image_data_url || null, msg);
+                    });
+                    container.scrollTop = container.scrollHeight;
+                } else {
+                    showEmptyState(container);
+                }
+            }
+        })
+        .catch(function() {});
+    }
+
+    function loadMobileChatHistory() {
+        var mLoading = document.getElementById('mobile-chat-loading');
+        loadChatHistory(mobileChatMessages, mLoading);
+    }
+
+    /* ================================================================
+       CLEAR CONVERSATION
+       ================================================================ */
+    function clearConversation() {
+        if (!hasMessages || !confirm('Clear all messages and start fresh?')) return;
+        fetch('/assistant/api/clear/', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCookie('csrftoken')
-            },
-            body: JSON.stringify({ description: desc })
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() }
         })
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (data.success) {
-                htmx.trigger('#assistant-plan-section', 'load');
-                showToast('Plan updated for curveball');
+                showEmptyState(chatMessages);
+                showEmptyState(mobileChatMessages);
             }
-        });
-    }
-}
-
-function viewBlueprint() {
-    window.location.href = '/user/preferences/#blueprint';
-}
-
-function showFrictionGate(data) {
-    var modal = document.getElementById('friction-gate-modal');
-    var content = document.getElementById('friction-gate-content');
-    var actions = document.getElementById('friction-gate-actions');
-
-    content.innerHTML = '<p class="friction-gate-message">' + data.message + '</p>';
-    if (data.identity_cost > 70) {
-        content.innerHTML += '<div class="friction-gate-cost">This conflicts with who you said you are.</div>';
-    } else if (data.identity_cost > 30) {
-        content.innerHTML += '<div class="friction-gate-cost">This pulls against your priorities.</div>';
+        })
+        .catch(function() {});
     }
 
-    var html = '';
-    (data.options || []).forEach(function(opt) {
-        html += '<button class="btn btn-' + (opt.style || 'secondary') +
-            '" data-action="respond-friction-gate" data-intervention-id="' + data.intervention_id +
-            '" data-response="' + opt.key + '">' + opt.label + '</button>';
-    });
-    actions.innerHTML = html;
-
-    modal.hidden = false;
-}
-
-function respondFrictionGate(interventionId, response) {
-    fetch('/api/blueprint/interventions/' + interventionId + '/respond/', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': getCookie('csrftoken')
-        },
-        body: JSON.stringify({ response: response })
-    })
-    .then(function(r) { return r.json(); })
-    .then(function() {
-        document.getElementById('friction-gate-modal').hidden = true;
-    });
-}
-
-function getCookie(name) {
-    var value = '; ' + document.cookie;
-    var parts = value.split('; ' + name + '=');
-    if (parts.length === 2) return parts.pop().split(';').shift();
-    return '';
-}
-
-function showToast(message) {
-    var toast = document.createElement('div');
-    toast.className = 'assistant-toast';
-    toast.textContent = message;
-    document.body.appendChild(toast);
-    setTimeout(function() { toast.classList.add('show'); }, 10);
-    setTimeout(function() { toast.remove(); }, 3000);
-}
-
-/* Delegated click handler for all data-action buttons */
-document.addEventListener('click', function(e) {
-    var el = e.target.closest('[data-action]');
-    if (!el) return;
-    var action = el.getAttribute('data-action');
-    if (action === 'toggle-assistant-panel') toggleAssistantPanel();
-    else if (action === 'toggle-mobile-assistant') toggleMobileAssistant();
-    else if (action === 'toggle-section') {
-        var sectionId = el.getAttribute('data-section');
-        if (sectionId) toggleSection(sectionId);
+    /* ================================================================
+       IMAGE ATTACHMENT
+       ================================================================ */
+    function handleImageFile(file) {
+        var validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        if (validTypes.indexOf(file.type) === -1) { alert('Please select JPEG, PNG, GIF, or WebP'); return; }
+        if (file.size > 5 * 1024 * 1024) { alert('Image too large (5MB max)'); return; }
+        var reader = new FileReader();
+        reader.onload = function(e) {
+            attachedImage = { data: e.target.result.split(',')[1], mimeType: file.type };
+            previewImage.src = e.target.result;
+            attachmentPreview.style.display = 'flex';
+            attachBtn.classList.add('has-attachment');
+            updateSendBtn();
+        };
+        reader.readAsDataURL(file);
     }
-    else if (action === 'open-assistant-chat') openAssistantChat();
-    else if (action === 'trigger-curveball') triggerCurveball();
-    else if (action === 'view-blueprint') viewBlueprint();
-    else if (action === 'respond-friction-gate') {
-        var interventionId = el.getAttribute('data-intervention-id');
-        var response = el.getAttribute('data-response');
-        if (interventionId && response) respondFrictionGate(interventionId, response);
+
+    function clearAttachment() {
+        attachedImage = null;
+        if (previewImage) previewImage.src = '';
+        if (attachmentPreview) attachmentPreview.style.display = 'none';
+        if (attachBtn) attachBtn.classList.remove('has-attachment');
+        if (fileInput) fileInput.value = '';
+        updateSendBtn();
     }
-});
 
-/* Poll for assistant pings every 60 seconds */
-setInterval(function() {
-    fetch('/api/blueprint/interventions/check/')
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-        if (data.count > 0) {
-            var badge = document.getElementById('intervention-count');
-            var mBadge = document.getElementById('mobile-intervention-count');
-            if (badge) { badge.textContent = data.count; badge.hidden = false; }
-            if (mBadge) { mBadge.textContent = data.count; mBadge.hidden = false; }
+    function updateSendBtn() {
+        if (sendBtn) sendBtn.disabled = !chatInput.value.trim() && !attachedImage;
+    }
 
-            if (data.friction_gate) {
-                showFrictionGate(data.friction_gate);
+    /* ================================================================
+       VOICE CONVERSATION
+       ================================================================ */
+    var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    var speechRec = null;
+    var isListening = false;
+    var voiceConversationMode = false;
+    var pendingRestart = false;
+    var preferredVoice = null;
+
+    if (SpeechRecognition && voiceBtn) {
+        voiceBtn.style.display = 'flex';
+    }
+
+    function enterVoiceConversation() {
+        voiceConversationMode = true;
+        voiceBtn.classList.add('voice-conversation');
+        startListening();
+    }
+
+    function exitVoiceConversation() {
+        voiceConversationMode = false;
+        pendingRestart = false;
+        voiceBtn.classList.remove('voice-conversation');
+        window.speechSynthesis.cancel();
+        stopListening();
+    }
+
+    function startListening() {
+        if (!SpeechRecognition) return;
+        if (speechRec) { try { speechRec.stop(); } catch(e) {} speechRec = null; }
+        speechRec = new SpeechRecognition();
+        speechRec.lang = 'en-US';
+        speechRec.interimResults = false;
+        speechRec.continuous = false;
+        speechRec.maxAlternatives = 1;
+
+        speechRec.onstart = function() {
+            isListening = true;
+            voiceBtn.classList.add('listening');
+        };
+
+        speechRec.onresult = function(event) {
+            var transcript = event.results[0][0].transcript;
+            if (transcript) {
+                chatInput.value = transcript;
+                setTimeout(function() {
+                    if (chatInput.value.trim()) {
+                        sendMessage(chatInput.value.trim(), chatMessages, chatInput, sendBtn);
+                    }
+                }, 200);
             }
+        };
 
-            /* Auto-open panel on ping level interventions */
-            if (data.should_ping) {
-                var panel = document.getElementById('assistant-panel');
-                if (panel && panel.getAttribute('data-state') === 'closed') {
-                    panel.setAttribute('data-state', 'open');
-                    document.body.classList.remove('assistant-panel-closed');
+        speechRec.onerror = function(event) {
+            if (event.error === 'not-allowed') {
+                addMessage(chatMessages, 'Microphone access denied. Please allow microphone in browser settings.', false, true);
+                exitVoiceConversation();
+                return;
+            }
+            if (voiceConversationMode && event.error !== 'aborted') {
+                setTimeout(function() { if (voiceConversationMode) startListening(); }, 300);
+            } else {
+                stopListening();
+            }
+        };
+
+        speechRec.onend = function() {
+            isListening = false;
+            voiceBtn.classList.remove('listening');
+            if (voiceConversationMode && !pendingRestart) {
+                if (!window.speechSynthesis.speaking) {
+                    setTimeout(function() { if (voiceConversationMode) startListening(); }, 300);
+                }
+            }
+            speechRec = null;
+        };
+
+        try { speechRec.start(); } catch(e) {
+            if (voiceConversationMode) setTimeout(function() { if (voiceConversationMode) startListening(); }, 500);
+        }
+    }
+
+    function stopListening() {
+        isListening = false;
+        if (voiceBtn) voiceBtn.classList.remove('listening');
+        if (speechRec) { try { speechRec.stop(); } catch(e) {} speechRec = null; }
+    }
+
+    /* TTS */
+    function loadPreferredVoice() {
+        var voices = window.speechSynthesis.getVoices();
+        if (!voices.length) return;
+        var preferred = ['Samantha', 'Karen', 'Moira', 'Google US English', 'Microsoft Zira', 'Shelley'];
+        for (var i = 0; i < preferred.length; i++) {
+            for (var j = 0; j < voices.length; j++) {
+                if (voices[j].name.indexOf(preferred[i]) !== -1 && voices[j].lang.indexOf('en') === 0) {
+                    preferredVoice = voices[j]; return;
                 }
             }
         }
-    })
-    .catch(function() {});
-}, 60000);
+        var maleNames = ['daniel', 'david', 'james', 'thomas', 'male', 'alex', 'fred'];
+        for (var k = 0; k < voices.length; k++) {
+            if (voices[k].lang.indexOf('en') === 0) {
+                var vName = voices[k].name.toLowerCase();
+                var isMale = maleNames.some(function(m) { return vName.indexOf(m) !== -1; });
+                if (!isMale) { preferredVoice = voices[k]; return; }
+            }
+        }
+    }
+
+    if ('speechSynthesis' in window) {
+        loadPreferredVoice();
+        window.speechSynthesis.onvoiceschanged = loadPreferredVoice;
+    }
+
+    function speakResponse(text) {
+        if (!('speechSynthesis' in window)) return;
+        window.speechSynthesis.cancel();
+        if (speechRec) { try { speechRec.stop(); } catch(e) {} }
+        pendingRestart = true;
+        var utterance = new SpeechSynthesisUtterance(text);
+        if (preferredVoice) utterance.voice = preferredVoice;
+        utterance.rate = 0.95;
+        utterance.pitch = 1.05;
+        utterance.lang = 'en-US';
+        utterance.onend = function() {
+            pendingRestart = false;
+            if (voiceConversationMode) setTimeout(function() { startListening(); }, 300);
+        };
+        utterance.onerror = function() {
+            pendingRestart = false;
+            if (voiceConversationMode) setTimeout(function() { startListening(); }, 300);
+        };
+        window.speechSynthesis.speak(utterance);
+    }
+
+    /* ================================================================
+       QUICK REPLY HANDLER
+       ================================================================ */
+    function handleQuickReply(btn) {
+        var messageId = btn.dataset.messageId;
+        var replyAction = btn.dataset.replyAction;
+        var params = {};
+        try { params = JSON.parse(btn.dataset.params); } catch(e) {}
+
+        var btnsDiv = btn.parentElement;
+        btnsDiv.querySelectorAll('.ap-quick-reply-btn').forEach(function(b) { b.disabled = true; });
+        btn.textContent = 'Processing...';
+
+        fetch('/assistant/api/quick-reply/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+            body: JSON.stringify({
+                message_id: parseInt(messageId),
+                reply_id: btn.dataset.replyId,
+                action: replyAction,
+                params: params
+            })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            btnsDiv.innerHTML = '<span class="ap-quick-reply-btn used">Responded</span>';
+            if (data.message) addMessage(chatMessages, data.message, false, true);
+            if (data.data && data.data.action === 'navigate' && data.data.url) {
+                window.location.href = data.data.url;
+            }
+        })
+        .catch(function() {
+            btnsDiv.querySelectorAll('.ap-quick-reply-btn').forEach(function(b) { b.disabled = false; });
+            btn.textContent = btn.dataset.replyId;
+        });
+    }
+
+    /* ================================================================
+       FRICTION GATE & CURVEBALL (preserved from original panel)
+       ================================================================ */
+    function showFrictionGate(data) {
+        var modal = document.getElementById('friction-gate-modal');
+        var content = document.getElementById('friction-gate-content');
+        var actions = document.getElementById('friction-gate-actions');
+        content.innerHTML = '<p class="friction-gate-message">' + data.message + '</p>';
+        if (data.identity_cost > 70) {
+            content.innerHTML += '<div class="friction-gate-cost">This conflicts with who you said you are.</div>';
+        } else if (data.identity_cost > 30) {
+            content.innerHTML += '<div class="friction-gate-cost">This pulls against your priorities.</div>';
+        }
+        var html = '';
+        (data.options || []).forEach(function(opt) {
+            html += '<button class="btn btn-' + (opt.style || 'secondary') +
+                '" data-action="respond-friction-gate" data-intervention-id="' + data.intervention_id +
+                '" data-response="' + opt.key + '">' + opt.label + '</button>';
+        });
+        actions.innerHTML = html;
+        modal.hidden = false;
+    }
+
+    function respondFrictionGate(interventionId, response) {
+        fetch('/api/blueprint/interventions/' + interventionId + '/respond/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+            body: JSON.stringify({ response: response })
+        })
+        .then(function() { document.getElementById('friction-gate-modal').hidden = true; });
+    }
+
+    function triggerCurveball() {
+        var desc = prompt("What's the curveball? Describe the unexpected event:");
+        if (desc) {
+            fetch('/api/blueprint/curveball/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+                body: JSON.stringify({ description: desc })
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    if (typeof htmx !== 'undefined') htmx.trigger('#assistant-plan-section', 'load');
+                    showToast('Plan updated for curveball');
+                }
+            });
+        }
+    }
+
+    function viewBlueprint() { window.location.href = '/user/preferences/#blueprint'; }
+
+    function showToast(message) {
+        var toast = document.createElement('div');
+        toast.className = 'assistant-toast';
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        setTimeout(function() { toast.classList.add('show'); }, 10);
+        setTimeout(function() { toast.remove(); }, 3000);
+    }
+
+    /* ================================================================
+       EVENT DELEGATION
+       ================================================================ */
+    document.addEventListener('click', function(e) {
+        var el = e.target.closest('[data-action]');
+        if (!el) return;
+        var action = el.getAttribute('data-action');
+
+        if (action === 'toggle-assistant-panel') toggleAssistantPanel();
+        else if (action === 'toggle-mobile-assistant') toggleMobileAssistant();
+        else if (action === 'switch-ap-tab') switchTab(el.getAttribute('data-tab'));
+        else if (action === 'toggle-section') {
+            var sectionId = el.getAttribute('data-section');
+            if (sectionId) toggleSection(sectionId);
+        }
+        else if (action === 'trigger-curveball') triggerCurveball();
+        else if (action === 'view-blueprint') viewBlueprint();
+        else if (action === 'respond-friction-gate') {
+            respondFrictionGate(el.getAttribute('data-intervention-id'), el.getAttribute('data-response'));
+        }
+        else if (action === 'ap-quick-reply') handleQuickReply(el);
+        else if (action === 'ap-clear-chat') clearConversation();
+    });
+
+    /* ================================================================
+       FORM HANDLERS (desktop)
+       ================================================================ */
+    if (chatInput) {
+        chatInput.addEventListener('input', updateSendBtn);
+        chatInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                var msg = chatInput.value.trim();
+                if (msg || attachedImage) sendMessage(msg, chatMessages, chatInput, sendBtn);
+            }
+        });
+        chatInput.addEventListener('paste', function(e) {
+            var items = e.clipboardData ? e.clipboardData.items : null;
+            if (!items) return;
+            for (var i = 0; i < items.length; i++) {
+                if (items[i].type.indexOf('image/') === 0) {
+                    e.preventDefault();
+                    var file = items[i].getAsFile();
+                    if (file) handleImageFile(file);
+                    break;
+                }
+            }
+        });
+    }
+
+    if (chatForm) {
+        chatForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            var msg = chatInput.value.trim();
+            if (msg || attachedImage) sendMessage(msg, chatMessages, chatInput, sendBtn);
+        });
+    }
+
+    if (attachBtn) attachBtn.addEventListener('click', function() { fileInput.click(); });
+    if (fileInput) fileInput.addEventListener('change', function() { if (fileInput.files[0]) handleImageFile(fileInput.files[0]); });
+    if (removeAttachBtn) removeAttachBtn.addEventListener('click', clearAttachment);
+
+    if (voiceBtn) {
+        voiceBtn.addEventListener('click', function() {
+            if (voiceConversationMode) exitVoiceConversation();
+            else enterVoiceConversation();
+        });
+    }
+
+    /* ================================================================
+       FORM HANDLERS (mobile)
+       ================================================================ */
+    if (mobileChatInput) {
+        mobileChatInput.addEventListener('input', function() {
+            mobileSendBtn.disabled = !mobileChatInput.value.trim();
+        });
+        mobileChatInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                var msg = mobileChatInput.value.trim();
+                if (msg) sendMessage(msg, mobileChatMessages, mobileChatInput, mobileSendBtn);
+            }
+        });
+    }
+    if (mobileChatForm) {
+        mobileChatForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            var msg = mobileChatInput.value.trim();
+            if (msg) sendMessage(msg, mobileChatMessages, mobileChatInput, mobileSendBtn);
+        });
+    }
+
+    /* ================================================================
+       INTERVENTION POLLING (60s)
+       ================================================================ */
+    setInterval(function() {
+        fetch('/api/blueprint/interventions/check/')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.count > 0) {
+                var badge = document.getElementById('intervention-count');
+                var mBadge = document.getElementById('mobile-intervention-count');
+                var sBadge = document.getElementById('ap-status-badge');
+                if (badge) { badge.textContent = data.count; badge.hidden = false; }
+                if (mBadge) { mBadge.textContent = data.count; mBadge.hidden = false; }
+                if (sBadge) { sBadge.textContent = data.count; sBadge.hidden = false; }
+
+                if (data.friction_gate) showFrictionGate(data.friction_gate);
+
+                if (data.should_ping) {
+                    if (panel && panel.getAttribute('data-state') === 'closed') {
+                        panel.setAttribute('data-state', 'open');
+                        document.body.classList.remove('assistant-panel-closed');
+                    }
+                }
+            }
+        })
+        .catch(function() {});
+    }, 60000);
+
+    /* ================================================================
+       VISIBILITY SYNC
+       ================================================================ */
+    document.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'visible') refreshChatHistory(chatMessages);
+    });
+    window.addEventListener('pageshow', function(event) {
+        if (event.persisted) refreshChatHistory(chatMessages);
+    });
+
+    /* ================================================================
+       INIT
+       ================================================================ */
+    restorePanelState();
+    loadChatHistory(chatMessages, chatLoading);
+
+})();
 </script>
 {% endif %}

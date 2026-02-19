@@ -661,6 +661,9 @@ class Command(BaseCommand):
         # One-time: Reset existing user calibration to conversational system
         self._reset_existing_user_calibration(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for persistent chat panel (PK 58)
+        self._reset_chat_panel_fixtures(DataLoadConfig, force, verbosity)
+
         # Auto-sync CoS documentation to admin guide (runs if checksum changed)
         self._sync_cos_documentation(DataLoadConfig, force, verbosity)
 
@@ -2177,6 +2180,36 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset existing user calibration FAILED: {e}'))
+
+    def _reset_chat_panel_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes for persistent chat panel.
+        Adds release_notes PK 58 (Always-On Chief of Staff Chat).
+        """
+        reset_tracker_name = 'reset_chat_panel_2026_02_19'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                config.reset()
+                if verbosity >= 1:
+                    self.stdout.write('  Reset release_notes loader for chat panel')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for persistent chat panel (Feb 2026)',
+                'command',
+                'One-time reset to reload release notes for always-on chat panel'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset chat panel fixtures FAILED: {e}'))
 
     def _sync_cos_documentation(self, DataLoadConfig, force=False, verbosity=1):
         """

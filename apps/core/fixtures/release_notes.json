@@ -1,6 +1,22 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 58,
+        "fields": {
+            "title": "Always-On Chief of Staff Chat",
+            "description": "Your Chief of Staff is now always available in the right panel on every page. The side panel has been replaced with a persistent chat interface — type or speak to your CoS anytime without navigating away. When calibration is active, the chat opens automatically and starts the conversation. Switch to the Status tab to see your daily plan, drift alerts, and quick actions. On mobile, pull up the chat drawer from the bottom of any page.",
+            "entry_type": "enhancement",
+            "version": "",
+            "release_date": "2026-02-19",
+            "is_published": true,
+            "is_major": true,
+            "learn_more_url": "",
+            "created_at": "2026-02-19T00:00:00Z",
+            "updated_at": "2026-02-19T00:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 57,
         "fields": {
             "title": "Chief of Staff Gets to Know You",

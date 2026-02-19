@@ -119,6 +119,16 @@ def theme_context(request):
             context['personal_assistant_enabled'] = prefs.personal_assistant_enabled
             context['personal_assistant_consent'] = prefs.personal_assistant_consent
             context['cos_display_name'] = prefs.get_cos_name()
+            # Calibration state for chat auto-start
+            context['calibration_active'] = False
+            if prefs.personal_assistant_enabled:
+                try:
+                    from apps.core.blueprint.cos_governance import get_calibration_state
+                    cal_state = get_calibration_state(request.user)
+                    if cal_state and cal_state['active'] and not cal_state['paused']:
+                        context['calibration_active'] = True
+                except Exception:
+                    pass
             # Cycle tracking - check if user has opted in
             try:
                 from apps.health.models import CycleSettings

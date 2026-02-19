@@ -689,11 +689,11 @@ class CommandBriefTests(TestCase):
         command_brief = response.context.get('command_brief')
         self.assertIsNotNone(command_brief)
         self.assertTrue(command_brief['active'])
-        # Command Mode should also be active
+        # Command Mode should also be active (renders as greeting banner)
         command_mode = response.context.get('command_mode')
         if command_mode and command_mode.get('active'):
             # Command Mode takes priority over Command Brief in HTML
-            self.assertContains(response, 'cos-command-mode')
+            self.assertContains(response, 'cos-greeting-banner')
         else:
             self.assertContains(response, 'command-brief')
 
@@ -2181,17 +2181,17 @@ class CommandModeTests(TestCase):
         self.assertIn('status_line', command_mode)
         self.assertIsInstance(command_mode['status_line'], str)
 
-    def test_command_mode_renders_in_html(self):
-        """Command Mode HTML should render on dashboard."""
+    def test_command_mode_renders_greeting_banner(self):
+        """Command Mode greeting banner should render on dashboard."""
         response = self.client.get('/dashboard/')
-        self.assertContains(response, 'cos-command-mode')
+        self.assertContains(response, 'cos-greeting-banner')
 
     def test_command_mode_hides_arrival_briefing(self):
         """When Command Mode is active, arrival briefing should not render."""
         response = self.client.get('/dashboard/')
         content = response.content.decode()
-        # Command mode should be present
-        self.assertIn('cos-command-mode', content)
+        # Greeting banner should be present
+        self.assertIn('cos-greeting-banner', content)
         # Arrival briefing should NOT be in HTML (hidden by conditional)
         self.assertNotIn('cos-arrival-briefing', content)
 
@@ -2202,17 +2202,7 @@ class CommandModeTests(TestCase):
         response = self.client.get('/dashboard/')
         command_mode = response.context.get('command_mode')
         self.assertIsNone(command_mode)
-        self.assertNotContains(response, 'cos-command-mode')
-
-    def test_dashboard_tiles_data_mode_hidden(self):
-        """Dashboard tiles should have data-mode-hidden class when Command Mode active."""
-        response = self.client.get('/dashboard/')
-        self.assertContains(response, 'data-mode-hidden')
-
-    def test_enter_data_mode_link_present(self):
-        """Enter Data Mode link should be present."""
-        response = self.client.get('/dashboard/')
-        self.assertContains(response, 'Enter Data Mode')
+        self.assertNotContains(response, 'cos-greeting-banner')
 
 
 # ---------------------------------------------------------------------------
@@ -2486,22 +2476,21 @@ class LiveBuildLoopTests(TestCase):
         self.assertIn('Team Meeting', result.message)
         self.assertIn('2:30 PM', result.message)
 
-    def test_command_mode_input_routes_to_assistant(self):
-        """Command Mode form should send input to assistant API directly."""
+    def test_chat_panel_routes_to_assistant(self):
+        """Assistant chat panel should send input to assistant API directly."""
         import os
         template_path = os.path.join(
-            settings.BASE_DIR, 'templates', 'components', 'cos_command_mode.html',
+            settings.BASE_DIR, 'templates', 'components', 'assistant_panel.html',
         )
         if os.path.exists(template_path):
             with open(template_path) as f:
                 source = f.read()
-            self.assertIn('handleCommandModeInput', source)
             self.assertIn('/assistant/api/chat/', source)
-            self.assertIn('cos-cm-input', source)
+            self.assertIn('ap-chat-input', source)
             # Voice input support
-            self.assertIn('cos-cm-voice-btn', source)
-            # Response area for inline display
-            self.assertIn('cos-cm-response', source)
+            self.assertIn('ap-voice-btn', source)
+            # Chat messages container
+            self.assertIn('ap-chat-messages', source)
 
 
 class GovernanceFrameworkTests(TestCase):
@@ -2572,12 +2561,13 @@ class GovernanceFrameworkTests(TestCase):
         self.assertIn('Sensitivity', instructions)
 
     def test_should_ask_question_respects_daily_cap(self):
-        """should_ask_question should return False when daily cap is exceeded."""
+        """should_ask_question should return False when daily cap is exceeded (post-calibration)."""
         from apps.core.blueprint.models import PersonalOperatingBlueprint, InterventionLog
         from apps.core.blueprint.cos_governance import should_ask_question
 
         bp = PersonalOperatingBlueprint.get_or_create_for_user(self.user)
         bp.question_frequency = 'low'  # cap = 1
+        bp.calibration_complete = True  # Daily cap only applies post-calibration
         bp.save()
 
         # Create one governance interaction today
@@ -2593,12 +2583,13 @@ class GovernanceFrameworkTests(TestCase):
         self.assertFalse(result)
 
     def test_should_ask_respects_declined_category(self):
-        """should_ask_question should return False for declined categories."""
+        """should_ask_question should return False for declined categories (post-calibration)."""
         from apps.core.blueprint.models import PersonalOperatingBlueprint
         from apps.core.blueprint.cos_governance import should_ask_question
 
         bp = PersonalOperatingBlueprint.get_or_create_for_user(self.user)
         bp.governance_overrides = {'declined_categories': ['relationships']}
+        bp.calibration_complete = True  # Declined categories only checked post-calibration
         bp.save()
 
         result = should_ask_question(self.user, 'relationships')
@@ -2615,43 +2606,48 @@ class GovernanceFrameworkTests(TestCase):
         bp.refresh_from_db()
         self.assertIn('relationships', bp.governance_overrides.get('declined_categories', []))
 
-    def test_calibration_question_returns_for_day_range(self):
-        """get_calibration_question should return questions based on day."""
+    def test_calibration_question_returns_first_question(self):
+        """get_next_calibration_question should return first question for new user."""
         from apps.core.blueprint.models import PersonalOperatingBlueprint
-        from apps.core.blueprint.cos_governance import get_calibration_question
+        from apps.core.blueprint.cos_governance import get_next_calibration_question
 
         bp = PersonalOperatingBlueprint.get_or_create_for_user(self.user)
-        bp.calibration_day = 1  # Day 1 = core_people phase
+        bp.calibration_complete = False
         bp.save()
 
-        question = get_calibration_question(self.user)
+        question = get_next_calibration_question(self.user)
         self.assertIsNotNone(question)
         self.assertEqual(question['category'], 'core_people')
 
-    def test_calibration_completes_after_day_14(self):
-        """advance_calibration_day should mark complete at day 14."""
+    def test_calibration_completes_after_all_questions(self):
+        """Calibration should complete when all questions answered."""
         from apps.core.blueprint.models import PersonalOperatingBlueprint
-        from apps.core.blueprint.cos_governance import advance_calibration_day
+        from apps.core.blueprint.cos_governance import (
+            get_next_calibration_question, CALIBRATION_QUESTIONS,
+        )
 
         bp = PersonalOperatingBlueprint.get_or_create_for_user(self.user)
-        bp.calibration_day = 13
+        bp.calibration_complete = False
+        overrides = bp.governance_overrides or {}
+        overrides['calibration_stage'] = len(CALIBRATION_QUESTIONS)
+        bp.governance_overrides = overrides
         bp.save()
 
-        advance_calibration_day(self.user)
+        question = get_next_calibration_question(self.user)
+        self.assertIsNone(question)
         bp.refresh_from_db()
-        self.assertEqual(bp.calibration_day, 14)
         self.assertTrue(bp.calibration_complete)
 
     def test_calibration_no_question_when_complete(self):
-        """get_calibration_question should return None when complete."""
+        """get_next_calibration_question should return None when complete."""
         from apps.core.blueprint.models import PersonalOperatingBlueprint
-        from apps.core.blueprint.cos_governance import get_calibration_question
+        from apps.core.blueprint.cos_governance import get_next_calibration_question
 
         bp = PersonalOperatingBlueprint.get_or_create_for_user(self.user)
         bp.calibration_complete = True
         bp.save()
 
-        question = get_calibration_question(self.user)
+        question = get_next_calibration_question(self.user)
         self.assertIsNone(question)
 
     def test_evaluate_governance_sensitive_topic_softens_tone(self):

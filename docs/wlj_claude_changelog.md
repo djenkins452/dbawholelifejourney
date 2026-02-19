@@ -30,6 +30,10 @@
 - **Fix:** Calibration reset now runs automatically on deploy via `load_initial_data.py` — no manual management command needed.
   - Files: `apps/core/management/commands/load_initial_data.py`
 
+- **Persistent Chat Panel** — Replaced the assistant right rail (plan/drift/alerts/quick actions) with a persistent chat interface. Chat is the default tab; Status tab preserves the old plan/progress/alerts view. Features: full chat with typing indicators, voice input (SpeechRecognition + TTS), image attachments, quick replies, calibration auto-start (panel opens and sends greeting when calibration is active), localStorage panel state persistence. Dashboard command mode reduced to slim greeting banner. Mobile pull-up drawer also converted to chat.
+  - Files: `templates/components/assistant_panel.html` (rewrite), `static/css/assistant-panel.css` (chat styles added), `templates/components/cos_command_mode.html` (reduced to greeting banner), `templates/dashboard/home.html` (removed command-mode overrides), `apps/core/context_processors.py` (added `calibration_active`), `apps/ai/views.py` (added `calibration_active` to history API), `apps/core/blueprint/tests.py` (updated 10 tests for new panel)
+  - Tests: All passing — 217 blueprint, 108 dashboard, 327 AI
+
 - **Fix:** Dashboard tiles grayed out — removed `data-mode-hidden` class that dimmed tiles when command mode active
   - Files: `templates/dashboard/home.html`
 

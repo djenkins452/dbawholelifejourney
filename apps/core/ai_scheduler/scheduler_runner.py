@@ -646,3 +646,25 @@ def run_cross_domain_insights():
         f"created={total_insights}, errors={errors}"
     )
     return {"checked": checked, "insights_created": total_insights, "errors": errors}
+
+
+# =========================================================================
+# PHASE 5 — GOVERNANCE RUNNERS
+# =========================================================================
+
+
+def run_tomorrow_protection_pass():
+    """
+    Run tomorrow protection pass for all active AI users.
+
+    Locks non-negotiable blocks, detects overload, moves flexible items.
+
+    Returns:
+        dict — {processed: int, protected: int, errors: int}
+    """
+    try:
+        from apps.core.ai_governance.tomorrow_protection import run_protection_pass_all_users
+        return run_protection_pass_all_users()
+    except ImportError:
+        logger.error("ISE: Tomorrow protection pass not available (import failed)")
+        return {"processed": 0, "protected": 0, "errors": 0}

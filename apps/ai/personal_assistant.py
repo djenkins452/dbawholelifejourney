@@ -2462,6 +2462,30 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                 except Exception as gov_err:
                     logger.debug("Governance injection skipped: %s", gov_err)
 
+                # Phase 5: Governance alignment session injection
+                try:
+                    from apps.core.ai_governance.alignment_session import (
+                        build_alignment_system_injection,
+                        needs_alignment,
+                    )
+                    if needs_alignment(self.user):
+                        alignment_injection = build_alignment_system_injection(self.user)
+                        if alignment_injection:
+                            system_prompt = alignment_injection + "\n" + system_prompt
+                except Exception:
+                    pass  # Alignment must never break chat
+
+                # Phase 5: Recalibration injection (if non-negotiables being missed)
+                try:
+                    from apps.core.ai_governance.recalibration import (
+                        build_recalibration_injection,
+                    )
+                    recal_injection = build_recalibration_injection(self.user)
+                    if recal_injection:
+                        system_prompt = recal_injection + "\n" + system_prompt
+                except Exception:
+                    pass  # Recalibration must never break chat
+
                 # Inject pending reflection context
                 try:
                     from apps.core.blueprint.reflection_engine import deliver_pending_reflections

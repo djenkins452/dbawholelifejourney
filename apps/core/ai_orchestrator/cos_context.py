@@ -439,6 +439,14 @@ def build_cos_context(user):
     # Executive tone mode (Phase 4 Step 5)
     context['executive_tone_mode'] = _determine_tone_mode(user, context)
 
+    # Phase 5: Governance strategy injection
+    try:
+        from apps.core.ai_governance.strategy_selector import build_strategy_system_injection
+        context['governance_strategy_prompt'] = build_strategy_system_injection(user)
+    except Exception as e:
+        logger.debug("CoS context: governance strategy unavailable: %s", e)
+        context['governance_strategy_prompt'] = ''
+
     return context
 
 
@@ -458,6 +466,16 @@ def format_cos_system_injection(context):
     lines = []
     lines.append("=== CHIEF OF STAFF OPERATIONAL CONTEXT ===")
     lines.append("")
+
+    # Phase 5: Language rules (constant — no user data needed)
+    try:
+        from apps.core.ai_governance.language_rules import build_language_rules_injection
+        lang_rules = build_language_rules_injection()
+        if lang_rules:
+            lines.append(lang_rules)
+            lines.append("")
+    except Exception:
+        pass
 
     # Blueprint state
     bp = context.get('blueprint_state', {})
@@ -635,6 +653,12 @@ def format_cos_system_injection(context):
     if learned:
         lines.append("")
         lines.append(learned)
+
+    # Phase 5: Governance strategy injection
+    strategy_block = context.get('governance_strategy_prompt', '')
+    if strategy_block:
+        lines.append("")
+        lines.append(strategy_block)
 
     lines.append("")
     lines.append("=== END OPERATIONAL CONTEXT ===")

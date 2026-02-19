@@ -9,6 +9,23 @@
 
 # WLJ Change History
 
+## 2026-02-19
+
+- **Feature:** Phase 5 — Governance Onboarding + Adaptive Authority
+  - **Models:** GovernanceProfile (per-user, per-module commitment classification) + GovernanceAlignmentSession (multi-stage onboarding state)
+  - **ConsistencyEvaluator:** DriftPressure formula comparing declared importance vs observed behavior (MissRate×ImportanceWeight + GoalImpact + TimeSensitivity + Capacity - Responsiveness)
+  - **Strategy Selector:** 4 behavioral strategies (ALIGN/PROTECT/CHALLENGE/COMPRESS) replacing simple tone switching, injected into CoS system prompt
+  - **Alignment Session:** 4-stage conversational discovery + per-module classification (NonNeg/Important/Flexible), surfaced naturally through LLM prompt injection
+  - **Recalibration Loop:** Detects repeated non-negotiable violations (>60% miss rate), triggers reclassification conversation
+  - **Tomorrow Protection Pass:** 7pm scheduled check that locks non-negotiable blocks, detects overload, moves flexible items
+  - **Language Rules:** Banned internal terminology list injected into system prompt (drift pressure, governance profile, etc.)
+  - **Display Filter:** 6/day display cap, 2 priority slots for at-risk non-negotiables, 48h repeat suppression
+  - **Migration:** 0073_phase5_governance_onboarding
+  - **Tests:** 36 tests across 10 test classes
+  - **Files created:** 10 new files in `apps/core/ai_governance/`
+  - **Files modified:** `cos_context.py`, `personal_assistant.py`, `scheduler_registry.py`, `scheduler_runner.py`, `core/models.py`
+  - **Circular import fix:** ConsistencyEvaluator and StrategySelector query plan directly instead of through build_cos_context()
+
 ## 2026-02-18
 
 - **Feature:** Phase 4 Verification & Wiring Pass

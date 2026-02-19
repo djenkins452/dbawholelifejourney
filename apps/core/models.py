@@ -2283,3 +2283,9 @@ from apps.core.ai_learning.models import (  # noqa: E402, F401
     LearningExtraction,
     UserLearnedProfile,
 )
+
+# Phase 5 — Governance onboarding models
+from apps.core.ai_governance.models import (  # noqa: E402, F401
+    GovernanceAlignmentSession,
+    GovernanceProfile,
+)

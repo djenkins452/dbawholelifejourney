@@ -92,6 +92,11 @@ SCHEDULED_TASKS = {
         "interval_seconds": 21600,  # 6 hours
         "description": "Run cross-domain correlation insight rules for all active users (Phase 4 CoS).",
     },
+    "run_tomorrow_protection_pass": {
+        "function_path": "apps.core.ai_scheduler.scheduler_runner.run_tomorrow_protection_pass",
+        "interval_seconds": 86400,  # 24 hours (7 PM run)
+        "description": "Lock non-negotiables, detect overload, move flexible items in tomorrow's plan (Phase 5 Governance).",
+    },
 }
 
 

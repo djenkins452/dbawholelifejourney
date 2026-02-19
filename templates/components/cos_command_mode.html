@@ -8,7 +8,6 @@ Requires: command_mode dict from DashboardView._get_command_mode()
 
 {% if calibration_active %}
 <div class="cos-greeting-banner cos-calibration-banner">
-    <h2>{{ command_mode.greeting_line|default:"Hi there!" }}</h2>
     {% if calibration_summary %}
     <p>I've already been looking at what you've been doing here. {{ calibration_summary }} But I want to understand what actually matters to you — your priorities, what drives you, and what I should protect when things get busy.</p>
     {% else %}

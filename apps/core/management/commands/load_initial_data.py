@@ -676,6 +676,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for Calendar Engine (PK 59)
         self._reset_calendar_engine_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset help_topics for updated DASHBOARD_HOME content (PK 1)
+        self._reset_dashboard_help_topic(DataLoadConfig, force, verbosity)
+
         # Auto-sync CoS documentation to admin guide (runs if checksum changed)
         self._sync_cos_documentation(DataLoadConfig, force, verbosity)
 
@@ -2474,3 +2477,33 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset calendar engine fixtures FAILED: {e}'))
+
+    def _reset_dashboard_help_topic(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload help_topics with updated DASHBOARD_HOME content.
+        PK 1 updated to cover CoS panel, Today's Guidance actions, TCC link.
+        """
+        reset_tracker_name = 'reset_dashboard_help_2026_02_20'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            try:
+                config = DataLoadConfig.objects.get(loader_name='help_topics')
+                config.reset()
+                if verbosity >= 1:
+                    self.stdout.write('  Reset help_topics loader for DASHBOARD_HOME rewrite')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset help_topics for DASHBOARD_HOME rewrite (Feb 2026)',
+                'command',
+                'One-time reset: updated DASHBOARD_HOME to cover CoS, Guidance, TCC'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset dashboard help topic FAILED: {e}'))

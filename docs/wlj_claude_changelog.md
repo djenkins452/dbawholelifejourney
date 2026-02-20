@@ -11,6 +11,9 @@
 
 ## 2026-02-20
 
+- **Enhancement: Rewrite DASHBOARD_HOME help topic** — The context-aware help for the dashboard was outdated — it covered Quick Stats and Today's Insight but said nothing about the Chief of Staff panel (Chat/Status tabs, voice, attachments, quick replies), Today's Guidance cards (what ✅/💤/✕ buttons do, source badges, refresh cadence), the Time Command Center clock link, or calibration. Rewrote with full coverage of all modern dashboard components. Added fixture loader reset to push to production.
+  - Files: `apps/help/fixtures/help_topics.json`, `apps/core/management/commands/load_initial_data.py`
+
 - **Fix: Guidance engine — false journal inactivity + duplicate weight insights** — Two bugs: (1) JournalInactivityRule read `entry_count_30d` from SAE state but the state builder stores `entries_30d`, so it always defaulted to 0 and fired "You haven't journaled recently" even for active journalers. Fixed key to match. (2) Positive health insights (e.g. "Weight trending down") appeared twice because both HealthTrendRule and PositiveReinforcementRule picked up the same insight with different dedupe keys. Fixed by excluding health-module insights from PositiveReinforcementRule since HealthTrendRule already handles them.
   - Files: `apps/core/ai_guidance/guidance_rules.py`, `apps/core/ai_guidance/tests.py`
 

@@ -55,6 +55,7 @@ For core project context, see `CLAUDE.md` (project root).
 37. [Admin Guide](#admin-guide) *(Feb 2026)*
 38. [Workout Plans & Training Splits](#workout-plans--training-splits) *(Feb 2026)*
 39. [Additional Jan-Feb 2026 Enhancements](#additional-jan-feb-2026-enhancements)
+40. [Time Command Center (Calendar Engine)](#time-command-center-calendar-engine) *(Feb 2026)*
 
 ---
 
@@ -2876,4 +2877,46 @@ Structured workout programming system allowing users to create named plans with 
 
 ---
 
-*Last updated: 2026-02-19*
+## 40. Time Command Center (Calendar Engine)
+
+**Added:** Feb 2026
+**App:** `apps/calendar_engine/`
+**Templates:** `templates/calendar_engine/`
+
+### Overview
+The Time Command Center (TCC) is the user's daily schedule hub. It provides multiple calendar views, life balance tracking, smart gap detection, and NLP-powered quick event creation. The CoS panel includes a clock icon shortcut to the TCC.
+
+### Features
+- **Multiple views:** Today timeline, 3-Day, Week, Agenda, and full Month grid
+- **Month view:** Full calendar grid with color-coded domain chips, event popovers, month navigation
+- **Life balance bar:** Visual breakdown of time allocation across life domains (health, faith, work, family, etc.)
+- **Smart gap detection:** AI identifies unused time blocks and suggests activities
+- **NLP quick add:** Natural language event creation ("Pickleball tomorrow at 6pm" → creates event titled "Pickleball")
+- **Event CRUD:** Create, edit, move, and delete events via API
+- **Conflict detection:** Warns when new events overlap protected Tier-1 commitments
+- **CoS schedule awareness:** Calendar events injected into every CoS LLM prompt with time-relative status tags ([NOW], [SOON], [MISSED], [done])
+- **Morning greeting enrichment:** CoS references schedule proactively when user sends a greeting
+- **Domain metrics API:** Per-domain time allocation percentages
+- **Manage Events page:** Full CRUD management view
+
+### Key Files
+- `apps/calendar_engine/models.py` — CalendarEvent, RecurrenceRule models
+- `apps/calendar_engine/views.py` — All views (dashboard, month, API endpoints)
+- `apps/calendar_engine/urls.py` — URL routing
+- `apps/calendar_engine/services/nlp_parse.py` — NLP quick-add parser with temporal cleanup
+- `apps/calendar_engine/services/metrics.py` — Domain balance calculations
+- `apps/calendar_engine/services/suggestions.py` — Smart gap detection
+- `apps/core/ai_orchestrator/cos_context.py` — Calendar context injection into CoS
+- `apps/ai/personal_assistant.py` — Morning greeting enrichment
+- `templates/calendar_engine/dashboard.html` — TCC dashboard with view toggles
+- `templates/calendar_engine/month.html` — Full month grid view
+- `templates/calendar_engine/manage.html` — Event management page
+- `templates/components/assistant_panel.html` — CoS panel with TCC clock icon link
+
+### Tests
+- 31 tests in `apps/calendar_engine/tests.py`
+- Covers: NLP parsing, recurrence, API CRUD, conflict detection, gap suggestions, domain balance, month view
+
+---
+
+*Last updated: 2026-02-20*

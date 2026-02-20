@@ -6,7 +6,7 @@
             "destination_id": "assistant-blueprint",
             "name": "Personal Operating Blueprint",
             "path_description": "AI - Blueprint Settings",
-            "explanation": "Configure your Personal Operating Blueprint — set your operating style, life pillars, identity-protected behaviors, non-negotiables, and assistant preferences. This drives your daily architecture plans and drift detection.",
+            "explanation": "Configure your Personal Operating Blueprint \u2014 set your operating style, life pillars, identity-protected behaviors, non-negotiables, and assistant preferences. This drives your daily architecture plans and drift detection.",
             "url": "/api/blueprint/",
             "keywords": "blueprint, operating blueprint, chief of staff, assistant, pillars, non-negotiables, tier 1, identity, operating style, wake time, sleep, architecture",
             "module": "ai",
@@ -23,7 +23,7 @@
             "destination_id": "cos-settings",
             "name": "Chief of Staff Settings",
             "path_description": "Chief of Staff - Settings",
-            "explanation": "Customize your Chief of Staff — change the display name, voice style, notification preferences, and operating mode.",
+            "explanation": "Customize your Chief of Staff \u2014 change the display name, voice style, notification preferences, and operating mode.",
             "url": "/assistant/cos/settings/",
             "keywords": "cos settings, chief of staff settings, assistant settings, rename cos, change name, display name, voice, cos preferences, cos configuration",
             "module": "ai",
@@ -2557,6 +2557,57 @@
             "is_active": true,
             "created_at": "2026-02-19T00:00:00Z",
             "updated_at": "2026-02-19T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 152,
+        "fields": {
+            "destination_id": "time-command-center",
+            "name": "Time Command Center",
+            "path_description": "Calendar - Dashboard",
+            "explanation": "Your daily schedule hub showing today's events, 3-day/week/agenda views, life balance bar, smart gap suggestions, and quick NLP event creation. Accessible from the clock icon in the CoS panel header.",
+            "url": "/calendar/",
+            "keywords": "calendar,time command center,tcc,schedule,events,daily schedule,time management,life balance",
+            "module": "calendar_engine",
+            "sort_order": 206,
+            "is_active": true,
+            "created_at": "2026-02-20T00:00:00Z",
+            "updated_at": "2026-02-20T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 153,
+        "fields": {
+            "destination_id": "calendar-month",
+            "name": "Month View",
+            "path_description": "Calendar - Month View",
+            "explanation": "Full month calendar grid showing all events with color-coded domain chips. Navigate between months and click events for details. Access from the Month button in the Time Command Center.",
+            "url": "/calendar/month/",
+            "keywords": "month view,monthly calendar,calendar grid,month schedule,full month",
+            "module": "calendar_engine",
+            "sort_order": 207,
+            "is_active": true,
+            "created_at": "2026-02-20T00:00:00Z",
+            "updated_at": "2026-02-20T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 154,
+        "fields": {
+            "destination_id": "calendar-manage",
+            "name": "Manage Events",
+            "path_description": "Calendar - Manage Events",
+            "explanation": "Full CRUD management page for calendar events. Create, edit, and delete events. Access from the Manage Events link in the Time Command Center header.",
+            "url": "/calendar/manage/",
+            "keywords": "manage events,edit events,create event,delete event,event management",
+            "module": "calendar_engine",
+            "sort_order": 208,
+            "is_active": true,
+            "created_at": "2026-02-20T00:00:00Z",
+            "updated_at": "2026-02-20T00:00:00Z"
         }
     }
 ]

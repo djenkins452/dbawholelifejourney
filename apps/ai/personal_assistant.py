@@ -2524,8 +2524,9 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         personal data context (weight, journal, medication, food, mood) when
         users ask about their data.
 
-        The assistant is RESPONSIVE, not PROACTIVE. It only provides task/priority
-        information when the user explicitly asks for it.
+        The assistant is schedule-aware and proactively references the user's
+        calendar events, especially during greetings. It provides task/priority
+        information when relevant or when the user asks for it.
 
         Supports image attachments for OpenAI Vision processing.
 
@@ -2670,9 +2671,41 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         except Exception as cos_err:
             logger.debug("CoS context injection skipped: %s", cos_err)
 
+        # Schedule-aware greeting enrichment
+        # When user sends a greeting (especially morning), instruct CoS to
+        # reference the day's schedule, note anything overdue or upcoming,
+        # and behave like a real executive assistant who checked the calendar.
+        message_lower = message.lower()
+        is_greeting = any(g in message_lower for g in [
+            'good morning', 'morning', 'good afternoon', 'good evening',
+            'hello', 'hey', 'hi', 'howdy', "what's up", 'sup',
+        ])
+        if is_greeting:
+            try:
+                from apps.core.utils import get_user_now
+                user_now = get_user_now(self.user)
+                time_of_day = 'morning' if user_now.hour < 12 else (
+                    'afternoon' if user_now.hour < 17 else 'evening'
+                )
+                greeting_injection = f"""
+--- GREETING CONTEXT ---
+The user just greeted you ({time_of_day}, {user_now.strftime('%I:%M %p').lstrip('0')}).
+You have their calendar events in the OPERATIONAL CONTEXT above.
+As their Chief of Staff, respond like an executive assistant who has already reviewed their schedule:
+- Greet them warmly and reference the time of day
+- Mention what's on their schedule — especially anything happening soon or already overdue
+- If they appear to be running behind (e.g., it's past a scheduled event start time), gently ask how it went or offer to reschedule
+- If the next event is coming up, mention it proactively
+- Be conversational, not robotic. Don't dump the whole schedule — highlight what matters NOW
+- If it's morning, ask about their morning routine or how they're feeling to start the day
+Do NOT just say "Good morning" generically. Show that you KNOW their day.
+"""
+                system_prompt += greeting_injection
+            except Exception:
+                pass  # Greeting enrichment must never break chat
+
         # Check if user is asking about tasks/priorities/habits/focus
         # Include full state data so the AI can give data-driven answers
-        message_lower = message.lower()
         is_asking_about_tasks = any(phrase in message_lower for phrase in [
             'what do i have', 'what\'s left', 'what tasks', 'what should i',
             'my priorities', 'my tasks', 'overdue', 'due today', 'to do',

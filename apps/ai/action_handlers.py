@@ -2100,11 +2100,22 @@ class ActionHandler:
 
         user = self.user
 
-        # Extract date and time from CalendarEvent's datetime fields
+        # Extract date and time — supports both CalendarEvent (start_dt)
+        # and legacy LifeEvent (start_date/start_time) objects
         from django.utils import timezone as tz
-        event_date = tz.localtime(calendar_event.start_dt).date()
-        event_start_time = tz.localtime(calendar_event.start_dt).time()
-        event_end_time = tz.localtime(calendar_event.end_dt).time()
+        if hasattr(calendar_event, 'start_dt') and calendar_event.start_dt:
+            event_date = tz.localtime(calendar_event.start_dt).date()
+            event_start_time = tz.localtime(calendar_event.start_dt).time()
+            event_end_time = (
+                tz.localtime(calendar_event.end_dt).time()
+                if calendar_event.end_dt else None
+            )
+        elif hasattr(calendar_event, 'start_date'):
+            event_date = calendar_event.start_date
+            event_start_time = getattr(calendar_event, 'start_time', None)
+            event_end_time = getattr(calendar_event, 'end_time', None)
+        else:
+            return result  # Unknown event type, bail safely
 
         # --- 1. Conflict Detection ---
         try:

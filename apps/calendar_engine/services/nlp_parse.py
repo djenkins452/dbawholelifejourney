@@ -129,7 +129,7 @@ def parse_quick_add(text):
         if result['domain_slug']:
             break
 
-    # Clean up title — remove time/day tokens for a cleaner title
+    # Clean up title — remove time/day/temporal tokens for a cleaner title
     clean_title = text.strip()
     # Remove time range
     clean_title = TIME_RANGE_PATTERN.sub('', clean_title)
@@ -141,6 +141,12 @@ def parse_quick_add(text):
     # Remove day names
     for day in DAY_MAP:
         clean_title = re.sub(rf'\b{day}\b', '', clean_title, flags=re.IGNORECASE)
+    # Remove temporal keywords (tomorrow, today, tonight, next, this)
+    for temporal in ['tomorrow', 'today', 'tonight', 'next', 'this']:
+        clean_title = re.sub(rf'\b{temporal}\b', '', clean_title, flags=re.IGNORECASE)
+    # Remove dangling prepositions left after time/date removal
+    clean_title = re.sub(r'\b(at|on|in|by|from|for|until)\s*$', '', clean_title, flags=re.IGNORECASE)
+    clean_title = re.sub(r'\b(at|on|in|by|from|for|until)\s+(at|on|in|by|from|for|until)\b', '', clean_title, flags=re.IGNORECASE)
     # Clean up whitespace
     clean_title = re.sub(r'\s+', ' ', clean_title).strip(' ,.-/')
     if clean_title:

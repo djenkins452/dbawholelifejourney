@@ -72,6 +72,7 @@ def build_cos_context(user):
         'drift_score': 0,
         'risk_warnings': [],
         'today_blocks_summary': [],
+        'calendar_events_today': [],
     }
 
     prefs = user.preferences
@@ -305,6 +306,51 @@ def build_cos_context(user):
             }
     except Exception:
         pass
+
+    # Calendar events today — gives CoS full schedule awareness
+    try:
+        from apps.calendar_engine.models import CalendarEvent
+        from apps.core.utils import get_user_now, get_user_today
+
+        user_now = get_user_now(user)
+        today = get_user_today(user)
+        today_start = user_now.replace(hour=0, minute=0, second=0, microsecond=0)
+        today_end = user_now.replace(hour=23, minute=59, second=59, microsecond=0)
+
+        events = CalendarEvent.objects.filter(
+            user=user,
+            start_dt__lte=today_end,
+            end_dt__gte=today_start,
+            status='scheduled',
+        ).order_by('start_dt')[:12]  # Cap at 12 to limit tokens
+
+        event_summaries = []
+        for ev in events:
+            # Compute time-relative status
+            if ev.end_dt <= user_now:
+                time_status = 'past'
+            elif ev.start_dt <= user_now <= ev.end_dt:
+                time_status = 'in_progress'
+            elif ev.start_dt <= user_now + datetime.timedelta(hours=1):
+                time_status = 'upcoming_soon'
+            else:
+                time_status = 'upcoming'
+
+            # Check if overdue (start time passed but not completed)
+            is_overdue = ev.start_dt < user_now and time_status == 'past'
+
+            event_summaries.append({
+                'title': ev.title,
+                'start': ev.start_dt.strftime('%I:%M %p').lstrip('0'),
+                'end': ev.end_dt.strftime('%I:%M %p').lstrip('0'),
+                'domain': ev.domain.name if ev.domain else '',
+                'is_protected': ev.is_protected,
+                'time_status': time_status,
+                'is_overdue': is_overdue,
+            })
+        context['calendar_events_today'] = event_summaries
+    except Exception as e:
+        logger.debug("CoS context: calendar events unavailable: %s", e)
 
     # =====================================================================
     # PHASE 4 — EXECUTIVE CONTEXT SIGNALS
@@ -561,6 +607,33 @@ def format_cos_system_injection(context):
         for b in blocks[:8]:  # Limit to prevent token bloat
             status = "[done]" if b['completed'] else "[locked]" if b['locked'] else ""
             lines.append(f"  {b['start']}-{b['end']} T{b['tier']} {b['title']} {status}")
+
+    # Calendar events today
+    cal_events = context.get('calendar_events_today', [])
+    if cal_events:
+        lines.append("")
+        lines.append("--- TODAY'S CALENDAR EVENTS ---")
+        lines.append(
+            "Use this schedule to provide context-aware responses. "
+            "Reference upcoming events, note if the user is running behind, "
+            "and proactively suggest adjustments when relevant."
+        )
+        for ev in cal_events:
+            status_tag = ""
+            if ev['time_status'] == 'in_progress':
+                status_tag = " [NOW]"
+            elif ev['time_status'] == 'upcoming_soon':
+                status_tag = " [SOON]"
+            elif ev['is_overdue']:
+                status_tag = " [MISSED]"
+            elif ev['time_status'] == 'past':
+                status_tag = " [done]"
+            protected = " (protected)" if ev.get('is_protected') else ""
+            domain = f" [{ev['domain']}]" if ev.get('domain') else ""
+            lines.append(
+                f"  {ev['start']}-{ev['end']} {ev['title']}"
+                f"{domain}{protected}{status_tag}"
+            )
 
     # Risk warnings
     warnings = context.get('risk_warnings', [])

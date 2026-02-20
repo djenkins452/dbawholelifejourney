@@ -41,10 +41,16 @@
 .cal-badge.recurring { background: #ede9fe; color: #5b21b6; }
 
 /* Action buttons */
-.cal-actions { display: flex; gap: 0.25rem; white-space: nowrap; }
-.cal-action-btn { padding: 0.25rem 0.5rem; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-background); color: var(--color-text-muted); font-size: 0.75rem; cursor: pointer; }
+.cal-actions { display: flex; gap: 0.375rem; white-space: nowrap; justify-content: flex-end; }
+.cal-action-btn { padding: 0.5rem; border: none; border-radius: var(--radius-lg); background: none; color: var(--color-text-muted); font-size: 1.125rem; cursor: pointer; min-width: 36px; min-height: 36px; display: inline-flex; align-items: center; justify-content: center; transition: background 0.15s, color 0.15s; line-height: 1; }
 .cal-action-btn:hover { background: var(--color-surface); color: var(--color-text); }
-.cal-action-btn.delete:hover { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+.cal-action-btn.delete:hover { background: #fee2e2; color: #991b1b; }
+
+/* Row clickable */
+.cal-table tbody tr[data-event-id] { cursor: pointer; }
+
+/* New Event button */
+#cal-new-event-btn { white-space: nowrap; min-height: 44px; }
 
 /* Edit Modal */
 .cal-modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: flex-start; padding-top: 5vh; }
@@ -76,6 +82,39 @@
 
 /* Count */
 .cal-count { font-size: 0.875rem; color: var(--color-text-muted); margin-bottom: 0.5rem; }
+
+/* Tablet: hide Source column */
+@media (max-width: 768px) {
+    .cal-col-source, .cal-table td:nth-child(6) { display: none; }
+}
+
+/* Mobile: card layout — columns: 1=Title, 2=Start, 3=End, 4=Kind, 5=Status, 6=Source, 7=Actions */
+@media (max-width: 480px) {
+    .cal-manage-header { flex-direction: column; align-items: flex-start; }
+    #cal-new-event-btn { width: 100%; text-align: center; }
+    .cal-filters { flex-direction: column; }
+    .cal-filter-search { min-width: unset; width: 100%; }
+    .cal-filter-group { width: 100%; }
+    .cal-filter-select { flex: 1; }
+
+    .cal-table thead { display: none; }
+    .cal-table, .cal-table tbody { display: block; }
+    .cal-table tr[data-event-id] {
+        display: block; background: var(--color-surface); border: 1px solid var(--color-border);
+        border-radius: var(--radius-lg); padding: 0.75rem; margin-bottom: 0.5rem;
+    }
+    .cal-table td { display: block; padding: 0.125rem 0; border-bottom: none; }
+    .cal-table td:nth-child(1) { font-weight: 600; font-size: 1rem; margin-bottom: 0.25rem; }
+    .cal-table td:nth-child(2), .cal-table td:nth-child(3) { display: inline; font-size: 0.8125rem; color: var(--color-text-muted); }
+    .cal-table td:nth-child(2)::after { content: ' \2014 '; }
+    .cal-table td:nth-child(4), .cal-table td:nth-child(5) { display: inline-block; margin-top: 0.5rem; margin-right: 0.25rem; }
+    .cal-table td:nth-child(6) { display: none; }
+    .cal-table td:nth-child(7) {
+        display: flex; gap: 0.5rem; margin-top: 0.75rem; padding-top: 0.75rem;
+        border-top: 1px solid var(--color-border); justify-content: flex-end;
+    }
+    .cal-table td:nth-child(7) .cal-action-btn { min-width: 44px; min-height: 44px; font-size: 1.25rem; }
+}
 </style>
 {% endblock %}
 
@@ -86,8 +125,10 @@
             <h1>Manage Events</h1>
             <a href="{% url 'calendar_engine:dashboard' %}" class="cal-manage-back">&larr; Back to Calendar</a>
         </div>
+        <button class="cal-modal-btn primary" id="cal-new-event-btn">+ New Event</button>
     </div>
 
+    {% csrf_token %}
     <div id="cal-status" class="cal-status-bar"></div>
 
     <!-- Filters -->
@@ -96,8 +137,8 @@
         <div class="cal-filter-group">
             <span class="cal-filter-label">Status</span>
             <select class="cal-filter-select" id="cal-filter-status">
-                <option value="">All</option>
-                <option value="scheduled" selected>Scheduled</option>
+                <option value="" selected>All</option>
+                <option value="scheduled">Scheduled</option>
                 <option value="completed">Completed</option>
                 <option value="canceled">Canceled</option>
             </select>
@@ -138,13 +179,12 @@
                     <th>End</th>
                     <th>Kind</th>
                     <th>Status</th>
-                    <th>Source</th>
-                    <th>Domain</th>
+                    <th class="cal-col-source">Source</th>
                     <th>Actions</th>
                 </tr>
             </thead>
             <tbody id="cal-events-tbody">
-                <tr><td colspan="8" class="cal-empty">Loading...</td></tr>
+                <tr><td colspan="7" class="cal-empty">Loading...</td></tr>
             </tbody>
         </table>
     </div>
@@ -232,6 +272,7 @@
         : '{{ csrf_token }}';
     var eventsCache = [];
     var deleteTargetId = null;
+    var isCreateMode = false;
 
     // ── Helpers ──
 
@@ -247,6 +288,9 @@
             return r.json().then(function(data) {
                 return { ok: r.ok, status: r.status, data: data };
             });
+        }).catch(function(err) {
+            showStatus('Network error: ' + err.message, 'error');
+            return { ok: false, status: 0, data: { error: err.message } };
         });
     }
 
@@ -320,7 +364,7 @@
         countEl.textContent = events.length + ' event' + (events.length !== 1 ? 's' : '');
 
         if (events.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" class="cal-empty">No events found matching your filters.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" class="cal-empty">No events found matching your filters.</td></tr>';
             return;
         }
 
@@ -330,7 +374,7 @@
             var statusBadge = '<span class="cal-badge ' + escHtml(evt.status) + '">' + escHtml(evt.status) + '</span>';
             var sourceBadge = evt.source_type !== 'none'
                 ? '<span class="cal-badge source">' + escHtml(evt.source_type) + ' #' + escHtml(evt.source_id) + '</span>'
-                : '<span style="color:var(--color-text-muted);font-size:0.75rem">—</span>';
+                : '<span style="color:var(--color-text-muted);font-size:0.75rem">\u2014</span>';
             var extras = '';
             if (evt.is_protected) extras += ' <span class="cal-badge protected">protected</span>';
             if (evt.has_recurrence) extras += ' <span class="cal-badge recurring">recurring</span>';
@@ -342,15 +386,40 @@
             html += '<td>' + kindBadge + '</td>';
             html += '<td>' + statusBadge + '</td>';
             html += '<td>' + sourceBadge + '</td>';
-            html += '<td>' + escHtml(evt.domain || '—') + '</td>';
             html += '<td class="cal-actions">';
-            html += '<button class="cal-action-btn edit-btn" data-id="' + evt.id + '">Edit</button>';
-            html += '<button class="cal-action-btn delete cal-delete-btn" data-id="' + evt.id + '" data-title="' + escHtml(evt.title) + '">Delete</button>';
+            html += '<button class="cal-action-btn edit-btn" data-id="' + evt.id + '" title="Edit">&#9998;</button>';
+            html += '<button class="cal-action-btn delete cal-delete-btn" data-id="' + evt.id + '" data-title="' + escHtml(evt.title) + '" title="Delete">&#128465;</button>';
             html += '</td>';
             html += '</tr>';
         });
 
         tbody.innerHTML = html;
+    }
+
+    // ── Create Modal ──
+
+    function openCreate() {
+        isCreateMode = true;
+        document.getElementById('cal-edit-id').value = '';
+        document.getElementById('cal-edit-name').value = '';
+        document.getElementById('cal-edit-desc').value = '';
+
+        // Default: next hour, 1-hour duration
+        var now = new Date();
+        now.setMinutes(0, 0, 0);
+        now.setHours(now.getHours() + 1);
+        document.getElementById('cal-edit-start').value = toLocalInput(now.toISOString());
+        now.setHours(now.getHours() + 1);
+        document.getElementById('cal-edit-end').value = toLocalInput(now.toISOString());
+
+        document.getElementById('cal-edit-status').value = 'scheduled';
+        document.getElementById('cal-edit-protected').checked = false;
+        document.getElementById('cal-edit-allday').checked = false;
+        document.getElementById('cal-edit-source-info').textContent = '';
+        document.getElementById('cal-edit-title').textContent = 'New Event';
+        document.getElementById('cal-edit-delete').style.display = 'none';
+
+        document.getElementById('cal-edit-modal').classList.add('active');
     }
 
     // ── Edit Modal ──
@@ -359,6 +428,8 @@
         var evt = eventsCache.find(function(e) { return e.id === eventId; });
         if (!evt) return;
 
+        isCreateMode = false;
+        document.getElementById('cal-edit-delete').style.display = '';
         document.getElementById('cal-edit-id').value = evt.id;
         document.getElementById('cal-edit-name').value = evt.title;
         document.getElementById('cal-edit-desc').value = evt.description || '';
@@ -383,7 +454,6 @@
     }
 
     function saveEdit() {
-        var id = document.getElementById('cal-edit-id').value;
         var body = {
             title: document.getElementById('cal-edit-name').value,
             description: document.getElementById('cal-edit-desc').value,
@@ -394,13 +464,25 @@
             is_all_day: document.getElementById('cal-edit-allday').checked,
         };
 
-        api('/calendar/api/events/' + id + '/', {
-            method: 'PATCH',
+        var url, method, successMsg;
+        if (isCreateMode) {
+            url = '/calendar/api/events/';
+            method = 'POST';
+            successMsg = 'Event created.';
+        } else {
+            var id = document.getElementById('cal-edit-id').value;
+            url = '/calendar/api/events/' + id + '/';
+            method = 'PATCH';
+            successMsg = 'Event updated.';
+        }
+
+        api(url, {
+            method: method,
             body: JSON.stringify(body),
         }).then(function(resp) {
             if (resp.ok) {
                 closeEdit();
-                showStatus('Event updated.', 'success');
+                showStatus(successMsg, 'success');
                 loadEvents();
             } else {
                 showStatus('Save failed: ' + (resp.data.error || 'Unknown error'), 'error');
@@ -449,7 +531,15 @@
             openDelete(Number(delBtn.dataset.id), delBtn.dataset.title);
             return;
         }
+        // Row click -> open edit modal
+        var row = e.target.closest('tr[data-event-id]');
+        if (row) {
+            openEdit(Number(row.dataset.eventId));
+        }
     });
+
+    // New Event button
+    document.getElementById('cal-new-event-btn').addEventListener('click', openCreate);
 
     // Edit modal buttons
     document.getElementById('cal-edit-cancel').addEventListener('click', closeEdit);

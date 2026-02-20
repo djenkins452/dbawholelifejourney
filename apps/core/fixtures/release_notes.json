@@ -1,6 +1,22 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 60,
+        "fields": {
+            "title": "Calendar Manage Events Improvements",
+            "description": "The Manage Events page now has a '+ New Event' button so you can create calendar events directly. Table rows are clickable to edit, and Edit/Delete actions use compact icon buttons that stay visible without scrolling. On mobile, events display as cards with actions always accessible at the bottom of each card.",
+            "entry_type": "enhancement",
+            "version": "",
+            "release_date": "2026-02-20",
+            "is_published": true,
+            "is_major": false,
+            "learn_more_url": "",
+            "created_at": "2026-02-20T00:00:00Z",
+            "updated_at": "2026-02-20T00:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 59,
         "fields": {
             "title": "Time Command Center",

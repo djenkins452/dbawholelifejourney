@@ -9544,3 +9544,19 @@ This uses `or ''` to convert any falsy value (None, empty string, missing key) t
 
 **Files Modified:**
 - `CLAUDE.md` - Slash Commands table, Reference Documentation table, last updated date
+
+## 2026-02-19 — Calendar Manage Events CRUD Accessibility
+
+**Changes:**
+- Added "+ New Event" button to Manage Events page header for creating events directly
+- Removed low-value Domain column to fit Actions column on screen (7 columns instead of 8)
+- Switched Edit/Delete text buttons to compact icon buttons (pencil/trash)
+- Made table rows clickable to open the edit modal
+- Reused edit modal for event creation (POST vs PATCH branching)
+- Added mobile card layout at 480px breakpoint (CSS-only table-to-card)
+- Source column hidden on tablet (768px), filters stack vertically on mobile
+
+**Files Modified:**
+- `templates/calendar_engine/manage.html` — CSS, HTML, and JS changes
+
+**Why:** User reported Edit/Delete buttons were not visible (scrolled off-screen). Full CRUD was technically implemented but inaccessible in the UI.

@@ -11,6 +11,10 @@
 
 ## 2026-02-20
 
+- **Feature: Calendar Engine Manage Events page** — Added `/calendar/manage/` with full CRUD UI: filterable table of all events (by status, kind, source, search), inline edit modal (title, description, start/end, status, protected, all-day), delete with confirmation, and an All Events API endpoint (`/calendar/api/events/all/`). Linked from the main calendar dashboard header.
+  - Files: `apps/calendar_engine/views.py`, `apps/calendar_engine/urls.py`, `apps/calendar_engine/tests.py`, `templates/calendar_engine/manage.html`, `templates/calendar_engine/dashboard.html`
+  - Why: User needed ability to fix/edit/delete events created by Quick Add or projections.
+
 - **Feature: Calendar Engine — CoS Time Command Center** — New standalone Django app `calendar_engine` providing a unified calendar/event system. Projects Tasks, Goals, and Habits as calendar events with two-block support (deadline markers + execution blocks). Drag-and-drop writeback updates source items (dragging a task deadline updates task.due_date). Includes Habit Protection Layer (conflict detection with override prompt), Smart Gap Detection (suggests 90-min execution blocks for items due soon), Domain Imbalance Bar (Work/Health/Faith/Family time percentages), and NLP Quick Add (natural language event creation with recurrence detection).
   - Files: `apps/calendar_engine/` (new app — models, admin, views, urls, services/projection.py, services/conflicts.py, services/suggestions.py, services/metrics.py, services/nlp_parse.py, tests.py), `templates/calendar_engine/dashboard.html`, `config/settings.py`, `config/urls.py`, `docs/calendar_engine_discovery.md`, `docs/calendar_engine_admin_guide.md`
   - Why: CoS needs a time interface to plan, protect, and optimize the user's day. Calendar is the projection layer over existing task/goal/habit data.

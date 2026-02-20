@@ -7,10 +7,12 @@ app_name = 'calendar_engine'
 urlpatterns = [
     # Dashboard / UI
     path('', views.CalendarDashboardView.as_view(), name='dashboard'),
+    path('manage/', views.ManageEventsView.as_view(), name='manage'),
 
     # API — event CRUD
     path('api/today/', views.TodayTimelineView.as_view(), name='api_today'),
     path('api/range/', views.RangeView.as_view(), name='api_range'),
+    path('api/events/all/', views.AllEventsView.as_view(), name='api_all_events'),
     path('api/events/', views.EventCreateView.as_view(), name='api_event_create'),
     path('api/events/<int:pk>/', views.EventDetailView.as_view(), name='api_event_detail'),
     path('api/events/<int:pk>/move/', views.EventMoveView.as_view(), name='api_event_move'),

@@ -120,6 +120,56 @@ class CalendarDashboardView(LoginRequiredMixin, TemplateView):
         return ctx
 
 
+class ManageEventsView(LoginRequiredMixin, TemplateView):
+    """Full CRUD management page for calendar events."""
+    template_name = 'calendar_engine/manage.html'
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['app_name'] = 'calendar_engine'
+        ctx['domains'] = list(
+            CalendarEvent.objects.filter(user=self.request.user)
+            .exclude(domain__isnull=True)
+            .values_list('domain__name', flat=True)
+            .distinct()
+        )
+        return ctx
+
+
+class AllEventsView(LoginRequiredMixin, View):
+    """GET /calendar/api/events/all/?status=scheduled&kind=&q="""
+
+    def get(self, request):
+        qs = CalendarEvent.objects.filter(
+            user=request.user,
+        ).select_related('domain').order_by('-start_dt')
+
+        # Filters
+        status = request.GET.get('status')
+        if status:
+            qs = qs.filter(status=status)
+
+        kind = request.GET.get('kind')
+        if kind:
+            qs = qs.filter(event_kind=kind)
+
+        source = request.GET.get('source')
+        if source:
+            qs = qs.filter(source_type=source)
+
+        q = request.GET.get('q', '').strip()
+        if q:
+            qs = qs.filter(title__icontains=q)
+
+        events = []
+        for e in qs[:200]:
+            d = _event_to_dict(e)
+            d['has_recurrence'] = hasattr(e, 'recurrence') and RecurrenceRule.objects.filter(event=e).exists()
+            events.append(d)
+
+        return JsonResponse({'events': events})
+
+
 # ──────────────────────────────────────────────────────────
 # Timeline APIs
 # ──────────────────────────────────────────────────────────

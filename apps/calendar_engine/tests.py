@@ -576,6 +576,42 @@ class APITests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, 'Time Command Center')
 
+    def test_manage_page_loads(self):
+        resp = self.client.get('/calendar/manage/')
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Manage Events')
+
+    def test_all_events_api(self):
+        tz = timezone.get_current_timezone()
+        CalendarEvent.objects.create(
+            user=self.user, title='Event A',
+            start_dt=timezone.make_aware(dt.datetime(2026, 3, 1, 10, 0), tz),
+            end_dt=timezone.make_aware(dt.datetime(2026, 3, 1, 11, 0), tz),
+        )
+        CalendarEvent.objects.create(
+            user=self.user, title='Event B',
+            start_dt=timezone.make_aware(dt.datetime(2026, 3, 2, 10, 0), tz),
+            end_dt=timezone.make_aware(dt.datetime(2026, 3, 2, 11, 0), tz),
+            status=CalendarEvent.STATUS_CANCELED,
+        )
+        # All events (no filter)
+        resp = self.client.get('/calendar/api/events/all/')
+        self.assertEqual(resp.status_code, 200)
+        data = json.loads(resp.content)
+        self.assertEqual(len(data['events']), 2)
+
+        # Filter by status
+        resp = self.client.get('/calendar/api/events/all/?status=scheduled')
+        data = json.loads(resp.content)
+        self.assertEqual(len(data['events']), 1)
+        self.assertEqual(data['events'][0]['title'], 'Event A')
+
+        # Search by title
+        resp = self.client.get('/calendar/api/events/all/?q=Event B')
+        data = json.loads(resp.content)
+        self.assertEqual(len(data['events']), 1)
+        self.assertEqual(data['events'][0]['title'], 'Event B')
+
     def test_move_with_conflict_returns_409(self):
         """Acceptance criterion #5: move into protected time returns 409 conflict."""
         tz = timezone.get_current_timezone()

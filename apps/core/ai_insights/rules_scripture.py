@@ -31,14 +31,14 @@ class ScriptureReadingDropOffRule(BaseInsightRule):
                 user=user,
                 is_completed=True,
                 completed_at__gte=recent_window,
-                completed_at__lte=now - timedelta(days=5),
+                completed_at__lte=now - timedelta(days=3),
             )
             .values_list("completed_at__date", flat=True)
             .distinct()
         )
 
         daily_count = len(set(recent_completions))
-        if daily_count < 7:
+        if daily_count < 3:
             return []
 
         # Check if there's been a 5-day gap
@@ -54,7 +54,7 @@ class ScriptureReadingDropOffRule(BaseInsightRule):
             return []
 
         gap_days = (now - latest.completed_at).days
-        if gap_days < 5:
+        if gap_days < 3:
             return []
 
         window_start, window_end = get_time_window(days=12)
@@ -71,7 +71,7 @@ class ScriptureReadingDropOffRule(BaseInsightRule):
                 "confidence_score": 0.8,
                 "explain_why": (
                     f"Rule: {self.rule_name}. Had {daily_count} reading days in "
-                    f"12-day window, then {gap_days}-day gap (threshold: 5)."
+                    f"12-day window, then {gap_days}-day gap (threshold: 3)."
                 ),
                 "evidence": {
                     "rule_name": self.rule_name,

@@ -39,7 +39,7 @@ class JournalStreakPositiveRule(BaseInsightRule):
             elif i > 0:
                 break
 
-        if streak_days < 5:
+        if streak_days < 2:
             return []
 
         window_start, window_end = get_time_window(days=streak_days)
@@ -55,7 +55,7 @@ class JournalStreakPositiveRule(BaseInsightRule):
                 "confidence_score": 0.9,
                 "explain_why": (
                     f"Rule: {self.rule_name}. {streak_days} consecutive days "
-                    f"with journal entries (threshold: 5)."
+                    f"with journal entries (threshold: 2)."
                 ),
                 "evidence": {
                     "rule_name": self.rule_name,
@@ -94,7 +94,7 @@ class JournalDropOffRule(BaseInsightRule):
             return []
 
         gap_days = (date.today() - latest.entry_date).days
-        if gap_days < 10:
+        if gap_days < 5:
             return []
 
         window_start, window_end = get_time_window(days=gap_days)
@@ -111,7 +111,7 @@ class JournalDropOffRule(BaseInsightRule):
                 "confidence_score": 0.8,
                 "explain_why": (
                     f"Rule: {self.rule_name}. Last entry: {latest.entry_date}. "
-                    f"Gap: {gap_days} days (threshold: 10)."
+                    f"Gap: {gap_days} days (threshold: 5)."
                 ),
                 "evidence": {
                     "rule_name": self.rule_name,

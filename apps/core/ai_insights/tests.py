@@ -235,15 +235,11 @@ class WeightTrendUpRuleTests(PIETestMixin, TestCase):
     def test_does_not_trigger_with_insufficient_data(self):
         from apps.health.models import WeightEntry
 
-        # Only 2 entries — below minimum
+        # Only 1 entry — below minimum of 2
         now = timezone.now()
         WeightEntry.objects.create(
             user=self.user, value=Decimal("250"), unit="lb",
             recorded_at=now - timedelta(days=10),
-        )
-        WeightEntry.objects.create(
-            user=self.user, value=Decimal("260"), unit="lb",
-            recorded_at=now - timedelta(days=1),
         )
 
         from apps.core.ai_insights.rules_health import WeightTrendUpRule
@@ -256,7 +252,7 @@ class WeightTrendUpRuleTests(PIETestMixin, TestCase):
         from apps.health.models import WeightEntry
 
         now = timezone.now()
-        for i, val in enumerate([250, 251, 252]):
+        for i, val in enumerate([250, 250.3, 250.5]):
             WeightEntry.objects.create(
                 user=self.user, value=Decimal(str(val)), unit="lb",
                 recorded_at=now - timedelta(days=10 - i * 3),
@@ -266,7 +262,7 @@ class WeightTrendUpRuleTests(PIETestMixin, TestCase):
 
         rule = WeightTrendUpRule()
         insights = rule.evaluate(self.user, {"module": "health", "action": "log_weight"})
-        self.assertEqual(len(insights), 0)  # Only +2 lbs, threshold is 5
+        self.assertEqual(len(insights), 0)  # Only +0.5 lbs, threshold is 1
 
 
 class MissingWeightRuleTests(PIETestMixin, TestCase):

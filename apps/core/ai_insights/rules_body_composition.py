@@ -30,7 +30,7 @@ class MissingBodyCompRule(BaseInsightRule):
             return []
 
         gap_days = days_since(latest.created_at)
-        if gap_days is None or gap_days < 30:
+        if gap_days is None or gap_days < 14:
             return []
 
         window_start, window_end = get_time_window(days=gap_days)
@@ -46,7 +46,7 @@ class MissingBodyCompRule(BaseInsightRule):
                 "confidence_score": 0.8,
                 "explain_why": (
                     f"Rule: {self.rule_name}. Last entry: "
-                    f"{latest.measurement_date}. Gap: {gap_days} days (threshold: 30)."
+                    f"{latest.measurement_date}. Gap: {gap_days} days (threshold: 14)."
                 ),
                 "evidence": {
                     "rule_name": self.rule_name,
@@ -98,7 +98,7 @@ class BodyFatChangeRule(BaseInsightRule):
         last_val = float(entries[-1][2])
         change = last_val - first_val
 
-        if abs(change) < 2.0:
+        if abs(change) < 1.0:
             return []
 
         record_ids = [e[0] for e in entries]
@@ -117,7 +117,7 @@ class BodyFatChangeRule(BaseInsightRule):
                 "confidence_score": 0.8,
                 "explain_why": (
                     f"Rule: {self.rule_name}. 60-day window. {len(entries)} entries. "
-                    f"Change: {change:+.1f}% (threshold: 2.0)."
+                    f"Change: {change:+.1f}% (threshold: 1.0)."
                 ),
                 "evidence": {
                     "rule_name": self.rule_name,

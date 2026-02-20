@@ -52,7 +52,7 @@ class NutritionWeightProjectionRule(BasePredictionRule):
         )
 
         data_points = [(dt, float(val)) for dt, val in weight_entries]
-        if len(data_points) < 3:
+        if len(data_points) < 2:
             return []
 
         # Get nutrition state for caloric context
@@ -168,7 +168,7 @@ class StrengthProgressionPredictionRule(BasePredictionRule):
             .order_by("date")
         )
 
-        if sessions.count() < 4:
+        if sessions.count() < 2:
             return []
 
         # Calculate weekly volumes
@@ -183,7 +183,7 @@ class StrengthProgressionPredictionRule(BasePredictionRule):
                         volume += float(s.weight) * s.reps
             weekly_volumes[week_start] = weekly_volumes.get(week_start, 0) + volume
 
-        if len(weekly_volumes) < 3:
+        if len(weekly_volumes) < 2:
             return []
 
         # Convert to data points for trajectory engine

@@ -405,10 +405,7 @@ class HabitContinuationRuleTests(TestCase):
             measurement_type="binary",
             frequency_type="daily",
         )
-        HabitEntry.objects.create(
-            goal=habit, date=now.date(), completed=True,
-        )
-
+        # No entries at all — below minimum of 1
         from apps.core.ai_predictions.prediction_rules_habits import (
             HabitContinuationRule,
         )

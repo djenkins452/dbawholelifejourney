@@ -376,6 +376,10 @@ class EntryCreateView(HelpContextMixin, SaveAddAnotherMixin, LoginRequiredMixin,
 
         response = super().form_valid(form)
 
+        # Fire intelligence chain (SAE → PIE → PRIE)
+        from apps.core.ai_orchestrator.intelligence_hook import fire_intelligence
+        fire_intelligence(self.request.user, "journal", self.object.id, "create_journal_entry")
+
         # Check for potential milestone completion (async-safe, non-blocking)
         self._check_milestone_completion(form.instance)
 

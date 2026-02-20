@@ -45,7 +45,7 @@ class WeightProjectionRule(BasePredictionRule):
         )
 
         data_points = [(dt, float(val)) for dt, val in entries]
-        if len(data_points) < 3:
+        if len(data_points) < 2:
             return []
 
         predictions = []

@@ -44,7 +44,7 @@ class HabitContinuationRule(BasePredictionRule):
             entries = habit.habit_entries.filter(date__gte=cutoff).order_by("date")
 
             total_entries = entries.count()
-            if total_entries < 3:
+            if total_entries < 1:
                 continue
 
             completed = entries.filter(completed=True).count()

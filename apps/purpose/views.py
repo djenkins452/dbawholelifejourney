@@ -364,7 +364,10 @@ class GoalCreateView(SaveAddAnotherMixin, PurposeAccessMixin, CreateView):
         form.instance.user = self.request.user
         if 'save_add_another' not in self.request.POST:
             messages.success(self.request, f"Goal '{form.instance.title}' created.")
-        return super().form_valid(form)
+        response = super().form_valid(form)
+        from apps.core.ai_orchestrator.intelligence_hook import fire_intelligence
+        fire_intelligence(self.request.user, "purpose", self.object.id, "create_goal")
+        return response
 
     def get_success_url(self):
         return reverse('purpose:goal_list')
@@ -848,7 +851,10 @@ class HabitGoalCreateView(PurposeAccessMixin, CreateView):
     def form_valid(self, form):
         form.instance.user = self.request.user
         messages.success(self.request, f"Habit goal '{form.instance.name}' created.")
-        return super().form_valid(form)
+        response = super().form_valid(form)
+        from apps.core.ai_orchestrator.intelligence_hook import fire_intelligence
+        fire_intelligence(self.request.user, "purpose", self.object.id, "create_habit")
+        return response
 
     def get_success_url(self):
         return reverse('purpose:habit_goal_detail', kwargs={'pk': self.object.pk})
@@ -957,6 +963,10 @@ class HabitLogTodayView(PurposeAccessMixin, View):
 
         # Calculate which box number this corresponds to
         day_number = (today - goal.start_date).days + 1
+
+        # Fire intelligence chain
+        from apps.core.ai_orchestrator.intelligence_hook import fire_intelligence
+        fire_intelligence(request.user, "purpose", entry.id, "log_habit")
 
         return JsonResponse({
             'success': True,
@@ -1324,6 +1334,10 @@ class MilestoneToggleView(PurposeAccessMixin, View):
         else:
             milestone.mark_complete()
             messages.success(request, f"Milestone '{milestone.title}' completed!")
+
+            # Fire intelligence chain
+            from apps.core.ai_orchestrator.intelligence_hook import fire_intelligence
+            fire_intelligence(request.user, "purpose", milestone.id, "complete_milestone")
 
             # Check if all milestones are now complete
             if milestone.goal.all_milestones_complete:

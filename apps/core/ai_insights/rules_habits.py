@@ -43,16 +43,16 @@ class HabitBrokenStreakRule(BaseInsightRule):
                 .values_list("date", flat=True)
             )
 
-            if len(recent_entries) < 7:
+            if len(recent_entries) < 3:
                 continue
 
-            # Check if there was a streak of 7+ that's now broken
+            # Check if there was a streak that's now broken
             latest_entry = recent_entries[-1] if recent_entries else None
             if not latest_entry:
                 continue
 
             days_since_last = (today - latest_entry).days
-            if days_since_last < 3:
+            if days_since_last < 2:
                 continue
 
             # Had a streak, now broken
@@ -69,7 +69,7 @@ class HabitBrokenStreakRule(BaseInsightRule):
                     "explain_why": (
                         f"Rule: {self.rule_name}. Habit '{habit.name}' had "
                         f"{len(recent_entries)} completions in 14 days but "
-                        f"last log was {days_since_last} days ago (threshold: 3)."
+                        f"last log was {days_since_last} days ago (threshold: 2)."
                     ),
                     "evidence": {
                         "rule_name": self.rule_name,
@@ -124,7 +124,7 @@ class HabitConsistencyPositiveRule(BaseInsightRule):
                 completed=True,
             ).count()
 
-            if completions < 10:
+            if completions < 5:
                 continue
 
             insights.append(
@@ -138,7 +138,7 @@ class HabitConsistencyPositiveRule(BaseInsightRule):
                     "confidence_score": 0.9,
                     "explain_why": (
                         f"Rule: {self.rule_name}. Habit '{habit.name}' completed "
-                        f"{completions}/14 days (threshold: 10)."
+                        f"{completions}/14 days (threshold: 5)."
                     ),
                     "evidence": {
                         "rule_name": self.rule_name,

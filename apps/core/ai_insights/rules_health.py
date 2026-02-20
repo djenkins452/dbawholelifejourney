@@ -47,13 +47,13 @@ class WeightTrendUpRule(BaseInsightRule):
         )
 
         entries_list = list(entries)
-        if not requires_min_points(entries_list, 3):
+        if not requires_min_points(entries_list, 2):
             return []
 
         values_with_dates = [(e[1], float(e[2])) for e in entries_list]
         trend = compute_simple_trend(values_with_dates)
 
-        if not trend or trend["direction"] != "up" or trend["net_change"] < 5:
+        if not trend or trend["direction"] != "up" or trend["net_change"] < 1:
             return []
 
         record_ids = [e[0] for e in entries_list]
@@ -73,7 +73,7 @@ class WeightTrendUpRule(BaseInsightRule):
                 "explain_why": (
                     f"Rule: {self.rule_name}. 14-day window from {window_start.date()} "
                     f"to {window_end.date()}. {trend['count']} entries show net change "
-                    f"of {trend['net_change']:+.1f} {unit} (threshold: +5)."
+                    f"of {trend['net_change']:+.1f} {unit} (threshold: +1)."
                 ),
                 "evidence": {
                     "rule_name": self.rule_name,
@@ -123,13 +123,13 @@ class WeightTrendDownRule(BaseInsightRule):
         )
 
         entries_list = list(entries)
-        if not requires_min_points(entries_list, 3):
+        if not requires_min_points(entries_list, 2):
             return []
 
         values_with_dates = [(e[1], float(e[2])) for e in entries_list]
         trend = compute_simple_trend(values_with_dates)
 
-        if not trend or trend["direction"] != "down" or trend["net_change"] > -5:
+        if not trend or trend["direction"] != "down" or trend["net_change"] > -1:
             return []
 
         record_ids = [e[0] for e in entries_list]
@@ -189,7 +189,7 @@ class MissingWeightLoggingRule(BaseInsightRule):
             return []
 
         gap_days = days_since(latest.recorded_at)
-        if gap_days is None or gap_days < 14:
+        if gap_days is None or gap_days < 7:
             return []
 
         window_start, window_end = get_time_window(days=gap_days)
@@ -206,7 +206,7 @@ class MissingWeightLoggingRule(BaseInsightRule):
                 "confidence_score": 0.9,
                 "explain_why": (
                     f"Rule: {self.rule_name}. Last entry: {latest.recorded_at.date()}. "
-                    f"Gap: {gap_days} days (threshold: 14)."
+                    f"Gap: {gap_days} days (threshold: 7)."
                 ),
                 "evidence": {
                     "rule_name": self.rule_name,

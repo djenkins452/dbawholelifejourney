@@ -570,7 +570,10 @@ class WeightCreateView(HelpContextMixin, SaveAddAnotherMixin, LoginRequiredMixin
         form.instance.user = self.request.user
         if 'save_add_another' not in self.request.POST:
             messages.success(self.request, "Weight logged.")
-        return super().form_valid(form)
+        response = super().form_valid(form)
+        from apps.core.ai_orchestrator.intelligence_hook import fire_intelligence
+        fire_intelligence(self.request.user, "health", self.object.id, "log_weight")
+        return response
 
 
 class WeightUpdateView(HelpContextMixin, LoginRequiredMixin, UpdateView):
@@ -700,7 +703,10 @@ class StartFastView(LoginRequiredMixin, CreateView):
         form.instance.target_hours = targets.get(fasting_type)
         
         messages.success(self.request, "Fast started. Stay strong!")
-        return super().form_valid(form)
+        response = super().form_valid(form)
+        from apps.core.ai_orchestrator.intelligence_hook import fire_intelligence
+        fire_intelligence(self.request.user, "health", self.object.id, "start_fast")
+        return response
 
 
 class EndFastView(LoginRequiredMixin, View):
@@ -714,12 +720,14 @@ class EndFastView(LoginRequiredMixin, View):
             pk=pk
         )
         fast.end_fast()
-        
+
         duration = fast.duration_hours
         messages.success(
             request,
             f"Fast completed! You fasted for {duration:.1f} hours."
         )
+        from apps.core.ai_orchestrator.intelligence_hook import fire_intelligence
+        fire_intelligence(request.user, "health", fast.id, "end_fast")
         return redirect("health:fasting_list")
 
 
@@ -1471,6 +1479,8 @@ class WorkoutCreateView(LoginRequiredMixin, TemplateView):
                 continue
 
         messages.success(request, "Workout logged!")
+        from apps.core.ai_orchestrator.intelligence_hook import fire_intelligence
+        fire_intelligence(request.user, "health", workout.id, "log_workout")
         return redirect("health:workout_detail", pk=workout.pk)
 
 
@@ -4075,6 +4085,8 @@ class QuickAddFoodView(HelpContextMixin, LoginRequiredMixin, View):
                 entry_source=FoodEntry.SOURCE_QUICK_ADD,
             )
             messages.success(request, f"Logged {entry.total_calories} calories.")
+            from apps.core.ai_orchestrator.intelligence_hook import fire_intelligence
+            fire_intelligence(request.user, "health", entry.id, "log_food")
             return redirect("health:nutrition_home")
         return render(request, self.template_name, {"form": form})
 
@@ -5056,7 +5068,10 @@ class BloodPressureCreateView(HelpContextMixin, SaveAddAnotherMixin, LoginRequir
         form.instance.user = self.request.user
         if 'save_add_another' not in self.request.POST:
             messages.success(self.request, "Blood pressure logged.")
-        return super().form_valid(form)
+        response = super().form_valid(form)
+        from apps.core.ai_orchestrator.intelligence_hook import fire_intelligence
+        fire_intelligence(self.request.user, "health", self.object.id, "log_blood_pressure")
+        return response
 
 
 class BloodPressureUpdateView(HelpContextMixin, LoginRequiredMixin, UpdateView):
@@ -6338,7 +6353,10 @@ class SleepCreateView(SaveAddAnotherMixin, LoginRequiredMixin, CreateView):
         form.instance.user = self.request.user
         if 'save_add_another' not in self.request.POST:
             messages.success(self.request, "Sleep logged successfully.")
-        return super().form_valid(form)
+        response = super().form_valid(form)
+        from apps.core.ai_orchestrator.intelligence_hook import fire_intelligence
+        fire_intelligence(self.request.user, "health", self.object.id, "log_sleep")
+        return response
 
 
 class SleepQuickCreateView(LoginRequiredMixin, CreateView):

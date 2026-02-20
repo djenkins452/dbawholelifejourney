@@ -1389,6 +1389,10 @@ class MarkDayCompleteView(LoginRequiredMixin, FaithRequiredMixin, View):
 
         progress.mark_complete()
 
+        # Fire intelligence chain
+        from apps.core.ai_orchestrator.intelligence_hook import fire_intelligence
+        fire_intelligence(request.user, "faith", progress.id, "complete_reading")
+
         messages.success(request, f"Day {progress.plan_day.day_number} complete!")
 
         # Check if plan is now complete

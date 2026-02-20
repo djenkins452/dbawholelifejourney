@@ -688,6 +688,9 @@ class Command(BaseCommand):
         # One-time: Reset fixtures for CoS schedule awareness (PK 65 release note, teaching dests 152-154)
         self._reset_cos_schedule_awareness_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for CoS GPT-4o upgrade + chat timestamps (PKs 67-68)
+        self._reset_cos_gpt4o_timestamps_fixtures(DataLoadConfig, force, verbosity)
+
         # Auto-sync CoS documentation to admin guide (runs if checksum changed)
         self._sync_cos_documentation(DataLoadConfig, force, verbosity)
 
@@ -2611,3 +2614,33 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset CoS schedule awareness fixtures FAILED: {e}'))
+
+    def _reset_cos_gpt4o_timestamps_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload fixtures for CoS GPT-4o upgrade and chat timestamps:
+        - release_notes PKs 67-68 (timestamps, GPT-4o upgrade)
+        """
+        reset_tracker_name = 'reset_cos_gpt4o_timestamps_2026_02_20'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                config.reset()
+                if verbosity >= 1:
+                    self.stdout.write('  Reset release_notes loader for CoS GPT-4o + timestamps')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for CoS GPT-4o upgrade + chat timestamps (Feb 2026)',
+                'command',
+                'One-time reset to reload release notes PKs 67-68'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset CoS GPT-4o timestamps fixtures FAILED: {e}'))

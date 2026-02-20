@@ -1042,5 +1042,37 @@
             "created_at": "2026-02-20T00:00:00Z",
             "updated_at": "2026-02-20T00:00:00Z"
         }
+    },
+    {
+        "model": "core.releasenote",
+        "pk": 67,
+        "fields": {
+            "title": "Chat Timestamps & Date Grouping",
+            "description": "Every message in your Chief of Staff chat now shows the time it was sent (e.g. 2:30 PM). When scrolling back through your conversation history, date separators appear at each day boundary showing Today, Yesterday, or the full date. Makes it easy to see when each interaction happened.",
+            "entry_type": "enhancement",
+            "version": "",
+            "release_date": "2026-02-20",
+            "is_published": true,
+            "is_major": false,
+            "learn_more_url": "",
+            "created_at": "2026-02-20T00:00:00Z",
+            "updated_at": "2026-02-20T00:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
+        "pk": 68,
+        "fields": {
+            "title": "Smarter, More Conversational Chief of Staff",
+            "description": "Your Chief of Staff just got a major intelligence upgrade. Powered by GPT-4o (up from GPT-4o-mini), it now understands nuance, reads between the lines, and responds with genuine warmth instead of generic answers. The internal prompt architecture was rebuilt so personality and relationship instructions take priority over operational data. Conversations should feel noticeably more natural and perceptive.",
+            "entry_type": "enhancement",
+            "version": "",
+            "release_date": "2026-02-20",
+            "is_published": true,
+            "is_major": true,
+            "learn_more_url": "",
+            "created_at": "2026-02-20T00:00:00Z",
+            "updated_at": "2026-02-20T00:00:00Z"
+        }
     }
 ]

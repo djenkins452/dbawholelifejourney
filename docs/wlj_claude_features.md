@@ -4,7 +4,7 @@
 # Description: Detailed feature documentation for reference when needed
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-19
+# Last Updated: 2026-02-20
 # ==============================================================================
 
 # WLJ Feature Documentation
@@ -859,7 +859,7 @@ When adding a new provider, users can use AI to auto-fill contact information:
 6. User reviews and saves
 
 **Technical Details:**
-- Uses OpenAI GPT-4o-mini model
+- Uses OpenAI GPT-4o model
 - AJAX POST to `/health/providers/ai-lookup/`
 - Returns JSON response
 - `ai_lookup_completed` flag tracks which providers used AI
@@ -2656,10 +2656,16 @@ Each night, the system builds tomorrow's plan:
 
 ### CoS UI Components
 - **Command Mode** — Full-screen dashboard with plan, drift status, alerts, text/voice input
-- **Assistant Panel** — Pinned right panel (desktop) / pull-up panel (mobile) with plan-at-a-glance
+- **Assistant Panel** — Pinned right panel (desktop) / pull-up panel (mobile) with Chat + Status tabs
+- **Chat Timestamps** — Every message shows the time below the bubble (e.g. "2:30 PM"), aligned to the message side. Date separators ("Today", "Yesterday", "Monday, Feb 19") appear at day boundaries when scrolling through history.
 - **Arrival Briefing** — Morning summary shown when user first visits the dashboard
 - **Command Brief** — Weekly pressure points and upcoming commitments
-- **Chat Widget** — Floating chat drawer for quick AI conversations
+
+### AI Model & Prompt Architecture
+- **Model:** GPT-4o (upgraded from GPT-4o-mini for significantly better nuance, empathy, and conversational intelligence)
+- **Prompt hierarchy:** Priority-ordered layers — personality and relationship instructions first, user knowledge second, operational context last. This ensures the CoS maintains warmth and perceptiveness even when loaded with situational data.
+- **Situational awareness:** Compact context injection with schedule, calendar, medication, insights, predictions, and relationship signals. Raw metrics (drift scores, tier weights, override frequencies) are computed internally but not injected into the prompt.
+- **Temperature:** 0.65 for conversational warmth (0.4 for data-heavy responses)
 
 ### Proactive Questions & Calibration
 During initial calibration, the CoS asks getting-to-know-you questions. After calibration, it continues with relationship-deepening questions. Learned profile data (values, sacred items, goals) is injected into the system prompt for personalization.

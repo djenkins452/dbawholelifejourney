@@ -38,7 +38,7 @@
     <section class="today-card mb-6">
         <div class="today-header">
             <span class="today-label">Today</span>
-            <a href="{% url 'life:calendar' %}" class="today-link">View Calendar</a>
+            <a href="{% url 'calendar_engine:dashboard' %}" class="today-link">View Calendar</a>
         </div>
         <ul class="today-events">
             {% for event in todays_events %}
@@ -230,7 +230,7 @@
                     </li>
                     {% endfor %}
                 </ul>
-                <a href="{% url 'life:calendar' %}" class="card-link">View calendar →</a>
+                <a href="{% url 'calendar_engine:dashboard' %}" class="card-link">View calendar →</a>
             {% else %}
                 <p class="text-muted">No upcoming events this week</p>
                 <a href="{% url 'life:event_create' %}" class="btn btn-secondary btn-sm mt-4">Add an event</a>
@@ -294,7 +294,7 @@
                     <span>All Tasks</span>
                     <span class="quick-link-count">{{ stats.pending_tasks }} / {{ stats.completed_tasks }}</span>
                 </a>
-                <a href="{% url 'life:calendar' %}" class="quick-link">
+                <a href="{% url 'calendar_engine:dashboard' %}" class="quick-link">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
                         <line x1="16" y1="2" x2="16" y2="6"/>

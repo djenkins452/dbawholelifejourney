@@ -9560,3 +9560,18 @@ This uses `or ''` to convert any falsy value (None, empty string, missing key) t
 - `templates/calendar_engine/manage.html` — CSS, HTML, and JS changes
 
 **Why:** User reported Edit/Delete buttons were not visible (scrolled off-screen). Full CRUD was technically implemented but inaccessible in the UI.
+
+## 2026-02-19 — Wire Calendar Engine into Navigation
+
+**Changes:**
+- Updated Organize > Calendar nav link from old `life:calendar` to `calendar_engine:dashboard`
+- Updated Organize home page "View Calendar" links (3 occurrences) to point to Calendar Engine
+- Added `calendar_engine` to active nav state matching for both sidebar and left rail
+- Organize tab now highlights correctly when on Calendar Engine pages
+
+**Files Modified:**
+- `templates/components/navigation.html` — nav link + active state
+- `templates/components/desktop_left_rail.html` — active state
+- `templates/life/home.html` — 3 calendar links updated
+
+**Why:** Calendar Engine had no navigation entry — users could only reach it by typing the URL directly.

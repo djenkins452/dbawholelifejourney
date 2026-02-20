@@ -2251,7 +2251,7 @@ The AI will remember these to respond more thoughtfully in the future."
                     </div>
                 </button>
                 <div class="accordion-body">
-                    <p class="form-help mb-4">Add external links (e.g., patient portal, bank login) that appear in your profile dropdown menu. Links open in a new tab.</p>
+                    <p class="form-help mb-4">Add external links (e.g., patient portal, bank login) that appear in your profile menu. On mobile, links with an app URL will try to open the app first, then fall back to the website.</p>
 
                     <!-- Existing Links -->
                     <div id="quick-links-list">
@@ -2264,16 +2264,25 @@ The AI will remember these to respond more thoughtfully in the future."
                                     <line x1="10" y1="14" x2="21" y2="3"/>
                                 </svg>
                                 <div>
-                                    <span class="quick-link-name">{{ link.name }}</span>
+                                    <span class="quick-link-name">{{ link.name }}{% if link.mobile_app_url %} <span class="ql-mobile-badge" title="Mobile app link configured">📱</span>{% endif %}</span>
                                     <span class="quick-link-url">{{ link.url }}</span>
+                                    {% if link.mobile_app_url %}<span class="quick-link-mobile-url">App: {{ link.mobile_app_url }}</span>{% endif %}
                                 </div>
                             </div>
-                            <button type="button" class="btn btn-ghost btn-sm quick-link-delete" data-link-id="{{ link.id }}" title="Remove link">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                                    <polyline points="3 6 5 6 21 6"/>
-                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                                </svg>
-                            </button>
+                            <div class="quick-link-actions">
+                                <button type="button" class="btn btn-ghost btn-sm quick-link-edit" data-link-id="{{ link.id }}" data-link-name="{{ link.name }}" data-link-url="{{ link.url }}" data-link-mobile-url="{{ link.mobile_app_url }}" data-link-category="{{ link.category }}" title="Edit link">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                                    </svg>
+                                </button>
+                                <button type="button" class="btn btn-ghost btn-sm quick-link-delete" data-link-id="{{ link.id }}" title="Remove link">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                        <polyline points="3 6 5 6 21 6"/>
+                                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                                    </svg>
+                                </button>
+                            </div>
                         </div>
                         {% empty %}
                         <div class="quick-links-empty" id="quick-links-empty">
@@ -2286,10 +2295,23 @@ The AI will remember these to respond more thoughtfully in the future."
                     <div class="quick-link-add-form" id="quick-link-add-form">
                         <div class="quick-link-add-fields">
                             <div class="form-group mb-0">
-                                <input type="text" id="quick-link-name" class="form-input" placeholder="Link name (e.g., Patient Portal)" maxlength="100">
+                                <input type="text" id="quick-link-name" class="form-input" placeholder="Link name (e.g., Chase Bank)" maxlength="100">
                             </div>
                             <div class="form-group mb-0">
-                                <input type="url" id="quick-link-url" class="form-input" placeholder="https://example.com" maxlength="500">
+                                <input type="url" id="quick-link-url" class="form-input" placeholder="https://chase.com" maxlength="500">
+                            </div>
+                            <div class="form-group mb-0">
+                                <input type="text" id="quick-link-mobile-url" class="form-input" placeholder="App URL (e.g., chase://) — optional" maxlength="500">
+                            </div>
+                            <div class="form-group mb-0">
+                                <select id="quick-link-category" class="form-input form-select">
+                                    <option value="general">General</option>
+                                    <option value="finance">Finance & Banking</option>
+                                    <option value="health">Health & Medical</option>
+                                    <option value="work">Work & Productivity</option>
+                                    <option value="social">Social & Communication</option>
+                                    <option value="other">Other</option>
+                                </select>
                             </div>
                             <button type="button" class="btn btn-secondary btn-sm" id="add-quick-link-btn">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
@@ -2299,7 +2321,44 @@ The AI will remember these to respond more thoughtfully in the future."
                                 Add
                             </button>
                         </div>
+                        <p class="form-help text-xs mt-2">Common app URLs: chase://, bofa://, capitalone://, schwab://, venmo://, paypal://, mychart://</p>
                         <div id="quick-link-error" class="quick-link-error" style="display: none;"></div>
+                    </div>
+
+                    <!-- Edit Link Modal -->
+                    <div id="quick-link-edit-modal" class="quick-link-modal" style="display: none;">
+                        <div class="quick-link-modal-content">
+                            <h3 class="quick-link-modal-title">Edit Link</h3>
+                            <input type="hidden" id="edit-link-id">
+                            <div class="form-group">
+                                <label class="form-label">Name</label>
+                                <input type="text" id="edit-link-name" class="form-input" maxlength="100">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Web URL</label>
+                                <input type="url" id="edit-link-url" class="form-input" maxlength="500">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Mobile App URL <span class="text-muted">(optional)</span></label>
+                                <input type="text" id="edit-link-mobile-url" class="form-input" placeholder="e.g., chase://" maxlength="500">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Category</label>
+                                <select id="edit-link-category" class="form-input form-select">
+                                    <option value="general">General</option>
+                                    <option value="finance">Finance & Banking</option>
+                                    <option value="health">Health & Medical</option>
+                                    <option value="work">Work & Productivity</option>
+                                    <option value="social">Social & Communication</option>
+                                    <option value="other">Other</option>
+                                </select>
+                            </div>
+                            <div id="edit-link-error" class="quick-link-error" style="display: none;"></div>
+                            <div class="quick-link-modal-actions">
+                                <button type="button" class="btn btn-ghost btn-sm" id="edit-link-cancel">Cancel</button>
+                                <button type="button" class="btn btn-primary btn-sm" id="edit-link-save">Save</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -3277,13 +3336,38 @@ The AI will remember these to respond more thoughtfully in the future."
     max-width: 300px;
 }
 
-.quick-link-delete {
+.quick-link-actions {
+    display: flex;
+    gap: var(--space-1);
+    flex-shrink: 0;
+}
+
+.quick-link-delete,
+.quick-link-edit {
     flex-shrink: 0;
     color: var(--color-text-muted);
 }
 
 .quick-link-delete:hover {
     color: #ef4444;
+}
+
+.quick-link-edit:hover {
+    color: var(--color-primary, #4f46e5);
+}
+
+.quick-link-mobile-url {
+    display: block;
+    font-size: var(--font-size-xs, 0.75rem);
+    color: var(--color-primary, #4f46e5);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 300px;
+}
+
+.ql-mobile-badge {
+    font-size: 0.8em;
 }
 
 .quick-links-empty {
@@ -3301,10 +3385,12 @@ The AI will remember these to respond more thoughtfully in the future."
     display: flex;
     gap: var(--space-2);
     align-items: flex-start;
+    flex-wrap: wrap;
 }
 
 .quick-link-add-fields .form-group {
     flex: 1;
+    min-width: 140px;
 }
 
 .quick-link-add-fields .btn {
@@ -3319,16 +3405,55 @@ The AI will remember these to respond more thoughtfully in the future."
     margin-top: var(--space-2);
 }
 
+/* Edit Modal */
+.quick-link-modal {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 1000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 1rem;
+}
+
+.quick-link-modal-content {
+    background: var(--color-surface, #fff);
+    border-radius: var(--radius-lg, 12px);
+    padding: var(--space-5, 1.5rem);
+    max-width: 440px;
+    width: 100%;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+}
+
+.quick-link-modal-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: var(--space-4, 1rem);
+}
+
+.quick-link-modal-actions {
+    display: flex;
+    gap: var(--space-2);
+    justify-content: flex-end;
+    margin-top: var(--space-4, 1rem);
+}
+
 @media (max-width: 480px) {
     .quick-link-add-fields {
         flex-direction: column;
+    }
+
+    .quick-link-add-fields .form-group {
+        min-width: 100%;
     }
 
     .quick-link-add-fields .btn {
         width: 100%;
     }
 
-    .quick-link-url {
+    .quick-link-url,
+    .quick-link-mobile-url {
         max-width: 180px;
     }
 }
@@ -4278,11 +4403,15 @@ document.addEventListener('DOMContentLoaded', function() {
 // Quick Links Management
 // ============================================
 function addQuickLink() {
-    const nameInput = document.getElementById('quick-link-name');
-    const urlInput = document.getElementById('quick-link-url');
-    const errorDiv = document.getElementById('quick-link-error');
-    const name = nameInput.value.trim();
-    let url = urlInput.value.trim();
+    var nameInput = document.getElementById('quick-link-name');
+    var urlInput = document.getElementById('quick-link-url');
+    var mobileUrlInput = document.getElementById('quick-link-mobile-url');
+    var categoryInput = document.getElementById('quick-link-category');
+    var errorDiv = document.getElementById('quick-link-error');
+    var name = nameInput.value.trim();
+    var url = urlInput.value.trim();
+    var mobileUrl = mobileUrlInput ? mobileUrlInput.value.trim() : '';
+    var category = categoryInput ? categoryInput.value : 'general';
 
     errorDiv.style.display = 'none';
 
@@ -4311,53 +4440,64 @@ function addQuickLink() {
             'Content-Type': 'application/json',
             'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
         },
-        body: JSON.stringify({ name: name, url: url }),
+        body: JSON.stringify({
+            name: name,
+            url: url,
+            mobile_app_url: mobileUrl,
+            category: category,
+        }),
     })
-    .then(r => r.json())
-    .then(data => {
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
         if (data.error) {
             errorDiv.textContent = data.error;
             errorDiv.style.display = 'block';
             return;
         }
         // Add to list
-        const list = document.getElementById('quick-links-list');
-        const emptyMsg = document.getElementById('quick-links-empty');
+        var list = document.getElementById('quick-links-list');
+        var emptyMsg = document.getElementById('quick-links-empty');
         if (emptyMsg) emptyMsg.remove();
 
-        const item = document.createElement('div');
+        var mobileBadge = data.link.mobile_app_url ? ' <span class="ql-mobile-badge" title="Mobile app link configured">📱</span>' : '';
+        var mobileUrlLine = data.link.mobile_app_url ? '<span class="quick-link-mobile-url">App: ' + data.link.mobile_app_url + '</span>' : '';
+
+        var item = document.createElement('div');
         item.className = 'quick-link-item';
         item.dataset.linkId = data.link.id;
-        item.innerHTML = `
-            <div class="quick-link-info">
-                <svg class="quick-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-                    <polyline points="15 3 21 3 21 9"/>
-                    <line x1="10" y1="14" x2="21" y2="3"/>
-                </svg>
-                <div>
-                    <span class="quick-link-name">${data.link.name}</span>
-                    <span class="quick-link-url">${data.link.url}</span>
-                </div>
-            </div>
-            <button type="button" class="btn btn-ghost btn-sm quick-link-delete" data-link-id="${data.link.id}" title="Remove link">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                    <polyline points="3 6 5 6 21 6"/>
-                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                </svg>
-            </button>
-        `;
+        item.innerHTML =
+            '<div class="quick-link-info">' +
+                '<svg class="quick-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">' +
+                    '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>' +
+                    '<polyline points="15 3 21 3 21 9"/>' +
+                    '<line x1="10" y1="14" x2="21" y2="3"/>' +
+                '</svg>' +
+                '<div>' +
+                    '<span class="quick-link-name">' + data.link.name + mobileBadge + '</span>' +
+                    '<span class="quick-link-url">' + data.link.url + '</span>' +
+                    mobileUrlLine +
+                '</div>' +
+            '</div>' +
+            '<div class="quick-link-actions">' +
+                '<button type="button" class="btn btn-ghost btn-sm quick-link-edit" data-link-id="' + data.link.id + '" data-link-name="' + data.link.name + '" data-link-url="' + data.link.url + '" data-link-mobile-url="' + (data.link.mobile_app_url || '') + '" data-link-category="' + data.link.category + '" title="Edit link">' +
+                    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>' +
+                '</button>' +
+                '<button type="button" class="btn btn-ghost btn-sm quick-link-delete" data-link-id="' + data.link.id + '" title="Remove link">' +
+                    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>' +
+                '</button>' +
+            '</div>';
         list.appendChild(item);
 
         // Clear inputs
         nameInput.value = '';
         urlInput.value = '';
+        if (mobileUrlInput) mobileUrlInput.value = '';
+        if (categoryInput) categoryInput.value = 'general';
         nameInput.focus();
 
-        // Update badge
         updateQuickLinksBadge();
     })
-    .catch(() => {
+    .catch(function() {
         errorDiv.textContent = 'Something went wrong. Please try again.';
         errorDiv.style.display = 'block';
     });
@@ -4366,22 +4506,21 @@ function addQuickLink() {
 function deleteQuickLink(linkId, btn) {
     if (!confirm('Remove this quick link?')) return;
 
-    fetch(`/user/api/quick-links/${linkId}/delete/`, {
+    fetch('/user/api/quick-links/' + linkId + '/delete/', {
         method: 'POST',
         headers: {
             'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
         },
     })
-    .then(r => r.json())
-    .then(data => {
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
         if (data.success) {
-            const item = btn.closest('.quick-link-item');
+            var item = btn.closest('.quick-link-item');
             item.remove();
 
-            // Show empty message if no links left
-            const list = document.getElementById('quick-links-list');
+            var list = document.getElementById('quick-links-list');
             if (!list.querySelector('.quick-link-item')) {
-                const empty = document.createElement('div');
+                var empty = document.createElement('div');
                 empty.className = 'quick-links-empty';
                 empty.id = 'quick-links-empty';
                 empty.innerHTML = '<p class="text-muted text-sm">No quick links yet. Add one below!</p>';
@@ -4393,15 +4532,117 @@ function deleteQuickLink(linkId, btn) {
     });
 }
 
+function openEditLinkModal(btn) {
+    var modal = document.getElementById('quick-link-edit-modal');
+    document.getElementById('edit-link-id').value = btn.dataset.linkId;
+    document.getElementById('edit-link-name').value = btn.dataset.linkName;
+    document.getElementById('edit-link-url').value = btn.dataset.linkUrl;
+    document.getElementById('edit-link-mobile-url').value = btn.dataset.linkMobileUrl || '';
+    document.getElementById('edit-link-category').value = btn.dataset.linkCategory || 'general';
+    document.getElementById('edit-link-error').style.display = 'none';
+    modal.style.display = 'flex';
+}
+
+function saveEditLink() {
+    var linkId = document.getElementById('edit-link-id').value;
+    var name = document.getElementById('edit-link-name').value.trim();
+    var url = document.getElementById('edit-link-url').value.trim();
+    var mobileUrl = document.getElementById('edit-link-mobile-url').value.trim();
+    var category = document.getElementById('edit-link-category').value;
+    var errorDiv = document.getElementById('edit-link-error');
+
+    errorDiv.style.display = 'none';
+
+    if (!name) {
+        errorDiv.textContent = 'Name is required.';
+        errorDiv.style.display = 'block';
+        return;
+    }
+    if (!url) {
+        errorDiv.textContent = 'URL is required.';
+        errorDiv.style.display = 'block';
+        return;
+    }
+
+    if (!url.match(/^https?:\/\//i)) {
+        url = 'https://' + url;
+    }
+
+    fetch('/user/api/quick-links/' + linkId + '/update/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+        },
+        body: JSON.stringify({
+            name: name,
+            url: url,
+            mobile_app_url: mobileUrl,
+            category: category,
+        }),
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.error) {
+            errorDiv.textContent = data.error;
+            errorDiv.style.display = 'block';
+            return;
+        }
+
+        // Update the DOM
+        var item = document.querySelector('.quick-link-item[data-link-id="' + linkId + '"]');
+        if (item) {
+            var nameEl = item.querySelector('.quick-link-name');
+            var urlEl = item.querySelector('.quick-link-url');
+            var mobileUrlEl = item.querySelector('.quick-link-mobile-url');
+            var editBtn = item.querySelector('.quick-link-edit');
+
+            var mobileBadge = data.link.mobile_app_url ? ' <span class="ql-mobile-badge" title="Mobile app link configured">📱</span>' : '';
+            nameEl.innerHTML = data.link.name + mobileBadge;
+            urlEl.textContent = data.link.url;
+
+            if (data.link.mobile_app_url) {
+                if (mobileUrlEl) {
+                    mobileUrlEl.textContent = 'App: ' + data.link.mobile_app_url;
+                } else {
+                    var span = document.createElement('span');
+                    span.className = 'quick-link-mobile-url';
+                    span.textContent = 'App: ' + data.link.mobile_app_url;
+                    urlEl.parentNode.appendChild(span);
+                }
+            } else if (mobileUrlEl) {
+                mobileUrlEl.remove();
+            }
+
+            // Update edit button data attributes
+            if (editBtn) {
+                editBtn.dataset.linkName = data.link.name;
+                editBtn.dataset.linkUrl = data.link.url;
+                editBtn.dataset.linkMobileUrl = data.link.mobile_app_url || '';
+                editBtn.dataset.linkCategory = data.link.category;
+            }
+        }
+
+        document.getElementById('quick-link-edit-modal').style.display = 'none';
+    })
+    .catch(function() {
+        errorDiv.textContent = 'Something went wrong. Please try again.';
+        errorDiv.style.display = 'block';
+    });
+}
+
 function updateQuickLinksBadge() {
-    const badge = document.getElementById('quick-links-badge');
-    const count = document.querySelectorAll('.quick-link-item').length;
+    var badge = document.getElementById('quick-links-badge');
+    var count = document.querySelectorAll('.quick-link-item').length;
     if (badge) badge.textContent = count + ' / {{ quick_links_max }}';
 }
 
 // Allow Enter key to submit quick link form
-document.getElementById('quick-link-url')?.addEventListener('keydown', function(e) {
+document.getElementById('quick-link-mobile-url')?.addEventListener('keydown', function(e) {
     if (e.key === 'Enter') { e.preventDefault(); addQuickLink(); }
+});
+document.getElementById('quick-link-url')?.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); document.getElementById('quick-link-mobile-url').focus(); }
 });
 document.getElementById('quick-link-name')?.addEventListener('keydown', function(e) {
     if (e.key === 'Enter') { e.preventDefault(); document.getElementById('quick-link-url').focus(); }
@@ -4419,6 +4660,14 @@ document.getElementById('remove-phone-btn')?.addEventListener('click', removePho
 document.getElementById('send-code-btn')?.addEventListener('click', sendVerificationCode);
 document.getElementById('check-code-btn')?.addEventListener('click', checkVerificationCode);
 document.getElementById('add-quick-link-btn')?.addEventListener('click', addQuickLink);
+document.getElementById('edit-link-save')?.addEventListener('click', saveEditLink);
+document.getElementById('edit-link-cancel')?.addEventListener('click', function() {
+    document.getElementById('quick-link-edit-modal').style.display = 'none';
+});
+// Close edit modal on backdrop click
+document.getElementById('quick-link-edit-modal')?.addEventListener('click', function(e) {
+    if (e.target === this) this.style.display = 'none';
+});
 document.getElementById('id_default_fasting_type')?.addEventListener('change', updateFastingDescription);
 document.getElementById('id_daily_calorie_goal')?.addEventListener('input', updateMacroGrams);
 document.getElementById('id_protein_percentage')?.addEventListener('input', updateMacroTotal);
@@ -4437,6 +4686,12 @@ document.addEventListener('click', function(e) {
     var deleteBtn = e.target.closest('.quick-link-delete[data-link-id]');
     if (deleteBtn) {
         deleteQuickLink(parseInt(deleteBtn.dataset.linkId), deleteBtn);
+        return;
+    }
+
+    var editBtn = e.target.closest('.quick-link-edit[data-link-id]');
+    if (editBtn) {
+        openEditLinkModal(editBtn);
         return;
     }
 });

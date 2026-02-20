@@ -52,7 +52,7 @@ from django.contrib.auth import login
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.mail import send_mail
 from django.http import JsonResponse
-from django.shortcuts import redirect
+from django.shortcuts import redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse_lazy
 from django.utils import timezone
@@ -2454,11 +2454,29 @@ class QuickLinkCreateView(LoginRequiredMixin, View):
                 'error': f'Maximum of {ExternalLink.MAX_LINKS} quick links allowed'
             }, status=400)
 
+        # Optional fields
+        mobile_app_url = data.get('mobile_app_url', '').strip()[:500]
+        category = data.get('category', ExternalLink.CATEGORY_GENERAL)
+        icon = data.get('icon', ExternalLink.ICON_LINK)
+        open_in_new_tab = data.get('open_in_new_tab', True)
+
+        # Validate category/icon choices
+        valid_cats = [c[0] for c in ExternalLink.CATEGORY_CHOICES]
+        if category not in valid_cats:
+            category = ExternalLink.CATEGORY_GENERAL
+        valid_icons = [i[0] for i in ExternalLink.ICON_CHOICES]
+        if icon not in valid_icons:
+            icon = ExternalLink.ICON_LINK
+
         # Create the link
         link = ExternalLink.objects.create(
             user=request.user,
             name=name,
             url=url,
+            mobile_app_url=mobile_app_url,
+            category=category,
+            icon=icon,
+            open_in_new_tab=bool(open_in_new_tab),
         )
 
         # Invalidate cache
@@ -2470,6 +2488,10 @@ class QuickLinkCreateView(LoginRequiredMixin, View):
                 'id': link.id,
                 'name': link.name,
                 'url': link.url,
+                'mobile_app_url': link.mobile_app_url,
+                'category': link.category,
+                'icon': link.icon,
+                'open_in_new_tab': link.open_in_new_tab,
             }
         })
 
@@ -2500,3 +2522,131 @@ class QuickLinkDeleteView(LoginRequiredMixin, View):
     def post(self, request, link_id, *args, **kwargs):
         """Allow POST as fallback for DELETE (some browsers/forms)."""
         return self.delete(request, link_id, *args, **kwargs)
+
+
+class QuickLinkOpenView(LoginRequiredMixin, View):
+    """
+    Device-aware redirect for quick links with deep linking support.
+
+    GET /user/open-link/<id>/
+
+    Behavior:
+    - Increments usage_count
+    - On mobile with a mobile_app_url set: renders a redirect template that
+      attempts the deep link first, then falls back to the web URL
+    - On desktop (or no mobile_app_url): direct redirect to the web URL
+    """
+
+    MOBILE_KEYWORDS = ('iphone', 'ipad', 'android', 'mobile', 'ipod')
+
+    def _is_mobile(self, request):
+        """Detect mobile device from User-Agent."""
+        ua = request.META.get('HTTP_USER_AGENT', '').lower()
+        return any(kw in ua for kw in self.MOBILE_KEYWORDS)
+
+    def get(self, request, link_id, *args, **kwargs):
+        from apps.users.models import ExternalLink
+
+        try:
+            link = ExternalLink.objects.get(id=link_id, user=request.user)
+        except ExternalLink.DoesNotExist:
+            from django.http import Http404
+            raise Http404("Link not found")
+
+        # Increment usage
+        link.increment_usage()
+
+        is_mobile = self._is_mobile(request)
+
+        # If mobile + deep link configured → render deep link template
+        if is_mobile and link.has_deep_link:
+            return render(request, 'users/quick_link_redirect.html', {
+                'link': link,
+                'mobile_app_url': link.mobile_app_url,
+                'fallback_url': link.url,
+                'link_name': link.name,
+            })
+
+        # Desktop or no deep link — direct redirect
+        from django.shortcuts import redirect as http_redirect
+        return http_redirect(link.url)
+
+
+class QuickLinkUpdateView(LoginRequiredMixin, View):
+    """
+    API endpoint to update an existing quick link.
+
+    POST /user/api/quick-links/<id>/update/
+    Body: {"name": "...", "url": "...", "mobile_app_url": "...", "category": "...", "icon": "..."}
+    """
+
+    def post(self, request, link_id, *args, **kwargs):
+        import json
+        from django.core.cache import cache
+        from apps.users.models import ExternalLink
+
+        try:
+            link = ExternalLink.objects.get(id=link_id, user=request.user)
+        except ExternalLink.DoesNotExist:
+            return JsonResponse({'error': 'Link not found'}, status=404)
+
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, AttributeError):
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        # Update allowed fields
+        if 'name' in data:
+            name = data['name'].strip()
+            if not name:
+                return JsonResponse({'error': 'Name is required'}, status=400)
+            if len(name) > 100:
+                return JsonResponse({'error': 'Name must be 100 characters or less'}, status=400)
+            link.name = name
+
+        if 'url' in data:
+            url = data['url'].strip()
+            if not url:
+                return JsonResponse({'error': 'URL is required'}, status=400)
+            from django.core.validators import URLValidator
+            from django.core.exceptions import ValidationError
+            validator = URLValidator()
+            try:
+                validator(url)
+            except ValidationError:
+                return JsonResponse({'error': 'Please enter a valid URL'}, status=400)
+            link.url = url
+
+        if 'mobile_app_url' in data:
+            link.mobile_app_url = data['mobile_app_url'].strip()[:500]
+
+        if 'category' in data:
+            valid_cats = [c[0] for c in ExternalLink.CATEGORY_CHOICES]
+            if data['category'] in valid_cats:
+                link.category = data['category']
+
+        if 'icon' in data:
+            valid_icons = [i[0] for i in ExternalLink.ICON_CHOICES]
+            if data['icon'] in valid_icons:
+                link.icon = data['icon']
+
+        if 'open_in_new_tab' in data:
+            link.open_in_new_tab = bool(data['open_in_new_tab'])
+
+        link.save()
+
+        # Invalidate cache
+        cache.delete(f'quick_links_user_{request.user.id}')
+
+        return JsonResponse({
+            'success': True,
+            'link': {
+                'id': link.id,
+                'name': link.name,
+                'url': link.url,
+                'mobile_app_url': link.mobile_app_url,
+                'category': link.category,
+                'icon': link.icon,
+                'open_in_new_tab': link.open_in_new_tab,
+            }
+        })

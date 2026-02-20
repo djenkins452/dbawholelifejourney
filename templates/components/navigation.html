@@ -718,7 +718,7 @@
                     {% if quick_links_list %}
                     <hr class="nav-user-divider">
                     {% for ql in quick_links_list %}
-                    <a href="{{ ql.url }}" class="nav-user-link" target="_blank" rel="noopener noreferrer">{{ ql.name }} ↗</a>
+                    <a href="{% url 'users:quick_link_open' ql.id %}" class="nav-user-link"{% if ql.open_in_new_tab %} target="_blank" rel="noopener noreferrer"{% endif %}>{{ ql.name }}{% if ql.mobile_app_url %} 📱{% else %} ↗{% endif %}</a>
                     {% endfor %}
                     {% endif %}
                     {% if user.is_staff %}

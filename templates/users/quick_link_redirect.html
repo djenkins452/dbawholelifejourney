@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}Opening {{ link_name }} — Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="redirect-container">
+    <div class="redirect-card">
+        <div class="redirect-spinner">
+            <svg viewBox="0 0 50 50" width="40" height="40">
+                <circle cx="25" cy="25" r="20" fill="none" stroke="var(--color-primary, #4f46e5)" stroke-width="4" stroke-dasharray="80" stroke-dashoffset="60">
+                    <animateTransform attributeName="transform" type="rotate" from="0 25 25" to="360 25 25" dur="1s" repeatCount="indefinite"/>
+                </circle>
+            </svg>
+        </div>
+        <h2 class="redirect-title">Opening {{ link_name }}</h2>
+        <p class="redirect-subtitle">Attempting to open the app...</p>
+        <p class="redirect-fallback" id="fallback-msg" style="display: none;">
+            App not found. <a href="{{ fallback_url }}" rel="noopener noreferrer" id="fallback-link">Open in browser instead</a>
+        </p>
+    </div>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.redirect-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 60vh;
+    padding: 2rem;
+}
+.redirect-card {
+    text-align: center;
+    padding: 2.5rem;
+    background: var(--color-surface, #fff);
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    max-width: 400px;
+    width: 100%;
+}
+.redirect-spinner {
+    margin-bottom: 1.5rem;
+}
+.redirect-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: var(--color-text, #1f2937);
+}
+.redirect-subtitle {
+    color: var(--color-text-muted, #6b7280);
+    margin-bottom: 1rem;
+}
+.redirect-fallback a {
+    color: var(--color-primary, #4f46e5);
+    font-weight: 500;
+    text-decoration: underline;
+}
+</style>
+
+<script nonce="{{ csp_nonce }}">
+(function() {
+    var mobileUrl = "{{ mobile_app_url|escapejs }}";
+    var fallbackUrl = "{{ fallback_url|escapejs }}";
+    var fallbackTimer = null;
+
+    // Attempt deep link
+    if (mobileUrl) {
+        // Set a timer — if the deep link works, the page will be hidden/unloaded.
+        // If it doesn't work (app not installed), the timer fires and we redirect.
+        fallbackTimer = setTimeout(function() {
+            document.getElementById('fallback-msg').style.display = 'block';
+            // Auto-redirect after showing fallback message briefly
+            setTimeout(function() {
+                window.location.href = fallbackUrl;
+            }, 800);
+        }, 1500);
+
+        // Listen for visibility change — if app opened, user left this page
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden && fallbackTimer) {
+                clearTimeout(fallbackTimer);
+                fallbackTimer = null;
+            }
+        });
+
+        // Also clear on blur (older browsers)
+        window.addEventListener('blur', function() {
+            if (fallbackTimer) {
+                clearTimeout(fallbackTimer);
+                fallbackTimer = null;
+            }
+        });
+
+        // Attempt the deep link via an invisible iframe (more reliable than window.location)
+        var iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.src = mobileUrl;
+        document.body.appendChild(iframe);
+
+        // Also try window.location as backup
+        setTimeout(function() {
+            window.location.href = mobileUrl;
+        }, 100);
+    } else {
+        // No deep link — go straight to web URL
+        window.location.href = fallbackUrl;
+    }
+})();
+</script>
+{% endblock %}

@@ -1,6 +1,22 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 64,
+        "fields": {
+            "title": "Smart Quick Links with Mobile App Deep Linking",
+            "description": "Quick Links now support mobile app deep linking. When you add a link, you can optionally set a mobile app URL (like chase:// or bofa://). On your phone, the link will try to open the app first — if it is not installed, it automatically opens the website instead. Links also now track usage, support categories (Finance, Health, Work, etc.), and include an edit button for quick updates. Set up your links in Preferences under Quick Links.",
+            "entry_type": "enhancement",
+            "version": "",
+            "release_date": "2026-02-20",
+            "is_published": true,
+            "is_major": false,
+            "learn_more_url": "",
+            "created_at": "2026-02-20T00:00:00Z",
+            "updated_at": "2026-02-20T00:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 63,
         "fields": {
             "title": "Smarter Voice Command Recognition",

@@ -339,7 +339,8 @@ def quick_links_context(request):
             context['quick_links_list'] = cached_links
         else:
             links = list(ExternalLink.get_links_for_user(request.user).values(
-                'id', 'name', 'url'
+                'id', 'name', 'url', 'mobile_app_url', 'icon',
+                'category', 'open_in_new_tab',
             ))
             context['quick_links_list'] = links
             cache.set(cache_key, links, 60)

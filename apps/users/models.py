@@ -2310,10 +2310,46 @@ class ExternalLink(models.Model):
     User-defined external links for quick access from the profile dropdown.
 
     Examples: Patient portal, bank login, favorite websites.
-    Links open in a new browser tab.
+    Supports optional mobile deep linking — when a mobile_app_url is set,
+    mobile devices attempt the app deep link first, then fall back to the
+    standard web URL.
     """
 
     MAX_LINKS = 10
+
+    # Category choices for grouping links
+    CATEGORY_GENERAL = 'general'
+    CATEGORY_FINANCE = 'finance'
+    CATEGORY_HEALTH = 'health'
+    CATEGORY_WORK = 'work'
+    CATEGORY_SOCIAL = 'social'
+    CATEGORY_OTHER = 'other'
+
+    CATEGORY_CHOICES = [
+        (CATEGORY_GENERAL, 'General'),
+        (CATEGORY_FINANCE, 'Finance & Banking'),
+        (CATEGORY_HEALTH, 'Health & Medical'),
+        (CATEGORY_WORK, 'Work & Productivity'),
+        (CATEGORY_SOCIAL, 'Social & Communication'),
+        (CATEGORY_OTHER, 'Other'),
+    ]
+
+    # Icon choices (SVG icon names used in the UI)
+    ICON_LINK = 'link'
+    ICON_BANK = 'bank'
+    ICON_HEALTH = 'health'
+    ICON_BRIEFCASE = 'briefcase'
+    ICON_GLOBE = 'globe'
+    ICON_STAR = 'star'
+
+    ICON_CHOICES = [
+        (ICON_LINK, 'Link'),
+        (ICON_BANK, 'Bank'),
+        (ICON_HEALTH, 'Health'),
+        (ICON_BRIEFCASE, 'Briefcase'),
+        (ICON_GLOBE, 'Globe'),
+        (ICON_STAR, 'Star'),
+    ]
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -2328,9 +2364,39 @@ class ExternalLink(models.Model):
         max_length=500,
         help_text="Full URL including https:// (e.g., 'https://myportal.com')",
     )
+    mobile_app_url = models.CharField(
+        max_length=500,
+        blank=True,
+        default='',
+        help_text=(
+            "Optional mobile deep link URL (e.g., 'chase://', 'bofa://app'). "
+            "On mobile devices, this URL is attempted first. If the app is not "
+            "installed, falls back to the standard web URL above."
+        ),
+    )
+    icon = models.CharField(
+        max_length=20,
+        choices=ICON_CHOICES,
+        default=ICON_LINK,
+        help_text="Icon displayed next to the link",
+    )
+    category = models.CharField(
+        max_length=20,
+        choices=CATEGORY_CHOICES,
+        default=CATEGORY_GENERAL,
+        help_text="Category for grouping links",
+    )
     sort_order = models.IntegerField(
         default=0,
         help_text="Order in which links appear (lower = first)",
+    )
+    open_in_new_tab = models.BooleanField(
+        default=True,
+        help_text="Whether the link opens in a new browser tab",
+    )
+    usage_count = models.PositiveIntegerField(
+        default=0,
+        help_text="Number of times this link has been opened",
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -2341,6 +2407,18 @@ class ExternalLink(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.url})"
+
+    @property
+    def has_deep_link(self):
+        """Return True if a mobile deep link is configured."""
+        return bool(self.mobile_app_url)
+
+    def increment_usage(self):
+        """Atomically increment usage_count."""
+        from django.db.models import F
+        ExternalLink.objects.filter(pk=self.pk).update(
+            usage_count=F('usage_count') + 1
+        )
 
     @classmethod
     def get_links_for_user(cls, user, limit=None):
@@ -2354,3 +2432,26 @@ class ExternalLink(models.Model):
     def can_add_link(cls, user):
         """Check if user hasn't reached the maximum link count."""
         return cls.objects.filter(user=user).count() < cls.MAX_LINKS
+
+    @classmethod
+    def get_most_used_links(cls, user, limit=5, days=None):
+        """
+        Get a user's most frequently used links.
+
+        Intelligence hook for future AI integration — enables:
+        - Surfacing frequent links on dashboard
+        - Time-of-day suggestions
+        - Behavioral automation
+
+        Args:
+            user: User instance
+            limit: Max links to return (default 5)
+            days: Optional time window in days (None = all time)
+        """
+        qs = cls.objects.filter(user=user, usage_count__gt=0)
+        if days is not None:
+            from django.utils import timezone
+            import datetime
+            cutoff = timezone.now() - datetime.timedelta(days=days)
+            qs = qs.filter(created_at__gte=cutoff)
+        return qs.order_by('-usage_count')[:limit]

@@ -679,6 +679,9 @@ class Command(BaseCommand):
         # One-time: Reset help_topics for updated DASHBOARD_HOME content (PK 1)
         self._reset_dashboard_help_topic(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for Quick Links Deep Linking (PK 64)
+        self._reset_quick_links_deep_link_fixtures(DataLoadConfig, force, verbosity)
+
         # Auto-sync CoS documentation to admin guide (runs if checksum changed)
         self._sync_cos_documentation(DataLoadConfig, force, verbosity)
 
@@ -2507,3 +2510,33 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset dashboard help topic FAILED: {e}'))
+
+    def _reset_quick_links_deep_link_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes for Quick Links Deep Linking.
+        Adds release_notes PK 64 (Smart Quick Links with Mobile App Deep Linking).
+        """
+        reset_tracker_name = 'reset_quick_links_deep_link_2026_02_20'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                config.reset()
+                if verbosity >= 1:
+                    self.stdout.write('  Reset release_notes loader for Quick Links Deep Linking')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for Quick Links Deep Linking (Feb 2026)',
+                'command',
+                'One-time reset to reload release notes for quick links deep linking feature'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset quick links deep link fixtures FAILED: {e}'))

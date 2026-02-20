@@ -27,6 +27,7 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from .models import (
     AllowedInternationalEmail,
     DisposableEmailDomain,
+    ExternalLink,
     IPBlocklist,
     SignupAttempt,
     TermsAcceptance,
@@ -230,3 +231,37 @@ class AllowedInternationalEmailAdmin(admin.ModelAdmin):
         if not change:  # Only on create
             obj.added_by = request.user
         super().save_model(request, obj, form, change)
+
+
+@admin.register(ExternalLink)
+class ExternalLinkAdmin(admin.ModelAdmin):
+    """
+    Admin for user Quick Links with deep linking support.
+    """
+    list_display = [
+        "name", "user", "url", "mobile_app_url", "category",
+        "usage_count", "sort_order", "created_at",
+    ]
+    list_filter = ["category", "created_at"]
+    search_fields = ["name", "url", "mobile_app_url", "user__email"]
+    readonly_fields = ["usage_count", "created_at"]
+    ordering = ["-created_at"]
+    fieldsets = (
+        (None, {
+            "fields": ("user", "name", "url", "sort_order"),
+        }),
+        ("Mobile Deep Linking", {
+            "fields": ("mobile_app_url",),
+            "description": (
+                "Optional: Enter a mobile app deep link URL (e.g., 'chase://', "
+                "'bofa://app'). On mobile devices, this URL is attempted first. "
+                "If the app is not installed, falls back to the standard web URL."
+            ),
+        }),
+        ("Display", {
+            "fields": ("icon", "category", "open_in_new_tab"),
+        }),
+        ("Stats", {
+            "fields": ("usage_count", "created_at"),
+        }),
+    )

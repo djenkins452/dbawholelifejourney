@@ -94,4 +94,6 @@ urlpatterns = [
     # Quick Links (external links)
     path("api/quick-links/", views.QuickLinkCreateView.as_view(), name="quick_link_create"),
     path("api/quick-links/<int:link_id>/delete/", views.QuickLinkDeleteView.as_view(), name="quick_link_delete"),
+    path("api/quick-links/<int:link_id>/update/", views.QuickLinkUpdateView.as_view(), name="quick_link_update"),
+    path("open-link/<int:link_id>/", views.QuickLinkOpenView.as_view(), name="quick_link_open"),
 ]

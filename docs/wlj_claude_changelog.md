@@ -58,6 +58,9 @@
   - Files: `apps/ai/intent_service.py`, `apps/ai/intents/life_intents.py`, `apps/ai/action_handlers.py`, `apps/core/ai_orchestrator/intent_engine.py`
   - Why: User said "add to my calendar 5:00am Wake Up for tomorrow" and CoS scheduled it for Oct 04 instead of Feb 20.
 
+- **Maintenance: Features doc audit — update stale test counts** — System documentation audit found 6 stale test counts in `wlj_claude_features.md`. Updated: Personal Assistant 45→61, Nutrition 81→94, Medicine 98→100, Medical Providers 35→36, Scan 106→107, Saved Verses 10→33. Calendar Engine (31) and Goal Engine (55) were already accurate.
+  - Files: `docs/wlj_claude_features.md`
+
 - **Fix: CoS personality regression after calibration** — The Chief of Staff AI had a warm, attentive personality during the "Getting to Know You" calibration phase, but lost it completely when switching to normal working mode. The calibration phase used a 206-line mandatory override that created relational behavior (reflect back what user shared, connect dots, reference what you know). After calibration completed, this override returned empty string — nothing carried the personality forward. Added a `POST_CALIBRATION_PERSONALITY` block to `build_governance_instructions()` that fires when `calibration_complete = True`, carrying the relational quality into working mode while enabling action execution. Also fixed stale Calendar link in the assistant's base prompt (`/life/calendar/` → `/calendar/`).
   - Files: `apps/core/blueprint/cos_governance.py`, `apps/ai/personal_assistant.py`
   - Why: User reported CoS became "stupid" after calibration — gave confused, irrelevant responses (e.g., suggested workout logging when asked to update calendar with daily schedule).

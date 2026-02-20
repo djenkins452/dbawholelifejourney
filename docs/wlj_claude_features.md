@@ -497,7 +497,7 @@ Consider their Word of the Year, goals, and current progress.
 ```
 
 ### Tests
-`apps/ai/tests/test_personal_assistant.py` - 45 tests
+`apps/ai/tests/test_personal_assistant.py` - 61 tests
 
 ---
 
@@ -547,7 +547,7 @@ Food search uses a 3-tier priority system (fastest/cheapest first):
 Food entries can be pre-filled from camera scans. See [Camera Scan Feature](#camera-scan-feature) for details.
 
 ### Tests
-`apps/health/tests/test_nutrition.py` - 81 tests
+`apps/health/tests/test_nutrition.py` - 94 tests
 
 ---
 
@@ -710,7 +710,7 @@ Users can mark a medicine as "refill requested" to track that they've already ca
 The `taken_at` time on medicine logs is now displayed in the user's configured timezone. This fixes an issue where medicines taken on time appeared as "Taken Late" because the UTC time was being shown instead of local time.
 
 ### Tests
-`apps/health/tests/test_medicine.py` - 98 tests (12 new tests for log edit feature)
+`apps/health/tests/test_medicine.py` - 100 tests
 
 ---
 
@@ -871,7 +871,7 @@ The Health module home page (`/health/`) includes a "My Providers" card showing:
 - `templates/health/home.html` - Providers card
 
 ### Tests
-`apps/health/tests/test_medical_providers.py` - 35 tests covering:
+`apps/health/tests/test_medical_providers.py` - 36 tests covering:
 - Model creation and properties
 - View CRUD operations
 - Staff management
@@ -1040,7 +1040,7 @@ See `docs/wlj_camera_scan_architecture.md` for full details.
 | `/scan/history/` | GET | View scan history |
 
 ### Tests
-`apps/scan/tests/` - 106 tests including:
+`apps/scan/tests/` - 107 tests including:
 - Vision analysis tests
 - Barcode lookup view tests
 - Barcode service tests
@@ -1517,9 +1517,7 @@ When a user has a memory verse set and Faith is enabled:
 - `templates/faith/scripture_list.html` - Toggle button and badge
 
 ### Testing
-10 tests in `apps/faith/tests/test_saved_verses.py`:
-- `MemoryVerseTest` - 7 tests for toggle functionality
-- `MemoryVerseOnDashboardTest` - 3 tests for dashboard display
+33 tests in `apps/faith/tests/test_saved_verses.py`
 
 ### Migration
 `apps/faith/migrations/0005_add_memory_verse_field.py` - Adds is_memory_verse field

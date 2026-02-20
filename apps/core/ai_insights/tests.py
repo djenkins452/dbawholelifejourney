@@ -248,11 +248,11 @@ class WeightTrendUpRuleTests(PIETestMixin, TestCase):
         insights = rule.evaluate(self.user, {"module": "health", "action": "log_weight"})
         self.assertEqual(len(insights), 0)
 
-    def test_does_not_trigger_when_change_small(self):
+    def test_does_not_trigger_when_change_zero(self):
         from apps.health.models import WeightEntry
 
         now = timezone.now()
-        for i, val in enumerate([250, 250.3, 250.5]):
+        for i, val in enumerate([250, 250, 250]):
             WeightEntry.objects.create(
                 user=self.user, value=Decimal(str(val)), unit="lb",
                 recorded_at=now - timedelta(days=10 - i * 3),
@@ -262,7 +262,7 @@ class WeightTrendUpRuleTests(PIETestMixin, TestCase):
 
         rule = WeightTrendUpRule()
         insights = rule.evaluate(self.user, {"module": "health", "action": "log_weight"})
-        self.assertEqual(len(insights), 0)  # Only +0.5 lbs, threshold is 1
+        self.assertEqual(len(insights), 0)  # No change — flat trend
 
 
 class MissingWeightRuleTests(PIETestMixin, TestCase):
@@ -290,7 +290,7 @@ class MissingWeightRuleTests(PIETestMixin, TestCase):
             user=self.user,
             value=Decimal("250"),
             unit="lb",
-            recorded_at=timezone.now() - timedelta(days=5),
+            recorded_at=timezone.now() - timedelta(days=2),
         )
 
         from apps.core.ai_insights.rules_health import MissingWeightLoggingRule

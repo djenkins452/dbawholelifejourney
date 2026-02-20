@@ -30,7 +30,7 @@ class MissingBodyCompRule(BaseInsightRule):
             return []
 
         gap_days = days_since(latest.created_at)
-        if gap_days is None or gap_days < 14:
+        if gap_days is None or gap_days < 7:
             return []
 
         window_start, window_end = get_time_window(days=gap_days)
@@ -98,7 +98,7 @@ class BodyFatChangeRule(BaseInsightRule):
         last_val = float(entries[-1][2])
         change = last_val - first_val
 
-        if abs(change) < 1.0:
+        if abs(change) < 0.1:
             return []
 
         record_ids = [e[0] for e in entries]

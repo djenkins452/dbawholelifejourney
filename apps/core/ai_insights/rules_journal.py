@@ -39,7 +39,7 @@ class JournalStreakPositiveRule(BaseInsightRule):
             elif i > 0:
                 break
 
-        if streak_days < 2:
+        if streak_days < 1:
             return []
 
         window_start, window_end = get_time_window(days=streak_days)
@@ -94,7 +94,7 @@ class JournalDropOffRule(BaseInsightRule):
             return []
 
         gap_days = (date.today() - latest.entry_date).days
-        if gap_days < 5:
+        if gap_days < 3:
             return []
 
         window_start, window_end = get_time_window(days=gap_days)

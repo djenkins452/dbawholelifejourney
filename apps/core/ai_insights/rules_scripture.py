@@ -38,7 +38,7 @@ class ScriptureReadingDropOffRule(BaseInsightRule):
         )
 
         daily_count = len(set(recent_completions))
-        if daily_count < 3:
+        if daily_count < 1:
             return []
 
         # Check if there's been a 5-day gap
@@ -54,7 +54,7 @@ class ScriptureReadingDropOffRule(BaseInsightRule):
             return []
 
         gap_days = (now - latest.completed_at).days
-        if gap_days < 3:
+        if gap_days < 1:
             return []
 
         window_start, window_end = get_time_window(days=12)

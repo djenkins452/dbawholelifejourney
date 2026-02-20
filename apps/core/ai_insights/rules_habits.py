@@ -43,7 +43,7 @@ class HabitBrokenStreakRule(BaseInsightRule):
                 .values_list("date", flat=True)
             )
 
-            if len(recent_entries) < 3:
+            if len(recent_entries) < 1:
                 continue
 
             # Check if there was a streak that's now broken
@@ -52,7 +52,7 @@ class HabitBrokenStreakRule(BaseInsightRule):
                 continue
 
             days_since_last = (today - latest_entry).days
-            if days_since_last < 2:
+            if days_since_last < 1:
                 continue
 
             # Had a streak, now broken
@@ -124,7 +124,7 @@ class HabitConsistencyPositiveRule(BaseInsightRule):
                 completed=True,
             ).count()
 
-            if completions < 5:
+            if completions < 1:
                 continue
 
             insights.append(

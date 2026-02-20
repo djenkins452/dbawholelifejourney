@@ -68,12 +68,19 @@ TRANSFORMATION_INTENTS = {
     "complete_shopping_item",
 }
 
+SETTINGS_INTENTS = {
+    "set_cos_name",
+}
+
 CALIBRATION_INTENTS = {
     "pause_calibration",
     "complete_calibration",
 }
 
-# All intents that support a recorded_at timestamp override
+# All intents that support a recorded_at timestamp override.
+# IMPORTANT: If you add a new intent category, add it here too unless
+# the intents truly have no date/time component. The test in
+# test_intent_registration.py will FAIL if you forget.
 TIME_AWARE_INTENTS = (
     HEALTH_INTENTS
     | MEDICINE_INTENTS
@@ -82,6 +89,8 @@ TIME_AWARE_INTENTS = (
     | FAITH_INTENTS
     | FITNESS_INTENTS
     | LIFE_INTENTS
+    | PURPOSE_INTENTS
+    | TRANSFORMATION_INTENTS
 )
 
 # All intents that might reference contextual objects
@@ -126,6 +135,8 @@ def get_intent_module(intent_type):
             return "life"
         else:
             return "health"
+    if intent_type in SETTINGS_INTENTS:
+        return "settings"
     if intent_type in CALIBRATION_INTENTS:
         return "core"
     return "unknown"

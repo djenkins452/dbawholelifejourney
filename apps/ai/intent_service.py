@@ -216,15 +216,28 @@ FAITH ACTIONS:
 - Save verse: When user wants to save, bookmark, or remember a Bible verse
 - Log prayer: When user wants to add a prayer request
 - Mark prayer answered: When user says a prayer was answered
+- Add faith milestone: When user shares a meaningful spiritual moment
 
 JOURNAL ACTIONS:
 - Create journal entry: When user wants to write or log a journal entry
 - Add gratitude: When user wants to log something they're grateful for
 
+PURPOSE ACTIONS:
+- Create goal: When user wants to set a new goal or aspiration
+- Update goal progress: When user reports progress on an existing goal
+- Set intention: When user expresses who they want to become or a way of being
+- Log habit: When user says they completed a daily habit or practice
+
 LIFE/TASK ACTIONS:
 - Create task: When user wants to add a task or to-do item
 - Complete task: When user marks a task as done
-- Create event: When user wants to schedule something
+- Create event: When user wants to schedule something on their calendar
+- Add reminder: When user wants to remember an important date (birthday, anniversary)
+
+FITNESS ACTIONS:
+- Log workout: When user says they finished a workout, gym session, or lists exercises they did
+- Log exercise set: When user gives specific set/rep/weight data for an exercise
+- Log cardio: When user mentions completing a run, walk, bike ride, swim, or other cardio
 
 MULTI-COMMAND SUPPORT:
 When the user mentions MULTIPLE actions in one message, call ALL relevant functions.
@@ -241,31 +254,54 @@ HEALTH:
 - "blood sugar is 105" → log_glucose(value=105, unit="mg/dL")
 - "oxygen is 98%" → log_blood_oxygen(spo2=98)
 - "I ate a banana" → log_food(food_name="banana", quantity=1)
+- "I had eggs and toast for breakfast" → log_food(food_name="eggs and toast", quantity=1, meal_type="breakfast")
 - "took my metformin" → take_medicine(medicine_name="metformin")
+- "I took my 8am meds at 10am" → take_medicine(medicine_name="8am meds")
 - "starting a fast" → start_fast(fasting_type="16:8")
 - "ending my fast" → end_fast()
 
 FAITH:
 - "save John 3:16" → save_verse(reference="John 3:16")
 - "bookmark Romans 8:28" → save_verse(reference="Romans 8:28")
-- "save this verse John 3:17" → save_verse(reference="John 3:17")
-- "add John 3:18 to my saved verses" → save_verse(reference="John 3:18")
 - "remember Psalm 23" → save_verse(reference="Psalm 23")
 - "pray for my mom's health" → log_prayer(title="Mom's health", is_personal=false)
 - "add prayer for my job interview" → log_prayer(title="Job interview")
+- "God answered my prayer about the job" → mark_prayer_answered(prayer_keyword="job")
+- "today was a spiritual breakthrough" → add_faith_milestone(title="Spiritual breakthrough")
 
 JOURNAL:
 - "I'm grateful for my family" → add_gratitude(gratitude="my family")
+- "thankful for a good night's sleep" → add_gratitude(gratitude="a good night's sleep")
+- "I want to journal about today" → create_journal_entry(title="Today's reflection")
+
+PURPOSE:
+- "I want to lose 30 pounds" → create_goal(title="Lose 30 pounds", domain="health")
+- "I made progress on my weight goal — down 5 lbs" → update_goal_progress(goal_keyword="weight", progress_notes="Down 5 lbs")
+- "I want to be more patient with my kids" → set_intention(intention="Be more patient with my kids")
+- "did my Bible reading today" → log_habit(habit_keyword="Bible reading", completed=true)
+- "completed my morning routine" → log_habit(habit_keyword="morning routine", completed=true)
 
 LIFE/TASKS:
 - "add task to call mom" → create_task(title="Call mom")
 - "remind me to buy groceries" → create_task(title="Buy groceries")
+- "I finished the laundry task" → complete_task(task_keyword="laundry")
+- "remember my wife's birthday is March 15" → add_reminder(title="Wife's Birthday", event_type="birthday", event_date="03-15")
 
 CALENDAR EVENTS:
 - "add to my calendar 5am Wake Up for tomorrow" → create_event(title="Wake Up", start_date="<tomorrow's YYYY-MM-DD>", start_time="05:00")
 - "schedule a meeting at 2pm today" → create_event(title="Meeting", start_date="{today_str}", start_time="14:00")
 - "add Bible Study Wednesday 6pm-8pm" → create_event(title="Bible Study", start_date="<next Wednesday YYYY-MM-DD>", start_time="18:00", end_time="20:00", event_type="faith")
 - "put Pickleball on my calendar for Friday 6pm" → create_event(title="Pickleball", start_date="<next Friday YYYY-MM-DD>", start_time="18:00", event_type="health")
+
+FITNESS:
+- "just finished my workout" → log_workout(name="Workout")
+- "I did 10 pushups, 20 squats, and 30 crunches" → log_workout(name="Bodyweight workout", exercises=[{{"name":"pushups","reps":10}},{{"name":"squats","reps":20}},{{"name":"crunches","reps":30}}])
+- "did leg day at the gym" → log_workout(name="Leg day")
+- "bench press 185 for 8 reps" → log_exercise_set(exercise_name="bench press", weight=185, reps=8)
+- "3 sets of 10 at 135 on squat" → log_exercise_set(exercise_name="squat", weight=135, reps=10, set_number=3)
+- "ran 3 miles in 30 minutes" → log_cardio(activity="running", duration_minutes=30, distance=3.0, distance_unit="miles")
+- "walked for 45 minutes" → log_cardio(activity="walking", duration_minutes=45)
+- "biked 10 miles" → log_cardio(activity="cycling", duration_minutes=60, distance=10.0, distance_unit="miles")
 
 IMPORTANT: For create_event, ALWAYS resolve relative dates to YYYY-MM-DD format using today's date ({today_str}).
 
@@ -277,6 +313,8 @@ Examples of messages that should NOT trigger functions:
 - "what does John 3:16 say?" (asking about content, not saving)
 - "I wake up at 5am every day" (sharing routine info, NOT scheduling an event)
 - "my daily schedule is..." (sharing context, NOT creating events — unless they explicitly say "add to calendar")
+- "how have my workouts been?" (asking about data, NOT logging a workout)
+- "what are my goals?" (asking about goals, NOT creating one)
 """
 
     def _check_validation(self, intent_type: str, parameters: dict, user) -> tuple:

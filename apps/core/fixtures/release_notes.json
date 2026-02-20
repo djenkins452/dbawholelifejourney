@@ -1,6 +1,22 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 63,
+        "fields": {
+            "title": "Smarter Voice Command Recognition",
+            "description": "Your Chief of Staff now better understands a wider range of voice commands. Fitness logging ('I did 10 pushups and 20 squats'), goal setting ('I want to lose 30 pounds'), habit tracking ('completed my morning routine'), faith actions ('God answered my prayer'), and calendar scheduling all have improved recognition. Commands that involve times — like 'I ate lunch 3 hours ago' or 'I worked out this morning' — now correctly backdate the entry. Additionally, your CoS can now direct you to Medical Records, Brain Training, Capture, Scan, and Finance pages.",
+            "entry_type": "enhancement",
+            "version": "",
+            "release_date": "2026-02-20",
+            "is_published": true,
+            "is_major": false,
+            "learn_more_url": "",
+            "created_at": "2026-02-20T00:00:00Z",
+            "updated_at": "2026-02-20T00:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 62,
         "fields": {
             "title": "Chief of Staff Calendar Scheduling Fix",

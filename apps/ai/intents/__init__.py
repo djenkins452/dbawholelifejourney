@@ -89,6 +89,10 @@ INTENT_HANDLERS = {
     # Calibration
     'pause_calibration': 'calibration',
     'complete_calibration': 'calibration',
+    # Transformation
+    'log_transformation_protocol': 'transformation',
+    'log_shopping_item': 'transformation',
+    'complete_shopping_item': 'transformation',
     # No action
     'no_action': None,
 }

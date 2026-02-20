@@ -558,9 +558,14 @@ class ActionHandler:
         from apps.health.models import FoodEntry, FoodItem
 
         try:
+            # Use HTIE-resolved time if available, else current time
+            recorded_at = self._get_recorded_at(kwargs)
+            now = recorded_at
+            today = recorded_at.date() if hasattr(recorded_at, 'date') else self._get_user_today()
+
             # Determine meal type from time if not specified
             if not meal_type:
-                hour = self._get_user_now().hour
+                hour = now.hour
                 if hour < 10:
                     meal_type = 'breakfast'
                 elif hour < 14:
@@ -569,9 +574,6 @@ class ActionHandler:
                     meal_type = 'snack'
                 else:
                     meal_type = 'dinner'
-
-            today = self._get_user_today()
-            now = self._get_user_now()
 
             # Smart food lookup with 3-tier search
             food_match = None
@@ -914,7 +916,7 @@ class ActionHandler:
             }
             target_hours = target_hours_map.get(fasting_type, 16)
 
-            now = self._get_user_now()
+            now = self._get_recorded_at(kwargs)
 
             fast = FastingWindow.objects.create(
                 user=self.user,
@@ -1123,7 +1125,8 @@ class ActionHandler:
         from apps.journal.models import JournalEntry, Category
 
         try:
-            today = self._get_user_today()
+            recorded_at = self._get_recorded_at(kwargs)
+            today = recorded_at.date() if hasattr(recorded_at, 'date') else self._get_user_today()
 
             # Build the body
             body = f"I'm grateful for {gratitude}."
@@ -1669,7 +1672,8 @@ class ActionHandler:
                 )
             elif count == 1:
                 habit = habits.first()
-                today = self._get_user_today()
+                recorded_at = self._get_recorded_at(kwargs)
+                today = recorded_at.date() if hasattr(recorded_at, 'date') else self._get_user_today()
 
                 # Create or update today's entry
                 entry, created = HabitEntry.objects.get_or_create(
@@ -2234,8 +2238,9 @@ class ActionHandler:
         from apps.health.models import WorkoutSession
 
         try:
-            now = self._get_user_now()
-            today = self._get_user_today()
+            recorded_at = self._get_recorded_at(kwargs)
+            now = recorded_at
+            today = recorded_at.date() if hasattr(recorded_at, 'date') else self._get_user_today()
 
             session = WorkoutSession.objects.create(
                 user=self.user,
@@ -2303,8 +2308,9 @@ class ActionHandler:
         from apps.health.models import WorkoutSession, Exercise, WorkoutExercise, ExerciseSet
 
         try:
-            today = self._get_user_today()
-            now = self._get_user_now()
+            recorded_at = self._get_recorded_at(kwargs)
+            today = recorded_at.date() if hasattr(recorded_at, 'date') else self._get_user_today()
+            now = recorded_at
 
             # Get or create today's workout session
             session, created = WorkoutSession.objects.get_or_create(
@@ -2401,8 +2407,9 @@ class ActionHandler:
         from apps.health.models import WorkoutSession, Exercise, WorkoutExercise, CardioDetails
 
         try:
-            today = self._get_user_today()
-            now = self._get_user_now()
+            recorded_at = self._get_recorded_at(kwargs)
+            today = recorded_at.date() if hasattr(recorded_at, 'date') else self._get_user_today()
+            now = recorded_at
 
             # Create workout session for cardio
             session = WorkoutSession.objects.create(

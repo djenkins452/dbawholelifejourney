@@ -1,6 +1,22 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 69,
+        "fields": {
+            "title": "A Real Introduction — Your CoS Gets to Know You First",
+            "description": "Your Chief of Staff now has a proper introduction flow. Instead of jumping straight into task management, it starts by learning about YOU — your priorities, routines, who matters most, and how you want to be held accountable. It already knows your data (weight, goals, journals, habits) and uses that to ask informed questions, not generic ones. The conversation is open-ended: come back over multiple sessions to share more, pause anytime, and finish whenever you're ready by clicking 'I'm Ready — Let's Work.' During the introduction, the CoS listens and absorbs — it won't log data or take actions until you tell it you're done getting acquainted.",
+            "entry_type": "enhancement",
+            "version": "",
+            "release_date": "2026-02-20",
+            "is_published": true,
+            "is_major": true,
+            "learn_more_url": "",
+            "created_at": "2026-02-20T00:00:00Z",
+            "updated_at": "2026-02-20T00:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 65,
         "fields": {
             "title": "Your Chief of Staff Now Knows Your Schedule",

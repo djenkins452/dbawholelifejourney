@@ -2668,7 +2668,16 @@ Each night, the system builds tomorrow's plan:
 - **Temperature:** 0.65 for conversational warmth (0.4 for data-heavy responses)
 
 ### Proactive Questions & Calibration
-During initial calibration, the CoS asks getting-to-know-you questions. After calibration, it continues with relationship-deepening questions. Learned profile data (values, sacred items, goals) is injected into the system prompt for personalization.
+The CoS has a relationship-building introduction flow before it starts managing the user's day:
+- **11 calibration questions** covering: core people, non-negotiables, preferred activities, accountability style, communication frequency, and focus areas
+- **Data-aware questions:** The system gathers a live snapshot of ALL user data (weight, goals, journals, faith, medicines, habits, workouts, vitals, labs, nutrition, fasting, finances, etc.) and injects it into the system prompt so the AI references what it already knows instead of asking generic questions
+- **Questions cycle:** After all 11 are asked, they loop back for deeper follow-ups. No auto-complete — only the user decides when they're done
+- **User-controlled completion:** User finishes by saying "I think you know me well enough" (triggers `complete_calibration` intent) or clicking "I'm Ready — Let's Work" button
+- **Listening mode during calibration:** All action intents (log food, start fast, log weight, etc.) are disabled. The AI absorbs what the user shares and reflects it back — it does NOT execute commands
+- **Banner states:** First visit ("Let's Go →"), in-progress ("Continue →"), ready to finish (two buttons: "Keep Going" / "I'm Ready — Let's Work")
+- **System injection priority:** Calibration injection is PREPENDED before all other system prompt content with mandatory override headers
+- **Key files:** `apps/core/blueprint/cos_governance.py` (calibration engine, `build_calibration_system_injection()`, `_gather_user_snapshot()`), `apps/ai/personal_assistant.py` (`_is_calibration_active()`, `_try_calibration_intents()`), `templates/components/cos_command_mode.html` (banner)
+- After calibration, the system continues with relationship-deepening questions. Learned profile data (values, sacred items, goals) is injected into the system prompt for personalization.
 
 ### Post-Event Reflection Loops
 After significant events, the system queues a brief morning reflection check-in. Users answer a few questions about how the event went and capture action items.

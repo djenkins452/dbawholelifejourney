@@ -11,6 +11,9 @@
 
 ## 2026-02-20
 
+- **Fix: Remove "Alignment: 80%" and "24h Risk" footers from CoS chat messages** — These internal metrics were being appended to every substantive CoS response. They add no value to the user — just make the AI feel robotic and clinical. Alignment and drift scores remain computed internally for the intelligence pipeline but are no longer surfaced in chat.
+  - Files: `apps/core/ai_orchestrator/briefing_formatter.py`
+
 - **Enhancement: Chat timestamps and date separators in CoS panel** — Each chat message now shows a time (e.g. "2:30 PM") below the bubble, aligned to match the message side (right for user, left for assistant). When scrolling back through history, a date separator line appears at each day boundary showing "Today", "Yesterday", or the full date (e.g. "Monday, Feb 19"). Works for both historical messages (using `created_at` from API) and live messages (using current time). Date state resets correctly on history reload and conversation clear.
   - Files: `templates/components/assistant_panel.html`, `static/css/assistant-panel.css`
 

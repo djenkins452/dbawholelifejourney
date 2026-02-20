@@ -75,18 +75,9 @@ def format_cos_response(response, context=None):
     if len(response) < 20:
         return response
 
-    alignment = context.get('alignment_score', None)
-    drift_risk = context.get('drift_probability', {}).get('probability_24h', None)
-
-    footer_parts = []
-    if alignment is not None and alignment < 90:
-        footer_parts.append(f"Alignment: {alignment}%")
-    if drift_risk is not None and drift_risk > 30:
-        footer_parts.append(f"24h Risk: {drift_risk}%")
-
-    if footer_parts:
-        return f"{response}\n\n{' | '.join(footer_parts)}"
-
+    # Alignment/drift metrics are used internally by the intelligence
+    # pipeline but should NOT be shown to the user in chat — they add
+    # no value and make responses feel robotic.
     return response
 
 

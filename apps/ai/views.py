@@ -26,7 +26,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.views import View
-from django.views.generic import TemplateView
+from django.views.generic import RedirectView, TemplateView
 
 from apps.core.utils import user_log_id
 from apps.help.mixins import HelpContextMixin
@@ -1028,63 +1028,19 @@ class QuickReplyView(LoginRequiredMixin, AssistantMixin, View):
 
 
 # =============================================================================
-# ASSISTANT DASHBOARD PAGE
+# ASSISTANT DASHBOARD PAGE (RETIRED — redirects to main dashboard)
 # =============================================================================
 
-class AssistantDashboardView(LoginRequiredMixin, HelpContextMixin, AssistantMixin, TemplateView):
+class AssistantDashboardView(LoginRequiredMixin, RedirectView):
     """
-    Full-page assistant dashboard with chat interface.
+    Legacy assistant page — redirects to main dashboard.
+
+    The Chief of Staff panel (persistent on every page) is now the single
+    chat interface. Today's Priorities are available as a dashboard tile.
+    All /assistant/api/* endpoints remain unchanged.
     """
-    template_name = "ai/assistant_dashboard.html"
-    help_context_id = "ASSISTANT_HOME"
-
-    def get(self, request, *args, **kwargs):
-        """Override get to add request-level error handling."""
-        try:
-            return super().get(request, *args, **kwargs)
-        except Exception as e:
-            logger.exception(f"Error in AssistantDashboardView for {user_log_id(request.user)}: {e}")
-            raise
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-
-        user = self.request.user
-        logger.info(f"AssistantDashboardView.get_context_data called for {user_log_id(user)}")
-
-        try:
-            prefs = user.preferences
-        except Exception as e:
-            logger.exception(f"Error getting user preferences for {user_log_id(user)}: {e}")
-            raise
-
-        context['ai_enabled'] = getattr(prefs, 'ai_enabled', False)
-        context['ai_consent'] = getattr(prefs, 'ai_data_consent', False)
-        context['faith_enabled'] = getattr(prefs, 'faith_enabled', False)
-        context['coaching_style'] = getattr(prefs, 'ai_coaching_style', 'supportive')
-
-        # Personal Assistant module status
-        context['personal_assistant_enabled'] = getattr(prefs, 'personal_assistant_enabled', False)
-        context['personal_assistant_consent'] = getattr(prefs, 'personal_assistant_consent', False)
-
-        # Check if Personal Assistant is fully accessible
-        pa_enabled, pa_error = self.check_personal_assistant_enabled()
-        context['personal_assistant_accessible'] = pa_enabled
-        context['personal_assistant_error'] = pa_error
-
-        # Get or create conversation for the session (but don't load history)
-        # Chat starts fresh each page load - no previous messages displayed
-        try:
-            conversation = AssistantConversation.get_or_create_active(user)
-            context['conversation'] = conversation
-            # Don't pass previous messages to template - chat starts fresh each visit
-            context['messages'] = []
-        except Exception as e:
-            logger.error(f"Error getting assistant conversation for {user_log_id(user)}: {e}")
-            context['conversation'] = None
-            context['messages'] = []
-
-        return context
+    permanent = False
+    pattern_name = 'dashboard:home'
 
 
 # =============================================================================

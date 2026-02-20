@@ -1,0 +1,402 @@
+{% comment %}
+Dashboard Tile: Today's Priorities (Chief of Staff)
+AI-generated daily priorities with interactive completion and dismiss actions.
+Loads data client-side from /assistant/api/priorities/
+{% endcomment %}
+
+<section class="cos-priorities-section tile-size-{{ tile.size|default:'medium' }}" data-tile-id="cos_priorities">
+    <div class="cos-priorities-header">
+        <h2 class="section-title">Today's Priorities</h2>
+        <button type="button" class="btn btn-outline btn-sm cos-priorities-refresh" aria-label="Refresh priorities">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M23 4v6h-6"></path>
+                <path d="M1 20v-6h6"></path>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+            </svg>
+            <span class="refresh-label">Refresh</span>
+        </button>
+    </div>
+    <div class="cos-priorities-list" id="cos-priorities-list">
+        <!-- Skeleton loading state -->
+        <div class="cos-priority-item cos-priority-skeleton">
+            <div class="cos-priority-checkbox-skel"></div>
+            <div class="cos-priority-content-skel">
+                <div class="skel-line skel-short"></div>
+                <div class="skel-line skel-medium"></div>
+            </div>
+        </div>
+        <div class="cos-priority-item cos-priority-skeleton">
+            <div class="cos-priority-checkbox-skel"></div>
+            <div class="cos-priority-content-skel">
+                <div class="skel-line skel-short"></div>
+                <div class="skel-line skel-medium"></div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<style nonce="{{ csp_nonce }}">
+/* Today's Priorities Tile */
+.cos-priorities-section {
+    padding: 0;
+}
+
+.cos-priorities-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.cos-priorities-header .section-title {
+    margin: 0;
+}
+
+.cos-priorities-refresh {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    padding: 4px 10px;
+}
+
+.cos-priorities-refresh .refresh-label {
+    display: none;
+}
+
+@media (min-width: 769px) {
+    .cos-priorities-refresh .refresh-label {
+        display: inline;
+    }
+}
+
+.cos-priorities-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.cos-priority-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px;
+    background: var(--color-surface);
+    border-radius: 10px;
+    border: 1px solid var(--color-border);
+    transition: all 0.2s;
+}
+
+.cos-priority-item:hover {
+    border-color: var(--color-accent);
+    box-shadow: 0 2px 6px rgba(99, 102, 241, 0.1);
+}
+
+.cos-priority-item.completed {
+    opacity: 0.55;
+    background: var(--color-background);
+}
+
+.cos-priority-checkbox {
+    width: 22px;
+    height: 22px;
+    min-width: 22px;
+    border: 2px solid var(--color-border);
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.2s;
+    font-size: 12px;
+    margin-top: 2px;
+}
+
+.cos-priority-checkbox:hover {
+    border-color: var(--color-accent);
+    background: rgba(99, 102, 241, 0.1);
+}
+
+.cos-priority-item.completed .cos-priority-checkbox {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+    color: white;
+}
+
+.cos-priority-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.cos-priority-type {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--color-text-muted);
+    margin-bottom: 2px;
+}
+
+.cos-priority-type.faith { color: #8b5cf6; }
+.cos-priority-type.purpose { color: #6366f1; }
+.cos-priority-type.commitment { color: #ef4444; }
+.cos-priority-type.health { color: #10b981; }
+.cos-priority-type.personal { color: #f59e0b; }
+
+.cos-priority-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--color-text);
+    margin-bottom: 2px;
+}
+
+.cos-priority-why {
+    font-size: 12px;
+    color: var(--color-text-muted);
+    line-height: 1.4;
+}
+
+.cos-priority-dismiss {
+    background: none;
+    border: none;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    padding: 4px;
+    opacity: 0.4;
+    transition: opacity 0.2s;
+    flex-shrink: 0;
+}
+
+.cos-priority-dismiss:hover {
+    opacity: 1;
+}
+
+.cos-priorities-empty {
+    text-align: center;
+    padding: 16px 12px;
+    color: var(--color-text-muted);
+    font-size: 13px;
+}
+
+.cos-priorities-error {
+    text-align: center;
+    padding: 12px;
+    color: var(--color-text-muted);
+    font-size: 13px;
+}
+
+/* Skeleton loading */
+.cos-priority-skeleton {
+    pointer-events: none;
+}
+
+.cos-priority-checkbox-skel {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--color-border);
+    opacity: 0.5;
+    animation: cos-skel-pulse 1.5s ease-in-out infinite;
+    flex-shrink: 0;
+}
+
+.cos-priority-content-skel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.skel-line {
+    height: 12px;
+    border-radius: 6px;
+    background: var(--color-border);
+    opacity: 0.5;
+    animation: cos-skel-pulse 1.5s ease-in-out infinite;
+}
+
+.skel-short { width: 60px; }
+.skel-medium { width: 80%; }
+
+@keyframes cos-skel-pulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 0.7; }
+}
+
+/* Completion feedback toast */
+.cos-priority-feedback {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: #065f46;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    opacity: 0;
+    transition: all 0.3s ease;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 90%;
+    text-align: center;
+}
+
+.cos-priority-feedback.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+</style>
+
+<script nonce="{{ csp_nonce }}">
+(function() {
+    const listEl = document.getElementById('cos-priorities-list');
+    if (!listEl) return;
+
+    const section = listEl.closest('.cos-priorities-section');
+
+    function getCsrf() {
+        const el = document.querySelector('[name=csrfmiddlewaretoken]');
+        if (el) return el.value;
+        const match = document.cookie.match(/csrftoken=([^;]+)/);
+        return match ? match[1] : '';
+    }
+
+    function renderPriorities(priorities) {
+        listEl.innerHTML = '';
+
+        if (!priorities || priorities.length === 0) {
+            listEl.innerHTML = '<p class="cos-priorities-empty">All clear — no priorities need attention right now.</p>';
+            return;
+        }
+
+        priorities.forEach(function(p) {
+            var item = document.createElement('div');
+            item.className = 'cos-priority-item' + (p.is_completed ? ' completed' : '');
+            item.setAttribute('data-id', p.id);
+
+            var checkboxHtml = '<div class="cos-priority-checkbox" data-action="cos-toggle-priority" data-priority-id="' + p.id + '" data-completed="' + p.is_completed + '">' + (p.is_completed ? '✓' : '') + '</div>';
+
+            var typeClass = p.priority_type || '';
+            var whyText = p.why_important || p.description || '';
+
+            var contentHtml = '<div class="cos-priority-content">' +
+                '<div class="cos-priority-type ' + typeClass + '">' + typeClass + '</div>' +
+                '<div class="cos-priority-title">' + escapeHtml(p.title) + '</div>' +
+                (whyText ? '<div class="cos-priority-why">' + escapeHtml(whyText) + '</div>' : '') +
+                '</div>';
+
+            var dismissHtml = '<button type="button" class="cos-priority-dismiss" data-action="cos-dismiss-priority" data-priority-id="' + p.id + '" title="Dismiss">' +
+                '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>' +
+                '</button>';
+
+            item.innerHTML = checkboxHtml + contentHtml + dismissHtml;
+            listEl.appendChild(item);
+        });
+    }
+
+    function escapeHtml(str) {
+        var div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    function showFeedback(message) {
+        var existing = document.querySelector('.cos-priority-feedback');
+        if (existing) existing.remove();
+
+        var el = document.createElement('div');
+        el.className = 'cos-priority-feedback';
+        el.innerHTML = '<span>✓</span><span>' + escapeHtml(message) + '</span>';
+        document.body.appendChild(el);
+
+        setTimeout(function() { el.classList.add('show'); }, 10);
+        setTimeout(function() {
+            el.classList.remove('show');
+            setTimeout(function() { el.remove(); }, 300);
+        }, 3000);
+    }
+
+    function loadPriorities(refresh) {
+        var url = '/assistant/api/priorities/' + (refresh ? '?refresh=true' : '');
+        fetch(url)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success !== false) {
+                    renderPriorities(data.priorities || data);
+                } else {
+                    listEl.innerHTML = '<p class="cos-priorities-error">Unable to load priorities.</p>';
+                }
+            })
+            .catch(function() {
+                listEl.innerHTML = '<p class="cos-priorities-error">Unable to load priorities.</p>';
+            });
+    }
+
+    // Load on page ready
+    loadPriorities(false);
+
+    // Refresh button
+    var refreshBtn = section.querySelector('.cos-priorities-refresh');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', function() {
+            listEl.innerHTML = '<p class="cos-priorities-empty" style="opacity:0.5;">Refreshing…</p>';
+            loadPriorities(true);
+        });
+    }
+
+    // Event delegation for priority actions (CSP-compliant)
+    document.addEventListener('click', function(e) {
+        var toggleEl = e.target.closest('[data-action="cos-toggle-priority"]');
+        if (toggleEl) {
+            var id = parseInt(toggleEl.getAttribute('data-priority-id'), 10);
+            if (toggleEl.getAttribute('data-completed') === 'true') return;
+
+            fetch('/assistant/api/priorities/' + id + '/complete/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() }
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var item = listEl.querySelector('.cos-priority-item[data-id="' + id + '"]');
+                if (item) {
+                    item.classList.add('completed');
+                    var cb = item.querySelector('.cos-priority-checkbox');
+                    if (cb) {
+                        cb.textContent = '✓';
+                        cb.setAttribute('data-completed', 'true');
+                    }
+                }
+                showFeedback(data.feedback || 'Nice work — keep the momentum going.');
+            })
+            .catch(function(err) { console.error('Priority complete error:', err); });
+            return;
+        }
+
+        var dismissEl = e.target.closest('[data-action="cos-dismiss-priority"]');
+        if (dismissEl) {
+            var dismissId = parseInt(dismissEl.getAttribute('data-priority-id'), 10);
+
+            fetch('/assistant/api/priorities/' + dismissId + '/dismiss/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() }
+            })
+            .then(function() {
+                var item = listEl.querySelector('.cos-priority-item[data-id="' + dismissId + '"]');
+                if (item) item.remove();
+                // Check if list is now empty
+                if (!listEl.querySelector('.cos-priority-item')) {
+                    listEl.innerHTML = '<p class="cos-priorities-empty">All clear — no priorities need attention right now.</p>';
+                }
+            })
+            .catch(function(err) { console.error('Priority dismiss error:', err); });
+            return;
+        }
+    });
+})();
+</script>

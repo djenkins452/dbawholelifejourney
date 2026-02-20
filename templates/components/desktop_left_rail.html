@@ -88,13 +88,13 @@
         {% endif %}
     {% endfor %}
 
-    <!-- AI Assistant (if enabled) -->
+    <!-- Chief of Staff (if enabled) -->
     {% if ai_enabled and personal_assistant_enabled %}
-    <a href="{% url 'ai:dashboard' %}" class="rail-item rail-item-assistant{% if request.resolver_match.app_name == 'ai' %} active{% endif %}" data-tooltip="AI Assistant">
+    <a href="{% url 'ai:cos_settings' %}" class="rail-item rail-item-assistant{% if request.resolver_match.app_name == 'ai' %} active{% endif %}" data-tooltip="Chief of Staff">
         <svg class="rail-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
         </svg>
-        <span class="rail-label">Assistant</span>
+        <span class="rail-label">Chief of Staff</span>
     </a>
     {% endif %}
 

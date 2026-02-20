@@ -1,6 +1,22 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 70,
+        "fields": {
+            "title": "Chief of Staff Consolidation — One Interface, Zero Confusion",
+            "description": "The standalone Assistant page has been retired. Your Chief of Staff now lives exclusively in the persistent chat panel available on every page — no need to navigate away to talk to it. Today's Priorities are now a dashboard tile you can customize, reorder, and resize alongside your other tiles. All navigation has been rebranded from 'Assistant' to 'Chief of Staff' for consistency. The alignment badge and nav links now go to CoS Settings where you can manage your Chief of Staff preferences.",
+            "entry_type": "enhancement",
+            "version": "",
+            "release_date": "2026-02-20",
+            "is_published": true,
+            "is_major": true,
+            "learn_more_url": "",
+            "created_at": "2026-02-20T00:00:00Z",
+            "updated_at": "2026-02-20T00:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 69,
         "fields": {
             "title": "A Real Introduction — Your CoS Gets to Know You First",

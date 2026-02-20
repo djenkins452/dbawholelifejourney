@@ -694,6 +694,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for calibration relationship redesign (PK 69)
         self._reset_calibration_relationship_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset fixtures for CoS consolidation (PK 70 release note, help_topics PK 17)
+        self._reset_cos_consolidation_fixtures(DataLoadConfig, force, verbosity)
+
         # Auto-sync CoS documentation to admin guide (runs if checksum changed)
         self._sync_cos_documentation(DataLoadConfig, force, verbosity)
 
@@ -2678,3 +2681,35 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset calibration relationship fixtures FAILED: {e}'))
+
+    def _reset_cos_consolidation_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload fixtures for CoS consolidation.
+        - release_notes PK 70 (Chief of Staff Consolidation)
+        - help_topics PK 17 (updated ASSISTANT_HOME title/description)
+        """
+        reset_tracker_name = 'reset_cos_consolidation_2026_02_20'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            for loader_name in ('release_notes', 'help_topics'):
+                try:
+                    config = DataLoadConfig.objects.get(loader_name=loader_name)
+                    config.reset()
+                    if verbosity >= 1:
+                        self.stdout.write(f'  Reset {loader_name} loader for CoS consolidation')
+                except DataLoadConfig.DoesNotExist:
+                    pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for CoS consolidation (Feb 2026)',
+                'command',
+                'One-time reset to reload release_notes PK 70 and help_topics PK 17'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset CoS consolidation fixtures FAILED: {e}'))

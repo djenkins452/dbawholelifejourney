@@ -610,17 +610,11 @@ class AssistantAPITest(AssistantTestMixin, TestCase):
         self.assertIn('success', data)
         self.assertIn('prompt', data)
 
-    def test_assistant_dashboard_view(self):
-        """Assistant dashboard view loads."""
-        # This test may fail in CI due to staticfiles manifest
-        # The view loads correctly in development
-        try:
-            response = self.client.get('/assistant/')
-            self.assertEqual(response.status_code, 200)
-        except ValueError as e:
-            if 'staticfiles manifest' in str(e):
-                # Skip test if staticfiles not built
-                self.skipTest("Staticfiles manifest not available in test environment")
+    def test_assistant_dashboard_redirects_to_home(self):
+        """Legacy /assistant/ URL redirects to dashboard home."""
+        response = self.client.get('/assistant/')
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/', response.url)
 
 
 # =============================================================================
@@ -905,20 +899,12 @@ class PersonalAssistantModuleAccessTest(AssistantTestMixin, TestCase):
         self.assertFalse(self.user.preferences.personal_assistant_enabled)
         self.assertFalse(self.user.preferences.personal_assistant_consent)
 
-    def test_dashboard_shows_pa_status(self):
-        """Dashboard view shows Personal Assistant status correctly."""
-        # Test with PA not enabled
+    def test_dashboard_redirects_to_home(self):
+        """Legacy /assistant/ URL redirects to dashboard regardless of PA status."""
         self.enable_ai_only(self.user)
-
-        try:
-            response = self.client.get('/assistant/')
-            self.assertEqual(response.status_code, 200)
-            # Check that the page contains the "not enabled" message
-            content = response.content.decode('utf-8')
-            self.assertIn('Personal Assistant', content)
-        except ValueError as e:
-            if 'staticfiles manifest' in str(e):
-                self.skipTest("Staticfiles manifest not available in test environment")
+        response = self.client.get('/assistant/')
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/', response.url)
 
 
 # =============================================================================

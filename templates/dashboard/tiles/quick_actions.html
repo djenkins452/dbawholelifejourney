@@ -53,10 +53,10 @@ Fast links to common actions like new journal entry, log weight, etc.
         {% endif %}
 
         {% if ai_enabled %}
-        <a href="{% url 'ai:dashboard' %}" class="quick-action-card">
+        <button type="button" class="quick-action-card" data-action="open-assistant">
             <span class="action-icon">💬</span>
-            <span class="action-label">AI Assistant</span>
-        </a>
+            <span class="action-label">Chat with CoS</span>
+        </button>
         <button type="button" class="quick-action-card" id="quick-scan-btn">
             <span class="action-icon">📷</span>
             <span class="action-label">Scan Item</span>

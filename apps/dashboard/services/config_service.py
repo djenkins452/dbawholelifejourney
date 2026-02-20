@@ -278,6 +278,17 @@ TILE_DEFINITIONS = {
         'mandatory': False,
         'default_order': 4,  # After memory_verse, before celebrations
     },
+    'cos_priorities': {
+        'id': 'cos_priorities',
+        'name': "Today's Priorities",
+        'description': 'Your Chief of Staff daily priorities — interactive checkboxes to track what matters most today.',
+        'icon': 'list-checks',
+        'module_dependency': 'personal_assistant_enabled',
+        'default_visible': True,
+        'default_size': 'medium',
+        'mandatory': False,
+        'default_order': 5,
+    },
     'weekly_report': {
         'id': 'weekly_report',
         'name': 'Weekly Report',
@@ -287,7 +298,7 @@ TILE_DEFINITIONS = {
         'default_visible': True,
         'default_size': 'medium',
         'mandatory': False,
-        'default_order': 5,  # After guidance
+        'default_order': 6,  # After cos_priorities
     },
     'getting_started': {
         'id': 'getting_started',

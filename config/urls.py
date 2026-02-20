@@ -121,6 +121,8 @@ urlpatterns = [
     path('intelligence/explain/', include('apps.core.ai_explain.urls', namespace='ai_explain')),
     # Delivery & Notification Engine (DNE)
     path('intelligence/delivery/', include('apps.core.ai_delivery.urls', namespace='ai_delivery')),
+    # Calendar Engine — CoS Time Command Center
+    path('calendar/', include('apps.calendar_engine.urls', namespace='calendar_engine')),
     # Referral link redirect (short URL)
     path('join', include([
         path('', lambda r: __import__('django.shortcuts', fromlist=['redirect']).redirect('billing:capture_referral') if r.GET.get('ref') else __import__('django.shortcuts', fromlist=['redirect']).redirect('account_signup')),

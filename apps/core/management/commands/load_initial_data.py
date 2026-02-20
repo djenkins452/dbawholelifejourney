@@ -673,6 +673,9 @@ class Command(BaseCommand):
         # One-time: Reset ALL users for new intro/calibration experience
         self._reset_all_calibration_for_intro(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for Calendar Engine (PK 59)
+        self._reset_calendar_engine_fixtures(DataLoadConfig, force, verbosity)
+
         # Auto-sync CoS documentation to admin guide (runs if checksum changed)
         self._sync_cos_documentation(DataLoadConfig, force, verbosity)
 
@@ -2441,3 +2444,33 @@ Tasks are sorted by priority (ascending) then creation date.""",
                 self.stdout.write(self.style.WARNING(
                     f'  CoS doc sync skipped: {e}'
                 ))
+
+    def _reset_calendar_engine_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes for Calendar Engine.
+        Adds release_notes PK 59 (Time Command Center).
+        """
+        reset_tracker_name = 'reset_calendar_engine_2026_02_20'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                config.reset()
+                if verbosity >= 1:
+                    self.stdout.write('  Reset release_notes loader for Calendar Engine')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for Calendar Engine Time Command Center (Feb 2026)',
+                'command',
+                'One-time reset to reload release notes for calendar engine'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset calendar engine fixtures FAILED: {e}'))

@@ -9,6 +9,13 @@
 
 # WLJ Change History
 
+## 2026-02-20
+
+- **Feature: Calendar Engine — CoS Time Command Center** — New standalone Django app `calendar_engine` providing a unified calendar/event system. Projects Tasks, Goals, and Habits as calendar events with two-block support (deadline markers + execution blocks). Drag-and-drop writeback updates source items (dragging a task deadline updates task.due_date). Includes Habit Protection Layer (conflict detection with override prompt), Smart Gap Detection (suggests 90-min execution blocks for items due soon), Domain Imbalance Bar (Work/Health/Faith/Family time percentages), and NLP Quick Add (natural language event creation with recurrence detection).
+  - Files: `apps/calendar_engine/` (new app — models, admin, views, urls, services/projection.py, services/conflicts.py, services/suggestions.py, services/metrics.py, services/nlp_parse.py, tests.py), `templates/calendar_engine/dashboard.html`, `config/settings.py`, `config/urls.py`, `docs/calendar_engine_discovery.md`, `docs/calendar_engine_admin_guide.md`
+  - Why: CoS needs a time interface to plan, protect, and optimize the user's day. Calendar is the projection layer over existing task/goal/habit data.
+  - Tests: 29 new tests covering projections, conflicts, suggestions, metrics, NLP, and all API endpoints.
+
 ## 2026-02-19
 
 - **Fix: Journal nudge contradicts daily insight** — The "Today's Insight" (AI-generated) queries the DB directly and correctly sees the user journaled today, but the nudge card uses stale SAE state for `days_since_journal` and shows "22 days since you journaled." Added a DB check in `_get_journal_data()` — if the user journaled today, `days_since_journal` is forced to 0 regardless of SAE state, which suppresses the nudge.

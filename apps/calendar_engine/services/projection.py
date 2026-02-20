@@ -1,0 +1,352 @@
+"""
+Projection Service — Projects Tasks, Goals, Habits onto CalendarEvents.
+
+Source items remain the source of truth. CalendarEvent is the time interface.
+"""
+
+import datetime as dt
+
+from django.utils import timezone
+
+from apps.calendar_engine.models import CalendarEvent, RecurrenceRule
+
+
+def _get_default_domain(slug='work'):
+    """Get a LifeDomain by slug, or None if not found."""
+    from apps.purpose.models import LifeDomain
+    return LifeDomain.objects.filter(slug=slug, is_active=True).first()
+
+
+def _resolve_domain_for_task(task):
+    """
+    Derive domain from task context.
+    Tasks don't have a domain FK, so we default to Work.
+    """
+    return _get_default_domain('work')
+
+
+def _resolve_domain_for_goal(goal):
+    """Use goal's domain if set, else default to Work."""
+    if goal.domain_id:
+        return goal.domain
+    return _get_default_domain('work')
+
+
+def _resolve_domain_for_habit(habit):
+    """Use habit's domain if set, else map category or default to Health."""
+    if habit.domain_id:
+        return habit.domain
+    # HabitGoal.category is a free-text field; try mapping common values
+    category_domain_map = {
+        'health': 'health',
+        'fitness': 'health',
+        'faith': 'faith',
+        'spiritual': 'faith',
+        'family': 'family',
+        'work': 'work',
+        'finance': 'finances',
+    }
+    if habit.category:
+        slug = category_domain_map.get(habit.category.lower())
+        if slug:
+            domain = _get_default_domain(slug)
+            if domain:
+                return domain
+    return _get_default_domain('health')
+
+
+# ──────────────────────────────────────────────────────────
+# Task projections
+# ──────────────────────────────────────────────────────────
+
+def upsert_from_task(task):
+    """
+    Ensure a DEADLINE_MARKER exists for a task with a due_date.
+    Updates if task date changed; deletes if task has no due_date.
+    """
+    existing = CalendarEvent.objects.filter(
+        user=task.user,
+        source_type=CalendarEvent.SOURCE_TASK,
+        source_id=str(task.pk),
+        event_kind=CalendarEvent.KIND_DEADLINE_MARKER,
+    ).first()
+
+    if not task.due_date:
+        # No due date — remove any existing marker
+        if existing:
+            existing.delete()
+        return None
+
+    # Build start/end datetimes (deadline markers are all-day by default)
+    start_dt = timezone.make_aware(
+        dt.datetime.combine(task.due_date, dt.time(23, 59)),
+        timezone.get_current_timezone(),
+    )
+    end_dt = start_dt + dt.timedelta(minutes=1)
+
+    domain = _resolve_domain_for_task(task)
+
+    if existing:
+        existing.title = f"Due: {task.title}"
+        existing.start_dt = start_dt
+        existing.end_dt = end_dt
+        existing.domain = domain
+        existing.is_all_day = True
+        if task.is_completed:
+            existing.status = CalendarEvent.STATUS_COMPLETED
+        else:
+            existing.status = CalendarEvent.STATUS_SCHEDULED
+        existing.save()
+        return existing
+
+    return CalendarEvent.objects.create(
+        user=task.user,
+        title=f"Due: {task.title}",
+        start_dt=start_dt,
+        end_dt=end_dt,
+        is_all_day=True,
+        domain=domain,
+        event_kind=CalendarEvent.KIND_DEADLINE_MARKER,
+        source_type=CalendarEvent.SOURCE_TASK,
+        source_id=str(task.pk),
+        status=CalendarEvent.STATUS_COMPLETED if task.is_completed else CalendarEvent.STATUS_SCHEDULED,
+    )
+
+
+def upsert_execution_block_for_task(task, start_dt, end_dt):
+    """
+    Create an EXECUTION_BLOCK linked to a task.
+    Does not overwrite deadline markers.
+    """
+    domain = _resolve_domain_for_task(task)
+    return CalendarEvent.objects.create(
+        user=task.user,
+        title=f"Work on: {task.title}",
+        start_dt=start_dt,
+        end_dt=end_dt,
+        domain=domain,
+        event_kind=CalendarEvent.KIND_EXECUTION_BLOCK,
+        source_type=CalendarEvent.SOURCE_TASK,
+        source_id=str(task.pk),
+    )
+
+
+def delete_task_events(task):
+    """Remove all calendar events projected from a task."""
+    CalendarEvent.objects.filter(
+        user=task.user,
+        source_type=CalendarEvent.SOURCE_TASK,
+        source_id=str(task.pk),
+    ).delete()
+
+
+# ──────────────────────────────────────────────────────────
+# Goal projections
+# ──────────────────────────────────────────────────────────
+
+def upsert_from_goal(goal):
+    """
+    Create/update DEADLINE_MARKER for goal target_date.
+    Also creates markers for milestones with target_dates.
+    """
+    events = []
+
+    # Main goal deadline
+    if goal.target_date:
+        existing = CalendarEvent.objects.filter(
+            user=goal.user,
+            source_type=CalendarEvent.SOURCE_GOAL,
+            source_id=str(goal.pk),
+            event_kind=CalendarEvent.KIND_DEADLINE_MARKER,
+        ).first()
+
+        start_dt = timezone.make_aware(
+            dt.datetime.combine(goal.target_date, dt.time(23, 59)),
+            timezone.get_current_timezone(),
+        )
+        end_dt = start_dt + dt.timedelta(minutes=1)
+        domain = _resolve_domain_for_goal(goal)
+        is_completed = goal.status == 'completed'
+
+        if existing:
+            existing.title = f"Goal Due: {goal.title}"
+            existing.start_dt = start_dt
+            existing.end_dt = end_dt
+            existing.domain = domain
+            existing.is_all_day = True
+            existing.status = CalendarEvent.STATUS_COMPLETED if is_completed else CalendarEvent.STATUS_SCHEDULED
+            existing.save()
+            events.append(existing)
+        else:
+            events.append(CalendarEvent.objects.create(
+                user=goal.user,
+                title=f"Goal Due: {goal.title}",
+                start_dt=start_dt,
+                end_dt=end_dt,
+                is_all_day=True,
+                domain=domain,
+                event_kind=CalendarEvent.KIND_DEADLINE_MARKER,
+                source_type=CalendarEvent.SOURCE_GOAL,
+                source_id=str(goal.pk),
+                status=CalendarEvent.STATUS_COMPLETED if is_completed else CalendarEvent.STATUS_SCHEDULED,
+            ))
+
+    # Milestone markers
+    for milestone in goal.milestones.filter(target_date__isnull=False):
+        _upsert_milestone_marker(goal, milestone)
+
+    return events
+
+
+def _upsert_milestone_marker(goal, milestone):
+    """Create/update a deadline marker for a goal milestone."""
+    existing = CalendarEvent.objects.filter(
+        user=goal.user,
+        source_type=CalendarEvent.SOURCE_GOAL_MILESTONE,
+        source_id=str(milestone.pk),
+        event_kind=CalendarEvent.KIND_DEADLINE_MARKER,
+    ).first()
+
+    start_dt = timezone.make_aware(
+        dt.datetime.combine(milestone.target_date, dt.time(23, 59)),
+        timezone.get_current_timezone(),
+    )
+    end_dt = start_dt + dt.timedelta(minutes=1)
+    domain = _resolve_domain_for_goal(goal)
+
+    if existing:
+        existing.title = f"Milestone: {milestone.title}"
+        existing.start_dt = start_dt
+        existing.end_dt = end_dt
+        existing.domain = domain
+        existing.is_all_day = True
+        existing.status = CalendarEvent.STATUS_COMPLETED if milestone.completed else CalendarEvent.STATUS_SCHEDULED
+        existing.save()
+        return existing
+
+    return CalendarEvent.objects.create(
+        user=goal.user,
+        title=f"Milestone: {milestone.title}",
+        start_dt=start_dt,
+        end_dt=end_dt,
+        is_all_day=True,
+        domain=domain,
+        event_kind=CalendarEvent.KIND_DEADLINE_MARKER,
+        source_type=CalendarEvent.SOURCE_GOAL_MILESTONE,
+        source_id=str(milestone.pk),
+        status=CalendarEvent.STATUS_COMPLETED if milestone.completed else CalendarEvent.STATUS_SCHEDULED,
+    )
+
+
+def delete_goal_events(goal):
+    """Remove all calendar events projected from a goal and its milestones."""
+    CalendarEvent.objects.filter(
+        user=goal.user,
+        source_type=CalendarEvent.SOURCE_GOAL,
+        source_id=str(goal.pk),
+    ).delete()
+    # Also delete milestone markers
+    milestone_ids = [str(m.pk) for m in goal.milestones.all()]
+    if milestone_ids:
+        CalendarEvent.objects.filter(
+            user=goal.user,
+            source_type=CalendarEvent.SOURCE_GOAL_MILESTONE,
+            source_id__in=milestone_ids,
+        ).delete()
+
+
+# ──────────────────────────────────────────────────────────
+# Habit projections
+# ──────────────────────────────────────────────────────────
+
+def upsert_from_habit(habit):
+    """
+    Create a recurring CalendarEvent for a HabitGoal.
+    Maps frequency_type → RecurrenceRule.
+    """
+    existing = CalendarEvent.objects.filter(
+        user=habit.user,
+        source_type=CalendarEvent.SOURCE_HABIT,
+        source_id=str(habit.pk),
+    ).first()
+
+    if habit.status not in ('active',):
+        if existing:
+            existing.status = CalendarEvent.STATUS_CANCELED
+            existing.save()
+        return existing
+
+    domain = _resolve_domain_for_habit(habit)
+
+    # Use habit start_date as the event anchor
+    start_dt = timezone.make_aware(
+        dt.datetime.combine(habit.start_date, dt.time(8, 0)),  # Default 8am
+        timezone.get_current_timezone(),
+    )
+    # Estimate duration from measurement type
+    duration_map = {
+        'binary': 30,
+        'duration': 60,
+        'count': 30,
+        'target': 45,
+    }
+    duration = duration_map.get(habit.measurement_type, 30)
+    end_dt = start_dt + dt.timedelta(minutes=duration)
+
+    if existing:
+        existing.title = habit.name
+        existing.start_dt = start_dt
+        existing.end_dt = end_dt
+        existing.domain = domain
+        existing.is_protected = True
+        existing.status = CalendarEvent.STATUS_SCHEDULED
+        existing.save()
+        event = existing
+    else:
+        event = CalendarEvent.objects.create(
+            user=habit.user,
+            title=habit.name,
+            start_dt=start_dt,
+            end_dt=end_dt,
+            domain=domain,
+            event_kind=CalendarEvent.KIND_MANUAL,
+            source_type=CalendarEvent.SOURCE_HABIT,
+            source_id=str(habit.pk),
+            is_protected=True,
+        )
+
+    # Upsert recurrence rule
+    freq_map = {
+        'daily': RecurrenceRule.FREQ_DAILY,
+        'weekly': RecurrenceRule.FREQ_WEEKLY,
+        'monthly': RecurrenceRule.FREQ_MONTHLY,
+    }
+    frequency = freq_map.get(habit.frequency_type, RecurrenceRule.FREQ_DAILY)
+
+    until_dt = None
+    if habit.end_date:
+        until_dt = timezone.make_aware(
+            dt.datetime.combine(habit.end_date, dt.time(23, 59)),
+            timezone.get_current_timezone(),
+        )
+
+    rule, created = RecurrenceRule.objects.update_or_create(
+        event=event,
+        defaults={
+            'frequency': frequency,
+            'interval': 1,
+            'until_dt': until_dt,
+            'byweekday': [],
+        },
+    )
+
+    return event
+
+
+def delete_habit_events(habit):
+    """Remove all calendar events projected from a habit."""
+    CalendarEvent.objects.filter(
+        user=habit.user,
+        source_type=CalendarEvent.SOURCE_HABIT,
+        source_id=str(habit.pk),
+    ).delete()

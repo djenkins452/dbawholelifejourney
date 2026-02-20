@@ -1,0 +1,445 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Calendar — Time Command Center{% endblock %}
+
+{% block extra_css %}
+<style nonce="{{ csp_nonce }}">
+/* Calendar Engine — CoS Time Command Center */
+.cal-container { max-width: 1200px; margin: 0 auto; padding: 1rem; }
+.cal-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1.5rem; }
+.cal-header h1 { font-size: 1.5rem; font-weight: 600; color: var(--color-text); margin: 0; }
+.cal-header-right { display: flex; gap: 0.5rem; align-items: center; }
+
+/* View Toggles */
+.cal-view-toggles { display: flex; border: 1px solid var(--color-border); border-radius: var(--radius-lg); overflow: hidden; }
+.cal-view-btn { padding: 0.5rem 1rem; font-size: 0.875rem; border: none; background: var(--color-surface); color: var(--color-text-muted); cursor: pointer; transition: all 0.15s; }
+.cal-view-btn.active { background: var(--color-accent); color: #fff; }
+.cal-view-btn:hover:not(.active) { background: var(--color-border); }
+
+/* Layout */
+.cal-layout { display: grid; grid-template-columns: 1fr 320px; gap: 1.5rem; }
+@media (max-width: 768px) { .cal-layout { grid-template-columns: 1fr; } }
+
+/* Domain Imbalance Bar */
+.cal-balance-card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 1rem; margin-bottom: 1rem; }
+.cal-balance-title { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-muted); margin-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center; }
+.cal-balance-toggle { font-size: 0.75rem; border: none; background: none; color: var(--color-accent); cursor: pointer; text-decoration: underline; }
+.cal-balance-bar { display: flex; height: 24px; border-radius: 12px; overflow: hidden; background: var(--color-border); }
+.cal-balance-segment { height: 100%; transition: width 0.3s ease; min-width: 2px; }
+.cal-balance-legend { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
+.cal-balance-legend-item { display: flex; align-items: center; gap: 0.25rem; font-size: 0.75rem; color: var(--color-text-muted); }
+.cal-balance-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+/* Timeline */
+.cal-timeline { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 1rem; }
+.cal-timeline-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+.cal-timeline-date { font-size: 1.125rem; font-weight: 600; color: var(--color-text); }
+.cal-hour-group { border-bottom: 1px solid var(--color-border); padding: 0.5rem 0; }
+.cal-hour-group:last-child { border-bottom: none; }
+.cal-hour-label { font-size: 0.75rem; color: var(--color-text-muted); min-width: 60px; display: inline-block; }
+.cal-event-item { display: flex; align-items: flex-start; gap: 0.5rem; padding: 0.5rem; margin: 0.25rem 0 0.25rem 60px; border-radius: var(--radius-lg); border-left: 3px solid var(--color-accent); background: var(--color-background); cursor: grab; transition: box-shadow 0.15s; }
+.cal-event-item:hover { box-shadow: var(--shadow-md); }
+.cal-event-item.protected { border-left-color: #ef4444; }
+.cal-event-item.deadline { border-left-color: #f59e0b; }
+.cal-event-item.execution { border-left-color: #3b82f6; }
+.cal-event-title { font-size: 0.875rem; font-weight: 500; color: var(--color-text); }
+.cal-event-time { font-size: 0.75rem; color: var(--color-text-muted); }
+.cal-event-badge { font-size: 0.625rem; padding: 0.125rem 0.375rem; border-radius: 9999px; text-transform: uppercase; font-weight: 600; }
+.cal-event-badge.deadline { background: #fef3c7; color: #92400e; }
+.cal-event-badge.execution { background: #dbeafe; color: #1e40af; }
+.cal-event-badge.protected { background: #fee2e2; color: #991b1b; }
+.cal-empty-state { text-align: center; padding: 2rem; color: var(--color-text-muted); font-size: 0.875rem; }
+
+/* Sidebar */
+.cal-sidebar { display: flex; flex-direction: column; gap: 1rem; }
+
+/* Quick Add */
+.cal-quick-add { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 1rem; }
+.cal-quick-add-title { font-size: 0.875rem; font-weight: 600; color: var(--color-text); margin-bottom: 0.5rem; }
+.cal-quick-add-input { display: flex; gap: 0.5rem; }
+.cal-quick-add-input input { flex: 1; padding: 0.5rem 0.75rem; border: 1px solid var(--color-border); border-radius: var(--radius-lg); font-size: 16px; background: var(--color-background); color: var(--color-text); }
+.cal-quick-add-input button { padding: 0.5rem 1rem; border: none; border-radius: var(--radius-lg); background: var(--color-accent); color: #fff; font-size: 0.875rem; cursor: pointer; white-space: nowrap; }
+.cal-quick-add-input button:hover { opacity: 0.9; }
+
+/* Suggestions Panel */
+.cal-suggestions { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 1rem; }
+.cal-suggestions-title { font-size: 0.875rem; font-weight: 600; color: var(--color-text); margin-bottom: 0.75rem; }
+.cal-suggestion-item { background: var(--color-background); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 0.75rem; margin-bottom: 0.5rem; }
+.cal-suggestion-item:last-child { margin-bottom: 0; }
+.cal-suggestion-name { font-size: 0.875rem; font-weight: 500; color: var(--color-text); }
+.cal-suggestion-detail { font-size: 0.75rem; color: var(--color-text-muted); margin: 0.25rem 0; }
+.cal-suggestion-rationale { font-size: 0.75rem; color: var(--color-accent); font-style: italic; margin-bottom: 0.5rem; }
+.cal-suggestion-accept { padding: 0.375rem 0.75rem; border: 1px solid var(--color-accent); border-radius: var(--radius-lg); background: transparent; color: var(--color-accent); font-size: 0.75rem; cursor: pointer; font-weight: 500; }
+.cal-suggestion-accept:hover { background: var(--color-accent); color: #fff; }
+.cal-no-suggestions { font-size: 0.875rem; color: var(--color-text-muted); }
+
+/* Conflict Modal */
+.cal-modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
+.cal-modal-overlay.active { display: flex; }
+.cal-modal { background: var(--color-background); border-radius: var(--radius-lg); padding: 1.5rem; max-width: 400px; width: 90%; box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25); }
+.cal-modal h3 { font-size: 1rem; font-weight: 600; color: var(--color-text); margin-bottom: 0.5rem; }
+.cal-modal p { font-size: 0.875rem; color: var(--color-text-muted); margin-bottom: 1rem; }
+.cal-modal-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
+.cal-modal-btn { padding: 0.5rem 1rem; border-radius: var(--radius-lg); font-size: 0.875rem; cursor: pointer; border: 1px solid var(--color-border); }
+.cal-modal-btn.primary { background: var(--color-accent); color: #fff; border-color: var(--color-accent); }
+.cal-modal-btn.danger { background: #ef4444; color: #fff; border-color: #ef4444; }
+.cal-modal-btn:hover { opacity: 0.9; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="cal-container">
+    <!-- Header -->
+    <div class="cal-header">
+        <h1>Time Command Center</h1>
+        <div class="cal-header-right">
+            <div class="cal-view-toggles" id="cal-view-toggles">
+                <button class="cal-view-btn active" data-view="today">Today</button>
+                <button class="cal-view-btn" data-view="3day">3-Day</button>
+                <button class="cal-view-btn" data-view="week">Week</button>
+                <button class="cal-view-btn" data-view="agenda">Agenda</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Domain Imbalance Bar -->
+    <div class="cal-balance-card">
+        <div class="cal-balance-title">
+            <span>Life Balance</span>
+            <button class="cal-balance-toggle" id="cal-balance-period" data-period="today">Today</button>
+        </div>
+        <div class="cal-balance-bar" id="cal-balance-bar">
+            {% for item in today_balance %}
+            <div class="cal-balance-segment" style="width: {{ item.percentage }}%; background: {{ item.color }}" title="{{ item.name }}: {{ item.percentage }}%"></div>
+            {% empty %}
+            <div class="cal-balance-segment" style="width: 100%; background: var(--color-border)" title="No events scheduled"></div>
+            {% endfor %}
+        </div>
+        <div class="cal-balance-legend" id="cal-balance-legend">
+            {% for item in today_balance %}
+            <div class="cal-balance-legend-item">
+                <span class="cal-balance-dot" style="background: {{ item.color }}"></span>
+                {{ item.name }} {{ item.percentage }}%
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Main Layout -->
+    <div class="cal-layout">
+        <!-- Timeline (left) -->
+        <div class="cal-timeline" id="cal-timeline">
+            <div class="cal-timeline-header">
+                <span class="cal-timeline-date" id="cal-date-label"></span>
+            </div>
+            <div id="cal-events-container">
+                <div class="cal-empty-state">Loading timeline...</div>
+            </div>
+        </div>
+
+        <!-- Sidebar (right) -->
+        <div class="cal-sidebar">
+            <!-- Quick Add -->
+            <div class="cal-quick-add">
+                <div class="cal-quick-add-title">Quick Add</div>
+                <div class="cal-quick-add-input">
+                    <input type="text" id="cal-quick-input" placeholder="e.g. Bible Study Wed 6pm-8pm" />
+                    <button id="cal-quick-submit">Add</button>
+                </div>
+            </div>
+
+            <!-- Smart Suggestions -->
+            <div class="cal-suggestions">
+                <div class="cal-suggestions-title">Smart Suggestions</div>
+                <div id="cal-suggestions-list">
+                    {% for s in suggestions %}
+                    <div class="cal-suggestion-item" data-source-type="{{ s.source_type }}" data-source-id="{{ s.source_id }}" data-start="{{ s.start_dt }}" data-end="{{ s.end_dt }}" data-title="{{ s.title }}">
+                        <div class="cal-suggestion-name">{{ s.title }}</div>
+                        <div class="cal-suggestion-detail">{{ s.start_dt|truncatechars:16 }} — {{ s.end_dt|truncatechars:16 }}</div>
+                        <div class="cal-suggestion-rationale">{{ s.rationale }}</div>
+                        <button class="cal-suggestion-accept">Accept</button>
+                    </div>
+                    {% empty %}
+                    <div class="cal-no-suggestions">No suggestions right now. Keep it up!</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Conflict Modal -->
+<div class="cal-modal-overlay" id="cal-conflict-modal">
+    <div class="cal-modal">
+        <h3>Protected Time Conflict</h3>
+        <p id="cal-conflict-message"></p>
+        <div class="cal-modal-actions">
+            <button class="cal-modal-btn" id="cal-conflict-cancel">Cancel</button>
+            <button class="cal-modal-btn danger" id="cal-conflict-confirm">Override</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script nonce="{{ csp_nonce }}">
+(function() {
+    'use strict';
+
+    const CSRF = document.querySelector('[name=csrfmiddlewaretoken]')?.value
+        || '{{ csrf_token }}';
+
+    // State
+    let currentView = 'today';
+    let pendingMove = null;
+
+    // ── Helpers ──
+
+    function api(url, options) {
+        const defaults = {
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': CSRF,
+            },
+            credentials: 'same-origin',
+        };
+        return fetch(url, Object.assign(defaults, options)).then(function(r) {
+            return r.json().then(function(data) {
+                return { ok: r.ok, status: r.status, data: data };
+            });
+        });
+    }
+
+    function formatTime(isoStr) {
+        var d = new Date(isoStr);
+        var h = d.getHours();
+        var m = d.getMinutes();
+        var ampm = h >= 12 ? 'pm' : 'am';
+        h = h % 12 || 12;
+        return h + (m > 0 ? ':' + String(m).padStart(2, '0') : '') + ampm;
+    }
+
+    function formatHour(hour) {
+        var ampm = hour >= 12 ? 'PM' : 'AM';
+        var h = hour % 12 || 12;
+        return h + ' ' + ampm;
+    }
+
+    function todayISO() {
+        var d = new Date();
+        return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    }
+
+    function dateOffset(days) {
+        var d = new Date();
+        d.setDate(d.getDate() + days);
+        return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    }
+
+    // ── Render Timeline ──
+
+    function renderEvents(events, label) {
+        var container = document.getElementById('cal-events-container');
+        document.getElementById('cal-date-label').textContent = label || 'Today';
+
+        if (!events || events.length === 0) {
+            container.innerHTML = '<div class="cal-empty-state">No events scheduled. Use Quick Add to create one!</div>';
+            return;
+        }
+
+        var hourGroups = {};
+        events.forEach(function(evt) {
+            var hour = new Date(evt.start_dt).getHours();
+            if (!hourGroups[hour]) hourGroups[hour] = [];
+            hourGroups[hour].push(evt);
+        });
+
+        var html = '';
+        var hours = Object.keys(hourGroups).map(Number).sort(function(a,b){return a-b;});
+        hours.forEach(function(hour) {
+            html += '<div class="cal-hour-group">';
+            html += '<span class="cal-hour-label">' + formatHour(hour) + '</span>';
+            hourGroups[hour].forEach(function(evt) {
+                var kindClass = '';
+                var badgeHtml = '';
+                if (evt.event_kind === 'deadline_marker') { kindClass = ' deadline'; badgeHtml = '<span class="cal-event-badge deadline">Deadline</span>'; }
+                else if (evt.event_kind === 'execution_block') { kindClass = ' execution'; badgeHtml = '<span class="cal-event-badge execution">Execution</span>'; }
+                if (evt.is_protected) { kindClass = ' protected'; badgeHtml += '<span class="cal-event-badge protected">Protected</span>'; }
+
+                var borderColor = evt.domain_color || 'var(--color-accent)';
+                html += '<div class="cal-event-item' + kindClass + '" data-event-id="' + evt.id + '" style="border-left-color:' + borderColor + '">';
+                html += '<div style="flex:1"><div class="cal-event-title">' + evt.title + ' ' + badgeHtml + '</div>';
+                html += '<div class="cal-event-time">' + formatTime(evt.start_dt) + ' — ' + formatTime(evt.end_dt);
+                if (evt.domain) html += ' &middot; ' + evt.domain;
+                html += '</div></div></div>';
+            });
+            html += '</div>';
+        });
+
+        container.innerHTML = html;
+    }
+
+    // ── Load Data ──
+
+    function loadView(view) {
+        currentView = view;
+        var url, label;
+
+        if (view === 'today') {
+            url = '/calendar/api/today/';
+            label = 'Today';
+        } else if (view === '3day') {
+            url = '/calendar/api/range/?start=' + todayISO() + '&end=' + dateOffset(2);
+            label = 'Next 3 Days';
+        } else if (view === 'week') {
+            url = '/calendar/api/range/?start=' + todayISO() + '&end=' + dateOffset(6);
+            label = 'This Week';
+        } else {
+            url = '/calendar/api/range/?start=' + todayISO() + '&end=' + dateOffset(13);
+            label = 'Agenda (2 Weeks)';
+        }
+
+        api(url).then(function(resp) {
+            if (resp.ok) {
+                renderEvents(resp.data.events, label);
+            }
+        });
+    }
+
+    // ── View Toggle Buttons ──
+
+    document.getElementById('cal-view-toggles').addEventListener('click', function(e) {
+        var btn = e.target.closest('.cal-view-btn');
+        if (!btn) return;
+        document.querySelectorAll('.cal-view-btn').forEach(function(b){ b.classList.remove('active'); });
+        btn.classList.add('active');
+        loadView(btn.dataset.view);
+    });
+
+    // ── Balance Period Toggle ──
+
+    document.getElementById('cal-balance-period').addEventListener('click', function(e) {
+        var btn = e.target;
+        var period = btn.dataset.period === 'today' ? 'week' : 'today';
+        btn.dataset.period = period;
+        btn.textContent = period === 'today' ? 'Today' : 'This Week';
+
+        api('/calendar/api/metrics/balance/?period=' + period).then(function(resp) {
+            if (!resp.ok) return;
+            var balance = resp.data.balance;
+            var bar = document.getElementById('cal-balance-bar');
+            var legend = document.getElementById('cal-balance-legend');
+
+            bar.innerHTML = '';
+            legend.innerHTML = '';
+
+            if (balance.length === 0) {
+                bar.innerHTML = '<div class="cal-balance-segment" style="width:100%;background:var(--color-border)" title="No events"></div>';
+                return;
+            }
+
+            balance.forEach(function(item) {
+                bar.innerHTML += '<div class="cal-balance-segment" style="width:' + item.percentage + '%;background:' + item.color + '" title="' + item.name + ': ' + item.percentage + '%"></div>';
+                legend.innerHTML += '<div class="cal-balance-legend-item"><span class="cal-balance-dot" style="background:' + item.color + '"></span>' + item.name + ' ' + item.percentage + '%</div>';
+            });
+        });
+    });
+
+    // ── Quick Add (NLP) ──
+
+    document.getElementById('cal-quick-submit').addEventListener('click', function() {
+        var input = document.getElementById('cal-quick-input');
+        var text = input.value.trim();
+        if (!text) return;
+
+        api('/calendar/api/nlp_create/', {
+            method: 'POST',
+            body: JSON.stringify({ text: text }),
+        }).then(function(resp) {
+            if (resp.ok) {
+                input.value = '';
+                loadView(currentView);
+            }
+        });
+    });
+
+    document.getElementById('cal-quick-input').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            document.getElementById('cal-quick-submit').click();
+        }
+    });
+
+    // ── Accept Suggestion ──
+
+    document.getElementById('cal-suggestions-list').addEventListener('click', function(e) {
+        var btn = e.target.closest('.cal-suggestion-accept');
+        if (!btn) return;
+        var item = btn.closest('.cal-suggestion-item');
+        var data = {
+            source_type: item.dataset.sourceType,
+            source_id: item.dataset.sourceId,
+            start_dt: item.dataset.start,
+            end_dt: item.dataset.end,
+            title: item.dataset.title,
+        };
+
+        api('/calendar/api/suggestions/accept/', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        }).then(function(resp) {
+            if (resp.ok) {
+                item.remove();
+                loadView(currentView);
+            }
+        });
+    });
+
+    // ── Conflict Modal ──
+
+    document.getElementById('cal-conflict-cancel').addEventListener('click', function() {
+        document.getElementById('cal-conflict-modal').classList.remove('active');
+        pendingMove = null;
+    });
+
+    document.getElementById('cal-conflict-confirm').addEventListener('click', function() {
+        document.getElementById('cal-conflict-modal').classList.remove('active');
+        if (pendingMove) {
+            pendingMove.override = true;
+            api('/calendar/api/events/' + pendingMove.eventId + '/move/', {
+                method: 'POST',
+                body: JSON.stringify(pendingMove),
+            }).then(function(resp) {
+                if (resp.ok) loadView(currentView);
+            });
+            pendingMove = null;
+        }
+    });
+
+    // Expose moveEvent for drag-drop integration
+    window.calMoveEvent = function(eventId, newStart, newEnd) {
+        var body = {
+            new_start_dt: newStart,
+            new_end_dt: newEnd,
+        };
+
+        api('/calendar/api/events/' + eventId + '/move/', {
+            method: 'POST',
+            body: JSON.stringify(body),
+        }).then(function(resp) {
+            if (resp.status === 409) {
+                // Conflict — show modal
+                pendingMove = { eventId: eventId, new_start_dt: newStart, new_end_dt: newEnd };
+                document.getElementById('cal-conflict-message').textContent = resp.data.conflict_message;
+                document.getElementById('cal-conflict-modal').classList.add('active');
+            } else if (resp.ok) {
+                loadView(currentView);
+            }
+        });
+    };
+
+    // ── Init ──
+    loadView('today');
+})();
+</script>
+{% endblock %}

@@ -1,6 +1,22 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 59,
+        "fields": {
+            "title": "Time Command Center",
+            "description": "Your Chief of Staff now has a unified calendar. See all your tasks, goals, and habits projected onto a single timeline with Today, 3-Day, Week, and Agenda views. Drag events to reschedule — task deadlines update automatically. The Habit Protection Layer warns you before scheduling over protected time like workouts. Smart Gap Detection suggests where to fit in execution time for items due soon. The Domain Imbalance Bar shows how your time is split across Faith, Health, Family, and Work. Quick-add events with natural language like 'Bible Study Wednesdays 6pm-8pm'.",
+            "entry_type": "feature",
+            "version": "",
+            "release_date": "2026-02-20",
+            "is_published": true,
+            "is_major": true,
+            "learn_more_url": "",
+            "created_at": "2026-02-20T00:00:00Z",
+            "updated_at": "2026-02-20T00:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 58,
         "fields": {
             "title": "Always-On Chief of Staff Chat",

@@ -41,7 +41,7 @@ For core project context, see `CLAUDE.md` (project root).
 23. [Health Insight Engine](#health-insight-engine) *(Jan 2026)*
 24. [Medical Lab Ingestion UI](#medical-lab-ingestion-ui) *(Jan 2026)*
 25. [AI Assistant Intelligence Layer](#ai-assistant-intelligence-layer) *(Jan-Feb 2026)*
-26. [Quick Links (External Links)](#quick-links-external-links) *(Feb 2026)*
+26. [Quick Links with Mobile Deep Linking](#quick-links-external-links-with-mobile-deep-linking) *(Feb 2026)*
 27. [User Activity Pattern Tracking](#user-activity-pattern-tracking) *(Jan 2026)*
 28. [Brain Training (Cognitive Health)](#brain-training-cognitive-health) *(Jan 2026)*
 29. [Dashboard Performance & Caching](#dashboard-performance--caching) *(Jan 2026)*
@@ -2451,26 +2451,54 @@ The assistant is an **attentive, calm, factual, efficient right-hand assistant**
 
 ---
 
-## Quick Links (External Links)
+## Quick Links (External Links) with Mobile Deep Linking
 
 ### Overview
-Users can save up to 16 external links (patient portal, bank login, pharmacy site, etc.) accessible from the profile dropdown and mobile menu.
+Users can save up to 10 external links (patient portal, bank login, pharmacy site, etc.) accessible from the profile dropdown and mobile menu. Links support **mobile app deep linking** — on mobile devices, links with an app URL (e.g., `chase://`, `bofa://`, `mychart://`) attempt to open the native app first, with automatic fallback to the website if the app isn't installed.
 
 ### Features
-- Up to 16 saved links per user
+- Up to 10 saved links per user
+- **Mobile deep linking** — optional `mobile_app_url` per link (e.g., `chase://`, `bofa://`)
+- **Device-aware redirect** — `/user/open-link/<id>/` detects mobile via User-Agent, renders deep link page with 1.5s fallback to web URL
+- **Categories** — General, Finance & Banking, Health & Medical, Work & Productivity, Social & Communication, Other
+- **Usage tracking** — `usage_count` incremented atomically on each click
+- **Edit modal** — inline editing of name, URL, mobile URL, and category without page reload
 - URL validation on save
-- AJAX add/delete (no page reload)
+- AJAX add/delete/update (no page reload)
 - 60-second per-user cache for performance
-- Accessible from profile dropdown and mobile bottom bar
+- Accessible from profile dropdown and mobile navigation
+- Django admin with deep link configuration fieldset
+- **Intelligence hook** — `get_most_used_links(user, limit, days)` for future AI surfacing
+
+### Deep Link Flow
+1. User clicks link in profile menu → routed to `/user/open-link/<id>/`
+2. View increments `usage_count` and checks User-Agent
+3. **Desktop**: 302 redirect to `url`
+4. **Mobile + `mobile_app_url` set**: Renders redirect template that attempts deep link via hidden iframe + `window.location`, with 1.5s timer fallback to web URL
+5. **Mobile + no `mobile_app_url`**: 302 redirect to `url`
+
+### Common App URLs
+| App | Deep Link |
+|-----|-----------|
+| Chase Bank | `chase://` |
+| Bank of America | `bofa://` |
+| Capital One | `capitalone://` |
+| Schwab | `schwab://` |
+| Venmo | `venmo://` |
+| PayPal | `paypal://` |
+| MyChart | `mychart://` |
 
 ### Key Files
-- `apps/users/models.py` - ExternalLink model
-- `apps/users/views.py` - CRUD views with AJAX
-- `apps/users/urls.py` - Quick link endpoints
-- `apps/core/context_processors.py` - Links injected into template context
+- `apps/users/models.py` - ExternalLink model with deep link fields
+- `apps/users/views.py` - CRUD + redirect views (QuickLinkOpenView, QuickLinkUpdateView)
+- `apps/users/urls.py` - Quick link endpoints including `/open-link/<id>/`
+- `apps/users/admin.py` - ExternalLinkAdmin with deep link fieldset
+- `apps/core/context_processors.py` - Links injected into template context with new fields
+- `templates/users/quick_link_redirect.html` - Deep link redirect template with JS fallback
+- `templates/users/preferences.html` - Quick Links UI with edit modal
 
 ### Tests
-- `apps/users/tests/test_quick_links.py` - 17 tests
+- `apps/users/tests/test_quick_links.py` - 40 tests (model, API create/delete/update, redirect, device detection, usage counter, security, context processor)
 
 ---
 

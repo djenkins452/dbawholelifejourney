@@ -1774,14 +1774,14 @@
             "destination_id": "quick-links",
             "name": "Quick Links",
             "path_description": "Preferences - Quick Links",
-            "explanation": "Save your frequently used external links (patient portal, bank login, etc.) and access them from the profile dropdown menu. Add up to 10 links.",
+            "explanation": "Save external links (patient portal, bank, pharmacy) with optional mobile app deep links. On your phone, links try to open the app first (e.g., Chase, MyChart) and fall back to the website. Add up to 10 links, organized by category with usage tracking.",
             "url": "/preferences/#quick-links",
-            "keywords": "quick links, external links, bookmarks, patient portal, bank login, saved links, profile links, shortcuts",
+            "keywords": "quick links, external links, bookmarks, patient portal, bank login, saved links, profile links, shortcuts, deep link, mobile app, chase, bofa, mychart, app url",
             "module": "users",
             "sort_order": 102,
             "is_active": true,
             "created_at": "2026-02-14T00:00:00Z",
-            "updated_at": "2026-02-14T00:00:00Z"
+            "updated_at": "2026-02-20T00:00:00Z"
         }
     },
     {

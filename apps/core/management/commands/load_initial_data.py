@@ -2513,8 +2513,10 @@ Tasks are sorted by priority (ascending) then creation date.""",
 
     def _reset_quick_links_deep_link_fixtures(self, DataLoadConfig, force=False, verbosity=1):
         """
-        One-time reset to reload release_notes for Quick Links Deep Linking.
-        Adds release_notes PK 64 (Smart Quick Links with Mobile App Deep Linking).
+        One-time reset to reload fixtures for Quick Links Deep Linking.
+        - release_notes PK 64 (Smart Quick Links with Mobile App Deep Linking)
+        - teaching_destinations: updated quick-links entry with deep link keywords
+        - help_topics: updated SETTINGS_PREFERENCES with Quick Links section
         """
         reset_tracker_name = 'reset_quick_links_deep_link_2026_02_20'
 
@@ -2522,19 +2524,20 @@ Tasks are sorted by priority (ascending) then creation date.""",
             return
 
         try:
-            try:
-                config = DataLoadConfig.objects.get(loader_name='release_notes')
-                config.reset()
-                if verbosity >= 1:
-                    self.stdout.write('  Reset release_notes loader for Quick Links Deep Linking')
-            except DataLoadConfig.DoesNotExist:
-                pass
+            for loader_name in ('release_notes', 'teaching_destinations', 'help_topics'):
+                try:
+                    config = DataLoadConfig.objects.get(loader_name=loader_name)
+                    config.reset()
+                    if verbosity >= 1:
+                        self.stdout.write(f'  Reset {loader_name} loader for Quick Links Deep Linking')
+                except DataLoadConfig.DoesNotExist:
+                    pass
 
             self._mark_loader_complete(
                 DataLoadConfig, reset_tracker_name,
                 'Reset fixtures for Quick Links Deep Linking (Feb 2026)',
                 'command',
-                'One-time reset to reload release notes for quick links deep linking feature'
+                'One-time reset to reload release notes, teaching dests, help topics for deep linking'
             )
 
         except Exception as e:

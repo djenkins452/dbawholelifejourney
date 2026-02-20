@@ -9,9 +9,13 @@ urlpatterns = [
     path('', views.CalendarDashboardView.as_view(), name='dashboard'),
     path('manage/', views.ManageEventsView.as_view(), name='manage'),
 
+    # Month view
+    path('month/', views.MonthView.as_view(), name='month'),
+
     # API — event CRUD
     path('api/today/', views.TodayTimelineView.as_view(), name='api_today'),
     path('api/range/', views.RangeView.as_view(), name='api_range'),
+    path('api/month/', views.MonthDataView.as_view(), name='api_month'),
     path('api/events/all/', views.AllEventsView.as_view(), name='api_all_events'),
     path('api/events/', views.EventCreateView.as_view(), name='api_event_create'),
     path('api/events/<int:pk>/', views.EventDetailView.as_view(), name='api_event_detail'),

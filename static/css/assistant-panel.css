@@ -54,6 +54,22 @@ body.has-desktop-nav .desktop-main-area {
     flex-shrink: 0;
 }
 
+.ap-tcc-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-md, 6px);
+    color: var(--color-text-muted);
+    transition: color 0.15s, background 0.15s;
+    margin-left: auto;
+}
+.ap-tcc-link:hover {
+    color: var(--color-accent);
+    background: var(--color-border);
+}
+
 /* Toggle button removed — panel is always visible on desktop */
 
 /* Body */

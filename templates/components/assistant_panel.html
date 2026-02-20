@@ -22,6 +22,12 @@
                 <path d="m9 12 2 2 4-4"/>
             </svg>
             <span>{{ cos_display_name|default:"Chief of Staff" }}</span>
+            <a href="{% url 'calendar_engine:dashboard' %}" class="ap-tcc-link" title="Time Command Center">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polyline points="12 6 12 12 16 14"/>
+                </svg>
+            </a>
         </div>
         <div class="ap-tabs">
             <button class="ap-tab active" data-action="switch-ap-tab" data-tab="chat">Chat</button>

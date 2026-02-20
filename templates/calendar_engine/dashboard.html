@@ -90,6 +90,7 @@
 
 {% block content %}
 <div class="cal-container">
+    {% csrf_token %}
     <!-- Header -->
     <div class="cal-header">
         <h1>Time Command Center</h1>
@@ -100,6 +101,7 @@
                 <button class="cal-view-btn" data-view="3day">3-Day</button>
                 <button class="cal-view-btn" data-view="week">Week</button>
                 <button class="cal-view-btn" data-view="agenda">Agenda</button>
+                <a href="{% url 'calendar_engine:month' %}" class="cal-view-btn">Month</a>
             </div>
         </div>
     </div>

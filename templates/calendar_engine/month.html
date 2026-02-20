@@ -1,0 +1,465 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Calendar — {{ month_name }}{% endblock %}
+
+{% block extra_css %}
+<style nonce="{{ csp_nonce }}">
+/* Calendar Month View */
+.cal-container { max-width: 1200px; margin: 0 auto; padding: 1rem; }
+.cal-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1.5rem; }
+.cal-header h1 { font-size: 1.5rem; font-weight: 600; color: var(--color-text); margin: 0; }
+.cal-header-right { display: flex; gap: 0.5rem; align-items: center; }
+
+/* View Toggles — match dashboard */
+.cal-view-toggles { display: flex; border: 1px solid var(--color-border); border-radius: var(--radius-lg); overflow: hidden; }
+.cal-view-btn { padding: 0.5rem 1rem; font-size: 0.875rem; border: none; background: var(--color-surface); color: var(--color-text-muted); cursor: pointer; transition: all 0.15s; text-decoration: none; }
+.cal-view-btn.active { background: var(--color-accent); color: #fff; }
+.cal-view-btn:hover:not(.active) { background: var(--color-border); }
+
+/* Month Navigation */
+.cal-month-nav { display: flex; align-items: center; gap: 0.75rem; }
+.cal-month-nav-btn { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface); color: var(--color-text); cursor: pointer; transition: all 0.15s; }
+.cal-month-nav-btn:hover { background: var(--color-border); }
+.cal-month-label { font-size: 1.125rem; font-weight: 600; color: var(--color-text); min-width: 180px; text-align: center; }
+.cal-today-btn { padding: 0.375rem 0.75rem; font-size: 0.8125rem; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface); color: var(--color-text-muted); cursor: pointer; transition: all 0.15s; }
+.cal-today-btn:hover { background: var(--color-border); color: var(--color-text); }
+
+/* Month Grid */
+.cal-month-grid { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); overflow: hidden; }
+.cal-weekday-header { display: grid; grid-template-columns: repeat(7, 1fr); border-bottom: 1px solid var(--color-border); }
+.cal-weekday-cell { padding: 0.5rem; text-align: center; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-muted); background: var(--color-background); }
+.cal-weeks { display: flex; flex-direction: column; }
+.cal-week-row { display: grid; grid-template-columns: repeat(7, 1fr); border-bottom: 1px solid var(--color-border); }
+.cal-week-row:last-child { border-bottom: none; }
+
+/* Day Cells */
+.cal-day-cell { min-height: 100px; padding: 0.375rem; border-right: 1px solid var(--color-border); position: relative; cursor: pointer; transition: background 0.1s; }
+.cal-day-cell:last-child { border-right: none; }
+.cal-day-cell:hover { background: var(--color-background); }
+.cal-day-cell.other-month { opacity: 0.4; }
+.cal-day-cell.today { background: color-mix(in srgb, var(--color-accent) 8%, transparent); }
+.cal-day-number { font-size: 0.8125rem; font-weight: 500; color: var(--color-text); padding: 2px 6px; display: inline-block; border-radius: 50%; line-height: 1.4; }
+.cal-day-cell.today .cal-day-number { background: var(--color-accent); color: #fff; font-weight: 600; }
+.cal-day-events { margin-top: 2px; display: flex; flex-direction: column; gap: 1px; }
+
+/* Event Chips */
+.cal-event-chip { display: flex; align-items: center; gap: 4px; padding: 2px 6px; border-radius: 4px; font-size: 0.6875rem; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; transition: opacity 0.15s; color: var(--color-text); background: var(--color-background); border-left: 3px solid var(--color-accent); }
+.cal-event-chip:hover { opacity: 0.8; }
+.cal-event-chip.protected { border-left-color: #ef4444; background: #fef2f2; }
+.cal-event-chip.deadline { border-left-color: #f59e0b; background: #fffbeb; }
+.cal-event-chip.execution { border-left-color: #3b82f6; background: #eff6ff; }
+.cal-event-chip-time { font-weight: 600; flex-shrink: 0; }
+.cal-event-chip-title { overflow: hidden; text-overflow: ellipsis; }
+.cal-event-more { font-size: 0.6875rem; color: var(--color-accent); padding: 1px 6px; cursor: pointer; font-weight: 500; }
+.cal-event-more:hover { text-decoration: underline; }
+
+/* Event Detail Popover */
+.cal-popover { position: fixed; z-index: 1000; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); box-shadow: 0 10px 25px rgba(0,0,0,0.15); padding: 1rem; min-width: 240px; max-width: 320px; display: none; }
+.cal-popover.active { display: block; }
+.cal-popover-title { font-size: 0.9375rem; font-weight: 600; color: var(--color-text); margin-bottom: 0.25rem; }
+.cal-popover-time { font-size: 0.8125rem; color: var(--color-text-muted); margin-bottom: 0.5rem; }
+.cal-popover-badges { display: flex; gap: 0.375rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+.cal-popover-badge { font-size: 0.625rem; padding: 0.125rem 0.375rem; border-radius: 9999px; text-transform: uppercase; font-weight: 600; }
+.cal-popover-badge.deadline { background: #fef3c7; color: #92400e; }
+.cal-popover-badge.execution { background: #dbeafe; color: #1e40af; }
+.cal-popover-badge.protected { background: #fee2e2; color: #991b1b; }
+.cal-popover-desc { font-size: 0.8125rem; color: var(--color-text-muted); margin-bottom: 0.75rem; }
+.cal-popover-actions { display: flex; gap: 0.5rem; }
+.cal-popover-btn { padding: 0.375rem 0.75rem; font-size: 0.8125rem; border-radius: var(--radius-lg); cursor: pointer; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text); transition: all 0.15s; }
+.cal-popover-btn:hover { background: var(--color-border); }
+.cal-popover-btn.primary { background: var(--color-accent); color: #fff; border-color: var(--color-accent); }
+.cal-popover-close { position: absolute; top: 0.5rem; right: 0.5rem; border: none; background: none; color: var(--color-text-muted); cursor: pointer; padding: 4px; }
+.cal-popover-close:hover { color: var(--color-text); }
+
+/* Dark mode event chip adjustments */
+@media (prefers-color-scheme: dark) {
+    .cal-event-chip.protected { background: rgba(239, 68, 68, 0.15); }
+    .cal-event-chip.deadline { background: rgba(245, 158, 11, 0.15); }
+    .cal-event-chip.execution { background: rgba(59, 130, 246, 0.15); }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .cal-header { flex-direction: column; align-items: flex-start; }
+    .cal-day-cell { min-height: 60px; padding: 2px; }
+    .cal-day-number { font-size: 0.75rem; padding: 1px 4px; }
+    .cal-event-chip { font-size: 0.625rem; padding: 1px 3px; }
+    .cal-event-chip-time { display: none; }
+    .cal-weekday-cell { font-size: 0.625rem; padding: 0.375rem 0.25rem; }
+    .cal-month-label { font-size: 1rem; min-width: 140px; }
+    .cal-view-toggles { flex-wrap: wrap; }
+}
+
+@media (max-width: 480px) {
+    .cal-day-cell { min-height: 48px; }
+    .cal-event-chip-title { max-width: 50px; }
+    .cal-weekday-cell { font-size: 0.5rem; letter-spacing: 0; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="cal-container">
+    {% csrf_token %}
+
+    <!-- Header -->
+    <div class="cal-header">
+        <div class="cal-month-nav">
+            <button class="cal-month-nav-btn" id="cal-prev-month" title="Previous month">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="15 18 9 12 15 6"/>
+                </svg>
+            </button>
+            <span class="cal-month-label" id="cal-month-label">{{ month_name }}</span>
+            <button class="cal-month-nav-btn" id="cal-next-month" title="Next month">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="9 18 15 12 9 6"/>
+                </svg>
+            </button>
+            <button class="cal-today-btn" id="cal-today-btn">Today</button>
+        </div>
+        <div class="cal-header-right">
+            <a href="{% url 'calendar_engine:manage' %}" style="font-size:0.875rem;color:var(--color-accent);text-decoration:none;margin-right:0.5rem">Manage Events</a>
+            <div class="cal-view-toggles">
+                <a href="{% url 'calendar_engine:dashboard' %}" class="cal-view-btn">Timeline</a>
+                <span class="cal-view-btn active">Month</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Month Grid -->
+    <div class="cal-month-grid">
+        <div class="cal-weekday-header">
+            <div class="cal-weekday-cell">Sun</div>
+            <div class="cal-weekday-cell">Mon</div>
+            <div class="cal-weekday-cell">Tue</div>
+            <div class="cal-weekday-cell">Wed</div>
+            <div class="cal-weekday-cell">Thu</div>
+            <div class="cal-weekday-cell">Fri</div>
+            <div class="cal-weekday-cell">Sat</div>
+        </div>
+        <div class="cal-weeks" id="cal-weeks">
+            <div class="cal-empty-state" style="padding:3rem;text-align:center;color:var(--color-text-muted);">Loading calendar...</div>
+        </div>
+    </div>
+</div>
+
+<!-- Event Detail Popover -->
+<div class="cal-popover" id="cal-popover">
+    <button class="cal-popover-close" id="cal-popover-close" title="Close">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+    </button>
+    <div class="cal-popover-title" id="cal-popover-title"></div>
+    <div class="cal-popover-time" id="cal-popover-time"></div>
+    <div class="cal-popover-badges" id="cal-popover-badges"></div>
+    <div class="cal-popover-desc" id="cal-popover-desc"></div>
+    <div class="cal-popover-actions">
+        <a class="cal-popover-btn primary" id="cal-popover-edit" href="#">Edit</a>
+        <a class="cal-popover-btn" href="{% url 'calendar_engine:dashboard' %}">View in Timeline</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script nonce="{{ csp_nonce }}">
+(function() {
+    'use strict';
+
+    var CSRF = document.querySelector('[name=csrfmiddlewaretoken]');
+    CSRF = CSRF ? CSRF.value : '{{ csrf_token }}';
+
+    var currentYear = {{ year }};
+    var currentMonth = {{ month }};
+    var allEvents = [];
+    var MAX_VISIBLE_EVENTS = 3;
+
+    // ── Helpers ──
+
+    function api(url) {
+        return fetch(url, {
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+            credentials: 'same-origin',
+        }).then(function(r) { return r.json(); });
+    }
+
+    function pad(n) { return n < 10 ? '0' + n : '' + n; }
+
+    function formatTime(isoStr) {
+        var d = new Date(isoStr);
+        var h = d.getHours();
+        var m = d.getMinutes();
+        var ampm = h >= 12 ? 'pm' : 'am';
+        h = h % 12 || 12;
+        return h + (m > 0 ? ':' + pad(m) : '') + ampm;
+    }
+
+    function formatFullTime(isoStr) {
+        var d = new Date(isoStr);
+        var options = { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' };
+        return d.toLocaleString('en-US', options);
+    }
+
+    function todayStr() {
+        var d = new Date();
+        return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+    }
+
+    function dateStr(y, m, d) {
+        return y + '-' + pad(m) + '-' + pad(d);
+    }
+
+    function monthName(y, m) {
+        return new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    }
+
+    // ── Build the grid ──
+
+    function getMonthGrid(year, month) {
+        // Returns array of weeks, each week is array of {date, day, isCurrentMonth}
+        var firstDay = new Date(year, month - 1, 1);
+        var lastDay = new Date(year, month, 0);
+        var daysInMonth = lastDay.getDate();
+        var startWeekday = firstDay.getDay(); // 0=Sun
+
+        var grid = [];
+        var week = [];
+
+        // Fill leading days from previous month
+        var prevMonth = new Date(year, month - 1, 0);
+        var prevDays = prevMonth.getDate();
+        for (var i = startWeekday - 1; i >= 0; i--) {
+            var d = prevDays - i;
+            var pm = month - 1;
+            var py = year;
+            if (pm < 1) { pm = 12; py--; }
+            week.push({ date: dateStr(py, pm, d), day: d, isCurrentMonth: false });
+        }
+
+        // Fill current month days
+        for (var day = 1; day <= daysInMonth; day++) {
+            week.push({ date: dateStr(year, month, day), day: day, isCurrentMonth: true });
+            if (week.length === 7) {
+                grid.push(week);
+                week = [];
+            }
+        }
+
+        // Fill trailing days from next month
+        if (week.length > 0) {
+            var nextDay = 1;
+            var nm = month + 1;
+            var ny = year;
+            if (nm > 12) { nm = 1; ny++; }
+            while (week.length < 7) {
+                week.push({ date: dateStr(ny, nm, nextDay), day: nextDay, isCurrentMonth: false });
+                nextDay++;
+            }
+            grid.push(week);
+        }
+
+        return grid;
+    }
+
+    function getEventsForDate(dateKey) {
+        var result = [];
+        for (var i = 0; i < allEvents.length; i++) {
+            var evt = allEvents[i];
+            var evtDate = evt.start_dt.substring(0, 10);
+            if (evtDate === dateKey) {
+                result.push(evt);
+            }
+        }
+        // Sort by start time
+        result.sort(function(a, b) { return a.start_dt.localeCompare(b.start_dt); });
+        return result;
+    }
+
+    function renderMonth() {
+        var grid = getMonthGrid(currentYear, currentMonth);
+        var today = todayStr();
+        var weeksEl = document.getElementById('cal-weeks');
+        var html = '';
+
+        for (var w = 0; w < grid.length; w++) {
+            html += '<div class="cal-week-row">';
+            for (var d = 0; d < 7; d++) {
+                var cell = grid[w][d];
+                var classes = 'cal-day-cell';
+                if (!cell.isCurrentMonth) classes += ' other-month';
+                if (cell.date === today) classes += ' today';
+
+                html += '<div class="' + classes + '" data-date="' + cell.date + '">';
+                html += '<div class="cal-day-number">' + cell.day + '</div>';
+                html += '<div class="cal-day-events">';
+
+                var events = getEventsForDate(cell.date);
+                var visible = Math.min(events.length, MAX_VISIBLE_EVENTS);
+
+                for (var e = 0; e < visible; e++) {
+                    var evt = events[e];
+                    var chipClass = 'cal-event-chip';
+                    if (evt.is_protected) chipClass += ' protected';
+                    else if (evt.event_kind === 'deadline_marker') chipClass += ' deadline';
+                    else if (evt.event_kind === 'execution_block') chipClass += ' execution';
+
+                    var borderColor = evt.domain_color || 'var(--color-accent)';
+                    html += '<div class="' + chipClass + '" data-event-id="' + evt.id + '" style="border-left-color:' + borderColor + '">';
+                    html += '<span class="cal-event-chip-time">' + formatTime(evt.start_dt) + '</span>';
+                    html += '<span class="cal-event-chip-title">' + evt.title + '</span>';
+                    html += '</div>';
+                }
+
+                if (events.length > MAX_VISIBLE_EVENTS) {
+                    html += '<div class="cal-event-more" data-date="' + cell.date + '">+' + (events.length - MAX_VISIBLE_EVENTS) + ' more</div>';
+                }
+
+                html += '</div></div>';
+            }
+            html += '</div>';
+        }
+
+        weeksEl.innerHTML = html;
+        document.getElementById('cal-month-label').textContent = monthName(currentYear, currentMonth);
+    }
+
+    // ── Load Month Data ──
+
+    function loadMonth(year, month) {
+        currentYear = year;
+        currentMonth = month;
+
+        api('/calendar/api/month/?year=' + year + '&month=' + month).then(function(data) {
+            allEvents = data.events || [];
+            renderMonth();
+        });
+    }
+
+    // ── Navigation ──
+
+    document.getElementById('cal-prev-month').addEventListener('click', function() {
+        var m = currentMonth - 1;
+        var y = currentYear;
+        if (m < 1) { m = 12; y--; }
+        loadMonth(y, m);
+    });
+
+    document.getElementById('cal-next-month').addEventListener('click', function() {
+        var m = currentMonth + 1;
+        var y = currentYear;
+        if (m > 12) { m = 1; y++; }
+        loadMonth(y, m);
+    });
+
+    document.getElementById('cal-today-btn').addEventListener('click', function() {
+        var now = new Date();
+        loadMonth(now.getFullYear(), now.getMonth() + 1);
+    });
+
+    // ── Event Popover ──
+
+    var popover = document.getElementById('cal-popover');
+
+    function showPopover(evt, anchorEl) {
+        document.getElementById('cal-popover-title').textContent = evt.title;
+        document.getElementById('cal-popover-time').textContent =
+            formatFullTime(evt.start_dt) + ' — ' + formatTime(evt.end_dt) +
+            (evt.domain ? ' \u00B7 ' + evt.domain : '');
+
+        // Badges
+        var badgesHtml = '';
+        if (evt.event_kind === 'deadline_marker') badgesHtml += '<span class="cal-popover-badge deadline">Deadline</span>';
+        if (evt.event_kind === 'execution_block') badgesHtml += '<span class="cal-popover-badge execution">Execution</span>';
+        if (evt.is_protected) badgesHtml += '<span class="cal-popover-badge protected">Protected</span>';
+        document.getElementById('cal-popover-badges').innerHTML = badgesHtml;
+
+        // Description
+        var descEl = document.getElementById('cal-popover-desc');
+        if (evt.description) {
+            descEl.textContent = evt.description;
+            descEl.style.display = '';
+        } else {
+            descEl.style.display = 'none';
+        }
+
+        // Edit link
+        document.getElementById('cal-popover-edit').href = '/calendar/manage/?edit=' + evt.id;
+
+        // Position
+        var rect = anchorEl.getBoundingClientRect();
+        var popW = 280;
+        var left = rect.left;
+        var top = rect.bottom + 4;
+
+        // Keep within viewport
+        if (left + popW > window.innerWidth) left = window.innerWidth - popW - 16;
+        if (left < 8) left = 8;
+        if (top + 200 > window.innerHeight) top = rect.top - 200;
+
+        popover.style.left = left + 'px';
+        popover.style.top = top + 'px';
+        popover.classList.add('active');
+    }
+
+    function hidePopover() {
+        popover.classList.remove('active');
+    }
+
+    document.getElementById('cal-popover-close').addEventListener('click', hidePopover);
+
+    document.addEventListener('click', function(e) {
+        // Event chip click — show popover
+        var chip = e.target.closest('.cal-event-chip');
+        if (chip) {
+            e.stopPropagation();
+            var eventId = parseInt(chip.dataset.eventId);
+            for (var i = 0; i < allEvents.length; i++) {
+                if (allEvents[i].id === eventId) {
+                    showPopover(allEvents[i], chip);
+                    return;
+                }
+            }
+            return;
+        }
+
+        // "+N more" click — expand MAX_VISIBLE_EVENTS for that day
+        var more = e.target.closest('.cal-event-more');
+        if (more) {
+            e.stopPropagation();
+            // Temporarily show all events for this day
+            var dateKey = more.dataset.date;
+            var events = getEventsForDate(dateKey);
+            var container = more.parentElement;
+            more.remove();
+            for (var j = MAX_VISIBLE_EVENTS; j < events.length; j++) {
+                var evt = events[j];
+                var chipClass = 'cal-event-chip';
+                if (evt.is_protected) chipClass += ' protected';
+                else if (evt.event_kind === 'deadline_marker') chipClass += ' deadline';
+                else if (evt.event_kind === 'execution_block') chipClass += ' execution';
+                var borderColor = evt.domain_color || 'var(--color-accent)';
+                var chipEl = document.createElement('div');
+                chipEl.className = chipClass;
+                chipEl.dataset.eventId = evt.id;
+                chipEl.style.borderLeftColor = borderColor;
+                chipEl.innerHTML = '<span class="cal-event-chip-time">' + formatTime(evt.start_dt) + '</span>' +
+                    '<span class="cal-event-chip-title">' + evt.title + '</span>';
+                container.appendChild(chipEl);
+            }
+            return;
+        }
+
+        // Click outside popover — close it
+        if (!e.target.closest('.cal-popover')) {
+            hidePopover();
+        }
+    });
+
+    // ── Init ──
+    loadMonth(currentYear, currentMonth);
+})();
+</script>
+{% endblock %}

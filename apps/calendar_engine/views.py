@@ -120,6 +120,34 @@ class CalendarDashboardView(LoginRequiredMixin, TemplateView):
         return ctx
 
 
+class MonthView(LoginRequiredMixin, TemplateView):
+    """Full month calendar grid view."""
+    template_name = 'calendar_engine/month.html'
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['app_name'] = 'calendar_engine'
+
+        # Determine which month to show
+        year = self.request.GET.get('year')
+        month = self.request.GET.get('month')
+        today = timezone.localdate()
+
+        if year and month:
+            try:
+                year = int(year)
+                month = int(month)
+            except (ValueError, TypeError):
+                year, month = today.year, today.month
+        else:
+            year, month = today.year, today.month
+
+        ctx['year'] = year
+        ctx['month'] = month
+        ctx['month_name'] = dt.date(year, month, 1).strftime('%B %Y')
+        return ctx
+
+
 class ManageEventsView(LoginRequiredMixin, TemplateView):
     """Full CRUD management page for calendar events."""
     template_name = 'calendar_engine/manage.html'
@@ -613,3 +641,58 @@ class NLPCreateView(LoginRequiredMixin, View):
                 'domain_slug': parsed['domain_slug'],
             },
         }, status=201)
+
+
+# ──────────────────────────────────────────────────────────
+# Month Data API
+# ──────────────────────────────────────────────────────────
+
+class MonthDataView(LoginRequiredMixin, View):
+    """
+    GET /calendar/api/month/?year=2026&month=2
+
+    Returns all events for the given month (including days visible
+    in the grid from adjacent months).
+    """
+
+    def get(self, request):
+        import calendar
+
+        today = timezone.localdate()
+        try:
+            year = int(request.GET.get('year', today.year))
+            month = int(request.GET.get('month', today.month))
+        except (ValueError, TypeError):
+            year, month = today.year, today.month
+
+        # First day of the month and last day
+        first_day = dt.date(year, month, 1)
+        last_day = dt.date(year, month, calendar.monthrange(year, month)[1])
+
+        # Extend to cover the full grid (Sunday-start weeks)
+        # Go back to the Sunday at or before the first day
+        grid_start = first_day - dt.timedelta(days=first_day.weekday() + 1)
+        if first_day.weekday() == 6:  # Sunday
+            grid_start = first_day
+        # Go forward to the Saturday at or after the last day
+        grid_end = last_day + dt.timedelta(days=(6 - last_day.weekday()) % 7)
+        if last_day.weekday() == 6:  # Sunday — need full week after
+            grid_end = last_day + dt.timedelta(days=6)
+
+        tz = timezone.get_current_timezone()
+        range_start = timezone.make_aware(
+            dt.datetime.combine(grid_start, dt.time.min), tz
+        )
+        range_end = timezone.make_aware(
+            dt.datetime.combine(grid_end, dt.time.max), tz
+        )
+
+        events = _get_events_in_range(request.user, range_start, range_end)
+
+        return JsonResponse({
+            'events': events,
+            'year': year,
+            'month': month,
+            'grid_start': grid_start.isoformat(),
+            'grid_end': grid_end.isoformat(),
+        })

@@ -510,10 +510,10 @@ def format_cos_system_injection(context):
         str — formatted system injection block.
     """
     lines = []
-    lines.append("=== CHIEF OF STAFF OPERATIONAL CONTEXT ===")
+    lines.append("=== SITUATIONAL AWARENESS ===")
     lines.append("")
 
-    # Phase 5: Language rules (constant — no user data needed)
+    # Language rules (what terms to avoid)
     try:
         from apps.core.ai_governance.language_rules import build_language_rules_injection
         lang_rules = build_language_rules_injection()
@@ -523,101 +523,40 @@ def format_cos_system_injection(context):
     except Exception:
         pass
 
-    # Blueprint state
+    # What matters to this person (compact)
     bp = context.get('blueprint_state', {})
-    if bp:
-        lines.append(f"Operating Style: {bp.get('operating_style', 'balanced')}")
-        lines.append(f"Interruption Tolerance: {bp.get('interruption_tolerance', 'medium')}")
-        lines.append(f"Override Policy: {bp.get('override_policy', 'confirm')}")
-        pillars = bp.get('pillars_ranked', [])
-        if pillars:
-            lines.append(f"Life Pillars (ranked): {', '.join(pillars)}")
-
-    # Protected behaviors
     protected = context.get('protected_tiers', [])
     if protected:
-        lines.append(f"Tier-1 Protected Behaviors: {', '.join(protected)}")
+        lines.append(f"Non-Negotiable Commitments: {', '.join(protected)}")
+    pillars = bp.get('pillars_ranked', []) if bp else []
+    if pillars:
+        lines.append(f"Life Priorities (ranked): {', '.join(pillars)}")
 
-    # Capacity
-    cap = context.get('capacity_snapshot', {})
-    if cap:
-        lines.append(f"Today's Capacity: {cap.get('capacity_pct', 0)}% allocated "
-                     f"({cap.get('completed_blocks', 0)}/{cap.get('total_blocks', 0)} blocks completed)")
-
-    # Alignment + Drift
-    lines.append(f"Blueprint Alignment: {context.get('alignment_score', 100)}%")
-    lines.append(f"Drift Score: {context.get('drift_score', 0)}/100")
-
-    drift_p = context.get('drift_probability', {})
-    if drift_p:
-        lines.append(f"24h Drift Risk: {drift_p.get('probability_24h', 0)}%")
-        lines.append(f"72h Drift Risk: {drift_p.get('probability_72h', 0)}%")
-
-    # Forecast
-    f24 = context.get('forecast_load_24h', 0)
-    if f24:
-        lines.append(f"Tomorrow Load Forecast: {f24}%")
-
-    # Weekly pressure
-    weekly = context.get('weekly_pressure', {})
-    if weekly:
-        lines.append("")
-        lines.append("--- WEEKLY PRESSURE ---")
-        lines.append(f"Summary: {weekly.get('summary', 'Not computed')}")
-        lines.append(f"Average Load: {weekly.get('avg_load', 0)}%")
-        peak = weekly.get('peak_day', '')
-        if peak:
-            lines.append(f"Peak Day: {peak} ({weekly.get('peak_load', 0)}%)")
-        heavy = weekly.get('heavy_days', [])
-        if heavy:
-            lines.append(f"Heavy Days: {', '.join(heavy)}")
-        light = weekly.get('light_days', [])
-        if light:
-            lines.append(f"Light Days: {', '.join(light)}")
-        windows = weekly.get('opportunity_windows', [])
-        if windows:
-            for w in windows[:3]:
-                lines.append(
-                    f"Opportunity: {w.get('day_name', '')} "
-                    f"{w.get('start_time', '')}-{w.get('end_time', '')} "
-                    f"({w.get('duration_hours', 0)}h open)"
-                )
-
-    # Override frequency
-    overrides = context.get('override_frequency_14d', 0)
-    if overrides:
-        lines.append(f"Override Frequency (14d): {overrides} overrides")
-
-    # Medication
+    # Medication (actionable — user needs to know)
     med = context.get('medication_adherence_state', {})
-    if med:
+    if med and med.get('total_scheduled', 0) > 0:
         lines.append(f"Medication: {med.get('taken_today', 0)}/{med.get('total_scheduled', 0)} "
-                     f"taken ({med.get('adherence_pct', 0)}%)")
+                     f"taken today")
 
-    # Fast
+    # Active fast (actionable)
     fast = context.get('active_fast_status', {})
     if fast.get('active'):
         lines.append(f"Active Fast: In progress (target: {fast.get('target_hours', 0)}h)")
 
-    # Today's blocks
+    # Today's schedule blocks
     blocks = context.get('today_blocks_summary', [])
     if blocks:
         lines.append("")
         lines.append("Today's Schedule:")
-        for b in blocks[:8]:  # Limit to prevent token bloat
+        for b in blocks[:8]:
             status = "[done]" if b['completed'] else "[locked]" if b['locked'] else ""
-            lines.append(f"  {b['start']}-{b['end']} T{b['tier']} {b['title']} {status}")
+            lines.append(f"  {b['start']}-{b['end']} {b['title']} {status}")
 
-    # Calendar events today
+    # Calendar events (what's happening today)
     cal_events = context.get('calendar_events_today', [])
     if cal_events:
         lines.append("")
-        lines.append("--- TODAY'S CALENDAR EVENTS ---")
-        lines.append(
-            "Use this schedule to provide context-aware responses. "
-            "Reference upcoming events, note if the user is running behind, "
-            "and proactively suggest adjustments when relevant."
-        )
+        lines.append("Today's Calendar:")
         for ev in cal_events:
             status_tag = ""
             if ev['time_status'] == 'in_progress':
@@ -628,113 +567,67 @@ def format_cos_system_injection(context):
                 status_tag = " [MISSED]"
             elif ev['time_status'] == 'past':
                 status_tag = " [done]"
-            protected = " (protected)" if ev.get('is_protected') else ""
-            domain = f" [{ev['domain']}]" if ev.get('domain') else ""
+            ev_protected = " (protected)" if ev.get('is_protected') else ""
             lines.append(
                 f"  {ev['start']}-{ev['end']} {ev['title']}"
-                f"{domain}{protected}{status_tag}"
+                f"{ev_protected}{status_tag}"
             )
 
-    # Risk warnings
-    warnings = context.get('risk_warnings', [])
-    if warnings:
-        lines.append("")
-        lines.append("Risk Warnings:")
-        for w in warnings:
-            lines.append(f"  - {w}")
+    # Key signals — only include things the CoS should mention or act on
+    # (Skip raw scores/percentages that don't help the conversation)
 
-    # Governance profile
-    gov = context.get('governance_profile', {})
-    if gov:
+    # Active insights (things worth mentioning)
+    insights = context.get('active_insights', [])
+    if insights:
         lines.append("")
-        lines.append("--- GOVERNANCE ---")
-        lines.append(f"Accountability Style: {gov.get('accountability_style', 'standard')}")
-        lines.append(f"Question Frequency: {gov.get('question_frequency', 'medium')}")
-        tags = gov.get('sensitivity_tags', [])
-        if tags:
-            lines.append(f"Sensitivity Topics: {', '.join(tags)}")
-        if not gov.get('calibration_complete', False):
-            lines.append(f"Calibration: Day {gov.get('calibration_day', 0)}/14 — still learning")
-        if not gov.get('relationship_suggestions', False):
-            lines.append("Relationship suggestions: OFF")
-        if not gov.get('event_reflections', True):
-            lines.append("Event reflections: OFF")
+        lines.append("Notable Insights:")
+        for i in insights[:5]:
+            lines.append(f"  - {i['title']} ({i['module']})")
 
-    # Module permissions
+    # Active predictions (things to watch)
+    predictions = context.get('active_predictions', [])
+    if predictions:
+        lines.append("Predictions:")
+        for p in predictions[:3]:
+            lines.append(f"  - {p['type']}: {p['value']}")
+
+    # Relationship signals (people to reconnect with)
+    rel_signals = context.get('relationship_signals', [])
+    drifting = [r for r in rel_signals if r.get('drifting')]
+    if drifting:
+        names = ', '.join(r['name'] for r in drifting[:3])
+        lines.append(f"Haven't connected with: {names}")
+
+    # Mood (only if notable)
+    mood = context.get('mood_status', {})
+    if mood.get('trend') and mood['trend'] != 'stable':
+        lines.append(f"Mood Trend: {mood['trend']}")
+
+    # Sleep alert (actionable)
+    health_sig = context.get('health_signals', {})
+    sleep = health_sig.get('sleep_avg_7d')
+    if sleep and sleep < 6.5:
+        lines.append(f"Sleep: {sleep:.1f}h avg this week (low)")
+
+    # Open loops (things to address)
+    loops = context.get('open_loops', {})
+    if loops.get('overdue_goals'):
+        lines.append(f"Overdue Goals: {loops['overdue_goals']}")
+
+    # Module permissions (what NOT to reference)
     mods = context.get('module_permissions', {})
     disabled = [k for k, v in mods.items() if not v]
     if disabled:
         lines.append(f"Disabled Modules (do not reference): {', '.join(disabled)}")
 
-    # =====================================================================
-    # PHASE 4 — EXECUTIVE INTELLIGENCE SIGNALS
-    # =====================================================================
-
-    # Executive tone mode
-    tone_mode = context.get('executive_tone_mode', 'strategic_executive')
-    lines.append("")
-    lines.append("--- EXECUTIVE TONE ---")
-    lines.append(f"Active Mode: {TONE_MODE_INSTRUCTIONS.get(tone_mode, TONE_MODE_INSTRUCTIONS['strategic_executive'])}")
-
-    # Active insights
-    insights = context.get('active_insights', [])
-    if insights:
-        lines.append("")
-        lines.append("Active Insights:")
-        for i in insights[:5]:
-            lines.append(f"  [{i['severity']}] {i['title']} ({i['module']})")
-
-    # Active predictions
-    predictions = context.get('active_predictions', [])
-    if predictions:
-        lines.append("Active Predictions:")
-        for p in predictions[:5]:
-            lines.append(f"  {p['type']}: {p['value']} ({p['confidence']:.0%} confidence)")
-
-    # Relationship signals
-    rel_signals = context.get('relationship_signals', [])
-    drifting = [r for r in rel_signals if r.get('drifting')]
-    if drifting:
-        names = ', '.join(r['name'] for r in drifting[:3])
-        lines.append(f"Relational Drift: {names} (no contact >14d)")
-
-    # Mood status
-    mood = context.get('mood_status', {})
-    if mood.get('trend') and mood['trend'] != 'stable':
-        lines.append(f"Mood Trend: {mood['trend']}")
-
-    # Health signals
-    health_sig = context.get('health_signals', {})
-    sleep = health_sig.get('sleep_avg_7d')
-    if sleep and sleep < 6.5:
-        lines.append(f"Sleep Alert: {sleep:.1f}h avg (low)")
-
-    # Open loops
-    loops = context.get('open_loops', {})
-    if loops.get('overdue_goals'):
-        lines.append(f"Open Loops: {loops['overdue_goals']} overdue goals")
-    if loops.get('pending_friction_gates'):
-        lines.append(f"Pending Friction Gates: {loops['pending_friction_gates']}")
-
-    # Feedback profiles
-    feedback = context.get('feedback_profiles', {})
-    if feedback:
-        lines.append(f"Briefing Preference: {feedback.get('preferred_briefing_length', 'standard')}")
-
-    # Learned profile
-    learned = context.get('learned_profile_prompt', '')
-    if learned:
-        lines.append("")
-        lines.append(learned)
-
-    # Phase 5: Governance strategy injection
+    # Governance strategy (how to approach this person right now)
     strategy_block = context.get('governance_strategy_prompt', '')
     if strategy_block:
         lines.append("")
         lines.append(strategy_block)
 
     lines.append("")
-    lines.append("=== END OPERATIONAL CONTEXT ===")
+    lines.append("=== END SITUATIONAL AWARENESS ===")
     lines.append("")
 
     return '\n'.join(lines)

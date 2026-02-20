@@ -817,26 +817,29 @@ class CosContextBuilderTests(TestCase):
         ctx = build_cos_context(self.user)
         injection = format_cos_system_injection(ctx)
         self.assertIsInstance(injection, str)
-        self.assertIn('CHIEF OF STAFF OPERATIONAL CONTEXT', injection)
-        self.assertIn('END OPERATIONAL CONTEXT', injection)
+        self.assertIn('SITUATIONAL AWARENESS', injection)
+        self.assertIn('END SITUATIONAL AWARENESS', injection)
 
-    def test_injection_contains_alignment(self):
-        """System injection should contain alignment score."""
+    def test_injection_contains_priorities(self):
+        """System injection should contain life priorities."""
         from apps.core.ai_orchestrator.cos_context import (
             build_cos_context, format_cos_system_injection,
         )
         ctx = build_cos_context(self.user)
         injection = format_cos_system_injection(ctx)
-        self.assertIn('Blueprint Alignment:', injection)
+        self.assertIn('Life Priorities', injection)
 
-    def test_injection_contains_drift(self):
-        """System injection should contain drift score."""
+    def test_injection_no_raw_metrics(self):
+        """System injection should NOT contain raw alignment/drift scores."""
         from apps.core.ai_orchestrator.cos_context import (
             build_cos_context, format_cos_system_injection,
         )
         ctx = build_cos_context(self.user)
         injection = format_cos_system_injection(ctx)
-        self.assertIn('Drift Score:', injection)
+        # Raw metrics removed — they added noise without helping conversation
+        self.assertNotIn('Blueprint Alignment:', injection)
+        self.assertNotIn('Drift Score:', injection)
+        self.assertNotIn('24h Drift Risk:', injection)
 
     def test_blueprint_state_populated(self):
         """Blueprint state should be populated from blueprint engine."""
@@ -892,29 +895,24 @@ class BriefingFormatterTests(TestCase):
         response = "Hello there"
         self.assertEqual(format_cos_response(response), response)
 
-    def test_format_cos_response_with_low_alignment(self):
-        """Low alignment should add footer."""
+    def test_format_cos_response_no_metrics_footer(self):
+        """Metrics (alignment, drift) should NOT be appended to chat responses."""
         from apps.core.ai_orchestrator.briefing_formatter import format_cos_response
         response = "This is a longer response that exceeds twenty characters for testing."
+        # Low alignment — should NOT add footer (metrics are internal only)
         context = {'alignment_score': 75}
         result = format_cos_response(response, context)
-        self.assertIn('Alignment: 75%', result)
-
-    def test_format_cos_response_no_footer_high_alignment(self):
-        """High alignment should not add footer."""
-        from apps.core.ai_orchestrator.briefing_formatter import format_cos_response
-        response = "This is a longer response that exceeds twenty characters for testing."
-        context = {'alignment_score': 95}
-        result = format_cos_response(response, context)
         self.assertNotIn('Alignment:', result)
+        self.assertEqual(result, response)
 
-    def test_format_cos_response_drift_footer(self):
-        """High drift risk should add 24h risk footer."""
+    def test_format_cos_response_no_drift_footer(self):
+        """Drift risk should NOT be appended to chat responses."""
         from apps.core.ai_orchestrator.briefing_formatter import format_cos_response
         response = "This is a longer response that exceeds twenty characters for testing."
         context = {'drift_probability': {'probability_24h': 55}}
         result = format_cos_response(response, context)
-        self.assertIn('24h Risk: 55%', result)
+        self.assertNotIn('24h Risk:', result)
+        self.assertEqual(result, response)
 
     def test_build_intervention_briefing(self):
         """build_intervention_briefing should produce formatted output."""
@@ -2710,14 +2708,21 @@ class GovernanceFrameworkTests(TestCase):
         self.assertIn('accountability_style', gov)
         self.assertIn('question_frequency', gov)
 
-    def test_cos_context_format_includes_governance(self):
-        """Formatted CoS injection should include governance section."""
+    def test_cos_context_format_is_compact(self):
+        """Formatted CoS injection should be compact situational awareness.
+
+        Governance is now injected separately via build_governance_instructions()
+        to avoid duplication. The CoS context should focus on actionable
+        situational data (schedule, calendar, signals).
+        """
         from apps.core.ai_orchestrator.cos_context import (
             build_cos_context, format_cos_system_injection,
         )
         context = build_cos_context(self.user)
         formatted = format_cos_system_injection(context)
-        self.assertIn('GOVERNANCE', formatted)
+        self.assertIn('SITUATIONAL AWARENESS', formatted)
+        # Governance is NOT in cos_context — it's a separate prompt layer
+        self.assertNotIn('--- GOVERNANCE ---', formatted)
 
     def test_settings_view_renders(self):
         """CoS settings view should render for authenticated user."""

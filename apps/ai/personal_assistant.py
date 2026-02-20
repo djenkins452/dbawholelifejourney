@@ -2544,74 +2544,42 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         # (e.g., "what time is it?" queries). Urgency messaging is part of time context.
         system_prompt = self._build_system_prompt(include_time_context=True)
 
-        # Inject Chief of Staff operational context if personal assistant is enabled
-        # This gives the LLM full situational awareness of the user's blueprint,
-        # drift state, alignment score, capacity, and protected behaviors.
+        # ================================================================
+        # UNIFIED CoS SYSTEM PROMPT — PRIORITY-ORDERED
+        #
+        # The prompt is assembled in a clear hierarchy so the LLM knows
+        # what matters most. Personality and relationship instructions
+        # come FIRST (highest priority), operational context LAST.
+        #
+        # Order:
+        #   1. Calibration override (if active — supersedes everything)
+        #   2. Recalibration (if non-negotiables being missed)
+        #   3. Governance alignment (if in progress)
+        #   4. Personality & relationship (POST_CALIBRATION_PERSONALITY)
+        #   5. Learned user profile (values, identity, relationships)
+        #   6. Governance preferences (accountability style, sensitivity)
+        #   7. Operational context (schedule, calendar, key signals)
+        #   8. Base prompt (capabilities, links, data handling)
+        #   9. Pending reflections / greeting context (appended)
+        #
+        # IMPORTANT: Each layer is injected ONCE. No duplicates.
+        # ================================================================
         try:
             if getattr(self.prefs, 'personal_assistant_enabled', False):
-                from apps.core.ai_orchestrator.cos_context import (
-                    build_cos_context,
-                    format_cos_system_injection,
-                )
-                cos_context = build_cos_context(self.user)
-                cos_injection = format_cos_system_injection(cos_context)
-                system_prompt = cos_injection + "\n" + system_prompt
+                # ----------------------------------------------------------
+                # Collect all layers (each gathered once, assembled at end)
+                # ----------------------------------------------------------
+                priority_layers = []  # Prepended in order (first = highest)
+                append_layers = []    # Appended after base prompt
 
-                # Inject governance instructions (adaptive authority framework)
-                try:
-                    from apps.core.blueprint.cos_governance import (
-                        build_governance_instructions,
-                        advance_calibration_day,
-                    )
-                    gov_instructions = build_governance_instructions(self.user)
-                    if gov_instructions:
-                        system_prompt = gov_instructions + "\n" + system_prompt
-                    # Advance calibration day once per day on first interaction
-                    advance_calibration_day(self.user)
-                except Exception as gov_err:
-                    logger.debug("Governance injection skipped: %s", gov_err)
-
-                # Inject learned user profile (values, goals, relationships, identity)
-                try:
-                    from apps.core.ai_learning.learning_extractor import (
-                        get_profile_system_prompt,
-                    )
-                    learned_block = get_profile_system_prompt(self.user)
-                    if learned_block:
-                        system_prompt = learned_block + "\n" + system_prompt
-                except Exception as lp_err:
-                    logger.debug("Learned profile injection skipped: %s", lp_err)
-
-                # Phase 5: Governance alignment session injection
-                try:
-                    from apps.core.ai_governance.alignment_session import (
-                        build_alignment_system_injection,
-                        needs_alignment,
-                    )
-                    if needs_alignment(self.user):
-                        alignment_injection = build_alignment_system_injection(self.user)
-                        if alignment_injection:
-                            system_prompt = alignment_injection + "\n" + system_prompt
-                except Exception:
-                    pass  # Alignment must never break chat
-
-                # Phase 5: Recalibration injection (if non-negotiables being missed)
-                try:
-                    from apps.core.ai_governance.recalibration import (
-                        build_recalibration_injection,
-                    )
-                    recal_injection = build_recalibration_injection(self.user)
-                    if recal_injection:
-                        system_prompt = recal_injection + "\n" + system_prompt
-                except Exception:
-                    pass  # Recalibration must never break chat
-
-                # Phase 5: Conversational calibration injection
+                # Layer 1-3: Special session overrides (calibration, recal, alignment)
+                # These are mutually exclusive in practice — only one is active
                 try:
                     from apps.core.blueprint.cos_governance import (
                         build_calibration_system_injection,
                         get_calibration_state,
                         mark_calibration_welcome_shown,
+                        advance_calibration_day,
                     )
                     cal_state = get_calibration_state(self.user)
                     logger.info(
@@ -2633,23 +2601,83 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                              else 'EMPTY'),
                         )
                         if cal_injection:
-                            # PREPEND so calibration overrides all other
-                            # instructions (base prompt, CoS context, etc.)
-                            system_prompt = (
-                                cal_injection + "\n\n" + system_prompt
-                            )
+                            priority_layers.append(cal_injection)
                             if not cal_state['welcome_shown']:
                                 mark_calibration_welcome_shown(self.user)
-                                # Flag so answer recording skips this cycle
-                                # (user is acknowledging welcome, not answering)
                                 self._calibration_welcome_just_shown = True
+                    # Advance calibration day once per day on first interaction
+                    advance_calibration_day(self.user)
                 except Exception as e:
                     logger.error(
                         "Calibration injection FAILED: %s", e,
                         exc_info=True
                     )
 
-                # Inject pending reflection context
+                # Recalibration (if non-negotiables being missed)
+                try:
+                    from apps.core.ai_governance.recalibration import (
+                        build_recalibration_injection,
+                    )
+                    recal_injection = build_recalibration_injection(self.user)
+                    if recal_injection:
+                        priority_layers.append(recal_injection)
+                except Exception:
+                    pass
+
+                # Governance alignment session
+                try:
+                    from apps.core.ai_governance.alignment_session import (
+                        build_alignment_system_injection,
+                        needs_alignment,
+                    )
+                    if needs_alignment(self.user):
+                        alignment_injection = build_alignment_system_injection(self.user)
+                        if alignment_injection:
+                            priority_layers.append(alignment_injection)
+                except Exception:
+                    pass
+
+                # Layer 4: Governance instructions (personality + preferences)
+                # This includes POST_CALIBRATION_PERSONALITY when calibration
+                # is complete — the core relational instructions.
+                try:
+                    from apps.core.blueprint.cos_governance import (
+                        build_governance_instructions,
+                    )
+                    gov_instructions = build_governance_instructions(self.user)
+                    if gov_instructions:
+                        priority_layers.append(gov_instructions)
+                except Exception as gov_err:
+                    logger.debug("Governance injection skipped: %s", gov_err)
+
+                # Layer 5: Learned user profile (values, identity, relationships)
+                # Injected ONCE here — removed from cos_context to avoid duplication.
+                try:
+                    from apps.core.ai_learning.learning_extractor import (
+                        get_profile_system_prompt,
+                    )
+                    learned_block = get_profile_system_prompt(self.user)
+                    if learned_block:
+                        priority_layers.append(learned_block)
+                except Exception as lp_err:
+                    logger.debug("Learned profile injection skipped: %s", lp_err)
+
+                # Layer 6: Operational context (schedule, calendar, key signals)
+                # This is COMPACT — only what the LLM needs to be situationally aware.
+                try:
+                    from apps.core.ai_orchestrator.cos_context import (
+                        build_cos_context,
+                        format_cos_system_injection,
+                    )
+                    cos_context = build_cos_context(self.user)
+                    cos_injection = format_cos_system_injection(cos_context)
+                    # Append operational context AFTER personality layers
+                    # so the LLM prioritizes relationship over raw data.
+                    append_layers.append(cos_injection)
+                except Exception as cos_ctx_err:
+                    logger.debug("CoS context skipped: %s", cos_ctx_err)
+
+                # Pending reflections (check-ins after events)
                 try:
                     from apps.core.blueprint.reflection_engine import deliver_pending_reflections
                     pending_refs = deliver_pending_reflections(self.user)
@@ -2665,9 +2693,16 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                             "treat it as a reflection response. Otherwise, "
                             "naturally mention the check-in when appropriate."
                         )
-                        system_prompt += "\n" + "\n".join(ref_lines)
+                        append_layers.append("\n".join(ref_lines))
                 except Exception as ref_err:
                     logger.debug("Reflection context injection skipped: %s", ref_err)
+
+                # ----------------------------------------------------------
+                # Assemble final prompt: priority layers → base → appended
+                # ----------------------------------------------------------
+                assembled_parts = priority_layers + [system_prompt] + append_layers
+                system_prompt = "\n\n".join(part for part in assembled_parts if part)
+
         except Exception as cos_err:
             logger.debug("CoS context injection skipped: %s", cos_err)
 
@@ -2939,19 +2974,19 @@ Rules for voice responses:
 User's new message: {message}{image_note}
 
 Rules for this response:
-- Answer the question directly and concisely. Lead with the data.
-- {"Give specific data-driven insights with real numbers. Do NOT suggest pages or links." if is_analysis else "Answer what was asked."}
-- Do NOT end with a follow-up question (no "How do you feel about...?", "Is there anything...?", "Would you like...?")
-- Do NOT add motivational commentary ("great to see", "strong commitment", "keep it up")
-- If following up on previous conversation, build on it - don't repeat
-- Keep it SHORT. 2-3 sentences for simple questions. Max 5 for complex analysis."""
+- Answer directly. Lead with the data when you have it.
+- {"Give specific data-driven insights with real numbers." if is_analysis else "Answer what was asked."}
+- Be conversational and natural — speak like someone who knows this person
+- If they're sharing something personal, engage with it genuinely before moving to action
+- If following up on previous conversation, build on it naturally
+- Keep it concise but don't be terse. Match the depth of their message."""
 
-        # Dynamic token limit - give more room for analytical/complex responses
-        max_tokens = 500 if (is_analysis or is_asking_about_tasks) else 350
+        # Dynamic token limit - give enough room for natural, complete responses
+        max_tokens = 600 if (is_analysis or is_asking_about_tasks) else 450
 
-        # Lower temperature for data-heavy responses to reduce hallucination
+        # Temperature: warm enough for natural conversation, lower for data accuracy
         has_personal_data = personal_data_result.get('has_data', False)
-        temperature = 0.3 if (has_personal_data or is_analysis or is_asking_about_tasks) else 0.5
+        temperature = 0.4 if (has_personal_data or is_analysis or is_asking_about_tasks) else 0.65
 
         try:
             response = ai_service._call_api(
@@ -2962,16 +2997,6 @@ Rules for this response:
                 image_mime_type=image_mime_type,
                 temperature=temperature,
             ) or self._get_fallback_response(message)
-
-            # Apply CoS executive formatting if context was injected
-            try:
-                if getattr(self.prefs, 'personal_assistant_enabled', False):
-                    from apps.core.ai_orchestrator.briefing_formatter import format_cos_response
-                    from apps.core.ai_orchestrator.cos_context import build_cos_context
-                    cos_ctx = build_cos_context(self.user)
-                    response = format_cos_response(response, cos_ctx)
-            except Exception:
-                pass
 
             return response
         except Exception as e:

@@ -62,7 +62,7 @@ except ImportError:
     SENTRY_AVAILABLE = False
 
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
-OPENAI_MODEL = os.environ.get('OPENAI_MODEL', 'gpt-4o-mini')
+OPENAI_MODEL = os.environ.get('OPENAI_MODEL', 'gpt-4o')
 OPENAI_VISION_MODEL = os.environ.get('OPENAI_VISION_MODEL', 'gpt-4o')
 
 # Claude Code API Key for task fetching

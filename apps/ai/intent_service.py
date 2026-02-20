@@ -186,13 +186,21 @@ class IntentService:
 
     def _build_intent_system_prompt(self) -> str:
         """Build the system prompt for intent recognition."""
-        return """You are an intent recognition system for a personal wellness app called "Whole Life Journey".
+        today = timezone.now().date()
+        today_str = today.strftime('%Y-%m-%d')
+        weekday = today.strftime('%A')
+
+        return f"""You are an intent recognition system for a personal wellness app called "Whole Life Journey".
+
+TODAY'S DATE: {today_str} ({weekday})
 
 Your job is to identify when the user wants to perform an action (log data, create entries, save items), and extract the relevant parameters.
 
 IMPORTANT RULES:
 1. Only call a function if the user clearly intends to perform an action
 2. Call the appropriate function based on the user's intent - not just health actions
+3. When the user says "today", use {today_str}. When they say "tomorrow", calculate the next day from {today_str}
+4. ALWAYS resolve relative dates (today, tomorrow, next Monday, etc.) to YYYY-MM-DD format using today's date above
 
 HEALTH LOGGING:
 - Heart rate: Extract BPM value. Default context to 'resting' unless specified
@@ -249,9 +257,17 @@ FAITH:
 JOURNAL:
 - "I'm grateful for my family" → add_gratitude(gratitude="my family")
 
-LIFE:
+LIFE/TASKS:
 - "add task to call mom" → create_task(title="Call mom")
 - "remind me to buy groceries" → create_task(title="Buy groceries")
+
+CALENDAR EVENTS:
+- "add to my calendar 5am Wake Up for tomorrow" → create_event(title="Wake Up", start_date="<tomorrow's YYYY-MM-DD>", start_time="05:00")
+- "schedule a meeting at 2pm today" → create_event(title="Meeting", start_date="{today_str}", start_time="14:00")
+- "add Bible Study Wednesday 6pm-8pm" → create_event(title="Bible Study", start_date="<next Wednesday YYYY-MM-DD>", start_time="18:00", end_time="20:00", event_type="faith")
+- "put Pickleball on my calendar for Friday 6pm" → create_event(title="Pickleball", start_date="<next Friday YYYY-MM-DD>", start_time="18:00", event_type="health")
+
+IMPORTANT: For create_event, ALWAYS resolve relative dates to YYYY-MM-DD format using today's date ({today_str}).
 
 Examples of messages that should NOT trigger functions:
 - "how are you?"
@@ -259,6 +275,8 @@ Examples of messages that should NOT trigger functions:
 - "tell me about fasting"
 - "should I take my medicine?"
 - "what does John 3:16 say?" (asking about content, not saving)
+- "I wake up at 5am every day" (sharing routine info, NOT scheduling an event)
+- "my daily schedule is..." (sharing context, NOT creating events — unless they explicitly say "add to calendar")
 """
 
     def _check_validation(self, intent_type: str, parameters: dict, user) -> tuple:

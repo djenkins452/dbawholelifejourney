@@ -11,6 +11,10 @@
 
 ## 2026-02-20
 
+- **Fix: CoS date hallucination and broken intent routing** — The intent recognition system had NO knowledge of today's date. When users said "tomorrow", OpenAI hallucinated a random date (e.g., Oct 04 instead of Feb 20). Fixed by: (1) injecting today's date + weekday into the intent system prompt, (2) adding explicit calendar event examples with relative date resolution, (3) updating the `create_event` tool to accept "today"/"tomorrow" strings, (4) fixing `handle_create_event` to check orchestrator resolved time first with proper fallback chain, (5) adding `LIFE_INTENTS` to `TIME_AWARE_INTENTS` so the time pipeline enriches calendar events. Also added negative examples to prevent the AI from triggering create_event when users share routine info ("I wake up at 5am every day").
+  - Files: `apps/ai/intent_service.py`, `apps/ai/intents/life_intents.py`, `apps/ai/action_handlers.py`, `apps/core/ai_orchestrator/intent_engine.py`
+  - Why: User said "add to my calendar 5:00am Wake Up for tomorrow" and CoS scheduled it for Oct 04 instead of Feb 20.
+
 - **Fix: CoS personality regression after calibration** — The Chief of Staff AI had a warm, attentive personality during the "Getting to Know You" calibration phase, but lost it completely when switching to normal working mode. The calibration phase used a 206-line mandatory override that created relational behavior (reflect back what user shared, connect dots, reference what you know). After calibration completed, this override returned empty string — nothing carried the personality forward. Added a `POST_CALIBRATION_PERSONALITY` block to `build_governance_instructions()` that fires when `calibration_complete = True`, carrying the relational quality into working mode while enabling action execution. Also fixed stale Calendar link in the assistant's base prompt (`/life/calendar/` → `/calendar/`).
   - Files: `apps/core/blueprint/cos_governance.py`, `apps/ai/personal_assistant.py`
   - Why: User reported CoS became "stupid" after calibration — gave confused, irrelevant responses (e.g., suggested workout logging when asked to update calendar with daily schedule).

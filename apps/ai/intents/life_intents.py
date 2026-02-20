@@ -94,7 +94,7 @@ LIFE_INTENT_TOOLS = [
                     },
                     "start_date": {
                         "type": "string",
-                        "description": "Event date (YYYY-MM-DD format)"
+                        "description": "Event date in YYYY-MM-DD format. You can also pass 'today' or 'tomorrow' as literal strings if you cannot resolve the exact date."
                     },
                     "start_time": {
                         "type": "string",

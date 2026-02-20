@@ -1936,18 +1936,26 @@ class ActionHandler:
         from datetime import datetime as dt
 
         try:
-            # Parse date
-            try:
-                event_date = dt.strptime(start_date, '%Y-%m-%d').date()
-            except ValueError:
-                # Try relative dates
-                today = self._get_user_today()
-                if start_date.lower() == 'today':
+            today = self._get_user_today()
+
+            # Parse date — check orchestrator resolved time first
+            resolved_at = kwargs.get('recorded_at')
+            if resolved_at and hasattr(resolved_at, 'date'):
+                event_date = resolved_at.date()
+            elif start_date.lower() in ('today', 'now'):
+                event_date = today
+            elif start_date.lower() == 'tomorrow':
+                event_date = today + timedelta(days=1)
+            else:
+                try:
+                    event_date = dt.strptime(start_date, '%Y-%m-%d').date()
+                except ValueError:
+                    # Last resort — default to today
                     event_date = today
-                elif start_date.lower() == 'tomorrow':
-                    event_date = today + timedelta(days=1)
-                else:
-                    event_date = today
+                    logger.warning(
+                        "Could not parse start_date '%s', defaulting to today",
+                        start_date
+                    )
 
             # Parse times
             parsed_start_time = None

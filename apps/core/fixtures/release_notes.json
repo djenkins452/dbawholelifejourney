@@ -1,6 +1,22 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 62,
+        "fields": {
+            "title": "Chief of Staff Calendar Scheduling Fix",
+            "description": "Fixed a bug where your Chief of Staff would schedule calendar events on the wrong date when you said 'tomorrow' or 'today'. The AI now knows the current date and correctly resolves relative dates. Calendar event examples have been improved so your CoS better understands scheduling requests.",
+            "entry_type": "fix",
+            "version": "",
+            "release_date": "2026-02-20",
+            "is_published": true,
+            "is_major": false,
+            "learn_more_url": "",
+            "created_at": "2026-02-20T00:00:00Z",
+            "updated_at": "2026-02-20T00:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 61,
         "fields": {
             "title": "Smarter Chief of Staff After Getting to Know You",

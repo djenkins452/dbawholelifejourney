@@ -81,6 +81,7 @@ TIME_AWARE_INTENTS = (
     | JOURNAL_INTENTS
     | FAITH_INTENTS
     | FITNESS_INTENTS
+    | LIFE_INTENTS
 )
 
 # All intents that might reference contextual objects

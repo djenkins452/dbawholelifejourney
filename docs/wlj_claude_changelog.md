@@ -11,6 +11,9 @@
 
 ## 2026-02-20
 
+- **Fix: CI test failures — TIME_AWARE_INTENTS over-inclusion + risk warning test assertions** — Removed `LIFE_INTENTS` and `PURPOSE_INTENTS` from `TIME_AWARE_INTENTS` since tasks/goals/events use due_date/target_date not recorded_at backdating. Added specific time-aware intents (`log_habit`, `complete_task`) instead. Fixed 4 risk warning tests expecting plural "priorities" when implementation returns singular "priority". Added 6 intents to NON_TIME_INTENTS exclusion list in registration tests.
+  - Files: `apps/core/ai_orchestrator/intent_engine.py`, `apps/core/blueprint/tests_human_language.py`, `apps/ai/tests/test_intent_registration.py`
+
 - **Feature: Time Command Center shortcut in CoS panel + Full Month calendar view** — Added a clock icon link in the Chief of Staff panel header that navigates directly to the Time Command Center. Built a full month calendar grid view (`/calendar/month/`) with: month navigation (prev/next/today), Sunday-start weekly grid showing events as color-coded chips, event detail popover on click, "+N more" expansion for busy days, responsive mobile layout. Added Month button to the dashboard view toggles and a new API endpoint (`/calendar/api/month/`) that returns events for the full month grid range including adjacent month days.
   - Files: `templates/components/assistant_panel.html`, `static/css/assistant-panel.css`, `templates/calendar_engine/dashboard.html`, `templates/calendar_engine/month.html` (NEW), `apps/calendar_engine/views.py`, `apps/calendar_engine/urls.py`
 

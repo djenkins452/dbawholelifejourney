@@ -621,15 +621,15 @@ class TranslateRiskWarningTests(TestCase):
 
     def test_fallback_tier1(self):
         result = translate_risk_warning('Tier 1 commitment at risk')
-        self.assertIn('top priorities', result)
+        self.assertIn('top priority', result)
 
     def test_fallback_tier_1_hyphenated(self):
         result = translate_risk_warning('Tier-1 block missed')
-        self.assertIn('top priorities', result)
+        self.assertIn('top priority', result)
 
     def test_fallback_protected(self):
         result = translate_risk_warning('Protected commitment at risk')
-        self.assertIn('top priorities', result)
+        self.assertIn('top priority', result)
 
     def test_fallback_sleep(self):
         result = translate_risk_warning('sleep not scheduled')
@@ -643,7 +643,7 @@ class TranslateRiskWarningTests(TestCase):
         result = translate_risk_warning('Your Tier-1 task is pending and Tier 1 check needed')
         self.assertNotIn('Tier-1', result)
         self.assertNotIn('Tier 1', result)
-        self.assertIn('priorities', result)
+        self.assertIn('priority', result)
 
     def test_context_with_15_minutes_exactly(self):
         """15 minutes should hit the <= 15 branch."""

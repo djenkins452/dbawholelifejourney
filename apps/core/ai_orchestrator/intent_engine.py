@@ -88,9 +88,9 @@ TIME_AWARE_INTENTS = (
     | JOURNAL_INTENTS
     | FAITH_INTENTS
     | FITNESS_INTENTS
-    | LIFE_INTENTS
-    | PURPOSE_INTENTS
     | TRANSFORMATION_INTENTS
+    # Specific time-aware intents from other categories
+    | {"log_habit", "complete_task"}
 )
 
 # All intents that might reference contextual objects

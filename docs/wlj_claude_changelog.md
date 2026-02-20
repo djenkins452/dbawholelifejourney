@@ -9575,3 +9575,13 @@ This uses `or ''` to convert any falsy value (None, empty string, missing key) t
 - `templates/life/home.html` — 3 calendar links updated
 
 **Why:** Calendar Engine had no navigation entry — users could only reach it by typing the URL directly.
+
+## 2026-02-19 — Calendar Manage Date Format
+
+**Changes:**
+- Changed date display format from `YYYY-MM-DD` to `MM/DD/YYYY` on Manage Events table
+
+**Files Modified:**
+- `templates/calendar_engine/manage.html` — `formatDT()` JS function
+
+**Why:** User preference for US date format.

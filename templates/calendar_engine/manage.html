@@ -312,7 +312,7 @@
         var m = String(d.getMinutes()).padStart(2,'0');
         var ampm = h >= 12 ? 'pm' : 'am';
         h = h % 12 || 12;
-        return d.getFullYear() + '-' + month + '-' + day + ' ' + h + ':' + m + ampm;
+        return month + '/' + day + '/' + d.getFullYear() + ' ' + h + ':' + m + ampm;
     }
 
     function toLocalInput(isoStr) {

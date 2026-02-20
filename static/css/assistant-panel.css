@@ -1916,6 +1916,47 @@ body.has-desktop-nav .desktop-main-area {
     margin-bottom: 3px;
 }
 
+/* Chat timestamps */
+.ap-msg-time {
+    font-size: 10px;
+    color: var(--color-text-muted, #9ca3af);
+    margin-top: -6px;
+    margin-bottom: 4px;
+    padding: 0 4px;
+}
+.ap-msg-time.user {
+    align-self: flex-end;
+    text-align: right;
+}
+.ap-msg-time.assistant {
+    align-self: flex-start;
+    text-align: left;
+}
+
+/* Date separator between days */
+.ap-date-separator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 12px 0 6px;
+    width: 100%;
+}
+.ap-date-separator::before,
+.ap-date-separator::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--color-border, #e5e7eb);
+}
+.ap-date-separator span {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--color-text-muted, #9ca3af);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+}
+
 .ap-chat-message-image {
     max-width: 100%;
     max-height: 120px;

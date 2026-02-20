@@ -11,6 +11,12 @@
 
 ## 2026-02-20
 
+- **Enhancement: Chat timestamps and date separators in CoS panel** — Each chat message now shows a time (e.g. "2:30 PM") below the bubble, aligned to match the message side (right for user, left for assistant). When scrolling back through history, a date separator line appears at each day boundary showing "Today", "Yesterday", or the full date (e.g. "Monday, Feb 19"). Works for both historical messages (using `created_at` from API) and live messages (using current time). Date state resets correctly on history reload and conversation clear.
+  - Files: `templates/components/assistant_panel.html`, `static/css/assistant-panel.css`
+
+- **Governance: Scoped testing policy added to CLAUDE.md** — Added explicit rule to NEVER run the full test suite (~4,400 tests) unless the user explicitly requests it. Only test changed modules and directly impacted modules. Prevents parallel sessions from blocking each other with long test runs.
+  - Files: `CLAUDE.md`
+
 - **Enhancement: CoS schedule awareness — calendar context, NLP title cleanup, morning greetings** — Three changes to make Chief of Staff behave like a real executive assistant who checks the calendar. (1) Calendar context injection: `build_cos_context()` now queries today's CalendarEvents and includes them in every LLM system prompt with time-relative status tags ([NOW], [SOON], [MISSED], [done]) plus instructions for the AI to reference the schedule proactively. (2) NLP title cleanup: `parse_quick_add()` now strips temporal keywords (tomorrow, today, tonight, next, this) and dangling prepositions (at, on, in, by, from, for, until) from event titles — fixes bug where "Pickleball tomorrow at 6pm" produced title "Pickleball tomorrow at". (3) Morning greeting enrichment: When CoS detects a greeting message, it injects schedule-aware instructions telling the AI to reference the user's day, note overdue events, and suggest adjustments — not just say "Good morning" generically. Also fixed pre-existing `_run_cos_post_scheduling` crash when passed LifeEvent instead of CalendarEvent.
   - Files: `apps/core/ai_orchestrator/cos_context.py`, `apps/calendar_engine/services/nlp_parse.py`, `apps/ai/personal_assistant.py`, `apps/ai/action_handlers.py`
 

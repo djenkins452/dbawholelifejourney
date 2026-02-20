@@ -79,10 +79,14 @@ Mobile: `max-width: 480px` | Tablet: `max-width: 768px` | Desktop: `min-width: 7
 | **Test Count** | ~4,400 tests |
 | **Git Push** | `GIT_SSH_COMMAND="ssh -p 443" git push git@ssh.github.com:djenkins452/dbawholelifejourney.git main` |
 
-**Testing:**
+**Testing (IMPORTANT — scoped tests only):**
+- **NEVER run the full test suite** (`python manage.py test`) unless the user explicitly asks for it
+- **ONLY test what you changed** and modules that could be directly impacted
+- ~4,400 tests take a very long time — running them all wastes time and blocks other sessions
+
 ```bash
 python manage.py test apps.health.tests.test_fitness -v 1 --failfast  # specific module
-python manage.py test -v 1                                             # all tests
+python manage.py test apps.health apps.journal -v 1 --failfast        # multiple affected apps
 python manage.py check                                                 # check for issues
 ```
 **Migrations:** `python manage.py makemigrations && python manage.py migrate`

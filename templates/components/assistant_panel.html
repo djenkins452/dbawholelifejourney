@@ -249,6 +249,7 @@
     var hasMessages = false;
     var attachedImage = null; // { data: base64, mimeType: string }
     var calibrationAutoStarted = false;
+    var lastDisplayedDate = null; // Track for date separator headers
 
     /* ---- Helpers ---- */
     function getCsrfToken() {
@@ -345,10 +346,67 @@
     }
 
     /* ================================================================
+       TIMESTAMP FORMATTING
+       ================================================================ */
+    function formatTime(dateObj) {
+        var h = dateObj.getHours();
+        var m = dateObj.getMinutes();
+        var ampm = h >= 12 ? 'PM' : 'AM';
+        h = h % 12 || 12;
+        return h + ':' + (m < 10 ? '0' : '') + m + ' ' + ampm;
+    }
+
+    function formatDateLabel(dateObj) {
+        var today = new Date();
+        var yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+
+        var d = dateObj.getDate();
+        var m = dateObj.getMonth();
+        var y = dateObj.getFullYear();
+
+        if (d === today.getDate() && m === today.getMonth() && y === today.getFullYear()) {
+            return 'Today';
+        }
+        if (d === yesterday.getDate() && m === yesterday.getMonth() && y === yesterday.getFullYear()) {
+            return 'Yesterday';
+        }
+        var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        var days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+        return days[dateObj.getDay()] + ', ' + months[m] + ' ' + d + (y !== today.getFullYear() ? ', ' + y : '');
+    }
+
+    function getDateKey(dateObj) {
+        return dateObj.getFullYear() + '-' + (dateObj.getMonth() + 1) + '-' + dateObj.getDate();
+    }
+
+    function addDateSeparator(container, dateObj) {
+        var key = getDateKey(dateObj);
+        if (lastDisplayedDate === key) return;
+        lastDisplayedDate = key;
+        var sep = document.createElement('div');
+        sep.className = 'ap-date-separator';
+        sep.innerHTML = '<span>' + formatDateLabel(dateObj) + '</span>';
+        container.appendChild(sep);
+    }
+
+    /* ================================================================
        CHAT MESSAGES
        ================================================================ */
     function addMessage(container, content, isUser, scroll, imageDataUrl, msgData) {
         if (typeof scroll === 'undefined') scroll = true;
+
+        // Resolve timestamp: from API data, or now for live messages
+        var msgDate = null;
+        if (msgData && msgData.created_at) {
+            msgDate = new Date(msgData.created_at);
+        } else {
+            msgDate = new Date();
+        }
+
+        // Date separator (e.g. "Today", "Yesterday", "Monday, Feb 19")
+        addDateSeparator(container, msgDate);
+
         var msg = document.createElement('div');
         msg.className = 'ap-chat-message ' + (isUser ? 'user' : 'assistant');
 
@@ -404,7 +462,13 @@
             }
         }
 
+        // Timestamp below the message bubble
+        var ts = document.createElement('div');
+        ts.className = 'ap-msg-time ' + (isUser ? 'user' : 'assistant');
+        ts.textContent = formatTime(msgDate);
         container.appendChild(msg);
+        container.appendChild(ts);
+
         if (scroll) container.scrollTop = container.scrollHeight;
         hasMessages = true;
     }
@@ -424,6 +488,7 @@
     }
 
     function showEmptyState(container) {
+        lastDisplayedDate = null;
         var isCalibrating = panel && panel.getAttribute('data-calibration-active') === 'true';
         if (isCalibrating) {
             container.innerHTML =
@@ -559,6 +624,7 @@
                 }
 
                 container.innerHTML = '';
+                lastDisplayedDate = null;
                 data.messages.forEach(function(msg) {
                     addMessage(container, msg.content, msg.role === 'user', false,
                         msg.image_data_url || null, msg);
@@ -589,6 +655,7 @@
             }
             if (needsUpdate) {
                 container.innerHTML = '';
+                lastDisplayedDate = null;
                 if (data.messages.length > 0) {
                     data.messages.forEach(function(msg) {
                         addMessage(container, msg.content, msg.role === 'user', false,

@@ -11,6 +11,9 @@
 
 ## 2026-02-20
 
+- **Fix: CoS create_event writes to CalendarEvent instead of LifeEvent** — When users said "add to my calendar Wake Up for 5:00am tomorrow", CoS responded "✓ Scheduled" but the event never appeared in the Time Command Center. Root cause: `handle_create_event()` created `LifeEvent` (apps/life) but the calendar UI displays `CalendarEvent` (apps/calendar_engine) — two completely disconnected database tables. Rewrote `handle_create_event()` to create `CalendarEvent` with timezone-aware `start_dt`/`end_dt` fields, domain resolution from event_type, and proper `KIND_MANUAL`/`SOURCE_NONE` defaults. Updated `_run_cos_post_scheduling()` to extract date/time from CalendarEvent's datetime fields for conflict detection and drift/pressure recompute.
+  - Files: `apps/ai/action_handlers.py`
+
 - **Fix: CI test failures — TIME_AWARE_INTENTS over-inclusion + risk warning test assertions** — Removed `LIFE_INTENTS` and `PURPOSE_INTENTS` from `TIME_AWARE_INTENTS` since tasks/goals/events use due_date/target_date not recorded_at backdating. Added specific time-aware intents (`log_habit`, `complete_task`) instead. Fixed 4 risk warning tests expecting plural "priorities" when implementation returns singular "priority". Added 6 intents to NON_TIME_INTENTS exclusion list in registration tests.
   - Files: `apps/core/ai_orchestrator/intent_engine.py`, `apps/core/blueprint/tests_human_language.py`, `apps/ai/tests/test_intent_registration.py`
 

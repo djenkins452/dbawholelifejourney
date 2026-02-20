@@ -305,6 +305,14 @@ FITNESS:
 
 IMPORTANT: For create_event, ALWAYS resolve relative dates to YYYY-MM-DD format using today's date ({today_str}).
 
+LOGGING LIFE EVENTS (wake up, sleep, arrivals, etc.):
+When the user says "add that I woke up at 6:30am" or "log that I went to bed at 10pm" or similar life-tracking statements with "add", "log", or "record", create a calendar event to record it:
+- "add that I woke up today at 6:30am" → create_event(title="Woke Up", start_date="{today_str}", start_time="06:30", event_type="personal")
+- "log that I went to bed at 10pm" → create_event(title="Bedtime", start_date="{today_str}", start_time="22:00", event_type="personal")
+- "record that I arrived at work at 8am" → create_event(title="Arrived at Work", start_date="{today_str}", start_time="08:00", event_type="work")
+
+The key trigger words are "add that", "log that", "record that" — these mean the user wants an ENTRY CREATED, not just a conversational acknowledgment.
+
 Examples of messages that should NOT trigger functions:
 - "how are you?"
 - "what's my heart rate history?"

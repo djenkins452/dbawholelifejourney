@@ -1918,29 +1918,35 @@ class ActionHandler:
                              location: str = "", event_type: str = "personal",
                              reminder_minutes: int = None, **kwargs) -> ActionResult:
         """
-        Create a calendar event with CoS integration.
+        Create a CalendarEvent (Time Command Center) with CoS integration.
 
-        After creating the LifeEvent, runs the CoS post-scheduling chain:
+        Creates in calendar_engine.CalendarEvent so events appear in the
+        Time Command Center at /calendar/.
+
+        After creating the event, runs the CoS post-scheduling chain:
         1. Conflict detection (priority_engine)
         2. Drift/pressure recomputation
         3. Google Calendar sync (if connected)
 
         Args:
             title: Event title
-            start_date: Event date (YYYY-MM-DD)
+            start_date: Event date (YYYY-MM-DD, 'today', 'tomorrow')
             description: Event description
             start_time: Start time (HH:MM)
             end_time: End time (HH:MM)
             is_all_day: Whether all-day event
             location: Event location
-            event_type: Type of event
+            event_type: Type of event (personal, work, health, etc.)
             reminder_minutes: Minutes before for reminder
         """
-        from apps.life.models import LifeEvent
+        from apps.calendar_engine.models import CalendarEvent
         from datetime import datetime as dt
+        from django.utils import timezone as tz
 
         try:
             today = self._get_user_today()
+            user_now = self._get_user_now()
+            user_tz = user_now.tzinfo
 
             # Parse date — check orchestrator resolved time first
             resolved_at = kwargs.get('recorded_at')
@@ -1954,7 +1960,6 @@ class ActionHandler:
                 try:
                     event_date = dt.strptime(start_date, '%Y-%m-%d').date()
                 except ValueError:
-                    # Last resort — default to today
                     event_date = today
                     logger.warning(
                         "Could not parse start_date '%s', defaulting to today",
@@ -1977,23 +1982,64 @@ class ActionHandler:
                 except ValueError:
                     pass
 
-            event = LifeEvent.objects.create(
+            # Build timezone-aware start_dt / end_dt for CalendarEvent
+            actual_all_day = is_all_day or (parsed_start_time is None)
+
+            if actual_all_day:
+                # All-day: midnight to midnight
+                import datetime as datetime_mod
+                naive_start = dt.combine(event_date, datetime_mod.time.min)
+                naive_end = dt.combine(event_date, datetime_mod.time(23, 59, 59))
+            else:
+                naive_start = dt.combine(event_date, parsed_start_time)
+                if parsed_end_time:
+                    naive_end = dt.combine(event_date, parsed_end_time)
+                else:
+                    # Default: 1 hour after start
+                    naive_end = naive_start + timedelta(hours=1)
+
+            # Make timezone-aware using user's timezone
+            start_dt = tz.make_aware(naive_start, user_tz)
+            end_dt = tz.make_aware(naive_end, user_tz)
+
+            # Resolve domain from event_type if possible
+            domain = None
+            try:
+                from apps.purpose.models import LifeDomain
+                domain_map = {
+                    'health': 'health', 'fitness': 'health',
+                    'work': 'work', 'professional': 'work',
+                    'faith': 'faith', 'spiritual': 'faith',
+                    'family': 'family',
+                    'personal': None,  # No specific domain
+                }
+                slug = domain_map.get(event_type)
+                if slug:
+                    domain = LifeDomain.objects.filter(
+                        slug=slug, is_active=True
+                    ).first()
+            except Exception:
+                pass
+
+            event = CalendarEvent.objects.create(
                 user=self.user,
                 title=title,
                 description=description or "",
-                event_type=event_type,
-                start_date=event_date,
-                start_time=parsed_start_time,
-                end_time=parsed_end_time,
-                is_all_day=is_all_day or (parsed_start_time is None),
-                location=location or "",
-                reminder_minutes=reminder_minutes
+                start_dt=start_dt,
+                end_dt=end_dt,
+                is_all_day=actual_all_day,
+                event_kind=CalendarEvent.KIND_MANUAL,
+                source_type=CalendarEvent.SOURCE_NONE,
+                domain=domain,
             )
 
             date_str = event_date.strftime("%b %d")
-            time_str = f" at {parsed_start_time.strftime('%I:%M %p')}" if parsed_start_time else ""
+            time_str = (
+                f" at {parsed_start_time.strftime('%I:%M %p')}"
+                if parsed_start_time else ""
+            )
 
-            # Run CoS post-scheduling chain (conflict check, drift/pressure, gcal sync)
+            # Run CoS post-scheduling chain
             cos_context = self._run_cos_post_scheduling(event)
 
             # Build response with CoS awareness
@@ -2010,16 +2056,16 @@ class ActionHandler:
                 success=True,
                 message=" — ".join(response_parts),
                 created_object={
-                    'model': 'LifeEvent',
+                    'model': 'CalendarEvent',
                     'id': event.id,
                     'title': event.title,
-                    'start_date': event.start_date.isoformat(),
-                    'event_type': event.event_type
+                    'start_dt': event.start_dt.isoformat(),
+                    'event_kind': event.event_kind,
                 },
                 action_type='create_event',
                 confirmation_detail=self._build_confirmation(
                     what=f"{title} on {date_str}{time_str}",
-                    where="Organize > Calendar",
+                    where="Time Command Center",
                 )
             )
 
@@ -2031,9 +2077,11 @@ class ActionHandler:
                 error=str(e)
             )
 
-    def _run_cos_post_scheduling(self, life_event):
+    def _run_cos_post_scheduling(self, calendar_event):
         """
-        CoS post-scheduling chain — runs after LifeEvent creation.
+        CoS post-scheduling chain — runs after CalendarEvent creation.
+
+        Accepts a CalendarEvent (calendar_engine) with start_dt/end_dt fields.
 
         1. Conflict detection: checks if the new event overlaps Tier 1/2 blocks
         2. Drift/pressure recompute: updates daily drift and weekly pressure
@@ -2052,21 +2100,26 @@ class ActionHandler:
 
         user = self.user
 
+        # Extract date and time from CalendarEvent's datetime fields
+        from django.utils import timezone as tz
+        event_date = tz.localtime(calendar_event.start_dt).date()
+        event_start_time = tz.localtime(calendar_event.start_dt).time()
+        event_end_time = tz.localtime(calendar_event.end_dt).time()
+
         # --- 1. Conflict Detection ---
         try:
-            if life_event.start_time and not life_event.is_all_day:
+            if not calendar_event.is_all_day:
                 from apps.core.blueprint.architecture_engine import get_todays_plan
                 from apps.core.blueprint.models import ArchitecturePlan
 
                 plan = None
-                from django.utils import timezone as tz
                 today = tz.localdate()
 
-                if life_event.start_date == today:
+                if event_date == today:
                     plan = get_todays_plan(user)
                 else:
                     plan = ArchitecturePlan.get_active_for_date(
-                        user, life_event.start_date,
+                        user, event_date,
                     )
 
                 if plan:
@@ -2076,9 +2129,8 @@ class ActionHandler:
                         if not block.start_time or not block.end_time:
                             continue
                         # Check time overlap
-                        ev_end = life_event.end_time or life_event.start_time
-                        if (life_event.start_time < block.end_time
-                                and ev_end > block.start_time):
+                        if (event_start_time < block.end_time
+                                and event_end_time > block.start_time):
                             overlapping.append(block)
 
                     if overlapping:
@@ -2105,7 +2157,7 @@ class ActionHandler:
         # --- 2. Drift & Pressure Recompute ---
         try:
             from apps.core.blueprint.drift_engine import compute_daily_drift_score
-            compute_daily_drift_score(user, date=life_event.start_date)
+            compute_daily_drift_score(user, date=event_date)
         except Exception as e:
             logger.debug(f"CoS drift recompute skipped: {e}")
 
@@ -2113,7 +2165,7 @@ class ActionHandler:
             from apps.core.blueprint.weekly_pressure import compute_weekly_pressure
             from apps.core.blueprint.human_language import translate_capacity
 
-            pressure = compute_weekly_pressure(user, start_date=life_event.start_date, days=1)
+            pressure = compute_weekly_pressure(user, start_date=event_date, days=1)
             day_loads = pressure.get('day_loads', [])
             if day_loads:
                 _, capacity_pct = day_loads[0]
@@ -2137,7 +2189,7 @@ class ActionHandler:
                 from apps.life.services.google_calendar import CalendarSyncService
                 sync_service = CalendarSyncService(user)
                 sync_result = sync_service.sync_to_google(
-                    life_event,
+                    calendar_event,
                     credential.get_credentials_dict(),
                     calendar_id=credential.selected_calendar_id or 'primary',
                 )

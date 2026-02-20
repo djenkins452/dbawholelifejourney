@@ -293,7 +293,7 @@ Use this format: "You can do that by going to **[Feature Name]**. For easy acces
 - Habits: [click here](/purpose/habits/)
 - Intentions: [click here](/purpose/intentions/)
 - Tasks: [click here](/life/tasks/)
-- Calendar: [click here](/life/calendar/)
+- Calendar: [click here](/calendar/)
 - Projects: [click here](/life/projects/)
 - Recipes: [click here](/life/recipes/)
 - Prayer: [click here](/faith/prayers/)

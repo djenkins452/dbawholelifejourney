@@ -1,6 +1,22 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 61,
+        "fields": {
+            "title": "Smarter Chief of Staff After Getting to Know You",
+            "description": "Your Chief of Staff now retains the same warmth and attentiveness from the Getting to Know You conversation into everyday use. It reflects back what you share, connects your requests to what it already knows about you, and understands context before acting — the same personality, now with the ability to execute your requests.",
+            "entry_type": "enhancement",
+            "version": "",
+            "release_date": "2026-02-20",
+            "is_published": true,
+            "is_major": false,
+            "learn_more_url": "",
+            "created_at": "2026-02-20T00:00:00Z",
+            "updated_at": "2026-02-20T00:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 60,
         "fields": {
             "title": "Calendar Manage Events Improvements",

@@ -11,6 +11,9 @@
 
 ## 2026-02-20
 
+- **Fix: Guidance engine — false journal inactivity + duplicate weight insights** — Two bugs: (1) JournalInactivityRule read `entry_count_30d` from SAE state but the state builder stores `entries_30d`, so it always defaulted to 0 and fired "You haven't journaled recently" even for active journalers. Fixed key to match. (2) Positive health insights (e.g. "Weight trending down") appeared twice because both HealthTrendRule and PositiveReinforcementRule picked up the same insight with different dedupe keys. Fixed by excluding health-module insights from PositiveReinforcementRule since HealthTrendRule already handles them.
+  - Files: `apps/core/ai_guidance/guidance_rules.py`, `apps/core/ai_guidance/tests.py`
+
 - **Fix: CoS create_event writes to CalendarEvent instead of LifeEvent** — When users said "add to my calendar Wake Up for 5:00am tomorrow", CoS responded "✓ Scheduled" but the event never appeared in the Time Command Center. Root cause: `handle_create_event()` created `LifeEvent` (apps/life) but the calendar UI displays `CalendarEvent` (apps/calendar_engine) — two completely disconnected database tables. Rewrote `handle_create_event()` to create `CalendarEvent` with timezone-aware `start_dt`/`end_dt` fields, domain resolution from event_type, and proper `KIND_MANUAL`/`SOURCE_NONE` defaults. Updated `_run_cos_post_scheduling()` to extract date/time from CalendarEvent's datetime fields for conflict detection and drift/pressure recompute.
   - Files: `apps/ai/action_handlers.py`
 

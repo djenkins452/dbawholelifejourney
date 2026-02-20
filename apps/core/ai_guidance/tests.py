@@ -542,7 +542,7 @@ class JournalInactivityRuleTest(PGETestMixin, TestCase):
 
     def test_zero_entries_sae_state(self):
         rule = JournalInactivityRule()
-        state = {"journal": {"entry_count_30d": 0}}
+        state = {"journal": {"entries_30d": 0}}
 
         insights = MagicMock()
         journal_qs = MagicMock()
@@ -562,7 +562,7 @@ class JournalInactivityRuleTest(PGETestMixin, TestCase):
 
     def test_active_journaling_no_guidance(self):
         rule = JournalInactivityRule()
-        state = {"journal": {"entry_count_30d": 15}}
+        state = {"journal": {"entries_30d": 15}}
 
         insights = MagicMock()
         journal_qs = MagicMock()
@@ -588,24 +588,28 @@ class PositiveReinforcementRuleTest(PGETestMixin, TestCase):
 
         insight = MagicMock()
         insight.title = "Great job!"
-        insight.message = "Your running improved"
-        insight.module = "health"
+        insight.message = "Your journaling streak is impressive"
+        insight.module = "journal"
         insight.confidence_score = 0.9
         insight.evidence = {}
         insight.id = 30
 
         insights = MagicMock()
-        insights.filter.return_value.exclude.return_value.__getitem__ = (
-            lambda self, s: [insight]
-        )
-        insights.filter.return_value.exclude.return_value = [insight]
+        # Chain: filter(severity="positive").exclude(status="dismissed").exclude(module="health")[:2]
+        exclude_chain = MagicMock()
+        exclude_chain.__getitem__ = MagicMock(return_value=[insight])
+        exclude_chain2 = MagicMock()
+        exclude_chain2.__getitem__ = MagicMock(return_value=[insight])
+        # .filter().exclude().exclude()
+        insights.filter.return_value.exclude.return_value.exclude.return_value = exclude_chain
+        exclude_chain.__getitem__ = lambda self, s: [insight]
 
         predictions = MagicMock()
 
         results = rule.evaluate(self.user, state, insights, predictions)
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0]["priority"], 4)
-        self.assertEqual(results[0]["module"], "health")
+        self.assertEqual(results[0]["module"], "journal")
 
 
 # ---------------------------------------------------------------------------
@@ -619,7 +623,7 @@ class GuidanceSelectorTest(PGETestMixin, TestCase):
     def test_selector_runs_all_rules(self):
         state = {
             "goals": {"overdue_goal_count": 2},
-            "journal": {"entry_count_30d": 0},
+            "journal": {"entries_30d": 0},
         }
 
         # Create mock querysets that behave like Django QuerySets

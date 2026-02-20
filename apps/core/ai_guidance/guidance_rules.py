@@ -199,7 +199,7 @@ class JournalInactivityRule(BaseGuidanceRule):
         results = []
 
         journal_state = state.get("journal", {})
-        entry_count_30d = journal_state.get("entry_count_30d", 0)
+        entry_count_30d = journal_state.get("entries_30d", 0)
 
         # Check if user was journaling but stopped
         journal_insights = insights.filter(
@@ -250,10 +250,11 @@ class PositiveReinforcementRule(BaseGuidanceRule):
     def evaluate(self, user, state, insights, predictions):
         results = []
 
-        # Find positive insights across all modules
+        # Find positive insights across all modules, but exclude health
+        # insights since HealthTrendRule already surfaces those.
         positive_insights = insights.filter(
             severity="positive"
-        ).exclude(status="dismissed")[:2]
+        ).exclude(status="dismissed").exclude(module="health")[:2]
 
         for insight in positive_insights:
             results.append({

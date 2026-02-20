@@ -56,6 +56,16 @@ For core project context, see `CLAUDE.md` (project root).
 38. [Workout Plans & Training Splits](#workout-plans--training-splits) *(Feb 2026)*
 39. [Additional Jan-Feb 2026 Enhancements](#additional-jan-feb-2026-enhancements)
 40. [Time Command Center (Calendar Engine)](#time-command-center-calendar-engine) *(Feb 2026)*
+41. [Users & Authentication](#users--authentication)
+42. [Core Infrastructure](#core-infrastructure)
+43. [Dashboard](#dashboard)
+44. [Journal](#journal)
+45. [Life & Organization](#life--organization)
+46. [Admin Console](#admin-console)
+47. [Help System](#help-system)
+48. [Mobile API & iOS Support](#mobile-api--ios-support)
+49. [Security Assessment](#security-assessment)
+50. [Calendar Engine (Technical Reference)](#calendar-engine-technical-reference)
 
 ---
 
@@ -2914,6 +2924,700 @@ The Time Command Center (TCC) is the user's daily schedule hub. It provides mult
 ### Tests
 - 31 tests in `apps/calendar_engine/tests.py`
 - Covers: NLP parsing, recurrence, API CRUD, conflict detection, gap suggestions, domain balance, month view
+
+---
+
+## Users & Authentication
+
+**App:** `apps/users/`
+**Templates:** `templates/users/`, `templates/account/`
+
+### Overview
+The users app provides the custom User model (email-based authentication via django-allauth), UserPreferences for per-user settings, onboarding wizard, biometric/WebAuthn login, MFA, quick links, data export, and account management. It is the foundational identity layer that every other app depends on.
+
+### Features
+- **Custom User model** — Email as unique identifier (no username), avatar, date of birth, admin/staff flags
+- **UserPreferences** — One-to-one settings: theme (10 personality themes + custom), module toggles, sub-feature flags, AI settings, timezone, coaching style, CoS display name, quiet hours, notification preferences
+- **Onboarding wizard** — 6-step flow (welcome → theme → modules → AI → location → complete) enforced by middleware
+- **Biometric login** — WebAuthn/FIDO2 for Face ID, Touch ID, and security keys; multi-credential per user
+- **MFA** — Email-based 6-digit codes with 10-minute expiry and rate limiting (5/hour)
+- **Quick links** — User-defined external URL shortcuts with mobile deep linking support
+- **Data export** — GDPR-compliant export (JSON/CSV/ZIP) spanning 20+ models across all apps
+- **Account deletion** — Permanent deletion with `AccountDeletionAudit` trail
+- **Module system** — `ModuleDefinition` registry + `UserModulePreference` for bottom nav ordering (Home + 4 modules + More)
+- **Signup protection** — reCAPTCHA v3, COPPA age check (13+), geo-blocking (USA-only unless whitelisted), disposable email blocking, honeypot fields, `SignupAttempt` fraud detection with risk scoring
+
+### Key Models
+| Model | Purpose |
+|-------|---------|
+| `User` | Custom user with email auth, avatar, DOB |
+| `UserPreferences` | Per-user settings (theme, modules, AI, timezone) |
+| `WebAuthnCredential` | Biometric/FIDO2 credentials |
+| `MFAEmailCode` | Temporary 6-digit email verification codes |
+| `TermsAcceptance` | Terms of service acceptance audit trail |
+| `SignupAttempt` | Signup fraud detection with risk scoring |
+| `AccountDeletionAudit` | GDPR account deletion records |
+| `ExternalLink` | Quick link shortcuts with deep link fields |
+| `ModuleDefinition` | System-wide module registry |
+| `UserModulePreference` | Per-user module ordering and visibility |
+| `IPBlocklist` | Blocked IPs (individual or CIDR range) |
+| `DisposableEmailDomain` | Blocked temporary email services |
+| `AllowedInternationalEmail` | Whitelist for geo-block bypass |
+
+### Key Views & Endpoints
+- `/user/profile/`, `/user/profile/edit/` — Profile display and editing
+- `/user/preferences/` — Main preferences page (theme, modules, AI, timezone)
+- `/user/onboarding/start/`, `/user/onboarding/step/<step>/` — Onboarding wizard
+- `/user/accept-terms/` — Terms acceptance (enforced by middleware)
+- `/user/biometric/*` — WebAuthn registration, login, credential management (7 endpoints)
+- `/user/mfa/*` — MFA code send/verify for login and authenticated sessions (4 endpoints)
+- `/user/data-export/`, `/user/data-export/download/` — GDPR data export
+- `/user/delete-account/` — Account deletion with confirmation
+- `/user/api/quick-links/*` — Quick link CRUD (3 endpoints)
+- `/user/api/sub-feature-toggle/`, `/user/api/sub-features/` — Sub-feature management
+- `/user/api/module-order/` — Module reordering
+- `/user/api/ai-profile-builder/` — AI profile editing with streaming
+
+### Middleware
+- **TermsAcceptanceMiddleware** — Enforces terms acceptance and onboarding completion
+- **SubscriptionRequiredMiddleware** — Enforces active subscription or valid trial
+- **MFAEnforcementMiddleware** — Enforces MFA for staff and configured users
+- **TimezoneMiddleware** — Activates user's timezone per request
+
+### Key Files
+- `apps/users/models.py` — All 13 models
+- `apps/users/views.py` — 27+ views
+- `apps/users/middleware.py` — 4 middleware classes
+- `apps/users/services/data_export.py` — GDPR data export service
+- `apps/users/services/recaptcha.py` — reCAPTCHA v3 verification
+- `apps/users/services/geoip.py` — GeoIP country detection via ipinfo.io
+- `apps/users/security.py` — PII hashing (email, IP, fingerprint)
+- `apps/users/adapters.py` — Custom allauth adapter (honeypot, reCAPTCHA, signup logging)
+- `apps/users/signals.py` — Auto-create preferences, cycle tracking auto-enable
+- `apps/users/management/commands/` — create_superuser_from_env, purge_old_signups, setup_app_review_account
+
+### Tests
+- 233 tests in `apps/users/tests/`
+- Covers: signup (COPPA, reCAPTCHA, geo-blocking), onboarding wizard, biometric login, MFA, preferences, data export, module ordering, quick links, middleware
+
+### Integration Points
+- Every app imports `User` and `UserPreferences` for auth and feature flags
+- `apps/core/context_processors.py` reads module toggles and sub-feature flags
+- `apps/billing/` checks subscription status via middleware
+- `apps/mobile/` uses User for API token authentication
+- `apps/ai/` reads AI settings and coaching style for personalization
+
+---
+
+## Core Infrastructure
+
+**App:** `apps/core/`
+**Templates:** `templates/core/`, `templates/components/`
+
+### Overview
+The core app is the shared infrastructure layer providing base models, middleware, context processors, the 14-engine intelligence architecture, the Chief of Staff blueprint system, notification delivery, activity tracking, and site configuration. It serves as the orchestration hub for the entire application.
+
+### Features
+- **Base models** — `TimeStampedModel`, `SoftDeleteModel` (30-day retention + `SoftDeleteManager`), `UserOwnedModel` (ownership + source tracking)
+- **Site configuration** — `SiteConfiguration` singleton for branding, themes, feature toggles, legal links
+- **Database themes** — `Theme` model with CSS variable generation (light/dark modes)
+- **Dynamic choices** — `ChoiceCategory`/`ChoiceOption` for configurable dropdowns (mood, milestone_type, prayer_priority, etc.)
+- **Notification system** — Category-based notifications with generic foreign key, read tracking, email delivery
+- **Activity tracking** — `UserDailyActivity` per-day metrics, `UserActivityPattern` computed behavioral patterns
+- **Release notes** — `ReleaseNote`/`UserReleaseNoteView` for "What's New" feature
+- **Favorites** — `FavoritePage` (max 16) and `PageView` analytics
+- **API request logging** — `APIRequestLog` with real-time anomaly detection (burst, error rate, 404 probing, auth failures)
+- **Camera scan** — `CameraScan` for AI-powered food/medicine/receipt intake via camera
+
+### Intelligence Architecture (14 Engines)
+| Phase | Engine | Code | Location |
+|-------|--------|------|----------|
+| Interpretation | Health Trend Interpretation | HTIE | `ai_health_trends/` |
+| Interpretation | Spiritual/Life Context Mapping | SLCME | `ai_spiritual/` |
+| Interpretation | User Activity Intelligence | UAIO | `ai_activity/` |
+| Execution | Sentiment Understanding | SUE | `ai_sentiment/` |
+| Execution | Pattern & Gap Learning | GLOE | `ai_patterns/` |
+| Execution | Dynamic Briefing | DBE | `ai_briefing/` |
+| Execution | Insight Synthesis | ISE | `ai_insights/` |
+| Execution | Weekly Intelligence Report | WIRE | `ai_weekly_report/` |
+| Post-Execution | Proactive Insight | PIE | `ai_insights/` |
+| Post-Execution | Predictive Risk & Intervention | PRIE | `ai_predictions/` |
+| Post-Execution | State Awareness | SAE | `ai_state/` |
+| Post-Execution | Proactive Guidance | PGE | `ai_guidance/` |
+| Post-Execution | Evidence & Explainability | E3 | `ai_explain/` |
+| Post-Execution | Delivery & Notification | DNE | `ai_delivery/` |
+
+### Blueprint & CoS System
+- `apps/core/blueprint/` — Personal Operating Blueprint with alignment, drift, intervention, recovery, and reflection engines
+- `apps/core/blueprint/cos_governance.py` — Calibration system, daily briefing generation, calendar context injection, morning greeting logic, non-negotiables enforcement
+- Models: `ArchitecturePlan`, `PersonalOperatingBlueprint`, `NonNegotiable`, `ScheduledBlock`, `DriftEvent`, `DriftScore`, `InterventionLog`
+
+### Middleware
+- **CSPNonceMiddleware** — Per-request nonce for Content Security Policy
+- **ContentSecurityPolicyMiddleware** — Nonce-based CSP headers
+- **PageViewTrackingMiddleware** — Records page views and daily activity
+- **NoCacheHTMLMiddleware** — Prevents HTML caching
+- **APIRequestLoggingMiddleware** — API logging with anomaly detection
+
+### Context Processors
+- `site_context()` — Site config, branding, reCAPTCHA key
+- `theme_context()` — Theme, accent color, module toggles, sub-feature flags, CoS name
+- `csp_nonce()` — CSP nonce for inline scripts
+- `favorites_context()` — Favorites menu data
+- `quick_links_context()` — External quick links
+- `navigation_modules_context()` — Mobile/desktop nav modules
+- `notifications_context()` — Unread notification count
+- `help_context()` — Auto-provide help_context_id by URL matching
+
+### Key Files
+- `apps/core/models.py` — Base models, SiteConfiguration, Theme, Tag, Category, Notification, CameraScan, ReleaseNote, etc.
+- `apps/core/views.py` — Landing page, notifications, favorites, restore, search history, 404 reporting, health check
+- `apps/core/urls.py` — Routes for landing, notifications, favorites, API endpoints
+- `apps/core/middleware.py` — CSP, page view tracking, API logging
+- `apps/core/context_processors.py` — 8 context processors
+- `apps/core/ai_orchestrator/` — Intelligence engine coordination
+- `apps/core/blueprint/` — Blueprint + CoS governance system
+- `apps/core/ai_state/`, `ai_guidance/`, `ai_briefing/`, etc. — Individual engine implementations
+- `apps/core/encryption.py` — AES encryption utilities
+- `apps/core/rate_limiting.py` — Rate limiting helpers
+- `apps/core/management/commands/load_initial_data.py` — Fixture loader for themes, choices, release notes, help topics, teaching destinations
+
+### Tests
+- 160 tests in `apps/core/tests/`
+- Covers: soft delete, notifications, favorites, context processors, API logging, activity patterns, release notes, blueprint engines
+
+### Integration Points
+- Every app inherits from `UserOwnedModel`, `SoftDeleteModel`, or `TimeStampedModel`
+- Intelligence engines consume data from health, journal, faith, life, purpose, and finance apps
+- Notification system delivers across SMS (`apps/sms`), email, and in-app channels
+- Blueprint/CoS system integrates with calendar engine for schedule awareness
+
+---
+
+## Dashboard
+
+**App:** `apps/dashboard/`
+**Templates:** `templates/dashboard/`, `templates/dashboard/tiles/`
+
+### Overview
+The dashboard is the main landing page after login. It aggregates data from every module into configurable tiles, provides AI-generated insights, daily briefings, the Chief of Staff command brief, weather, transformation tracking, and personalized encouragement.
+
+### Features
+- **Configurable tiles** — 30+ tile types with drag-and-drop reordering, show/hide, sizing (small/medium/large)
+- **Module-aware rendering** — Tiles conditionally display based on enabled modules and user data
+- **AI insights** — Pattern analysis across all modules with configurable coaching styles
+- **Daily briefing** — DBE-generated intelligence summary with engagement tracking
+- **Weekly report** — WIRE-generated weekly analysis
+- **Command brief** — CoS architecture, alignment, drift, capacity, and non-negotiable status
+- **State snapshot** — SAE real-time state across all domains
+- **Guidance panel** — PGE evidence-based coaching (limit 5 active)
+- **Transformation tracker** — Dedicated dashboard for body transformation metrics
+- **Daily encouragement** — Curated messages with optional Scripture references
+- **Weather widget** — Open-Meteo API with extreme weather alerts
+- **Quarterly reviews** — Auto-generated retrospectives on quarter boundaries
+- **Celebrations & nudges** — Achievement recognition and accountability reminders
+
+### Key Models
+| Model | Purpose |
+|-------|---------|
+| `DailyEncouragement` | Curated messages with scripture, themes, seasonal targeting |
+
+### Key Views & Endpoints
+- `/dashboard/` — Main dashboard (DashboardView)
+- `/dashboard/transformation/` — Transformation metrics dashboard
+- `/dashboard/api/config/` — Dashboard tile configuration (GET/POST)
+- `/dashboard/api/config/reorder/` — Tile drag-and-drop reordering
+- `/dashboard/api/config/tile/<tile_id>/` — Individual tile settings
+- `/dashboard/api/weight-data/` — Weight chart data API
+- `/dashboard/api/transformation-data/` — Transformation chart data API
+- `/dashboard/tiles/journal/`, `/dashboard/tiles/encouragement/` — HTMX tile endpoints
+- `/dashboard/api/quarterly-review/dismiss/` — Dismiss quarterly review
+- `/dashboard/debug/` — Staff-only diagnostic endpoint
+
+### Key Files
+- `apps/dashboard/models.py` — DailyEncouragement model
+- `apps/dashboard/views.py` — DashboardView (main), TransformationDashboardView, tile APIs
+- `apps/dashboard/services/config_service.py` — Tile configuration management (30+ definitions)
+- `apps/dashboard/cache.py` — Signal-based cache invalidation (5-minute timeout, section-based)
+- `apps/dashboard/services/weather.py` — Open-Meteo weather API integration
+- `templates/dashboard/home.html` — Main dashboard layout
+- `templates/dashboard/transformation.html` — Transformation dashboard
+- `templates/dashboard/tiles/` — 26 tile templates (ai_insights, daily_briefing, medicine_schedule, etc.)
+
+### Tests
+- 108 tests in `apps/dashboard/tests/`
+- Covers: dashboard rendering, tile configuration, cache invalidation, weather service, transformation tracker, encouragement, API endpoints
+
+### Integration Points
+- Reads from every major app: journal (entries, streaks), health (weight, medicines, workouts, vitals, fasting, cycle), faith (prayers, verses), life (tasks, events, projects, birthdays), purpose (goals, habits), finance (recurring transactions), capture (pending uploads)
+- Integrates SAE, DBE, WIRE, PGE for intelligence tiles
+- Blueprint system provides command brief and alignment score
+- Dashboard cache invalidated by signals from health, journal, faith, life, purpose, scan, capture apps
+
+---
+
+## Journal
+
+**App:** `apps/journal/`
+**Templates:** `apps/journal/templates/journal/`
+
+### Overview
+The journal app provides a full-featured writing and reflection system with multiple viewing modes, mood/emotion tracking, writing prompts, AI milestone detection, and cross-module entry linking. It is the primary qualitative data source for the intelligence engines.
+
+### Features
+- **Journal entries** — CRUD with title, body, entry date, mood (5 levels), word count, categories, tags, and emotions
+- **Multiple views** — Entry list, calendar view, continuous page view, and book/flipbook view
+- **Mood tracking** — Optional mood per entry (great/good/okay/low/difficult) with emoji display
+- **Emotions** — Multi-select predefined emotions with emoji (separate from mood)
+- **Writing prompts** — Curated prompts with optional Scripture references for faith users
+- **Calendar view** — Monthly calendar with entry count indicators and navigation
+- **Soft delete** — 30-day grace period with archive and permanent delete options
+- **Bulk actions** — Multi-select delete and archive via JSON API
+- **HTMX components** — Dynamic form loading, mood picker, tag creation modals
+- **Entry linking** — Cross-module references via `EntryLink` (related, inspired_by, during, reflection_on)
+
+### Key Models
+| Model | Purpose |
+|-------|---------|
+| `JournalEntry` | Primary entry with title, body, mood, word_count, categories, tags, emotions |
+| `JournalPrompt` | Curated writing prompts with optional Scripture and category |
+| `Emotion` | Predefined emotions with emoji and display ordering |
+| `EntryLink` | Cross-module references (source entry → target type + id) |
+
+### Key Views & Endpoints
+- `/journal/` — Journal home dashboard with stats, streak, recent entries, AI insight
+- `/journal/entries/` — Entry list with filters (category, tag, mood, search)
+- `/journal/calendar/` — Monthly calendar view with entry indicators
+- `/journal/page-view/` — Continuous scroll view (50 per page)
+- `/journal/book-view/` — Page-by-page flipbook view
+- `/journal/new/` — Create entry (supports `?prompt=id` pre-fill)
+- `/journal/<pk>/` — Entry detail with milestone suggestion
+- `/journal/<pk>/edit/` — Edit entry
+- `/journal/archived/`, `/journal/deleted/` — Archived and deleted entry lists
+- `/journal/bulk/delete/`, `/journal/bulk/archive/` — Bulk actions
+- `/journal/prompts/`, `/journal/prompts/random/` — Prompt browsing and random prompt (HTMX)
+- `/journal/tags/*` — Tag CRUD (3 endpoints)
+- `/journal/htmx/*` — HTMX endpoints for form fields, mood select, tag creation (3 endpoints)
+
+### Key Files
+- `apps/journal/models.py` — JournalEntry, JournalPrompt, Emotion, EntryLink
+- `apps/journal/views.py` — 20+ views including HTMX and bulk action endpoints
+- `apps/journal/forms.py` — JournalEntryForm, TagForm
+- `apps/journal/signals.py` — People extraction from entry text via relationship engine
+- `apps/journal/fixtures/prompts.json` — Curated writing prompts
+- `apps/journal/management/commands/import_chatgpt_journal.py` — ChatGPT export importer
+
+### Tests
+- 107 tests in `apps/journal/tests/`
+- Covers: entry CRUD, mood tracking, emotions, prompts, calendar view, bulk actions, soft delete, HTMX endpoints, tag management
+
+### Integration Points
+- **Intelligence pipeline** — `fire_intelligence()` on entry creation triggers SAE → PIE → PRIE chain
+- **AI milestone detection** — Checks if entry text indicates goal milestone completion
+- **People extraction** — Signal extracts person mentions via `apps.core.ai_relationships`
+- **Dashboard** — Provides entries, streaks, mood distribution for dashboard tiles
+- **Core** — Uses `UserOwnedModel`, `Category`, `Tag` from core
+
+---
+
+## Life & Organization
+
+**App:** `apps/life/`
+**Templates:** `templates/life/`
+
+### Overview
+The life app is a comprehensive personal operations system organizing projects, tasks, calendar events, household inventory, pets, recipes, shopping lists, documents, and significant events. It includes Google Calendar sync, Gmail task extraction, and recurring task automation.
+
+### Features
+- **Projects** — Long-running efforts with status (active/paused/completed/archived), priority, task progress tracking
+- **Tasks** — Individual action items (standalone or project-linked), auto-prioritized from due dates, with recurrence support (daily/weekly/biweekly/monthly/yearly, specific weekdays)
+- **Calendar events** — `LifeEvent` with timing, event types, location, recurrence, Google Calendar sync
+- **Significant events** — Recurring annual events (birthdays, anniversaries, memorials) with SMS reminders and Person linkage
+- **Inventory** — Household item documentation with photos, warranty tracking, condition assessment (for insurance)
+- **Maintenance log** — Home repair/maintenance history with cost, provider, follow-up scheduling
+- **Pets** — Pet profiles with medical records, vaccinations, vet visits, auto-birthday reminders
+- **Recipes** — Family recipes with prep/cook times, servings, difficulty, favorites
+- **Shopping lists** — Grocery planning with categorized items and completion tracking
+- **Documents** — File storage via Cloudinary (insurance, legal, financial, medical, etc.) with expiration tracking
+- **Google Calendar sync** — Two-way OAuth sync (import/export) with event type filters
+- **Gmail task extraction** — AI-powered inbox scanning that creates tasks from email action items
+
+### Key Models
+| Model | Purpose |
+|-------|---------|
+| `Project` | Long-running efforts with tasks and phases |
+| `Task` | Action items with priority, recurrence, email source tracking |
+| `LifeEvent` | Calendar events with timing, recurrence, Google sync |
+| `SignificantEvent` | Annual events (birthdays/anniversaries) with SMS reminders |
+| `InventoryItem` | Household items with photos, warranty, condition |
+| `MaintenanceLog` | Home maintenance records with cost and follow-up |
+| `Pet` / `PetRecord` | Pet profiles with medical records |
+| `Recipe` | Family recipes with metadata |
+| `ShoppingList` / `ShoppingItem` | Grocery lists with categories |
+| `Document` | File storage via Cloudinary with expiration tracking |
+| `GoogleCalendarCredential` | Encrypted OAuth tokens for Google Calendar |
+| `GmailCredential` / `ProcessedEmail` | Gmail OAuth and processed message tracking |
+
+### Key Views & Endpoints
+- `/life/` — Life home with task summary, upcoming events, stats, AI insight
+- `/life/projects/*` — Project CRUD (5 views)
+- `/life/tasks/*` — Task CRUD with toggle completion and bulk delete (5 views)
+- `/life/calendar/`, `/life/events/*` — Calendar and event CRUD (5 views)
+- `/life/inventory/*` — Inventory CRUD with photo management (8 views)
+- `/life/pets/*` — Pet CRUD with medical records (6 views)
+- `/life/recipes/*` — Recipe CRUD with favorites toggle (7 views)
+- `/life/maintenance/*` — Maintenance log CRUD (6 views)
+- `/life/documents/*` — Document CRUD with download/inline view (8 views)
+- `/life/significant-events/*` — Significant event CRUD (6 views)
+- `/life/calendar/google/*` — Google Calendar OAuth and sync (6 views)
+- `/life/gmail/*` — Gmail OAuth and inbox scanning (7 views)
+
+### Key Files
+- `apps/life/models.py` — All 13 models
+- `apps/life/views.py` — 44 views spanning all features
+- `apps/life/services/recurrence.py` — Complex recurrence pattern service
+- `apps/life/services/google_calendar.py` — Google Calendar API sync
+- `apps/life/services/gmail.py` / `gmail_sync.py` / `email_processor.py` — Gmail scanning pipeline
+- `apps/life/jobs.py` — Scheduled jobs: task priority recalculation (6:00 AM), recurring task processing (6:05 AM)
+- `templates/life/` — 43 templates spanning all features
+
+### Tests
+- 226 tests in `apps/life/tests/`
+- Covers: projects, tasks (including recurrence), events, inventory, pets, recipes, maintenance, documents, significant events, Google Calendar, Gmail scanning
+
+### Integration Points
+- **Calendar Engine** — Tasks, goals, and habits projected onto calendar via `projection.py`
+- **AI relationships** — `SignificantEvent` links to `Person` model for relationship tracking
+- **Dashboard** — Provides tasks, events, projects, birthdays for dashboard tiles
+- **Core** — Uses `UserOwnedModel`, encryption for OAuth tokens, `get_user_today()` timezone helper
+
+---
+
+## Admin Console
+
+**App:** `apps/admin_console/`
+**Templates:** `apps/admin_console/templates/admin_console/`
+
+### Overview
+The admin console provides a custom admin interface for site management, project/task management with an executable task standard, test planning, system announcements, codebase metrics, data load tracking, and the Claude Code API for automated task execution.
+
+### Features
+- **Task management** — `AdminTask` with JSON description format (`{objective, inputs, actions, output}`), status transitions with validation, activity logging
+- **Project management** — `AdminProject` with phases, auto-phase completion and unlock
+- **Phase management** — `AdminProjectPhase` with sequential unlock logic
+- **Task intake** — Human-friendly task creation form
+- **Inline editing** — AJAX status and priority updates
+- **System hardening** — Issue detection (stuck phases, stuck tasks), admin overrides with confirmation
+- **Preflight checks** — System readiness validation before execution
+- **Test planning** — `TestCycle`/`TestPhase`/`TestItem` for production release testing (300+ item templates)
+- **System announcements** — Modal announcements with severity levels and scheduling
+- **Data load tracking** — `DataLoadConfig` prevents redundant fixture loading
+- **Email notification templates** — Admin-editable templates for 13 notification categories
+- **Codebase metrics** — File counts, line counts, language analysis, git history
+- **Admin guide** — Markdown documentation sections and articles
+- **Claude Code API** — Ready task fetch, status updates, email processing for automated execution
+
+### Key Models
+| Model | Purpose |
+|-------|---------|
+| `AdminTask` | Executable tasks with JSON description, status transitions, blocking |
+| `AdminProject` | Project container for tasks |
+| `AdminProjectPhase` | Sequential phases with auto-unlock |
+| `AdminActivityLog` | Immutable audit trail for task changes |
+| `AdminTaskStatusConfig` / `PriorityConfig` / `CategoryConfig` / `EffortConfig` | Database-driven task configuration |
+| `DataLoadConfig` | Tracks one-time data loader execution |
+| `SystemAnnouncement` / `SystemAnnouncementDismissal` | System-wide announcements |
+| `EmailNotificationTemplate` | Admin-editable email templates |
+| `TestCycle` / `TestPhase` / `TestItem` | Production test planning |
+| `AdminGuideSection` / `AdminGuideArticle` | Admin documentation |
+
+### Key Views & Endpoints
+- `/admin-console/` — Admin dashboard with system overview
+- `/admin-console/projects/tasks/*` — Task CRUD with intake form and inline editing
+- `/admin-console/projects/*` — Project and phase management
+- `/admin-console/projects/status/` — Phase completion dashboard
+- `/admin-console/projects/config/*` — Database-driven task configuration
+- `/admin-console/test-plans/*` — Test cycle management with bulk item updates
+- `/admin-console/announcements/*` — System announcement CRUD
+- `/admin-console/dataload/*` — Data load status and reset
+- `/admin-console/codebase-metrics/` — Codebase analysis
+- `/admin-console/admin-guide/*` — Documentation browsing and editing
+- `/admin-console/api/claude/ready-tasks/` — Claude Code: fetch ready tasks
+- `/admin-console/api/claude/tasks/<id>/status/` — Claude Code: update task status
+- `/admin-console/api/claude/process-emails/` — Claude Code: email intake
+
+### Key Files
+- `apps/admin_console/models.py` — All 14 models
+- `apps/admin_console/views.py` — 60+ views (~4,750 lines)
+- `apps/admin_console/services.py` — System state, phase management, metrics, issue detection, overrides (~1,450 lines)
+- `apps/admin_console/email_intake.py` — IMAP email intake → task creation pipeline
+- `apps/admin_console/metrics_service.py` — Codebase metrics collection
+- `apps/admin_console/security_assessment.py` — Security posture analysis
+
+### Tests
+- 278 tests in `apps/admin_console/tests/`
+- Covers: task CRUD, status transitions, phase auto-unlock, project management, inline editing, system hardening, preflight checks, test planning, announcements, data loading, Claude API, email intake
+
+### Integration Points
+- **Claude Code** — API endpoints for automated task execution via `/next` and `/run-task` slash commands
+- **Core** — Uses `SiteConfiguration`, `Category`, `Theme`, `ChoiceCategory/Option` for site management
+- **Email** — IMAP inbox scanning creates tasks from forwarded emails
+- **Help** — Uses `HelpContextMixin` for admin help topics
+
+---
+
+## Help System
+
+**App:** `apps/help/`
+**Templates:** `templates/help/`, `templates/components/help_button.html`, `templates/components/help_modal.html`
+
+### Overview
+The help app provides a three-tier assistance system: context-aware "?" button help (per-page), a searchable help center with categorized articles, and a WLJ Assistant chatbot. It also includes a teaching tool that maps natural language navigation queries to app destinations.
+
+### Features
+- **Context-aware help** — Every page declares a `HELP_CONTEXT_ID`; clicking "?" shows the matching help topic with Markdown content
+- **Help center** — Browsable categorized articles for self-service support
+- **WLJ Assistant chatbot** — AI-powered chat with article search, personal data queries, and coaching-style adaptation
+- **Teaching tool** — Natural language navigation ("Where do I log weight?") → direct link to destination
+- **Admin help** — Separate staff-only help topics for admin console
+- **Search** — Full-text search across titles, descriptions, and content
+- **Related topics** — Cross-references between help topics
+- **Fallback mechanism** — Missing specific context falls back to module home (e.g., `HEALTH_HEART_RATE` → `HEALTH_HOME`)
+
+### Key Models
+| Model | Purpose |
+|-------|---------|
+| `HelpTopic` | Per-page help content with `context_id` matching |
+| `AdminHelpTopic` | Staff-only admin help content |
+| `HelpCategory` | Organizes help articles (Getting Started, Features, etc.) |
+| `HelpArticle` | Searchable documentation with module association and keywords |
+| `HelpConversation` / `HelpMessage` | Chat sessions with message history |
+| `TeachingDestination` | Maps navigation intents to app URLs with keywords |
+
+### Key Views & Endpoints
+- `/help/` — Help center home with category cards
+- `/help/category/<slug>/` — Articles within a category
+- `/help/article/<slug>/` — Individual article view
+- `/help/api/topic/<context_id>/` — Context-aware help lookup (JSON with Markdown→HTML)
+- `/help/api/admin/<context_id>/` — Staff-only admin help lookup
+- `/help/api/search/?q=<query>` — Full-text search (top 10 results)
+- `/help/api/chat/start/`, `message/`, `end/` — Chat conversation lifecycle
+- `/help/api/chat/search/`, `suggestions/` — Article search and module suggestions
+- `/help/api/teaching/search/?q=<query>` — Navigation intent matching
+- `/help/api/teaching/suggestions/` — Popular navigation destinations
+
+### HelpContextMixin Pattern
+```python
+class MyView(HelpContextMixin, LoginRequiredMixin, TemplateView):
+    help_context_id = "HEALTH_WORKOUT_CREATE"
+```
+- Injects `help_context_id` into template context
+- Template uses `data-help-context="{{ help_context_id }}"` on help button
+- JavaScript fetches help from `/help/api/topic/<context_id>/` on click
+- Override `get_help_context_id()` for dynamic context per request
+- Fallback: `apps/core/context_processors.py` auto-provides help_context_id by URL path matching
+
+### Key Files
+- `apps/help/models.py` — 6 models (HelpTopic, AdminHelpTopic, HelpCategory, HelpArticle, HelpConversation, HelpMessage, TeachingDestination)
+- `apps/help/views.py` — 13 views (API + pages + chat + teaching)
+- `apps/help/mixins.py` — HelpContextMixin and HelpTopicMixin
+- `apps/help/fixtures/help_topics.json` — User-facing help content
+- `apps/help/fixtures/admin_help_topics.json` — Admin help content
+- `apps/help/fixtures/help_categories.json` — Help center categories
+- `apps/help/fixtures/help_articles.json` — Searchable articles
+- `apps/help/fixtures/teaching_destinations.json` — Navigation destinations
+- `templates/components/help_button.html` — Reusable "?" button component
+- `templates/components/help_modal.html` — Help content modal
+
+### Tests
+- 103 tests in `apps/help/tests/`
+- Covers: help topic API, admin help, search, help center pages, chat lifecycle, teaching tool, HelpContextMixin, fixture loading, fallback mechanism
+
+### Integration Points
+- **Every app** — Views use `HelpContextMixin` for per-page help (journal, health, life, purpose, etc.)
+- **Core context processor** — Auto-provides help_context_id for pages without the mixin
+- **AI service** — Chat uses `AIService.process_assistant_message()` for personal data queries
+- **Fixture loader** — `load_initial_data` command loads all 6 fixtures
+
+---
+
+## Mobile API & iOS Support
+
+**App:** `apps/mobile/`
+
+### Overview
+The mobile app provides a REST API layer for the iOS (Swift/SwiftUI) wrapper application. It handles device registration, bearer token authentication, HealthKit data ingestion (24 metric types), push notification token management, and sync status tracking. All endpoints return JSON with no server-side templates.
+
+### Features
+- **Token exchange** — Web-to-native auth flow: WKWebView generates one-time code → iOS app exchanges for 90-day bearer token
+- **Device management** — Register, list, and deactivate devices with metadata (model, OS, app version)
+- **HealthKit ingestion** — Processes 24 metric types (steps, weight, sleep, heart rate, blood glucose, blood oxygen, water, workouts, blood pressure, body temperature, HRV, VO2 max, respiratory rate, body fat, and more)
+- **Deduplication** — Uses `sync_id` (HealthKit source IDs) to prevent duplicate entries; falls back to date/source matching
+- **Ingestion audit** — `HealthIngestionRun` logs every submission with processing stats and error tracking
+- **Push notifications** — APNs token registration/unregistration scaffold for intelligence delivery
+- **Sync status** — Last sync time, per-metric counts, device info
+
+### Key Models
+| Model | Purpose |
+|-------|---------|
+| `MobileDevice` | Registered device with metadata, push token, active status |
+| `MobileAPIToken` | Bearer tokens (SHA-256 hashed, 90-day expiry, revocable) |
+| `MobileTokenExchangeCode` | One-time codes for web-to-native auth (5-minute expiry) |
+| `HealthIngestionRun` | Audit log for each data submission with processing stats |
+
+### Key Views & Endpoints
+- `POST /api/mobile/generate-code/` — Generate one-time exchange code (requires session auth)
+- `POST /api/mobile/token/exchange/` — Exchange code for bearer token
+- `POST /api/mobile/token/revoke/` — Revoke current token
+- `POST /api/mobile/token/revoke-all/` — Revoke all user tokens
+- `GET /api/mobile/devices/` — List registered devices
+- `POST /api/mobile/devices/<id>/deactivate/` — Deactivate device and revoke tokens
+- `POST /api/mobile/health/ingest/` — HealthKit data ingestion (up to 5,000 metrics, 1MB limit)
+- `GET /api/mobile/health/sync-status/` — Last sync status with per-metric counts
+- `POST /api/mobile/push/register/` — Register APNs push token
+- `POST /api/mobile/push/unregister/` — Clear push token
+
+### Key Files
+- `apps/mobile/models.py` — MobileDevice, MobileAPIToken, MobileTokenExchangeCode, HealthIngestionRun
+- `apps/mobile/views.py` — 10 endpoint handlers + 24 metric processor functions
+- `apps/mobile/middleware.py` — Bearer token auth middleware, `@require_mobile_auth` decorator
+- `apps/mobile/urls.py` — API routing
+- `apps/mobile/admin.py` — Color-coded admin interfaces for all models
+
+### Tests
+- 51 tests in `apps/mobile/tests/`
+- Covers: token exchange flow, device management, HealthKit ingestion (all metric types), deduplication, sync status, push registration
+
+### Integration Points
+- **Health models** — Ingests into `WeightEntry`, `StepsEntry`, `SleepEntry`, `GlucoseEntry`, `BloodOxygenEntry`, `WaterEntry`, `WorkoutSession`, `BloodPressureEntry`, `BodyTemperatureEntry`
+- **AI delivery engine** — Checks `MobileDevice` for push-enabled devices to route intelligence notifications
+- **Users** — Token authentication resolves to `User` for all API calls
+
+---
+
+## Security Assessment
+
+**App:** `apps/security/`
+**Templates:** `apps/security/templates/security/`
+
+### Overview
+The security app provides an automated security assessment system that runs 40+ tests across 10 categories, generates CVSS v3.1 scores, tracks findings across runs (new/recurring/fixed/regressed), detects quick wins, and produces executive reports. All sensitive data is encrypted at rest with AES-256 Fernet.
+
+### Features
+- **Security scanner** — 40+ automated tests across 10 categories (secrets, auth, authorization, input validation, data protection, logging, web security, dependencies, deployment, abuse prevention)
+- **CVSS scoring** — v3.1 base scores for each finding
+- **Multi-score system** — SecurityScorecard grade (A–F), BitSight-style score (250–900), risk score (0–100), maturity level (0–3)
+- **Finding tracking** — Stable `finding_key` hash for cross-run comparison; status: new, recurring, fixed, regressed
+- **Quick win detection** — Auto-identifies low-effort remediation opportunities
+- **Risk acceptance** — `AcknowledgedFinding` for tracking accepted risks with justification and expiration
+- **Executive reports** — Summary, attack paths, failure modes, CISO sleep test, remediation prompts
+- **Trend analysis** — Historical dashboards showing score progression and finding status trends
+- **Audit logging** — `SecurityAuditLog` for all access (who, what, when, IP, user-agent)
+- **Export** — CSV and PDF report generation
+
+### Key Models
+| Model | Purpose |
+|-------|---------|
+| `SecurityRun` | Master assessment record with summary counts and encrypted reports |
+| `SecurityScore` | Append-only scoring ledger (CVSS stats, grades, risk, maturity) |
+| `SecurityTest` | Individual test result (pass/fail/skipped) with encrypted evidence |
+| `SecurityFinding` | Vulnerability with CVSS, severity, recommendations, status tracking |
+| `AcknowledgedFinding` | Risk acceptance records with justification and expiration |
+| `SecurityAuditLog` | Access audit trail for compliance |
+
+### Key Views & Endpoints
+- `/security/dashboard/` — Main dashboard with trends, scores, and run history
+- `/security/run-assessment/` — Trigger new assessment (POST) or check status (GET)
+- `/security/run/<uuid>/` — Detailed run view with tests and findings
+- `/security/api/test/<uuid>/` — Test detail (AJAX)
+- `/security/api/finding/<uuid>/` — Finding detail (AJAX)
+- `/security/api/remediation/<uuid>/` — Remediation prompt text
+- `/security/api/trends/` — 50-run historical trend data
+- `/security/api/finding-trends/` — Finding status trends
+- `/security/api/improvement/` — Improvement metrics over configurable period
+- `/security/export/csv/<uuid>/`, `/security/export/pdf/<uuid>/` — Report exports
+
+### Key Files
+- `apps/security/models.py` — 6 models with `EncryptedTextField`/`EncryptedJSONField` custom fields
+- `apps/security/views.py` — 13 views (dashboard, run detail, 6 APIs, export, delete, notes)
+- `apps/security/scanner.py` — SecurityScanner with 40+ tests and CVSSCalculator
+- `apps/security/scoring.py` — ScoringEngine (5 scoring methodologies)
+- `apps/security/report_generator.py` — Executive summary, attack paths, CISO sleep test
+- `apps/security/finding_tracker.py` — Cross-run finding comparison and trend analysis
+- `apps/security/quick_win_detector.py` — Auto-detect low-effort remediation opportunities
+- `apps/security/management/commands/run_security_assessment.py` — CLI assessment runner
+
+### Tests
+- 184 tests in `apps/security/tests/`
+- Covers: scanner, scoring engine, finding tracker, quick win detection, report generation, views, export, audit logging, encryption
+
+### Integration Points
+- **Staff-only access** — All views enforce `is_staff` via `SecurityAccessMixin`
+- **Core encryption** — Uses `SECURITY_DATA_ENCRYPTION_KEY` (falls back to `OAUTH_TOKEN_ENCRYPTION_KEY`) for AES-256 Fernet
+- **Admin console** — `security_assessment.py` provides security posture data
+
+---
+
+## Calendar Engine (Technical Reference)
+
+**App:** `apps/calendar_engine/`
+**Templates:** `templates/calendar_engine/`
+
+### Overview
+This section provides the full technical reference for the Time Command Center (see [section 40](#time-command-center-calendar-engine) for the feature overview). The calendar engine manages events, projections from tasks/goals/habits, recurrence, conflict detection, NLP quick add, smart gap suggestions, domain balance metrics, and CoS schedule awareness.
+
+### Key Models
+| Model | Purpose |
+|-------|---------|
+| `CalendarEvent` | Main event with title, start/end, domain, event_kind (manual/deadline/execution/external), source_type, status, is_protected |
+| `RecurrenceRule` | Frequency (daily/weekly/monthly), byweekday, interval, until/count limits |
+| `RecurrenceException` | Single-occurrence overrides (reschedule or cancel) |
+| `CalendarOverrideLog` | Audit trail for conflict override moves |
+
+### Key Views & Endpoints
+- `/calendar/` — Dashboard with balance metrics and suggestions
+- `/calendar/manage/` — Full CRUD event management page
+- `/calendar/month/` — Full month calendar grid
+- `/calendar/api/today/` — Today's timeline (6am–10pm window)
+- `/calendar/api/range/?start=&end=` — Events in date range
+- `/calendar/api/month/?year=&month=` — Month grid data with edge padding
+- `/calendar/api/events/` — Create event (POST)
+- `/calendar/api/events/all/?status=&kind=&source=&q=` — Filtered event list (paginated 200)
+- `/calendar/api/events/<id>/` — Event detail, update, delete (GET/PATCH/DELETE)
+- `/calendar/api/events/<id>/move/` — Drag-drop move with conflict check (409 if protected overlap), writeback to source
+- `/calendar/api/suggestions/gaps/?date=` — Smart gap detection (≥90 min gaps)
+- `/calendar/api/suggestions/accept/` — One-click execution block creation from suggestion
+- `/calendar/api/metrics/balance/?period=today|week` — Domain time allocation percentages
+- `/calendar/api/nlp_create/` — NLP free-text event creation
+
+### Services
+| Service | Purpose |
+|---------|---------|
+| `services/projection.py` | Syncs Tasks→deadline markers, Goals→milestone markers, Habits→recurring protected events |
+| `services/conflicts.py` | Protected event overlap detection, override logging (Habit Protection Layer) |
+| `services/metrics.py` | Domain balance computation (minutes and percentages per period) |
+| `services/suggestions.py` | Gap detection in 6am–10pm window, matches gaps to due-soon items |
+| `services/nlp_parse.py` | Free-text parsing with day names, time ranges, temporal tokens, domain hints |
+
+### Key Files
+- `apps/calendar_engine/models.py` — CalendarEvent, RecurrenceRule, RecurrenceException, CalendarOverrideLog
+- `apps/calendar_engine/views.py` — 15 views (3 template + 12 API)
+- `apps/calendar_engine/services/` — 5 service modules
+- `templates/calendar_engine/dashboard.html` — TCC dashboard with view toggles
+- `templates/calendar_engine/month.html` — Full month grid view
+- `templates/calendar_engine/manage.html` — Event management page
+
+### Tests
+- 31 tests in `apps/calendar_engine/tests.py`
+- Covers: task/goal/habit projections, conflict detection, gap suggestions, domain balance, NLP parsing, API CRUD, recurrence, event moves with writeback
+
+### Integration Points
+- **CoS schedule awareness** — `apps/core/ai_orchestrator/cos_context.py` injects today's events into every CoS LLM prompt with time-relative tags ([past], [in_progress], [upcoming_soon], [upcoming])
+- **Morning greeting** — `apps/ai/personal_assistant.py` references schedule proactively
+- **Life app** — Tasks and LifeEvents sync to calendar via projection service
+- **Purpose app** — Goals and habits sync to calendar; habits get `is_protected=True` flag
+- **CoS action handlers** — `apps/ai/action_handlers.py` creates events and runs post-scheduling chain (conflict detection → drift recomputation → Google Calendar sync)
+- **Google Calendar** — Life app's `GoogleCalendarService` pushes events to external calendar
 
 ---
 

@@ -1,6 +1,38 @@
 [
     {
         "model": "help.helptopic",
+        "pk": 100,
+        "fields": {
+            "context_id": "CALENDAR_MAIN",
+            "help_id": "calendar-main",
+            "title": "Time Command Center",
+            "description": "Your unified calendar showing tasks, goals, habits, and manual events in one timeline.",
+            "content": "## Time Command Center\n\nThe Time Command Center is your unified calendar view. It projects your Tasks, Goals, and Habits onto a single timeline so you can see your whole day at a glance.\n\n### Views\n\n- **Today** \u2014 Events for the current day, grouped by hour\n- **3-Day** \u2014 Next three days\n- **Week** \u2014 Full week ahead\n- **Agenda** \u2014 Two-week lookahead\n- **Month** \u2014 Traditional month grid\n\n### Event Types\n\n- **Deadline Markers** \u2014 Auto-created from task due dates and goal target dates. Dragging a deadline marker to a new date updates the task or goal.\n- **Execution Blocks** \u2014 Scheduled work time linked to a task or goal. Created from Smart Suggestions or manually.\n- **Manual Events** \u2014 Events you create directly, not linked to any source.\n- **Protected Events** \u2014 Habit-linked events that trigger a warning if you try to schedule over them.\n\n### Life Balance Bar\n\nThe bar at the top shows how your scheduled time is distributed across life domains (Faith, Health, Family, Work, etc.). Toggle between Today and This Week views.\n\n### Quick Add\n\nType natural language to create events quickly:\n- \"Bible Study Wednesdays 6pm-8pm\" \u2014 creates a recurring Wednesday event in Faith domain\n- \"Gym Mon/Wed/Fri 5:30am-6:30am\" \u2014 creates recurring Health events\n- \"Team meeting tomorrow 2pm\" \u2014 creates a one-off Work event\n\n### Smart Suggestions\n\nThe system finds open gaps in your day and suggests execution blocks for tasks and goals due soon. Click Accept to schedule the block instantly.\n\n### Drag & Drop\n\nDrag events to reschedule them. If the new time overlaps a protected event (like a workout), you'll see a conflict prompt before the move is confirmed.",
+            "app_name": "calendar_engine",
+            "order": 100,
+            "is_active": true,
+            "created_at": "2026-02-20T00:00:00Z",
+            "updated_at": "2026-02-20T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.helptopic",
+        "pk": 101,
+        "fields": {
+            "context_id": "CALENDAR_MANAGE",
+            "help_id": "calendar-manage",
+            "title": "Manage Calendar Events",
+            "description": "View, edit, and delete all your calendar events in one place.",
+            "content": "## Manage Calendar Events\n\nThe Manage Events page gives you full control over all calendar events.\n\n### Finding Events\n\nUse the filters at the top to narrow results:\n- **Search** \u2014 Filter by event title\n- **Status** \u2014 Scheduled, Completed, or Canceled\n- **Kind** \u2014 Manual, Deadline, Execution Block, or External\n- **Source** \u2014 Filter by what created the event (Task, Goal, Habit, or Manual)\n\n### Editing Events\n\nClick any row or the edit icon to open the edit modal where you can change:\n- Title and description\n- Start and end date/time\n- Status (scheduled, completed, canceled)\n- Protected flag (enables Habit Protection Layer)\n- All-day flag\n\nFor projected events (linked to tasks/goals), editing the dates will also update the source item.\n\n### Deleting Events\n\nClick the delete icon and confirm. Deleted events are permanently removed. For projected events, deleting the calendar event does not delete the source task or goal.\n\n### Creating Events\n\nClick the + New Event button to create an event with full control over all fields. For quick creation, use the Quick Add on the main calendar page instead.",
+            "app_name": "calendar_engine",
+            "order": 101,
+            "is_active": true,
+            "created_at": "2026-02-20T00:00:00Z",
+            "updated_at": "2026-02-20T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.helptopic",
         "pk": 96,
         "fields": {
             "context_id": "BLUEPRINT_SETTINGS",

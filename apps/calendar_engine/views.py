@@ -13,6 +13,8 @@ from django.utils import timezone
 from django.views import View
 from django.views.generic import TemplateView
 
+from apps.help.mixins import HelpContextMixin
+
 from .models import CalendarEvent, CalendarOverrideLog, RecurrenceRule
 from .services import conflicts, metrics, suggestions
 from .services.nlp_parse import parse_quick_add
@@ -107,8 +109,9 @@ def _parse_body(request):
 # Dashboard View
 # ──────────────────────────────────────────────────────────
 
-class CalendarDashboardView(LoginRequiredMixin, TemplateView):
+class CalendarDashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
     template_name = 'calendar_engine/dashboard.html'
+    help_context_id = 'CALENDAR_MAIN'
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
@@ -148,9 +151,10 @@ class MonthView(LoginRequiredMixin, TemplateView):
         return ctx
 
 
-class ManageEventsView(LoginRequiredMixin, TemplateView):
+class ManageEventsView(HelpContextMixin, LoginRequiredMixin, TemplateView):
     """Full CRUD management page for calendar events."""
     template_name = 'calendar_engine/manage.html'
+    help_context_id = 'CALENDAR_MANAGE'
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)

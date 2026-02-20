@@ -2462,28 +2462,29 @@ Tasks are sorted by priority (ascending) then creation date.""",
 
     def _reset_calendar_engine_fixtures(self, DataLoadConfig, force=False, verbosity=1):
         """
-        One-time reset to reload release_notes for Calendar Engine.
-        Adds release_notes PK 59 (Time Command Center).
+        One-time reset to reload release_notes and help_topics for Calendar Engine.
+        Adds release_notes PK 59, help_topics PKs 100-101.
         """
-        reset_tracker_name = 'reset_calendar_engine_2026_02_20'
+        reset_tracker_name = 'reset_calendar_engine_help_2026_02_20'
 
         if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
             return
 
         try:
-            try:
-                config = DataLoadConfig.objects.get(loader_name='release_notes')
-                config.reset()
-                if verbosity >= 1:
-                    self.stdout.write('  Reset release_notes loader for Calendar Engine')
-            except DataLoadConfig.DoesNotExist:
-                pass
+            for loader_name in ('release_notes', 'help_topics'):
+                try:
+                    config = DataLoadConfig.objects.get(loader_name=loader_name)
+                    config.reset()
+                    if verbosity >= 1:
+                        self.stdout.write(f'  Reset {loader_name} loader for Calendar Engine')
+                except DataLoadConfig.DoesNotExist:
+                    pass
 
             self._mark_loader_complete(
                 DataLoadConfig, reset_tracker_name,
-                'Reset fixtures for Calendar Engine Time Command Center (Feb 2026)',
+                'Reset fixtures for Calendar Engine: release_notes + help_topics (Feb 2026)',
                 'command',
-                'One-time reset to reload release notes for calendar engine'
+                'One-time reset to reload release notes and help topics for calendar engine'
             )
 
         except Exception as e:

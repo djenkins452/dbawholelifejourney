@@ -570,7 +570,7 @@ class UserPreferences(models.Model):
 
     # AI Features
     ai_enabled = models.BooleanField(
-        default=False,
+        default=True,
         help_text="Enable AI-powered insights and reflections",
     )
 

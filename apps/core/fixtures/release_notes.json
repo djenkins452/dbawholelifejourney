@@ -1,6 +1,22 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 65,
+        "fields": {
+            "title": "Your Chief of Staff Now Knows Your Schedule",
+            "description": "Your Chief of Staff now has full calendar awareness. When you say 'Good morning', it checks your schedule and responds like a real executive assistant — referencing upcoming events, noting if you're running behind, and proactively offering to reschedule. Calendar events appear in the CoS context with real-time status: [NOW] for in-progress, [SOON] for upcoming within the hour, and [MISSED] for events whose start time has passed. Additionally, the NLP quick-add parser now properly cleans event titles — 'Pickleball tomorrow at 6pm' correctly creates an event titled 'Pickleball' instead of 'Pickleball tomorrow at'.",
+            "entry_type": "enhancement",
+            "version": "",
+            "release_date": "2026-02-20",
+            "is_published": true,
+            "is_major": false,
+            "learn_more_url": "",
+            "created_at": "2026-02-20T00:00:00Z",
+            "updated_at": "2026-02-20T00:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 64,
         "fields": {
             "title": "Smart Quick Links with Mobile App Deep Linking",
@@ -1009,6 +1025,22 @@
             "learn_more_url": "",
             "created_at": "2026-02-19T00:00:00Z",
             "updated_at": "2026-02-19T00:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
+        "pk": 66,
+        "fields": {
+            "title": "Smarter Intelligence \u2014 Instant Feedback on Every Entry",
+            "description": "Your intelligence engines now respond to every action you take. Log a weight entry, complete a habit, write a journal entry, or finish a scripture reading and you\u2019ll get instant feedback \u2014 including a special first-entry celebration when you start tracking a new area. Thresholds have been removed so even small changes generate insights and predictions. The system no longer waits for weeks of data before helping you.",
+            "entry_type": "enhancement",
+            "version": "",
+            "release_date": "2026-02-20",
+            "is_published": true,
+            "is_major": true,
+            "learn_more_url": "",
+            "created_at": "2026-02-20T00:00:00Z",
+            "updated_at": "2026-02-20T00:00:00Z"
         }
     }
 ]

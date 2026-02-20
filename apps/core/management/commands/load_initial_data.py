@@ -682,6 +682,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for Quick Links Deep Linking (PK 64)
         self._reset_quick_links_deep_link_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for intelligence threshold changes (PK 66)
+        self._reset_intelligence_thresholds_fixtures(DataLoadConfig, force, verbosity)
+
         # Auto-sync CoS documentation to admin guide (runs if checksum changed)
         self._sync_cos_documentation(DataLoadConfig, force, verbosity)
 
@@ -2543,3 +2546,33 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset quick links deep link fixtures FAILED: {e}'))
+
+    def _reset_intelligence_thresholds_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes for intelligence threshold changes.
+        - release_notes PK 66 (Smarter Intelligence — Instant Feedback on Every Entry)
+        """
+        reset_tracker_name = 'reset_intelligence_thresholds_2026_02_20'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                config.reset()
+                if verbosity >= 1:
+                    self.stdout.write('  Reset release_notes loader for intelligence thresholds')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release notes for intelligence threshold changes (Feb 2026)',
+                'command',
+                'One-time reset to reload release notes PK 66'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset intelligence thresholds fixtures FAILED: {e}'))

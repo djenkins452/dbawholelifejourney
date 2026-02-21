@@ -11,6 +11,9 @@
 
 ## 2026-02-21
 
+- **Fix: Wire FatSecret API credentials into settings.py** — `FATSECRET_CLIENT_ID` and `FATSECRET_CLIENT_SECRET` were configured as Railway environment variables but never read by `settings.py`. The `FatSecretService` checked `settings.FATSECRET_CLIENT_ID` which didn't exist, so `is_available` always returned `False`. Food search and barcode lookup silently skipped the FatSecret tier (1.9M+ foods), falling through to AI-only results. Added `os.environ.get()` lines to settings.py so the credentials are loaded on Railway.
+  - Files: `config/settings.py`
+
 - **Major: Extended HealthKit Integration — Mobility, HR Events, Audio Exposure, Dietary Nutrients** — Added 4 new Django models and 16 new ingest handlers to capture extended HealthKit data. New models: `MobilityEntry` (walking asymmetry, steadiness, speed, step length, double support time, stair speeds, 6-min walk distance), `HeartRateEventEntry` (high/low HR alerts, AFib detection), `AudioExposureEntry` (headphone + environmental audio levels in dB), `DietaryNutrientEntry` (13 nutrients from food-logging apps via Apple Health — calories, protein, carbs, fat, fiber, sugar, sodium, cholesterol, saturated fat, potassium, calcium, iron, vitamin D). Updated iOS `HealthKitManager.swift` to request 37+ HK types (up from 24) and fetch/sync all new data types. Updated `HealthMetric.swift` with new fields and convenience initializers. All 912 tests pass (861 health + 51 mobile).
   - Files: `apps/health/models.py` (4 new models), `apps/health/admin.py` (4 new admin classes), `apps/health/migrations/0047_add_mobility_hr_events_audio_dietary_models.py`, `apps/mobile/views.py` (16 new handlers), `ios/.../Services/HealthKitManager.swift`, `ios/.../Models/HealthMetric.swift`, `docs/ios-healthkit-integration.md`
 

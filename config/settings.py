@@ -65,6 +65,10 @@ OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
 OPENAI_MODEL = os.environ.get('OPENAI_MODEL', 'gpt-4o')
 OPENAI_VISION_MODEL = os.environ.get('OPENAI_VISION_MODEL', 'gpt-4o')
 
+# FatSecret API credentials for food search and barcode lookup
+FATSECRET_CLIENT_ID = os.environ.get('FATSECRET_CLIENT_ID')
+FATSECRET_CLIENT_SECRET = os.environ.get('FATSECRET_CLIENT_SECRET')
+
 # Claude Code API Key for task fetching
 # Used by Claude Code to authenticate with the Ready Tasks API endpoint
 CLAUDE_API_KEY = os.environ.get('CLAUDE_API_KEY', '')

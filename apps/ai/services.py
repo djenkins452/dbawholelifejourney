@@ -21,12 +21,18 @@ Caching Optimizations (2025-12-31):
 - AIPromptConfig cached (1 hour)
 """
 import logging
+import time
 from typing import Optional
 from django.conf import settings
 from django.core.cache import cache
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
+
+# LLM call resilience defaults
+LLM_MAX_RETRIES = 3
+LLM_BASE_BACKOFF_SECONDS = 1.0  # doubles each retry: 1s, 2s, 4s
+LLM_TIMEOUT_SECONDS = 40  # per-request timeout
 
 # Fallback coaching style prompt if database is unavailable
 FALLBACK_COACHING_PROMPT = """
@@ -116,7 +122,10 @@ class AIService:
         if api_key:
             try:
                 from openai import OpenAI
-                self.client = OpenAI(api_key=api_key)
+                self.client = OpenAI(
+                    api_key=api_key,
+                    timeout=LLM_TIMEOUT_SECONDS,
+                )
             except ImportError:
                 logger.warning("OpenAI package not installed. Run: pip install openai")
             except Exception as e:
@@ -259,9 +268,11 @@ class AIService:
         image_data: str = None,
         image_mime_type: str = None,
         temperature: float = 0.5,
+        endpoint: str = 'general',
+        user=None,
     ) -> Optional[str]:
         """
-        Make an API call to OpenAI.
+        Make an API call to OpenAI with retry, backoff, and observability.
 
         Supports image attachments for Vision processing when image_data
         and image_mime_type are provided.
@@ -275,6 +286,8 @@ class AIService:
             temperature: Controls randomness (0.0=deterministic, 1.0=creative).
                         Default 0.5 balances accuracy with natural conversation.
                         Use lower (0.3) for data-heavy responses to reduce hallucination.
+            endpoint: Label for observability logging (e.g. 'cos_chat', 'journal_reflection')
+            user: Optional user instance for usage logging
 
         Returns:
             The AI response content or None if unavailable
@@ -283,41 +296,112 @@ class AIService:
             logger.warning("AI service not available - no API key configured")
             return None
 
-        try:
-            # Build the user message content
-            if image_data and image_mime_type:
-                # Vision message with image - use content array format
-                logger.debug(f"Sending vision request with image ({image_mime_type}, {len(image_data)} chars base64)")
-                user_content = [
-                    {"type": "text", "text": user_prompt},
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:{image_mime_type};base64,{image_data}",
-                            "detail": "auto"  # Let OpenAI decide resolution
-                        }
+        # Build the user message content once
+        if image_data and image_mime_type:
+            logger.debug(f"Sending vision request with image ({image_mime_type}, {len(image_data)} chars base64)")
+            user_content = [
+                {"type": "text", "text": user_prompt},
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:{image_mime_type};base64,{image_data}",
+                        "detail": "auto"
                     }
-                ]
-            else:
-                # Standard text-only message
-                user_content = user_prompt
+                }
+            ]
+        else:
+            user_content = user_prompt
 
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_content}
-                ],
-                max_tokens=max_tokens,
-                temperature=temperature,
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_content}
+        ]
+
+        last_error = None
+        for attempt in range(1, LLM_MAX_RETRIES + 1):
+            start_time = time.monotonic()
+            try:
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                )
+                elapsed = time.monotonic() - start_time
+                result = response.choices[0].message.content.strip()
+
+                # --- Observability: log success ---
+                usage = getattr(response, 'usage', None)
+                prompt_tokens = getattr(usage, 'prompt_tokens', 0) if usage else 0
+                completion_tokens = getattr(usage, 'completion_tokens', 0) if usage else 0
+                total_tokens = getattr(usage, 'total_tokens', 0) if usage else 0
+
+                logger.info(
+                    "LLM OK endpoint=%s model=%s tokens=%d latency=%.2fs attempt=%d",
+                    endpoint, self.model, total_tokens, elapsed, attempt,
+                )
+
+                self._log_usage(
+                    user=user,
+                    endpoint=endpoint,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                    total_tokens=total_tokens,
+                    success=True,
+                    elapsed=elapsed,
+                )
+
+                if image_data and image_mime_type:
+                    logger.debug(f"Vision response (first 200 chars): {result[:200]}")
+                return result
+
+            except Exception as e:
+                elapsed = time.monotonic() - start_time
+                last_error = e
+                logger.warning(
+                    "LLM error endpoint=%s attempt=%d/%d latency=%.2fs error=%s",
+                    endpoint, attempt, LLM_MAX_RETRIES, elapsed, e,
+                )
+                if attempt < LLM_MAX_RETRIES:
+                    backoff = LLM_BASE_BACKOFF_SECONDS * (2 ** (attempt - 1))
+                    time.sleep(backoff)
+
+        # All retries exhausted
+        logger.error(
+            "LLM FAILED endpoint=%s model=%s retries=%d final_error=%s",
+            endpoint, self.model, LLM_MAX_RETRIES, last_error,
+        )
+        self._log_usage(
+            user=user,
+            endpoint=endpoint,
+            prompt_tokens=0,
+            completion_tokens=0,
+            total_tokens=0,
+            success=False,
+            error_message=str(last_error)[:500],
+            elapsed=0,
+        )
+        return None
+
+    def _log_usage(self, *, user, endpoint, prompt_tokens, completion_tokens,
+                   total_tokens, success, error_message='', elapsed=0):
+        """Persist an AIUsageLog entry. Best-effort — never raises."""
+        if not user:
+            return
+        try:
+            from .models import AIUsageLog
+            AIUsageLog.objects.create(
+                user=user,
+                endpoint=endpoint,
+                model_used=self.model,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                total_tokens=total_tokens,
+                success=success,
+                error_message=error_message,
             )
-            result = response.choices[0].message.content.strip()
-            if image_data and image_mime_type:
-                logger.debug(f"Vision response (first 200 chars): {result[:200]}")
-            return result
-        except Exception as e:
-            logger.error(f"OpenAI API error: {e}")
-            return None
+        except Exception as log_err:
+            logger.debug("AIUsageLog write failed: %s", log_err)
     
     # =========================================================================
     # JOURNAL INSIGHTS

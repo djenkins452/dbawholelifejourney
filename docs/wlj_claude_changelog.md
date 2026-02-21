@@ -123,6 +123,33 @@
 
 ---
 
+---
+
+## 2026-02-21 — CoS Adaptive Intelligence & Reliability Upgrade
+
+**Changes:**
+- **LLM Call Resilience:** Added exponential backoff retry (3 attempts, 1s→2s→4s) to all OpenAI API calls via `_call_api()`. Configurable 40-second timeout on client initialization. Retries are transparent — user only sees fallback if all attempts fail.
+- **Observability:** Every LLM call now logs endpoint, model, token usage, latency, and attempt count. Failed calls log error type and retry count. `AIUsageLog` model is now populated on every CoS chat call, enabling cost tracking and failure rate monitoring.
+- **Response Mode Classifier:** New `_classify_response_mode()` classifies user messages as `brief` (short questions, confirmations), `deep` (analysis, strategy), or `adaptive` (everything else). Drives per-mode token budgets (250/600/450) and per-mode prompt rules.
+- **Adaptive System Prompt:** Enhanced `PERSONAL_ASSISTANT_BASE_PROMPT` with explicit length-matching rules (yes/no→short, complex→structured) and anti-restatement directives ("Never restate or rephrase the user's question").
+- **User Response Style Preference:** New `cos_response_style` field on UserPreferences (Concise/Balanced/Strategic/Deep Dive). Visible in Settings under "Response Detail Level". Injects per-user style nudge into user prompt.
+- **Token Efficiency:** Removed forced closing paragraph guidance. Brief-mode caps at 250 tokens. Anti-restatement rules reduce redundant output.
+- **Radio Card JS Fix:** Scoped coaching-style card selection per radio group name to prevent cross-group deselection.
+
+**Files modified:**
+- `apps/ai/services.py` — retry, backoff, timeout, `_log_usage()`, endpoint/user params
+- `apps/ai/personal_assistant.py` — response mode classifier, adaptive prompt rules, system prompt enhancements
+- `apps/users/models.py` — `cos_response_style` field
+- `apps/users/forms.py` — form field + widget
+- `apps/users/migrations/0067_cos_response_style.py` — migration
+- `templates/users/preferences.html` — response style UI + scoped JS
+- `apps/ai/tests/test_ai_comprehensive.py` — test data fix
+- `apps/users/tests/test_users.py` — test data fix
+- `apps/core/tests/test_core_comprehensive.py` — test data fix
+
+**Why:** Reduce token waste, improve response naturalness, add resilience to LLM failures, and give users control over response verbosity.
+
+
 ## 2026-02-21 — Ops Command Center Phase V2: Final Visual Upgrade
 
 **Changes:**

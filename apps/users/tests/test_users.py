@@ -231,6 +231,7 @@ class PreferencesViewTest(TestCase):
             'habits_enabled': '',
             'ai_enabled': '',
             'ai_coaching_style': 'supportive',
+            'cos_response_style': 'balanced',
             'timezone': 'US/Eastern',
             'location_city': '',
             'location_country': '',

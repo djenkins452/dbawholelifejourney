@@ -592,6 +592,19 @@ class UserPreferences(models.Model):
         help_text='AI coaching style key (loaded from CoachingStyle model)',
     )
 
+    COS_RESPONSE_STYLE_CHOICES = [
+        ('concise', 'Concise'),
+        ('balanced', 'Balanced'),
+        ('strategic', 'Strategic'),
+        ('deep_dive', 'Deep Dive'),
+    ]
+    cos_response_style = models.CharField(
+        max_length=20,
+        choices=COS_RESPONSE_STYLE_CHOICES,
+        default='balanced',
+        help_text='Controls how detailed the Chief of Staff responses are',
+    )
+
     # AI Personal Profile - user-provided context for personalized AI responses
     ai_profile = models.TextField(
         blank=True,

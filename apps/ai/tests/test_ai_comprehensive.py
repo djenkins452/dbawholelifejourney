@@ -1440,6 +1440,7 @@ class AIProfilePreferencesTest(AITestMixin, TestCase):
                 'ai_enabled': True,
                 'ai_data_consent': True,
                 'ai_coaching_style': 'supportive',
+                'cos_response_style': 'balanced',
                 'ai_profile': 'Test profile content for AI personalization.',
                 'timezone': 'US/Eastern',
                 'default_fasting_type': '16:8',

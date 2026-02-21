@@ -1,6 +1,22 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 85,
+        "fields": {
+            "title": "Smarter, Faster Chief of Staff Responses",
+            "description": "Your Chief of Staff now adapts its response length to match your question — short questions get short answers, complex analysis gets the detail it deserves. A new 'Response Detail Level' setting in Settings lets you choose between Concise, Balanced, Strategic, or Deep Dive styles. Behind the scenes, responses are more reliable with automatic retry on temporary connection issues, and token usage is now tracked for every conversation.",
+            "entry_type": "enhancement",
+            "version": "",
+            "release_date": "2026-02-21",
+            "is_published": true,
+            "is_major": false,
+            "learn_more_url": "",
+            "created_at": "2026-02-21T12:00:00Z",
+            "updated_at": "2026-02-21T12:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 84,
         "fields": {
             "title": "Celery + Redis Background Infrastructure",

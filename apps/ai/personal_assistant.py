@@ -98,6 +98,14 @@ Example:
 
 **Answer what was asked, then STOP.** Don't add follow-up questions. Don't ask "how do you feel about that?" or "is there anything else?" Don't add motivational filler. If you want to add ONE brief connected observation (one sentence max), you can - but only if it's genuinely useful, not padding.
 
+**Adapt response length to the question:**
+- Yes/No question → answer with yes or no (plus brief reason if useful).
+- Simple clarification → 1-3 sentences.
+- Moderate complexity → concise structured bullets.
+- Strategic analysis → full structured breakdown with data.
+
+**Never restate or rephrase the user's question.** Jump straight to the answer. Never summarize what they just said unless you need to clarify an ambiguity.
+
 **Sound human, not robotic.** Use contractions. Be conversational. Reference what you know about them naturally. But CONCISE. Respect their time. A 2-sentence answer is almost always better than a 5-sentence answer.
 
 ## ANSWER ANYTHING (WITHIN REASON)
@@ -129,6 +137,8 @@ When a question is outside wellness, just answer it directly and helpfully. Don'
 - Cheerleader language ("Great job!", "You're doing amazing!", "great to see you back on track", "strong commitment")
 - Deflect to the user when you should answer ("Would you like me to check?")
 - Pad responses with filler ("That's a great question...")
+- Restate, rephrase, or summarize the user's question back to them
+- Add closing summary paragraphs
 - Offer unsolicited life coaching or motivation
 - Use excessive emojis or exclamation points
 - End responses with questions ("How do you feel about...?", "Is there anything specific...?", "Would you like to explore...?")
@@ -3078,8 +3088,41 @@ Rules for voice responses:
         else:
             image_note = ""
 
-        # Determine response style based on question type
+        # =============================================================
+        # Response Mode Classifier — adapts depth, tokens, rules
+        # =============================================================
         is_analysis = is_asking_for_analysis
+        response_mode = self._classify_response_mode(
+            message, is_analysis, is_asking_about_tasks
+        )
+
+        # Per-mode rules injected into user prompt (invisible to user)
+        mode_rules = {
+            'brief': (
+                "- This is a simple question. Answer in 1-3 sentences max.\n"
+                "- Do NOT restate the question. Do NOT add follow-ups."
+            ),
+            'deep': (
+                "- Give specific data-driven insights with real numbers.\n"
+                "- Use concise structured bullets where helpful.\n"
+                "- Do NOT pad with filler. Be thorough but efficient."
+            ),
+            'adaptive': (
+                "- Answer what was asked. Match the depth of their message.\n"
+                "- Do NOT restate the question. Do NOT add follow-ups."
+            ),
+        }
+        rules_block = mode_rules.get(response_mode, mode_rules['adaptive'])
+
+        # Per-user response style preference (admin-configurable)
+        style_pref = getattr(self.prefs, 'cos_response_style', 'balanced')
+        style_nudge = ''
+        if style_pref == 'concise':
+            style_nudge = '- Prefer the shortest accurate answer possible.\n'
+        elif style_pref == 'strategic':
+            style_nudge = '- Include strategic framing and next-step suggestions.\n'
+        elif style_pref == 'deep_dive':
+            style_nudge = '- Provide comprehensive analysis when data supports it.\n'
 
         user_prompt = f"""{"The user's name is " + user_name + ". " if user_name else ""}Conversation so far:
 {messages_context}
@@ -3088,14 +3131,14 @@ User's new message: {message}{image_note}
 
 Rules for this response:
 - Answer directly. Lead with the data when you have it.
-- {"Give specific data-driven insights with real numbers." if is_analysis else "Answer what was asked."}
-- Be conversational and natural — speak like someone who knows this person
+{rules_block}
+{style_nudge}- Be conversational and natural — speak like someone who knows this person
 - If they're sharing something personal, engage with it genuinely before moving to action
-- If following up on previous conversation, build on it naturally
-- Keep it concise but don't be terse. Match the depth of their message."""
+- If following up on previous conversation, build on it naturally"""
 
-        # Dynamic token limit - give enough room for natural, complete responses
-        max_tokens = 600 if (is_analysis or is_asking_about_tasks) else 450
+        # Dynamic token limit keyed to response mode
+        mode_tokens = {'brief': 250, 'adaptive': 450, 'deep': 600}
+        max_tokens = mode_tokens.get(response_mode, 450)
 
         # Temperature: warm enough for natural conversation, lower for data accuracy
         has_personal_data = personal_data_result.get('has_data', False)
@@ -3109,6 +3152,8 @@ Rules for this response:
                 image_data=image_data,
                 image_mime_type=image_mime_type,
                 temperature=temperature,
+                endpoint='cos_chat',
+                user=self.user,
             ) or self._get_fallback_response(message)
 
             return response
@@ -3167,6 +3212,44 @@ Rules for this response:
             )
         except Exception:
             return False
+
+    # -----------------------------------------------------------------
+    # Response-mode classifier (Phase 2B)
+    # -----------------------------------------------------------------
+    @staticmethod
+    def _classify_response_mode(
+        message: str,
+        is_analysis: bool,
+        is_task_query: bool,
+    ) -> str:
+        """Classify user message into brief / deep / adaptive mode.
+
+        This drives token budget and per-response rules without exposing
+        the classification to the user.
+        """
+        if is_analysis or is_task_query:
+            return 'deep'
+
+        msg = message.strip()
+        msg_lower = msg.lower()
+
+        # Brief: short questions, yes/no, confirmations, greetings
+        if len(msg) < 40 and '?' in msg:
+            return 'brief'
+        if msg_lower in ('yes', 'no', 'ok', 'sure', 'thanks', 'thank you',
+                         'got it', 'cool', 'yep', 'nope', 'done'):
+            return 'brief'
+
+        # Deep: explicit strategic/analytical keywords
+        deep_signals = [
+            'analyze', 'analysis', 'design', 'architecture', 'strategy',
+            'plan for', 'break down', 'deep dive', 'compare',
+            'pros and cons', 'trade-offs', 'evaluate', 'assess',
+        ]
+        if any(kw in msg_lower for kw in deep_signals):
+            return 'deep'
+
+        return 'adaptive'
 
     def _get_fallback_response(self, message: str) -> str:
         """Get fallback response when AI is unavailable, matching coaching style."""

@@ -782,6 +782,78 @@
                             </div>
                         </div>
 
+                        <!-- CoS Response Style -->
+                        <div class="accordion-group" data-accordion-key="cos-response-style" {% if not form.ai_data_consent.value %}style="display: none;"{% endif %}>
+                            <button type="button" class="accordion-header">
+                                <div class="accordion-header-content">
+                                    <span class="accordion-icon">📏</span>
+                                    <div class="accordion-title-group">
+                                        <h3 class="accordion-title">Response Detail Level</h3>
+                                        <p class="accordion-subtitle">How detailed should the Chief of Staff be?</p>
+                                    </div>
+                                </div>
+                                <div class="accordion-header-right">
+                                    <div class="accordion-status">
+                                        <span class="accordion-badge accordion-badge-active">{{ form.cos_response_style.value|default:"balanced"|title }}</span>
+                                    </div>
+                                    <svg class="accordion-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polyline points="6 9 12 15 18 9"></polyline>
+                                    </svg>
+                                </div>
+                            </button>
+                            <div class="accordion-body">
+                                <p class="text-muted text-sm mb-4">
+                                    Control the depth and detail of your Chief of Staff's responses.
+                                </p>
+                                <div class="coaching-style-options">
+                                    <label class="coaching-style-card {% if form.cos_response_style.value == 'concise' %}selected{% endif %}">
+                                        <input type="radio" name="cos_response_style" value="concise"
+                                               {% if form.cos_response_style.value == 'concise' %}checked{% endif %}>
+                                        <div class="card-content">
+                                            <div class="card-icon">⚡</div>
+                                            <div class="card-text">
+                                                <div class="card-title">Concise</div>
+                                                <div class="card-description">Short, direct answers. Just the essentials.</div>
+                                            </div>
+                                        </div>
+                                    </label>
+                                    <label class="coaching-style-card {% if form.cos_response_style.value == 'balanced' or not form.cos_response_style.value %}selected{% endif %}">
+                                        <input type="radio" name="cos_response_style" value="balanced"
+                                               {% if form.cos_response_style.value == 'balanced' or not form.cos_response_style.value %}checked{% endif %}>
+                                        <div class="card-content">
+                                            <div class="card-icon">⚖️</div>
+                                            <div class="card-text">
+                                                <div class="card-title">Balanced</div>
+                                                <div class="card-description">Natural depth — adapts to the question.</div>
+                                            </div>
+                                        </div>
+                                    </label>
+                                    <label class="coaching-style-card {% if form.cos_response_style.value == 'strategic' %}selected{% endif %}">
+                                        <input type="radio" name="cos_response_style" value="strategic"
+                                               {% if form.cos_response_style.value == 'strategic' %}checked{% endif %}>
+                                        <div class="card-content">
+                                            <div class="card-icon">🎯</div>
+                                            <div class="card-text">
+                                                <div class="card-title">Strategic</div>
+                                                <div class="card-description">Includes next-step suggestions and framing.</div>
+                                            </div>
+                                        </div>
+                                    </label>
+                                    <label class="coaching-style-card {% if form.cos_response_style.value == 'deep_dive' %}selected{% endif %}">
+                                        <input type="radio" name="cos_response_style" value="deep_dive"
+                                               {% if form.cos_response_style.value == 'deep_dive' %}checked{% endif %}>
+                                        <div class="card-content">
+                                            <div class="card-icon">🔬</div>
+                                            <div class="card-text">
+                                                <div class="card-title">Deep Dive</div>
+                                                <div class="card-description">Comprehensive analysis with full context.</div>
+                                            </div>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Personal Profile -->
                         <div class="accordion-group" data-accordion-key="personal-profile" id="ai-profile-accordion" {% if not form.ai_data_consent.value %}style="display: none;"{% endif %}>
                             <button type="button" class="accordion-header">
@@ -3720,11 +3792,12 @@ if (aiProfileTextarea && aiProfileLengthSpan) {
     });
 }
 
-// Coaching style card selection
+// Coaching / response-style card selection (scoped per radio group)
 document.querySelectorAll('.coaching-style-card input[type="radio"]').forEach(radio => {
     radio.addEventListener('change', function() {
-        document.querySelectorAll('.coaching-style-card').forEach(card => {
-            card.classList.remove('selected');
+        const groupName = this.name;
+        document.querySelectorAll(`.coaching-style-card input[name="${groupName}"]`).forEach(r => {
+            r.closest('.coaching-style-card').classList.remove('selected');
         });
         if (this.checked) {
             this.closest('.coaching-style-card').classList.add('selected');

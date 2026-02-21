@@ -1103,6 +1103,7 @@ class WhatsNewPreferenceTest(CoreTestMixin, TestCase):
             'theme': 'sanctuary',
             'timezone': 'US/Eastern',
             'ai_coaching_style': 'supportive',
+            'cos_response_style': 'balanced',
             'default_fasting_type': '16:8',
             # Required fields for SMS
             'sms_quiet_start': '22:00',
@@ -1124,6 +1125,7 @@ class WhatsNewPreferenceTest(CoreTestMixin, TestCase):
             'theme': 'sanctuary',
             'timezone': 'US/Eastern',
             'ai_coaching_style': 'supportive',
+            'cos_response_style': 'balanced',
             'default_fasting_type': '16:8',
             # Required fields for SMS
             'sms_quiet_start': '22:00',

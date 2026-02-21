@@ -477,6 +477,7 @@ class PreferencesForm(forms.ModelForm):
             "ai_enabled",
             "ai_data_consent",
             'ai_coaching_style',
+            'cos_response_style',
             'ai_profile',
             # Personal Assistant (sub-module of AI)
             "personal_assistant_enabled",
@@ -804,6 +805,13 @@ class PreferencesForm(forms.ModelForm):
                 choices=fallback_choices,
                 attrs={"class": "form-select"},
             )
+
+        # CoS response style widget
+        from apps.users.models import UserPreferences
+        self.fields["cos_response_style"].widget = forms.Select(
+            choices=UserPreferences.COS_RESPONSE_STYLE_CHOICES,
+            attrs={"class": "form-select"},
+        )
 
     def clean(self):
         """Validate form data, especially macro percentages."""

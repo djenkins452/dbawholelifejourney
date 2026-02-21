@@ -931,6 +931,7 @@ class GuidanceEngineTest(PGETestMixin, TestCase):
                 user=self.user,
                 title=f"Item {i}",
                 message="Test",
+                guidance_type=f"type_{i}",
                 dedupe_key=f"limit_test_{i}",
                 is_active=True,
             )
@@ -1076,6 +1077,7 @@ class GuidanceViewTest(PGETestMixin, TestCase):
                 user=self.user,
                 title=f"Item {i}",
                 message="Test",
+                guidance_type=f"type_{i}",
                 dedupe_key=f"api_limit_{i}",
                 is_active=True,
             )

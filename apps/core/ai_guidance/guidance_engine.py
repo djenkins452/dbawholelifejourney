@@ -83,18 +83,23 @@ def get_active_guidance(user, limit=5):
     - Dismissed items (dismissed_at is set)
     - Currently snoozed items (snoozed_until in the future)
 
+    Then applies:
+    - Per-type deduplication: only the newest item per (guidance_type, module)
+    - Supersession: newer guidance in a module can hide older contradictory items
+
     Args:
         user: Django user instance.
         limit: Maximum items to return.
 
     Returns:
-        QuerySet of active GuidanceItem instances.
+        List of GuidanceItem instances.
     """
     from apps.core.ai_guidance.models import GuidanceItem
 
     now = timezone.now()
 
-    return (
+    # Fetch more than limit to allow filtering, then trim
+    items = list(
         GuidanceItem.objects.filter(
             user=user,
             is_active=True,
@@ -102,8 +107,53 @@ def get_active_guidance(user, limit=5):
         )
         .exclude(expires_at__lt=now)
         .exclude(snoozed_until__gt=now)
-        .order_by("priority", "-created_at")[:limit]
+        .order_by("priority", "-created_at")[:limit * 4]
     )
+
+    items = _deduplicate_by_type(items)
+    items = _apply_supersession(items)
+
+    return items[:limit]
+
+
+# Supersession map: if a guidance_type in the key set exists for a module,
+# it hides guidance_types in the value set for the same module.
+# e.g. a journal positive_reinforcement supersedes journal_inactivity.
+_SUPERSESSION_MAP = {
+    "positive_reinforcement": {"journal_inactivity"},
+    "health_trend": {"health_inactivity"},
+}
+
+
+def _deduplicate_by_type(items):
+    """Keep only the newest item per (guidance_type, module) pair."""
+    seen = {}
+    result = []
+    for item in items:
+        key = (item.guidance_type, item.module)
+        if key not in seen:
+            seen[key] = True
+            result.append(item)
+    return result
+
+
+def _apply_supersession(items):
+    """Remove items that are superseded by newer items in the same module."""
+    # Build a set of (superseded_type, module) pairs present in items
+    active_supersessions = set()
+    for item in items:
+        supersedes = _SUPERSESSION_MAP.get(item.guidance_type)
+        if supersedes:
+            for s_type in supersedes:
+                active_supersessions.add((s_type, item.module))
+
+    if not active_supersessions:
+        return items
+
+    return [
+        item for item in items
+        if (item.guidance_type, item.module) not in active_supersessions
+    ]
 
 
 def expire_old_guidance():

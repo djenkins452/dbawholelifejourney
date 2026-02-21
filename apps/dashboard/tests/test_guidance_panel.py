@@ -101,6 +101,7 @@ class GuidancePanelRenderTest(GuidancePanelTestMixin, TestCase):
         for i in range(7):
             self._create_guidance(
                 title=f"Guidance {i}",
+                guidance_type=f"test_rule_{i}",
                 dedupe_key=build_guidance_dedupe_key(
                     self.user.id, "test", str(i)
                 ),
@@ -148,12 +149,14 @@ class GuidancePanelRenderTest(GuidancePanelTestMixin, TestCase):
         """Confidence score is displayed only for prediction-sourced items."""
         self._create_guidance(
             title="With Confidence",
+            guidance_type="health_trend",
             source="prie_prediction",
             confidence_score=0.86,
             dedupe_key=build_guidance_dedupe_key(self.user.id, "test", "conf"),
         )
         self._create_guidance(
             title="Without Confidence",
+            guidance_type="goal_risk",
             source="sae_state",
             confidence_score=None,
             dedupe_key=build_guidance_dedupe_key(self.user.id, "test", "noconf"),
@@ -309,3 +312,169 @@ class GuidancePanelPermissionTest(GuidancePanelTestMixin, TestCase):
         )
         response = self.client.get(reverse("dashboard:home"))
         self.assertNotContains(response, "Not My Guidance")
+
+
+# ---------------------------------------------------------------------------
+# Deduplication & Supersession Tests
+# ---------------------------------------------------------------------------
+
+
+class GuidancePanelDeduplicationTest(GuidancePanelTestMixin, TestCase):
+    """Tests that duplicate and contradictory guidance items are filtered."""
+
+    def test_only_newest_per_guidance_type_and_module(self):
+        """When multiple items share the same guidance_type + module, only
+        the newest one (by created_at) appears on the dashboard."""
+        # Older weight trend (created first)
+        self._create_guidance(
+            title="Weight trending down (-7.0 lb)",
+            guidance_type="health_trend",
+            module="health",
+            source="pie_insight",
+            priority=4,
+            dedupe_key=build_guidance_dedupe_key(
+                self.user.id, "health_trend", "old"
+            ),
+        )
+        # Newer weight trend (created second — higher id, newer created_at)
+        self._create_guidance(
+            title="Weight trending down (-2.4 lb)",
+            guidance_type="health_trend",
+            module="health",
+            source="pie_insight",
+            priority=4,
+            dedupe_key=build_guidance_dedupe_key(
+                self.user.id, "health_trend", "new"
+            ),
+        )
+        response = self.client.get(reverse("dashboard:home"))
+        items = response.context["guidance_items"]
+
+        health_trend_items = [
+            i for i in items if i.guidance_type == "health_trend"
+        ]
+        self.assertEqual(len(health_trend_items), 1)
+        # The newest one wins (ordered by priority then -created_at)
+        self.assertIn("-2.4", health_trend_items[0].title)
+
+    def test_different_types_in_same_module_both_shown(self):
+        """Items with different guidance_types in the same module are both kept."""
+        self._create_guidance(
+            title="Health trend item",
+            guidance_type="health_trend",
+            module="health",
+            dedupe_key=build_guidance_dedupe_key(
+                self.user.id, "health_trend", "a"
+            ),
+        )
+        self._create_guidance(
+            title="Health prediction",
+            guidance_type="goal_risk",
+            module="health",
+            dedupe_key=build_guidance_dedupe_key(
+                self.user.id, "goal_risk", "b"
+            ),
+        )
+        response = self.client.get(reverse("dashboard:home"))
+        items = response.context["guidance_items"]
+        self.assertEqual(len(items), 2)
+
+    def test_same_type_different_module_both_shown(self):
+        """Items with the same guidance_type but different modules are both kept."""
+        self._create_guidance(
+            title="Health reinforcement",
+            guidance_type="positive_reinforcement",
+            module="health",
+            dedupe_key=build_guidance_dedupe_key(
+                self.user.id, "positive", "health"
+            ),
+        )
+        self._create_guidance(
+            title="Journal reinforcement",
+            guidance_type="positive_reinforcement",
+            module="journal",
+            dedupe_key=build_guidance_dedupe_key(
+                self.user.id, "positive", "journal"
+            ),
+        )
+        response = self.client.get(reverse("dashboard:home"))
+        items = response.context["guidance_items"]
+        self.assertEqual(len(items), 2)
+
+    def test_supersession_journal_streak_hides_inactivity(self):
+        """A journal positive_reinforcement item should supersede a
+        journal_inactivity item for the same module."""
+        # Older inactivity guidance
+        self._create_guidance(
+            title="You haven't journaled recently",
+            guidance_type="journal_inactivity",
+            module="journal",
+            source="sae_state",
+            priority=5,
+            dedupe_key=build_guidance_dedupe_key(
+                self.user.id, "journal_zero_30d"
+            ),
+        )
+        # Newer positive reinforcement (journaling streak)
+        self._create_guidance(
+            title="4-day journaling streak!",
+            guidance_type="positive_reinforcement",
+            module="journal",
+            source="pie_insight",
+            priority=4,
+            dedupe_key=build_guidance_dedupe_key(
+                self.user.id, "positive", "streak"
+            ),
+        )
+        response = self.client.get(reverse("dashboard:home"))
+        items = response.context["guidance_items"]
+
+        titles = [i.title for i in items]
+        self.assertIn("4-day journaling streak!", titles)
+        self.assertNotIn("You haven't journaled recently", titles)
+
+    def test_supersession_only_applies_within_same_module(self):
+        """Supersession should NOT cross module boundaries."""
+        # Journal inactivity
+        self._create_guidance(
+            title="You haven't journaled recently",
+            guidance_type="journal_inactivity",
+            module="journal",
+            priority=5,
+            dedupe_key=build_guidance_dedupe_key(
+                self.user.id, "journal_zero_30d"
+            ),
+        )
+        # Health positive reinforcement (different module)
+        self._create_guidance(
+            title="Weight trending down",
+            guidance_type="positive_reinforcement",
+            module="health",
+            priority=4,
+            dedupe_key=build_guidance_dedupe_key(
+                self.user.id, "positive", "health"
+            ),
+        )
+        response = self.client.get(reverse("dashboard:home"))
+        items = response.context["guidance_items"]
+        titles = [i.title for i in items]
+        # Both should be present — different modules
+        self.assertIn("You haven't journaled recently", titles)
+        self.assertIn("Weight trending down", titles)
+
+    def test_no_supersession_when_only_inactivity_exists(self):
+        """If only the inactivity item exists (no superseding item),
+        it should still be shown."""
+        self._create_guidance(
+            title="You haven't journaled recently",
+            guidance_type="journal_inactivity",
+            module="journal",
+            priority=5,
+            dedupe_key=build_guidance_dedupe_key(
+                self.user.id, "journal_zero_30d"
+            ),
+        )
+        response = self.client.get(reverse("dashboard:home"))
+        items = response.context["guidance_items"]
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0].title, "You haven't journaled recently")

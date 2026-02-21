@@ -439,7 +439,7 @@ def build_cos_context(user):
         week_ago = timezone.localdate() - timedelta(days=7)
 
         try:
-            from django.db.models import Avg
+            from django.db.models import Avg, Sum
             from apps.health.models import (
                 HeartRateEntry, BloodPressureEntry, GlucoseEntry,
                 BloodOxygenEntry, StepsEntry, SleepEntry,
@@ -489,14 +489,41 @@ def build_cos_context(user):
                 if sleep_avg:
                     health_signals['sleep_avg_7d'] = round(float(sleep_avg) / 60, 1)
 
-            # Workouts count (fallback if state engine doesn't have it)
-            if not health_signals.get('workout_count_7d'):
-                from apps.health.models import WorkoutSession
-                workout_count = WorkoutSession.objects.filter(
-                    user=user, date__gte=week_ago
-                ).count()
-                if workout_count > 0:
-                    health_signals['workout_count_7d'] = workout_count
+            # Workouts — full detail (count, calories, duration, distance, HR)
+            from apps.health.models import WorkoutSession
+            workout_qs = WorkoutSession.objects.filter(
+                user=user, date__gte=week_ago
+            )
+            workout_count = workout_qs.count()
+            if workout_count > 0:
+                health_signals['workout_count_7d'] = workout_count
+                workout_agg = workout_qs.aggregate(
+                    total_cal=Sum('calories_burned'),
+                    total_min=Sum('duration_minutes'),
+                    avg_hr=Avg('avg_heart_rate'),
+                    total_dist=Sum('distance_miles'),
+                )
+                if workout_agg['total_cal']:
+                    health_signals['workout_calories_7d'] = workout_agg['total_cal']
+                if workout_agg['total_min']:
+                    health_signals['workout_minutes_7d'] = workout_agg['total_min']
+                if workout_agg['avg_hr']:
+                    health_signals['workout_avg_hr_7d'] = round(float(workout_agg['avg_hr']))
+                if workout_agg['total_dist']:
+                    health_signals['workout_distance_7d'] = round(float(workout_agg['total_dist']), 1)
+                # Recent workout names for context
+                recent_workouts = workout_qs.order_by('-date')[:3]
+                health_signals['recent_workouts'] = [
+                    {
+                        'name': w.name,
+                        'type': w.workout_type,
+                        'date': str(w.date),
+                        'minutes': w.duration_minutes,
+                        'calories': w.calories_burned,
+                        'avg_hr': w.avg_heart_rate,
+                    }
+                    for w in recent_workouts
+                ]
 
             # Heart rate events (clinically important)
             from apps.health.models import HeartRateEventEntry
@@ -705,7 +732,28 @@ def format_cos_system_injection(context):
             health_lines.append(f"Blood Oxygen: {spo2}%")
         workouts = health_sig.get('workout_count_7d')
         if workouts:
-            health_lines.append(f"Workouts: {workouts} this week")
+            workout_parts = [f"Workouts: {workouts} this week"]
+            if health_sig.get('workout_calories_7d'):
+                workout_parts.append(f"{health_sig['workout_calories_7d']:,} cal burned")
+            if health_sig.get('workout_minutes_7d'):
+                workout_parts.append(f"{health_sig['workout_minutes_7d']} min total")
+            if health_sig.get('workout_avg_hr_7d'):
+                workout_parts.append(f"{health_sig['workout_avg_hr_7d']} bpm avg")
+            if health_sig.get('workout_distance_7d'):
+                workout_parts.append(f"{health_sig['workout_distance_7d']} mi")
+            health_lines.append(', '.join(workout_parts))
+            # Recent workout names
+            recent_workouts = health_sig.get('recent_workouts', [])
+            for rw in recent_workouts:
+                name = rw.get('name') or rw.get('type') or 'Workout'
+                rw_parts = [name]
+                if rw.get('date'):
+                    rw_parts[0] = f"{name} ({rw['date']})"
+                if rw.get('calories'):
+                    rw_parts.append(f"{rw['calories']} cal")
+                if rw.get('avg_hr'):
+                    rw_parts.append(f"{rw['avg_hr']} bpm")
+                health_lines.append(f"    - {', '.join(rw_parts)}")
         hr_events = health_sig.get('heart_rate_events_7d')
         if hr_events:
             health_lines.append(f"Heart Rate Events: {hr_events} this week")

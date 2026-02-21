@@ -1296,24 +1296,34 @@ class PersonalDataService:
 
         count = queryset.count()
 
-        # Calculate total and average duration
-        total_minutes = 0
-        for session in queryset:
-            if session.duration_minutes:
-                total_minutes += session.duration_minutes
+        # Calculate aggregates
+        agg = queryset.aggregate(
+            total_minutes=Sum('duration_minutes'),
+            total_calories=Sum('calories_burned'),
+            avg_calories=Avg('calories_burned'),
+            avg_duration=Avg('duration_minutes'),
+            avg_heart_rate=Avg('avg_heart_rate'),
+            total_distance=Sum('distance_miles'),
+        )
 
-        avg_duration = round(total_minutes / count, 1) if count > 0 else 0
+        total_minutes = agg['total_minutes'] or 0
+        avg_duration = round(float(agg['avg_duration']), 1) if agg['avg_duration'] else 0
 
         latest_entry = queryset.first()
         latest_date = latest_entry.date
 
-        # Get recent workouts
+        # Get recent workouts with full detail
         recent_sessions = queryset[:limit]
         workouts = [
             {
                 'name': session.name,
                 'date': session.date,
                 'duration_minutes': session.duration_minutes,
+                'calories_burned': session.calories_burned,
+                'distance_miles': float(session.distance_miles) if session.distance_miles else None,
+                'avg_heart_rate': session.avg_heart_rate,
+                'workout_type': session.workout_type,
+                'source': session.source,
                 'notes': session.notes,
             }
             for session in recent_sessions
@@ -1324,6 +1334,10 @@ class PersonalDataService:
             'count': count,
             'total_minutes': total_minutes,
             'avg_duration': avg_duration,
+            'total_calories': agg['total_calories'] or 0,
+            'avg_calories': round(float(agg['avg_calories'])) if agg['avg_calories'] else None,
+            'avg_heart_rate': round(float(agg['avg_heart_rate'])) if agg['avg_heart_rate'] else None,
+            'total_distance': round(float(agg['total_distance']), 1) if agg['total_distance'] else None,
             'latest_date': latest_date,
             'workouts': workouts,
         }
@@ -2126,10 +2140,42 @@ class PersonalDataService:
                 user=self.user, date__gte=since_date
             )
             if qs.exists():
-                summaries['workouts'] = {
-                    'count': qs.count(),
-                    'latest_date': qs.order_by('-date').first().date,
+                agg = qs.aggregate(
+                    total=Count('id'),
+                    total_minutes=Sum('duration_minutes'),
+                    total_calories=Sum('calories_burned'),
+                    avg_calories=Avg('calories_burned'),
+                    avg_hr=Avg('avg_heart_rate'),
+                    total_distance=Sum('distance_miles'),
+                )
+                latest = qs.order_by('-date').first()
+                workout_summary = {
+                    'count': agg['total'],
+                    'latest_date': latest.date,
+                    'total_minutes': agg['total_minutes'] or 0,
+                    'total_calories': agg['total_calories'] or 0,
                 }
+                if agg['avg_calories']:
+                    workout_summary['avg_calories'] = round(float(agg['avg_calories']))
+                if agg['avg_hr']:
+                    workout_summary['avg_heart_rate'] = round(float(agg['avg_hr']))
+                if agg['total_distance']:
+                    workout_summary['total_distance_miles'] = round(float(agg['total_distance']), 1)
+                # Include recent workout names/types
+                recent = qs.order_by('-date')[:5]
+                workout_summary['recent'] = [
+                    {
+                        'name': w.name,
+                        'type': w.workout_type,
+                        'date': str(w.date),
+                        'duration': w.duration_minutes,
+                        'calories': w.calories_burned,
+                        'avg_hr': w.avg_heart_rate,
+                        'distance': float(w.distance_miles) if w.distance_miles else None,
+                    }
+                    for w in recent
+                ]
+                summaries['workouts'] = workout_summary
         except Exception:
             pass
 

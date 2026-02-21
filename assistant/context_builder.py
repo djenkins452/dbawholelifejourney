@@ -653,10 +653,44 @@ def _format_workout_data(
     if avg_duration is not None:
         lines.append(f'- Average session: {avg_duration} minutes')
 
+    total_calories = workout_data.get('total_calories', 0)
+    if total_calories:
+        lines.append(f'- Total calories burned: {total_calories:,}')
+
+    avg_calories = workout_data.get('avg_calories')
+    if avg_calories:
+        lines.append(f'- Average calories per workout: {avg_calories}')
+
+    avg_hr = workout_data.get('avg_heart_rate')
+    if avg_hr:
+        lines.append(f'- Average heart rate during workouts: {avg_hr} bpm')
+
+    total_distance = workout_data.get('total_distance')
+    if total_distance:
+        lines.append(f'- Total distance: {total_distance} miles')
+
     latest_date = workout_data.get('latest_date')
     if latest_date is not None:
         date_str = _format_date(latest_date, user_timezone)
         lines.append(f'- Most recent workout: {date_str}')
+
+    # Include recent workout details
+    workouts = workout_data.get('workouts', [])
+    if workouts:
+        lines.append('- Recent workouts:')
+        for w in workouts[:5]:
+            name = w.get('name') or w.get('workout_type') or 'Workout'
+            date_str = _format_date(w.get('date'), user_timezone)
+            parts = [f'  * {name} ({date_str})']
+            if w.get('duration_minutes'):
+                parts.append(f'{w["duration_minutes"]} min')
+            if w.get('calories_burned'):
+                parts.append(f'{w["calories_burned"]} cal')
+            if w.get('avg_heart_rate'):
+                parts.append(f'{w["avg_heart_rate"]} bpm avg HR')
+            if w.get('distance_miles'):
+                parts.append(f'{w["distance_miles"]} mi')
+            lines.append(' — '.join(parts))
 
     return '\n'.join(lines)
 
@@ -777,7 +811,31 @@ def _format_health_summary_data(
     # Workouts
     wo = summaries.get('workouts')
     if wo:
-        lines.append(f'- Workouts: {wo["count"]} sessions')
+        parts = [f'- Workouts: {wo["count"]} sessions']
+        if wo.get('total_minutes'):
+            parts.append(f'{wo["total_minutes"]} total min')
+        if wo.get('total_calories'):
+            parts.append(f'{wo["total_calories"]:,} total cal burned')
+        if wo.get('avg_heart_rate'):
+            parts.append(f'{wo["avg_heart_rate"]} avg bpm')
+        if wo.get('total_distance_miles'):
+            parts.append(f'{wo["total_distance_miles"]} total miles')
+        lines.append(', '.join(parts))
+        # Recent workout names
+        recent = wo.get('recent', [])
+        if recent:
+            for r in recent[:3]:
+                name = r.get('name') or r.get('type') or 'Workout'
+                detail_parts = [name, r.get('date', '')]
+                if r.get('duration'):
+                    detail_parts.append(f'{r["duration"]}min')
+                if r.get('calories'):
+                    detail_parts.append(f'{r["calories"]}cal')
+                if r.get('avg_hr'):
+                    detail_parts.append(f'{r["avg_hr"]}bpm')
+                if r.get('distance'):
+                    detail_parts.append(f'{r["distance"]}mi')
+                lines.append(f'  * {" — ".join(detail_parts)}')
 
     # Mobility
     mob = summaries.get('mobility')

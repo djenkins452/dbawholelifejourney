@@ -195,7 +195,8 @@ class SearchService:
             keywords: Search terms (mainly for notes fields)
             metric_type: Specific metric type to search:
                 weight, sleep, blood_pressure, food, workout, fasting,
-                heart_rate, steps, water, glucose, blood_oxygen, medicine
+                heart_rate, steps, water, glucose, blood_oxygen, medicine,
+                mobility, heart_rate_events, audio_exposure, dietary_nutrients
             date_range: Tuple of (start_date, end_date)
             limit: Maximum results
 
@@ -215,7 +216,8 @@ class SearchService:
             for mtype in [
                 'weight', 'sleep', 'food', 'workout', 'fasting', 'medicine',
                 'steps', 'heart_rate', 'blood_pressure', 'glucose',
-                'blood_oxygen', 'water',
+                'blood_oxygen', 'water', 'mobility', 'heart_rate_events',
+                'audio_exposure', 'dietary_nutrients',
             ]:
                 method_name = f"_search_health_{mtype}"
                 if hasattr(self, method_name):
@@ -369,13 +371,36 @@ class SearchService:
 
         results = []
         for session in sessions:
+            parts = []
+            if session.workout_type:
+                parts.append(session.workout_type)
+            if session.duration_minutes:
+                parts.append(f"{session.duration_minutes} min")
+            if session.calories_burned:
+                parts.append(f"{session.calories_burned} cal")
+            if session.avg_heart_rate:
+                parts.append(f"{session.avg_heart_rate} bpm avg HR")
+            if session.distance_miles:
+                parts.append(f"{float(session.distance_miles):.1f} mi")
+            snippet = ', '.join(parts) if parts else (session.notes or "")
+            metadata = {
+                "metric_type": "workout",
+                "name": session.name,
+                "source": session.source,
+            }
+            if session.calories_burned:
+                metadata["calories"] = session.calories_burned
+            if session.avg_heart_rate:
+                metadata["avg_heart_rate"] = session.avg_heart_rate
+            if session.duration_minutes:
+                metadata["duration_minutes"] = session.duration_minutes
             results.append(self._create_result(
                 id=session.pk,
-                title=f"Workout: {session.name or 'Unnamed Session'}",
-                snippet=session.notes or "",
+                title=f"Workout: {session.name or session.workout_type or 'Session'}",
+                snippet=snippet,
                 date_value=session.date,
                 url=reverse('health:workout_list'),
-                metadata={"metric_type": "workout", "name": session.name}
+                metadata=metadata,
             ))
         return results
 
@@ -675,6 +700,157 @@ class SearchService:
                 date_value=entry.logged_date,
                 url=reverse('health:water_list'),
                 metadata={"metric_type": "water", "amount": float(entry.amount), "unit": entry.unit}
+            ))
+        return results
+
+    def _search_health_mobility(
+        self,
+        keywords: Optional[List[str]],
+        date_range: Optional[Tuple[date, date]],
+        limit: int
+    ) -> List[Dict]:
+        """Search mobility entries (walking asymmetry, steadiness, speed, etc.)."""
+        from apps.health.models import MobilityEntry
+
+        entries = MobilityEntry.objects.filter(user=self.user)
+
+        start_date, end_date = self._parse_date_range(date_range)
+        if start_date:
+            entries = entries.filter(metric_date__gte=start_date)
+        if end_date:
+            entries = entries.filter(metric_date__lte=end_date)
+
+        entries = entries.order_by('-metric_date')[:limit]
+
+        results = []
+        for entry in entries:
+            parts = []
+            if entry.walking_speed is not None:
+                parts.append(f"speed: {entry.walking_speed} m/s")
+            if entry.walking_asymmetry is not None:
+                parts.append(f"asymmetry: {entry.walking_asymmetry}%")
+            if entry.walking_steadiness_score is not None:
+                parts.append(f"steadiness: {entry.walking_steadiness_score}")
+            snippet = ', '.join(parts) if parts else "Mobility data"
+            results.append(self._create_result(
+                id=entry.pk,
+                title=f"Mobility ({entry.metric_date})",
+                snippet=snippet,
+                date_value=entry.metric_date,
+                url=reverse('health:health_home'),
+                metadata={"metric_type": "mobility"}
+            ))
+        return results
+
+    def _search_health_heart_rate_events(
+        self,
+        keywords: Optional[List[str]],
+        date_range: Optional[Tuple[date, date]],
+        limit: int
+    ) -> List[Dict]:
+        """Search heart rate event entries (high HR, low HR, AFib)."""
+        from apps.health.models import HeartRateEventEntry
+
+        entries = HeartRateEventEntry.objects.filter(user=self.user)
+
+        start_date, end_date = self._parse_date_range(date_range)
+        if start_date:
+            entries = entries.filter(recorded_at__date__gte=start_date)
+        if end_date:
+            entries = entries.filter(recorded_at__date__lte=end_date)
+
+        entries = entries.order_by('-recorded_at')[:limit]
+
+        results = []
+        for entry in entries:
+            snippet = f"{entry.event_type}: {entry.heart_rate} bpm"
+            if entry.threshold:
+                snippet += f" (threshold: {entry.threshold} bpm)"
+            results.append(self._create_result(
+                id=entry.pk,
+                title=f"HR Event: {entry.event_type} ({entry.recorded_at.strftime('%Y-%m-%d')})",
+                snippet=snippet,
+                date_value=entry.recorded_at.date(),
+                url=reverse('health:health_home'),
+                metadata={"metric_type": "heart_rate_events", "event_type": entry.event_type}
+            ))
+        return results
+
+    def _search_health_audio_exposure(
+        self,
+        keywords: Optional[List[str]],
+        date_range: Optional[Tuple[date, date]],
+        limit: int
+    ) -> List[Dict]:
+        """Search audio exposure entries (headphone and environmental levels)."""
+        from apps.health.models import AudioExposureEntry
+
+        entries = AudioExposureEntry.objects.filter(user=self.user)
+
+        start_date, end_date = self._parse_date_range(date_range)
+        if start_date:
+            entries = entries.filter(metric_date__gte=start_date)
+        if end_date:
+            entries = entries.filter(metric_date__lte=end_date)
+
+        entries = entries.order_by('-metric_date')[:limit]
+
+        results = []
+        for entry in entries:
+            parts = []
+            if entry.headphone_level_db is not None:
+                parts.append(f"Headphone: {entry.headphone_level_db} dB")
+            if entry.headphone_duration_minutes is not None:
+                parts.append(f"{entry.headphone_duration_minutes} min")
+            if entry.environmental_level_db is not None:
+                parts.append(f"Environment: {entry.environmental_level_db} dB")
+            results.append(self._create_result(
+                id=entry.pk,
+                title=f"Audio Exposure ({entry.metric_date})",
+                snippet=', '.join(parts) if parts else "Audio data",
+                date_value=entry.metric_date,
+                url=reverse('health:health_home'),
+                metadata={"metric_type": "audio_exposure"}
+            ))
+        return results
+
+    def _search_health_dietary_nutrients(
+        self,
+        keywords: Optional[List[str]],
+        date_range: Optional[Tuple[date, date]],
+        limit: int
+    ) -> List[Dict]:
+        """Search dietary nutrient entries from HealthKit."""
+        from apps.health.models import DietaryNutrientEntry
+
+        entries = DietaryNutrientEntry.objects.filter(user=self.user)
+
+        start_date, end_date = self._parse_date_range(date_range)
+        if start_date:
+            entries = entries.filter(metric_date__gte=start_date)
+        if end_date:
+            entries = entries.filter(metric_date__lte=end_date)
+
+        entries = entries.order_by('-metric_date')[:limit]
+
+        results = []
+        for entry in entries:
+            parts = []
+            if entry.calories is not None:
+                parts.append(f"{entry.calories} cal")
+            if entry.protein_g is not None:
+                parts.append(f"{entry.protein_g}g protein")
+            if entry.carbohydrates_g is not None:
+                parts.append(f"{entry.carbohydrates_g}g carbs")
+            if entry.fat_g is not None:
+                parts.append(f"{entry.fat_g}g fat")
+            results.append(self._create_result(
+                id=entry.pk,
+                title=f"Nutrients ({entry.metric_date})",
+                snippet=', '.join(parts) if parts else "Dietary data",
+                date_value=entry.metric_date,
+                url=reverse('health:health_home'),
+                metadata={"metric_type": "dietary_nutrients"}
             ))
         return results
 

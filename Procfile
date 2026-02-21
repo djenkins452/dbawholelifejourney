@@ -1,10 +1,23 @@
-web: python manage.py fix_stale_migrations && python manage.py migrate --noinput && python manage.py add_drill_sergeant && python manage.py load_initial_data -v 0 && python manage.py sync_workout_to_templates -v 0 && python manage.py recalculate_task_priorities -v 0 && python manage.py load_project_from_json docs/ux_improvements_tasks.json -v 0 && python manage.py reset_reading_plan_progress && python manage.py reset_calibration_for_intro && python manage.py collectstatic --noinput && gunicorn config.wsgi --preload --log-file - --timeout 300
-# Updated: 2026-01-11 - Added reset_reading_plan_progress to fix reading plan notes bug
-# Updated: 2026-01-11 - Added fix_stale_migrations before migrate to fix broken dependencies
-# load_initial_data now handles ALL one-time data loading with DataLoadConfig tracking:
-#   - All fixtures (categories, encouragements, scripture, prompts, help content, etc.)
-#   - All populate commands (choices, themes, exercises, etc.)
-#   - Reading plans, workout templates, project phases
-#   - Project blueprints
-# recalculate_task_priorities runs every deploy (updates priorities based on due dates)
-# SMS scheduler runs embedded in web process (see config/wsgi.py) - no separate worker needed
+web: python manage.py migrate --noinput && python manage.py load_initial_data -v 0 && python manage.py recalculate_task_priorities -v 0 && python manage.py collectstatic --noinput && gunicorn config.wsgi --preload --log-file - --timeout 300
+worker: celery -A config worker --loglevel=info --concurrency=2
+beat: celery -A config beat --loglevel=info
+# Updated: 2026-02-21 — Cleaned startup chain, added worker/beat entries
+#
+# Web service startup (idempotent, non-destructive):
+#   - migrate: Apply pending DB migrations
+#   - load_initial_data: One-time fixture loading (tracked by DataLoadConfig, skips if done)
+#   - recalculate_task_priorities: Runs every deploy (fast, no side effects)
+#   - collectstatic: Gather static files
+#   - gunicorn: WSGI server (APScheduler for 15 jobs starts inside wsgi.py)
+#
+# Worker service:
+#   - Celery worker consumes tasks from Redis queue
+#   - Executes run_same_cycle_task (SAME monitoring) dispatched by Beat
+#
+# Beat service:
+#   - Celery Beat schedules periodic tasks (currently: SAME every 60s)
+#   - Must be single-instance (multiple Beats = duplicate task dispatch)
+#
+# IMPORTANT: Do NOT add reload_help_content to startup.
+# Help content is loaded by load_initial_data (one-time) and reload_help_content
+# (on-demand via CLI only). Both use update_or_create, not destructive loaddata.

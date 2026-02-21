@@ -1470,8 +1470,12 @@
         "pk": 89,
         "fields": {
             "context_id": "EXPLAIN_DETAIL",
+            "help_id": "explain-detail",
             "title": "Evidence & Explainability",
+            "description": "See exactly why a piece of intelligence was generated",
             "content": "The Evidence & Explainability page shows you exactly why a piece of intelligence was generated. You will see:\n\n- **Explanation**: A human-readable description of why this was generated, including which rules and data sources were used.\n- **Confidence Assessment**: For predictive guidance, an explanation of the confidence score.\n- **Supporting Evidence**: A list of specific data points that contributed to the recommendation, with links to the source data when available.\n\nEvery guidance card, daily briefing, and weekly report has a \"Why?\" link that takes you here.",
+            "app_name": "ai",
+            "order": 50,
             "is_active": true,
             "created_at": "2026-02-15T20:00:00Z",
             "updated_at": "2026-02-15T20:00:00Z"
@@ -1482,8 +1486,12 @@
         "pk": 90,
         "fields": {
             "context_id": "INTELLIGENCE_DELIVERY_SETTINGS",
+            "help_id": "intelligence-delivery-settings",
             "title": "Intelligence Delivery Settings",
+            "description": "Control how and when WLJ delivers intelligence notifications",
             "content": "## Intelligence Delivery Settings\n\nControl how and when WLJ delivers intelligence notifications to you.\n\n### Delivery Channels\nCurrently, intelligence is delivered via the in-app notification bell. Future channels (email, push notifications) can be enabled here as they become available.\n\n### Quiet Hours\nSet a daily quiet window during which no notifications will be delivered. Notifications generated during quiet hours are held and delivered when the window ends. This is useful for avoiding interruptions during sleep or focused work.\n\n### Rate Limits\nConfigure how many notifications you receive per hour and per day. When the limit is reached, lower-priority notifications are queued until the next period. Critical notifications are never suppressed.\n\n### Notification Types\nYou can enable or disable delivery for specific intelligence types:\n- **Guidance** — Actionable recommendations from the Proactive Guidance Engine\n- **Daily Briefings** — Morning intelligence summaries\n- **Weekly Reports** — Weekly intelligence summaries\n- **Insights** — Pattern and trend detections\n- **Predictions** — Trajectory projections",
+            "app_name": "ai",
+            "order": 51,
             "is_active": true,
             "created_at": "2026-02-15T00:00:00Z",
             "updated_at": "2026-02-15T00:00:00Z"
@@ -1494,8 +1502,12 @@
         "pk": 91,
         "fields": {
             "context_id": "INTELLIGENCE_DELIVERY_HISTORY",
+            "help_id": "intelligence-delivery-history",
             "title": "Intelligence Delivery History",
+            "description": "View audit log of all intelligence notifications delivered to you",
             "content": "## Intelligence Delivery History\n\nThe Delivery History page shows a complete audit log of all intelligence notifications delivered to you.\n\n### What You Can See\n- **Notification type** — Whether it was guidance, a briefing, a report, an insight, or a prediction\n- **Delivery status** — Whether the notification was delivered, queued, suppressed by quiet hours, or rate-limited\n- **Timestamps** — When the notification was created and when it was actually delivered\n- **Content preview** — A summary of the notification content with a link to the full item\n\n### Filtering\nYou can filter the history by notification type, delivery status, and date range to find specific deliveries.\n\n### Why It Matters\nThe delivery history provides transparency into how the intelligence system communicates with you. If you feel you are missing notifications, check here to see if they were suppressed by quiet hours or rate limits, and adjust your settings accordingly.",
+            "app_name": "ai",
+            "order": 52,
             "is_active": true,
             "created_at": "2026-02-15T00:00:00Z",
             "updated_at": "2026-02-15T00:00:00Z"

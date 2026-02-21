@@ -1109,9 +1109,10 @@ class ReleaseNote(models.Model):
         help_text="Optional link to documentation or blog post",
     )
 
-    # Metadata
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    # Metadata — default=timezone.now for loaddata/fixture compatibility.
+    # auto_now_add bypasses pre_save when raw=True, leaving NULL on NOT NULL columns.
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
         ordering = ['-release_date', '-created_at']
@@ -1120,6 +1121,10 @@ class ReleaseNote(models.Model):
 
     def __str__(self):
         return f"{self.title} ({self.release_date})"
+
+    def save(self, *args, **kwargs):
+        self.updated_at = timezone.now()
+        super().save(*args, **kwargs)
 
     @classmethod
     def get_published(cls):

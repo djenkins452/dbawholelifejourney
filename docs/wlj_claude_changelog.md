@@ -9,6 +9,35 @@
 
 # WLJ Change History
 
+## 2026-02-21 — Fix Deployment IntegrityError on Help Fixture Loading
+
+**Problem:** `django.db.utils.IntegrityError: null value in column "created_at" of relation "help_helptopic"` crashed deployment. Root cause: `loaddata` uses `save_base(raw=True)` which bypasses `auto_now_add` field hooks. `help_topics_brain_training.json` omitted `created_at`/`updated_at` → NULL on NOT NULL columns in PostgreSQL.
+
+**Changes:**
+- **Model fix (6 models):** Changed `created_at`/`updated_at` from `auto_now_add=True`/`auto_now=True` to `default=timezone.now` with explicit `updated_at = timezone.now()` in `save()`. This is the Django-recommended pattern for fixture-compatible timestamps — identical auto-populate behavior but provides a callable default that `raw=True` respects.
+  - `HelpTopic`, `AdminHelpTopic`, `HelpCategory`, `HelpArticle`, `TeachingDestination` (apps/help/models.py)
+  - `ReleaseNote` (apps/core/models.py)
+- **Fixture fix:** Added missing `help_id`, `description`, `app_name`, `order` fields to 3 help_topics entries (PKs 89-91: EXPLAIN_DETAIL, INTELLIGENCE_DELIVERY_SETTINGS, INTELLIGENCE_DELIVERY_HISTORY)
+- **Command refactor:** `reload_help_content` rewritten from destructive delete-all+loaddata to idempotent `update_or_create` keyed on each model's unique field (context_id, slug, destination_id). Now handles HelpTopic, AdminHelpTopic, HelpCategory, HelpArticle, TeachingDestination. Non-destructive, partial failure safe.
+- **Startup cleanup:** Removed stale `[deploy]` section from `railway.toml`. Updated Procfile with worker/beat entries and clean startup chain documentation.
+- **Migrations:** `help.0004_fixture_safe_timestamps`, `core.0083_fixture_safe_timestamps`
+- **One-time reset:** Added `_reset_help_topics_fixture_safe` to `load_initial_data` to reload fixed help_topics on next deploy.
+
+**Files:**
+- `apps/help/models.py` — 6 timestamp field changes + save() overrides
+- `apps/core/models.py` — ReleaseNote timestamp + save()
+- `apps/help/management/commands/reload_help_content.py` — Full rewrite
+- `apps/help/fixtures/help_topics.json` — Fixed PKs 89-91
+- `apps/help/migrations/0004_fixture_safe_timestamps.py` — New
+- `apps/core/migrations/0083_fixture_safe_timestamps.py` — New
+- `apps/core/management/commands/load_initial_data.py` — Added reset method
+- `railway.toml` — Removed [deploy] section
+- `Procfile` — Added worker/beat, cleaned startup chain
+
+**Why:** PostgreSQL enforces NOT NULL strictly. `auto_now_add=True` only works in normal save() flow, not in `loaddata(raw=True)`. Using `default=timezone.now` provides defense-in-depth for all fixture loading paths.
+
+---
+
 ## 2026-02-21 — Ops Command Center Phase V2: Final Visual Upgrade
 
 **Changes:**

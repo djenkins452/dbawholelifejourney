@@ -13,6 +13,7 @@ Contains:
 from django.conf import settings
 from django.db import models
 from django.core.cache import cache
+from django.utils import timezone
 
 
 # =============================================================================
@@ -79,9 +80,10 @@ class HelpTopic(models.Model):
         help_text="Related help topics to suggest"
     )
 
-    # Metadata
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    # Metadata — default=timezone.now (not auto_now_add) for loaddata/fixture compatibility.
+    # auto_now_add bypasses pre_save when raw=True, leaving NULL on NOT NULL columns.
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
         ordering = ['app_name', 'order', 'title']
@@ -92,6 +94,7 @@ class HelpTopic(models.Model):
         return f"{self.context_id}: {self.title}"
 
     def save(self, *args, **kwargs):
+        self.updated_at = timezone.now()
         super().save(*args, **kwargs)
         # Clear cache
         cache.delete(f'help_topic_{self.context_id}')
@@ -182,9 +185,9 @@ class AdminHelpTopic(models.Model):
         help_text="Related admin help topics to suggest"
     )
 
-    # Metadata
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    # Metadata — default=timezone.now for loaddata/fixture compatibility
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
         ordering = ['category', 'order', 'title']
@@ -195,6 +198,7 @@ class AdminHelpTopic(models.Model):
         return f"{self.context_id}: {self.title}"
 
     def save(self, *args, **kwargs):
+        self.updated_at = timezone.now()
         super().save(*args, **kwargs)
         # Clear cache
         cache.delete(f'admin_help_topic_{self.context_id}')
@@ -264,8 +268,9 @@ class HelpCategory(models.Model):
         help_text="Show this category"
     )
 
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    # Metadata — default=timezone.now for loaddata/fixture compatibility
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
         ordering = ['sort_order', 'name']
@@ -276,6 +281,7 @@ class HelpCategory(models.Model):
         return self.name
 
     def save(self, *args, **kwargs):
+        self.updated_at = timezone.now()
         super().save(*args, **kwargs)
         cache.delete('help_categories_active')
 
@@ -368,9 +374,9 @@ class HelpArticle(models.Model):
         help_text="Order within category"
     )
 
-    # Metadata
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    # Metadata — default=timezone.now for loaddata/fixture compatibility
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
         ordering = ['category', 'sort_order', 'title']
@@ -379,6 +385,10 @@ class HelpArticle(models.Model):
 
     def __str__(self):
         return self.title
+
+    def save(self, *args, **kwargs):
+        self.updated_at = timezone.now()
+        super().save(*args, **kwargs)
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
@@ -579,9 +589,9 @@ class TeachingDestination(models.Model):
         help_text="Include in teaching tool responses"
     )
 
-    # Metadata
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    # Metadata — default=timezone.now for loaddata/fixture compatibility
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
         ordering = ['module', 'sort_order', 'name']
@@ -592,6 +602,7 @@ class TeachingDestination(models.Model):
         return f"{self.name} ({self.destination_id})"
 
     def save(self, *args, **kwargs):
+        self.updated_at = timezone.now()
         super().save(*args, **kwargs)
         cache.delete('teaching_destinations_all')
 

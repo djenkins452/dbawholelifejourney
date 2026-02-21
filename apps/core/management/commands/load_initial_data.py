@@ -736,6 +736,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for Celery + Redis infrastructure (PK 84)
         self._reset_celery_infrastructure_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset help_topics to fix 3 entries missing help_id (PKs 89-91) + brain training timestamps
+        self._reset_help_topics_fixture_safe(DataLoadConfig, force, verbosity)
+
         # Auto-sync CoS documentation to admin guide (runs if checksum changed)
         self._sync_cos_documentation(DataLoadConfig, force, verbosity)
 
@@ -3141,3 +3144,38 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset Celery infrastructure fixtures FAILED: {e}'))
+
+    def _reset_help_topics_fixture_safe(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload help_topics and help_topics_brain_training.
+
+        Fixes:
+        - 3 help_topics entries (PKs 89-91) missing help_id, description, app_name, order
+        - Model change from auto_now_add=True to default=timezone.now for loaddata compatibility
+        """
+        reset_tracker_name = 'reset_help_topics_fixture_safe_2026_02_21'
+        try:
+            if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
+                return
+
+            for loader_name in ('help_topics', 'help_topics_brain_training'):
+                try:
+                    config = DataLoadConfig.objects.get(loader_name=loader_name)
+                    if config.is_loaded:
+                        config.is_loaded = False
+                        config.save()
+                        if verbosity >= 1:
+                            self.stdout.write(f'  Reset {loader_name} loader for fixture-safe timestamps')
+                except DataLoadConfig.DoesNotExist:
+                    pass  # Not yet loaded, will load on next pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset help_topics for fixture-safe timestamps (Feb 2026)',
+                'command',
+                'One-time reset: fix missing help_id on PKs 89-91, model timestamp defaults'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset help_topics fixture-safe FAILED: {e}'))

@@ -19,7 +19,7 @@
     // Configuration
     const DEBOUNCE_MS = 300;
     const MIN_QUERY_LENGTH = 2;
-    const API_URL = '/health/nutrition/api/search/';
+    const API_URL = '/health/physical/nutrition/api/search/';
 
     // State
     let debounceTimer = null;

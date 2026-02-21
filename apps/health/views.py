@@ -4339,7 +4339,7 @@ class FoodSearchAPIView(LoginRequiredMixin, View):
     3. FatSecret API (if insufficient local results)
     4. AI estimation (if nothing found)
 
-    GET /health/nutrition/api/search/?q=query&limit=10
+    GET /health/physical/nutrition/api/search/?q=query&limit=10
 
     Returns JSON:
     {

@@ -424,15 +424,83 @@ def build_cos_context(user):
     except Exception:
         context['mood_status'] = {}
 
-    # Health signals
+    # Health signals — pull from state engine AND direct model queries for comprehensive data
     try:
         from apps.core.ai_state.state_engine import get_state_value
-        context['health_signals'] = {
+        health_signals = {
             'sleep_avg_7d': get_state_value(user, 'health.sleep_avg_hours_7d'),
             'sleep_trend': get_state_value(user, 'health.sleep_trend', 'stable'),
             'workout_count_7d': get_state_value(user, 'health.workout_count_7d', 0),
             'steps_avg_7d': get_state_value(user, 'health.steps_avg_7d'),
         }
+
+        # Supplement with direct model queries for data the state engine may not track yet
+        from datetime import timedelta
+        week_ago = timezone.localdate() - timedelta(days=7)
+
+        try:
+            from django.db.models import Avg
+            from apps.health.models import (
+                HeartRateEntry, BloodPressureEntry, GlucoseEntry,
+                BloodOxygenEntry, StepsEntry, SleepEntry,
+            )
+
+            # Heart rate average
+            hr_avg = HeartRateEntry.objects.filter(
+                user=user, recorded_at__date__gte=week_ago
+            ).aggregate(avg=Avg('bpm'))['avg']
+            if hr_avg:
+                health_signals['heart_rate_avg_7d'] = round(float(hr_avg))
+
+            # Blood pressure latest
+            latest_bp = BloodPressureEntry.objects.filter(
+                user=user, recorded_at__date__gte=week_ago
+            ).order_by('-recorded_at').first()
+            if latest_bp:
+                health_signals['bp_latest'] = f"{latest_bp.systolic}/{latest_bp.diastolic}"
+
+            # Glucose average
+            glucose_avg = GlucoseEntry.objects.filter(
+                user=user, recorded_at__date__gte=week_ago
+            ).aggregate(avg=Avg('value'))['avg']
+            if glucose_avg:
+                health_signals['glucose_avg_7d'] = round(float(glucose_avg))
+
+            # Blood oxygen average
+            spo2_avg = BloodOxygenEntry.objects.filter(
+                user=user, recorded_at__date__gte=week_ago
+            ).aggregate(avg=Avg('spo2'))['avg']
+            if spo2_avg:
+                health_signals['blood_oxygen_avg_7d'] = round(float(spo2_avg), 1)
+
+            # Steps average (fallback if state engine doesn't have it)
+            if not health_signals.get('steps_avg_7d'):
+                steps_avg = StepsEntry.objects.filter(
+                    user=user, logged_date__gte=week_ago
+                ).aggregate(avg=Avg('count'))['avg']
+                if steps_avg:
+                    health_signals['steps_avg_7d'] = int(steps_avg)
+
+            # Sleep average (fallback if state engine doesn't have it)
+            if not health_signals.get('sleep_avg_7d'):
+                sleep_avg = SleepEntry.objects.filter(
+                    user=user, sleep_date__gte=week_ago
+                ).aggregate(avg=Avg('asleep_duration_minutes'))['avg']
+                if sleep_avg:
+                    health_signals['sleep_avg_7d'] = round(float(sleep_avg) / 60, 1)
+
+            # Heart rate events (clinically important)
+            from apps.health.models import HeartRateEventEntry
+            hr_events = HeartRateEventEntry.objects.filter(
+                user=user, recorded_at__date__gte=week_ago
+            ).count()
+            if hr_events > 0:
+                health_signals['heart_rate_events_7d'] = hr_events
+
+        except Exception:
+            pass  # Direct queries are supplementary — don't break context if they fail
+
+        context['health_signals'] = health_signals
     except Exception:
         context['health_signals'] = {}
 

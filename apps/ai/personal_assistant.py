@@ -1046,10 +1046,11 @@ class PersonalAssistant:
         }
 
     def _get_health_state(self, today, week_ago) -> Dict:
-        """Get health-related metrics."""
+        """Get health-related metrics across all health models."""
         from apps.health.models import (
             WeightEntry, FastingWindow, WorkoutSession,
-            MedicineLog
+            MedicineLog, StepsEntry, HeartRateEntry, SleepEntry,
+            BloodPressureEntry, GlucoseEntry, BloodOxygenEntry,
         )
 
         data = {}
@@ -1086,6 +1087,81 @@ class PersonalAssistant:
         from apps.health.medicine_utils import calculate_medicine_adherence
         adherence = calculate_medicine_adherence(self.user, week_ago, today)
         data['medicine_adherence'] = adherence['adherence_rate']
+
+        # Steps
+        steps_week = StepsEntry.objects.filter(
+            user=self.user, logged_date__gte=week_ago
+        )
+        if steps_week.exists():
+            from django.db.models import Avg
+            avg_steps = steps_week.aggregate(avg=Avg('count'))['avg']
+            data['steps_avg_7d'] = int(avg_steps) if avg_steps else 0
+            latest_steps = steps_week.order_by('-logged_date').first()
+            if latest_steps:
+                data['steps_latest'] = latest_steps.count
+                data['steps_latest_date'] = latest_steps.logged_date
+
+        # Heart Rate
+        hr_entries = HeartRateEntry.objects.filter(
+            user=self.user, recorded_at__date__gte=week_ago
+        )
+        if hr_entries.exists():
+            from django.db.models import Avg, Min, Max
+            hr_agg = hr_entries.aggregate(avg=Avg('bpm'), lo=Min('bpm'), hi=Max('bpm'))
+            data['heart_rate_avg_7d'] = round(float(hr_agg['avg']), 0) if hr_agg['avg'] else None
+            data['heart_rate_range_7d'] = f"{hr_agg['lo']}-{hr_agg['hi']}" if hr_agg['lo'] else None
+
+        # Sleep
+        sleep_entries = SleepEntry.objects.filter(
+            user=self.user, sleep_date__gte=week_ago
+        )
+        if sleep_entries.exists():
+            from django.db.models import Avg
+            avg_sleep = sleep_entries.aggregate(avg=Avg('asleep_duration_minutes'))['avg']
+            data['sleep_avg_hours_7d'] = round(float(avg_sleep) / 60, 1) if avg_sleep else None
+            latest_sleep = sleep_entries.order_by('-sleep_date').first()
+            if latest_sleep and latest_sleep.asleep_duration_minutes:
+                data['sleep_latest_hours'] = round(latest_sleep.asleep_duration_minutes / 60, 1)
+
+        # Blood Pressure
+        bp_entries = BloodPressureEntry.objects.filter(
+            user=self.user, recorded_at__date__gte=week_ago
+        )
+        if bp_entries.exists():
+            from django.db.models import Avg
+            bp_agg = bp_entries.aggregate(
+                avg_sys=Avg('systolic'), avg_dia=Avg('diastolic')
+            )
+            data['bp_avg_7d'] = f"{round(float(bp_agg['avg_sys']))}/{round(float(bp_agg['avg_dia']))}" if bp_agg['avg_sys'] else None
+
+        # Glucose
+        glucose_entries = GlucoseEntry.objects.filter(
+            user=self.user, recorded_at__date__gte=week_ago
+        )
+        if glucose_entries.exists():
+            from django.db.models import Avg
+            avg_glucose = glucose_entries.aggregate(avg=Avg('value'))['avg']
+            data['glucose_avg_7d'] = round(float(avg_glucose), 0) if avg_glucose else None
+
+        # Blood Oxygen
+        spo2_entries = BloodOxygenEntry.objects.filter(
+            user=self.user, recorded_at__date__gte=week_ago
+        )
+        if spo2_entries.exists():
+            from django.db.models import Avg
+            avg_spo2 = spo2_entries.aggregate(avg=Avg('spo2'))['avg']
+            data['blood_oxygen_avg_7d'] = round(float(avg_spo2), 1) if avg_spo2 else None
+
+        # Heart rate events (clinically significant — always include count)
+        try:
+            from apps.health.models import HeartRateEventEntry
+            hr_events_week = HeartRateEventEntry.objects.filter(
+                user=self.user, recorded_at__date__gte=week_ago
+            ).count()
+            if hr_events_week > 0:
+                data['heart_rate_events_7d'] = hr_events_week
+        except Exception:
+            pass
 
         return data
 

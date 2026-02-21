@@ -163,6 +163,7 @@ def process_assistant_message(
     supported_types = [
         'weight', 'journal', 'medication', 'food', 'mood', 'glucose', 'faith', 'goals',
         'heart_rate', 'blood_pressure', 'blood_oxygen', 'workout', 'fasting', 'task', 'user',
+        'steps', 'sleep', 'mobility', 'heart_rate_events', 'audio_exposure', 'dietary_nutrients',
     ]
 
     # Map unsupported types to supported ones that provide relevant data
@@ -174,6 +175,8 @@ def process_assistant_message(
         'reading_plan': 'faith',
         'event': 'task',       # Calendar events → task data (Life module)
         'calendar': 'task',    # Calendar queries → task data (Life module)
+        'cardio': 'steps',     # Cardio queries → steps data
+        'fitness': 'steps',    # Fitness queries → steps data
     }
 
     # First, collect directly supported types
@@ -262,6 +265,12 @@ def _get_friendly_data_type_name(data_type: str) -> str:
         'fasting': 'fasting',
         'task': 'task',
         'user': 'profile',
+        'steps': 'steps',
+        'sleep': 'sleep',
+        'mobility': 'mobility',
+        'heart_rate_events': 'heart rate events',
+        'audio_exposure': 'audio exposure',
+        'dietary_nutrients': 'dietary nutrients',
     }
     return friendly_names.get(data_type, data_type.replace('_', ' '))
 

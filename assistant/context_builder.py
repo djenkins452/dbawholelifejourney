@@ -136,6 +136,42 @@ def build_personal_context(
         if task_section:
             sections.append(task_section)
 
+    # Format steps data if present
+    if 'steps' in data_results:
+        steps_section = _format_steps_data(data_results['steps'], user_timezone)
+        if steps_section:
+            sections.append(steps_section)
+
+    # Format sleep data if present
+    if 'sleep' in data_results:
+        sleep_section = _format_sleep_data(data_results['sleep'], user_timezone)
+        if sleep_section:
+            sections.append(sleep_section)
+
+    # Format mobility data if present
+    if 'mobility' in data_results:
+        mobility_section = _format_mobility_data(data_results['mobility'], user_timezone)
+        if mobility_section:
+            sections.append(mobility_section)
+
+    # Format heart rate events data if present
+    if 'heart_rate_events' in data_results:
+        hr_events_section = _format_heart_rate_events_data(data_results['heart_rate_events'], user_timezone)
+        if hr_events_section:
+            sections.append(hr_events_section)
+
+    # Format audio exposure data if present
+    if 'audio_exposure' in data_results:
+        audio_section = _format_audio_exposure_data(data_results['audio_exposure'], user_timezone)
+        if audio_section:
+            sections.append(audio_section)
+
+    # Format dietary nutrients data if present
+    if 'dietary_nutrients' in data_results:
+        dietary_section = _format_dietary_nutrients_data(data_results['dietary_nutrients'], user_timezone)
+        if dietary_section:
+            sections.append(dietary_section)
+
     # Format user data if present
     if 'user' in data_results:
         user_section = _format_user_data(data_results['user'])
@@ -699,6 +735,254 @@ def _format_user_data(user_data: Dict[str, Any]) -> str:
     timezone = user_data.get('timezone')
     if timezone and timezone != 'UTC':
         lines.append(f'- Timezone: {timezone}')
+
+    return '\n'.join(lines)
+
+
+def _format_steps_data(
+    steps_data: Dict[str, Any],
+    user_timezone: Optional[str] = None,
+) -> str:
+    """Format steps data into natural language."""
+    if not steps_data:
+        return ''
+
+    lines = ['Steps Data:']
+
+    count = steps_data.get('count', 0)
+    lines.append(f'- Total entries: {count}')
+
+    average = steps_data.get('average')
+    if average is not None:
+        lines.append(f'- Daily average: {int(average):,} steps')
+
+    latest = steps_data.get('latest')
+    latest_date = steps_data.get('latest_date')
+    if latest is not None and latest_date is not None:
+        date_str = _format_date(latest_date, user_timezone)
+        lines.append(f'- Most recent: {latest:,} steps on {date_str}')
+
+    # Show recent entries with activity details
+    entries = steps_data.get('entries', [])
+    if entries:
+        lines.append('- Recent days:')
+        for entry in entries[:7]:
+            date_str = _format_date(entry.get('logged_date'), user_timezone)
+            parts = [f'  {date_str}: {entry["count"]:,} steps']
+            if entry.get('distance_miles'):
+                parts.append(f'{entry["distance_miles"]:.1f} mi')
+            if entry.get('exercise_minutes'):
+                parts.append(f'{entry["exercise_minutes"]} exercise min')
+            if entry.get('flights_climbed'):
+                parts.append(f'{entry["flights_climbed"]} flights')
+            lines.append(', '.join(parts))
+
+    return '\n'.join(lines)
+
+
+def _format_sleep_data(
+    sleep_data: Dict[str, Any],
+    user_timezone: Optional[str] = None,
+) -> str:
+    """Format sleep data into natural language."""
+    if not sleep_data:
+        return ''
+
+    lines = ['Sleep Data:']
+
+    count = sleep_data.get('count', 0)
+    lines.append(f'- Total entries: {count}')
+
+    avg_hours = sleep_data.get('avg_hours')
+    if avg_hours is not None:
+        lines.append(f'- Average: {avg_hours} hours/night')
+
+    latest_hours = sleep_data.get('latest_hours')
+    latest_date = sleep_data.get('latest_date')
+    latest_quality = sleep_data.get('latest_quality', '')
+    if latest_hours is not None and latest_date is not None:
+        date_str = _format_date(latest_date, user_timezone)
+        quality_str = f' ({latest_quality})' if latest_quality else ''
+        lines.append(f'- Most recent: {latest_hours} hours{quality_str} on {date_str}')
+
+    entries = sleep_data.get('entries', [])
+    if entries:
+        lines.append('- Recent nights:')
+        for entry in entries[:7]:
+            date_str = _format_date(entry.get('sleep_date'), user_timezone)
+            quality = entry.get('quality', '')
+            quality_str = f' ({quality})' if quality else ''
+            lines.append(f'  {date_str}: {entry["hours"]} hours{quality_str}')
+
+    return '\n'.join(lines)
+
+
+def _format_mobility_data(
+    mobility_data: Dict[str, Any],
+    user_timezone: Optional[str] = None,
+) -> str:
+    """Format mobility/gait data into natural language."""
+    if not mobility_data:
+        return ''
+
+    lines = ['Mobility & Gait Data:']
+
+    count = mobility_data.get('count', 0)
+    lines.append(f'- Total entries: {count}')
+
+    latest_date = mobility_data.get('latest_date')
+    if latest_date:
+        date_str = _format_date(latest_date, user_timezone)
+        lines.append(f'- Most recent: {date_str}')
+
+    speed = mobility_data.get('latest_walking_speed')
+    if speed:
+        lines.append(f'- Walking speed: {speed} mph')
+
+    steadiness = mobility_data.get('latest_steadiness')
+    if steadiness:
+        lines.append(f'- Walking steadiness: {steadiness}')
+
+    entries = mobility_data.get('entries', [])
+    if entries:
+        lines.append('- Recent metrics:')
+        for entry in entries[:5]:
+            date_str = _format_date(entry.get('metric_date'), user_timezone)
+            parts = [f'  {date_str}:']
+            if entry.get('walking_speed'):
+                parts.append(f'speed {entry["walking_speed"]} mph')
+            if entry.get('step_length'):
+                parts.append(f'step length {entry["step_length"]} in')
+            if entry.get('walking_asymmetry'):
+                parts.append(f'asymmetry {entry["walking_asymmetry"]}%')
+            if entry.get('six_min_walk_distance'):
+                parts.append(f'6-min walk {entry["six_min_walk_distance"]}m')
+            lines.append(' '.join(parts))
+
+    return '\n'.join(lines)
+
+
+def _format_heart_rate_events_data(
+    hr_events_data: Dict[str, Any],
+    user_timezone: Optional[str] = None,
+) -> str:
+    """Format heart rate event alerts into natural language."""
+    if not hr_events_data:
+        return ''
+
+    lines = ['Heart Rate Events (Alerts):']
+
+    count = hr_events_data.get('count', 0)
+    lines.append(f'- Total events: {count}')
+
+    high = hr_events_data.get('high_hr_count', 0)
+    low = hr_events_data.get('low_hr_count', 0)
+    irregular = hr_events_data.get('irregular_rhythm_count', 0)
+    lines.append(f'- Breakdown: {high} high HR, {low} low HR, {irregular} irregular rhythm')
+
+    latest_date = hr_events_data.get('latest_date')
+    latest_type = hr_events_data.get('latest_event_type', '')
+    if latest_date:
+        date_str = _format_date(latest_date, user_timezone)
+        type_display = latest_type.replace('_', ' ').title()
+        lines.append(f'- Most recent: {type_display} on {date_str}')
+
+    entries = hr_events_data.get('entries', [])
+    if entries:
+        lines.append('- Recent events:')
+        for entry in entries[:5]:
+            date_str = _format_date(entry.get('recorded_at'), user_timezone)
+            event_type = entry.get('event_type', '').replace('_', ' ').title()
+            hr = entry.get('heart_rate')
+            hr_str = f' ({hr} bpm)' if hr else ''
+            lines.append(f'  {date_str}: {event_type}{hr_str}')
+
+    return '\n'.join(lines)
+
+
+def _format_audio_exposure_data(
+    audio_data: Dict[str, Any],
+    user_timezone: Optional[str] = None,
+) -> str:
+    """Format audio exposure data into natural language."""
+    if not audio_data:
+        return ''
+
+    lines = ['Audio Exposure Data:']
+
+    count = audio_data.get('count', 0)
+    lines.append(f'- Total entries: {count}')
+
+    avg_db = audio_data.get('avg_headphone_db')
+    if avg_db is not None:
+        risk = 'safe' if avg_db < 80 else ('caution' if avg_db < 90 else 'high risk')
+        lines.append(f'- Average headphone level: {avg_db} dB ({risk})')
+
+    latest_date = audio_data.get('latest_date')
+    latest_hp = audio_data.get('latest_headphone_db')
+    latest_env = audio_data.get('latest_environmental_db')
+    if latest_date:
+        date_str = _format_date(latest_date, user_timezone)
+        parts = [f'- Most recent ({date_str}):']
+        if latest_hp:
+            parts.append(f'headphones {latest_hp} dB')
+        if latest_env:
+            parts.append(f'environment {latest_env} dB')
+        lines.append(' '.join(parts))
+
+    return '\n'.join(lines)
+
+
+def _format_dietary_nutrients_data(
+    dietary_data: Dict[str, Any],
+    user_timezone: Optional[str] = None,
+) -> str:
+    """Format dietary nutrient data into natural language."""
+    if not dietary_data:
+        return ''
+
+    lines = ['Dietary Nutrients Data (from Apple Health):']
+
+    count = dietary_data.get('count', 0)
+    lines.append(f'- Total days tracked: {count}')
+
+    avg_cal = dietary_data.get('avg_calories')
+    if avg_cal:
+        lines.append(f'- Average daily calories: {int(avg_cal):,}')
+
+    avg_protein = dietary_data.get('avg_protein_g')
+    avg_carbs = dietary_data.get('avg_carbs_g')
+    avg_fat = dietary_data.get('avg_fat_g')
+    if any([avg_protein, avg_carbs, avg_fat]):
+        macro_parts = []
+        if avg_protein:
+            macro_parts.append(f'protein {avg_protein}g')
+        if avg_carbs:
+            macro_parts.append(f'carbs {avg_carbs}g')
+        if avg_fat:
+            macro_parts.append(f'fat {avg_fat}g')
+        lines.append(f'- Average daily macros: {", ".join(macro_parts)}')
+
+    latest_date = dietary_data.get('latest_date')
+    if latest_date:
+        date_str = _format_date(latest_date, user_timezone)
+        lines.append(f'- Most recent: {date_str}')
+
+    entries = dietary_data.get('entries', [])
+    if entries:
+        lines.append('- Recent days:')
+        for entry in entries[:5]:
+            date_str = _format_date(entry.get('metric_date'), user_timezone)
+            parts = [f'  {date_str}:']
+            if entry.get('calories'):
+                parts.append(f'{entry["calories"]:,} cal')
+            if entry.get('protein_g'):
+                parts.append(f'P:{entry["protein_g"]}g')
+            if entry.get('carbohydrates_g'):
+                parts.append(f'C:{entry["carbohydrates_g"]}g')
+            if entry.get('fat_g'):
+                parts.append(f'F:{entry["fat_g"]}g')
+            lines.append(' '.join(parts))
 
     return '\n'.join(lines)
 

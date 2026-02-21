@@ -211,8 +211,12 @@ class SearchService:
                 results = getattr(self, method_name)(keywords, date_range, limit)
         else:
             # Search all health data types, combine results
-            per_type_limit = max(2, limit // 6)
-            for mtype in ['weight', 'sleep', 'food', 'workout', 'fasting', 'medicine']:
+            per_type_limit = max(2, limit // 12)
+            for mtype in [
+                'weight', 'sleep', 'food', 'workout', 'fasting', 'medicine',
+                'steps', 'heart_rate', 'blood_pressure', 'glucose',
+                'blood_oxygen', 'water',
+            ]:
                 method_name = f"_search_health_{mtype}"
                 if hasattr(self, method_name):
                     type_results = getattr(self, method_name)(
@@ -446,6 +450,231 @@ class SearchService:
                 date_value=log.scheduled_date,
                 url=reverse('health:medicine_list'),
                 metadata={"metric_type": "medicine", "status": log.log_status}
+            ))
+        return results
+
+    def _search_health_steps(
+        self,
+        keywords: Optional[List[str]],
+        date_range: Optional[Tuple[date, date]],
+        limit: int
+    ) -> List[Dict]:
+        """Search steps entries."""
+        from apps.health.models import StepsEntry
+
+        entries = StepsEntry.objects.filter(user=self.user)
+
+        if keywords:
+            keyword_q = self._build_keyword_filter(keywords, ['notes'])
+            entries = entries.filter(keyword_q)
+
+        start_date, end_date = self._parse_date_range(date_range)
+        if start_date:
+            entries = entries.filter(logged_date__gte=start_date)
+        if end_date:
+            entries = entries.filter(logged_date__lte=end_date)
+
+        entries = entries.order_by('-logged_date')[:limit]
+
+        results = []
+        for entry in entries:
+            parts = [f"{entry.count:,} steps"]
+            if entry.distance_miles:
+                parts.append(f"{entry.distance_miles:.1f} mi")
+            if entry.exercise_minutes:
+                parts.append(f"{entry.exercise_minutes} exercise min")
+            results.append(self._create_result(
+                id=entry.pk,
+                title=f"Steps: {entry.count:,} on {entry.logged_date}",
+                snippet=", ".join(parts),
+                date_value=entry.logged_date,
+                url=reverse('health:steps_list'),
+                metadata={"metric_type": "steps", "count": entry.count}
+            ))
+        return results
+
+    def _search_health_heart_rate(
+        self,
+        keywords: Optional[List[str]],
+        date_range: Optional[Tuple[date, date]],
+        limit: int
+    ) -> List[Dict]:
+        """Search heart rate entries."""
+        from apps.health.models import HeartRateEntry
+
+        entries = HeartRateEntry.objects.filter(user=self.user)
+
+        if keywords:
+            keyword_q = self._build_keyword_filter(keywords, ['notes'])
+            entries = entries.filter(keyword_q)
+
+        start_date, end_date = self._parse_date_range(date_range)
+        if start_date:
+            entries = entries.filter(recorded_at__date__gte=start_date)
+        if end_date:
+            entries = entries.filter(recorded_at__date__lte=end_date)
+
+        entries = entries.order_by('-recorded_at')[:limit]
+
+        results = []
+        for entry in entries:
+            context = f" ({entry.context})" if entry.context else ""
+            results.append(self._create_result(
+                id=entry.pk,
+                title=f"Heart Rate: {entry.bpm} bpm{context}",
+                snippet=entry.notes or f"{entry.bpm} bpm{context}",
+                date_value=entry.recorded_at.date(),
+                url=reverse('health:heartrate_list'),
+                metadata={"metric_type": "heart_rate", "bpm": entry.bpm, "context": entry.context}
+            ))
+        return results
+
+    def _search_health_blood_pressure(
+        self,
+        keywords: Optional[List[str]],
+        date_range: Optional[Tuple[date, date]],
+        limit: int
+    ) -> List[Dict]:
+        """Search blood pressure entries."""
+        from apps.health.models import BloodPressureEntry
+
+        entries = BloodPressureEntry.objects.filter(user=self.user)
+
+        if keywords:
+            keyword_q = self._build_keyword_filter(keywords, ['notes'])
+            entries = entries.filter(keyword_q)
+
+        start_date, end_date = self._parse_date_range(date_range)
+        if start_date:
+            entries = entries.filter(recorded_at__date__gte=start_date)
+        if end_date:
+            entries = entries.filter(recorded_at__date__lte=end_date)
+
+        entries = entries.order_by('-recorded_at')[:limit]
+
+        results = []
+        for entry in entries:
+            results.append(self._create_result(
+                id=entry.pk,
+                title=f"BP: {entry.systolic}/{entry.diastolic} mmHg",
+                snippet=entry.notes or f"{entry.systolic}/{entry.diastolic} mmHg",
+                date_value=entry.recorded_at.date(),
+                url=reverse('health:blood_pressure_list'),
+                metadata={
+                    "metric_type": "blood_pressure",
+                    "systolic": entry.systolic,
+                    "diastolic": entry.diastolic
+                }
+            ))
+        return results
+
+    def _search_health_glucose(
+        self,
+        keywords: Optional[List[str]],
+        date_range: Optional[Tuple[date, date]],
+        limit: int
+    ) -> List[Dict]:
+        """Search glucose entries."""
+        from apps.health.models import GlucoseEntry
+
+        entries = GlucoseEntry.objects.filter(user=self.user)
+
+        if keywords:
+            keyword_q = self._build_keyword_filter(keywords, ['notes'])
+            entries = entries.filter(keyword_q)
+
+        start_date, end_date = self._parse_date_range(date_range)
+        if start_date:
+            entries = entries.filter(recorded_at__date__gte=start_date)
+        if end_date:
+            entries = entries.filter(recorded_at__date__lte=end_date)
+
+        entries = entries.order_by('-recorded_at')[:limit]
+
+        results = []
+        for entry in entries:
+            context = f" ({entry.context})" if entry.context else ""
+            results.append(self._create_result(
+                id=entry.pk,
+                title=f"Glucose: {entry.value} {entry.unit}{context}",
+                snippet=entry.notes or f"{entry.value} {entry.unit}{context}",
+                date_value=entry.recorded_at.date(),
+                url=reverse('health:glucose_list'),
+                metadata={
+                    "metric_type": "glucose",
+                    "value": float(entry.value),
+                    "unit": entry.unit
+                }
+            ))
+        return results
+
+    def _search_health_blood_oxygen(
+        self,
+        keywords: Optional[List[str]],
+        date_range: Optional[Tuple[date, date]],
+        limit: int
+    ) -> List[Dict]:
+        """Search blood oxygen entries."""
+        from apps.health.models import BloodOxygenEntry
+
+        entries = BloodOxygenEntry.objects.filter(user=self.user)
+
+        if keywords:
+            keyword_q = self._build_keyword_filter(keywords, ['notes'])
+            entries = entries.filter(keyword_q)
+
+        start_date, end_date = self._parse_date_range(date_range)
+        if start_date:
+            entries = entries.filter(recorded_at__date__gte=start_date)
+        if end_date:
+            entries = entries.filter(recorded_at__date__lte=end_date)
+
+        entries = entries.order_by('-recorded_at')[:limit]
+
+        results = []
+        for entry in entries:
+            results.append(self._create_result(
+                id=entry.pk,
+                title=f"SpO2: {entry.spo2}%",
+                snippet=entry.notes or f"Blood Oxygen: {entry.spo2}%",
+                date_value=entry.recorded_at.date(),
+                url=reverse('health:blood_oxygen_list'),
+                metadata={"metric_type": "blood_oxygen", "spo2": entry.spo2}
+            ))
+        return results
+
+    def _search_health_water(
+        self,
+        keywords: Optional[List[str]],
+        date_range: Optional[Tuple[date, date]],
+        limit: int
+    ) -> List[Dict]:
+        """Search water entries."""
+        from apps.health.models import WaterEntry
+
+        entries = WaterEntry.objects.filter(user=self.user)
+
+        if keywords:
+            keyword_q = self._build_keyword_filter(keywords, ['notes'])
+            entries = entries.filter(keyword_q)
+
+        start_date, end_date = self._parse_date_range(date_range)
+        if start_date:
+            entries = entries.filter(logged_date__gte=start_date)
+        if end_date:
+            entries = entries.filter(logged_date__lte=end_date)
+
+        entries = entries.order_by('-logged_date')[:limit]
+
+        results = []
+        for entry in entries:
+            results.append(self._create_result(
+                id=entry.pk,
+                title=f"Water: {entry.amount} {entry.unit}",
+                snippet=entry.notes or f"{entry.amount} {entry.unit} ({entry.container})",
+                date_value=entry.logged_date,
+                url=reverse('health:water_list'),
+                metadata={"metric_type": "water", "amount": float(entry.amount), "unit": entry.unit}
             ))
         return results
 

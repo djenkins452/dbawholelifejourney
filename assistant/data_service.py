@@ -1512,6 +1512,335 @@ class PersonalDataService:
         cache.set(cache_key, result, PERSONAL_DATA_CACHE_TTL)
         return result
 
+    def get_steps_data(
+        self,
+        since_date: Optional[datetime] = None,
+        limit: int = 10,
+    ) -> Optional[Dict[str, Any]]:
+        """Retrieve and summarize the user's steps data."""
+        cache_key = _generate_cache_key(self.user.id, 'steps', since_date)
+        cached_data = cache.get(cache_key)
+        if cached_data is not None:
+            return cached_data
+
+        from apps.health.models import StepsEntry
+
+        queryset = StepsEntry.objects.filter(user=self.user)
+
+        if since_date:
+            queryset = queryset.filter(logged_date__gte=since_date)
+
+        if not queryset.exists():
+            return None
+
+        count = queryset.count()
+        avg_result = queryset.aggregate(avg_steps=Avg('count'))
+        average = float(avg_result['avg_steps']) if avg_result['avg_steps'] else 0.0
+
+        latest_entry = queryset.order_by('-logged_date').first()
+        latest_count = latest_entry.count
+        latest_date = latest_entry.logged_date
+
+        # Get recent entries
+        recent_entries = queryset.order_by('-logged_date')[:limit]
+        entries = [
+            {
+                'count': entry.count,
+                'logged_date': entry.logged_date,
+                'distance_miles': float(entry.distance_miles) if entry.distance_miles else None,
+                'calories_burned': entry.calories_burned,
+                'exercise_minutes': entry.exercise_minutes,
+                'flights_climbed': entry.flights_climbed,
+            }
+            for entry in recent_entries
+        ]
+
+        result = {
+            'type': 'steps',
+            'count': count,
+            'average': round(average, 0),
+            'latest': latest_count,
+            'latest_date': latest_date,
+            'entries': entries,
+        }
+
+        cache.set(cache_key, result, PERSONAL_DATA_CACHE_TTL)
+        return result
+
+    def get_sleep_data(
+        self,
+        since_date: Optional[datetime] = None,
+        limit: int = 10,
+    ) -> Optional[Dict[str, Any]]:
+        """Retrieve and summarize the user's sleep data."""
+        cache_key = _generate_cache_key(self.user.id, 'sleep', since_date)
+        cached_data = cache.get(cache_key)
+        if cached_data is not None:
+            return cached_data
+
+        from apps.health.models import SleepEntry
+
+        queryset = SleepEntry.objects.filter(user=self.user)
+
+        if since_date:
+            queryset = queryset.filter(sleep_date__gte=since_date)
+
+        if not queryset.exists():
+            return None
+
+        count = queryset.count()
+        avg_result = queryset.aggregate(avg_duration=Avg('asleep_duration_minutes'))
+        avg_minutes = float(avg_result['avg_duration']) if avg_result['avg_duration'] else 0.0
+        avg_hours = round(avg_minutes / 60, 1)
+
+        latest_entry = queryset.order_by('-sleep_date').first()
+        latest_date = latest_entry.sleep_date
+        latest_hours = round(latest_entry.asleep_duration_minutes / 60, 1) if latest_entry.asleep_duration_minutes else 0
+
+        recent_entries = queryset.order_by('-sleep_date')[:limit]
+        entries = [
+            {
+                'sleep_date': entry.sleep_date,
+                'hours': round(entry.asleep_duration_minutes / 60, 1) if entry.asleep_duration_minutes else 0,
+                'quality': entry.quality,
+                'notes': entry.notes,
+            }
+            for entry in recent_entries
+        ]
+
+        result = {
+            'type': 'sleep',
+            'count': count,
+            'avg_hours': avg_hours,
+            'latest_hours': latest_hours,
+            'latest_date': latest_date,
+            'latest_quality': latest_entry.quality,
+            'entries': entries,
+        }
+
+        cache.set(cache_key, result, PERSONAL_DATA_CACHE_TTL)
+        return result
+
+    def get_mobility_data(
+        self,
+        since_date: Optional[datetime] = None,
+        limit: int = 10,
+    ) -> Optional[Dict[str, Any]]:
+        """Retrieve and summarize the user's mobility/gait data."""
+        cache_key = _generate_cache_key(self.user.id, 'mobility', since_date)
+        cached_data = cache.get(cache_key)
+        if cached_data is not None:
+            return cached_data
+
+        from apps.health.models import MobilityEntry
+
+        queryset = MobilityEntry.objects.filter(user=self.user)
+
+        if since_date:
+            queryset = queryset.filter(metric_date__gte=since_date)
+
+        if not queryset.exists():
+            return None
+
+        count = queryset.count()
+        latest_entry = queryset.order_by('-metric_date').first()
+        latest_date = latest_entry.metric_date
+
+        recent_entries = queryset.order_by('-metric_date')[:limit]
+        entries = [
+            {
+                'metric_date': entry.metric_date,
+                'walking_speed': float(entry.walking_speed) if entry.walking_speed else None,
+                'walking_steadiness': entry.walking_steadiness,
+                'walking_asymmetry': float(entry.walking_asymmetry) if entry.walking_asymmetry else None,
+                'step_length': float(entry.step_length) if entry.step_length else None,
+                'double_support_time': float(entry.double_support_time) if entry.double_support_time else None,
+                'six_min_walk_distance': float(entry.six_min_walk_distance) if entry.six_min_walk_distance else None,
+            }
+            for entry in recent_entries
+        ]
+
+        result = {
+            'type': 'mobility',
+            'count': count,
+            'latest_date': latest_date,
+            'latest_walking_speed': float(latest_entry.walking_speed) if latest_entry.walking_speed else None,
+            'latest_steadiness': latest_entry.walking_steadiness,
+            'entries': entries,
+        }
+
+        cache.set(cache_key, result, PERSONAL_DATA_CACHE_TTL)
+        return result
+
+    def get_heart_rate_events_data(
+        self,
+        since_date: Optional[datetime] = None,
+        limit: int = 10,
+    ) -> Optional[Dict[str, Any]]:
+        """Retrieve and summarize the user's heart rate event alerts."""
+        cache_key = _generate_cache_key(self.user.id, 'heart_rate_events', since_date)
+        cached_data = cache.get(cache_key)
+        if cached_data is not None:
+            return cached_data
+
+        from apps.health.models import HeartRateEventEntry
+
+        queryset = HeartRateEventEntry.objects.filter(user=self.user)
+
+        if since_date:
+            queryset = queryset.filter(recorded_at__gte=since_date)
+
+        if not queryset.exists():
+            return None
+
+        count = queryset.count()
+        high_hr_count = queryset.filter(event_type='high_hr').count()
+        low_hr_count = queryset.filter(event_type='low_hr').count()
+        irregular_count = queryset.filter(event_type='irregular_rhythm').count()
+
+        latest_entry = queryset.order_by('-recorded_at').first()
+
+        recent_entries = queryset.order_by('-recorded_at')[:limit]
+        entries = [
+            {
+                'event_type': entry.event_type,
+                'heart_rate': entry.heart_rate,
+                'threshold': entry.threshold,
+                'recorded_at': entry.recorded_at,
+                'duration_seconds': entry.duration_seconds,
+            }
+            for entry in recent_entries
+        ]
+
+        result = {
+            'type': 'heart_rate_events',
+            'count': count,
+            'high_hr_count': high_hr_count,
+            'low_hr_count': low_hr_count,
+            'irregular_rhythm_count': irregular_count,
+            'latest_date': latest_entry.recorded_at,
+            'latest_event_type': latest_entry.event_type,
+            'entries': entries,
+        }
+
+        cache.set(cache_key, result, PERSONAL_DATA_CACHE_TTL)
+        return result
+
+    def get_audio_exposure_data(
+        self,
+        since_date: Optional[datetime] = None,
+        limit: int = 10,
+    ) -> Optional[Dict[str, Any]]:
+        """Retrieve and summarize the user's audio exposure data."""
+        cache_key = _generate_cache_key(self.user.id, 'audio_exposure', since_date)
+        cached_data = cache.get(cache_key)
+        if cached_data is not None:
+            return cached_data
+
+        from apps.health.models import AudioExposureEntry
+
+        queryset = AudioExposureEntry.objects.filter(user=self.user)
+
+        if since_date:
+            queryset = queryset.filter(metric_date__gte=since_date)
+
+        if not queryset.exists():
+            return None
+
+        count = queryset.count()
+        latest_entry = queryset.order_by('-metric_date').first()
+
+        # Calculate averages for headphone levels
+        headphone_entries = queryset.exclude(headphone_level_db__isnull=True)
+        avg_headphone = None
+        if headphone_entries.exists():
+            avg_result = headphone_entries.aggregate(avg_db=Avg('headphone_level_db'))
+            avg_headphone = float(avg_result['avg_db']) if avg_result['avg_db'] else None
+
+        recent_entries = queryset.order_by('-metric_date')[:limit]
+        entries = [
+            {
+                'metric_date': entry.metric_date,
+                'headphone_level_db': float(entry.headphone_level_db) if entry.headphone_level_db else None,
+                'headphone_duration_minutes': entry.headphone_duration_minutes,
+                'environmental_level_db': float(entry.environmental_level_db) if entry.environmental_level_db else None,
+            }
+            for entry in recent_entries
+        ]
+
+        result = {
+            'type': 'audio_exposure',
+            'count': count,
+            'avg_headphone_db': round(avg_headphone, 1) if avg_headphone else None,
+            'latest_date': latest_entry.metric_date,
+            'latest_headphone_db': float(latest_entry.headphone_level_db) if latest_entry.headphone_level_db else None,
+            'latest_environmental_db': float(latest_entry.environmental_level_db) if latest_entry.environmental_level_db else None,
+            'entries': entries,
+        }
+
+        cache.set(cache_key, result, PERSONAL_DATA_CACHE_TTL)
+        return result
+
+    def get_dietary_nutrients_data(
+        self,
+        since_date: Optional[datetime] = None,
+        limit: int = 10,
+    ) -> Optional[Dict[str, Any]]:
+        """Retrieve and summarize the user's dietary nutrient data from HealthKit."""
+        cache_key = _generate_cache_key(self.user.id, 'dietary_nutrients', since_date)
+        cached_data = cache.get(cache_key)
+        if cached_data is not None:
+            return cached_data
+
+        from apps.health.models import DietaryNutrientEntry
+
+        queryset = DietaryNutrientEntry.objects.filter(user=self.user)
+
+        if since_date:
+            queryset = queryset.filter(metric_date__gte=since_date)
+
+        if not queryset.exists():
+            return None
+
+        count = queryset.count()
+        latest_entry = queryset.order_by('-metric_date').first()
+
+        # Calculate averages
+        avg_result = queryset.aggregate(
+            avg_calories=Avg('calories'),
+            avg_protein=Avg('protein_g'),
+            avg_carbs=Avg('carbohydrates_g'),
+            avg_fat=Avg('fat_g'),
+        )
+
+        recent_entries = queryset.order_by('-metric_date')[:limit]
+        entries = [
+            {
+                'metric_date': entry.metric_date,
+                'calories': entry.calories,
+                'protein_g': float(entry.protein_g) if entry.protein_g else None,
+                'carbohydrates_g': float(entry.carbohydrates_g) if entry.carbohydrates_g else None,
+                'fat_g': float(entry.fat_g) if entry.fat_g else None,
+                'fiber_g': float(entry.fiber_g) if entry.fiber_g else None,
+                'sugar_g': float(entry.sugar_g) if entry.sugar_g else None,
+            }
+            for entry in recent_entries
+        ]
+
+        result = {
+            'type': 'dietary_nutrients',
+            'count': count,
+            'avg_calories': round(float(avg_result['avg_calories']), 0) if avg_result['avg_calories'] else None,
+            'avg_protein_g': round(float(avg_result['avg_protein']), 1) if avg_result['avg_protein'] else None,
+            'avg_carbs_g': round(float(avg_result['avg_carbs']), 1) if avg_result['avg_carbs'] else None,
+            'avg_fat_g': round(float(avg_result['avg_fat']), 1) if avg_result['avg_fat'] else None,
+            'latest_date': latest_entry.metric_date,
+            'entries': entries,
+        }
+
+        cache.set(cache_key, result, PERSONAL_DATA_CACHE_TTL)
+        return result
+
     def get_task_data(
         self,
         since_date: Optional[datetime] = None,
@@ -1700,6 +2029,12 @@ class PersonalDataService:
             'fasting': self.get_fasting_data,
             'water': self.get_water_data,
             'task': self.get_task_data,
+            'steps': self.get_steps_data,
+            'sleep': self.get_sleep_data,
+            'mobility': self.get_mobility_data,
+            'heart_rate_events': self.get_heart_rate_events_data,
+            'audio_exposure': self.get_audio_exposure_data,
+            'dietary_nutrients': self.get_dietary_nutrients_data,
         }
 
         # Collect results

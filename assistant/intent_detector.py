@@ -355,7 +355,7 @@ PERSONAL_DATA_KEYWORDS: Dict[str, List[str]] = {
     ],
 
     # =========================================================================
-    # SLEEP (future feature placeholder)
+    # SLEEP
     # =========================================================================
     'sleep': [
         'sleep', 'slept', 'sleeping', 'asleep', 'awake', 'woke', 'wake',
@@ -364,6 +364,61 @@ PERSONAL_DATA_KEYWORDS: Dict[str, List[str]] = {
         'sleep pattern', 'sleep log', 'wake up', 'woke up', 'dream',
         'dreams', 'nightmare', 'nightmares', 'sleep duration', 'time in bed',
         'sleep cycle', 'well rested', 'sleep deprived',
+    ],
+
+    # =========================================================================
+    # STEPS / ACTIVITY
+    # =========================================================================
+    'steps': [
+        'steps', 'step count', 'daily steps', 'steps today', 'steps yesterday',
+        'step goal', 'step average', 'walking steps', 'how many steps',
+        'flights climbed', 'flights of stairs', 'stand hours', 'standing hours',
+        'exercise minutes', 'active calories', 'calories burned',
+        'distance walked', 'miles walked', 'activity rings',
+    ],
+
+    # =========================================================================
+    # MOBILITY & GAIT (HealthKit)
+    # =========================================================================
+    'mobility': [
+        'mobility', 'gait', 'walking speed', 'walking pace', 'step length',
+        'walking asymmetry', 'walking steadiness', 'double support time',
+        'stair speed', 'stair ascent', 'stair descent', 'six minute walk',
+        '6 minute walk', 'gait analysis', 'fall risk', 'balance',
+        'mobility score', 'walking ability',
+    ],
+
+    # =========================================================================
+    # HEART RATE EVENTS (HealthKit alerts)
+    # =========================================================================
+    'heart_rate_events': [
+        'heart rate event', 'heart rate alert', 'heart rate notification',
+        'high heart rate', 'low heart rate', 'irregular rhythm',
+        'irregular heartbeat', 'afib', 'atrial fibrillation',
+        'heart rate warning', 'tachycardia', 'bradycardia',
+        'heart rate notification', 'apple watch alert',
+    ],
+
+    # =========================================================================
+    # AUDIO EXPOSURE (HealthKit)
+    # =========================================================================
+    'audio_exposure': [
+        'audio exposure', 'headphone audio', 'headphone volume',
+        'headphone level', 'environmental noise', 'noise exposure',
+        'hearing health', 'hearing damage', 'loud noise', 'decibel',
+        'decibels', 'db level', 'headphone safety', 'noise level',
+        'environmental sound', 'audio level', 'listening time',
+    ],
+
+    # =========================================================================
+    # DIETARY NUTRIENTS (HealthKit aggregated from external apps)
+    # =========================================================================
+    'dietary_nutrients': [
+        'dietary nutrients', 'healthkit nutrition', 'apple health nutrition',
+        'nutrient intake', 'nutrient data', 'macro intake',
+        'daily protein', 'daily carbs', 'daily fat', 'daily fiber',
+        'daily sodium', 'daily cholesterol', 'daily potassium',
+        'daily calcium', 'daily iron', 'vitamin d intake',
     ],
 }
 

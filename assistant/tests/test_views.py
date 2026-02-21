@@ -380,7 +380,12 @@ class TestProcessAssistantMessageGapDetection(unittest.TestCase):
         mock_model_class,
         mock_notification_class,
     ):
-        """Should detect gap when data type exists but no query method."""
+        """Should detect gap when data type exists but no query method.
+
+        Uses a non-personal query that triggers gap detection rather than
+        the data query pipeline. (Sleep was previously unsupported but is
+        now a fully supported data type.)
+        """
         from assistant.views import process_assistant_message
         from assistant.gap_detector import GapType
 
@@ -393,8 +398,8 @@ class TestProcessAssistantMessageGapDetection(unittest.TestCase):
         mock_detect_gap.return_value = {
             'gap_detected': True,
             'gap_type': GapType.NO_DATA_METHOD,
-            'original_query': 'What was my sleep like?',
-            'suggested_category': 'sleep',
+            'original_query': 'What was my VO2 max?',
+            'suggested_category': 'vo2_max',
         }
 
         # Mock task generation
@@ -405,11 +410,13 @@ class TestProcessAssistantMessageGapDetection(unittest.TestCase):
         # Mock model creation
         mock_model = MagicMock()
         mock_model.id = 'test-uuid'
-        mock_model.title = 'Test Task'
+        mock_model.title = 'Add query method for vo2_max'
         mock_model_class.create_from_improvement_task.return_value = mock_model
 
         user = MagicMock()
-        message = "What was my sleep like yesterday?"
+        # Use a query that won't match any personal data keywords,
+        # so it falls through to gap detection
+        message = "What was my VO2 max like yesterday?"
 
         result = process_assistant_message(user, message, "Base prompt")
 

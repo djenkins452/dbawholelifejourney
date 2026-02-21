@@ -703,6 +703,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for food search & barcode fixes (PK 72)
         self._reset_food_search_barcode_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for CoS health data visibility (PK 73)
+        self._reset_cos_health_visibility_fixtures(DataLoadConfig, force, verbosity)
+
         # Auto-sync CoS documentation to admin guide (runs if checksum changed)
         self._sync_cos_documentation(DataLoadConfig, force, verbosity)
 
@@ -2779,3 +2782,33 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset food search barcode fixtures FAILED: {e}'))
+
+    def _reset_cos_health_visibility_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes for CoS health data visibility.
+        - release_notes PK 73 (CoS can see all health data)
+        """
+        reset_tracker_name = 'reset_cos_health_visibility_2026_02_21'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                config.reset()
+                if verbosity >= 1:
+                    self.stdout.write('  Reset release_notes loader for CoS health visibility')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for CoS health data visibility (Feb 2026)',
+                'command',
+                'One-time reset to reload release_notes PK 73'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset CoS health visibility fixtures FAILED: {e}'))

@@ -1,6 +1,22 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 73,
+        "fields": {
+            "title": "Your Chief of Staff Can Now See All Your Health Data",
+            "description": "Previously, your Chief of Staff could only access weight, fasting, workouts, and medication data. Now Monica can see your steps, sleep, heart rate, blood pressure, glucose, blood oxygen, mobility metrics, heart rate events, audio exposure, and dietary nutrients — everything your Apple Watch and Health apps are syncing. Ask about your step count, sleep trends, heart rate, or any health metric and get real answers backed by your actual data.",
+            "entry_type": "feature",
+            "version": "",
+            "release_date": "2026-02-21",
+            "is_published": true,
+            "is_major": true,
+            "learn_more_url": "",
+            "created_at": "2026-02-21T00:00:00Z",
+            "updated_at": "2026-02-21T00:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 72,
         "fields": {
             "title": "Food Search & Barcode Scanner — Now With Real Data",

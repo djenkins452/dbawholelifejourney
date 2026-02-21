@@ -1276,6 +1276,10 @@
     // ZXing reader instance (lazy initialized)
     let zxingReader = null;
 
+    // Barcode confirmation: require multiple consistent reads to avoid false positives
+    const BARCODE_CONFIRM_COUNT = 3;  // Must see same barcode N times
+    let barcodeReadCounts = {};       // { barcode: count }
+
     function setScanMode(mode) {
         scanMode = mode;
 
@@ -1346,6 +1350,8 @@
             clearTimeout(barcodeDebounceTimeout);
             barcodeDebounceTimeout = null;
         }
+        // Reset confirmation counts for next scan session
+        barcodeReadCounts = {};
     }
 
     function getZXingReader() {
@@ -1453,10 +1459,33 @@
     }
 
     function handleBarcodeDetected(barcode) {
-        // Debounce to avoid multiple rapid detections
+        // Skip if already confirmed and looked up
         if (barcode === lastScannedBarcode) {
             return;
         }
+
+        // Require multiple consistent reads to avoid ZXing false positives.
+        // ZXing is known to misread UPC-A as EAN-8, return wrong digits, etc.
+        // By requiring the same barcode N times, we filter out single-frame errors.
+        barcodeReadCounts[barcode] = (barcodeReadCounts[barcode] || 0) + 1;
+
+        // Decay counts for other barcodes (they're likely false reads)
+        for (const key of Object.keys(barcodeReadCounts)) {
+            if (key !== barcode) {
+                barcodeReadCounts[key] = Math.max(0, barcodeReadCounts[key] - 1);
+                if (barcodeReadCounts[key] === 0) {
+                    delete barcodeReadCounts[key];
+                }
+            }
+        }
+
+        if (barcodeReadCounts[barcode] < BARCODE_CONFIRM_COUNT) {
+            console.log(`Barcode ${barcode} seen ${barcodeReadCounts[barcode]}/${BARCODE_CONFIRM_COUNT} times`);
+            return;
+        }
+
+        // Confirmed — same barcode detected N times
+        console.log(`Barcode ${barcode} confirmed after ${BARCODE_CONFIRM_COUNT} consistent reads`);
 
         if (barcodeDebounceTimeout) {
             clearTimeout(barcodeDebounceTimeout);
@@ -1464,6 +1493,7 @@
 
         barcodeDebounceTimeout = setTimeout(async () => {
             lastScannedBarcode = barcode;
+            barcodeReadCounts = {};  // Reset for next scan
             stopBarcodeDetection();
 
             // Vibrate on detection (if supported)
@@ -1473,7 +1503,7 @@
 
             // Look up the barcode
             await lookupBarcode(barcode);
-        }, 300);
+        }, 100);
     }
 
     async function lookupBarcode(barcode) {

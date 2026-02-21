@@ -16,6 +16,9 @@
 
 ## 2026-02-20
 
+- **Fix: Barcode scanner returning wrong products** — Two issues: (1) ZXing barcode library is known to produce false positive reads (misidentifying UPC-A as EAN-8, returning wrong digits on single frames). Added a confirmation system requiring 3 consistent reads of the same barcode before accepting it, with decay for competing reads. (2) FatSecret's `lookup_barcode()` used `zfill(13)` to blindly zero-pad all barcodes to 13 digits — this corrupted 8-digit EAN-8 and UPC-E barcodes by prepending 5 zeros, mapping them to completely different products. Fixed to only prepend a single `0` for 12-digit UPC-A barcodes (the standard UPC-A → EAN-13 conversion) and pass other lengths as-is.
+  - Files: `templates/scan/scan_page.html`, `apps/health/services/fatsecret.py`
+
 - **Fix: Food autocomplete search returning no results** — The food-autocomplete.js was hitting `/health/nutrition/api/search/` but the actual URL is `/health/physical/nutrition/api/search/` (missing `physical/` segment after the URL restructuring). The fetch silently 404'd, causing "No matches found" for every food search. Fixed the API_URL constant and corrected the docstring in the view.
   - Files: `static/js/food-autocomplete.js`, `apps/health/views.py`
 

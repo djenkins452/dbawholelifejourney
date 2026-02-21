@@ -384,8 +384,13 @@ class FatSecretService:
             return None
 
         try:
-            # Pad barcode to 13 digits if needed (GTIN-13 format)
-            barcode = barcode.zfill(13)
+            # Convert to GTIN-13 format for FatSecret API.
+            # UPC-A (12 digits) → prepend '0' to make EAN-13 (standard conversion).
+            # EAN-13 (13 digits) → already correct, pass as-is.
+            # Other lengths (8, 14, etc.) → send as-is; blind zero-padding
+            # creates wrong barcodes that match different products.
+            if len(barcode) == 12:
+                barcode = '0' + barcode
 
             response = requests.get(
                 FATSECRET_BARCODE_URL,

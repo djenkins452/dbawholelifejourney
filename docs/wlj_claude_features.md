@@ -3056,7 +3056,7 @@ The core app is the shared infrastructure layer providing base models, middlewar
 - **API request logging** — `APIRequestLog` with real-time anomaly detection (burst, error rate, 404 probing, auth failures)
 - **Camera scan** — `CameraScan` for AI-powered food/medicine/receipt intake via camera
 
-### Intelligence Architecture (14 Engines)
+### Intelligence Architecture (15 Engines)
 | Phase | Engine | Code | Location |
 |-------|--------|------|----------|
 | Interpretation | Health Trend Interpretation | HTIE | `ai_health_trends/` |
@@ -3073,6 +3073,18 @@ The core app is the shared infrastructure layer providing base models, middlewar
 | Post-Execution | Proactive Guidance | PGE | `ai_guidance/` |
 | Post-Execution | Evidence & Explainability | E3 | `ai_explain/` |
 | Post-Execution | Delivery & Notification | DNE | `ai_delivery/` |
+| Arbitration | Universal Arbitration Layer | UAL | `ai_arbitration/` |
+
+### Universal Arbitration Layer (UAL)
+- **Purpose:** Central reasoning layer between multi-engine signal generation and user-facing intervention
+- **Pipeline:** Collect 13 signal sources → Normalise 14 dimensions → Classify scenario → Fuse cross-domain composites → Select intervention style → Build executive narrative → Log decision
+- **Scenarios:** TIME_CRITICAL, HEALTH_CRITICAL, DRIFT_CRITICAL, MOOD_CRITICAL, RELATIONSHIP_CRITICAL, STABLE_EXECUTION
+- **Composites:** LOW_CAPACITY_DAY, PHYSICAL_RISK, RELATIONAL_OPPORTUNITY, EMOTIONAL_OVERLOAD, RECOVERY_NEEDED, ALIGNMENT_CRISIS, DEADLINE_CONVERGENCE
+- **Interventions:** DIRECTIVE, PROTECTIVE, ACCOUNTABILITY, SUPPORTIVE, STRATEGIC, EXECUTION
+- **Key files:** `signal_collector.py`, `scenario_classifier.py`, `signal_fuser.py`, `intervention_engine.py`, `narrative_engine.py`, `arbitration_engine.py`
+- **Model:** ArbitrationDecisionLog (decision logging for refinement)
+- **Tests:** 42 tests in `apps/core/ai_arbitration/tests.py`
+- **Integration:** Injected into personal_assistant.py after Executive Briefing, before final message generation
 
 ### Blueprint & CoS System
 - `apps/core/blueprint/` — Personal Operating Blueprint with alignment, drift, intervention, recovery, and reflection engines

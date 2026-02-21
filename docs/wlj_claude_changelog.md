@@ -9,6 +9,14 @@
 
 # WLJ Change History
 
+## 2026-02-21 — Fix CoS system injection: render executive tone mode + learned profile
+
+**Fix:** `format_cos_system_injection()` in `cos_context.py` never rendered `executive_tone_mode` or `learned_profile_prompt` from the context dict, despite both being computed by `build_cos_context()` and `build_executive_context()`. This caused two Phase 4 CoS tests to fail (`test_includes_tone_mode`, `test_includes_learned_profile`). Added rendering blocks for both: executive tone mode maps through `TONE_MODE_INSTRUCTIONS` dict, learned profile injects directly. Fix resolved the pre-existing 102/103 test failure and unmasked 57 additional tests (now 160/160 pass).
+
+**Files:** `apps/core/ai_orchestrator/cos_context.py`
+
+---
+
 ## 2026-02-21 — Fix SAE synthetic recovery: add instrumentation to rebuild_user_state
 
 **Fix:** SAE synthetic runner called `rebuild_user_state(user)` which lacked the `@_instrument_engine_run("SAE")` decorator. No `EngineRun` records were created, so the heartbeat system never saw a fresh SAE run — SAE stayed MISSED even after successful synthetic execution. Added the decorator so `rebuild_user_state` creates EngineRun records like all other engine functions.

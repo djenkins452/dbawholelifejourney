@@ -845,6 +845,20 @@ def format_cos_system_injection(context):
         lines.append("")
         lines.append(strategy_block)
 
+    # Executive tone mode (Phase 4 — how the CoS should approach this person)
+    tone_mode = context.get('executive_tone_mode', '')
+    if tone_mode:
+        tone_text = TONE_MODE_INSTRUCTIONS.get(tone_mode, '')
+        if tone_text:
+            lines.append("")
+            lines.append(f"EXECUTIVE TONE: {tone_text}")
+
+    # Learned user profile (from calibration / observation)
+    learned_profile = context.get('learned_profile_prompt', '')
+    if learned_profile:
+        lines.append("")
+        lines.append(learned_profile)
+
     lines.append("")
     lines.append("=== END SITUATIONAL AWARENESS ===")
     lines.append("")

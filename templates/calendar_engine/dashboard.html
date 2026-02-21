@@ -159,7 +159,7 @@
                     {% for s in suggestions %}
                     <div class="cal-suggestion-item" data-source-type="{{ s.source_type }}" data-source-id="{{ s.source_id }}" data-start="{{ s.start_dt }}" data-end="{{ s.end_dt }}" data-title="{{ s.title }}">
                         <div class="cal-suggestion-name">{{ s.title }}</div>
-                        <div class="cal-suggestion-detail">{{ s.start_dt|truncatechars:16 }} — {{ s.end_dt|truncatechars:16 }}</div>
+                        <div class="cal-suggestion-detail" data-start="{{ s.start_dt }}" data-end="{{ s.end_dt }}"></div>
                         <div class="cal-suggestion-rationale">{{ s.rationale }}</div>
                         <button class="cal-suggestion-accept">Accept</button>
                     </div>
@@ -218,9 +218,22 @@
         var d = new Date(isoStr);
         var h = d.getHours();
         var m = d.getMinutes();
-        var ampm = h >= 12 ? 'pm' : 'am';
+        var ampm = h >= 12 ? 'PM' : 'AM';
         h = h % 12 || 12;
-        return h + (m > 0 ? ':' + String(m).padStart(2, '0') : '') + ampm;
+        return h + (m > 0 ? ':' + String(m).padStart(2, '0') : '') + ' ' + ampm;
+    }
+
+    function formatDateTime(isoStr) {
+        var d = new Date(isoStr);
+        var month = String(d.getMonth() + 1).padStart(2, '0');
+        var day = String(d.getDate()).padStart(2, '0');
+        var year = d.getFullYear();
+        var h = d.getHours();
+        var m = d.getMinutes();
+        var ampm = h >= 12 ? 'PM' : 'AM';
+        h = h % 12 || 12;
+        var time = h + ':' + String(m).padStart(2, '0') + ' ' + ampm;
+        return month + '/' + day + '/' + year + ' ' + time;
     }
 
     function formatHour(hour) {
@@ -440,6 +453,11 @@
             }
         });
     };
+
+    // ── Format Suggestion Dates ──
+    document.querySelectorAll('.cal-suggestion-detail[data-start]').forEach(function(el) {
+        el.textContent = formatDateTime(el.dataset.start) + ' — ' + formatDateTime(el.dataset.end);
+    });
 
     // ── Init ──
     loadView('today');

@@ -131,7 +131,7 @@ def get_items_due_soon(user):
                 'source_type': 'task',
                 'source_id': str(task.pk),
                 'title': task.title,
-                'due_date': task.due_date.isoformat(),
+                'due_date': task.due_date.strftime('%m/%d/%Y'),
                 'priority': task.priority,
                 'effort': task.effort,
             })
@@ -160,7 +160,7 @@ def get_items_due_soon(user):
                 'source_type': 'goal',
                 'source_id': str(goal.pk),
                 'title': goal.title,
-                'due_date': goal.target_date.isoformat(),
+                'due_date': goal.target_date.strftime('%m/%d/%Y'),
             })
 
     return items

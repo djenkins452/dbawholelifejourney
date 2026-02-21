@@ -9,6 +9,35 @@
 
 # WLJ Change History
 
+## 2026-02-21 — Celery + Redis Infrastructure (Phases 6–10)
+
+**Changes:**
+- **Phase 6 — Remove APScheduler SAME:** Removed Job 16 (run_same_cycle) from wsgi.py. APScheduler retains 15 non-SAME jobs. Job count updated from 16 to 15.
+- **Phase 7 — Celery App Factory:** Created `config/celery.py` with Django integration and autodiscovery. Updated `config/__init__.py` to export `celery_app`. Added `CELERY_*` and `REDIS_URL` settings.
+- **Phase 8 — SAME Celery Task:** Created `apps/core/tasks.py` with `run_same_cycle_task` shared task. Beat schedule configured for 60s interval. Task is thin wrapper — all logic stays in `same_engine.py`.
+- **Phase 9 — Hardening:** soft_time_limit=50s, hard time_limit=120s, acks_late=True, reject_on_worker_lost=True, max_tasks_per_child=500. DB SchedulerLock unchanged.
+- **Phase 10 — Railway Deployment:** Documented three-service topology (Web + Worker + Beat), environment variables, local dev instructions, revert procedure.
+- **Dependencies:** Added `celery>=5.4.0` and `redis>=5.0.0` to requirements.txt.
+- **Tests:** 24 new tests in `apps/core/tests_celery.py` covering settings, Beat schedule, app init, task execution, DB lock protection, and APScheduler remnant verification.
+
+**New Files:**
+- `config/celery.py` — Celery application factory
+- `apps/core/tasks.py` — SAME Celery task wrapper
+- `apps/core/tests_celery.py` — 24 Celery infrastructure tests
+
+**Modified Files:**
+- `config/wsgi.py` — Removed SAME Job 16
+- `config/__init__.py` — Export celery_app
+- `config/settings.py` — Added CELERY_* + REDIS_URL settings
+- `apps/core/jobs.py` — Updated docstring
+- `requirements.txt` — Added celery, redis
+- `docs/project.md` — Added phases 6–10
+- `docs/OPS_COMMAND_CENTER_EVOLUTION_REPORT.md` — Updated with Celery architecture
+
+**Why:** APScheduler runs in-process with Gunicorn — if the worker dies, SAME stops. Celery provides an isolated worker process with proper task queue, retry logic, and time limits. This also enables future horizontal scaling.
+
+---
+
 ## 2026-02-21 — Ops Command Center Evolution (Phases 1–5)
 
 **Changes:**

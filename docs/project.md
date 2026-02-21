@@ -2,7 +2,7 @@
 
 **Project:** Evolve Vegas Ops Wall into Production-Grade Intelligence Operating System
 **Started:** 2026-02-21
-**Status:** In Progress
+**Status:** Complete
 
 ---
 
@@ -15,6 +15,11 @@
 | 3 | Escalation State Machine | **Complete** | 0081_anomaly_escalation_fields | 7 tests |
 | 4 | Temporal Engine Cadence Visualization | **Complete** | None needed | 6 tests |
 | 5 | Controlled Autonomous Remediation | **Complete** | 0082_intervention_system_initiated | 7 tests |
+| 6 | Celery + Redis: Remove APScheduler SAME | **Complete** | None | 3 tests |
+| 7 | Celery + Redis: App factory + settings | **Complete** | None | 11 tests |
+| 8 | Celery + Redis: SAME task + Beat schedule | **Complete** | None | 4 tests |
+| 9 | Celery + Redis: Hardening + DB lock tests | **Complete** | None | 4 tests |
+| 10 | Celery + Redis: Railway deployment docs | **Complete** | None | 2 tests |
 
 ---
 
@@ -135,17 +140,123 @@
 
 ---
 
+## Phase 6 — Remove APScheduler SAME Scheduling
+
+**Objective:** Remove SAME job from APScheduler wsgi.py registration.
+
+| # | Task | Status |
+|---|------|--------|
+| 6.1 | Remove Job 16 (run_same_cycle) from wsgi.py | Complete |
+| 6.2 | Update job count from 16 to 15 | Complete |
+| 6.3 | Add Celery migration note in wsgi.py | Complete |
+| 6.4 | Verify app still boots normally | Complete |
+
+**Files Modified:** `config/wsgi.py`
+**Tests Added:** 3 tests in `NoAPSchedulerSAMERemnantTest`
+
+---
+
+## Phase 7 — Install and Configure Celery
+
+**Objective:** Celery app factory, Redis broker, Django settings integration.
+
+| # | Task | Status |
+|---|------|--------|
+| 7.1 | Add celery>=5.4.0 and redis>=5.0.0 to requirements.txt | Complete |
+| 7.2 | Create config/celery.py (app factory, autodiscover) | Complete |
+| 7.3 | Update config/__init__.py to export celery_app | Complete |
+| 7.4 | Add CELERY_* settings to config/settings.py | Complete |
+| 7.5 | Add REDIS_URL env var with localhost fallback | Complete |
+
+**Files Modified:** `requirements.txt`, `config/settings.py`, `config/__init__.py`
+**Files Created:** `config/celery.py`
+**Tests Added:** 7 settings tests + 2 app tests + 2 Beat schedule tests = 11 tests
+
+---
+
+## Phase 8 — SAME Celery Task + Beat Schedule
+
+**Objective:** Thin Celery task wrapper calling existing run_same_cycle().
+
+| # | Task | Status |
+|---|------|--------|
+| 8.1 | Create apps/core/tasks.py with run_same_cycle_task | Complete |
+| 8.2 | Configure shared_task with bind, max_retries, acks_late | Complete |
+| 8.3 | Add SoftTimeLimitExceeded handling | Complete |
+| 8.4 | Add duration logging | Complete |
+| 8.5 | Configure Beat schedule (60s interval) | Complete |
+
+**Files Created:** `apps/core/tasks.py`
+**Tests Added:** 4 tests in `SAMECeleryTaskTest`
+
+---
+
+## Phase 9 — Hardening + DB Lock Protection
+
+**Objective:** Ensure no duplicate execution, proper timeout, lock integrity.
+
+| # | Task | Status |
+|---|------|--------|
+| 9.1 | soft_time_limit=50s, time_limit=120s | Complete |
+| 9.2 | acks_late=True, reject_on_worker_lost=True | Complete |
+| 9.3 | DB SchedulerLock still enforced (unchanged) | Complete |
+| 9.4 | Retry does not bypass DB lock | Complete |
+| 9.5 | Worker recycling (max_tasks_per_child=500) | Complete |
+
+**Tests Added:** 4 tests in `DBLockProtectionTest`
+
+---
+
+## Phase 10 — Railway Deployment Structure
+
+**Objective:** Document deployment topology and environment variables.
+
+**Railway Services:**
+
+| Service | Command | Purpose |
+|---------|---------|---------|
+| Web | `gunicorn config.wsgi:application --bind 0.0.0.0:$PORT` | Django web server |
+| Worker | `celery -A config worker --loglevel=info --concurrency=2` | Celery task execution |
+| Beat | `celery -A config beat --loglevel=info` | Celery periodic scheduler |
+
+**Required Environment Variables:**
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `REDIS_URL` | Yes | Redis connection string (auto-set by Railway Redis addon) |
+| `CELERY_BROKER_URL` | No | Override for broker URL (defaults to REDIS_URL) |
+| `CELERY_RESULT_BACKEND` | No | Override for result backend (defaults to REDIS_URL) |
+| `AUTONOMOUS_REMEDIATION_ENABLED` | No | Enable/disable auto-remediation (default: True) |
+
+**Redis Service:** Attach Railway Redis addon → sets `REDIS_URL` automatically.
+
+**Local Development:**
+- Redis not required for web server (APScheduler handles non-SAME jobs)
+- To run SAME via Celery locally: `redis-server` + `celery -A config worker` + `celery -A config beat`
+- Or just call `run_same_cycle()` directly from shell
+
+**Scaling:**
+- Workers can be scaled horizontally — DB lock prevents duplicate SAME execution
+- Beat must remain single instance (only one scheduler)
+- Web server scaling unchanged (Gunicorn workers)
+
+---
+
 ## Architectural Decisions
 
 | # | Decision | Rationale |
 |---|----------|-----------|
-| AD-1 | Use APScheduler (not Celery) for SAME background job | Project already uses APScheduler via wsgi.py; no Celery infrastructure exists |
+| AD-1 | ~~Use APScheduler for SAME~~ → Migrated to Celery Beat | APScheduler runs in-process and dies with Gunicorn workers; Celery provides isolated worker process |
 | AD-2 | Use existing SchedulerLock model for SAME concurrency guard | Reuse proven DB-lock pattern from ISE scheduler |
 | AD-3 | OpsStream endpoint becomes read-only (no SAME trigger) | Decouples monitoring from UI polling; background job maintains state |
 | AD-4 | 5-component weighted scoring for System Integrity Index | Covers engine health (40pt), anomaly severity (50pt), error spike (10pt), suppression (5pt), confidence volatility (5pt) — total penalty subtracted from 100 |
 | AD-5 | Escalation rules: P3→P2 @10min, P2→P1 @20min with 5min cooldown | Aggressive enough to surface real issues, cooldown prevents flapping |
 | AD-6 | Autonomous remediation restricted to P3 + system engines only | DBE/WIRE/DNE are safe to auto-rerun; user-facing engines (UAL/SAE/PIE) never auto-acted on |
 | AD-7 | Max 3 auto-actions per SAME cycle + 30min cooldown per engine | Prevents runaway remediation loops while still being useful |
+| AD-8 | Celery task is a thin wrapper — no SAME logic in task | Keeps business logic in same_engine.py; Celery only triggers execution |
+| AD-9 | Keep APScheduler for non-SAME jobs (SMS, ISE, etc.) | Incremental migration — avoids massive refactor; migrate others later |
+| AD-10 | acks_late + reject_on_worker_lost for SAME task | Ensures task is re-delivered if worker crashes mid-execution |
+| AD-11 | soft_time_limit=50s, hard time_limit=120s | Prevents stuck SAME cycles from blocking the worker indefinitely |
 
 ---
 
@@ -153,20 +264,24 @@
 
 | # | Risk | Mitigation |
 |---|------|------------|
-| R-1 | APScheduler runs in-process — if Gunicorn worker dies, SAME stops | SchedulerLock staleness timeout (10m) allows recovery on restart |
+| R-1 | ~~APScheduler in-process~~ — Resolved by Celery migration | SAME now runs in dedicated Celery worker, independent of web process |
 | R-2 | 60s SAME cycle may accumulate EngineHeartbeat rows | Add periodic cleanup or limit retained rows |
 | R-3 | OpsAnomaly escalation could cause alert fatigue | Cooldown logic + configurable thresholds |
 | R-4 | Autonomous remediation could mask real failures | Restricted to P3/system-only engines, max 3/cycle, 30min cooldown, full audit trail via AdminIntervention |
+| R-5 | Celery Beat must be single instance | Running multiple Beat processes would duplicate scheduled tasks. Railway should run exactly one Beat service |
+| R-6 | Redis availability required for SAME | If Redis is down, Celery cannot deliver tasks. DB lock prevents stale state but SAME won't run until Redis recovers |
 
 ---
 
 ## Future Enhancements
 
-- Redis-backed distributed lock for multi-container SAME dedup
+- Migrate remaining APScheduler jobs (SMS, ISE, life, capture) to Celery
 - WebSocket push instead of polling for Ops Wall
 - SAME cycle metrics (duration, anomaly counts) as EngineRun records
 - Anomaly notification via SMS/email for P1 escalations
 - Historical System Integrity Index charting
+- Celery Flower monitoring dashboard
+- Redis Sentinel for high-availability broker
 
 ---
 

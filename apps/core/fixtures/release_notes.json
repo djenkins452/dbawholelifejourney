@@ -1,6 +1,22 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 84,
+        "fields": {
+            "title": "Celery + Redis Background Infrastructure",
+            "description": "The system monitoring engine (SAME) has been migrated from an in-process scheduler to a dedicated Celery worker backed by Redis. This means monitoring continues running even if the web server restarts, with automatic retry on failures, configurable timeouts, and proper task queue management. The existing database lock still prevents duplicate execution. This is infrastructure-only — no changes to monitoring behavior or the Operations Wall interface.",
+            "entry_type": "enhancement",
+            "version": "",
+            "release_date": "2026-02-21",
+            "is_published": true,
+            "is_major": false,
+            "learn_more_url": "",
+            "created_at": "2026-02-21T00:00:00Z",
+            "updated_at": "2026-02-21T00:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 83,
         "fields": {
             "title": "Ops Command Center Evolution — Full Intelligence OS",

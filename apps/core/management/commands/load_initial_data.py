@@ -733,6 +733,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for Ops Command Center evolution (PK 83)
         self._reset_ops_command_center_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for Celery + Redis infrastructure (PK 84)
+        self._reset_celery_infrastructure_fixtures(DataLoadConfig, force, verbosity)
+
         # Auto-sync CoS documentation to admin guide (runs if checksum changed)
         self._sync_cos_documentation(DataLoadConfig, force, verbosity)
 
@@ -3110,3 +3113,31 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset Ops Command Center fixtures FAILED: {e}'))
+
+    def _reset_celery_infrastructure_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes for Celery + Redis infrastructure.
+        - release_notes PK 84 (Celery + Redis Background Infrastructure)
+        """
+        reset_tracker_name = 'reset_celery_infrastructure_2026_02_21'
+        try:
+            if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
+                return
+
+            config = DataLoadConfig.objects.get(loader_name='release_notes')
+            if config.is_loaded:
+                config.is_loaded = False
+                config.save()
+                if verbosity >= 1:
+                    self.stdout.write(f'  Reset release_notes loader for Celery + Redis infrastructure')
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for Celery + Redis infrastructure (Feb 2026)',
+                'command',
+                'One-time reset to reload release_notes PK 84'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset Celery infrastructure fixtures FAILED: {e}'))

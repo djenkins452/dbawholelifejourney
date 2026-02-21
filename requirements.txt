@@ -61,8 +61,12 @@ openai>=1.0.0
 plaid-python>=23.0.0
 cryptography>=42.0.0
 
-# Background Job Scheduler
+# Background Job Scheduler (legacy — SMS, life, capture, ISE jobs)
 django-apscheduler>=0.6.2
+
+# Celery Task Queue (SAME monitoring + future task migration)
+celery>=5.4.0
+redis>=5.0.0
 
 # Linting and Code Quality (development)
 black>=24.8.0

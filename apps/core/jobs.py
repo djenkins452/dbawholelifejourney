@@ -9,13 +9,16 @@
 """
 Core Background Jobs
 
-Functions that are called by APScheduler for background processing.
-These are referenced in config/wsgi.py and run periodically in production.
+Functions called by APScheduler (via wsgi.py) and Celery (via tasks.py)
+for background processing.
 
-Jobs:
-    - cleanup_soft_deletes: Permanently delete expired soft-deleted records
-    - generate_faith_reminders: Create prayer and reading plan notifications
-    - compute_activity_patterns: Compute user activity patterns for personalized insights
+APScheduler jobs (via wsgi.py):
+    - cleanup_soft_deletes, generate_faith_reminders, generate_health_reminders,
+      send_notification_digest, compute_activity_patterns, generate_birthday_reminders,
+      run_intelligence_scheduler
+
+Celery jobs (via apps/core/tasks.py):
+    - run_same_cycle: SAME monitoring engine (triggered by Celery Beat every 60s)
 """
 
 import logging
@@ -203,7 +206,7 @@ def run_same_cycle():
     Computes heartbeats, detects anomalies, generates narrative snapshot.
     Uses a database lock to prevent overlapping execution across workers.
 
-    Scheduled: Every 60 seconds via APScheduler IntervalTrigger.
+    Scheduled: Every 60 seconds via Celery Beat (run_same_cycle_task).
     """
     logger.info("SAME cycle starting...")
 

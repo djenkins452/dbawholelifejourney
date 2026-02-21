@@ -959,15 +959,51 @@ DEXCOM_USE_SANDBOX = env.bool('DEXCOM_USE_SANDBOX', default=DEBUG)
 
 
 # ==============================================================================
-# APScheduler Configuration (Background Jobs)
+# APScheduler Configuration (Background Jobs — Legacy)
 # ==============================================================================
-# Used for scheduling SMS reminders and sending pending notifications
-# Jobs are stored in the database and survive restarts
-
+# APScheduler still handles non-SAME jobs (SMS, life, capture, ISE).
+# SAME monitoring has been migrated to Celery Beat.
 APSCHEDULER_DATETIME_FORMAT = "N j, Y, f:s a"
-
-# Run scheduler only in production (managed by run_scheduler command)
 APSCHEDULER_RUN_NOW_TIMEOUT = 25  # Seconds
+
+
+# ==============================================================================
+# Celery Configuration (Background Task Queue)
+# ==============================================================================
+# Celery handles SAME monitoring cycle via Beat scheduler.
+# Uses Redis as message broker and result backend.
+# Worker command: celery -A config worker --loglevel=info --concurrency=2
+# Beat command:   celery -A config beat --loglevel=info
+
+# Redis URL — Railway sets REDIS_URL automatically when Redis addon is attached
+REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/0")
+
+# Broker and result backend (CELERY_BROKER_URL overrides REDIS_URL if set)
+CELERY_BROKER_URL = env("CELERY_BROKER_URL", default=REDIS_URL)
+CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND", default=REDIS_URL)
+
+# Serialization — JSON only for security and debuggability
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+
+# Timezone — match Django
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_ENABLE_UTC = True
+
+# Beat schedule — periodic tasks
+CELERY_BEAT_SCHEDULE = {
+    "run-same-cycle-every-60-seconds": {
+        "task": "apps.core.tasks.run_same_cycle_task",
+        "schedule": 60.0,
+    },
+}
+
+# Worker settings
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_TIME_LIMIT = 120        # Hard kill after 2 minutes
+CELERY_TASK_SOFT_TIME_LIMIT = 50    # SoftTimeLimitExceeded after 50 seconds
+CELERY_WORKER_MAX_TASKS_PER_CHILD = 500  # Recycle workers to prevent memory leaks
 
 
 # ==============================================================================

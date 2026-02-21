@@ -16,8 +16,21 @@ Package Contents:
     - wsgi.py: WSGI application for production deployment
     - asgi.py: ASGI application (if async features are needed)
 
+Package Contents:
+    - settings.py: Django settings configuration
+    - urls.py: Root URL routing
+    - wsgi.py: WSGI application for production deployment
+    - celery.py: Celery application for background task processing
+    - asgi.py: ASGI application (if async features are needed)
+
 Copyright:
     (c) Whole Life Journey. All rights reserved.
     This code is proprietary and may not be copied, modified, or distributed
     without explicit permission.
 """
+
+# Import Celery app so it's registered when Django starts.
+# This ensures shared_task uses this app instance.
+from .celery import app as celery_app
+
+__all__ = ("celery_app",)

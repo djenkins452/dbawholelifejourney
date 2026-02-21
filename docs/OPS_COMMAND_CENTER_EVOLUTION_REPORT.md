@@ -2,16 +2,20 @@
 
 **Date:** 2026-02-21
 **Author:** Claude Code
-**Status:** Deployed (`5bb6a0b`)
+**Status:** Deployed
 **Project Tracker:** `docs/project.md`
 
 ---
 
 ## Executive Summary
 
-The Vegas Ops Wall has been evolved from a monitoring dashboard into a production-grade Intelligence Operating System across 5 phases. The system now runs autonomously in the background, computes executive-level health metrics, escalates anomalies over time, visualizes engine cadence, and can auto-remediate low-severity issues — all without human intervention.
+The Vegas Ops Wall has been evolved from a monitoring dashboard into a production-grade Intelligence Operating System across 10 phases in two iterations:
 
-**82 new tests. 3 new migrations. 0 regressions.**
+**Iteration 1 (Phases 1–5):** Intelligence features — background execution, integrity index, escalation state machine, cadence visualization, autonomous remediation.
+
+**Iteration 2 (Phases 6–10):** Infrastructure — migrated SAME scheduling from APScheduler to Celery + Redis with dedicated worker/beat services on Railway.
+
+**106 total tests. 3 new migrations. 2 new dependencies. 0 regressions.**
 
 ---
 
@@ -19,11 +23,25 @@ The Vegas Ops Wall has been evolved from a monitoring dashboard into a productio
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                   APScheduler (wsgi.py)                         │
-│                   Job 16: run_same_cycle (60s)                  │
+│              Redis (Railway addon / localhost:6379)              │
 └───────────────────────┬─────────────────────────────────────────┘
                         │
-                        ▼
+        ┌───────────────┴───────────────┐
+        │                               │
+┌───────┴─────────┐           ┌─────────┴───────────┐
+│  Celery Beat    │           │  APScheduler        │
+│  (1 instance)   │           │  (wsgi.py, 15 jobs) │
+│                 │           │  SMS, ISE, life,     │
+│  SAME cycle     │           │  capture, faith...   │
+│  every 60s      │           └─────────────────────┘
+└────────┬────────┘
+         │
+┌────────┴────────┐
+│  Celery Worker  │
+│  (concurrency=2)│
+└────────┬────────┘
+         │
+         ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                   SAME Engine Pipeline                          │
 │                                                                 │
@@ -155,6 +173,72 @@ The Vegas Ops Wall has been evolved from a monitoring dashboard into a productio
 
 ---
 
+## Iteration 2 — Celery + Redis Infrastructure (Phases 6–10)
+
+### Phase 6 — Remove APScheduler SAME Scheduling
+
+**Problem:** APScheduler runs in-process — if the Gunicorn worker dies, SAME stops.
+**Solution:** Removed SAME Job 16 from wsgi.py. APScheduler retains 15 non-SAME jobs.
+
+### Phase 7 — Celery App Factory + Settings
+
+**What was created:**
+- `config/celery.py` — Celery app factory with Django integration and autodiscovery
+- `config/__init__.py` — Updated to export `celery_app` for Django startup
+- `config/settings.py` — Added `CELERY_*` settings with Redis broker config
+- `requirements.txt` — Added `celery>=5.4.0` and `redis>=5.0.0`
+
+### Phase 8 — SAME Celery Task + Beat Schedule
+
+**What was created:**
+- `apps/core/tasks.py` — `run_same_cycle_task` shared task
+  - `bind=True`, `max_retries=3`, `default_retry_delay=10`
+  - `acks_late=True`, `reject_on_worker_lost=True`
+  - SoftTimeLimitExceeded handling (returns timeout, no retry)
+  - Duration logging on every execution
+- Beat schedule: `"run-same-cycle-every-60-seconds"` → 60.0s interval
+
+### Phase 9 — Hardening
+
+| Safeguard | Implementation |
+|-----------|---------------|
+| Overlap prevention | DB SchedulerLock unchanged — prevents duplicate SAME execution |
+| Soft time limit | 50 seconds — raises SoftTimeLimitExceeded |
+| Hard time limit | 120 seconds — worker kills task |
+| Worker recycling | max_tasks_per_child=500 |
+| Task acknowledgment | acks_late=True — re-delivered if worker crashes |
+| Retry safety | DB lock released in finally block; retries re-acquire fresh lock |
+
+### Phase 10 — Railway Deployment
+
+| Service | Command |
+|---------|---------|
+| Web | `gunicorn config.wsgi:application --bind 0.0.0.0:$PORT` |
+| Worker | `celery -A config worker --loglevel=info --concurrency=2` |
+| Beat | `celery -A config beat --loglevel=info` |
+
+**Required:** Redis addon on Railway (sets `REDIS_URL` automatically).
+
+**How to run locally:**
+```bash
+# Option A: Full Celery stack
+redis-server &
+celery -A config worker --loglevel=info &
+celery -A config beat --loglevel=info &
+python manage.py runserver
+
+# Option B: Direct invocation (no Redis needed)
+python manage.py shell -c "from apps.core.jobs import run_same_cycle; run_same_cycle()"
+```
+
+**How to revert to APScheduler:**
+1. Remove Celery settings from `config/settings.py`
+2. Remove `celery_app` import from `config/__init__.py`
+3. Re-add Job 16 to `config/wsgi.py` (see git history)
+4. Remove `celery` and `redis` from `requirements.txt`
+
+---
+
 ## Test Summary
 
 | Test Class | Tests | Focus |
@@ -167,7 +251,15 @@ The Vegas Ops Wall has been evolved from a monitoring dashboard into a productio
 | CadenceTimelineTest | 6 | Timeline data, window, auth |
 | AutonomousRemediationTest | 7 | Auto-actions, safeguards, audit |
 | *Pre-existing (42)* | 42 | Original v2 test suite |
-| **Total** | **82** | |
+| **Subtotal (ops_wall_v2)** | **82** | |
+| CelerySettingsTest | 7 | Broker, serialization, timezone, limits |
+| CeleryBeatScheduleTest | 4 | Schedule exists, task name, interval |
+| CeleryAppTest | 2 | App importable, init export |
+| SAMECeleryTaskTest | 4 | Calls run_same_cycle, duration, exception, timeout |
+| DBLockProtectionTest | 4 | Lock prevents concurrent, stale override, release |
+| NoAPSchedulerSAMERemnantTest | 3 | No SAME in wsgi, 15 jobs, Celery note |
+| **Subtotal (tests_celery)** | **24** | |
+| **Grand Total** | **106** | |
 
 **Bonus fix:** `tests_diagnostics.py:test_ops_poll_staff_access` — updated v1 response key assertions to match v2 keys.
 
@@ -175,10 +267,12 @@ The Vegas Ops Wall has been evolved from a monitoring dashboard into a productio
 
 ## Files Modified
 
+### Iteration 1 (Phases 1–5)
+
 | File | Changes |
 |------|---------|
 | `apps/core/jobs.py` | Added `run_same_cycle()` |
-| `config/wsgi.py` | Registered Job 16 (SAME 60s) |
+| `config/wsgi.py` | Registered then removed SAME Job 16 |
 | `apps/core/ai_observability/models.py` | SystemIntegritySnapshot, escalation fields, system-initiated flag |
 | `apps/core/ai_observability/same_engine.py` | Integrity, escalation, remediation logic |
 | `apps/core/ai_observability/ops_views.py` | IntegrityIndexView, CadenceTimelineView |
@@ -187,6 +281,20 @@ The Vegas Ops Wall has been evolved from a monitoring dashboard into a productio
 | `apps/core/ai_observability/tests_ops_wall_v2.py` | 40 new tests (82 total) |
 | `apps/core/ai_observability/tests_diagnostics.py` | Fixed v2 key assertions |
 | `docs/project.md` | Full project tracker |
+
+### Iteration 2 (Phases 6–10)
+
+| File | Changes |
+|------|---------|
+| `config/wsgi.py` | Removed SAME Job 16, updated job count to 15 |
+| `config/celery.py` | **NEW** — Celery app factory |
+| `config/__init__.py` | Added `celery_app` export |
+| `config/settings.py` | Added CELERY_* and REDIS_URL settings |
+| `apps/core/tasks.py` | **NEW** — `run_same_cycle_task` Celery shared task |
+| `apps/core/jobs.py` | Updated docstring (Celery reference) |
+| `apps/core/tests_celery.py` | **NEW** — 24 Celery infrastructure tests |
+| `requirements.txt` | Added `celery>=5.4.0`, `redis>=5.0.0` |
+| `docs/project.md` | Added phases 6–10 tracking |
 
 ## Migrations
 
@@ -198,15 +306,20 @@ The Vegas Ops Wall has been evolved from a monitoring dashboard into a productio
 
 ---
 
-## Architectural Decisions
+## Dependencies Added
 
-| # | Decision | Rationale |
-|---|----------|-----------|
-| AD-4 | 5-component weighted scoring | Covers all observable failure modes with tunable weights |
-| AD-5 | Escalation: P3→P2 @10min, P2→P1 @20min | Aggressive enough to surface real issues; 5min cooldown prevents flapping |
-| AD-6 | Remediation restricted to P3 + system engines | DBE/WIRE/DNE are safe to auto-rerun; user-facing engines never auto-acted on |
-| AD-7 | Max 3 auto-actions/cycle + 30min cooldown | Prevents runaway loops while still being useful |
+| Package | Version | Purpose |
+|---------|---------|---------|
+| `celery` | ≥5.4.0 | Distributed task queue |
+| `redis` | ≥5.0.0 | Redis Python client (broker/backend) |
+
+## Known Limitations
+
+1. **Beat must be single instance** — running multiple Beat processes duplicates scheduled tasks
+2. **Redis required for SAME** — if Redis is down, SAME won't run (DB lock prevents stale state)
+3. **APScheduler still handles 15 other jobs** — not yet migrated to Celery
+4. **No Celery monitoring** — Flower or similar not yet deployed
 
 ---
 
-*Generated: 2026-02-21*
+*Generated: 2026-02-21 (updated with Celery migration)*

@@ -1,6 +1,22 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 81,
+        "fields": {
+            "title": "Monica's Intelligence Gets Sharper and More Self-Aware",
+            "description": "Monica's decision-making system (UAL v2.1) has been hardened with five new capabilities: she now tracks whether you've been ignoring her suggestions and adjusts accordingly (instead of nagging), avoids repeating similar nudges within hours, adapts her communication style based on your current capacity (simple and gentle when you're depleted, strategic when you have bandwidth), recognizes when persistent patterns need a different approach rather than repeating the same advice, and detects when your capacity has been volatile to dial back confident recommendations. All of this happens silently in the background — you'll just notice that Monica feels more perceptive and less repetitive.",
+            "entry_type": "enhancement",
+            "version": "",
+            "release_date": "2026-02-21",
+            "is_published": true,
+            "is_major": false,
+            "learn_more_url": "",
+            "created_at": "2026-02-21T00:00:00Z",
+            "updated_at": "2026-02-21T00:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 80,
         "fields": {
             "title": "Engine Diagnostics Console + Operations Wall",

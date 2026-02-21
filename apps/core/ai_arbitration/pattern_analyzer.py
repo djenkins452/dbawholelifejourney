@@ -10,6 +10,12 @@ Patterns detected:
 - HEALTH_CRITICAL mornings ≥3 times in 5 days
 - Any scenario repeated ≥5 times in 7 days (generic repetition)
 
+v2.1: Pattern Escalation Tier 2
+Extended thresholds trigger structural intervention override:
+- DRIFT_PERSISTENT ≥7 in 14 days
+- MOOD_PERSISTENT ≥5 in 7 days
+- HEALTH_PERSISTENT ≥5 in 7 days
+
 Does not overreact. Hints modify intensity slightly.
 """
 import logging
@@ -31,6 +37,13 @@ GENERIC_REPETITION_WINDOW = 7
 
 # Rolling window for full analysis
 ANALYSIS_WINDOW_DAYS = 14
+
+# v2.1: Tier 2 escalation thresholds (structural intervention)
+TIER2_RULES = [
+    ("DRIFT_CRITICAL", 7, 14, "DRIFT_PERSISTENT_T2"),
+    ("MOOD_CRITICAL", 5, 7, "MOOD_PERSISTENT_T2"),
+    ("HEALTH_CRITICAL", 5, 7, "HEALTH_PERSISTENT_T2"),
+]
 
 
 def analyze_patterns(user) -> dict:
@@ -113,11 +126,15 @@ def analyze_patterns(user) -> dict:
     all_scenarios = [s for _, s in history]
     scenario_frequency = dict(Counter(all_scenarios))
 
+    # v2.1: Tier 2 escalation check
+    tier2_result = _check_tier2(history, today)
+
     return {
         "escalation_hints": escalation_hints,
         "scenario_frequency": scenario_frequency,
         "repetition_flags": repetition_flags,
         "analysis_window_days": ANALYSIS_WINDOW_DAYS,
+        "tier2": tier2_result,
     }
 
 
@@ -156,10 +173,49 @@ def log_scenario_history(user, result) -> None:
         logger.debug("UAL scenario history logging skipped: %s", e)
 
 
+def _check_tier2(history: list, today) -> dict:
+    """
+    v2.1: Check for Tier 2 pattern escalation.
+
+    Tier 2 triggers when patterns persist beyond extended thresholds.
+    When active:
+    - Override max surfaced to 1
+    - Promote structural intervention over tactical
+    - Insert "Strategic Reset Consideration" flag
+
+    Returns:
+        {
+            "tier2_active": bool,
+            "triggers": list[dict],  # which Tier 2 rules triggered
+        }
+    """
+    triggers = []
+    for scenario, threshold, window, label in TIER2_RULES:
+        window_start = today - timedelta(days=window)
+        count = sum(
+            1 for d, s in history
+            if s == scenario and d >= window_start
+        )
+        if count >= threshold:
+            triggers.append({
+                "pattern": label,
+                "scenario": scenario,
+                "count": count,
+                "window_days": window,
+                "pattern_level": 2,
+            })
+
+    return {
+        "tier2_active": len(triggers) > 0,
+        "triggers": triggers,
+    }
+
+
 def _empty_result() -> dict:
     return {
         "escalation_hints": [],
         "scenario_frequency": {},
         "repetition_flags": [],
         "analysis_window_days": ANALYSIS_WINDOW_DAYS,
+        "tier2": {"tier2_active": False, "triggers": []},
     }

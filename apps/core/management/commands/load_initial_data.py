@@ -727,6 +727,9 @@ class Command(BaseCommand):
         # One-time: Reset fixtures for Diagnostics Console + Operations Wall (PK 80, teaching 155-156)
         self._reset_diagnostics_ops_wall_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for UAL v2.1 hardening (PK 81)
+        self._reset_ual_v21_fixtures(DataLoadConfig, force, verbosity)
+
         # Auto-sync CoS documentation to admin guide (runs if checksum changed)
         self._sync_cos_documentation(DataLoadConfig, force, verbosity)
 
@@ -3048,3 +3051,31 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset UAL fixtures FAILED: {e}'))
+
+    def _reset_ual_v21_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes for UAL v2.1 hardening.
+        - release_notes PK 81 (UAL v2.1 intelligence hardening)
+        """
+        reset_tracker_name = 'reset_ual_v21_hardening_2026_02_21'
+        try:
+            if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
+                return
+
+            config = DataLoadConfig.objects.get(loader_name='release_notes')
+            if config.is_loaded:
+                config.is_loaded = False
+                config.save()
+                if verbosity >= 1:
+                    self.stdout.write(f'  Reset release_notes loader for UAL v2.1 hardening')
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for UAL v2.1 hardening (Feb 2026)',
+                'command',
+                'One-time reset to reload release_notes PK 81'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset UAL v2.1 fixtures FAILED: {e}'))

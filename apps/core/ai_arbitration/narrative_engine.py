@@ -11,6 +11,8 @@ The narrative:
 4. Invites adjustment
 
 v2: Confidence-aware framing, capacity context, pattern mentions.
+v2.1: Style bias awareness, Tier 2 strategic reset framing,
+      volatility context.
 Never lists 8 separate reminders. Always unifies.
 """
 import logging
@@ -28,6 +30,7 @@ def build_narrative(
     signals: dict,
     capacity: dict = None,
     pattern_hints: list = None,
+    volatility: dict = None,
 ) -> str:
     """
     Build the executive narrative for system prompt injection.
@@ -41,6 +44,10 @@ def build_narrative(
     composite = intervention.get("primary_composite")
     confidence_level = scenario_result.get("confidence_level", "MODERATE")
 
+    # v2.1: Style bias from intervention engine
+    style_bias = intervention.get("style_bias", "normal")
+    pattern_tier2_active = intervention.get("pattern_tier2_active", False)
+
     # Build the narrative parts
     story = _build_story(dominant, composite, signals, surfaced)
     framing = _build_framing_directive(style, intervention["style_description"])
@@ -49,6 +56,9 @@ def build_narrative(
     confidence_note = _build_confidence_note(confidence_level)
     capacity_note = _build_capacity_note(capacity)
     pattern_note = _build_pattern_note(pattern_hints)
+    style_bias_note = _build_style_bias_note(style_bias)
+    tier2_note = _build_tier2_note(pattern_tier2_active)
+    volatility_note = _build_volatility_note(volatility)
 
     parts = [
         "=== EXECUTIVE JUDGMENT (UAL) ===",
@@ -74,6 +84,10 @@ def build_narrative(
     parts.append(f"INTERVENTION STYLE: {style}")
     parts.append(framing)
 
+    # v2.1: Style bias instruction
+    if style_bias_note:
+        parts.append(style_bias_note)
+
     # v2: Confidence-specific instruction
     if confidence_note:
         parts.append(confidence_note)
@@ -86,9 +100,17 @@ def build_narrative(
     if capacity_note:
         parts.append(capacity_note)
 
+    # v2.1: Volatility context
+    if volatility_note:
+        parts.append(volatility_note)
+
     # v2: Pattern warning
     if pattern_note:
         parts.append(pattern_note)
+
+    # v2.1: Tier 2 strategic reset
+    if tier2_note:
+        parts.append(tier2_note)
 
     parts.append("")
     parts.append(surface_block)
@@ -161,6 +183,50 @@ def _build_pattern_note(pattern_hints: list) -> str:
         )
 
     return "PATTERN NOTE: " + ". ".join(hints) + ". Consider this context gently."
+
+
+def _build_style_bias_note(style_bias: str) -> str:
+    """v2.1: Build style bias instruction for narrative tone."""
+    if style_bias == "tactical":
+        return (
+            "- STYLE: TACTICAL ONLY. Avoid multi-step planning language. "
+            "Keep suggestions concrete and immediate. No strategic framing."
+        )
+    if style_bias == "maintenance":
+        return (
+            "- STYLE: MAINTENANCE MODE. One item maximum. Language softened. "
+            "Avoid strategic planning entirely. Frame everything as optional. "
+            "Focus on basic wellbeing only."
+        )
+    if style_bias == "strategic":
+        return (
+            "- STYLE: STRATEGIC FRAMING ALLOWED. Full planning language appropriate. "
+            "User has capacity for forward-thinking guidance."
+        )
+    return ""  # "normal" = no extra note
+
+
+def _build_tier2_note(tier2_active: bool) -> str:
+    """v2.1: Build Tier 2 strategic reset note."""
+    if not tier2_active:
+        return ""
+    return (
+        "STRATEGIC RESET CONSIDERATION: A persistent pattern has reached "
+        "structural threshold. We may need a reset conversation. "
+        "Frame this gently — no alarmism. Suggest reconsidering the "
+        "approach rather than repeating the same interventions."
+    )
+
+
+def _build_volatility_note(volatility: dict) -> str:
+    """v2.1: Build capacity volatility context note."""
+    if not volatility or not volatility.get("volatility_applied", False):
+        return ""
+    return (
+        "CAPACITY VOLATILITY: Recent capacity has been unstable. "
+        "Confidence framing has been downgraded. Reduce surfacing "
+        "aggressiveness and avoid strong recommendations."
+    )
 
 
 def _build_story(

@@ -270,7 +270,7 @@
                 </span>
                 Universal Arbitration Layer
             </h2>
-            <p class="icc-subtitle">UAL v2 — Executive stability &amp; adaptation metrics</p>
+            <p class="icc-subtitle">UAL v2.1 — Executive stability, adaptation &amp; hardening metrics</p>
         </div>
 
         <!-- 7. Confidence Distribution -->
@@ -399,6 +399,163 @@
                 {% endif %}
             </div>
         </section>
+
+        <!-- ========== v2.1 Panel: Fatigue Score Distribution (7d) ========== -->
+        {% if ual_metrics.fatigue_distribution %}
+        <section class="icc-section" id="obs-ual-fatigue">
+            <div class="icc-section-header">
+                <h2 class="icc-section-title">
+                    <span class="icc-section-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                    </span>
+                    Intervention Fatigue (7d)
+                </h2>
+                <span class="icc-section-engine">UAL v2.1</span>
+            </div>
+            <div class="icc-section-body">
+                <div class="obs-metrics-grid">
+                    <div class="obs-metric">
+                        <span class="obs-metric-value">{{ ual_metrics.fatigue_distribution.total_surfaced }}</span>
+                        <span class="obs-metric-label">Surfaced</span>
+                    </div>
+                    <div class="obs-metric">
+                        <span class="obs-metric-value obs-success">{{ ual_metrics.fatigue_distribution.total_complied }}</span>
+                        <span class="obs-metric-label">Complied</span>
+                    </div>
+                    <div class="obs-metric">
+                        <span class="obs-metric-value obs-warning">{{ ual_metrics.fatigue_distribution.total_ignored }}</span>
+                        <span class="obs-metric-label">Ignored</span>
+                    </div>
+                    <div class="obs-metric">
+                        <span class="obs-metric-value obs-error">{{ ual_metrics.fatigue_distribution.total_overrode }}</span>
+                        <span class="obs-metric-label">Overrode</span>
+                    </div>
+                </div>
+                {% if ual_metrics.fatigue_distribution.scenario_breakdown %}
+                <div class="obs-scenario-freq" style="margin-top: var(--space-3);">
+                    {% for row in ual_metrics.fatigue_distribution.scenario_breakdown %}
+                    <div class="obs-scenario-bar">
+                        <span class="obs-scenario-name">{{ row.scenario }}</span>
+                        <span class="obs-scenario-count {% if row.fatigue_ratio > 0.6 %}obs-error{% elif row.fatigue_ratio > 0.3 %}obs-warning{% else %}obs-success{% endif %}">
+                            {{ row.fatigue_ratio|floatformat:0 }}% ignore
+                        </span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </section>
+        {% endif %}
+
+        <!-- ========== v2.1 Panel: Nudge Collision Rate (12h) ========== -->
+        {% if ual_metrics.nudge_collision_rate %}
+        <section class="icc-section" id="obs-ual-nudge">
+            <div class="icc-section-header">
+                <h2 class="icc-section-title">
+                    <span class="icc-section-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+                    </span>
+                    Nudge Collision Rate (12h)
+                </h2>
+                <span class="icc-section-engine">UAL v2.1</span>
+            </div>
+            <div class="icc-section-body">
+                <div class="obs-metrics-grid">
+                    <div class="obs-metric">
+                        <span class="obs-metric-value">{{ ual_metrics.nudge_collision_rate.total_nudges_12h }}</span>
+                        <span class="obs-metric-label">Nudges (12h)</span>
+                    </div>
+                    <div class="obs-metric">
+                        <span class="obs-metric-value">{{ ual_metrics.nudge_collision_rate.unique_tags }}</span>
+                        <span class="obs-metric-label">Unique Tags</span>
+                    </div>
+                    <div class="obs-metric">
+                        <span class="obs-metric-value {% if ual_metrics.nudge_collision_rate.collision_count > 0 %}obs-warning{% endif %}">{{ ual_metrics.nudge_collision_rate.collision_count }}</span>
+                        <span class="obs-metric-label">Collisions</span>
+                    </div>
+                    <div class="obs-metric">
+                        <span class="obs-metric-value obs-pct">{{ ual_metrics.nudge_collision_rate.collision_rate|floatformat:0 }}%</span>
+                        <span class="obs-metric-label">Collision Rate</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
+        <!-- ========== v2.1 Panel: Capacity Volatility (14d) ========== -->
+        {% if ual_metrics.capacity_volatility %}
+        <section class="icc-section" id="obs-ual-volatility">
+            <div class="icc-section-header">
+                <h2 class="icc-section-title">
+                    <span class="icc-section-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                    </span>
+                    Capacity Volatility (14d)
+                </h2>
+                <span class="icc-section-engine">UAL v2.1</span>
+            </div>
+            <div class="icc-section-body">
+                <div class="obs-metrics-grid">
+                    <div class="obs-metric">
+                        <span class="obs-metric-value {% if ual_metrics.capacity_volatility.volatile %}obs-error{% else %}obs-success{% endif %}">
+                            {{ ual_metrics.capacity_volatility.std_dev|floatformat:3 }}
+                        </span>
+                        <span class="obs-metric-label">Std Dev</span>
+                    </div>
+                    <div class="obs-metric">
+                        <span class="obs-metric-value {% if ual_metrics.capacity_volatility.volatile %}obs-error{% else %}obs-success{% endif %}">
+                            {% if ual_metrics.capacity_volatility.volatile %}VOLATILE{% else %}STABLE{% endif %}
+                        </span>
+                        <span class="obs-metric-label">Status</span>
+                    </div>
+                    <div class="obs-metric">
+                        <span class="obs-metric-value">{{ ual_metrics.capacity_volatility.sample_count }}</span>
+                        <span class="obs-metric-label">Samples</span>
+                    </div>
+                    {% if ual_metrics.capacity_volatility.mean_score %}
+                    <div class="obs-metric">
+                        <span class="obs-metric-value obs-pct">{{ ual_metrics.capacity_volatility.mean_score|floatformat:2 }}</span>
+                        <span class="obs-metric-label">Mean Score</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
+        <!-- ========== v2.1 Panel: Pattern Tier 2 Triggers ========== -->
+        {% if ual_metrics.tier2_trigger_count %}
+        <section class="icc-section" id="obs-ual-tier2">
+            <div class="icc-section-header">
+                <h2 class="icc-section-title">
+                    <span class="icc-section-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    </span>
+                    Pattern Tier 2 Triggers
+                    {% if ual_metrics.tier2_trigger_count.active_count > 0 %}
+                    <span class="obs-trend obs-trend-down">{{ ual_metrics.tier2_trigger_count.active_count }} active</span>
+                    {% endif %}
+                </h2>
+                <span class="icc-section-engine">UAL v2.1</span>
+            </div>
+            <div class="icc-section-body">
+                {% if ual_metrics.tier2_trigger_count.triggers %}
+                <div class="obs-scenario-freq">
+                    {% for t in ual_metrics.tier2_trigger_count.triggers %}
+                    <div class="obs-scenario-bar {% if t.triggered %}obs-tier2-active{% endif %}">
+                        <span class="obs-scenario-name">{{ t.pattern }}</span>
+                        <span class="obs-scenario-count {% if t.triggered %}obs-error{% else %}obs-success{% endif %}">
+                            {{ t.count }}/{{ t.threshold }} ({{ t.window_days }}d)
+                        </span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="obs-empty-note">No Tier 2 pattern data.</p>
+                {% endif %}
+            </div>
+        </section>
+        {% endif %}
     </div>
     {% endif %}
 
@@ -651,6 +808,12 @@
 .obs-weight-col-wide small {
     font-weight: 400;
     color: var(--color-text-muted);
+}
+
+/* Tier 2 active state */
+.obs-tier2-active {
+    border-color: #dc2626;
+    background: rgba(220, 38, 38, 0.05);
 }
 
 /* Empty state note */

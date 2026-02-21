@@ -1373,6 +1373,611 @@ class SignalStrengthTests(TestCase):
         self.assertAlmostEqual(strengths["schedule_overload"], 0.5, places=1)
 
 
+# ============ v2.1 Tests ============
+
+
+class InterventionFatigueTests(TestCase):
+    """v2.1: Test intervention fatigue scoring and bias."""
+
+    def _create_user(self):
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        return User.objects.create_user(
+            email="fatigue_test@example.com",
+            password="testpass123",
+        )
+
+    def test_repeated_ignore_increases_fatigue(self):
+        """Repeatedly ignored interventions raise fatigue score."""
+        from apps.core.ai_arbitration.models import InterventionResponseLog
+        from apps.core.ai_arbitration.intervention_fatigue import compute_fatigue_scores
+
+        user = self._create_user()
+        today = date.today()
+
+        # Create 7 days of mostly ignored interventions
+        for i in range(7):
+            InterventionResponseLog.objects.create(
+                user=user,
+                date=today - timedelta(days=i),
+                scenario="HEALTH_CRITICAL",
+                surfaced_count=3,
+                complied_count=0,
+                ignored_count=3,
+                overrode_count=0,
+            )
+
+        result = compute_fatigue_scores(user)
+        fatigue = result["scenario_fatigue"].get("HEALTH_CRITICAL", 0)
+        self.assertGreater(fatigue, 0.6)
+
+    def test_high_compliance_gives_positive_bias(self):
+        """High compliance → slight positive bias."""
+        from apps.core.ai_arbitration.models import InterventionResponseLog
+        from apps.core.ai_arbitration.intervention_fatigue import compute_fatigue_scores
+
+        user = self._create_user()
+        today = date.today()
+
+        for i in range(5):
+            InterventionResponseLog.objects.create(
+                user=user,
+                date=today - timedelta(days=i),
+                scenario="DRIFT_CRITICAL",
+                surfaced_count=3,
+                complied_count=3,
+                ignored_count=0,
+                overrode_count=0,
+            )
+
+        result = compute_fatigue_scores(user)
+        bias = result["scenario_bias"].get("DRIFT_CRITICAL", 0)
+        self.assertEqual(bias, 0.03)
+
+    def test_fatigue_bias_never_exceeds_bounds(self):
+        """Bias never exceeds ±0.05."""
+        from apps.core.ai_arbitration.models import InterventionResponseLog
+        from apps.core.ai_arbitration.intervention_fatigue import (
+            compute_fatigue_scores,
+            MAX_NEGATIVE_BIAS,
+            MAX_POSITIVE_BIAS,
+        )
+
+        user = self._create_user()
+        today = date.today()
+
+        # Extreme ignore case
+        for i in range(7):
+            InterventionResponseLog.objects.create(
+                user=user,
+                date=today - timedelta(days=i),
+                scenario="MOOD_CRITICAL",
+                surfaced_count=10,
+                complied_count=0,
+                ignored_count=10,
+                overrode_count=0,
+            )
+
+        result = compute_fatigue_scores(user)
+        for scenario, bias in result["scenario_bias"].items():
+            self.assertGreaterEqual(bias, MAX_NEGATIVE_BIAS)
+            self.assertLessEqual(bias, MAX_POSITIVE_BIAS)
+
+    def test_empty_logs_returns_empty(self):
+        """No intervention logs → empty fatigue result."""
+        from apps.core.ai_arbitration.intervention_fatigue import compute_fatigue_scores
+
+        user = self._create_user()
+        result = compute_fatigue_scores(user)
+        self.assertEqual(result["scenario_fatigue"], {})
+        self.assertEqual(result["scenario_bias"], {})
+
+    def test_log_intervention_response(self):
+        """Intervention response logging works."""
+        from apps.core.ai_arbitration.models import InterventionResponseLog
+        from apps.core.ai_arbitration.intervention_fatigue import log_intervention_response
+
+        user = self._create_user()
+        log_intervention_response(user, "HEALTH_CRITICAL", "surfaced")
+        log_intervention_response(user, "HEALTH_CRITICAL", "surfaced")
+        log_intervention_response(user, "HEALTH_CRITICAL", "ignored")
+
+        log = InterventionResponseLog.objects.get(
+            user=user, scenario="HEALTH_CRITICAL"
+        )
+        self.assertEqual(log.surfaced_count, 2)
+        self.assertEqual(log.ignored_count, 1)
+
+
+class NudgeMemoryTests(TestCase):
+    """v2.1: Test recent nudge memory and collision detection."""
+
+    def _create_user(self):
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        return User.objects.create_user(
+            email="nudge_test@example.com",
+            password="testpass123",
+        )
+
+    def test_duplicate_semantic_penalised(self):
+        """Same semantic tag within 6h gets priority penalty."""
+        from apps.core.ai_arbitration.models import RecentNudgeMemory
+        from apps.core.ai_arbitration.nudge_memory import check_nudge_collisions
+
+        user = self._create_user()
+
+        # Record a recent nudge
+        RecentNudgeMemory.objects.create(
+            user=user,
+            scenario="HEALTH_CRITICAL",
+            semantic_tag="HEALTH_GATE",
+        )
+
+        candidates = [
+            {"category": "HEALTH_GATE", "label": "Meds", "priority": 90},
+            {"category": "SUPPORTIVE", "label": "Mood", "priority": 60},
+        ]
+
+        result = check_nudge_collisions(user, candidates, "STABLE_EXECUTION")
+        health_item = next(c for c in result if c["category"] == "HEALTH_GATE")
+        mood_item = next(c for c in result if c["category"] == "SUPPORTIVE")
+
+        # Health should be penalised
+        self.assertTrue(health_item.get("_nudge_collision", False))
+        self.assertFalse(mood_item.get("_nudge_collision", False))
+
+    def test_escalation_bypasses_penalty(self):
+        """HEALTH_CRITICAL severity bypasses nudge penalty."""
+        from apps.core.ai_arbitration.models import RecentNudgeMemory
+        from apps.core.ai_arbitration.nudge_memory import check_nudge_collisions
+
+        user = self._create_user()
+
+        RecentNudgeMemory.objects.create(
+            user=user,
+            scenario="HEALTH_CRITICAL",
+            semantic_tag="HEALTH_GATE",
+        )
+
+        candidates = [
+            {"category": "HEALTH_GATE", "label": "Meds", "priority": 90},
+        ]
+
+        # HEALTH_CRITICAL is a severity escalation → bypass
+        result = check_nudge_collisions(user, candidates, "HEALTH_CRITICAL")
+        self.assertFalse(result[0].get("_nudge_collision", False))
+
+    def test_record_and_retrieve(self):
+        """Surfaced nudges are recorded and retrievable."""
+        from apps.core.ai_arbitration.models import RecentNudgeMemory
+        from apps.core.ai_arbitration.nudge_memory import record_surfaced_nudges
+
+        user = self._create_user()
+        items = [
+            {"category": "HEALTH_GATE", "label": "Meds"},
+            {"category": "SUPPORTIVE", "label": "Mood"},
+        ]
+        record_surfaced_nudges(user, items, "HEALTH_CRITICAL")
+
+        count = RecentNudgeMemory.objects.filter(user=user).count()
+        self.assertEqual(count, 2)
+
+    def test_empty_memory_no_penalty(self):
+        """No recent nudges → no penalty applied."""
+        from apps.core.ai_arbitration.nudge_memory import check_nudge_collisions
+
+        user = self._create_user()
+        candidates = [
+            {"category": "HEALTH_GATE", "label": "Meds", "priority": 90},
+        ]
+        result = check_nudge_collisions(user, candidates, "STABLE_EXECUTION")
+        self.assertFalse(result[0].get("_nudge_collision", False))
+
+
+class CapacityStyleBiasTests(TestCase):
+    """v2.1: Test capacity-based intervention style bias."""
+
+    def _make_scenario(self, dominant="HEALTH_CRITICAL",
+                       confidence_level="MODERATE"):
+        return {
+            "dominant_scenario": dominant,
+            "secondary_scenarios": [],
+            "scenario_scores": {},
+            "confidence": 0.8,
+            "confidence_level": confidence_level,
+            "confidence_gap": 0.1,
+        }
+
+    def test_critical_capacity_returns_maintenance_bias(self):
+        """CRITICAL capacity → maintenance style bias."""
+        scenario = self._make_scenario()
+        strengths = {"medication_risk": 0.8}
+        capacity = {
+            "capacity_score": 0.15,
+            "capacity_state": CRITICAL,
+            "max_surfaced": 1,
+            "components": {},
+        }
+        result = decide_intervention(
+            scenario, [], strengths, _make_signals(),
+            capacity=capacity,
+        )
+        self.assertEqual(result["style_bias"], "maintenance")
+
+    def test_low_capacity_returns_tactical_bias(self):
+        """LOW capacity → tactical style bias."""
+        scenario = self._make_scenario()
+        strengths = {"medication_risk": 0.8}
+        capacity = {
+            "capacity_score": 0.35,
+            "capacity_state": LOW,
+            "max_surfaced": 2,
+            "components": {},
+        }
+        result = decide_intervention(
+            scenario, [], strengths, _make_signals(),
+            capacity=capacity,
+        )
+        self.assertEqual(result["style_bias"], "tactical")
+
+    def test_high_capacity_returns_strategic_bias(self):
+        """HIGH_CAPACITY → strategic style bias."""
+        scenario = self._make_scenario()
+        strengths = {"medication_risk": 0.8}
+        capacity = {
+            "capacity_score": 0.85,
+            "capacity_state": HIGH_CAPACITY,
+            "max_surfaced": 3,
+            "components": {},
+        }
+        result = decide_intervention(
+            scenario, [], strengths, _make_signals(),
+            capacity=capacity,
+        )
+        self.assertEqual(result["style_bias"], "strategic")
+
+    def test_maintenance_narrative_suppresses_strategic(self):
+        """Maintenance style bias → narrative avoids strategic language."""
+        scenario = self._make_scenario()
+        intervention = {
+            "intervention_style": PROTECTIVE,
+            "style_description": "Protect energy.",
+            "surfaced_items": [],
+            "suppressed_items": [],
+            "primary_composite": None,
+            "style_bias": "maintenance",
+            "pattern_tier2_active": False,
+        }
+        narrative = build_narrative(
+            scenario, [], intervention, _make_signals()
+        )
+        self.assertIn("MAINTENANCE MODE", narrative)
+        self.assertIn("optional", narrative.lower())
+
+    def test_tactical_narrative_avoids_planning(self):
+        """Tactical style bias → narrative avoids planning language."""
+        scenario = self._make_scenario()
+        intervention = {
+            "intervention_style": PROTECTIVE,
+            "style_description": "Protect energy.",
+            "surfaced_items": [],
+            "suppressed_items": [],
+            "primary_composite": None,
+            "style_bias": "tactical",
+            "pattern_tier2_active": False,
+        }
+        narrative = build_narrative(
+            scenario, [], intervention, _make_signals()
+        )
+        self.assertIn("TACTICAL ONLY", narrative)
+
+
+class PatternTier2Tests(TestCase):
+    """v2.1: Test pattern escalation Tier 2."""
+
+    def _create_user(self):
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        return User.objects.create_user(
+            email="tier2_test@example.com",
+            password="testpass123",
+        )
+
+    def test_drift_tier2_triggers(self):
+        """DRIFT_CRITICAL ≥7 in 14 days → Tier 2."""
+        from apps.core.ai_arbitration.models import ScenarioHistory
+        from apps.core.ai_arbitration.pattern_analyzer import analyze_patterns
+
+        user = self._create_user()
+        today = date.today()
+
+        for i in range(8):
+            ScenarioHistory.objects.create(
+                user=user,
+                date=today - timedelta(days=i),
+                dominant_scenario="DRIFT_CRITICAL",
+                intervention_style="ACCOUNTABILITY",
+            )
+
+        result = analyze_patterns(user)
+        tier2 = result["tier2"]
+        self.assertTrue(tier2["tier2_active"])
+        patterns = [t["pattern"] for t in tier2["triggers"]]
+        self.assertIn("DRIFT_PERSISTENT_T2", patterns)
+
+    def test_mood_tier2_triggers(self):
+        """MOOD_CRITICAL ≥5 in 7 days → Tier 2."""
+        from apps.core.ai_arbitration.models import ScenarioHistory
+        from apps.core.ai_arbitration.pattern_analyzer import analyze_patterns
+
+        user = self._create_user()
+        today = date.today()
+
+        for i in range(5):
+            ScenarioHistory.objects.create(
+                user=user,
+                date=today - timedelta(days=i),
+                dominant_scenario="MOOD_CRITICAL",
+                intervention_style="SUPPORTIVE",
+            )
+
+        result = analyze_patterns(user)
+        tier2 = result["tier2"]
+        self.assertTrue(tier2["tier2_active"])
+
+    def test_tier2_overrides_max_surfaced(self):
+        """Tier 2 active → max surfaced forced to 1."""
+        scenario = {
+            "dominant_scenario": "DRIFT_CRITICAL",
+            "secondary_scenarios": [],
+            "scenario_scores": {},
+            "confidence": 0.8,
+            "confidence_level": "HIGH",
+            "confidence_gap": 0.2,
+        }
+        strengths = {
+            "drift_severity": 0.9,
+            "non_negotiable_miss": 0.8,
+            "mood_decline": 0.7,
+            "medication_risk": 0.6,
+        }
+        tier2 = {"tier2_active": True, "triggers": []}
+        result = decide_intervention(
+            scenario, [], strengths, _make_signals(),
+            pattern_tier2=tier2,
+        )
+        self.assertLessEqual(len(result["surfaced_items"]), 1)
+        self.assertTrue(result["pattern_tier2_active"])
+
+    def test_tier2_not_triggered_below_threshold(self):
+        """Below tier 2 thresholds → not active."""
+        from apps.core.ai_arbitration.models import ScenarioHistory
+        from apps.core.ai_arbitration.pattern_analyzer import analyze_patterns
+
+        user = self._create_user()
+        today = date.today()
+
+        # Only 3 DRIFT_CRITICAL — below tier 2 threshold of 7
+        for i in range(3):
+            ScenarioHistory.objects.create(
+                user=user,
+                date=today - timedelta(days=i),
+                dominant_scenario="DRIFT_CRITICAL",
+                intervention_style="ACCOUNTABILITY",
+            )
+
+        result = analyze_patterns(user)
+        self.assertFalse(result["tier2"]["tier2_active"])
+
+    def test_tier2_does_not_bypass_safety_clamps(self):
+        """Tier 2 does not break weight tuning bounds."""
+        from apps.core.ai_arbitration.models import WeightAdjustment
+
+        user = self._create_user()
+        # Verify weight bounds still hold
+        WeightAdjustment.objects.create(
+            user=user,
+            scenario="DRIFT_CRITICAL",
+            signal="drift_severity",
+            baseline_weight=0.40,
+            adjustment_delta=0.10,
+        )
+        adj = WeightAdjustment.objects.get(
+            user=user, scenario="DRIFT_CRITICAL"
+        )
+        self.assertLessEqual(abs(adj.adjustment_delta), 0.10)
+
+    def test_tier2_narrative_contains_reset(self):
+        """Tier 2 active → narrative mentions strategic reset."""
+        scenario = {
+            "dominant_scenario": "DRIFT_CRITICAL",
+            "secondary_scenarios": [],
+            "scenario_scores": {},
+            "confidence_level": "MODERATE",
+            "confidence_gap": 0.1,
+        }
+        intervention = {
+            "intervention_style": ACCOUNTABILITY,
+            "style_description": "Name gap clearly.",
+            "surfaced_items": [],
+            "suppressed_items": [],
+            "primary_composite": None,
+            "style_bias": "normal",
+            "pattern_tier2_active": True,
+        }
+        narrative = build_narrative(
+            scenario, [], intervention, _make_signals()
+        )
+        self.assertIn("STRATEGIC RESET CONSIDERATION", narrative)
+        self.assertIn("reset conversation", narrative.lower())
+
+
+class CapacityVolatilityTests(TestCase):
+    """v2.1: Test capacity volatility index."""
+
+    def _create_user(self):
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        return User.objects.create_user(
+            email="volatility_test@example.com",
+            password="testpass123",
+        )
+
+    def test_high_variance_triggers_flag(self):
+        """High std_dev of capacity scores → volatility flag."""
+        from apps.core.ai_arbitration.models import DailyCapacityLog
+        from apps.core.ai_arbitration.capacity_volatility import compute_capacity_volatility
+
+        user = self._create_user()
+        today = date.today()
+
+        # Alternating high/low scores → high variance
+        scores = [0.9, 0.2, 0.8, 0.15, 0.85]
+        for i, score in enumerate(scores):
+            DailyCapacityLog.objects.create(
+                user=user,
+                date=today - timedelta(days=i),
+                capacity_score=score,
+                capacity_state="NORMAL",
+            )
+
+        result = compute_capacity_volatility(user)
+        self.assertTrue(result["volatility_flag"])
+        self.assertGreater(result["std_dev"], 0.25)
+
+    def test_stable_scores_no_flag(self):
+        """Stable capacity scores → no volatility flag."""
+        from apps.core.ai_arbitration.models import DailyCapacityLog
+        from apps.core.ai_arbitration.capacity_volatility import compute_capacity_volatility
+
+        user = self._create_user()
+        today = date.today()
+
+        # Stable scores
+        for i in range(5):
+            DailyCapacityLog.objects.create(
+                user=user,
+                date=today - timedelta(days=i),
+                capacity_score=0.55 + (i * 0.01),
+                capacity_state="NORMAL",
+            )
+
+        result = compute_capacity_volatility(user)
+        self.assertFalse(result["volatility_flag"])
+        self.assertLess(result["std_dev"], 0.25)
+
+    def test_confidence_downgrade_when_volatile(self):
+        """Volatility flag → confidence downgraded by one level."""
+        from apps.core.ai_arbitration.capacity_volatility import apply_volatility_adjustments
+
+        volatility = {"volatility_flag": True, "std_dev": 0.35}
+        result = apply_volatility_adjustments(volatility, "HIGH")
+        self.assertEqual(result["adjusted_confidence_level"], "MODERATE")
+        self.assertTrue(result["volatility_applied"])
+
+        result2 = apply_volatility_adjustments(volatility, "MODERATE")
+        self.assertEqual(result2["adjusted_confidence_level"], "LOW")
+
+    def test_no_downgrade_when_stable(self):
+        """No volatility → confidence unchanged."""
+        from apps.core.ai_arbitration.capacity_volatility import apply_volatility_adjustments
+
+        volatility = {"volatility_flag": False, "std_dev": 0.10}
+        result = apply_volatility_adjustments(volatility, "HIGH")
+        self.assertEqual(result["adjusted_confidence_level"], "HIGH")
+        self.assertFalse(result["volatility_applied"])
+
+    def test_low_confidence_not_downgraded_further(self):
+        """LOW confidence stays LOW even with volatility."""
+        from apps.core.ai_arbitration.capacity_volatility import apply_volatility_adjustments
+
+        volatility = {"volatility_flag": True, "std_dev": 0.35}
+        result = apply_volatility_adjustments(volatility, "LOW")
+        self.assertEqual(result["adjusted_confidence_level"], "LOW")
+
+    def test_insufficient_data_returns_no_flag(self):
+        """Fewer than 2 data points → no volatility flag."""
+        from apps.core.ai_arbitration.capacity_volatility import compute_capacity_volatility
+
+        user = self._create_user()
+        result = compute_capacity_volatility(user)
+        self.assertFalse(result["volatility_flag"])
+        self.assertEqual(result["sample_count"], 0)
+
+
+class ArbitrationNeverRaisesTests(TestCase):
+    """v2.1: Verify pipeline never raises with new steps."""
+
+    def _create_user(self):
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        return User.objects.create_user(
+            email="never_raises_test@example.com",
+            password="testpass123",
+        )
+
+    @patch("apps.core.ai_arbitration.signal_collector.collect_signals")
+    def test_pipeline_survives_fatigue_failure(self, mock_collect):
+        """Pipeline continues if fatigue engine fails."""
+        user = self._create_user()
+        mock_collect.return_value = _make_full_signals()
+
+        with patch(
+            "apps.core.ai_arbitration.intervention_fatigue.compute_fatigue_scores",
+            side_effect=RuntimeError("fatigue exploded")
+        ):
+            from apps.core.ai_arbitration import run_arbitration
+            result = run_arbitration(user)
+            self.assertTrue(result.success)
+
+    @patch("apps.core.ai_arbitration.signal_collector.collect_signals")
+    def test_pipeline_survives_volatility_failure(self, mock_collect):
+        """Pipeline continues if volatility engine fails."""
+        user = self._create_user()
+        mock_collect.return_value = _make_full_signals()
+
+        with patch(
+            "apps.core.ai_arbitration.capacity_volatility.compute_capacity_volatility",
+            side_effect=RuntimeError("volatility exploded")
+        ):
+            from apps.core.ai_arbitration import run_arbitration
+            result = run_arbitration(user)
+            self.assertTrue(result.success)
+
+    @patch("apps.core.ai_arbitration.signal_collector.collect_signals")
+    def test_pipeline_survives_nudge_memory_failure(self, mock_collect):
+        """Pipeline continues if nudge memory fails."""
+        user = self._create_user()
+        mock_collect.return_value = _make_full_signals()
+
+        with patch(
+            "apps.core.ai_arbitration.nudge_memory.check_nudge_collisions",
+            side_effect=RuntimeError("nudge exploded")
+        ):
+            from apps.core.ai_arbitration import run_arbitration
+            result = run_arbitration(user)
+            self.assertTrue(result.success)
+
+    @patch("apps.core.ai_arbitration.signal_collector.collect_signals")
+    def test_v21_fields_present_in_result(self, mock_collect):
+        """v2.1 fields present in ArbitrationResult."""
+        user = self._create_user()
+        mock_collect.return_value = _make_full_signals()
+
+        from apps.core.ai_arbitration import run_arbitration
+        result = run_arbitration(user)
+
+        self.assertTrue(result.success)
+        self.assertIn(result.style_bias, [
+            "strategic", "normal", "tactical", "maintenance"
+        ])
+        self.assertIsInstance(result.fatigue_bias_applied, dict)
+        self.assertIsInstance(result.pattern_tier2_active, bool)
+        self.assertIsInstance(result.volatility_flag, bool)
+        self.assertIsInstance(result.volatility_std_dev, float)
+
+
 # ============ Helpers ============
 
 def _make_signals():

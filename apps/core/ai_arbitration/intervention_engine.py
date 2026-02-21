@@ -7,6 +7,9 @@ suppress.
 
 v2: Confidence dampening modifies surfacing. Capacity modifies
 max surfaced items. Pattern hints adjust intensity.
+
+v2.1: Capacity-based style bias. Fatigue-aware surfacing.
+Pattern Tier 2 overrides. Nudge collision penalty.
 """
 import logging
 
@@ -64,6 +67,15 @@ CONFIDENCE_SURFACE_LIMITS = {
     "HIGH": None,      # Use default/capacity
 }
 
+# v2.1: Capacity-based style bias mapping
+# Maps capacity_state → style_bias flag for narrative engine
+CAPACITY_STYLE_BIAS = {
+    "HIGH_CAPACITY": "strategic",    # Strategic framing allowed
+    "NORMAL": "normal",              # Unchanged
+    "LOW": "tactical",               # Tactical only, no multi-step planning
+    "CRITICAL": "maintenance",       # Maintenance mode, one item, softened
+}
+
 
 @_instrument_span("UAL", "decide_intervention")
 def decide_intervention(
@@ -73,6 +85,8 @@ def decide_intervention(
     signals: dict,
     capacity: dict = None,
     pattern_hints: list = None,
+    fatigue_data: dict = None,
+    pattern_tier2: dict = None,
 ) -> dict:
     """
     Select intervention style and determine surfaced/suppressed items.
@@ -84,6 +98,8 @@ def decide_intervention(
         signals: full ArbitrationInput dict
         capacity: output of compute_capacity() (v2)
         pattern_hints: escalation hints from PatternAnalyzer (v2)
+        fatigue_data: output of compute_fatigue_scores() (v2.1)
+        pattern_tier2: Tier 2 pattern data (v2.1)
 
     Returns:
         {
@@ -92,6 +108,9 @@ def decide_intervention(
             "surfaced_items": list[dict],
             "suppressed_items": list[dict],
             "primary_composite": str or None,
+            "style_bias": str,  # v2.1
+            "fatigue_bias_applied": dict,  # v2.1
+            "pattern_tier2_active": bool,  # v2.1
         }
     """
     dominant = scenario_result["dominant_scenario"]
@@ -111,15 +130,45 @@ def decide_intervention(
     # Build candidate items for surfacing
     candidates = _build_candidates(strengths, signals)
 
+    # v2.1: Apply fatigue bias to candidate priorities
+    fatigue_bias_applied = {}
+    try:
+        if fatigue_data:
+            scenario_bias = fatigue_data.get("scenario_bias", {})
+            for candidate in candidates:
+                cat = candidate.get("category", "")
+                # Map category to scenario for bias lookup
+                bias = scenario_bias.get(dominant, 0.0)
+                if bias != 0.0:
+                    # Scale bias to priority units (bias is ±0.05, priority is ~50-100)
+                    # Multiply by 100 to make bias meaningful in priority space
+                    candidate["priority"] += bias * 100
+                    fatigue_bias_applied[dominant] = bias
+    except Exception as e:
+        logger.debug("UAL fatigue bias application skipped: %s", e)
+
     # Sort by priority (higher = more important to surface)
     candidates.sort(key=lambda x: x["priority"], reverse=True)
 
     # Determine max surfaced items (v2: capacity + confidence)
     max_items = _compute_max_surfaced(scenario_result, capacity)
 
+    # v2.1: Pattern Tier 2 override — force max 1 surfaced
+    pattern_tier2_active = False
+    try:
+        if pattern_tier2 and pattern_tier2.get("tier2_active", False):
+            max_items = 1
+            pattern_tier2_active = True
+    except Exception as e:
+        logger.debug("UAL pattern tier2 override skipped: %s", e)
+
     # Surface top N, suppress the rest
     surfaced = candidates[:max_items]
     suppressed = candidates[max_items:]
+
+    # v2.1: Compute style bias from capacity state
+    capacity_state = capacity.get("capacity_state", "NORMAL") if capacity else "NORMAL"
+    style_bias = CAPACITY_STYLE_BIAS.get(capacity_state, "normal")
 
     return {
         "intervention_style": style,
@@ -127,6 +176,9 @@ def decide_intervention(
         "surfaced_items": surfaced,
         "suppressed_items": suppressed,
         "primary_composite": primary_composite,
+        "style_bias": style_bias,
+        "fatigue_bias_applied": fatigue_bias_applied,
+        "pattern_tier2_active": pattern_tier2_active,
     }
 
 

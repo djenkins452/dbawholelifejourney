@@ -83,17 +83,18 @@ class ObservabilityDashboardView(
         return context
 
     def _get_ual_metrics(self) -> dict:
-        """Gather UAL v2 metrics for dashboard panels."""
+        """Gather UAL v2 + v2.1 metrics for dashboard panels."""
         try:
             from apps.core.ai_arbitration.models import (
                 ArbitrationDecisionLog,
                 DailyCapacityLog,
+                InterventionResponseLog,
+                RecentNudgeMemory,
                 ScenarioHistory,
                 WeightAdjustment,
             )
 
             now = timezone.now()
-            fourteen_days_ago = now - timedelta(days=14)
             seven_days_ago = now - timedelta(days=7)
 
             # 1. Confidence distribution (last 7 days)
@@ -138,6 +139,26 @@ class ObservabilityDashboardView(
                 ).order_by("-adjustment_delta")[:20]
             )
 
+            # v2.1 Panel 1: Fatigue Score Distribution (7d)
+            fatigue_distribution = self._get_fatigue_distribution(
+                InterventionResponseLog, seven_days_ago
+            )
+
+            # v2.1 Panel 2: Nudge Collision Rate (12h window)
+            nudge_collision_rate = self._get_nudge_collision_rate(
+                RecentNudgeMemory, now
+            )
+
+            # v2.1 Panel 3: Capacity Volatility Indicator (14d)
+            capacity_volatility = self._get_capacity_volatility(
+                DailyCapacityLog, now
+            )
+
+            # v2.1 Panel 4: Pattern Tier 2 Trigger Count
+            tier2_trigger_count = self._get_tier2_trigger_count(
+                ScenarioHistory, now
+            )
+
             return {
                 "has_data": True,
                 "confidence_distribution": {
@@ -150,11 +171,148 @@ class ObservabilityDashboardView(
                 "capacity_trend": capacity_logs,
                 "weight_deltas": weight_deltas,
                 "decisions_count_7d": sum(confidence_counts.values()),
+                # v2.1 panels
+                "fatigue_distribution": fatigue_distribution,
+                "nudge_collision_rate": nudge_collision_rate,
+                "capacity_volatility": capacity_volatility,
+                "tier2_trigger_count": tier2_trigger_count,
             }
 
         except Exception as e:
             logger.debug("UAL metrics unavailable: %s", e)
             return {"has_data": False}
+
+    def _get_fatigue_distribution(self, model, since) -> dict:
+        """v2.1: Fatigue score distribution from intervention response logs."""
+        try:
+            from django.db.models import F, Sum
+
+            logs = model.objects.filter(date__gte=since.date())
+            agg = logs.aggregate(
+                total_surfaced=Sum("surfaced_count"),
+                total_complied=Sum("complied_count"),
+                total_ignored=Sum("ignored_count"),
+                total_overrode=Sum("overrode_count"),
+            )
+            total_surfaced = agg["total_surfaced"] or 0
+            total_ignored = agg["total_ignored"] or 0
+            total_complied = agg["total_complied"] or 0
+            total_overrode = agg["total_overrode"] or 0
+
+            # Per-scenario fatigue summary
+            scenario_fatigue = []
+            for row in logs.values("scenario").annotate(
+                surfaced=Sum("surfaced_count"),
+                ignored=Sum("ignored_count"),
+            ).order_by("-ignored"):
+                s = row["surfaced"] or 0
+                i = row["ignored"] or 0
+                ratio = round(i / s, 2) if s > 0 else 0
+                scenario_fatigue.append({
+                    "scenario": row["scenario"],
+                    "surfaced": s,
+                    "ignored": i,
+                    "fatigue_ratio": ratio,
+                })
+
+            return {
+                "total_surfaced": total_surfaced,
+                "total_complied": total_complied,
+                "total_ignored": total_ignored,
+                "total_overrode": total_overrode,
+                "ignore_rate": round(
+                    total_ignored / total_surfaced, 2
+                ) if total_surfaced > 0 else 0,
+                "scenario_breakdown": scenario_fatigue[:10],
+            }
+        except Exception as e:
+            logger.debug("Fatigue distribution unavailable: %s", e)
+            return {}
+
+    def _get_nudge_collision_rate(self, model, now) -> dict:
+        """v2.1: Nudge collision rate from recent nudge memory."""
+        try:
+            cutoff_12h = now - timedelta(hours=12)
+            recent = model.objects.filter(surfaced_at__gte=cutoff_12h)
+            total = recent.count()
+
+            # Count duplicated semantic tags
+            tag_counts = Counter(
+                recent.values_list("semantic_tag", flat=True)
+            )
+            collisions = sum(1 for c in tag_counts.values() if c > 1)
+            unique_tags = len(tag_counts)
+
+            return {
+                "total_nudges_12h": total,
+                "unique_tags": unique_tags,
+                "collision_count": collisions,
+                "collision_rate": round(
+                    collisions / unique_tags, 2
+                ) if unique_tags > 0 else 0,
+            }
+        except Exception as e:
+            logger.debug("Nudge collision rate unavailable: %s", e)
+            return {}
+
+    def _get_capacity_volatility(self, model, now) -> dict:
+        """v2.1: Capacity volatility indicator from daily capacity logs."""
+        try:
+            import math
+            window = now - timedelta(days=14)
+            scores = list(
+                model.objects.filter(
+                    date__gte=window.date(),
+                ).values_list("capacity_score", flat=True)
+            )
+            if len(scores) < 2:
+                return {"std_dev": 0, "volatile": False, "sample_count": 0}
+
+            mean = sum(scores) / len(scores)
+            variance = sum((x - mean) ** 2 for x in scores) / len(scores)
+            std_dev = math.sqrt(variance)
+
+            return {
+                "std_dev": round(std_dev, 4),
+                "volatile": std_dev > 0.25,
+                "sample_count": len(scores),
+                "mean_score": round(mean, 3),
+            }
+        except Exception as e:
+            logger.debug("Capacity volatility unavailable: %s", e)
+            return {}
+
+    def _get_tier2_trigger_count(self, model, now) -> dict:
+        """v2.1: Count Tier 2 pattern triggers from scenario history."""
+        try:
+            from apps.core.ai_arbitration.pattern_analyzer import TIER2_RULES
+
+            triggers = []
+            for scenario, threshold, window, label in TIER2_RULES:
+                window_start = (now - timedelta(days=window)).date()
+                count = model.objects.filter(
+                    date__gte=window_start,
+                    dominant_scenario=scenario,
+                ).count()
+                triggered = count >= threshold
+                triggers.append({
+                    "pattern": label,
+                    "scenario": scenario,
+                    "count": count,
+                    "threshold": threshold,
+                    "window_days": window,
+                    "triggered": triggered,
+                })
+
+            active_count = sum(1 for t in triggers if t["triggered"])
+
+            return {
+                "triggers": triggers,
+                "active_count": active_count,
+            }
+        except Exception as e:
+            logger.debug("Tier 2 trigger count unavailable: %s", e)
+            return {}
 
     def _compute_trends(self, history):
         """

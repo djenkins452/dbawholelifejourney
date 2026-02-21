@@ -1,13 +1,15 @@
 """
 UAL — Admin configuration.
 
-Read-only admin for ArbitrationDecisionLog and v2 models.
+Read-only admin for ArbitrationDecisionLog, v2 and v2.1 models.
 """
 from django.contrib import admin
 
 from apps.core.ai_arbitration.models import (
     ArbitrationDecisionLog,
     DailyCapacityLog,
+    InterventionResponseLog,
+    RecentNudgeMemory,
     ScenarioHistory,
     WeightAdjustment,
 )
@@ -107,6 +109,45 @@ class DailyCapacityLogAdmin(admin.ModelAdmin):
     list_filter = ["capacity_state"]
     search_fields = ["user__email"]
     ordering = ["-date"]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(InterventionResponseLog)
+class InterventionResponseLogAdmin(admin.ModelAdmin):
+    list_display = [
+        "user", "date", "scenario", "surfaced_count",
+        "complied_count", "ignored_count", "overrode_count",
+    ]
+    list_filter = ["scenario"]
+    search_fields = ["user__email"]
+    ordering = ["-date"]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(RecentNudgeMemory)
+class RecentNudgeMemoryAdmin(admin.ModelAdmin):
+    list_display = [
+        "user", "surfaced_at", "scenario", "semantic_tag", "trace_id",
+    ]
+    list_filter = ["scenario"]
+    search_fields = ["user__email", "semantic_tag"]
+    ordering = ["-surfaced_at"]
 
     def has_add_permission(self, request):
         return False

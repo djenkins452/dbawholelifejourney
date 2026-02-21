@@ -3,11 +3,23 @@ UAL — Arbitration Engine (main orchestrator).
 
 Entry point: run_arbitration(user) → ArbitrationResult
 
-v2 Pipeline:
-    collect_signals → classify_scenario (with adaptive weights) →
-    confidence_assessment → fuse_signals → capacity_assessment →
-    pattern_analysis → decide_intervention → build_narrative →
-    log_decision → log_history → log_capacity → maybe_tune
+v2.1 Pipeline:
+    1. Signal Collection
+    2. Adaptive Weight Application
+    3. Intervention Fatigue Bias
+    4. Scenario Classification (confidence gap)
+    5. Fuse Cross-Domain Signals
+    6. Capacity Composite
+    7. Capacity Volatility Check
+    8. Pattern Analysis (Tier 1 + Tier 2)
+    9. Recent Nudge Memory Penalty
+    10. Intervention Decision (capacity + fatigue + pattern aware)
+    11. Narrative Engine (style bias aware)
+    12. Log Decision
+    13. Update ScenarioHistory + InterventionResponseLog + RecentNudgeMemory
+    14. Weight Tuning Check
+
+All new steps wrapped in try/except. Failure defaults to v2 behavior.
 """
 import logging
 from dataclasses import dataclass, field
@@ -40,39 +52,59 @@ class ArbitrationResult:
     capacity_state: str = "NORMAL"
     pattern_hints: list = field(default_factory=list)
     success: bool = True
+    # v2.1 fields
+    style_bias: str = "normal"
+    fatigue_bias_applied: dict = field(default_factory=dict)
+    pattern_tier2_active: bool = False
+    volatility_flag: bool = False
+    volatility_std_dev: float = 0.0
 
 
 @_instrument_engine_run("UAL", 3)
 def run_arbitration(user) -> ArbitrationResult:
     """
-    Execute the full UAL v2 arbitration pipeline.
+    Execute the full UAL v2.1 arbitration pipeline.
 
     Pipeline (never raises, always returns safe fallback):
-    1. Collect signals
-    2. Load adaptive weights
-    3. Classify scenario (with weights + confidence dampening)
-    4. Fuse cross-domain signals
-    5. Assess capacity
-    6. Analyze patterns
-    7. Decide intervention (confidence + capacity aware)
-    8. Build narrative
-    9. Log decision + history + capacity
-    10. Maybe tune weights
+    1. Signal Collection
+    2. Adaptive Weight Application
+    3. Intervention Fatigue Bias
+    4. Scenario Classification (confidence gap)
+    5. Fuse Cross-Domain Signals
+    6. Capacity Composite
+    7. Capacity Volatility Check
+    8. Pattern Analysis (Tier 1 + Tier 2)
+    9. Recent Nudge Memory Penalty (applied in intervention)
+    10. Intervention Decision (capacity + fatigue + pattern aware)
+    11. Narrative Engine (style bias aware)
+    12. Log Decision
+    13. Update ScenarioHistory + InterventionResponseLog + RecentNudgeMemory
+    14. Weight Tuning Check
+
+    All v2.1 steps wrapped in try/except. Failure defaults to v2 behavior.
     """
     result = ArbitrationResult()
 
     try:
-        # Step 1: Collect signals
+        # Step 1: Signal Collection
         from apps.core.ai_arbitration.signal_collector import collect_signals
         signals = collect_signals(user)
         strengths = signals.get("raw_strengths", {})
         result.raw_strengths = strengths
 
-        # Step 2: Load adaptive weight adjustments
+        # Step 2: Adaptive Weight Application
         from apps.core.ai_arbitration.weight_tuner import get_weight_adjustments
         weight_adjustments = get_weight_adjustments(user)
 
-        # Step 3: Classify scenario (with adaptive weights + confidence)
+        # Step 3: Intervention Fatigue Bias (v2.1)
+        fatigue_data = None
+        try:
+            from apps.core.ai_arbitration.intervention_fatigue import compute_fatigue_scores
+            fatigue_data = compute_fatigue_scores(user)
+        except Exception as fat_err:
+            logger.debug("UAL fatigue bias skipped (v2 fallback): %s", fat_err)
+
+        # Step 4: Scenario Classification (with adaptive weights + confidence)
         from apps.core.ai_arbitration.scenario_classifier import classify_scenario
         scenario_result = classify_scenario(strengths, weight_adjustments)
         result.dominant_scenario = scenario_result["dominant_scenario"]
@@ -82,48 +114,90 @@ def run_arbitration(user) -> ArbitrationResult:
         result.confidence_level = scenario_result["confidence_level"]
         result.confidence_gap = scenario_result["confidence_gap"]
 
-        # Step 4: Fuse cross-domain signals
+        # Step 5: Fuse Cross-Domain Signals
         from apps.core.ai_arbitration.signal_fuser import fuse_signals
         composites = fuse_signals(strengths)
         result.composites = composites
 
-        # Step 5: Assess capacity
+        # Step 6: Capacity Composite
         from apps.core.ai_arbitration.capacity_engine import compute_capacity
         capacity = compute_capacity(strengths)
         result.capacity_score = capacity["capacity_score"]
         result.capacity_state = capacity["capacity_state"]
 
-        # Step 6: Analyze patterns
+        # Step 7: Capacity Volatility Check (v2.1)
+        volatility_adjustments = None
+        try:
+            from apps.core.ai_arbitration.capacity_volatility import (
+                compute_capacity_volatility,
+                apply_volatility_adjustments,
+            )
+            volatility = compute_capacity_volatility(user)
+            volatility_adjustments = apply_volatility_adjustments(
+                volatility, result.confidence_level
+            )
+            result.volatility_flag = volatility.get("volatility_flag", False)
+            result.volatility_std_dev = volatility.get("std_dev", 0.0)
+            # Apply confidence downgrade if volatile
+            if volatility_adjustments.get("volatility_applied", False):
+                result.confidence_level = volatility_adjustments["adjusted_confidence_level"]
+                # Update scenario_result for downstream consumers
+                scenario_result["confidence_level"] = result.confidence_level
+        except Exception as vol_err:
+            logger.debug("UAL volatility check skipped (v2 fallback): %s", vol_err)
+
+        # Step 8: Pattern Analysis (Tier 1 + Tier 2)
         from apps.core.ai_arbitration.pattern_analyzer import analyze_patterns
         patterns = analyze_patterns(user)
         result.pattern_hints = patterns.get("escalation_hints", [])
+        pattern_tier2 = patterns.get("tier2", {"tier2_active": False, "triggers": []})
 
-        # Step 7: Decide intervention (confidence + capacity aware)
+        # Step 9 + 10: Intervention Decision
+        # (nudge memory penalty applied inside via candidates,
+        #  fatigue + pattern tier2 passed as context)
         from apps.core.ai_arbitration.intervention_engine import decide_intervention
         intervention = decide_intervention(
             scenario_result, composites, strengths, signals,
             capacity=capacity,
             pattern_hints=result.pattern_hints,
+            fatigue_data=fatigue_data,
+            pattern_tier2=pattern_tier2,
         )
+
+        # v2.1: Apply nudge memory penalty to surfaced items
+        try:
+            from apps.core.ai_arbitration.nudge_memory import check_nudge_collisions
+            intervention["surfaced_items"] = check_nudge_collisions(
+                user, intervention["surfaced_items"],
+                result.dominant_scenario,
+            )
+        except Exception as nudge_err:
+            logger.debug("UAL nudge memory check skipped (v2 fallback): %s", nudge_err)
+
         result.intervention_style = intervention["intervention_style"]
         result.surfaced_items = intervention["surfaced_items"]
         result.suppressed_items = intervention["suppressed_items"]
+        result.style_bias = intervention.get("style_bias", "normal")
+        result.fatigue_bias_applied = intervention.get("fatigue_bias_applied", {})
+        result.pattern_tier2_active = intervention.get("pattern_tier2_active", False)
 
-        # Step 8: Build executive narrative
+        # Step 11: Build executive narrative (style bias + volatility aware)
         from apps.core.ai_arbitration.narrative_engine import build_narrative
         narrative = build_narrative(
             scenario_result, composites, intervention, signals,
             capacity=capacity,
             pattern_hints=result.pattern_hints,
+            volatility=volatility_adjustments,
         )
         result.narrative_injection = narrative
 
-        # Step 9: Log decision + history + capacity (non-blocking)
+        # Step 12: Log decision (non-blocking)
         try:
             _log_decision(user, result, signals)
         except Exception as log_err:
             logger.debug("UAL decision logging skipped: %s", log_err)
 
+        # Step 13: Update histories (non-blocking)
         try:
             from apps.core.ai_arbitration.pattern_analyzer import log_scenario_history
             log_scenario_history(user, result)
@@ -136,7 +210,23 @@ def run_arbitration(user) -> ArbitrationResult:
         except Exception as cap_err:
             logger.debug("UAL capacity logging skipped: %s", cap_err)
 
-        # Step 10: Maybe tune weights (non-blocking)
+        # v2.1: Log intervention response (surfaced event)
+        try:
+            from apps.core.ai_arbitration.intervention_fatigue import log_intervention_response
+            log_intervention_response(user, result.dominant_scenario, "surfaced")
+        except Exception as resp_err:
+            logger.debug("UAL intervention response logging skipped: %s", resp_err)
+
+        # v2.1: Record surfaced nudges in memory
+        try:
+            from apps.core.ai_arbitration.nudge_memory import record_surfaced_nudges
+            record_surfaced_nudges(
+                user, result.surfaced_items, result.dominant_scenario
+            )
+        except Exception as nudge_rec_err:
+            logger.debug("UAL nudge memory recording skipped: %s", nudge_rec_err)
+
+        # Step 14: Maybe tune weights (non-blocking)
         try:
             from apps.core.ai_arbitration.weight_tuner import maybe_tune_weights
             maybe_tune_weights(user)
@@ -152,13 +242,19 @@ def run_arbitration(user) -> ArbitrationResult:
                 f"style={result.intervention_style} "
                 f"confidence={result.confidence:.2f} "
                 f"surfaced={len(result.surfaced_items)} "
-                f"suppressed={len(result.suppressed_items)}"
+                f"suppressed={len(result.suppressed_items)} "
+                f"style_bias={result.style_bias} "
+                f"tier2={'active' if result.pattern_tier2_active else 'inactive'} "
+                f"volatility={result.volatility_std_dev:.3f}"
             ),
             inputs_summary={
                 "scenario_scores": result.scenario_scores,
                 "composites": [c.get("name", "") for c in result.composites]
                 if result.composites
                 else [],
+                "fatigue_bias": result.fatigue_bias_applied,
+                "pattern_tier2_active": result.pattern_tier2_active,
+                "volatility_flag": result.volatility_flag,
             },
             affected_items=[
                 s.get("label", "") for s in result.surfaced_items

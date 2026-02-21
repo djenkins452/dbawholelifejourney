@@ -9,6 +9,40 @@
 
 # WLJ Change History
 
+## 2026-02-21 — UAL v2.1 Structural Intelligence Hardening
+
+**Changes:**
+- **Intervention Fatigue Awareness:** New `InterventionResponseLog` model and `intervention_fatigue.py` module. Computes per-scenario fatigue scores from 7-day rolling response data. Applies ephemeral surfacing bias (±0.05 max) based on ignore/compliance patterns.
+- **Recent Nudge Memory:** New `RecentNudgeMemory` model and `nudge_memory.py` module. 12h retention window prevents cognitively redundant nudges. Severity escalations bypass penalty.
+- **Capacity-Based Style Bias:** Intervention engine maps capacity state to style bias (strategic/normal/tactical/maintenance). Narrative engine adjusts tone accordingly — CRITICAL suppresses strategic language, LOW avoids planning tone.
+- **Pattern Escalation Tier 2:** Extended thresholds (DRIFT ≥7/14d, MOOD ≥5/7d, HEALTH ≥5/7d) trigger structural intervention override — max surfaced forced to 1, "Strategic Reset Consideration" flag injected.
+- **Capacity Volatility Index:** New `capacity_volatility.py` module. Computes std_dev of last 5 DailyCapacityLog scores. If std_dev > 0.25, confidence framing downgraded one level and surfacing aggressiveness reduced.
+- **Pipeline v2.1:** 14-step pipeline with all new steps individually wrapped in try/except (fail gracefully to v2 behavior).
+- **Observability:** 4 new dashboard panels (Fatigue Distribution, Nudge Collision Rate, Capacity Volatility, Tier 2 Triggers).
+- **Tests:** 30 new tests (101 total), all passing.
+
+**New Files:**
+- `apps/core/ai_arbitration/intervention_fatigue.py`
+- `apps/core/ai_arbitration/nudge_memory.py`
+- `apps/core/ai_arbitration/capacity_volatility.py`
+- `apps/core/migrations/0078_recentnudgememory_interventionresponselog_and_more.py`
+- `docs/UAL_V2_1_STRUCTURAL_HARDENING_REPORT.md`
+
+**Modified Files:**
+- `apps/core/ai_arbitration/models.py` — 2 new models
+- `apps/core/ai_arbitration/arbitration_engine.py` — v2.1 pipeline
+- `apps/core/ai_arbitration/intervention_engine.py` — style bias + fatigue + Tier 2
+- `apps/core/ai_arbitration/pattern_analyzer.py` — Tier 2 escalation
+- `apps/core/ai_arbitration/narrative_engine.py` — style bias + volatility notes
+- `apps/core/ai_arbitration/admin.py` — registered new models
+- `apps/core/ai_arbitration/tests.py` — 30 new tests
+- `apps/core/ai_observability/views.py` — 4 new panel data methods
+- `templates/intelligence/observability_dashboard.html` — 4 new panels
+
+**Why:** Strengthen arbitration realism without expanding scope. No new scenarios, no new signals, no surface volume increase. Stability > cleverness.
+
+---
+
 ## 2026-02-21 — Intelligence Command Center tiles on Admin Dashboard
 
 **Changes:**

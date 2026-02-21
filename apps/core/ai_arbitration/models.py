@@ -6,6 +6,8 @@ Models:
 - ScenarioHistory: Daily scenario tracking for pattern analysis
 - WeightAdjustment: Adaptive weight tuning per scenario/signal
 - DailyCapacityLog: Daily capacity state tracking
+- InterventionResponseLog: Tracks intervention surfacing and user response (v2.1)
+- RecentNudgeMemory: Short-lived nudge deduplication memory (v2.1)
 """
 import logging
 
@@ -211,3 +213,85 @@ class DailyCapacityLog(models.Model):
 
     def __str__(self):
         return f"Capacity {self.capacity_state} ({self.capacity_score:.2f}) on {self.date}"
+
+
+class InterventionResponseLog(models.Model):
+    """
+    v2.1: Tracks intervention surfacing and user response per scenario.
+
+    Rolling 7-day aggregate used by intervention fatigue engine to
+    detect repeated ignored interventions and adjust surfacing bias.
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="intervention_response_logs",
+    )
+    date = models.DateField()
+    scenario = models.CharField(max_length=50)
+    surfaced_count = models.IntegerField(default=0)
+    complied_count = models.IntegerField(default=0)
+    ignored_count = models.IntegerField(default=0)
+    overrode_count = models.IntegerField(default=0)
+
+    class Meta:
+        app_label = "core"
+        db_table = "core_intervention_response_log"
+        ordering = ["-date"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "date", "scenario"],
+                name="unique_intervention_response_per_user_day_scenario",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["user", "-date"]),
+            models.Index(fields=["scenario"]),
+        ]
+
+    def __str__(self):
+        return (
+            f"{self.scenario} on {self.date}: "
+            f"surfaced={self.surfaced_count} complied={self.complied_count} "
+            f"ignored={self.ignored_count} overrode={self.overrode_count}"
+        )
+
+
+class RecentNudgeMemory(models.Model):
+    """
+    v2.1: Short-lived nudge memory for semantic deduplication.
+
+    Retention window: 12 hours max. Used by nudge_memory engine
+    to penalise cognitively redundant nudges within short windows.
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="recent_nudges",
+    )
+    surfaced_at = models.DateTimeField(auto_now_add=True)
+    scenario = models.CharField(max_length=50)
+    semantic_tag = models.CharField(
+        max_length=100,
+        help_text="Lightweight tag for semantic deduplication (scenario, composite, or commitment_key).",
+    )
+    trace_id = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text="Optional trace ID linking to ArbitrationDecisionLog.",
+    )
+
+    class Meta:
+        app_label = "core"
+        db_table = "core_recent_nudge_memory"
+        ordering = ["-surfaced_at"]
+        indexes = [
+            models.Index(fields=["user", "-surfaced_at"]),
+            models.Index(fields=["semantic_tag"]),
+        ]
+
+    def __str__(self):
+        return f"Nudge [{self.semantic_tag}] at {self.surfaced_at:%H:%M}"

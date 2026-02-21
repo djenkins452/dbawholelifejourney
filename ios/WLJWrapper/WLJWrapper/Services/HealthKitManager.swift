@@ -135,6 +135,101 @@ class HealthKitManager {
         // Workout Sessions
         types.insert(HKObjectType.workoutType())
 
+        // -- Extended HealthKit Types (Mobility, HR Events, Audio, Nutrition) --
+
+        // Mobility / Gait metrics
+        if let asymmetryType = HKQuantityType.quantityType(forIdentifier: .walkingAsymmetryPercentage) {
+            types.insert(asymmetryType)
+        }
+        if let speedType = HKQuantityType.quantityType(forIdentifier: .walkingSpeed) {
+            types.insert(speedType)
+        }
+        if let stepLengthType = HKQuantityType.quantityType(forIdentifier: .walkingStepLength) {
+            types.insert(stepLengthType)
+        }
+        if let doubleSupportType = HKQuantityType.quantityType(forIdentifier: .walkingDoubleSupportPercentage) {
+            types.insert(doubleSupportType)
+        }
+        if let stairAscentType = HKQuantityType.quantityType(forIdentifier: .stairAscentSpeed) {
+            types.insert(stairAscentType)
+        }
+        if let stairDescentType = HKQuantityType.quantityType(forIdentifier: .stairDescentSpeed) {
+            types.insert(stairDescentType)
+        }
+        if let sixMinWalkType = HKQuantityType.quantityType(forIdentifier: .sixMinuteWalkTestDistance) {
+            types.insert(sixMinWalkType)
+        }
+
+        // Heart rate events (category types)
+        if let highHRType = HKCategoryType.categoryType(forIdentifier: .highHeartRateEvent) {
+            types.insert(highHRType)
+        }
+        if let lowHRType = HKCategoryType.categoryType(forIdentifier: .lowHeartRateEvent) {
+            types.insert(lowHRType)
+        }
+        if let irregularType = HKCategoryType.categoryType(forIdentifier: .irregularHeartRhythmEvent) {
+            types.insert(irregularType)
+        }
+
+        // Audio exposure
+        if let headphoneType = HKQuantityType.quantityType(forIdentifier: .headphoneAudioExposure) {
+            types.insert(headphoneType)
+        }
+        if let environmentalType = HKQuantityType.quantityType(forIdentifier: .environmentalAudioExposure) {
+            types.insert(environmentalType)
+        }
+
+        // Dietary nutrients (macros + key micros)
+        if let energyType = HKQuantityType.quantityType(forIdentifier: .dietaryEnergyConsumed) {
+            types.insert(energyType)
+        }
+        if let proteinType = HKQuantityType.quantityType(forIdentifier: .dietaryProtein) {
+            types.insert(proteinType)
+        }
+        if let carbsType = HKQuantityType.quantityType(forIdentifier: .dietaryCarbohydrates) {
+            types.insert(carbsType)
+        }
+        if let fatType = HKQuantityType.quantityType(forIdentifier: .dietaryFatTotal) {
+            types.insert(fatType)
+        }
+        if let fiberType = HKQuantityType.quantityType(forIdentifier: .dietaryFiber) {
+            types.insert(fiberType)
+        }
+        if let sugarType = HKQuantityType.quantityType(forIdentifier: .dietarySugar) {
+            types.insert(sugarType)
+        }
+        if let sodiumType = HKQuantityType.quantityType(forIdentifier: .dietarySodium) {
+            types.insert(sodiumType)
+        }
+        if let cholesterolType = HKQuantityType.quantityType(forIdentifier: .dietaryCholesterol) {
+            types.insert(cholesterolType)
+        }
+        if let satFatType = HKQuantityType.quantityType(forIdentifier: .dietaryFatSaturated) {
+            types.insert(satFatType)
+        }
+        if let potassiumType = HKQuantityType.quantityType(forIdentifier: .dietaryPotassium) {
+            types.insert(potassiumType)
+        }
+        if let calciumType = HKQuantityType.quantityType(forIdentifier: .dietaryCalcium) {
+            types.insert(calciumType)
+        }
+        if let ironType = HKQuantityType.quantityType(forIdentifier: .dietaryIron) {
+            types.insert(ironType)
+        }
+        if let vitDType = HKQuantityType.quantityType(forIdentifier: .dietaryVitaminD) {
+            types.insert(vitDType)
+        }
+
+        // Walking steadiness (requires iOS 15+, Apple Watch Series 4+)
+        if #available(iOS 15.0, *) {
+            if let steadinessType = HKQuantityType.quantityType(forIdentifier: .appleWalkingSteadiness) {
+                types.insert(steadinessType)
+            }
+            if let steadinessEventType = HKCategoryType.categoryType(forIdentifier: .appleWalkingSteadinessEvent) {
+                types.insert(steadinessEventType)
+            }
+        }
+
         return types
     }()
 
@@ -227,6 +322,33 @@ class HealthKitManager {
         metrics.append(contentsOf: mindfulMinutes)
         metrics.append(contentsOf: bloodPressure)
         metrics.append(contentsOf: bodyTemperature)
+
+        // Extended HealthKit types
+        let walkingAsymmetry = try await fetchWalkingAsymmetry(from: startDate, to: endDate)
+        let walkingSteadiness = try await fetchWalkingSteadiness(from: startDate, to: endDate)
+        let walkingSpeed = try await fetchMobilityQuantity(from: startDate, to: endDate, identifier: .walkingSpeed, unit: HKUnit.mile().unitDivided(by: .hour()), metricType: "walking_speed", fieldName: "walking_speed", syncPrefix: "walkspeed")
+        let stepLength = try await fetchMobilityQuantity(from: startDate, to: endDate, identifier: .walkingStepLength, unit: .inch(), metricType: "step_length", fieldName: "step_length", syncPrefix: "steplength")
+        let doubleSupport = try await fetchMobilityQuantity(from: startDate, to: endDate, identifier: .walkingDoubleSupportPercentage, unit: .percent(), metricType: "double_support_time", fieldName: "double_support_time", syncPrefix: "doublesupport", multiplyBy100: true)
+        let stairAscent = try await fetchMobilityQuantity(from: startDate, to: endDate, identifier: .stairAscentSpeed, unit: HKUnit.count().unitDivided(by: .second()), metricType: "stair_ascent_speed", fieldName: "stair_ascent_speed", syncPrefix: "stairascent", convertToFlightsPerMin: true)
+        let stairDescent = try await fetchMobilityQuantity(from: startDate, to: endDate, identifier: .stairDescentSpeed, unit: HKUnit.count().unitDivided(by: .second()), metricType: "stair_descent_speed", fieldName: "stair_descent_speed", syncPrefix: "stairdescent", convertToFlightsPerMin: true)
+        let sixMinWalk = try await fetchMobilityQuantity(from: startDate, to: endDate, identifier: .sixMinuteWalkTestDistance, unit: .meter(), metricType: "six_min_walk", fieldName: "six_min_walk", syncPrefix: "6minwalk")
+        let hrEvents = try await fetchHeartRateEvents(from: startDate, to: endDate)
+        let headphoneAudio = try await fetchHeadphoneAudio(from: startDate, to: endDate)
+        let environmentalAudio = try await fetchEnvironmentalAudio(from: startDate, to: endDate)
+        let dietaryNutrients = try await fetchDietaryNutrients(from: startDate, to: endDate)
+
+        metrics.append(contentsOf: walkingAsymmetry)
+        metrics.append(contentsOf: walkingSteadiness)
+        metrics.append(contentsOf: walkingSpeed)
+        metrics.append(contentsOf: stepLength)
+        metrics.append(contentsOf: doubleSupport)
+        metrics.append(contentsOf: stairAscent)
+        metrics.append(contentsOf: stairDescent)
+        metrics.append(contentsOf: sixMinWalk)
+        metrics.append(contentsOf: hrEvents)
+        metrics.append(contentsOf: headphoneAudio)
+        metrics.append(contentsOf: environmentalAudio)
+        metrics.append(contentsOf: dietaryNutrients)
 
         if metrics.isEmpty {
             return SyncResult(created: 0, updated: 0, skipped: 0, errors: 0)
@@ -1658,6 +1780,477 @@ class HealthKitManager {
 
             healthStore.execute(query)
         }
+    }
+    // MARK: - Fetch Walking Asymmetry
+
+    private func fetchWalkingAsymmetry(from startDate: Date, to endDate: Date) async throws -> [HealthMetric] {
+        guard let asymmetryType = HKQuantityType.quantityType(forIdentifier: .walkingAsymmetryPercentage) else {
+            return []
+        }
+
+        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: .strictEndDate)
+        let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
+
+        return try await withCheckedThrowingContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: asymmetryType,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: [sortDescriptor]
+            ) { _, samples, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                var metrics: [HealthMetric] = []
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateFormat = "yyyy-MM-dd"
+
+                // Average per day
+                var dailyReadings: [String: [Double]] = [:]
+
+                for sample in (samples as? [HKQuantitySample]) ?? [] {
+                    let pct = sample.quantity.doubleValue(for: .percent()) * 100
+                    let dateStr = dateFormatter.string(from: sample.startDate)
+                    dailyReadings[dateStr, default: []].append(pct)
+                }
+
+                for (dateStr, readings) in dailyReadings {
+                    let avg = readings.reduce(0, +) / Double(readings.count)
+                    metrics.append(HealthMetric(
+                        type: "walking_asymmetry",
+                        date: dateStr,
+                        walkingAsymmetryValue: avg,
+                        source: "apple_health",
+                        syncId: "walkasym-\(dateStr)"
+                    ))
+                }
+
+                continuation.resume(returning: metrics)
+            }
+
+            healthStore.execute(query)
+        }
+    }
+
+    // MARK: - Fetch Walking Steadiness
+
+    private func fetchWalkingSteadiness(from startDate: Date, to endDate: Date) async throws -> [HealthMetric] {
+        guard #available(iOS 15.0, *),
+              let steadinessType = HKQuantityType.quantityType(forIdentifier: .appleWalkingSteadiness) else {
+            return []
+        }
+
+        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: .strictEndDate)
+        let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)
+
+        return try await withCheckedThrowingContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: steadinessType,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: [sortDescriptor]
+            ) { _, samples, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                var metrics: [HealthMetric] = []
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateFormat = "yyyy-MM-dd"
+
+                // Most recent per day
+                var seenDates: Set<String> = []
+
+                for sample in (samples as? [HKQuantitySample]) ?? [] {
+                    let dateStr = dateFormatter.string(from: sample.startDate)
+                    if seenDates.contains(dateStr) { continue }
+                    seenDates.insert(dateStr)
+
+                    let score = sample.quantity.doubleValue(for: .percent()) * 100
+
+                    // Classify: OK (>= 50%), Low (>= 20%), Very Low (< 20%)
+                    let classification: String
+                    if score >= 50 {
+                        classification = "ok"
+                    } else if score >= 20 {
+                        classification = "low"
+                    } else {
+                        classification = "very_low"
+                    }
+
+                    metrics.append(HealthMetric(
+                        type: "walking_steadiness",
+                        date: dateStr,
+                        walkingSteadinessValue: classification,
+                        walkingSteadinessScore: score,
+                        source: "apple_health",
+                        syncId: "steadiness-\(dateStr)"
+                    ))
+                }
+
+                continuation.resume(returning: metrics)
+            }
+
+            healthStore.execute(query)
+        }
+    }
+
+    // MARK: - Fetch Generic Mobility Quantity
+
+    private func fetchMobilityQuantity(
+        from startDate: Date,
+        to endDate: Date,
+        identifier: HKQuantityTypeIdentifier,
+        unit: HKUnit,
+        metricType: String,
+        fieldName: String,
+        syncPrefix: String,
+        multiplyBy100: Bool = false,
+        convertToFlightsPerMin: Bool = false
+    ) async throws -> [HealthMetric] {
+        guard let quantityType = HKQuantityType.quantityType(forIdentifier: identifier) else {
+            return []
+        }
+
+        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: .strictEndDate)
+        let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
+
+        return try await withCheckedThrowingContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: quantityType,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: [sortDescriptor]
+            ) { _, samples, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                var metrics: [HealthMetric] = []
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateFormat = "yyyy-MM-dd"
+
+                // Average per day
+                var dailyReadings: [String: [Double]] = [:]
+
+                for sample in (samples as? [HKQuantitySample]) ?? [] {
+                    var value = sample.quantity.doubleValue(for: unit)
+                    if multiplyBy100 { value *= 100 }
+                    if convertToFlightsPerMin { value *= 60 } // flights/sec -> flights/min
+                    let dateStr = dateFormatter.string(from: sample.startDate)
+                    dailyReadings[dateStr, default: []].append(value)
+                }
+
+                for (dateStr, readings) in dailyReadings {
+                    let avg = readings.reduce(0, +) / Double(readings.count)
+                    metrics.append(HealthMetric(
+                        type: metricType,
+                        date: dateStr,
+                        mobilityValue: avg,
+                        source: "apple_health",
+                        syncId: "\(syncPrefix)-\(dateStr)",
+                        fieldName: fieldName
+                    ))
+                }
+
+                continuation.resume(returning: metrics)
+            }
+
+            healthStore.execute(query)
+        }
+    }
+
+    // MARK: - Fetch Heart Rate Events
+
+    private func fetchHeartRateEvents(from startDate: Date, to endDate: Date) async throws -> [HealthMetric] {
+        var allMetrics: [HealthMetric] = []
+
+        // Fetch all three event types
+        let eventTypes: [(HKCategoryTypeIdentifier, String)] = [
+            (.highHeartRateEvent, "high_heart_rate_event"),
+            (.lowHeartRateEvent, "low_heart_rate_event"),
+            (.irregularHeartRhythmEvent, "irregular_rhythm_event"),
+        ]
+
+        for (identifier, metricType) in eventTypes {
+            guard let categoryType = HKCategoryType.categoryType(forIdentifier: identifier) else {
+                continue
+            }
+
+            let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: .strictEndDate)
+            let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
+
+            let events: [HealthMetric] = try await withCheckedThrowingContinuation { continuation in
+                let query = HKSampleQuery(
+                    sampleType: categoryType,
+                    predicate: predicate,
+                    limit: HKObjectQueryNoLimit,
+                    sortDescriptors: [sortDescriptor]
+                ) { _, samples, error in
+                    if let error = error {
+                        continuation.resume(throwing: error)
+                        return
+                    }
+
+                    var metrics: [HealthMetric] = []
+                    let dateFormatter = DateFormatter()
+                    dateFormatter.dateFormat = "yyyy-MM-dd"
+                    let isoFormatter = ISO8601DateFormatter()
+
+                    for sample in (samples as? [HKCategorySample]) ?? [] {
+                        let dateStr = dateFormatter.string(from: sample.startDate)
+                        let timeStr = isoFormatter.string(from: sample.startDate)
+                        let syncId = "\(metricType)-\(Int(sample.startDate.timeIntervalSince1970))"
+
+                        // Duration of event
+                        let durationSec = Int(sample.endDate.timeIntervalSince(sample.startDate))
+
+                        // Heart rate threshold from category value (if available)
+                        let hrValue = sample.value > 0 ? sample.value : nil
+
+                        metrics.append(HealthMetric(
+                            type: metricType,
+                            date: dateStr,
+                            heartRateValue: hrValue,
+                            thresholdValue: nil,
+                            durationSeconds: durationSec > 0 ? durationSec : nil,
+                            recordedAt: timeStr,
+                            source: "apple_health",
+                            syncId: syncId
+                        ))
+                    }
+
+                    continuation.resume(returning: metrics)
+                }
+
+                healthStore.execute(query)
+            }
+
+            allMetrics.append(contentsOf: events)
+        }
+
+        return allMetrics
+    }
+
+    // MARK: - Fetch Headphone Audio Exposure
+
+    private func fetchHeadphoneAudio(from startDate: Date, to endDate: Date) async throws -> [HealthMetric] {
+        guard let headphoneType = HKQuantityType.quantityType(forIdentifier: .headphoneAudioExposure) else {
+            return []
+        }
+
+        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: .strictEndDate)
+        let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
+
+        return try await withCheckedThrowingContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: headphoneType,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: [sortDescriptor]
+            ) { _, samples, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                var metrics: [HealthMetric] = []
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateFormat = "yyyy-MM-dd"
+
+                // Aggregate per day: average level, total duration
+                var dailyLevels: [String: [Double]] = [:]
+                var dailyDurations: [String: Double] = [:]
+
+                for sample in (samples as? [HKQuantitySample]) ?? [] {
+                    let level = sample.quantity.doubleValue(for: .decibelAWeightedSoundPressureLevel())
+                    let dateStr = dateFormatter.string(from: sample.startDate)
+                    let durationMin = sample.endDate.timeIntervalSince(sample.startDate) / 60
+
+                    dailyLevels[dateStr, default: []].append(level)
+                    dailyDurations[dateStr, default: 0] += durationMin
+                }
+
+                for (dateStr, levels) in dailyLevels {
+                    let avgLevel = levels.reduce(0, +) / Double(levels.count)
+                    let totalDuration = Int(dailyDurations[dateStr] ?? 0)
+
+                    metrics.append(HealthMetric(
+                        type: "headphone_audio",
+                        date: dateStr,
+                        headphoneLevelDb: avgLevel,
+                        headphoneDurationMinutes: totalDuration > 0 ? totalDuration : nil,
+                        source: "apple_health",
+                        syncId: "headphone-\(dateStr)"
+                    ))
+                }
+
+                continuation.resume(returning: metrics)
+            }
+
+            healthStore.execute(query)
+        }
+    }
+
+    // MARK: - Fetch Environmental Audio Exposure
+
+    private func fetchEnvironmentalAudio(from startDate: Date, to endDate: Date) async throws -> [HealthMetric] {
+        guard let envType = HKQuantityType.quantityType(forIdentifier: .environmentalAudioExposure) else {
+            return []
+        }
+
+        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: .strictEndDate)
+        let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
+
+        return try await withCheckedThrowingContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: envType,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: [sortDescriptor]
+            ) { _, samples, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                var metrics: [HealthMetric] = []
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateFormat = "yyyy-MM-dd"
+
+                // Average per day
+                var dailyLevels: [String: [Double]] = [:]
+
+                for sample in (samples as? [HKQuantitySample]) ?? [] {
+                    let level = sample.quantity.doubleValue(for: .decibelAWeightedSoundPressureLevel())
+                    let dateStr = dateFormatter.string(from: sample.startDate)
+                    dailyLevels[dateStr, default: []].append(level)
+                }
+
+                for (dateStr, levels) in dailyLevels {
+                    let avgLevel = levels.reduce(0, +) / Double(levels.count)
+                    metrics.append(HealthMetric(
+                        type: "environmental_audio",
+                        date: dateStr,
+                        environmentalLevelDb: avgLevel,
+                        source: "apple_health",
+                        syncId: "envaud-\(dateStr)"
+                    ))
+                }
+
+                continuation.resume(returning: metrics)
+            }
+
+            healthStore.execute(query)
+        }
+    }
+
+    // MARK: - Fetch Dietary Nutrients
+
+    private func fetchDietaryNutrients(from startDate: Date, to endDate: Date) async throws -> [HealthMetric] {
+        let interval = DateComponents(day: 1)
+        let anchorDate = Calendar.current.startOfDay(for: startDate)
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+
+        // All nutrient types to query
+        let nutrientQueries: [(HKQuantityTypeIdentifier, HKUnit, String)] = [
+            (.dietaryEnergyConsumed, .kilocalorie(), "calories"),
+            (.dietaryProtein, .gram(), "protein"),
+            (.dietaryCarbohydrates, .gram(), "carbs"),
+            (.dietaryFatTotal, .gram(), "fat"),
+            (.dietaryFiber, .gram(), "fiber"),
+            (.dietarySugar, .gram(), "sugar"),
+            (.dietarySodium, .gramUnit(with: .milli), "sodium"),
+            (.dietaryCholesterol, .gramUnit(with: .milli), "cholesterol"),
+            (.dietaryFatSaturated, .gram(), "satfat"),
+            (.dietaryPotassium, .gramUnit(with: .milli), "potassium"),
+            (.dietaryCalcium, .gramUnit(with: .milli), "calcium"),
+            (.dietaryIron, .gramUnit(with: .milli), "iron"),
+            (.dietaryVitaminD, .gramUnit(with: .micro), "vitd"),
+        ]
+
+        // Collect daily totals for each nutrient
+        var dailyNutrients: [String: [String: Double]] = [:]
+
+        for (identifier, unit, key) in nutrientQueries {
+            guard let quantityType = HKQuantityType.quantityType(forIdentifier: identifier) else {
+                continue
+            }
+
+            let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate)
+
+            let results: [(String, Double)] = try await withCheckedThrowingContinuation { continuation in
+                let query = HKStatisticsCollectionQuery(
+                    quantityType: quantityType,
+                    quantitySamplePredicate: predicate,
+                    options: .cumulativeSum,
+                    anchorDate: anchorDate,
+                    intervalComponents: interval
+                )
+
+                query.initialResultsHandler = { _, results, error in
+                    if let error = error {
+                        // Don't fail the whole sync for missing nutrient types
+                        continuation.resume(returning: [])
+                        return
+                    }
+
+                    var dayValues: [(String, Double)] = []
+                    results?.enumerateStatistics(from: startDate, to: endDate) { statistics, _ in
+                        if let sum = statistics.sumQuantity() {
+                            let value = sum.doubleValue(for: unit)
+                            let dateStr = dateFormatter.string(from: statistics.startDate)
+                            if value > 0 {
+                                dayValues.append((dateStr, value))
+                            }
+                        }
+                    }
+                    continuation.resume(returning: dayValues)
+                }
+
+                healthStore.execute(query)
+            }
+
+            for (dateStr, value) in results {
+                if dailyNutrients[dateStr] == nil {
+                    dailyNutrients[dateStr] = [:]
+                }
+                dailyNutrients[dateStr]![key] = value
+            }
+        }
+
+        // Convert to HealthMetric objects
+        var metrics: [HealthMetric] = []
+        for (dateStr, nutrients) in dailyNutrients {
+            if nutrients.isEmpty { continue }
+
+            metrics.append(HealthMetric(
+                type: "dietary_nutrients",
+                date: dateStr,
+                dietaryCalories: nutrients["calories"].map { Int($0) },
+                proteinG: nutrients["protein"],
+                carbohydratesG: nutrients["carbs"],
+                fatG: nutrients["fat"],
+                fiberG: nutrients["fiber"],
+                sugarG: nutrients["sugar"],
+                sodiumMg: nutrients["sodium"],
+                cholesterolMg: nutrients["cholesterol"],
+                saturatedFatG: nutrients["satfat"],
+                potassiumMg: nutrients["potassium"],
+                calciumMg: nutrients["calcium"],
+                ironMg: nutrients["iron"],
+                vitaminDMcg: nutrients["vitd"],
+                source: "apple_health",
+                syncId: "nutrients-\(dateStr)"
+            ))
+        }
+
+        return metrics
     }
 }
 

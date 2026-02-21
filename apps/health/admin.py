@@ -940,3 +940,58 @@ class TransformationProtocolAdmin(admin.ModelAdmin):
     search_fields = ["user__email", "name"]
     raw_id_fields = ["user", "life_goal"]
     date_hierarchy = "start_date"
+
+
+# ── Extended HealthKit Models ──────────────────────────────────────
+
+from apps.health.models import (  # noqa: E402
+    AudioExposureEntry,
+    DietaryNutrientEntry,
+    HeartRateEventEntry,
+    MobilityEntry,
+)
+
+
+@admin.register(MobilityEntry)
+class MobilityEntryAdmin(admin.ModelAdmin):
+    list_display = [
+        "user", "metric_date", "walking_speed", "walking_asymmetry",
+        "walking_steadiness", "step_length", "source",
+    ]
+    list_filter = ["source", "walking_steadiness"]
+    search_fields = ["user__email"]
+    raw_id_fields = ["user"]
+    date_hierarchy = "metric_date"
+
+
+@admin.register(HeartRateEventEntry)
+class HeartRateEventEntryAdmin(admin.ModelAdmin):
+    list_display = ["user", "event_type", "heart_rate", "recorded_at", "source"]
+    list_filter = ["event_type", "source"]
+    search_fields = ["user__email"]
+    raw_id_fields = ["user"]
+    date_hierarchy = "recorded_at"
+
+
+@admin.register(AudioExposureEntry)
+class AudioExposureEntryAdmin(admin.ModelAdmin):
+    list_display = [
+        "user", "metric_date", "headphone_level_db",
+        "environmental_level_db", "headphone_duration_minutes", "source",
+    ]
+    list_filter = ["source"]
+    search_fields = ["user__email"]
+    raw_id_fields = ["user"]
+    date_hierarchy = "metric_date"
+
+
+@admin.register(DietaryNutrientEntry)
+class DietaryNutrientEntryAdmin(admin.ModelAdmin):
+    list_display = [
+        "user", "metric_date", "calories", "protein_g",
+        "carbohydrates_g", "fat_g", "source",
+    ]
+    list_filter = ["source"]
+    search_fields = ["user__email"]
+    raw_id_fields = ["user"]
+    date_hierarchy = "metric_date"

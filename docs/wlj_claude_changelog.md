@@ -9,6 +9,11 @@
 
 # WLJ Change History
 
+## 2026-02-21
+
+- **Major: Extended HealthKit Integration — Mobility, HR Events, Audio Exposure, Dietary Nutrients** — Added 4 new Django models and 16 new ingest handlers to capture extended HealthKit data. New models: `MobilityEntry` (walking asymmetry, steadiness, speed, step length, double support time, stair speeds, 6-min walk distance), `HeartRateEventEntry` (high/low HR alerts, AFib detection), `AudioExposureEntry` (headphone + environmental audio levels in dB), `DietaryNutrientEntry` (13 nutrients from food-logging apps via Apple Health — calories, protein, carbs, fat, fiber, sugar, sodium, cholesterol, saturated fat, potassium, calcium, iron, vitamin D). Updated iOS `HealthKitManager.swift` to request 37+ HK types (up from 24) and fetch/sync all new data types. Updated `HealthMetric.swift` with new fields and convenience initializers. All 912 tests pass (861 health + 51 mobile).
+  - Files: `apps/health/models.py` (4 new models), `apps/health/admin.py` (4 new admin classes), `apps/health/migrations/0047_add_mobility_hr_events_audio_dietary_models.py`, `apps/mobile/views.py` (16 new handlers), `ios/.../Services/HealthKitManager.swift`, `ios/.../Models/HealthMetric.swift`, `docs/ios-healthkit-integration.md`
+
 ## 2026-02-20
 
 - **Fix: Food autocomplete search returning no results** — The food-autocomplete.js was hitting `/health/nutrition/api/search/` but the actual URL is `/health/physical/nutrition/api/search/` (missing `physical/` segment after the URL restructuring). The fetch silently 404'd, causing "No matches found" for every food search. Fixed the API_URL constant and corrected the docstring in the view.

@@ -34,10 +34,14 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
 from apps.health.models import (
+    AudioExposureEntry,
     BloodOxygenEntry,
     BloodPressureEntry,
     BodyTemperatureEntry,
+    DietaryNutrientEntry,
     GlucoseEntry,
+    HeartRateEventEntry,
+    MobilityEntry,
     StepsEntry,
     SleepEntry,
     WaterEntry,
@@ -551,6 +555,20 @@ def process_health_metric(user, metric, existing_glucose_sync_ids=None):
         "mindful_minutes": process_mindful_minutes_metric,
         "blood_pressure": process_blood_pressure_metric,
         "body_temperature": process_body_temperature_metric,
+        "walking_asymmetry": process_mobility_metric,
+        "walking_steadiness": process_mobility_metric,
+        "walking_speed": process_mobility_metric,
+        "step_length": process_mobility_metric,
+        "double_support_time": process_mobility_metric,
+        "stair_ascent_speed": process_mobility_metric,
+        "stair_descent_speed": process_mobility_metric,
+        "six_min_walk": process_mobility_metric,
+        "high_heart_rate_event": process_heart_rate_event_metric,
+        "low_heart_rate_event": process_heart_rate_event_metric,
+        "irregular_rhythm_event": process_heart_rate_event_metric,
+        "headphone_audio": process_audio_exposure_metric,
+        "environmental_audio": process_audio_exposure_metric,
+        "dietary_nutrients": process_dietary_nutrient_metric,
     }
 
     handler = handlers.get(metric_type)
@@ -2015,6 +2033,376 @@ def process_body_temperature_metric(user, metric_date, source, sync_id, data):
         source=source,
         sync_id=sync_id,
         context="other",  # Default context for HealthKit data
+    )
+    return "created"
+
+
+def process_mobility_metric(user, metric_date, source, sync_id, data):
+    """
+    Process mobility/gait metrics from Apple HealthKit.
+
+    Multiple metric types map to a single MobilityEntry per date:
+    walking_asymmetry, walking_steadiness, walking_speed, step_length,
+    double_support_time, stair_ascent_speed, stair_descent_speed, six_min_walk.
+
+    Updates the appropriate field on the MobilityEntry for this date.
+    """
+    metric_type = data.get("type", "").lower()
+
+    # Build field updates from the metric
+    field_updates = {}
+
+    if metric_type == "walking_asymmetry":
+        value = data.get("walking_asymmetry_value")
+        if value is None:
+            raise ValueError("walking_asymmetry_value is required")
+        try:
+            value = Decimal(str(value))
+        except (TypeError, InvalidOperation):
+            raise ValueError(f"Invalid walking asymmetry value: {value}")
+        if value < 0 or value > 50:
+            raise ValueError(f"Walking asymmetry out of range: {value}")
+        field_updates["walking_asymmetry"] = value
+
+    elif metric_type == "walking_steadiness":
+        steadiness = data.get("walking_steadiness_value", "")
+        score = data.get("walking_steadiness_score")
+        if not steadiness:
+            raise ValueError("walking_steadiness_value is required")
+        if steadiness.lower() not in ("ok", "low", "very_low"):
+            raise ValueError(f"Invalid walking steadiness: {steadiness}")
+        field_updates["walking_steadiness"] = steadiness.lower()
+        if score is not None:
+            try:
+                field_updates["walking_steadiness_score"] = Decimal(str(score))
+            except (TypeError, InvalidOperation):
+                pass
+
+    elif metric_type == "walking_speed":
+        value = data.get("walking_speed_value")
+        if value is None:
+            raise ValueError("walking_speed_value is required")
+        try:
+            value = Decimal(str(value))
+        except (TypeError, InvalidOperation):
+            raise ValueError(f"Invalid walking speed value: {value}")
+        if value < 0 or value > 10:
+            raise ValueError(f"Walking speed out of range: {value}")
+        field_updates["walking_speed"] = value
+
+    elif metric_type == "step_length":
+        value = data.get("step_length_value")
+        if value is None:
+            raise ValueError("step_length_value is required")
+        try:
+            value = Decimal(str(value))
+        except (TypeError, InvalidOperation):
+            raise ValueError(f"Invalid step length value: {value}")
+        if value < 5 or value > 50:
+            raise ValueError(f"Step length out of range: {value}")
+        field_updates["step_length"] = value
+
+    elif metric_type == "double_support_time":
+        value = data.get("double_support_time_value")
+        if value is None:
+            raise ValueError("double_support_time_value is required")
+        try:
+            value = Decimal(str(value))
+        except (TypeError, InvalidOperation):
+            raise ValueError(f"Invalid double support time value: {value}")
+        if value < 0 or value > 100:
+            raise ValueError(f"Double support time out of range: {value}")
+        field_updates["double_support_time"] = value
+
+    elif metric_type == "stair_ascent_speed":
+        value = data.get("stair_ascent_speed_value")
+        if value is None:
+            raise ValueError("stair_ascent_speed_value is required")
+        try:
+            value = Decimal(str(value))
+        except (TypeError, InvalidOperation):
+            raise ValueError(f"Invalid stair ascent speed: {value}")
+        if value < 0 or value > 10:
+            raise ValueError(f"Stair ascent speed out of range: {value}")
+        field_updates["stair_ascent_speed"] = value
+
+    elif metric_type == "stair_descent_speed":
+        value = data.get("stair_descent_speed_value")
+        if value is None:
+            raise ValueError("stair_descent_speed_value is required")
+        try:
+            value = Decimal(str(value))
+        except (TypeError, InvalidOperation):
+            raise ValueError(f"Invalid stair descent speed: {value}")
+        if value < 0 or value > 10:
+            raise ValueError(f"Stair descent speed out of range: {value}")
+        field_updates["stair_descent_speed"] = value
+
+    elif metric_type == "six_min_walk":
+        value = data.get("six_min_walk_value")
+        if value is None:
+            raise ValueError("six_min_walk_value is required")
+        try:
+            value = Decimal(str(value))
+        except (TypeError, InvalidOperation):
+            raise ValueError(f"Invalid six min walk value: {value}")
+        if value < 0 or value > 2000:
+            raise ValueError(f"Six min walk distance out of range: {value}")
+        field_updates["six_min_walk_distance"] = value
+
+    else:
+        raise ValueError(f"Unknown mobility metric type: {metric_type}")
+
+    if not field_updates:
+        return "skipped"
+
+    # Find or create MobilityEntry for this date
+    existing = MobilityEntry.objects.filter(
+        user=user,
+        metric_date=metric_date,
+        source=source,
+    ).first()
+
+    if existing:
+        changed = False
+        for key, value in field_updates.items():
+            if getattr(existing, key, None) != value:
+                setattr(existing, key, value)
+                changed = True
+        if changed:
+            existing.save()
+            return "updated"
+        return "skipped"
+
+    # Create new entry
+    MobilityEntry.objects.create(
+        user=user,
+        metric_date=metric_date,
+        source=source,
+        sync_id=sync_id,
+        **field_updates,
+    )
+    return "created"
+
+
+def process_heart_rate_event_metric(user, metric_date, source, sync_id, data):
+    """
+    Process heart rate event notifications from Apple HealthKit.
+
+    Event types: high_heart_rate_event, low_heart_rate_event, irregular_rhythm_event.
+    These are individual alerts, not daily aggregates.
+    """
+    metric_type = data.get("type", "").lower()
+
+    # Map metric type to event type
+    event_type_map = {
+        "high_heart_rate_event": "high_hr",
+        "low_heart_rate_event": "low_hr",
+        "irregular_rhythm_event": "irregular_rhythm",
+    }
+    event_type = event_type_map.get(metric_type)
+    if not event_type:
+        raise ValueError(f"Unknown heart rate event type: {metric_type}")
+
+    # Parse recorded_at timestamp
+    recorded_at_str = data.get("recorded_at") or data.get("date", "")
+    recorded_at = None
+    if recorded_at_str:
+        try:
+            recorded_at = datetime.fromisoformat(recorded_at_str.replace("Z", "+00:00"))
+        except ValueError:
+            recorded_at = timezone.now()
+    else:
+        recorded_at = timezone.now()
+
+    heart_rate = data.get("heart_rate_value")
+    if heart_rate is not None:
+        try:
+            heart_rate = int(heart_rate)
+            if heart_rate < 20 or heart_rate > 300:
+                raise ValueError(f"Heart rate out of range: {heart_rate}")
+        except (TypeError, ValueError):
+            raise ValueError(f"Invalid heart rate value: {heart_rate}")
+
+    threshold = data.get("threshold_value")
+    if threshold is not None:
+        try:
+            threshold = int(threshold)
+        except (TypeError, ValueError):
+            threshold = None
+
+    duration = data.get("duration_seconds")
+    if duration is not None:
+        try:
+            duration = int(duration)
+        except (TypeError, ValueError):
+            duration = None
+
+    # Check for existing entry with same sync_id
+    if sync_id:
+        existing = HeartRateEventEntry.objects.filter(
+            user=user,
+            sync_id=sync_id,
+        ).first()
+
+        if existing:
+            return "skipped"  # Events don't change
+
+    # Create new event
+    HeartRateEventEntry.objects.create(
+        user=user,
+        event_type=event_type,
+        heart_rate=heart_rate,
+        threshold=threshold,
+        recorded_at=recorded_at,
+        duration_seconds=duration,
+        source=source,
+        sync_id=sync_id,
+    )
+    return "created"
+
+
+def process_audio_exposure_metric(user, metric_date, source, sync_id, data):
+    """
+    Process audio exposure metrics from Apple HealthKit.
+
+    Types: headphone_audio, environmental_audio.
+    Both update the same AudioExposureEntry per date.
+    """
+    metric_type = data.get("type", "").lower()
+    field_updates = {}
+
+    if metric_type == "headphone_audio":
+        level = data.get("headphone_level_db")
+        if level is None:
+            raise ValueError("headphone_level_db is required")
+        try:
+            level = Decimal(str(level))
+        except (TypeError, InvalidOperation):
+            raise ValueError(f"Invalid headphone level: {level}")
+        if level < 0 or level > 150:
+            raise ValueError(f"Headphone level out of range: {level}")
+        field_updates["headphone_level_db"] = level
+
+        duration = data.get("headphone_duration_minutes")
+        if duration is not None:
+            try:
+                field_updates["headphone_duration_minutes"] = int(duration)
+            except (TypeError, ValueError):
+                pass
+
+    elif metric_type == "environmental_audio":
+        level = data.get("environmental_level_db")
+        if level is None:
+            raise ValueError("environmental_level_db is required")
+        try:
+            level = Decimal(str(level))
+        except (TypeError, InvalidOperation):
+            raise ValueError(f"Invalid environmental level: {level}")
+        if level < 0 or level > 150:
+            raise ValueError(f"Environmental level out of range: {level}")
+        field_updates["environmental_level_db"] = level
+
+    else:
+        raise ValueError(f"Unknown audio metric type: {metric_type}")
+
+    # Find or create AudioExposureEntry for this date
+    existing = AudioExposureEntry.objects.filter(
+        user=user,
+        metric_date=metric_date,
+        source=source,
+    ).first()
+
+    if existing:
+        changed = False
+        for key, value in field_updates.items():
+            if getattr(existing, key, None) != value:
+                setattr(existing, key, value)
+                changed = True
+        if changed:
+            existing.save()
+            return "updated"
+        return "skipped"
+
+    # Create new entry
+    AudioExposureEntry.objects.create(
+        user=user,
+        metric_date=metric_date,
+        source=source,
+        sync_id=sync_id,
+        **field_updates,
+    )
+    return "created"
+
+
+def process_dietary_nutrient_metric(user, metric_date, source, sync_id, data):
+    """
+    Process dietary nutrient data from Apple HealthKit.
+
+    Daily aggregates of macros/micros from food-logging apps
+    that sync through Apple Health (MyFitnessPal, Cronometer, etc.).
+    """
+    field_updates = {}
+
+    # Parse all nutrient fields (all optional, at least one required)
+    nutrient_fields = {
+        "calories": ("calories", int, 0, 20000),
+        "protein_g": ("protein_g", Decimal, 0, 1000),
+        "carbohydrates_g": ("carbohydrates_g", Decimal, 0, 2000),
+        "fat_g": ("fat_g", Decimal, 0, 1000),
+        "fiber_g": ("fiber_g", Decimal, 0, 200),
+        "sugar_g": ("sugar_g", Decimal, 0, 1000),
+        "sodium_mg": ("sodium_mg", Decimal, 0, 20000),
+        "cholesterol_mg": ("cholesterol_mg", Decimal, 0, 5000),
+        "saturated_fat_g": ("saturated_fat_g", Decimal, 0, 500),
+        "potassium_mg": ("potassium_mg", Decimal, 0, 20000),
+        "calcium_mg": ("calcium_mg", Decimal, 0, 5000),
+        "iron_mg": ("iron_mg", Decimal, 0, 200),
+        "vitamin_d_mcg": ("vitamin_d_mcg", Decimal, 0, 500),
+    }
+
+    for api_field, (model_field, cast_type, min_val, max_val) in nutrient_fields.items():
+        raw_value = data.get(api_field)
+        if raw_value is not None:
+            try:
+                if cast_type == int:
+                    value = int(raw_value)
+                else:
+                    value = Decimal(str(raw_value))
+                if value < min_val or value > max_val:
+                    raise ValueError(f"{api_field} out of range: {value}")
+                field_updates[model_field] = value
+            except (TypeError, ValueError, InvalidOperation):
+                raise ValueError(f"Invalid {api_field} value: {raw_value}")
+
+    if not field_updates:
+        raise ValueError("At least one nutrient value is required")
+
+    # Find or create DietaryNutrientEntry for this date
+    existing = DietaryNutrientEntry.objects.filter(
+        user=user,
+        metric_date=metric_date,
+        source=source,
+    ).first()
+
+    if existing:
+        changed = False
+        for key, value in field_updates.items():
+            if getattr(existing, key, None) != value:
+                setattr(existing, key, value)
+                changed = True
+        if changed:
+            existing.save()
+            return "updated"
+        return "skipped"
+
+    # Create new entry
+    DietaryNutrientEntry.objects.create(
+        user=user,
+        metric_date=metric_date,
+        source=source,
+        sync_id=sync_id,
+        **field_updates,
     )
     return "created"
 

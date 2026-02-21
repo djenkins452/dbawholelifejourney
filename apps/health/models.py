@@ -4828,3 +4828,484 @@ class NutritionLabelEvidence(models.Model):
 
     def __str__(self):
         return f"Label photo for {self.food_item.name} by user {self.uploaded_by_id}"
+
+
+# =============================================================================
+# Mobility & Gait Metrics (from Apple HealthKit)
+# =============================================================================
+
+
+class MobilityEntry(UserOwnedModel):
+    """
+    Mobility and gait metrics from Apple Watch / HealthKit.
+
+    Tracks walking quality indicators that are strong predictors of
+    overall health decline, injury risk, and neurological conditions.
+
+    Metrics tracked:
+    - Walking asymmetry: Left/right step imbalance (%) — injury/gait issues
+    - Walking steadiness: Apple's fall risk classification
+    - Walking speed: Average speed during walks (mph)
+    - Walking step length: Average step length (inches)
+    - Walking double support: Time both feet on ground (%) — balance indicator
+    - Stair ascent speed: Flights per minute going up
+    - Stair descent speed: Flights per minute going down
+    - Six minute walk distance: Estimated distance in 6-min walk test (meters)
+    """
+
+    SOURCE_CHOICES = [
+        ("manual", "Manual Entry"),
+        ("apple_health", "Apple Health"),
+        ("imported", "Imported"),
+    ]
+
+    metric_date = models.DateField(
+        help_text="Date these mobility metrics were recorded",
+    )
+
+    # Walking asymmetry (percentage, 0-100)
+    walking_asymmetry = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Walking asymmetry percentage (left/right imbalance, 0-50%)",
+    )
+
+    # Walking steadiness classification
+    STEADINESS_CHOICES = [
+        ("ok", "OK"),
+        ("low", "Low"),
+        ("very_low", "Very Low"),
+    ]
+    walking_steadiness = models.CharField(
+        max_length=10,
+        choices=STEADINESS_CHOICES,
+        blank=True,
+        help_text="Apple Watch walking steadiness classification",
+    )
+    walking_steadiness_score = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Walking steadiness numeric score (0-100, if available)",
+    )
+
+    # Walking speed (mph)
+    walking_speed = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Average walking speed in mph",
+    )
+
+    # Step length (inches)
+    step_length = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Average step length in inches",
+    )
+
+    # Double support time (percentage of walking cycle)
+    double_support_time = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Double support time as percentage of walking cycle",
+    )
+
+    # Stair metrics (flights per minute)
+    stair_ascent_speed = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Stair ascent speed (flights per minute)",
+    )
+    stair_descent_speed = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Stair descent speed (flights per minute)",
+    )
+
+    # Six minute walk test estimate
+    six_min_walk_distance = models.DecimalField(
+        max_digits=7,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Estimated six-minute walk distance in meters",
+    )
+
+    # Sync fields
+    source = models.CharField(
+        max_length=20,
+        choices=SOURCE_CHOICES,
+        default="apple_health",
+    )
+    sync_id = models.CharField(
+        max_length=100,
+        blank=True,
+        db_index=True,
+        help_text="External ID from synced source to prevent duplicates",
+    )
+
+    class Meta:
+        ordering = ["-metric_date"]
+        verbose_name = "mobility entry"
+        verbose_name_plural = "mobility entries"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "metric_date", "source"],
+                name="unique_mobility_per_day_per_source",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["user", "metric_date"]),
+        ]
+
+    def __str__(self):
+        parts = []
+        if self.walking_speed:
+            parts.append(f"{self.walking_speed} mph")
+        if self.walking_asymmetry:
+            parts.append(f"{self.walking_asymmetry}% asymmetry")
+        if self.walking_steadiness:
+            parts.append(f"steadiness: {self.walking_steadiness}")
+        detail = ", ".join(parts) if parts else "no data"
+        return f"Mobility ({detail}) on {self.metric_date}"
+
+
+class HeartRateEventEntry(UserOwnedModel):
+    """
+    Heart rate events / notifications from Apple Watch.
+
+    Captures clinically significant cardiac events:
+    - High heart rate alerts (resting HR exceeds threshold)
+    - Low heart rate alerts (resting HR drops below threshold)
+    - Irregular rhythm notifications (possible AFib detection)
+
+    These are event-based (not daily aggregates) — each record
+    represents a single alert/notification from the device.
+    """
+
+    SOURCE_CHOICES = [
+        ("manual", "Manual Entry"),
+        ("apple_health", "Apple Health"),
+        ("imported", "Imported"),
+    ]
+
+    EVENT_TYPE_CHOICES = [
+        ("high_hr", "High Heart Rate"),
+        ("low_hr", "Low Heart Rate"),
+        ("irregular_rhythm", "Irregular Rhythm (AFib)"),
+    ]
+
+    event_type = models.CharField(
+        max_length=20,
+        choices=EVENT_TYPE_CHOICES,
+        help_text="Type of heart rate event",
+    )
+    heart_rate = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Heart rate at time of event (BPM)",
+    )
+    threshold = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Threshold that was crossed (BPM, for high/low HR events)",
+    )
+    recorded_at = models.DateTimeField(
+        help_text="When the event was detected",
+    )
+    duration_seconds = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Duration of the event in seconds (if applicable)",
+    )
+    notes = models.TextField(
+        blank=True,
+        help_text="Additional context about the event",
+    )
+
+    # Sync fields
+    source = models.CharField(
+        max_length=20,
+        choices=SOURCE_CHOICES,
+        default="apple_health",
+    )
+    sync_id = models.CharField(
+        max_length=100,
+        blank=True,
+        db_index=True,
+        help_text="External ID from synced source to prevent duplicates",
+    )
+
+    class Meta:
+        ordering = ["-recorded_at"]
+        verbose_name = "heart rate event"
+        verbose_name_plural = "heart rate events"
+        indexes = [
+            models.Index(fields=["user", "event_type"]),
+            models.Index(fields=["user", "recorded_at"]),
+        ]
+
+    def __str__(self):
+        hr_str = f" ({self.heart_rate} BPM)" if self.heart_rate else ""
+        return f"{self.get_event_type_display()}{hr_str} on {self.recorded_at}"
+
+
+class AudioExposureEntry(UserOwnedModel):
+    """
+    Audio exposure metrics from Apple Watch / HealthKit.
+
+    Tracks environmental and headphone audio levels for hearing health.
+    Long-term exposure above 80 dB can cause gradual hearing loss.
+    CoS can detect patterns of sustained high exposure and alert the user.
+
+    Metrics tracked:
+    - Headphone audio level (dB) — from AirPods / connected headphones
+    - Environmental audio level (dB) — ambient noise from Apple Watch mic
+    """
+
+    SOURCE_CHOICES = [
+        ("manual", "Manual Entry"),
+        ("apple_health", "Apple Health"),
+        ("imported", "Imported"),
+    ]
+
+    metric_date = models.DateField(
+        help_text="Date these audio metrics were recorded",
+    )
+
+    # Headphone audio exposure (daily average in dB)
+    headphone_level_db = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Average headphone audio level in decibels (dB)",
+    )
+    headphone_duration_minutes = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Total headphone listening time in minutes",
+    )
+
+    # Environmental audio exposure (daily average in dB)
+    environmental_level_db = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Average environmental sound level in decibels (dB)",
+    )
+
+    # Sync fields
+    source = models.CharField(
+        max_length=20,
+        choices=SOURCE_CHOICES,
+        default="apple_health",
+    )
+    sync_id = models.CharField(
+        max_length=100,
+        blank=True,
+        db_index=True,
+        help_text="External ID from synced source to prevent duplicates",
+    )
+
+    class Meta:
+        ordering = ["-metric_date"]
+        verbose_name = "audio exposure entry"
+        verbose_name_plural = "audio exposure entries"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "metric_date", "source"],
+                name="unique_audio_per_day_per_source",
+            )
+        ]
+
+    def __str__(self):
+        parts = []
+        if self.headphone_level_db:
+            parts.append(f"headphone: {self.headphone_level_db} dB")
+        if self.environmental_level_db:
+            parts.append(f"env: {self.environmental_level_db} dB")
+        detail = ", ".join(parts) if parts else "no data"
+        return f"Audio ({detail}) on {self.metric_date}"
+
+    @property
+    def headphone_risk_level(self):
+        """
+        Assess hearing risk from headphone exposure.
+        WHO guidelines: 80 dB for 40 hrs/week max.
+        """
+        if not self.headphone_level_db:
+            return None
+        level = float(self.headphone_level_db)
+        if level < 70:
+            return "safe"
+        elif level < 80:
+            return "moderate"
+        elif level < 90:
+            return "elevated"
+        else:
+            return "high"
+
+
+class DietaryNutrientEntry(UserOwnedModel):
+    """
+    Dietary nutrient data from Apple HealthKit.
+
+    Captures macronutrient and micronutrient data that flows through
+    Apple Health from food-logging apps (MyFitnessPal, Cronometer,
+    Lose It!, etc.). This is separate from WLJ's own FoodEntry/nutrition
+    system — it captures what other apps report to Apple Health.
+
+    CoS can use this for cross-referencing with energy levels, sleep
+    quality, glucose patterns, and exercise performance.
+    """
+
+    SOURCE_CHOICES = [
+        ("manual", "Manual Entry"),
+        ("apple_health", "Apple Health"),
+        ("imported", "Imported"),
+    ]
+
+    metric_date = models.DateField(
+        help_text="Date these dietary metrics were recorded",
+    )
+
+    # Macronutrients (grams)
+    calories = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Total dietary energy in kilocalories",
+    )
+    protein_g = models.DecimalField(
+        max_digits=7,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Total protein in grams",
+    )
+    carbohydrates_g = models.DecimalField(
+        max_digits=7,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Total carbohydrates in grams",
+    )
+    fat_g = models.DecimalField(
+        max_digits=7,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Total fat in grams",
+    )
+    fiber_g = models.DecimalField(
+        max_digits=7,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Total dietary fiber in grams",
+    )
+    sugar_g = models.DecimalField(
+        max_digits=7,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Total sugar in grams",
+    )
+
+    # Key micronutrients
+    sodium_mg = models.DecimalField(
+        max_digits=7,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Sodium in milligrams",
+    )
+    cholesterol_mg = models.DecimalField(
+        max_digits=7,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Dietary cholesterol in milligrams",
+    )
+    saturated_fat_g = models.DecimalField(
+        max_digits=7,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Saturated fat in grams",
+    )
+    potassium_mg = models.DecimalField(
+        max_digits=7,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Potassium in milligrams",
+    )
+    calcium_mg = models.DecimalField(
+        max_digits=7,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Calcium in milligrams",
+    )
+    iron_mg = models.DecimalField(
+        max_digits=7,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Iron in milligrams",
+    )
+    vitamin_d_mcg = models.DecimalField(
+        max_digits=7,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Vitamin D in micrograms",
+    )
+
+    # Sync fields
+    source = models.CharField(
+        max_length=20,
+        choices=SOURCE_CHOICES,
+        default="apple_health",
+    )
+    sync_id = models.CharField(
+        max_length=100,
+        blank=True,
+        db_index=True,
+        help_text="External ID from synced source to prevent duplicates",
+    )
+
+    class Meta:
+        ordering = ["-metric_date"]
+        verbose_name = "dietary nutrient entry"
+        verbose_name_plural = "dietary nutrient entries"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "metric_date", "source"],
+                name="unique_dietary_nutrients_per_day_per_source",
+            )
+        ]
+
+    def __str__(self):
+        parts = []
+        if self.calories:
+            parts.append(f"{self.calories} cal")
+        if self.protein_g:
+            parts.append(f"{self.protein_g}g protein")
+        detail = ", ".join(parts) if parts else "no data"
+        return f"Dietary ({detail}) on {self.metric_date}"

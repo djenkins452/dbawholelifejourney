@@ -103,6 +103,42 @@ struct HealthMetric: Codable {
     var temperatureValue: Double?
     var temperatureUnit: String?
 
+    // Mobility / Gait
+    var walkingAsymmetryValue: Double?
+    var walkingSteadinessValue: String?
+    var walkingSteadinessScore: Double?
+    var walkingSpeedValue: Double?
+    var stepLengthValue: Double?
+    var doubleSupportTimeValue: Double?
+    var stairAscentSpeedValue: Double?
+    var stairDescentSpeedValue: Double?
+    var sixMinWalkValue: Double?
+
+    // Heart Rate Events
+    var heartRateValue: Int?
+    var thresholdValue: Int?
+    var durationSeconds: Int?
+
+    // Audio Exposure
+    var headphoneLevelDb: Double?
+    var headphoneDurationMinutes: Int?
+    var environmentalLevelDb: Double?
+
+    // Dietary Nutrients
+    var dietaryCalories: Int?
+    var proteinG: Double?
+    var carbohydratesG: Double?
+    var fatG: Double?
+    var fiberG: Double?
+    var sugarG: Double?
+    var sodiumMg: Double?
+    var cholesterolMg: Double?
+    var saturatedFatG: Double?
+    var potassiumMg: Double?
+    var calciumMg: Double?
+    var ironMg: Double?
+    var vitaminDMcg: Double?
+
     enum CodingKeys: String, CodingKey {
         case type
         case date
@@ -152,6 +188,42 @@ struct HealthMetric: Codable {
         case recordedAt = "recorded_at"
         case temperatureValue = "temperature_value"
         case temperatureUnit = "temperature_unit"
+
+        // Mobility / Gait
+        case walkingAsymmetryValue = "walking_asymmetry_value"
+        case walkingSteadinessValue = "walking_steadiness_value"
+        case walkingSteadinessScore = "walking_steadiness_score"
+        case walkingSpeedValue = "walking_speed_value"
+        case stepLengthValue = "step_length_value"
+        case doubleSupportTimeValue = "double_support_time_value"
+        case stairAscentSpeedValue = "stair_ascent_speed_value"
+        case stairDescentSpeedValue = "stair_descent_speed_value"
+        case sixMinWalkValue = "six_min_walk_value"
+
+        // Heart Rate Events
+        case heartRateValue = "heart_rate_value"
+        case thresholdValue = "threshold_value"
+        case durationSeconds = "duration_seconds"
+
+        // Audio Exposure
+        case headphoneLevelDb = "headphone_level_db"
+        case headphoneDurationMinutes = "headphone_duration_minutes"
+        case environmentalLevelDb = "environmental_level_db"
+
+        // Dietary Nutrients
+        case dietaryCalories = "calories"
+        case proteinG = "protein_g"
+        case carbohydratesG = "carbohydrates_g"
+        case fatG = "fat_g"
+        case fiberG = "fiber_g"
+        case sugarG = "sugar_g"
+        case sodiumMg = "sodium_mg"
+        case cholesterolMg = "cholesterol_mg"
+        case saturatedFatG = "saturated_fat_g"
+        case potassiumMg = "potassium_mg"
+        case calciumMg = "calcium_mg"
+        case ironMg = "iron_mg"
+        case vitaminDMcg = "vitamin_d_mcg"
     }
 
     // MARK: - Convenience Initializers
@@ -393,6 +465,106 @@ struct HealthMetric: Codable {
         self.temperatureValue = temperatureValue
         self.temperatureUnit = temperatureUnit
         self.recordedAt = recordedAt
+        self.source = source
+        self.syncId = syncId
+    }
+
+    /// Create a mobility metric (walking asymmetry)
+    init(type: String, date: String, walkingAsymmetryValue: Double,
+         source: String, syncId: String) {
+        self.type = type
+        self.date = date
+        self.walkingAsymmetryValue = walkingAsymmetryValue
+        self.source = source
+        self.syncId = syncId
+    }
+
+    /// Create a walking steadiness metric
+    init(type: String, date: String, walkingSteadinessValue: String,
+         walkingSteadinessScore: Double?, source: String, syncId: String) {
+        self.type = type
+        self.date = date
+        self.walkingSteadinessValue = walkingSteadinessValue
+        self.walkingSteadinessScore = walkingSteadinessScore
+        self.source = source
+        self.syncId = syncId
+    }
+
+    /// Create a generic decimal mobility metric (speed, step length, stair speed, etc.)
+    init(type: String, date: String, mobilityValue: Double,
+         source: String, syncId: String, fieldName: String) {
+        self.type = type
+        self.date = date
+        self.source = source
+        self.syncId = syncId
+
+        switch fieldName {
+        case "walking_speed": self.walkingSpeedValue = mobilityValue
+        case "step_length": self.stepLengthValue = mobilityValue
+        case "double_support_time": self.doubleSupportTimeValue = mobilityValue
+        case "stair_ascent_speed": self.stairAscentSpeedValue = mobilityValue
+        case "stair_descent_speed": self.stairDescentSpeedValue = mobilityValue
+        case "six_min_walk": self.sixMinWalkValue = mobilityValue
+        default: break
+        }
+    }
+
+    /// Create a heart rate event metric
+    init(type: String, date: String, heartRateValue: Int?, thresholdValue: Int?,
+         durationSeconds: Int?, recordedAt: String, source: String, syncId: String) {
+        self.type = type
+        self.date = date
+        self.heartRateValue = heartRateValue
+        self.thresholdValue = thresholdValue
+        self.durationSeconds = durationSeconds
+        self.recordedAt = recordedAt
+        self.source = source
+        self.syncId = syncId
+    }
+
+    /// Create a headphone audio exposure metric
+    init(type: String, date: String, headphoneLevelDb: Double,
+         headphoneDurationMinutes: Int?, source: String, syncId: String) {
+        self.type = type
+        self.date = date
+        self.headphoneLevelDb = headphoneLevelDb
+        self.headphoneDurationMinutes = headphoneDurationMinutes
+        self.source = source
+        self.syncId = syncId
+    }
+
+    /// Create an environmental audio exposure metric
+    init(type: String, date: String, environmentalLevelDb: Double,
+         source: String, syncId: String) {
+        self.type = type
+        self.date = date
+        self.environmentalLevelDb = environmentalLevelDb
+        self.source = source
+        self.syncId = syncId
+    }
+
+    /// Create a dietary nutrients metric
+    init(type: String, date: String,
+         dietaryCalories: Int?, proteinG: Double?, carbohydratesG: Double?,
+         fatG: Double?, fiberG: Double?, sugarG: Double?,
+         sodiumMg: Double?, cholesterolMg: Double?, saturatedFatG: Double?,
+         potassiumMg: Double?, calciumMg: Double?, ironMg: Double?,
+         vitaminDMcg: Double?, source: String, syncId: String) {
+        self.type = type
+        self.date = date
+        self.dietaryCalories = dietaryCalories
+        self.proteinG = proteinG
+        self.carbohydratesG = carbohydratesG
+        self.fatG = fatG
+        self.fiberG = fiberG
+        self.sugarG = sugarG
+        self.sodiumMg = sodiumMg
+        self.cholesterolMg = cholesterolMg
+        self.saturatedFatG = saturatedFatG
+        self.potassiumMg = potassiumMg
+        self.calciumMg = calciumMg
+        self.ironMg = ironMg
+        self.vitaminDMcg = vitaminDMcg
         self.source = source
         self.syncId = syncId
     }

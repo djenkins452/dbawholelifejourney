@@ -1,6 +1,22 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 71,
+        "fields": {
+            "title": "Extended HealthKit Integration — Your Watch Tells Us More Now",
+            "description": "Your Apple Watch and Health data now syncs 37+ data types to WLJ, up from 24. New categories include: Mobility & Gait (walking asymmetry, steadiness, speed, step length, stair performance — strong predictors of long-term health), Heart Rate Events (high/low HR alerts and irregular rhythm/AFib detection from Apple Watch), Audio Exposure (headphone and environmental noise levels for hearing health), and Dietary Nutrients (calories, protein, carbs, fat, fiber, and more — automatically pulled from food-logging apps like MyFitnessPal that sync through Apple Health). Your Chief of Staff can now detect more patterns and give you richer health insights.",
+            "entry_type": "feature",
+            "version": "",
+            "release_date": "2026-02-21",
+            "is_published": true,
+            "is_major": true,
+            "learn_more_url": "",
+            "created_at": "2026-02-21T00:00:00Z",
+            "updated_at": "2026-02-21T00:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 70,
         "fields": {
             "title": "Chief of Staff Consolidation — One Interface, Zero Confusion",

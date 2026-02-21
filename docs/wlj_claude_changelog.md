@@ -9,6 +9,19 @@
 
 # WLJ Change History
 
+## 2026-02-21 — Hybrid Recovery Model: Integrity Score Responds to Manual Execution
+
+**Fix:** System Integrity Index score now updates immediately after a successful manual/synthetic engine execution. Previously, manual runs completed but the score remained stale until the next SAME cycle (up to 60 seconds), and MISSED_RUN anomalies that had escalated to P1 (25-point penalty) persisted even after recovery.
+
+**Changes:**
+- **`recompute_integrity_after_recovery()`** (`same_engine.py`): New post-execution hook that recomputes heartbeats, resolves MISSED_RUN anomalies for the recovered engine, and creates a fresh SystemIntegritySnapshot. Called from `run_engine_task` on successful completion.
+- **`run_engine_task`** (`tasks.py`): Now calls the recovery hook after successful engine execution.
+- **`miss_count_30m`** (`ops_views.py`): Changed from derived-from-lateness (goes to 0 instantly on recovery) to historical heartbeat query (counts MISSED observations in last 30 minutes, ages out naturally). Shows recovery trajectory without hiding chronic issues.
+
+**Files:** `same_engine.py`, `tasks.py`, `ops_views.py`
+
+---
+
 ## 2026-02-21 — Phase 2.5: Synthetic Manual Execution for Context-Dependent Engines
 
 **Feature:** All 9 engines now have Execute buttons in the Ops Command Center. Context-dependent engines (UAL, SAE, PIE, PRIE, ICQG) run in "Synthetic Batch Evaluation Mode" — iterating all active AI users and calling each engine's existing evaluation logic with current stored data. No fake events, no data alteration.

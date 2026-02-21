@@ -1040,3 +1040,67 @@ def _compute_integrity_snapshot(heartbeats, now):
     )
 
     return snapshot
+
+
+# =========================================================================
+# POST-EXECUTION RECOVERY — Immediate rescore after manual engine run
+# =========================================================================
+
+
+def recompute_integrity_after_recovery(engine_name):
+    """
+    Post-execution recovery hook — recompute heartbeats, resolve
+    MISSED_RUN anomalies for the recovered engine, and create a fresh
+    SystemIntegritySnapshot.
+
+    Called by ``run_engine_task`` after a successful manual/synthetic
+    execution.  Ensures the UI reflects the recovery on the next poll
+    without waiting for the next full SAME cycle (up to 60 seconds).
+
+    Steps:
+      1. Recompute heartbeats for all engines (fast DB queries).
+      2. If this engine's heartbeat is now OK, resolve its active
+         MISSED_RUN anomaly (if any).
+      3. Recompute the System Integrity Index with fresh data.
+
+    Historical misses (EngineHeartbeat records with status='MISSED')
+    remain in the database and age out naturally — this only clears the
+    *current* missed state.
+
+    Returns:
+        SystemIntegritySnapshot — the freshly computed snapshot.
+    """
+    from apps.core.ai_observability.heartbeat import compute_and_save_heartbeats
+    from apps.core.ai_observability.models import OpsAnomaly
+
+    now = timezone.now()
+
+    # 1. Recompute all heartbeats from latest EngineRun data
+    heartbeats = compute_and_save_heartbeats()
+
+    # 2. If the executed engine is now OK, resolve its MISSED_RUN anomaly
+    engine_hb = next(
+        (h for h in heartbeats if h.engine_name == engine_name), None
+    )
+    if engine_hb and engine_hb.status == "OK":
+        resolved = OpsAnomaly.objects.filter(
+            anomaly_type="MISSED_RUN",
+            engine_name=engine_name,
+            is_active=True,
+        ).update(
+            is_active=False,
+            resolved_at=now,
+        )
+        if resolved:
+            logger.info(
+                "Recovery: resolved %d MISSED_RUN anomal%s for %s",
+                resolved, "y" if resolved == 1 else "ies", engine_name,
+            )
+
+    # 3. Recompute integrity snapshot with fresh heartbeats
+    snapshot = _compute_integrity_snapshot(heartbeats, now)
+    logger.info(
+        "Recovery rescore for %s: score=%.1f, posture=%s",
+        engine_name, snapshot.score, snapshot.posture,
+    )
+    return snapshot

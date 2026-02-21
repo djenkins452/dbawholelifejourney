@@ -246,6 +246,19 @@ def run_engine_task(self, engine_name, execution_log_id):
                 execution_log, "completed", duration_ms, result_summary=result,
             )
 
+        # Post-execution recovery: recompute heartbeats + integrity score
+        # so the UI reflects the recovery immediately (no 60s SAME-cycle wait)
+        try:
+            from apps.core.ai_observability.same_engine import (
+                recompute_integrity_after_recovery,
+            )
+
+            recompute_integrity_after_recovery(engine_name)
+        except Exception:
+            logger.warning(
+                "Post-execution recovery failed for %s", engine_name, exc_info=True,
+            )
+
         return {
             "status": "ok",
             "engine": engine_name,

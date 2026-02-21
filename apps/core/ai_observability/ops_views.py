@@ -744,12 +744,17 @@ def _build_engine_cards(engine_names, cadence_config, heartbeats, now):
         if errors_30m > 3:
             card_status = "ERROR"
 
-        # Miss counter (last 30m)
-        miss_count = 0
-        if hb_status == "MISSED":
-            lateness = hb.get("lateness_seconds", 0)
-            if interval > 0:
-                miss_count = max(1, lateness // interval)
+        # Miss counter (rolling 30m window) — counts historical MISSED
+        # heartbeat observations.  After recovery the engine flips to OK
+        # but miss_count remains >0 until old observations age out.
+        from apps.core.ai_observability.models import EngineHeartbeat
+
+        thirty_min_ago = now - timedelta(minutes=30)
+        miss_count = EngineHeartbeat.objects.filter(
+            engine_name=name,
+            status="MISSED",
+            observed_at__gte=thirty_min_ago,
+        ).count()
 
         # Error counter (last 24h)
         twenty_four_h_ago = now - timedelta(hours=24)

@@ -745,6 +745,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for Synthetic Engine Execution (PK 87)
         self._reset_synthetic_execution_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset teaching_destinations for Ops Command Center name/keywords update
+        self._reset_ops_command_center_teaching(DataLoadConfig, force, verbosity)
+
         # One-time: Reset help_topics to fix 3 entries missing help_id (PKs 89-91) + brain training timestamps
         self._reset_help_topics_fixture_safe(DataLoadConfig, force, verbosity)
 
@@ -3244,6 +3247,34 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset engine execution fixtures FAILED: {e}'))
+
+    def _reset_ops_command_center_teaching(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload teaching_destinations with updated Ops Command Center entry.
+        - PK 155: Renamed from 'Operations Wall' to 'Ops Command Center', expanded keywords
+        """
+        reset_tracker_name = 'reset_ops_command_center_teaching_2026_02_21'
+        try:
+            if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
+                return
+
+            config = DataLoadConfig.objects.get(loader_name='teaching_destinations')
+            if config.is_loaded:
+                config.is_loaded = False
+                config.save()
+                if verbosity >= 1:
+                    self.stdout.write(f'  Reset teaching_destinations loader for Ops Command Center update')
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for Ops Command Center teaching destination (Feb 2026)',
+                'command',
+                'One-time reset to reload teaching_destinations PK 155'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset Ops Command Center teaching FAILED: {e}'))
 
     def _reset_synthetic_execution_fixtures(self, DataLoadConfig, force=False, verbosity=1):
         """

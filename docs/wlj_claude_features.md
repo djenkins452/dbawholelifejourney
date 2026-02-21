@@ -65,7 +65,8 @@ For core project context, see `CLAUDE.md` (project root).
 47. [Help System](#help-system)
 48. [Mobile API & iOS Support](#mobile-api--ios-support)
 49. [Security Assessment](#security-assessment)
-50. [Calendar Engine (Technical Reference)](#calendar-engine-technical-reference)
+50. [Ops Command Center (Intelligence Monitoring)](#ops-command-center-intelligence-monitoring)
+51. [Calendar Engine (Technical Reference)](#calendar-engine-technical-reference)
 
 ---
 
@@ -3594,6 +3595,61 @@ The security app provides an automated security assessment system that runs 40+ 
 - **Staff-only access** — All views enforce `is_staff` via `SecurityAccessMixin`
 - **Core encryption** — Uses `SECURITY_DATA_ENCRYPTION_KEY` (falls back to `OAUTH_TOKEN_ENCRYPTION_KEY`) for AES-256 Fernet
 - **Admin console** — `security_assessment.py` provides security posture data
+
+---
+
+## Ops Command Center (Intelligence Monitoring)
+
+**URL:** `/admin-console/ops/`
+**Templates:** `templates/admin_console/operations_wall.html`
+
+### Overview
+The Ops Command Center (formerly Operations Wall) is a live Bloomberg/NASA-style monitoring dashboard for the 9-engine intelligence pipeline. It provides real-time engine health, anomaly detection, manual execution controls, and system integrity scoring — giving operators full visibility and control over the AI subsystem.
+
+### Features
+- **System Integrity Index** — 0–100 composite score (engine health 40pts, anomaly severity 50pts, error spikes 10pts, suppression 5pts, volatility 5pts) with OPTIMAL/NOMINAL/DEGRADED/CRITICAL posture
+- **Engine cards** — Per-engine tiles showing status (OK/MISSED/STALE), last-run time, cadence timeline strip (30-min rolling window), and miss count
+- **Manual execution controls** — Execute buttons on all 9 engines. Batch-native engines (DBE, WIRE, DNE, PGE) run directly; context-dependent engines (UAL, SAE, PIE, PRIE, ICQG) run in Synthetic Batch Evaluation Mode with purple "Synthetic" badge
+- **Synthetic Batch Evaluation** — Iterates all active AI users, calls each engine's existing logic with current stored data. No fake events, no data alteration. Uses `trace_context(source="manual_synthetic")`
+- **SAME engine** — System Autonomous Monitoring Engine runs every 60s via Celery Beat. Computes heartbeats, detects anomalies, escalates severity (P3→P2→P1), auto-remediates low-severity issues
+- **Anomaly detection** — 7 detectors: missed runs, error bursts, suppression spikes, delivery storms, latency degradation, stale state, guidance drought
+- **Hybrid Recovery Model** — Manual execution immediately recomputes heartbeats, resolves MISSED_RUN anomalies, and creates fresh integrity snapshots. Historical misses age out naturally over 30 minutes
+- **SAME manual trigger** — "Execute Now" button with real-time status feedback, idempotency guard, execution duration tracking
+- **Narrative bar** — AI-generated plain-English summary of system state
+- **Anomaly watchlist** — Active anomalies with severity, age, and resolution status
+- **Live feed** — Real-time engine activity stream via SSE
+
+### Key Models
+| Model | Purpose |
+|-------|---------|
+| `EngineExpectedCadence` | Expected run frequency per engine |
+| `EngineHeartbeat` | Per-engine health observations (OK/MISSED/STALE) |
+| `EngineRun` | Instrumented engine execution records |
+| `EngineExecutionLog` | Manual/automated execution audit trail |
+| `OpsAnomaly` | Detected anomalies with severity escalation |
+| `OpsNarrativeSnapshot` | AI-generated system summaries |
+| `SystemIntegritySnapshot` | Point-in-time integrity scores |
+| `AdminIntervention` | Manual action audit records |
+
+### Key Files
+- `apps/core/ai_observability/same_engine.py` — SAME cycle, heartbeats, integrity scoring, recovery
+- `apps/core/ai_observability/engine_registry.py` — ENGINE_REGISTRY: centralized engine metadata, batch runners, execution modes
+- `apps/core/ai_observability/ops_views.py` — Dashboard views, engine cards, manual execution API
+- `apps/core/ai_observability/heartbeat.py` — Heartbeat computation
+- `apps/core/ai_observability/instrumentation.py` — `@_instrument_engine_run` decorator
+- `apps/core/ai_scheduler/scheduler_runner.py` — Batch runners (native + 5 synthetic)
+- `apps/core/tasks.py` — Celery tasks for engine execution with recovery hooks
+- `templates/admin_console/operations_wall.html` — Full dashboard UI
+
+### Tests
+- 160 tests in `apps/core/tests/test_ai_observability/`
+- Covers: SAME cycle, heartbeats, anomaly detection, escalation, auto-remediation, integrity scoring, manual execution, synthetic runners, engine registry, recovery model
+
+### Integration Points
+- **Celery + Redis** — SAME runs as periodic Celery Beat task; manual executions queued as Celery tasks
+- **ENGINE_REGISTRY** — All 9 engines registered with metadata, batch runners, and execution modes
+- **Intelligence Pipeline** — Monitors all 14 engines across Interpretation → Execution → Post-Execution phases
+- **Admin Console** — Accessible from admin navigation at `/admin-console/ops/`
 
 ---
 

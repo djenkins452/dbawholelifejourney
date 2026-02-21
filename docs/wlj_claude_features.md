@@ -3461,12 +3461,12 @@ class MyView(HelpContextMixin, LoginRequiredMixin, TemplateView):
 **App:** `apps/mobile/`
 
 ### Overview
-The mobile app provides a REST API layer for the iOS (Swift/SwiftUI) wrapper application. It handles device registration, bearer token authentication, HealthKit data ingestion (24 metric types), push notification token management, and sync status tracking. All endpoints return JSON with no server-side templates.
+The mobile app provides a REST API layer for the iOS (Swift/SwiftUI) wrapper application. It handles device registration, bearer token authentication, HealthKit data ingestion (37+ metric types including mobility, HR events, audio exposure, and dietary nutrients), push notification token management, and sync status tracking. All endpoints return JSON with no server-side templates.
 
 ### Features
 - **Token exchange** — Web-to-native auth flow: WKWebView generates one-time code → iOS app exchanges for 90-day bearer token
 - **Device management** — Register, list, and deactivate devices with metadata (model, OS, app version)
-- **HealthKit ingestion** — Processes 24 metric types (steps, weight, sleep, heart rate, blood glucose, blood oxygen, water, workouts, blood pressure, body temperature, HRV, VO2 max, respiratory rate, body fat, and more)
+- **HealthKit ingestion** — Processes 37+ metric types (steps, weight, sleep, heart rate, blood glucose, blood oxygen, water, workouts with avg HR, blood pressure, body temperature, HRV, VO2 max, respiratory rate, body fat, walking asymmetry, walking steadiness, walking speed, step length, double support time, stair speed, 6-min walk, high/low HR events, AFib detection, headphone/environmental audio, and 13 dietary nutrients)
 - **Deduplication** — Uses `sync_id` (HealthKit source IDs) to prevent duplicate entries; falls back to date/source matching
 - **Ingestion audit** — `HealthIngestionRun` logs every submission with processing stats and error tracking
 - **Push notifications** — APNs token registration/unregistration scaffold for intelligence delivery
@@ -3494,7 +3494,7 @@ The mobile app provides a REST API layer for the iOS (Swift/SwiftUI) wrapper app
 
 ### Key Files
 - `apps/mobile/models.py` — MobileDevice, MobileAPIToken, MobileTokenExchangeCode, HealthIngestionRun
-- `apps/mobile/views.py` — 10 endpoint handlers + 24 metric processor functions
+- `apps/mobile/views.py` — 10 endpoint handlers + 37+ metric processor functions
 - `apps/mobile/middleware.py` — Bearer token auth middleware, `@require_mobile_auth` decorator
 - `apps/mobile/urls.py` — API routing
 - `apps/mobile/admin.py` — Color-coded admin interfaces for all models
@@ -3504,7 +3504,7 @@ The mobile app provides a REST API layer for the iOS (Swift/SwiftUI) wrapper app
 - Covers: token exchange flow, device management, HealthKit ingestion (all metric types), deduplication, sync status, push registration
 
 ### Integration Points
-- **Health models** — Ingests into `WeightEntry`, `StepsEntry`, `SleepEntry`, `GlucoseEntry`, `BloodOxygenEntry`, `WaterEntry`, `WorkoutSession`, `BloodPressureEntry`, `BodyTemperatureEntry`
+- **Health models** — Ingests into `WeightEntry`, `StepsEntry`, `SleepEntry`, `GlucoseEntry`, `BloodOxygenEntry`, `WaterEntry`, `WorkoutSession` (with avg heart rate), `BloodPressureEntry`, `BodyTemperatureEntry`, `MobilityEntry`, `HeartRateEventEntry`, `AudioExposureEntry`, `DietaryNutrientEntry`
 - **AI delivery engine** — Checks `MobileDevice` for push-enabled devices to route intelligence notifications
 - **Users** — Token authentication resolves to `User` for all API calls
 

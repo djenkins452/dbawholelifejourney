@@ -1,6 +1,22 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 74,
+        "fields": {
+            "title": "Sleep Tracking Fix — No More Fake 8-Hour Readings",
+            "description": "If you saw uniform 8.0-hour sleep entries tagged 'Apple Health' every night, those were false readings. Heart rate data from your Apple Watch was accidentally creating dummy sleep records. This has been fixed — heart rate data no longer generates fake sleep entries, and all existing dummy entries have been removed. Your sleep page will now only show real sleep data that you log manually or that comes from an actual sleep tracker.",
+            "entry_type": "fix",
+            "version": "",
+            "release_date": "2026-02-21",
+            "is_published": true,
+            "is_major": false,
+            "learn_more_url": "",
+            "created_at": "2026-02-21T00:00:00Z",
+            "updated_at": "2026-02-21T00:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 73,
         "fields": {
             "title": "Your Chief of Staff Can Now See All Your Health Data",

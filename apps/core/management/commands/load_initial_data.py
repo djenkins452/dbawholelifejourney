@@ -706,6 +706,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for CoS health data visibility (PK 73)
         self._reset_cos_health_visibility_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for sleep tracking fix (PK 74)
+        self._reset_sleep_tracking_fix_fixtures(DataLoadConfig, force, verbosity)
+
         # Auto-sync CoS documentation to admin guide (runs if checksum changed)
         self._sync_cos_documentation(DataLoadConfig, force, verbosity)
 
@@ -2812,3 +2815,33 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset CoS health visibility fixtures FAILED: {e}'))
+
+    def _reset_sleep_tracking_fix_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes for sleep tracking fix.
+        - release_notes PK 74 (Sleep Tracking Fix — No More Fake 8-Hour Readings)
+        """
+        reset_tracker_name = 'reset_sleep_tracking_fix_2026_02_21'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                config.reset()
+                if verbosity >= 1:
+                    self.stdout.write('  Reset release_notes loader for sleep tracking fix')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for sleep tracking fix (Feb 2026)',
+                'command',
+                'One-time reset to reload release_notes PK 74'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset sleep tracking fix fixtures FAILED: {e}'))

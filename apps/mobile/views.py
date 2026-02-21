@@ -833,9 +833,10 @@ def process_heart_rate_metric(user, metric_date, source, sync_id, data):
     """
     Process heart rate metric.
 
-    Note: Heart rate is stored with sleep entries in WLJ.
-    We update the sleep entry for that date if it exists,
-    or create a minimal sleep entry to store the HR data.
+    Heart rate data is attached to an existing sleep entry if one exists
+    for that date. If no sleep entry exists, the HR data is skipped —
+    we do NOT create dummy sleep entries just to store HR values, as that
+    produces false sleep readings.
     """
     resting_hr = data.get("resting_hr")
     avg_hr = data.get("avg_hr")
@@ -856,11 +857,14 @@ def process_heart_rate_metric(user, metric_date, source, sync_id, data):
             except (TypeError, ValueError):
                 raise ValueError(f"Invalid {name}: {value}")
 
-    # Find or create sleep entry for this date
+    # Only attach HR data to an existing sleep entry — never create one
     sleep_entry = SleepEntry.objects.filter(
         user=user,
         sleep_date=metric_date,
     ).first()
+
+    if not sleep_entry:
+        return "skipped"
 
     hr_data = {}
     if resting_hr is not None:
@@ -872,37 +876,16 @@ def process_heart_rate_metric(user, metric_date, source, sync_id, data):
     if min_hr is not None:
         hr_data["heart_rate_min"] = min_hr
 
-    if sleep_entry:
-        changed = False
-        for key, value in hr_data.items():
-            if getattr(sleep_entry, key, None) != value:
-                setattr(sleep_entry, key, value)
-                changed = True
+    changed = False
+    for key, value in hr_data.items():
+        if getattr(sleep_entry, key, None) != value:
+            setattr(sleep_entry, key, value)
+            changed = True
 
-        if changed:
-            sleep_entry.save()
-            return "updated"
-        return "skipped"
-
-    # Create minimal sleep entry to store HR data
-    # SleepEntry requires bedtime/wake_time, so create dummy values for HR-only entries
-    # Bedtime is night before (10 PM), wake time is morning of metric_date (6 AM)
-    from datetime import time as dt_time
-    prev_day = metric_date - timedelta(days=1)
-    dummy_bedtime = timezone.make_aware(datetime.combine(prev_day, dt_time(22, 0)))
-    dummy_wake_time = timezone.make_aware(datetime.combine(metric_date, dt_time(6, 0)))
-
-    SleepEntry.objects.create(
-        user=user,
-        sleep_date=metric_date,
-        source=source,
-        sync_id=sync_id,
-        total_duration_minutes=480,  # 8 hours dummy value for HR-only entry
-        bedtime=dummy_bedtime,
-        wake_time=dummy_wake_time,
-        **hr_data,
-    )
-    return "created"
+    if changed:
+        sleep_entry.save()
+        return "updated"
+    return "skipped"
 
 
 def process_blood_glucose_metric(user, metric_date, source, sync_id, data, existing_sync_ids=None):

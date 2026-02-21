@@ -9,6 +9,14 @@
 
 # WLJ Change History
 
+## 2026-02-21 — Schedule UAL/SAE/PIE/PRIE synthetic runners to fix missed cadence
+
+**Fix:** UAL, SAE, PIE, and PRIE engines were only triggered per-request (during chat) or via manual "Re-run now" from the Ops Command Center. They were never registered in the ISE scheduler registry (`SCHEDULED_TASKS`), so during idle periods their 5-minute cadence expectation expired and SAME flagged them as MISSED. Added all four synthetic batch runners to `scheduler_registry.py` — UAL/SAE/PIE at 5-minute intervals, PRIE at 1-hour interval. The ISE scheduler auto-picks up new entries via `_ensure_task_records()` on next cycle.
+
+**Files:** `apps/core/ai_scheduler/scheduler_registry.py`
+
+---
+
 ## 2026-02-21 — Fix CoS system injection: render executive tone mode + learned profile
 
 **Fix:** `format_cos_system_injection()` in `cos_context.py` never rendered `executive_tone_mode` or `learned_profile_prompt` from the context dict, despite both being computed by `build_cos_context()` and `build_executive_context()`. This caused two Phase 4 CoS tests to fail (`test_includes_tone_mode`, `test_includes_learned_profile`). Added rendering blocks for both: executive tone mode maps through `TONE_MODE_INSTRUCTIONS` dict, learned profile injects directly. Fix resolved the pre-existing 102/103 test failure and unmasked 57 additional tests (now 160/160 pass).

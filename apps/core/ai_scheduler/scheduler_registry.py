@@ -97,6 +97,29 @@ SCHEDULED_TASKS = {
         "interval_seconds": 86400,  # 24 hours (7 PM run)
         "description": "Lock non-negotiables, detect overload, move flexible items in tomorrow's plan (Phase 5 Governance).",
     },
+    # --- Synthetic batch runners for context-dependent engines ---
+    # These engines also fire per-request during chat, but scheduled
+    # execution ensures cadence is maintained during idle periods.
+    "run_ual_synthetic": {
+        "function_path": "apps.core.ai_scheduler.scheduler_runner.run_ual_synthetic",
+        "interval_seconds": 300,  # 5 minutes
+        "description": "Run UAL arbitration for all active users (synthetic batch).",
+    },
+    "run_sae_synthetic": {
+        "function_path": "apps.core.ai_scheduler.scheduler_runner.run_sae_synthetic",
+        "interval_seconds": 300,  # 5 minutes
+        "description": "Run SAE state rebuild for all active users (synthetic batch).",
+    },
+    "run_pie_synthetic": {
+        "function_path": "apps.core.ai_scheduler.scheduler_runner.run_pie_synthetic",
+        "interval_seconds": 300,  # 5 minutes
+        "description": "Run PIE insight rules for all active users (synthetic batch).",
+    },
+    "run_prie_synthetic": {
+        "function_path": "apps.core.ai_scheduler.scheduler_runner.run_prie_synthetic",
+        "interval_seconds": 3600,  # 1 hour
+        "description": "Run PRIE predictions for all active users (synthetic batch).",
+    },
 }
 
 

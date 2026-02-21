@@ -9,6 +9,14 @@
 
 # WLJ Change History
 
+## 2026-02-21 — Fix SAE synthetic recovery: add instrumentation to rebuild_user_state
+
+**Fix:** SAE synthetic runner called `rebuild_user_state(user)` which lacked the `@_instrument_engine_run("SAE")` decorator. No `EngineRun` records were created, so the heartbeat system never saw a fresh SAE run — SAE stayed MISSED even after successful synthetic execution. Added the decorator so `rebuild_user_state` creates EngineRun records like all other engine functions.
+
+**Files:** `apps/core/ai_state/state_engine.py`
+
+---
+
 ## 2026-02-21 — Hybrid Recovery Model: Integrity Score Responds to Manual Execution
 
 **Fix:** System Integrity Index score now updates immediately after a successful manual/synthetic engine execution. Previously, manual runs completed but the score remained stale until the next SAME cycle (up to 60 seconds), and MISSED_RUN anomalies that had escalated to P1 (25-point penalty) persisted even after recovery.

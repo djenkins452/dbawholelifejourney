@@ -10,6 +10,7 @@ Full rebuilds hit the database and take longer.
 
 import logging
 
+from apps.core.ai_observability.instrumentation import log_engine_run as _instrument_engine_run
 from apps.core.ai_state.models import UserState
 
 logger = logging.getLogger(__name__)
@@ -56,6 +57,7 @@ def get_module_state(user, module):
     return state.get(canonical, {})
 
 
+@_instrument_engine_run("SAE", 1)
 def rebuild_user_state(user):
     """
     Full rebuild of user state from database.

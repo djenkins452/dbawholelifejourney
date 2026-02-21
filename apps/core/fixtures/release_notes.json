@@ -1,6 +1,22 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 80,
+        "fields": {
+            "title": "Engine Diagnostics Console + Operations Wall",
+            "description": "Admin-only observability upgrade: every intelligence engine now emits trace-level diagnostics (EngineRun, EngineSpan, DecisionRecord) correlated by trace ID. The Diagnostics Console (/admin-console/diagnostics/) shows live traces, waterfall detail, and search. The Operations Wall (/admin-console/ops/) is a Vegas-themed live monitoring dashboard with engine pulse tiles, cognitive feed, anomaly detection (error bursts, suppression spikes, scenario dominance, delivery storms), and trend charts. Deep links connect the two layers. 67 tests cover the full stack.",
+            "entry_type": "enhancement",
+            "version": "",
+            "release_date": "2026-02-21",
+            "is_published": true,
+            "is_major": false,
+            "learn_more_url": "",
+            "created_at": "2026-02-21T00:00:00Z",
+            "updated_at": "2026-02-21T00:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 79,
         "fields": {
             "title": "Monica Now Makes One Decision, Not Ten Suggestions",

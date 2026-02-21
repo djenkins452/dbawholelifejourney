@@ -8,6 +8,8 @@ never breaks arbitration.
 import logging
 from datetime import timedelta
 
+from apps.core.ai_observability.instrumentation import log_engine_span as _instrument_span
+
 logger = logging.getLogger(__name__)
 
 
@@ -21,6 +23,7 @@ def _now():
         return timezone.now()
 
 
+@_instrument_span("UAL", "collect_signals")
 def collect_signals(user) -> dict:
     """
     Collect and normalise signals from all engines.

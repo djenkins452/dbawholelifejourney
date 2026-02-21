@@ -10,6 +10,8 @@ max surfaced items. Pattern hints adjust intensity.
 """
 import logging
 
+from apps.core.ai_observability.instrumentation import log_engine_span as _instrument_span
+
 logger = logging.getLogger(__name__)
 
 # Intervention styles
@@ -63,6 +65,7 @@ CONFIDENCE_SURFACE_LIMITS = {
 }
 
 
+@_instrument_span("UAL", "decide_intervention")
 def decide_intervention(
     scenario_result: dict,
     composites: list,

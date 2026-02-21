@@ -13,12 +13,24 @@ Admin Console URLs
 from django.urls import path
 
 from . import views
+from apps.core.ai_observability import diagnostics_views as diag_views
+from apps.core.ai_observability import ops_views
 
 app_name = "admin_console"
 
 urlpatterns = [
     # Dashboard
     path("", views.AdminDashboardView.as_view(), name="dashboard"),
+
+    # Diagnostics Console (Truth Layer)
+    path("diagnostics/", diag_views.DiagnosticsConsoleView.as_view(), name="diagnostics_console"),
+    path("diagnostics/stream/", diag_views.DiagnosticsStreamView.as_view(), name="diagnostics_stream"),
+    path("diagnostics/trace/<str:trace_id>/", diag_views.DiagnosticsTraceDetailView.as_view(), name="diagnostics_trace_detail"),
+    path("diagnostics/search/", diag_views.DiagnosticsSearchView.as_view(), name="diagnostics_search"),
+
+    # Operations Wall (Vegas Layer)
+    path("ops/", ops_views.OperationsWallView.as_view(), name="ops_wall"),
+    path("ops/poll/", ops_views.OperationsWallPollView.as_view(), name="ops_poll"),
 
     # Site Configuration
     path("config/", views.SiteConfigView.as_view(), name="site_config"),

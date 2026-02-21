@@ -15,10 +15,12 @@ from django.utils import timezone
 
 from apps.core.ai_guidance.guidance_ranker import rank_guidance
 from apps.core.ai_guidance.guidance_selector import select_guidance
+from apps.core.ai_observability.instrumentation import log_engine_run as _instrument_engine_run
 
 logger = logging.getLogger(__name__)
 
 
+@_instrument_engine_run("PGE", 3)
 def generate_guidance(user):
     """
     Generate proactive guidance for a user.

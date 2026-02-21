@@ -1,0 +1,435 @@
+{% extends "base.html" %}
+{% block title %}Operations Wall - Admin{% endblock %}
+
+{% block content %}
+<style nonce="{{ csp_nonce }}">
+/* Vegas Mode — Dark Operations Theme */
+.ops-wall {
+    --ops-bg: #0f172a;
+    --ops-surface: #1e293b;
+    --ops-surface-alt: #334155;
+    --ops-border: #475569;
+    --ops-text: #e2e8f0;
+    --ops-text-muted: #94a3b8;
+    --ops-green: #10b981;
+    --ops-yellow: #f59e0b;
+    --ops-red: #ef4444;
+    --ops-blue: #3b82f6;
+    --ops-purple: #8b5cf6;
+
+    background: var(--ops-bg);
+    color: var(--ops-text);
+    min-height: 100vh;
+    padding: var(--space-4);
+    font-family: var(--font-family-base);
+}
+
+/* Top Bar */
+.ops-topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4); flex-wrap: wrap; gap: var(--space-2); }
+.ops-status-badge { display: inline-flex; align-items: center; gap: 10px; padding: 12px 24px; border-radius: var(--radius-lg); font-size: 1.25rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; }
+.ops-status-badge.green { background: rgba(16,185,129,0.15); border: 2px solid var(--ops-green); color: var(--ops-green); }
+.ops-status-badge.yellow { background: rgba(245,158,11,0.15); border: 2px solid var(--ops-yellow); color: var(--ops-yellow); }
+.ops-status-badge.red { background: rgba(239,68,68,0.15); border: 2px solid var(--ops-red); color: var(--ops-red); animation: pulse-red 2s infinite; }
+@keyframes pulse-red { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+.ops-status-dot { width: 14px; height: 14px; border-radius: 50%; }
+.ops-status-dot.green { background: var(--ops-green); box-shadow: 0 0 8px var(--ops-green); }
+.ops-status-dot.yellow { background: var(--ops-yellow); box-shadow: 0 0 8px var(--ops-yellow); }
+.ops-status-dot.red { background: var(--ops-red); box-shadow: 0 0 8px var(--ops-red); }
+.ops-topbar-meta { font-size: 0.75rem; color: var(--ops-text-muted); }
+.ops-topbar-actions { display: flex; gap: var(--space-2); }
+.ops-btn { padding: 8px 16px; border-radius: var(--radius-lg); border: 1px solid var(--ops-border); background: var(--ops-surface); color: var(--ops-text); cursor: pointer; font-size: 0.8125rem; min-height: 44px; transition: background 0.15s; }
+.ops-btn:hover { background: var(--ops-surface-alt); }
+.ops-btn.active { background: var(--ops-green); border-color: var(--ops-green); color: #fff; }
+.ops-nav-link { padding: 8px 16px; border-radius: var(--radius-lg); background: var(--ops-surface); color: var(--ops-text); text-decoration: none; font-size: 0.8125rem; border: 1px solid var(--ops-border); min-height: 44px; display: inline-flex; align-items: center; }
+.ops-nav-link:hover { background: var(--ops-surface-alt); }
+
+/* Main Grid */
+.ops-grid { display: grid; grid-template-columns: 260px 1fr 280px; gap: var(--space-4); }
+
+/* Engine Tiles (Left) */
+.ops-engines { display: flex; flex-direction: column; gap: var(--space-2); }
+.ops-engines h2 { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--ops-text-muted); margin: 0 0 var(--space-2); }
+.ops-tile { display: grid; grid-template-columns: 10px 1fr auto; gap: 8px; align-items: center; padding: 12px; background: var(--ops-surface); border: 1px solid var(--ops-border); border-radius: var(--radius-lg); cursor: pointer; min-height: 44px; transition: border-color 0.15s; }
+.ops-tile:hover { border-color: var(--ops-blue); }
+.ops-tile-dot { width: 10px; height: 10px; border-radius: 50%; }
+.ops-tile-dot.green { background: var(--ops-green); box-shadow: 0 0 6px var(--ops-green); }
+.ops-tile-dot.yellow { background: var(--ops-yellow); box-shadow: 0 0 6px var(--ops-yellow); }
+.ops-tile-dot.red { background: var(--ops-red); box-shadow: 0 0 6px var(--ops-red); }
+.ops-tile-dot.gray { background: #64748b; }
+.ops-tile-info { min-width: 0; }
+.ops-tile-name { font-weight: 700; font-size: 0.875rem; }
+.ops-tile-meta { font-size: 0.6875rem; color: var(--ops-text-muted); }
+.ops-tile-stats { text-align: right; font-size: 0.6875rem; color: var(--ops-text-muted); }
+.ops-tile-stats .duration { font-weight: 600; color: var(--ops-text); }
+
+/* Feed (Center) */
+.ops-feed-section { display: flex; flex-direction: column; min-height: 0; }
+.ops-feed-section h2 { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--ops-text-muted); margin: 0 0 var(--space-2); }
+.ops-feed { flex: 1; max-height: 500px; overflow-y: auto; border: 1px solid var(--ops-border); border-radius: var(--radius-lg); background: var(--ops-surface); font-family: 'SF Mono', 'Menlo', monospace; font-size: 0.75rem; }
+.ops-feed-line { display: flex; gap: 8px; padding: 6px 12px; border-bottom: 1px solid rgba(71,85,105,0.3); cursor: pointer; align-items: baseline; min-height: 32px; }
+.ops-feed-line:hover { background: var(--ops-surface-alt); }
+.ops-feed-time { color: var(--ops-text-muted); min-width: 65px; flex-shrink: 0; }
+.ops-feed-engine { font-weight: 700; min-width: 45px; flex-shrink: 0; }
+.ops-feed-action { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ops-feed-line.severity-error { color: var(--ops-red); }
+.ops-feed-line.severity-warn { color: var(--ops-yellow); }
+.ops-feed-line.severity-info { color: var(--ops-text); }
+
+/* Alerts (Right) */
+.ops-alerts { display: flex; flex-direction: column; gap: var(--space-2); }
+.ops-alerts h2 { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--ops-text-muted); margin: 0 0 var(--space-2); }
+.ops-alert-card { padding: 12px; background: var(--ops-surface); border-radius: var(--radius-lg); cursor: pointer; transition: border-color 0.15s; }
+.ops-alert-card.crit { border-left: 3px solid var(--ops-red); }
+.ops-alert-card.warn { border-left: 3px solid var(--ops-yellow); }
+.ops-alert-card.info { border-left: 3px solid var(--ops-blue); }
+.ops-alert-card:hover { background: var(--ops-surface-alt); }
+.ops-alert-severity { font-size: 0.625rem; text-transform: uppercase; font-weight: 700; letter-spacing: 0.08em; }
+.ops-alert-severity.crit { color: var(--ops-red); }
+.ops-alert-severity.warn { color: var(--ops-yellow); }
+.ops-alert-severity.info { color: var(--ops-blue); }
+.ops-alert-message { font-size: 0.8125rem; margin-top: 4px; line-height: 1.4; }
+.ops-no-alerts { color: var(--ops-text-muted); font-size: 0.8125rem; padding: var(--space-3); text-align: center; }
+
+/* Bottom Charts */
+.ops-charts { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-4); margin-top: var(--space-4); }
+.ops-chart-card { background: var(--ops-surface); border: 1px solid var(--ops-border); border-radius: var(--radius-lg); padding: var(--space-3); }
+.ops-chart-card h3 { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ops-text-muted); margin: 0 0 var(--space-2); }
+.ops-bar-chart { display: flex; flex-direction: column; gap: 4px; }
+.ops-bar-row { display: flex; align-items: center; gap: 8px; }
+.ops-bar-label { font-size: 0.6875rem; min-width: 55px; text-align: right; color: var(--ops-text-muted); }
+.ops-bar-track { flex: 1; height: 14px; background: rgba(71,85,105,0.3); border-radius: 3px; overflow: hidden; }
+.ops-bar-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+.ops-bar-value { font-size: 0.625rem; min-width: 35px; color: var(--ops-text-muted); }
+
+/* Scenario colors */
+.scenario-HEALTH_CRITICAL { background: var(--ops-red); }
+.scenario-TIME_CRITICAL { background: var(--ops-yellow); }
+.scenario-DRIFT_CRITICAL { background: var(--ops-purple); }
+.scenario-MOOD_CRITICAL { background: var(--ops-blue); }
+.scenario-RELATIONSHIP_CRITICAL { background: #ec4899; }
+.scenario-STABLE_EXECUTION { background: var(--ops-green); }
+.bar-latency { background: var(--ops-blue); }
+.bar-suppression { background: var(--ops-yellow); }
+
+@media (max-width: 1024px) {
+    .ops-grid { grid-template-columns: 1fr; }
+    .ops-charts { grid-template-columns: 1fr; }
+}
+@media (max-width: 768px) {
+    .ops-wall { padding: var(--space-2); }
+    .ops-topbar { flex-direction: column; align-items: flex-start; }
+}
+</style>
+
+<div class="ops-wall">
+    <!-- Top Bar -->
+    <div class="ops-topbar">
+        <div style="display:flex;align-items:center;gap:var(--space-3)">
+            <div class="ops-status-badge green" id="systemStatusBadge">
+                <span class="ops-status-dot green" id="systemStatusDot"></span>
+                <span id="systemStatusText">SYSTEM OK</span>
+            </div>
+            <div class="ops-topbar-meta">
+                Last update: <span id="lastUpdateTime">—</span>
+            </div>
+        </div>
+        <div class="ops-topbar-actions">
+            <button class="ops-btn active" id="togglePoll">Live</button>
+            <button class="ops-btn" id="freezeBtn">Freeze</button>
+            <a href="{% url 'admin_console:diagnostics_console' %}" class="ops-nav-link">Diagnostics</a>
+            <a href="{% url 'admin_console:dashboard' %}" class="ops-nav-link">Admin Home</a>
+        </div>
+    </div>
+
+    <!-- Main 3-Column Grid -->
+    <div class="ops-grid">
+        <!-- Left: Engine Tiles -->
+        <div class="ops-engines">
+            <h2>Engine Status</h2>
+            <div id="engineTiles">
+                <div style="color:var(--ops-text-muted);font-size:0.8125rem">Loading...</div>
+            </div>
+        </div>
+
+        <!-- Center: Live Feed -->
+        <div class="ops-feed-section">
+            <h2>Cognitive Feed</h2>
+            <div class="ops-feed" id="opsFeed">
+                <div class="ops-feed-line" style="color:var(--ops-text-muted);justify-content:center">
+                    Waiting for data...
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Alerts -->
+        <div class="ops-alerts">
+            <h2>Anomalies</h2>
+            <div id="alertsPanel">
+                <div class="ops-no-alerts">No anomalies detected</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom: Charts -->
+    <div class="ops-charts">
+        <div class="ops-chart-card">
+            <h3>UAL Scenarios (24h)</h3>
+            <div id="scenarioChart" class="ops-bar-chart"></div>
+        </div>
+        <div class="ops-chart-card">
+            <h3>Engine Latency P95 (1h)</h3>
+            <div id="latencyChart" class="ops-bar-chart"></div>
+        </div>
+        <div class="ops-chart-card">
+            <h3>Suppression Stats</h3>
+            <div id="suppressionChart" class="ops-bar-chart"></div>
+        </div>
+    </div>
+</div>
+
+<script nonce="{{ csp_nonce }}">
+(function() {
+    var pollInterval = null;
+    var lastSince = new Date(Date.now() - 5 * 60000).toISOString();
+    var frozen = false;
+    var frozenData = null;
+
+    // Start polling immediately
+    startPolling();
+
+    // Toggle polling
+    document.getElementById('togglePoll').addEventListener('click', function() {
+        if (pollInterval) {
+            clearInterval(pollInterval);
+            pollInterval = null;
+            this.textContent = 'Paused';
+            this.classList.remove('active');
+        } else {
+            startPolling();
+            this.textContent = 'Live';
+            this.classList.add('active');
+        }
+    });
+
+    // Freeze
+    document.getElementById('freezeBtn').addEventListener('click', function() {
+        frozen = !frozen;
+        this.classList.toggle('active', frozen);
+        this.textContent = frozen ? 'Frozen' : 'Freeze';
+    });
+
+    // Engine tile clicks (event delegation)
+    document.getElementById('engineTiles').addEventListener('click', function(e) {
+        var tile = e.target.closest('[data-engine]');
+        if (!tile) return;
+        window.location.href = '/admin-console/diagnostics/?engine=' + tile.dataset.engine + '&since=-15m';
+    });
+
+    // Feed line clicks
+    document.getElementById('opsFeed').addEventListener('click', function(e) {
+        var line = e.target.closest('[data-trace-id]');
+        if (!line) return;
+        window.location.href = '/admin-console/diagnostics/trace/' + line.dataset.traceId + '/';
+    });
+
+    // Alert card clicks
+    document.getElementById('alertsPanel').addEventListener('click', function(e) {
+        var card = e.target.closest('[data-link]');
+        if (!card) return;
+        window.location.href = card.dataset.link;
+    });
+
+    function startPolling() {
+        poll();
+        pollInterval = setInterval(poll, 2000);
+    }
+
+    function poll() {
+        var url = '/admin-console/ops/poll/?since=' + encodeURIComponent(lastSince);
+        fetch(url, { headers: { 'X-CSRFToken': getCookie('csrftoken') } })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (frozen) {
+                frozenData = data;
+                return;
+            }
+            lastSince = data.next_since || data.server_time;
+            render(data);
+        })
+        .catch(function(err) { console.error('Poll failed:', err); });
+    }
+
+    function render(data) {
+        renderSystemStatus(data.system_status);
+        renderEngineTiles(data.engine_tiles || []);
+        renderFeed(data.ops_feed || []);
+        renderAlerts(data.anomalies || []);
+        renderScenarioChart(data.charts && data.charts.ual_scenarios ? data.charts.ual_scenarios['24h'] : {});
+        renderLatencyChart(data.charts ? data.charts.latency : {});
+        renderSuppressionChart(data.charts ? data.charts.suppression : {});
+
+        document.getElementById('lastUpdateTime').textContent = new Date().toLocaleTimeString();
+    }
+
+    function renderSystemStatus(status) {
+        var badge = document.getElementById('systemStatusBadge');
+        var dot = document.getElementById('systemStatusDot');
+        var text = document.getElementById('systemStatusText');
+        badge.className = 'ops-status-badge ' + (status || 'green');
+        dot.className = 'ops-status-dot ' + (status || 'green');
+        var labels = { green: 'SYSTEM OK', yellow: 'DEGRADED', red: 'CRITICAL' };
+        text.textContent = labels[status] || 'UNKNOWN';
+    }
+
+    function renderEngineTiles(tiles) {
+        var container = document.getElementById('engineTiles');
+        container.innerHTML = '';
+        tiles.forEach(function(t) {
+            var ago = t.seconds_since !== null ? formatAgo(t.seconds_since) : 'never';
+            var tile = document.createElement('div');
+            tile.className = 'ops-tile';
+            tile.dataset.engine = t.name;
+            tile.innerHTML =
+                '<span class="ops-tile-dot ' + t.status + '"></span>' +
+                '<div class="ops-tile-info">' +
+                '  <div class="ops-tile-name">' + t.name + '</div>' +
+                '  <div class="ops-tile-meta">' + ago + ' | ' + t.runs_15m + ' runs/15m</div>' +
+                '</div>' +
+                '<div class="ops-tile-stats">' +
+                '  <div class="duration">' + t.avg_duration_15m + 'ms</div>' +
+                '  <div>' + (t.error_rate_15m > 0 ? t.error_rate_15m + '% err' : 'OK') + '</div>' +
+                '</div>';
+            container.appendChild(tile);
+        });
+    }
+
+    function renderFeed(feed) {
+        var container = document.getElementById('opsFeed');
+        container.innerHTML = '';
+        if (feed.length === 0) {
+            container.innerHTML = '<div class="ops-feed-line" style="color:var(--ops-text-muted);justify-content:center">No recent activity</div>';
+            return;
+        }
+        feed.forEach(function(f) {
+            var line = document.createElement('div');
+            line.className = 'ops-feed-line severity-' + (f.severity || 'info');
+            line.dataset.traceId = f.trace_id || '';
+            var arrow = f.type === 'decision' ? ' >' : ' >';
+            line.innerHTML =
+                '<span class="ops-feed-time">' + f.time + '</span>' +
+                '<span class="ops-feed-engine">' + f.engine + '</span>' +
+                '<span class="ops-feed-action">' + arrow + ' ' + escapeHtml(f.action) +
+                (f.detail ? ' | ' + escapeHtml(f.detail) : '') + '</span>';
+            container.appendChild(line);
+        });
+    }
+
+    function renderAlerts(anomalies) {
+        var container = document.getElementById('alertsPanel');
+        container.innerHTML = '';
+        if (anomalies.length === 0) {
+            container.innerHTML = '<div class="ops-no-alerts">No anomalies detected</div>';
+            return;
+        }
+        anomalies.forEach(function(a) {
+            var card = document.createElement('div');
+            card.className = 'ops-alert-card ' + a.severity;
+            card.dataset.link = a.diagnostic_link || '#';
+            card.innerHTML =
+                '<div class="ops-alert-severity ' + a.severity + '">' + a.severity.toUpperCase() + ' | ' + (a.engine || '') + '</div>' +
+                '<div class="ops-alert-message">' + escapeHtml(a.message) + '</div>';
+            container.appendChild(card);
+        });
+    }
+
+    function renderScenarioChart(scenarios) {
+        var container = document.getElementById('scenarioChart');
+        container.innerHTML = '';
+        if (!scenarios || Object.keys(scenarios).length === 0) {
+            container.innerHTML = '<div style="color:var(--ops-text-muted);font-size:0.75rem">No data</div>';
+            return;
+        }
+        var max = Math.max.apply(null, Object.values(scenarios).concat([1]));
+        Object.keys(scenarios).forEach(function(name) {
+            var count = scenarios[name];
+            var pct = (count / max * 100).toFixed(0);
+            var row = document.createElement('div');
+            row.className = 'ops-bar-row';
+            row.innerHTML =
+                '<span class="ops-bar-label">' + name.replace('_', ' ').substring(0, 8) + '</span>' +
+                '<div class="ops-bar-track"><div class="ops-bar-fill scenario-' + name + '" style="width:' + pct + '%"></div></div>' +
+                '<span class="ops-bar-value">' + count + '</span>';
+            container.appendChild(row);
+        });
+    }
+
+    function renderLatencyChart(latency) {
+        var container = document.getElementById('latencyChart');
+        container.innerHTML = '';
+        if (!latency || Object.keys(latency).length === 0) {
+            container.innerHTML = '<div style="color:var(--ops-text-muted);font-size:0.75rem">No data</div>';
+            return;
+        }
+        var max = 1;
+        Object.values(latency).forEach(function(v) { if (v.p95 > max) max = v.p95; });
+        Object.keys(latency).forEach(function(engine) {
+            var v = latency[engine];
+            if (v.count === 0) return;
+            var pct = (v.p95 / max * 100).toFixed(0);
+            var row = document.createElement('div');
+            row.className = 'ops-bar-row';
+            row.innerHTML =
+                '<span class="ops-bar-label">' + engine + '</span>' +
+                '<div class="ops-bar-track"><div class="ops-bar-fill bar-latency" style="width:' + pct + '%"></div></div>' +
+                '<span class="ops-bar-value">' + v.p95 + 'ms</span>';
+            container.appendChild(row);
+        });
+    }
+
+    function renderSuppressionChart(suppression) {
+        var container = document.getElementById('suppressionChart');
+        container.innerHTML = '';
+        if (!suppression) {
+            container.innerHTML = '<div style="color:var(--ops-text-muted);font-size:0.75rem">No data</div>';
+            return;
+        }
+        var items = [
+            { label: '15 min', count: suppression['15m'] ? suppression['15m'].count : 0 },
+            { label: '24 hour', count: suppression['24h'] ? suppression['24h'].count : 0 },
+        ];
+        var max = Math.max.apply(null, items.map(function(i) { return i.count; }).concat([1]));
+        items.forEach(function(item) {
+            var pct = (item.count / max * 100).toFixed(0);
+            var row = document.createElement('div');
+            row.className = 'ops-bar-row';
+            row.innerHTML =
+                '<span class="ops-bar-label">' + item.label + '</span>' +
+                '<div class="ops-bar-track"><div class="ops-bar-fill bar-suppression" style="width:' + pct + '%"></div></div>' +
+                '<span class="ops-bar-value">' + item.count + '</span>';
+            container.appendChild(row);
+        });
+    }
+
+    function formatAgo(seconds) {
+        if (seconds === null || seconds === undefined) return 'never';
+        if (seconds < 60) return seconds + 's ago';
+        if (seconds < 3600) return Math.floor(seconds / 60) + 'm ago';
+        if (seconds < 86400) return Math.floor(seconds / 3600) + 'h ago';
+        return Math.floor(seconds / 86400) + 'd ago';
+    }
+
+    function escapeHtml(text) {
+        var div = document.createElement('div');
+        div.textContent = text || '';
+        return div.innerHTML;
+    }
+
+    function getCookie(name) {
+        var value = '; ' + document.cookie;
+        var parts = value.split('; ' + name + '=');
+        if (parts.length === 2) return parts.pop().split(';').shift();
+        return '';
+    }
+})();
+</script>
+{% endblock %}

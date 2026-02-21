@@ -15,6 +15,7 @@ import logging
 
 from apps.core.ai_predictions.models import Prediction, build_prediction_dedupe_key
 from apps.core.ai_predictions.prediction_registry import get_prediction_rules
+from apps.core.ai_observability.instrumentation import log_engine_run as _instrument_engine_run
 from apps.core.time.system_clock import get_current_time
 
 logger = logging.getLogger(__name__)
@@ -123,6 +124,7 @@ def get_prediction_input_data(user, module, data_type, lookback_days=90):
     return []
 
 
+@_instrument_engine_run("PRIE", 3)
 def generate_predictions(user, module=None, record_id=None):
     """
     Generate predictions for a user.

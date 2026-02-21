@@ -14,10 +14,12 @@ from apps.core.ai_weekly_report.models import WeeklyIntelligenceReport
 from apps.core.ai_weekly_report.report_logger import store_weekly_report
 from apps.core.ai_weekly_report.report_ranker import rank_report_items
 from apps.core.ai_weekly_report.report_selector import select_report_items
+from apps.core.ai_observability.instrumentation import log_engine_run as _instrument_engine_run
 
 logger = logging.getLogger(__name__)
 
 
+@_instrument_engine_run("WIRE", 3)
 def generate_weekly_report(user):
     """
     Generate a weekly intelligence report for a user.

@@ -9,6 +9,9 @@ All functions fail open — if ICQG fails, items pass through unfiltered.
 
 import logging
 
+from apps.core.ai_observability.instrumentation import log_engine_run as _instrument_engine_run
+from apps.core.ai_observability.instrumentation import record_decision as _record_decision
+
 logger = logging.getLogger(__name__)
 
 # Minimum confidence for prediction-based notifications
@@ -18,6 +21,7 @@ MIN_PREDICTION_CONFIDENCE = 0.75
 MIN_DELIVERY_CONFIDENCE = 0.60
 
 
+@_instrument_engine_run("ICQG", 3)
 def filter_guidance_candidates(user, candidates):
     """
     Filter guidance candidates before storage (PGE integration).
@@ -80,6 +84,14 @@ def filter_guidance_candidates(user, candidates):
                 f"ICQG: Filtered {suppressed_count}/{len(candidates)} "
                 f"guidance candidates for user {user.id}"
             )
+            _record_decision(
+                engine_name="ICQG",
+                decision_type="suppression",
+                decision=f"SUPPRESSED={suppressed_count}/{len(candidates)}",
+                rationale="repeat_suppression + evidence_quality",
+                user_id=user.id,
+                affected_items=[c.get("title", "") for c in candidates if c not in filtered],
+            )
 
         return filtered
 
@@ -88,6 +100,7 @@ def filter_guidance_candidates(user, candidates):
         return candidates  # Fail open
 
 
+@_instrument_engine_run("ICQG", 3)
 def filter_briefing_items(user, items):
     """
     Filter briefing/report items before summary generation (DBE/WIRE integration).

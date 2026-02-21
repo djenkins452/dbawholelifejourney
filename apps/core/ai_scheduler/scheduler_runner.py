@@ -7,6 +7,7 @@ Each function wraps an engine's public API — no logic duplication.
 
 import logging
 
+from apps.core.ai_observability.trace import trace_context
 from apps.users.models import User
 
 logger = logging.getLogger(__name__)
@@ -34,27 +35,28 @@ def run_daily_briefings():
     Returns:
         dict — {generated: int, errors: int}
     """
-    try:
-        from apps.core.ai_briefing.briefing_engine import generate_daily_briefing
-    except ImportError:
-        logger.error("ISE: DBE not available (import failed)")
-        return {"generated": 0, "errors": 0}
-
-    users = _get_active_ai_users()
-    generated = 0
-    errors = 0
-
-    for user in users:
+    with trace_context(source="scheduler"):
         try:
-            result = generate_daily_briefing(user)
-            if result:
-                generated += 1
-        except Exception as e:
-            errors += 1
-            logger.error(f"ISE: DBE failed for user {user.id}: {e}")
+            from apps.core.ai_briefing.briefing_engine import generate_daily_briefing
+        except ImportError:
+            logger.error("ISE: DBE not available (import failed)")
+            return {"generated": 0, "errors": 0}
 
-    logger.info(f"ISE: Daily briefings — generated={generated}, errors={errors}")
-    return {"generated": generated, "errors": errors}
+        users = _get_active_ai_users()
+        generated = 0
+        errors = 0
+
+        for user in users:
+            try:
+                result = generate_daily_briefing(user)
+                if result:
+                    generated += 1
+            except Exception as e:
+                errors += 1
+                logger.error(f"ISE: DBE failed for user {user.id}: {e}")
+
+        logger.info(f"ISE: Daily briefings — generated={generated}, errors={errors}")
+        return {"generated": generated, "errors": errors}
 
 
 def run_learning_profile_updates():
@@ -66,26 +68,27 @@ def run_learning_profile_updates():
     Returns:
         dict — {updated: int, errors: int}
     """
-    try:
-        from apps.core.ai_guidance_learning.learning_engine import update_learning_profile
-    except ImportError:
-        logger.error("ISE: GLOE not available (import failed)")
-        return {"updated": 0, "errors": 0}
-
-    users = _get_active_ai_users()
-    updated = 0
-    errors = 0
-
-    for user in users:
+    with trace_context(source="scheduler"):
         try:
-            update_learning_profile(user)
-            updated += 1
-        except Exception as e:
-            errors += 1
-            logger.error(f"ISE: GLOE failed for user {user.id}: {e}")
+            from apps.core.ai_guidance_learning.learning_engine import update_learning_profile
+        except ImportError:
+            logger.error("ISE: GLOE not available (import failed)")
+            return {"updated": 0, "errors": 0}
 
-    logger.info(f"ISE: Learning profiles — updated={updated}, errors={errors}")
-    return {"updated": updated, "errors": errors}
+        users = _get_active_ai_users()
+        updated = 0
+        errors = 0
+
+        for user in users:
+            try:
+                update_learning_profile(user)
+                updated += 1
+            except Exception as e:
+                errors += 1
+                logger.error(f"ISE: GLOE failed for user {user.id}: {e}")
+
+        logger.info(f"ISE: Learning profiles — updated={updated}, errors={errors}")
+        return {"updated": updated, "errors": errors}
 
 
 def run_guidance_refresh():
@@ -98,37 +101,38 @@ def run_guidance_refresh():
     Returns:
         dict — {refreshed: int, expired: int, errors: int}
     """
-    try:
-        from apps.core.ai_guidance.guidance_engine import (
-            expire_old_guidance,
-            generate_guidance,
-        )
-    except ImportError:
-        logger.error("ISE: PGE not available (import failed)")
-        return {"refreshed": 0, "expired": 0, "errors": 0}
-
-    # Step 1: Expire old guidance globally
-    expired = expire_old_guidance()
-
-    # Step 2: Generate fresh guidance per user
-    users = _get_active_ai_users()
-    refreshed = 0
-    errors = 0
-
-    for user in users:
+    with trace_context(source="scheduler"):
         try:
-            items = generate_guidance(user)
-            if items:
-                refreshed += 1
-        except Exception as e:
-            errors += 1
-            logger.error(f"ISE: PGE failed for user {user.id}: {e}")
+            from apps.core.ai_guidance.guidance_engine import (
+                expire_old_guidance,
+                generate_guidance,
+            )
+        except ImportError:
+            logger.error("ISE: PGE not available (import failed)")
+            return {"refreshed": 0, "expired": 0, "errors": 0}
 
-    logger.info(
-        f"ISE: Guidance refresh — refreshed={refreshed}, "
-        f"expired={expired}, errors={errors}"
-    )
-    return {"refreshed": refreshed, "expired": expired or 0, "errors": errors}
+        # Step 1: Expire old guidance globally
+        expired = expire_old_guidance()
+
+        # Step 2: Generate fresh guidance per user
+        users = _get_active_ai_users()
+        refreshed = 0
+        errors = 0
+
+        for user in users:
+            try:
+                items = generate_guidance(user)
+                if items:
+                    refreshed += 1
+            except Exception as e:
+                errors += 1
+                logger.error(f"ISE: PGE failed for user {user.id}: {e}")
+
+        logger.info(
+            f"ISE: Guidance refresh — refreshed={refreshed}, "
+            f"expired={expired}, errors={errors}"
+        )
+        return {"refreshed": refreshed, "expired": expired or 0, "errors": errors}
 
 
 def run_weekly_reports():
@@ -140,27 +144,28 @@ def run_weekly_reports():
     Returns:
         dict — {generated: int, errors: int}
     """
-    try:
-        from apps.core.ai_weekly_report.report_engine import generate_weekly_report
-    except ImportError:
-        logger.error("ISE: WIRE not available (import failed)")
-        return {"generated": 0, "errors": 0}
-
-    users = _get_active_ai_users()
-    generated = 0
-    errors = 0
-
-    for user in users:
+    with trace_context(source="scheduler"):
         try:
-            result = generate_weekly_report(user)
-            if result:
-                generated += 1
-        except Exception as e:
-            errors += 1
-            logger.error(f"ISE: WIRE failed for user {user.id}: {e}")
+            from apps.core.ai_weekly_report.report_engine import generate_weekly_report
+        except ImportError:
+            logger.error("ISE: WIRE not available (import failed)")
+            return {"generated": 0, "errors": 0}
 
-    logger.info(f"ISE: Weekly reports — generated={generated}, errors={errors}")
-    return {"generated": generated, "errors": errors}
+        users = _get_active_ai_users()
+        generated = 0
+        errors = 0
+
+        for user in users:
+            try:
+                result = generate_weekly_report(user)
+                if result:
+                    generated += 1
+            except Exception as e:
+                errors += 1
+                logger.error(f"ISE: WIRE failed for user {user.id}: {e}")
+
+        logger.info(f"ISE: Weekly reports — generated={generated}, errors={errors}")
+        return {"generated": generated, "errors": errors}
 
 
 def run_delivery_cycle():
@@ -173,18 +178,19 @@ def run_delivery_cycle():
     Returns:
         dict — {delivered: int, skipped: int, failed: int}
     """
-    try:
-        from apps.core.ai_delivery.delivery_engine import deliver_due_notifications
-    except ImportError:
-        logger.error("ISE: DNE not available (import failed)")
-        return {"delivered": 0, "skipped": 0, "failed": 0}
+    with trace_context(source="scheduler"):
+        try:
+            from apps.core.ai_delivery.delivery_engine import deliver_due_notifications
+        except ImportError:
+            logger.error("ISE: DNE not available (import failed)")
+            return {"delivered": 0, "skipped": 0, "failed": 0}
 
-    result = deliver_due_notifications()
-    logger.info(
-        f"ISE: Delivery cycle — delivered={result['delivered']}, "
-        f"skipped={result['skipped']}, failed={result['failed']}"
-    )
-    return result
+        result = deliver_due_notifications()
+        logger.info(
+            f"ISE: Delivery cycle — delivered={result['delivered']}, "
+            f"skipped={result['skipped']}, failed={result['failed']}"
+        )
+        return result
 
 
 def run_quality_metrics_aggregation():
@@ -196,18 +202,19 @@ def run_quality_metrics_aggregation():
     Returns:
         dict — {created: int, updated: int, errors: int}
     """
-    try:
-        from apps.core.ai_quality.quality_metrics import aggregate_weekly_metrics
-    except ImportError:
-        logger.error("ISE: ICQG not available (import failed)")
-        return {"created": 0, "updated": 0, "errors": 0}
+    with trace_context(source="scheduler"):
+        try:
+            from apps.core.ai_quality.quality_metrics import aggregate_weekly_metrics
+        except ImportError:
+            logger.error("ISE: ICQG not available (import failed)")
+            return {"created": 0, "updated": 0, "errors": 0}
 
-    result = aggregate_weekly_metrics()
-    logger.info(
-        f"ISE: Quality metrics — created={result['created']}, "
-        f"updated={result['updated']}, errors={result['errors']}"
-    )
-    return result
+        result = aggregate_weekly_metrics()
+        logger.info(
+            f"ISE: Quality metrics — created={result['created']}, "
+            f"updated={result['updated']}, errors={result['errors']}"
+        )
+        return result
 
 
 def run_observability_snapshot():
@@ -219,21 +226,22 @@ def run_observability_snapshot():
     Returns:
         dict — {generated: int, errors: int}
     """
-    try:
-        from apps.core.ai_observability.observability_engine import (
-            generate_daily_snapshot,
-        )
-    except ImportError:
-        logger.error("ISE: IOCD not available (import failed)")
-        return {"generated": 0, "errors": 0}
+    with trace_context(source="scheduler"):
+        try:
+            from apps.core.ai_observability.observability_engine import (
+                generate_daily_snapshot,
+            )
+        except ImportError:
+            logger.error("ISE: IOCD not available (import failed)")
+            return {"generated": 0, "errors": 0}
 
-    result = generate_daily_snapshot()
-    if result:
-        logger.info(f"ISE: Observability snapshot generated for {result.snapshot_date}")
-        return {"generated": 1, "errors": 0}
-    else:
-        logger.warning("ISE: Observability snapshot generation failed")
-        return {"generated": 0, "errors": 1}
+        result = generate_daily_snapshot()
+        if result:
+            logger.info(f"ISE: Observability snapshot generated for {result.snapshot_date}")
+            return {"generated": 1, "errors": 0}
+        else:
+            logger.warning("ISE: Observability snapshot generation failed")
+            return {"generated": 0, "errors": 1}
 
 
 def run_architecture_pass():
@@ -247,60 +255,61 @@ def run_architecture_pass():
     Returns:
         dict — {generated: int, errors: int}
     """
-    try:
-        from apps.core.blueprint.architecture_engine import run_architecture_pass as arch_pass
-    except ImportError:
-        logger.error("ISE: Architecture engine not available (import failed)")
-        return {"generated": 0, "errors": 0}
-
-    users = _get_active_ai_users()
-    generated = 0
-    errors = 0
-
-    for user in users:
+    with trace_context(source="scheduler"):
         try:
-            # Only run if auto_architect is enabled in blueprint
-            from apps.core.blueprint.engine import get_blueprint
-            blueprint = get_blueprint(user)
-            if not blueprint.auto_architect_enabled:
-                continue
+            from apps.core.blueprint.architecture_engine import run_architecture_pass as arch_pass
+        except ImportError:
+            logger.error("ISE: Architecture engine not available (import failed)")
+            return {"generated": 0, "errors": 0}
 
-            plan = arch_pass(user)
-            generated += 1
+        users = _get_active_ai_users()
+        generated = 0
+        errors = 0
 
-            # Update drift prediction alongside architecture
+        for user in users:
             try:
-                from apps.core.blueprint.drift_engine import predict_drift_probability
-                predict_drift_probability(user)
-            except Exception:
-                pass
+                # Only run if auto_architect is enabled in blueprint
+                from apps.core.blueprint.engine import get_blueprint
+                blueprint = get_blueprint(user)
+                if not blueprint.auto_architect_enabled:
+                    continue
 
-            # Notify user that their plan is ready (nudge level)
-            try:
-                from apps.core.blueprint.intervention_engine import create_intervention
-                from apps.core.blueprint.models import InterventionLog
-                block_count = plan.blocks.count() if plan else 0
-                if block_count > 0:
-                    warnings = plan.risk_warnings or []
-                    msg = f"Tomorrow's architecture is ready: {block_count} blocks planned."
-                    if warnings:
-                        msg += f" {len(warnings)} risk warning(s) flagged."
-                    create_intervention(
-                        user=user,
-                        level=InterventionLog.LEVEL_NUDGE,
-                        trigger_type='architecture_ready',
-                        message=msg,
-                        delivered_via='in_app',
-                    )
-            except Exception:
-                pass
+                plan = arch_pass(user)
+                generated += 1
 
-        except Exception as e:
-            logger.warning(f"ISE: Architecture pass failed for {user.email}: {e}")
-            errors += 1
+                # Update drift prediction alongside architecture
+                try:
+                    from apps.core.blueprint.drift_engine import predict_drift_probability
+                    predict_drift_probability(user)
+                except Exception:
+                    pass
 
-    logger.info(f"ISE: Architecture pass completed — generated={generated}, errors={errors}")
-    return {"generated": generated, "errors": errors}
+                # Notify user that their plan is ready (nudge level)
+                try:
+                    from apps.core.blueprint.intervention_engine import create_intervention
+                    from apps.core.blueprint.models import InterventionLog
+                    block_count = plan.blocks.count() if plan else 0
+                    if block_count > 0:
+                        warnings = plan.risk_warnings or []
+                        msg = f"Tomorrow's architecture is ready: {block_count} blocks planned."
+                        if warnings:
+                            msg += f" {len(warnings)} risk warning(s) flagged."
+                        create_intervention(
+                            user=user,
+                            level=InterventionLog.LEVEL_NUDGE,
+                            trigger_type='architecture_ready',
+                            message=msg,
+                            delivered_via='in_app',
+                        )
+                except Exception:
+                    pass
+
+            except Exception as e:
+                logger.warning(f"ISE: Architecture pass failed for {user.email}: {e}")
+                errors += 1
+
+        logger.info(f"ISE: Architecture pass completed — generated={generated}, errors={errors}")
+        return {"generated": generated, "errors": errors}
 
 
 def run_drift_scoring():
@@ -310,30 +319,31 @@ def run_drift_scoring():
     Returns:
         dict — {scored: int, errors: int}
     """
-    try:
-        from apps.core.blueprint.drift_engine import (
-            compute_daily_drift_score,
-            predict_drift_probability,
-        )
-    except ImportError:
-        logger.error("ISE: Drift engine not available (import failed)")
-        return {"scored": 0, "errors": 0}
-
-    users = _get_active_ai_users()
-    scored = 0
-    errors = 0
-
-    for user in users:
+    with trace_context(source="scheduler"):
         try:
-            compute_daily_drift_score(user)
-            predict_drift_probability(user)
-            scored += 1
-        except Exception as e:
-            logger.warning(f"ISE: Drift scoring failed for {user.email}: {e}")
-            errors += 1
+            from apps.core.blueprint.drift_engine import (
+                compute_daily_drift_score,
+                predict_drift_probability,
+            )
+        except ImportError:
+            logger.error("ISE: Drift engine not available (import failed)")
+            return {"scored": 0, "errors": 0}
 
-    logger.info(f"ISE: Drift scoring completed — scored={scored}, errors={errors}")
-    return {"scored": scored, "errors": errors}
+        users = _get_active_ai_users()
+        scored = 0
+        errors = 0
+
+        for user in users:
+            try:
+                compute_daily_drift_score(user)
+                predict_drift_probability(user)
+                scored += 1
+            except Exception as e:
+                logger.warning(f"ISE: Drift scoring failed for {user.email}: {e}")
+                errors += 1
+
+        logger.info(f"ISE: Drift scoring completed — scored={scored}, errors={errors}")
+        return {"scored": scored, "errors": errors}
 
 
 def run_assistant_triggers():
@@ -343,30 +353,31 @@ def run_assistant_triggers():
     Returns:
         dict — {checked: int, triggered: int, errors: int}
     """
-    try:
-        from apps.core.blueprint.assistant_triggers import execute_all_triggers
-    except ImportError:
-        logger.error("ISE: Assistant triggers not available (import failed)")
-        return {"checked": 0, "triggered": 0, "errors": 0}
-
-    users = _get_active_ai_users()
-    checked = 0
-    triggered = 0
-    errors = 0
-
-    for user in users:
+    with trace_context(source="scheduler"):
         try:
-            interventions = execute_all_triggers(user)
-            checked += 1
-            triggered += len(interventions)
-        except Exception as e:
-            logger.warning(f"ISE: Trigger check failed for {user.email}: {e}")
-            errors += 1
+            from apps.core.blueprint.assistant_triggers import execute_all_triggers
+        except ImportError:
+            logger.error("ISE: Assistant triggers not available (import failed)")
+            return {"checked": 0, "triggered": 0, "errors": 0}
 
-    logger.info(
-        f"ISE: Trigger check completed — checked={checked}, triggered={triggered}, errors={errors}"
-    )
-    return {"checked": checked, "triggered": triggered, "errors": errors}
+        users = _get_active_ai_users()
+        checked = 0
+        triggered = 0
+        errors = 0
+
+        for user in users:
+            try:
+                interventions = execute_all_triggers(user)
+                checked += 1
+                triggered += len(interventions)
+            except Exception as e:
+                logger.warning(f"ISE: Trigger check failed for {user.email}: {e}")
+                errors += 1
+
+        logger.info(
+            f"ISE: Trigger check completed — checked={checked}, triggered={triggered}, errors={errors}"
+        )
+        return {"checked": checked, "triggered": triggered, "errors": errors}
 
 
 def run_weekly_pressure():
@@ -376,30 +387,31 @@ def run_weekly_pressure():
     Returns:
         dict — {computed: int, errors: int}
     """
-    try:
-        from apps.core.blueprint.weekly_pressure import compute_weekly_pressure
-    except ImportError:
-        logger.error("ISE: Weekly pressure engine not available (import failed)")
-        return {"computed": 0, "errors": 0}
-
-    users = _get_active_ai_users().filter(
-        preferences__personal_assistant_enabled=True,
-    )
-    computed = 0
-    errors = 0
-
-    for user in users:
+    with trace_context(source="scheduler"):
         try:
-            compute_weekly_pressure(user)
-            computed += 1
-        except Exception as e:
-            logger.warning(f"ISE: Weekly pressure failed for {user.email}: {e}")
-            errors += 1
+            from apps.core.blueprint.weekly_pressure import compute_weekly_pressure
+        except ImportError:
+            logger.error("ISE: Weekly pressure engine not available (import failed)")
+            return {"computed": 0, "errors": 0}
 
-    logger.info(
-        f"ISE: Weekly pressure completed — computed={computed}, errors={errors}"
-    )
-    return {"computed": computed, "errors": errors}
+        users = _get_active_ai_users().filter(
+            preferences__personal_assistant_enabled=True,
+        )
+        computed = 0
+        errors = 0
+
+        for user in users:
+            try:
+                compute_weekly_pressure(user)
+                computed += 1
+            except Exception as e:
+                logger.warning(f"ISE: Weekly pressure failed for {user.email}: {e}")
+                errors += 1
+
+        logger.info(
+            f"ISE: Weekly pressure completed — computed={computed}, errors={errors}"
+        )
+        return {"computed": computed, "errors": errors}
 
 
 def run_reflection_queue():
@@ -412,41 +424,42 @@ def run_reflection_queue():
     Returns:
         dict — {queued: int, expired: int, errors: int}
     """
-    try:
-        from apps.core.blueprint.reflection_engine import (
-            detect_reflectable_events,
-            expire_stale_reflections,
-            queue_reflection,
-        )
-    except ImportError:
-        logger.error("ISE: Reflection engine not available (import failed)")
-        return {"queued": 0, "expired": 0, "errors": 0}
-
-    # Step 1: Expire stale reflections globally
-    expired = expire_stale_reflections()
-
-    # Step 2: Queue new reflections per user
-    users = _get_active_ai_users().filter(
-        preferences__personal_assistant_enabled=True,
-    )
-    queued = 0
-    errors = 0
-
-    for user in users:
+    with trace_context(source="scheduler"):
         try:
-            events = detect_reflectable_events(user)
-            for event_dict in events:
-                queue_reflection(user, event_dict)
-                queued += 1
-        except Exception as e:
-            logger.warning(f"ISE: Reflection queue failed for {user.email}: {e}")
-            errors += 1
+            from apps.core.blueprint.reflection_engine import (
+                detect_reflectable_events,
+                expire_stale_reflections,
+                queue_reflection,
+            )
+        except ImportError:
+            logger.error("ISE: Reflection engine not available (import failed)")
+            return {"queued": 0, "expired": 0, "errors": 0}
 
-    logger.info(
-        f"ISE: Reflection queue completed — queued={queued}, "
-        f"expired={expired}, errors={errors}"
-    )
-    return {"queued": queued, "expired": expired, "errors": errors}
+        # Step 1: Expire stale reflections globally
+        expired = expire_stale_reflections()
+
+        # Step 2: Queue new reflections per user
+        users = _get_active_ai_users().filter(
+            preferences__personal_assistant_enabled=True,
+        )
+        queued = 0
+        errors = 0
+
+        for user in users:
+            try:
+                events = detect_reflectable_events(user)
+                for event_dict in events:
+                    queue_reflection(user, event_dict)
+                    queued += 1
+            except Exception as e:
+                logger.warning(f"ISE: Reflection queue failed for {user.email}: {e}")
+                errors += 1
+
+        logger.info(
+            f"ISE: Reflection queue completed — queued={queued}, "
+            f"expired={expired}, errors={errors}"
+        )
+        return {"queued": queued, "expired": expired, "errors": errors}
 
 
 def run_relational_drift():
@@ -458,51 +471,52 @@ def run_relational_drift():
     Returns:
         dict — {checked: int, alerts: int, guidance_created: int, errors: int}
     """
-    try:
-        from apps.core.ai_relationships.relationship_engine import (
-            detect_relational_drift,
-            generate_relationship_suggestion,
-        )
-    except ImportError:
-        logger.error("ISE: Relationship engine not available (import failed)")
-        return {"checked": 0, "alerts": 0, "guidance_created": 0, "errors": 0}
-
-    users = _get_active_ai_users().filter(
-        preferences__personal_assistant_enabled=True,
-    )
-    checked = 0
-    total_alerts = 0
-    guidance_created = 0
-    errors = 0
-
-    for user in users:
+    with trace_context(source="scheduler"):
         try:
-            alerts = detect_relational_drift(user)
-            checked += 1
-            total_alerts += len(alerts)
+            from apps.core.ai_relationships.relationship_engine import (
+                detect_relational_drift,
+                generate_relationship_suggestion,
+            )
+        except ImportError:
+            logger.error("ISE: Relationship engine not available (import failed)")
+            return {"checked": 0, "alerts": 0, "guidance_created": 0, "errors": 0}
 
-            # Create guidance items for top alerts (max 2 per user)
-            for alert in alerts[:2]:
-                try:
-                    suggestion = generate_relationship_suggestion(user, alert)
-                    _create_relational_guidance(user, suggestion)
-                    guidance_created += 1
-                except Exception:
-                    pass
-        except Exception as e:
-            logger.warning(f"ISE: Relational drift failed for {user.email}: {e}")
-            errors += 1
+        users = _get_active_ai_users().filter(
+            preferences__personal_assistant_enabled=True,
+        )
+        checked = 0
+        total_alerts = 0
+        guidance_created = 0
+        errors = 0
 
-    logger.info(
-        f"ISE: Relational drift completed — checked={checked}, "
-        f"alerts={total_alerts}, guidance={guidance_created}, errors={errors}"
-    )
-    return {
-        "checked": checked,
-        "alerts": total_alerts,
-        "guidance_created": guidance_created,
-        "errors": errors,
-    }
+        for user in users:
+            try:
+                alerts = detect_relational_drift(user)
+                checked += 1
+                total_alerts += len(alerts)
+
+                # Create guidance items for top alerts (max 2 per user)
+                for alert in alerts[:2]:
+                    try:
+                        suggestion = generate_relationship_suggestion(user, alert)
+                        _create_relational_guidance(user, suggestion)
+                        guidance_created += 1
+                    except Exception:
+                        pass
+            except Exception as e:
+                logger.warning(f"ISE: Relational drift failed for {user.email}: {e}")
+                errors += 1
+
+        logger.info(
+            f"ISE: Relational drift completed — checked={checked}, "
+            f"alerts={total_alerts}, guidance={guidance_created}, errors={errors}"
+        )
+        return {
+            "checked": checked,
+            "alerts": total_alerts,
+            "guidance_created": guidance_created,
+            "errors": errors,
+        }
 
 
 def _create_relational_guidance(user, suggestion):
@@ -553,26 +567,27 @@ def run_prediction_validation():
     Returns:
         dict — {validated: int, errors: int}
     """
-    try:
-        from apps.core.ai_feedback.prediction_validator import validate_expired_predictions
-    except ImportError:
-        logger.error("ISE: PredictionValidator not available (import failed)")
-        return {"validated": 0, "errors": 0}
-
-    users = _get_active_ai_users()
-    validated = 0
-    errors = 0
-
-    for user in users:
+    with trace_context(source="scheduler"):
         try:
-            outcomes = validate_expired_predictions(user)
-            validated += len(outcomes) if outcomes else 0
-        except Exception as e:
-            errors += 1
-            logger.warning(f"ISE: Prediction validation failed for {user.email}: {e}")
+            from apps.core.ai_feedback.prediction_validator import validate_expired_predictions
+        except ImportError:
+            logger.error("ISE: PredictionValidator not available (import failed)")
+            return {"validated": 0, "errors": 0}
 
-    logger.info(f"ISE: Prediction validation — validated={validated}, errors={errors}")
-    return {"validated": validated, "errors": errors}
+        users = _get_active_ai_users()
+        validated = 0
+        errors = 0
+
+        for user in users:
+            try:
+                outcomes = validate_expired_predictions(user)
+                validated += len(outcomes) if outcomes else 0
+            except Exception as e:
+                errors += 1
+                logger.warning(f"ISE: Prediction validation failed for {user.email}: {e}")
+
+        logger.info(f"ISE: Prediction validation — validated={validated}, errors={errors}")
+        return {"validated": validated, "errors": errors}
 
 
 def run_intervention_effectiveness():
@@ -585,26 +600,27 @@ def run_intervention_effectiveness():
     Returns:
         dict — {evaluated: int, errors: int}
     """
-    try:
-        from apps.core.ai_feedback.intervention_tracker import evaluate_intervention_effectiveness
-    except ImportError:
-        logger.error("ISE: InterventionEffectivenessTracker not available (import failed)")
-        return {"evaluated": 0, "errors": 0}
-
-    users = _get_active_ai_users()
-    evaluated = 0
-    errors = 0
-
-    for user in users:
+    with trace_context(source="scheduler"):
         try:
-            evaluate_intervention_effectiveness(user)
-            evaluated += 1
-        except Exception as e:
-            errors += 1
-            logger.warning(f"ISE: Intervention effectiveness failed for {user.email}: {e}")
+            from apps.core.ai_feedback.intervention_tracker import evaluate_intervention_effectiveness
+        except ImportError:
+            logger.error("ISE: InterventionEffectivenessTracker not available (import failed)")
+            return {"evaluated": 0, "errors": 0}
 
-    logger.info(f"ISE: Intervention effectiveness — evaluated={evaluated}, errors={errors}")
-    return {"evaluated": evaluated, "errors": errors}
+        users = _get_active_ai_users()
+        evaluated = 0
+        errors = 0
+
+        for user in users:
+            try:
+                evaluate_intervention_effectiveness(user)
+                evaluated += 1
+            except Exception as e:
+                errors += 1
+                logger.warning(f"ISE: Intervention effectiveness failed for {user.email}: {e}")
+
+        logger.info(f"ISE: Intervention effectiveness — evaluated={evaluated}, errors={errors}")
+        return {"evaluated": evaluated, "errors": errors}
 
 
 def run_cross_domain_insights():
@@ -617,35 +633,36 @@ def run_cross_domain_insights():
     Returns:
         dict — {checked: int, insights_created: int, errors: int}
     """
-    try:
-        from apps.core.ai_insights.insight_engine import run_insights
-    except ImportError:
-        logger.error("ISE: Insight engine not available (import failed)")
-        return {"checked": 0, "insights_created": 0, "errors": 0}
-
-    users = _get_active_ai_users()
-    checked = 0
-    total_insights = 0
-    errors = 0
-
-    for user in users:
+    with trace_context(source="scheduler"):
         try:
-            event = {
-                "event_type": "scheduled_check",
-                "module": "cross_domain",
-            }
-            insights = run_insights(user, event)
-            checked += 1
-            total_insights += len(insights) if insights else 0
-        except Exception as e:
-            errors += 1
-            logger.warning(f"ISE: Cross-domain insights failed for {user.email}: {e}")
+            from apps.core.ai_insights.insight_engine import run_insights
+        except ImportError:
+            logger.error("ISE: Insight engine not available (import failed)")
+            return {"checked": 0, "insights_created": 0, "errors": 0}
 
-    logger.info(
-        f"ISE: Cross-domain insights — checked={checked}, "
-        f"created={total_insights}, errors={errors}"
-    )
-    return {"checked": checked, "insights_created": total_insights, "errors": errors}
+        users = _get_active_ai_users()
+        checked = 0
+        total_insights = 0
+        errors = 0
+
+        for user in users:
+            try:
+                event = {
+                    "event_type": "scheduled_check",
+                    "module": "cross_domain",
+                }
+                insights = run_insights(user, event)
+                checked += 1
+                total_insights += len(insights) if insights else 0
+            except Exception as e:
+                errors += 1
+                logger.warning(f"ISE: Cross-domain insights failed for {user.email}: {e}")
+
+        logger.info(
+            f"ISE: Cross-domain insights — checked={checked}, "
+            f"created={total_insights}, errors={errors}"
+        )
+        return {"checked": checked, "insights_created": total_insights, "errors": errors}
 
 
 # =========================================================================
@@ -662,9 +679,10 @@ def run_tomorrow_protection_pass():
     Returns:
         dict — {processed: int, protected: int, errors: int}
     """
-    try:
-        from apps.core.ai_governance.tomorrow_protection import run_protection_pass_all_users
-        return run_protection_pass_all_users()
-    except ImportError:
-        logger.error("ISE: Tomorrow protection pass not available (import failed)")
-        return {"processed": 0, "protected": 0, "errors": 0}
+    with trace_context(source="scheduler"):
+        try:
+            from apps.core.ai_governance.tomorrow_protection import run_protection_pass_all_users
+            return run_protection_pass_all_users()
+        except ImportError:
+            logger.error("ISE: Tomorrow protection pass not available (import failed)")
+            return {"processed": 0, "protected": 0, "errors": 0}

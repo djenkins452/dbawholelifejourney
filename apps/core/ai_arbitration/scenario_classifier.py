@@ -9,6 +9,8 @@ v2: Confidence dampening levels, adaptive weight support.
 """
 import logging
 
+from apps.core.ai_observability.instrumentation import log_engine_span as _instrument_span
+
 logger = logging.getLogger(__name__)
 
 # Scenario types
@@ -82,6 +84,7 @@ MODERATE_CONFIDENCE_GAP = 0.15
 MAX_WEIGHT_DELTA = 0.10
 
 
+@_instrument_span("UAL", "classify_scenario")
 def classify_scenario(strengths: dict, weight_adjustments: dict = None) -> dict:
     """
     Classify the dominant scenario from signal strengths.

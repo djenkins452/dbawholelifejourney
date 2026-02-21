@@ -12,6 +12,11 @@ v2 Pipeline:
 import logging
 from dataclasses import dataclass, field
 
+from apps.core.ai_observability.instrumentation import (
+    log_engine_run as _instrument_engine_run,
+    record_decision as _record_decision,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -37,6 +42,7 @@ class ArbitrationResult:
     success: bool = True
 
 
+@_instrument_engine_run("UAL", 3)
 def run_arbitration(user) -> ArbitrationResult:
     """
     Execute the full UAL v2 arbitration pipeline.
@@ -136,6 +142,30 @@ def run_arbitration(user) -> ArbitrationResult:
             maybe_tune_weights(user)
         except Exception as tune_err:
             logger.debug("UAL weight tuning skipped: %s", tune_err)
+
+        # Diagnostics: record arbitration decision
+        _record_decision(
+            engine_name="UAL",
+            decision_type="arbitration",
+            decision=f"SCENARIO={result.dominant_scenario}",
+            rationale=(
+                f"style={result.intervention_style} "
+                f"confidence={result.confidence:.2f} "
+                f"surfaced={len(result.surfaced_items)} "
+                f"suppressed={len(result.suppressed_items)}"
+            ),
+            inputs_summary={
+                "scenario_scores": result.scenario_scores,
+                "composites": [c.get("name", "") for c in result.composites]
+                if result.composites
+                else [],
+            },
+            affected_items=[
+                s.get("label", "") for s in result.surfaced_items
+            ],
+            user_id=user.id,
+            confidence=result.confidence,
+        )
 
     except Exception as e:
         logger.warning("UAL arbitration failed, using safe fallback: %s", e)

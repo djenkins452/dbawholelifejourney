@@ -724,6 +724,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for UAL executive judgment (PK 79)
         self._reset_ual_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset fixtures for Diagnostics Console + Operations Wall (PK 80, teaching 155-156)
+        self._reset_diagnostics_ops_wall_fixtures(DataLoadConfig, force, verbosity)
+
         # Auto-sync CoS documentation to admin guide (runs if checksum changed)
         self._sync_cos_documentation(DataLoadConfig, force, verbosity)
 
@@ -2983,6 +2986,38 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset Executive Operator fixtures FAILED: {e}'))
+
+    def _reset_diagnostics_ops_wall_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload fixtures for Diagnostics Console + Operations Wall.
+        - release_notes PK 80
+        - teaching_destinations PKs 155-156
+        """
+        reset_tracker_name = 'reset_diagnostics_ops_wall_2026_02_21'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            for loader in ['release_notes', 'teaching_destinations']:
+                try:
+                    config = DataLoadConfig.objects.get(loader_name=loader)
+                    config.reset()
+                    if verbosity >= 1:
+                        self.stdout.write(f'  Reset {loader} loader for Diagnostics + Ops Wall')
+                except DataLoadConfig.DoesNotExist:
+                    pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for Diagnostics Console + Operations Wall (Feb 2026)',
+                'command',
+                'One-time reset to reload release_notes PK 80 + teaching_destinations PKs 155-156'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset Diagnostics/Ops Wall fixtures FAILED: {e}'))
 
     def _reset_ual_fixtures(self, DataLoadConfig, force=False, verbosity=1):
         """

@@ -12,10 +12,12 @@ from django.conf import settings
 from apps.core.ai_insights.models import Insight
 from apps.core.ai_insights.notification_engine import maybe_notify
 from apps.core.ai_insights.rule_registry import get_rules
+from apps.core.ai_observability.instrumentation import log_engine_run as _instrument_engine_run
 
 logger = logging.getLogger(__name__)
 
 
+@_instrument_engine_run("PIE", 3)
 def run_insights(user, event):
     """
     Run all applicable insight rules for an event.

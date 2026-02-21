@@ -1,6 +1,40 @@
 [
     {
         "model": "help.teachingdestination",
+        "pk": 156,
+        "fields": {
+            "destination_id": "admin-diagnostics-console",
+            "name": "Diagnostics Console",
+            "path_description": "Admin Console - Diagnostics",
+            "explanation": "Request-level observability for the intelligence engine pipeline. View live traces, trace waterfall detail, engine runs, spans, and decisions. Search by trace ID, user, engine, or error message.",
+            "url": "/admin-console/diagnostics/",
+            "keywords": "diagnostics, trace, engine run, span, decision, observability, debug, UAL, ICQG, PIE, PRIE",
+            "module": "admin_console",
+            "sort_order": 156,
+            "is_active": true,
+            "created_at": "2026-02-21T00:00:00Z",
+            "updated_at": "2026-02-21T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 155,
+        "fields": {
+            "destination_id": "admin-operations-wall",
+            "name": "Operations Wall",
+            "path_description": "Admin Console - Operations Wall",
+            "explanation": "Live monitoring dashboard for the intelligence engine pipeline. Engine pulse tiles show green/yellow/red status. Cognitive feed shows real-time engine activity. Anomaly detection alerts on error bursts, suppression spikes, and delivery storms.",
+            "url": "/admin-console/ops/",
+            "keywords": "operations, wall, Vegas, monitoring, engine pulse, anomaly, feed, latency, suppression, ops",
+            "module": "admin_console",
+            "sort_order": 155,
+            "is_active": true,
+            "created_at": "2026-02-21T00:00:00Z",
+            "updated_at": "2026-02-21T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
         "pk": 120,
         "fields": {
             "destination_id": "assistant-blueprint",

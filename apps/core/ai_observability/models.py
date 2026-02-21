@@ -2,7 +2,9 @@
 IOCD — Intelligence Observability Models.
 
 Stores daily system-wide metrics snapshots for intelligence engine
-performance monitoring.
+performance monitoring, plus request-level diagnostics (EngineRun,
+EngineSpan, DecisionRecord) for the Diagnostics Console and
+Operations Wall.
 
 Project: Whole Life Journey
 Path: apps/core/ai_observability/models.py
@@ -12,6 +14,7 @@ Copyright:
 """
 
 from django.db import models
+from django.utils import timezone
 
 
 class IntelligenceMetricsSnapshot(models.Model):
@@ -116,3 +119,199 @@ class IntelligenceMetricsSnapshot(models.Model):
 
     def __str__(self):
         return f"Metrics Snapshot {self.snapshot_date}"
+
+
+# =========================================================================
+# REQUEST-LEVEL DIAGNOSTICS MODELS
+# =========================================================================
+
+
+class EngineRun(models.Model):
+    """
+    Single execution of an intelligence engine within a trace.
+
+    One trace may contain multiple EngineRun records (e.g., a dashboard
+    request triggers UAL which triggers SAE, PIE, PRIE internally).
+    """
+
+    class Meta:
+        app_label = "core"
+        db_table = "core_diag_engine_run"
+        ordering = ["-started_at"]
+        indexes = [
+            models.Index(fields=["trace_id"], name="idx_engrun_trace"),
+            models.Index(
+                fields=["engine_name", "-started_at"], name="idx_engrun_eng_time"
+            ),
+            models.Index(fields=["-started_at"], name="idx_engrun_time"),
+        ]
+
+    STATUS_CHOICES = [
+        ("success", "Success"),
+        ("error", "Error"),
+        ("skipped", "Skipped"),
+    ]
+
+    trace_id = models.CharField(
+        max_length=36,
+        db_index=True,
+        help_text="UUID correlating all engine runs within one request/task.",
+    )
+    engine_name = models.CharField(
+        max_length=10,
+        help_text="Engine acronym: UAL, ICQG, DNE, DBE, SAE, PIE, PRIE, PGE, etc.",
+    )
+    phase = models.SmallIntegerField(
+        help_text="Intelligence pipeline phase (1=Interp, 2=Exec, 3=Post).",
+    )
+
+    started_at = models.DateTimeField(help_text="When this engine execution began.")
+    ended_at = models.DateTimeField(
+        null=True, blank=True, help_text="When this engine execution completed."
+    )
+    duration_ms = models.IntegerField(
+        default=0, help_text="Execution duration in milliseconds."
+    )
+
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="success")
+    error_type = models.CharField(
+        max_length=200,
+        blank=True,
+        default="",
+        help_text="Exception class name on error.",
+    )
+    error_message = models.TextField(
+        blank=True, default="", help_text="Exception message on error."
+    )
+
+    input_fingerprint = models.CharField(
+        max_length=64,
+        blank=True,
+        default="",
+        help_text="SHA256 of input args for dedup/correlation.",
+    )
+    output_fingerprint = models.CharField(
+        max_length=64,
+        blank=True,
+        default="",
+        help_text="SHA256 of output for change detection.",
+    )
+
+    user_id = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="User ID if engine was invoked for a specific user.",
+    )
+
+    metadata = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Engine-specific metadata (items_processed, etc.).",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return (
+            f"{self.engine_name} [{self.status}] "
+            f"{self.duration_ms}ms ({self.trace_id[:8]})"
+        )
+
+
+class EngineSpan(models.Model):
+    """
+    Sub-step within an engine run (e.g., 'collect_signals', 'classify_scenario').
+
+    Optional fine-grained tracing for engines with multi-step pipelines.
+    """
+
+    class Meta:
+        app_label = "core"
+        db_table = "core_diag_engine_span"
+        ordering = ["started_at"]
+        indexes = [
+            models.Index(fields=["trace_id"], name="idx_engspan_trace"),
+        ]
+
+    trace_id = models.CharField(max_length=36, db_index=True)
+    engine_name = models.CharField(max_length=10)
+    span_name = models.CharField(
+        max_length=100,
+        help_text="Sub-step name: collect_signals, classify_scenario, etc.",
+    )
+
+    started_at = models.DateTimeField()
+    ended_at = models.DateTimeField(null=True, blank=True)
+    duration_ms = models.IntegerField(default=0)
+
+    status = models.CharField(max_length=10, default="success")
+    metadata = models.JSONField(default=dict, blank=True)
+
+    def __str__(self):
+        return (
+            f"{self.engine_name}.{self.span_name} "
+            f"[{self.status}] {self.duration_ms}ms"
+        )
+
+
+class DecisionRecord(models.Model):
+    """
+    Captures WHY an engine made a specific decision.
+
+    Used by UAL (arbitration scenario selection), ICQG (suppression decisions),
+    DNE (delivery routing decisions), PGE (guidance ranking), PIE (noise budget).
+    """
+
+    class Meta:
+        app_label = "core"
+        db_table = "core_diag_decision_record"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["trace_id"], name="idx_decision_trace"),
+            models.Index(fields=["-created_at"], name="idx_decision_time"),
+        ]
+
+    DECISION_TYPES = [
+        ("arbitration", "Arbitration Scenario"),
+        ("suppression", "Quality Suppression"),
+        ("delivery_route", "Delivery Routing"),
+        ("guidance_rank", "Guidance Ranking"),
+        ("insight_filter", "Insight Filtering"),
+        ("noise_budget", "Noise Budget"),
+        ("prediction_store", "Prediction Storage"),
+        ("other", "Other"),
+    ]
+
+    trace_id = models.CharField(max_length=36, db_index=True)
+    decision_type = models.CharField(max_length=20, choices=DECISION_TYPES)
+    engine_name = models.CharField(
+        max_length=10, help_text="Which engine made this decision."
+    )
+
+    decision = models.CharField(
+        max_length=200,
+        help_text="The decision: 'SCENARIO=HEALTH_CRITICAL', 'SUPPRESS=repeat_72h'.",
+    )
+    rationale = models.TextField(
+        blank=True,
+        default="",
+        help_text="Human-readable explanation of why.",
+    )
+
+    inputs_summary = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Key inputs that influenced this decision.",
+    )
+    affected_items = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Items affected (guidance IDs, notification IDs, etc.).",
+    )
+
+    user_id = models.IntegerField(null=True, blank=True)
+    confidence = models.FloatField(
+        null=True, blank=True, help_text="Decision confidence score if applicable."
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)

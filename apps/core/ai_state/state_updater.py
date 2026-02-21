@@ -12,10 +12,12 @@ import logging
 
 from apps.core.ai_state.models import UserState
 from apps.core.ai_state.state_builder import get_builder
+from apps.core.ai_observability.instrumentation import log_engine_run as _instrument_engine_run
 
 logger = logging.getLogger(__name__)
 
 
+@_instrument_engine_run("SAE", 3)
 def update_user_state(user, module, record_id=None):
     """
     Update state for a specific module after a data change.

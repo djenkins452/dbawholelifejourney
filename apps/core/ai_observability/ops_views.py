@@ -576,21 +576,22 @@ class TriggerEngineView(View):
         trace_id = str(uuid.uuid4())
         from apps.core.ai_observability.models import AdminIntervention
 
+        mode = meta.get("execution_mode", "batch")
         AdminIntervention.objects.create(
             admin_user=request.user,
             action_type="rerun_engine",
             engine_name=engine,
             trace_id=trace_id,
             notes=(
-                f"Manual engine execution: {engine} "
+                f"Manual engine execution ({mode}): {engine} "
                 f"(execution_id={execution.id}, celery_task_id={result.id})"
             ),
             result_status="pending",
         )
 
         logger.info(
-            "Engine manual trigger by %s: %s (execution_id=%s, celery_task_id=%s)",
-            request.user.email, engine, execution.id, result.id,
+            "Engine manual trigger (%s) by %s: %s (execution_id=%s, celery_task_id=%s)",
+            mode, request.user.email, engine, execution.id, result.id,
         )
 
         return JsonResponse({
@@ -797,6 +798,7 @@ def _build_engine_cards(engine_names, cadence_config, heartbeats, now):
 
         eng_meta = get_engine_meta(name)
         can_manual = eng_meta["can_manual_run"] if eng_meta else False
+        execution_mode = eng_meta.get("execution_mode", "batch") if eng_meta else "batch"
 
         cards.append({
             "name": name,
@@ -812,6 +814,7 @@ def _build_engine_cards(engine_names, cadence_config, heartbeats, now):
             "sparkline": sparkline,
             "lateness_seconds": hb.get("lateness_seconds", 0),
             "can_manual_run": can_manual,
+            "execution_mode": execution_mode,
             "is_frozen": not cfg.get("enabled", True),
         })
 

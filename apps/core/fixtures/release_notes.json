@@ -1,6 +1,22 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 87,
+        "fields": {
+            "title": "Full Engine Execution Authority — Synthetic Mode",
+            "description": "All nine intelligence engines now have Execute buttons in the Ops Command Center. Context-dependent engines (UAL, SAE, PIE, PRIE, ICQG) run in Synthetic Batch Evaluation Mode — iterating all active users and re-evaluating current system state using each engine's existing logic. No fake events are created and no raw data is altered. Synthetic engines are clearly marked with a purple 'Synthetic' badge and descriptive tooltip. This extends the manual execution capability from 4 batch-native engines to the full intelligence pipeline.",
+            "entry_type": "enhancement",
+            "version": "",
+            "release_date": "2026-02-21",
+            "is_published": true,
+            "is_major": false,
+            "learn_more_url": "",
+            "created_at": "2026-02-21T00:00:00Z",
+            "updated_at": "2026-02-21T00:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 86,
         "fields": {
             "title": "Per-Engine Manual Execution Controls",

@@ -608,9 +608,17 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
 .ops-engine-exec-duration {
     font-size: 0.6rem; color: var(--ops-text-dim); white-space: nowrap;
 }
+.ops-engine-mode-badge {
+    font-size: 0.55rem; color: #a78bfa;
+    background: rgba(139, 92, 246, 0.12);
+    padding: 1px 6px; border-radius: 3px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    font-weight: 600; white-space: nowrap;
+}
 @media (max-width: 480px) {
     .ops-engine-exec-btn .ops-engine-exec-label { display: none; }
     .ops-engine-exec-btn { padding: 6px 8px; min-width: 32px; min-height: 32px; }
+    .ops-engine-mode-badge { font-size: 0.5rem; padding: 1px 4px; }
 }
 
 /* =========================================================================
@@ -1826,10 +1834,15 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
                 (c.can_manual_run ?
                     '<div class="ops-engine-exec-row">' +
                     '  <button class="ops-engine-exec-btn" data-exec-engine="' + c.name + '"' +
-                         (c.is_frozen ? ' disabled title="Engine is frozen"' : ' title="Execute ' + c.name + ' now"') + '>' +
+                         (c.is_frozen ? ' disabled title="Engine is frozen"' :
+                          c.execution_mode === 'synthetic' ?
+                              ' title="Re-evaluates engine using current system snapshot"' :
+                              ' title="Execute ' + c.name + ' now"') + '>' +
                     '    <span class="ops-engine-exec-icon">&#9654;</span>' +
                     '    <span class="ops-engine-exec-label">Execute</span>' +
                     '  </button>' +
+                    (c.execution_mode === 'synthetic' ?
+                        '  <span class="ops-engine-mode-badge">Synthetic</span>' : '') +
                     '  <span class="ops-engine-exec-status" data-exec-status="' + c.name + '" style="display:none;"></span>' +
                     '  <span class="ops-engine-exec-duration" data-exec-dur="' + c.name + '"></span>' +
                     '</div>'

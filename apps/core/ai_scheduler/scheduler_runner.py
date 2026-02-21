@@ -666,6 +666,251 @@ def run_cross_domain_insights():
 
 
 # =========================================================================
+# SYNTHETIC BATCH RUNNERS (Phase 2.5 — Manual Execution)
+# =========================================================================
+# These runners enable manual execution of context-dependent engines
+# from the Ops Command Center.  Each iterates all active AI users and
+# calls the engine's per-user entry point with current stored data.
+# No fake events are created; no raw user data is altered.
+# =========================================================================
+
+
+def run_ual_synthetic():
+    """
+    Synthetic batch: run UAL arbitration for all active AI users.
+
+    Re-evaluates current state via signal collectors per user.
+    Writes ArbitrationDecisionLog, histories, nudge memory.
+
+    Returns:
+        dict — {processed: int, evaluated: int, errors: int}
+    """
+    with trace_context(source="manual_synthetic"):
+        try:
+            from apps.core.ai_arbitration.arbitration_engine import run_arbitration
+        except ImportError:
+            logger.error("ISE: UAL not available (import failed)")
+            return {"processed": 0, "evaluated": 0, "errors": 0}
+
+        users = _get_active_ai_users()
+        evaluated = 0
+        errors = 0
+
+        for user in users:
+            try:
+                result = run_arbitration(user)
+                if result is not None and result.dominant_scenario:
+                    evaluated += 1
+            except Exception as e:
+                errors += 1
+                logger.warning(f"ISE: UAL synthetic failed for user {user.id}: {e}")
+
+        logger.info(
+            f"ISE: UAL synthetic — processed={len(users)}, "
+            f"evaluated={evaluated}, errors={errors}"
+        )
+        return {"processed": len(users), "evaluated": evaluated, "errors": errors}
+
+
+def run_sae_synthetic():
+    """
+    Synthetic batch: full SAE state rebuild for all active AI users.
+
+    Calls rebuild_user_state() which rebuilds all modules (health, goals,
+    habits, journal, faith, nutrition, fasting, fitness, transformation).
+
+    Returns:
+        dict — {processed: int, rebuilt: int, errors: int}
+    """
+    with trace_context(source="manual_synthetic"):
+        try:
+            from apps.core.ai_state.state_engine import rebuild_user_state
+        except ImportError:
+            logger.error("ISE: SAE state_engine not available (import failed)")
+            return {"processed": 0, "rebuilt": 0, "errors": 0}
+
+        users = _get_active_ai_users()
+        rebuilt = 0
+        errors = 0
+
+        for user in users:
+            try:
+                rebuild_user_state(user)
+                rebuilt += 1
+            except Exception as e:
+                errors += 1
+                logger.warning(f"ISE: SAE synthetic failed for user {user.id}: {e}")
+
+        logger.info(
+            f"ISE: SAE synthetic — processed={len(users)}, "
+            f"rebuilt={rebuilt}, errors={errors}"
+        )
+        return {"processed": len(users), "rebuilt": rebuilt, "errors": errors}
+
+
+def run_pie_synthetic():
+    """
+    Synthetic batch: run PIE insight rules for all active AI users.
+
+    Fires a scheduled_check event with module='cross_domain' to trigger
+    broad rule evaluation using current user data.
+
+    Returns:
+        dict — {processed: int, checked: int, insights_created: int, errors: int}
+    """
+    with trace_context(source="manual_synthetic"):
+        try:
+            from apps.core.ai_insights.insight_engine import run_insights
+        except ImportError:
+            logger.error("ISE: PIE insight engine not available (import failed)")
+            return {"processed": 0, "checked": 0, "insights_created": 0, "errors": 0}
+
+        users = _get_active_ai_users()
+        checked = 0
+        total_insights = 0
+        errors = 0
+
+        for user in users:
+            try:
+                event = {
+                    "event_type": "scheduled_check",
+                    "module": "cross_domain",
+                }
+                insights = run_insights(user, event)
+                checked += 1
+                total_insights += len(insights) if insights else 0
+            except Exception as e:
+                errors += 1
+                logger.warning(f"ISE: PIE synthetic failed for user {user.id}: {e}")
+
+        logger.info(
+            f"ISE: PIE synthetic — processed={len(users)}, "
+            f"checked={checked}, created={total_insights}, errors={errors}"
+        )
+        return {
+            "processed": len(users),
+            "checked": checked,
+            "insights_created": total_insights,
+            "errors": errors,
+        }
+
+
+def run_prie_synthetic():
+    """
+    Synthetic batch: generate predictions for all active AI users.
+
+    Calls generate_predictions(user, module=None) which runs ALL
+    applicable prediction rules.
+
+    Returns:
+        dict — {processed: int, checked: int, predictions_created: int, errors: int}
+    """
+    with trace_context(source="manual_synthetic"):
+        try:
+            from apps.core.ai_predictions.prediction_engine import generate_predictions
+        except ImportError:
+            logger.error("ISE: PRIE prediction engine not available (import failed)")
+            return {"processed": 0, "checked": 0, "predictions_created": 0, "errors": 0}
+
+        users = _get_active_ai_users()
+        checked = 0
+        total_predictions = 0
+        errors = 0
+
+        for user in users:
+            try:
+                predictions = generate_predictions(user, module=None)
+                checked += 1
+                total_predictions += len(predictions) if predictions else 0
+            except Exception as e:
+                errors += 1
+                logger.warning(f"ISE: PRIE synthetic failed for user {user.id}: {e}")
+
+        logger.info(
+            f"ISE: PRIE synthetic — processed={len(users)}, "
+            f"checked={checked}, created={total_predictions}, errors={errors}"
+        )
+        return {
+            "processed": len(users),
+            "checked": checked,
+            "predictions_created": total_predictions,
+            "errors": errors,
+        }
+
+
+def run_icqg_synthetic():
+    """
+    Synthetic batch: re-validate ICQG quality gate for all active AI users.
+
+    Pulls each user's active GuidanceItem records, converts to candidate
+    dicts, and passes through filter_guidance_candidates().  This validates
+    the quality gate against current data without generating new guidance.
+
+    Items that would be suppressed are counted but NOT deleted (read-only
+    validation).
+
+    Returns:
+        dict — {processed: int, checked: int, items_evaluated: int,
+                would_suppress: int, errors: int}
+    """
+    with trace_context(source="manual_synthetic"):
+        try:
+            from apps.core.ai_guidance.models import GuidanceItem
+            from apps.core.ai_quality.quality_gate import filter_guidance_candidates
+        except ImportError:
+            logger.error("ISE: ICQG quality gate not available (import failed)")
+            return {
+                "processed": 0, "checked": 0,
+                "items_evaluated": 0, "would_suppress": 0, "errors": 0,
+            }
+
+        users = _get_active_ai_users()
+        checked = 0
+        total_items = 0
+        total_suppressed = 0
+        errors = 0
+
+        for user in users:
+            try:
+                active_items = GuidanceItem.objects.filter(
+                    user=user,
+                    is_active=True,
+                    dismissed_at__isnull=True,
+                ).values(
+                    "id", "title", "message", "priority", "guidance_type",
+                    "source", "module", "evidence", "confidence_score",
+                )
+                candidates = list(active_items)
+
+                if not candidates:
+                    checked += 1
+                    continue
+
+                filtered = filter_guidance_candidates(user, candidates)
+                suppressed = len(candidates) - len(filtered)
+
+                checked += 1
+                total_items += len(candidates)
+                total_suppressed += suppressed
+            except Exception as e:
+                errors += 1
+                logger.warning(f"ISE: ICQG synthetic failed for user {user.id}: {e}")
+
+        logger.info(
+            f"ISE: ICQG synthetic — processed={len(users)}, checked={checked}, "
+            f"evaluated={total_items}, would_suppress={total_suppressed}, "
+            f"errors={errors}"
+        )
+        return {
+            "processed": len(users),
+            "checked": checked,
+            "items_evaluated": total_items,
+            "would_suppress": total_suppressed,
+            "errors": errors,
+        }
+
+
+# =========================================================================
 # PHASE 5 — GOVERNANCE RUNNERS
 # =========================================================================
 

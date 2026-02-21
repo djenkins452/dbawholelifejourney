@@ -9,6 +9,20 @@
 
 # WLJ Change History
 
+## 2026-02-21 — Phase 2.5: Synthetic Manual Execution for Context-Dependent Engines
+
+**Feature:** All 9 engines now have Execute buttons in the Ops Command Center. Context-dependent engines (UAL, SAE, PIE, PRIE, ICQG) run in "Synthetic Batch Evaluation Mode" — iterating all active AI users and calling each engine's existing evaluation logic with current stored data. No fake events, no data alteration.
+
+**Changes:**
+- **5 synthetic batch runners** (`scheduler_runner.py`): `run_ual_synthetic()`, `run_sae_synthetic()`, `run_pie_synthetic()`, `run_prie_synthetic()`, `run_icqg_synthetic()`. Each uses `trace_context(source="manual_synthetic")`.
+- **ENGINE_REGISTRY updated**: All 9 engines now `can_manual_run=True`. Added `execution_mode` key (`"batch"` or `"synthetic"`) and `batch_runner` paths for context-dependent engines.
+- **Engine cards**: Added `execution_mode` to card data. Synthetic engines show purple "Synthetic" badge and tooltip.
+- **AdminIntervention notes**: Now include execution mode (batch/synthetic).
+
+**Files:** `scheduler_runner.py`, `engine_registry.py`, `ops_views.py`, `operations_wall.html`
+
+---
+
 ## 2026-02-21 — Phase 1: Engine-Level Manual Execution & Recovery Controls
 
 **Feature:** Per-engine manual execution controls in the Ops Command Center. Admins can now trigger individual engines (DBE, WIRE, DNE, PGE) directly from engine cards without running a full SAME cycle.

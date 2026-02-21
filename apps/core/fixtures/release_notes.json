@@ -1,6 +1,22 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 72,
+        "fields": {
+            "title": "Food Search & Barcode Scanner — Now With Real Data",
+            "description": "Food logging just got a major upgrade. Typing a food name now searches the FatSecret database of 1.9 million foods including full restaurant menus — type 'Chick-fil-a' to see the whole menu, or 'Chick-fil-a nug' to narrow it down. The barcode scanner is also more accurate: it now requires multiple consistent reads before accepting a barcode, eliminating false matches. All three search tiers are active: your saved foods first, then FatSecret's database, then AI estimation as a fallback.",
+            "entry_type": "fix",
+            "version": "",
+            "release_date": "2026-02-20",
+            "is_published": true,
+            "is_major": false,
+            "learn_more_url": "",
+            "created_at": "2026-02-20T00:00:00Z",
+            "updated_at": "2026-02-20T00:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 71,
         "fields": {
             "title": "Extended HealthKit Integration — Your Watch Tells Us More Now",

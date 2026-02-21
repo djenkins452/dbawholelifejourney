@@ -700,6 +700,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for extended HealthKit integration (PK 71)
         self._reset_healthkit_extension_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for food search & barcode fixes (PK 72)
+        self._reset_food_search_barcode_fixtures(DataLoadConfig, force, verbosity)
+
         # Auto-sync CoS documentation to admin guide (runs if checksum changed)
         self._sync_cos_documentation(DataLoadConfig, force, verbosity)
 
@@ -2746,3 +2749,33 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset HealthKit extension fixtures FAILED: {e}'))
+
+    def _reset_food_search_barcode_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes for food search & barcode scanner fixes.
+        - release_notes PK 72 (Food Search & Barcode Scanner fix)
+        """
+        reset_tracker_name = 'reset_food_search_barcode_2026_02_20'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                config.reset()
+                if verbosity >= 1:
+                    self.stdout.write('  Reset release_notes loader for food search & barcode fixes')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for food search & barcode scanner fixes (Feb 2026)',
+                'command',
+                'One-time reset to reload release_notes PK 72'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset food search barcode fixtures FAILED: {e}'))

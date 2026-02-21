@@ -9,6 +9,18 @@
 
 # WLJ Change History
 
+## 2026-02-21 — Intelligence Command Center tiles on Admin Dashboard
+
+**Changes:**
+- Added "Intelligence Command Center" section to Admin Console dashboard
+- Operations Wall tile (green monitor icon) links to `/admin-console/ops/`
+- Diagnostics Console tile (blue document icon) links to `/admin-console/diagnostics/`
+
+**Files Modified:**
+- `templates/admin_console/dashboard.html`
+
+---
+
 ## 2026-02-21 — Engine Diagnostics Console + Operations Wall
 
 **Changes:**

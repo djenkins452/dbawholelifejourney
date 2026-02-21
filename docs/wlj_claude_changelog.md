@@ -11,6 +11,9 @@
 
 ## 2026-02-21
 
+- **Bug Fix: Monica proactive chat check-ins never firing** — The scheduled health reminder jobs (morning at 7 AM EST, evening at 7 PM EST) were creating notification-only reminders but never generating assistant chat messages. The `--include-chat` flag was available on the management command but never passed by the APScheduler jobs. Also fixed 5 field name mismatches in `proactive_checkins.py` that would have caused silent failures: `is_active` → `medicine_status='active'`, `schedule.time` → `schedule.scheduled_time`, `MedicineLog.date/time/status` → `scheduled_date/scheduled_time/log_status`, `medicine.reason` → `medicine.purpose`. Additionally expanded the evening check-in scope to include overdue tasks, busy day warnings, pattern observations, and birthday greetings — making Monica a true CoS who proactively monitors all user data.
+  - Files: `apps/core/jobs.py`, `apps/ai/proactive_checkins.py`, `apps/core/management/commands/generate_health_reminders.py`
+
 - **Enhancement: Password visibility toggle on all auth forms** — Added an eye icon toggle button to every password input field across the app. Users can click the eye to show/hide their password as they type. Covers landing page, login, signup, change password, password reset, delete account confirmation, and financial re-authentication. Uses CSP-compliant `addEventListener` pattern with hardcoded SVG stroke colors (body inherits near-white `#f8fafc` for dark hero panels, so `stroke="currentColor"` was invisible on white form backgrounds).
   - Files: `templates/core/landing.html`, `templates/account/login.html`, `templates/account/signup.html`, `templates/account/password_change.html`, `templates/account/password_reset_from_key.html`, `templates/users/delete_account.html`, `templates/users/confirm_password.html`
 

@@ -1,6 +1,22 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 77,
+        "fields": {
+            "title": "Monica Now Proactively Checks In With You",
+            "description": "Monica is now a true Chief of Staff. She'll proactively reach out in the chat to ask about missed medicine doses, remind you to work out or journal, flag overdue tasks, warn you about busy days ahead, share pattern observations from your data, and note birthdays and anniversaries. No more waiting for you to ask — she's watching your data and speaking up when something needs your attention.",
+            "entry_type": "enhancement",
+            "version": "",
+            "release_date": "2026-02-21",
+            "is_published": true,
+            "is_major": true,
+            "learn_more_url": "",
+            "created_at": "2026-02-21T00:00:00Z",
+            "updated_at": "2026-02-21T00:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 76,
         "fields": {
             "title": "Apple Watch Workout Display — See Your Full Activity Data",

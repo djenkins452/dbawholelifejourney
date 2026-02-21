@@ -79,7 +79,7 @@ def generate_health_reminders_morning():
     logger.info("Starting morning health reminders job...")
 
     try:
-        call_command('generate_health_reminders', '--medicine-only', '--time-period=morning')
+        call_command('generate_health_reminders', '--medicine-only', '--time-period=morning', '--include-chat')
         logger.info("Morning health reminders job completed successfully")
     except Exception as e:
         logger.exception(f"Morning health reminders job failed: {e}")
@@ -100,7 +100,7 @@ def generate_health_reminders_evening():
     logger.info("Starting evening health reminders job...")
 
     try:
-        call_command('generate_health_reminders', '--time-period=evening')
+        call_command('generate_health_reminders', '--time-period=evening', '--include-chat')
         logger.info("Evening health reminders job completed successfully")
     except Exception as e:
         logger.exception(f"Evening health reminders job failed: {e}")

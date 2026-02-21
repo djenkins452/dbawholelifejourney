@@ -470,16 +470,16 @@ def generate_medicine_check_ins_for_user(user, dose_time: str = None):
     current_time = now.time()
 
     # Get active medicines
-    medicines = Medicine.objects.filter(user=user, is_active=True)
+    medicines = Medicine.objects.filter(user=user, medicine_status='active')
 
     for medicine in medicines:
         schedules = MedicineSchedule.objects.filter(medicine=medicine, is_active=True)
 
         for schedule in schedules:
-            if not schedule.applies_to_day(today):
+            if not schedule.applies_to_day(today.weekday()):
                 continue
 
-            scheduled_time = schedule.time
+            scheduled_time = schedule.scheduled_time
 
             # Only check doses whose time has passed
             if current_time < scheduled_time:
@@ -488,11 +488,11 @@ def generate_medicine_check_ins_for_user(user, dose_time: str = None):
             # Check if already logged
             log = MedicineLog.objects.filter(
                 medicine=medicine,
-                date=today,
-                time=scheduled_time,
+                scheduled_date=today,
+                scheduled_time=scheduled_time,
             ).first()
 
-            if log and log.status in ['taken', 'skipped']:
+            if log and log.log_status in ['taken', 'skipped']:
                 continue
 
             # Check if we already sent a check-in for this dose today
@@ -527,9 +527,9 @@ def _get_medicine_health_context(medicine) -> Optional[str]:
     Uses the medicine's reason/notes to add context.
     Example: "Your last labs showed elevated cholesterol"
     """
-    reason = getattr(medicine, 'reason', '') or ''
+    purpose = getattr(medicine, 'purpose', '') or ''
     notes = getattr(medicine, 'notes', '') or ''
-    combined = f"{reason} {notes}".lower()
+    combined = f"{purpose} {notes}".lower()
 
     if 'cholesterol' in combined:
         return 'elevated cholesterol'

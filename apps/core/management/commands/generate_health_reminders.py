@@ -398,6 +398,10 @@ class Command(BaseCommand):
         from apps.ai.proactive_checkins import (
             generate_medicine_check_ins_for_user,
             generate_daily_check_ins_for_user,
+            generate_overdue_task_check_ins_for_user,
+            generate_busy_day_check_ins_for_user,
+            generate_pattern_check_ins_for_user,
+            generate_birthday_check_ins_for_user,
         )
 
         User = get_user_model()
@@ -430,6 +434,26 @@ class Command(BaseCommand):
                     if user.preferences.journal_enabled:
                         generate_daily_check_ins_for_user(user, 'journal')
                         count += 1
+
+                # CoS-level proactive check-ins (evening run covers full scope)
+                if generate_all and time_period in ['evening', 'all']:
+                    # Overdue tasks
+                    generate_overdue_task_check_ins_for_user(user)
+                    count += 1
+
+                    # Busy day ahead warning
+                    generate_busy_day_check_ins_for_user(user)
+                    count += 1
+
+                    # Pattern observations (factual correlations)
+                    if user.preferences.health_enabled:
+                        generate_pattern_check_ins_for_user(user)
+                        count += 1
+
+                # Birthday/anniversary greetings (morning)
+                if generate_all and time_period in ['morning', 'all']:
+                    generate_birthday_check_ins_for_user(user)
+                    count += 1
 
             except Exception as e:
                 logger.warning(f"Failed to create chat check-ins for user {user.id}: {e}")

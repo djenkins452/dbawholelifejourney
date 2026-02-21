@@ -709,6 +709,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for sleep tracking fix (PK 74)
         self._reset_sleep_tracking_fix_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for password toggle (PK 75)
+        self._reset_password_toggle_fixtures(DataLoadConfig, force, verbosity)
+
         # Auto-sync CoS documentation to admin guide (runs if checksum changed)
         self._sync_cos_documentation(DataLoadConfig, force, verbosity)
 
@@ -2845,3 +2848,33 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset sleep tracking fix fixtures FAILED: {e}'))
+
+    def _reset_password_toggle_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes for password visibility toggle.
+        - release_notes PK 75 (Password Visibility Toggle)
+        """
+        reset_tracker_name = 'reset_password_toggle_2026_02_21'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                config.reset()
+                if verbosity >= 1:
+                    self.stdout.write('  Reset release_notes loader for password toggle')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for password toggle (Feb 2026)',
+                'command',
+                'One-time reset to reload release_notes PK 75'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset password toggle fixtures FAILED: {e}'))

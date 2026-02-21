@@ -9,6 +9,19 @@
 
 # WLJ Change History
 
+## 2026-02-21 — Mobile UX: Bottom Bar Overlap, Chat Bubble, Tap Targets
+
+**Changes:**
+- **Bottom padding fix:** Increased `.main-content` mobile padding-bottom from 70px to 120px to account for the CoS pull-up panel handle sitting above the bottom tab bar — Save/Create buttons were being covered.
+- **Hide redundant chat bubble:** Added CSS to hide the floating chat bubble (`.assistant-toggle-btn`) on mobile/tablet (≤1024px) when the CoS pull-up panel is present — both provided chat access, causing clutter.
+- **Edge tap targets:** Increased horizontal padding on bottom tab items (especially Home and More at the edges) and ensured 44px minimum touch target height for reliable tapping near screen edges.
+
+**Files Modified:**
+- `static/css/main.css` — padding-bottom increase, tap target improvements
+- `templates/components/assistant_panel.html` — conditional style to hide chat bubble on mobile
+
+---
+
 ## 2026-02-21 — Vegas Ops Wall v2 (SAME Engine + Persistent Anomalies)
 
 **Changes:**

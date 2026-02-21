@@ -11,6 +11,12 @@
 {% endcomment %}
 
 {% if user.is_authenticated and personal_assistant_enabled %}
+{# Hide the floating chat bubble on mobile/tablet — the pull-up panel handles chat #}
+<style nonce="{{ csp_nonce }}">
+@media (max-width: 1024px) {
+    .assistant-toggle-btn { display: none !important; }
+}
+</style>
 {# Desktop Panel (hidden on mobile via CSS) #}
 <aside id="assistant-panel" class="assistant-panel"
        data-calibration-active="{{ calibration_active|yesno:'true,false' }}"

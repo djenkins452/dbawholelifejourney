@@ -1674,9 +1674,9 @@ a:hover {
         display: flex;
     }
 
-    /* Add padding to main content to prevent overlap with bottom bar */
+    /* Add padding to main content to prevent overlap with bottom bar + CoS pull-up handle */
     .main-content {
-        padding-bottom: calc(70px + env(safe-area-inset-bottom, 0px));
+        padding-bottom: calc(120px + env(safe-area-inset-bottom, 0px));
     }
 
     /* Hide footer on mobile when bottom bar is present */
@@ -1691,13 +1691,23 @@ a:hover {
     align-items: center;
     justify-content: center;
     gap: var(--space-1);
-    padding: var(--space-1) var(--space-2);
+    padding: var(--space-1) var(--space-3);
     color: var(--color-text-muted);
     text-decoration: none;
     border-radius: var(--radius-md);
     transition: color var(--transition-fast);
     min-width: 60px;
+    min-height: 44px; /* Minimum touch target */
     -webkit-tap-highlight-color: transparent;
+}
+
+/* Edge tabs need extra padding for reliable tapping near screen edges */
+.bottom-tab:first-child {
+    padding-left: var(--space-4);
+}
+
+.bottom-tab:last-child {
+    padding-right: var(--space-4);
 }
 
 .bottom-tab:hover,

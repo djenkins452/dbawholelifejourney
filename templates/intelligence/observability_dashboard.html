@@ -256,6 +256,152 @@
 
     </div>
 
+    <!-- ========== UAL v2 Panels ========== -->
+    {% if ual_metrics.has_data %}
+    <div class="icc-sections" style="margin-top: var(--space-4);">
+        <div class="icc-header">
+            <h2 class="icc-title" style="font-size: 1.25rem;">
+                <span class="icc-title-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22">
+                        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                        <path d="M2 17l10 5 10-5"/>
+                        <path d="M2 12l10 5 10-5"/>
+                    </svg>
+                </span>
+                Universal Arbitration Layer
+            </h2>
+            <p class="icc-subtitle">UAL v2 — Executive stability &amp; adaptation metrics</p>
+        </div>
+
+        <!-- 7. Confidence Distribution -->
+        <section class="icc-section" id="obs-ual-confidence">
+            <div class="icc-section-header">
+                <h2 class="icc-section-title">
+                    <span class="icc-section-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M12 6v6l4 2"/></svg>
+                    </span>
+                    Confidence Distribution (7d)
+                </h2>
+                <span class="icc-section-engine">UAL</span>
+            </div>
+            <div class="icc-section-body">
+                <div class="obs-metrics-grid">
+                    <div class="obs-metric">
+                        <span class="obs-metric-value obs-success">{{ ual_metrics.confidence_distribution.HIGH }}</span>
+                        <span class="obs-metric-label">HIGH</span>
+                    </div>
+                    <div class="obs-metric">
+                        <span class="obs-metric-value" style="color: var(--color-accent);">{{ ual_metrics.confidence_distribution.MODERATE }}</span>
+                        <span class="obs-metric-label">MODERATE</span>
+                    </div>
+                    <div class="obs-metric">
+                        <span class="obs-metric-value obs-warning">{{ ual_metrics.confidence_distribution.LOW }}</span>
+                        <span class="obs-metric-label">LOW</span>
+                    </div>
+                    <div class="obs-metric">
+                        <span class="obs-metric-value">{{ ual_metrics.decisions_count_7d }}</span>
+                        <span class="obs-metric-label">Total Decisions</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 8. Scenario Frequency (14d) -->
+        <section class="icc-section" id="obs-ual-scenarios">
+            <div class="icc-section-header">
+                <h2 class="icc-section-title">
+                    <span class="icc-section-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+                    </span>
+                    Scenario Frequency (14d)
+                </h2>
+                <span class="icc-section-engine">UAL</span>
+            </div>
+            <div class="icc-section-body">
+                {% if ual_metrics.scenario_frequency %}
+                <div class="obs-scenario-freq">
+                    {% for scenario, count in ual_metrics.scenario_frequency.items %}
+                    <div class="obs-scenario-bar">
+                        <span class="obs-scenario-name">{{ scenario }}</span>
+                        <span class="obs-scenario-count">{{ count }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="obs-empty-note">No scenario history yet.</p>
+                {% endif %}
+            </div>
+        </section>
+
+        <!-- 9. Capacity Trend (14d) -->
+        <section class="icc-section" id="obs-ual-capacity">
+            <div class="icc-section-header">
+                <h2 class="icc-section-title">
+                    <span class="icc-section-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                    </span>
+                    Capacity Trend (14d)
+                </h2>
+                <span class="icc-section-engine">UAL</span>
+            </div>
+            <div class="icc-section-body">
+                {% if ual_metrics.capacity_trend %}
+                <div class="obs-capacity-trend">
+                    {% for entry in ual_metrics.capacity_trend %}
+                    <div class="obs-capacity-day">
+                        <span class="obs-capacity-date">{{ entry.date_str }}</span>
+                        <div class="obs-capacity-bar-container">
+                            <div class="obs-capacity-bar obs-cap-{{ entry.capacity_state|lower }}" style="width: calc({{ entry.capacity_score }} * 100%)"></div>
+                        </div>
+                        <span class="obs-capacity-state obs-cap-label-{{ entry.capacity_state|lower }}">{{ entry.capacity_state }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="obs-empty-note">No capacity data yet.</p>
+                {% endif %}
+            </div>
+        </section>
+
+        <!-- 10. Weight Adjustment Deltas -->
+        <section class="icc-section" id="obs-ual-weights">
+            <div class="icc-section-header">
+                <h2 class="icc-section-title">
+                    <span class="icc-section-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M12 3v18"/><path d="M5 12h14"/><circle cx="12" cy="12" r="3"/></svg>
+                    </span>
+                    Weight Adjustments
+                </h2>
+                <span class="icc-section-engine">UAL</span>
+            </div>
+            <div class="icc-section-body">
+                {% if ual_metrics.weight_deltas %}
+                <div class="obs-weight-table">
+                    <div class="obs-weight-header">
+                        <span class="obs-weight-col-wide">Scenario / Signal</span>
+                        <span class="obs-weight-col">Baseline</span>
+                        <span class="obs-weight-col">Delta</span>
+                        <span class="obs-weight-col">Current</span>
+                    </div>
+                    {% for w in ual_metrics.weight_deltas %}
+                    <div class="obs-weight-row">
+                        <span class="obs-weight-col-wide">{{ w.scenario }}<br><small>{{ w.signal }}</small></span>
+                        <span class="obs-weight-col">{{ w.baseline_weight|floatformat:2 }}</span>
+                        <span class="obs-weight-col {% if w.adjustment_delta > 0 %}obs-success{% elif w.adjustment_delta < 0 %}obs-error{% endif %}">
+                            {% if w.adjustment_delta > 0 %}+{% endif %}{{ w.adjustment_delta|floatformat:3 }}
+                        </span>
+                        <span class="obs-weight-col">{{ w.baseline_weight|floatformat:2 }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="obs-empty-note">No weight adjustments yet. Tuning begins after 50 decisions with feedback.</p>
+                {% endif %}
+            </div>
+        </section>
+    </div>
+    {% endif %}
+
     <div class="icc-section-meta" style="margin-top: var(--space-4); padding: var(--space-3);">
         <span class="icc-timestamp">Snapshot date: {{ snapshot.snapshot_date }}</span>
         <span class="icc-timestamp">Generated {{ snapshot.created_at|timesince }} ago</span>
@@ -395,6 +541,126 @@
     text-align: left;
 }
 
+/* === UAL v2 Panels === */
+
+/* Scenario frequency bars */
+.obs-scenario-freq {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.obs-scenario-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md, 6px);
+    background: var(--color-background);
+    font-size: var(--font-size-sm);
+}
+.obs-scenario-name {
+    font-weight: 600;
+    color: var(--color-text);
+    font-size: var(--font-size-xs);
+}
+.obs-scenario-count {
+    font-weight: 700;
+    color: var(--color-accent);
+    font-size: 1.1rem;
+}
+
+/* Capacity trend */
+.obs-capacity-trend {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.obs-capacity-day {
+    display: grid;
+    grid-template-columns: 50px 1fr 100px;
+    gap: var(--space-2);
+    align-items: center;
+    padding: 2px 0;
+}
+.obs-capacity-date {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    font-weight: 600;
+}
+.obs-capacity-bar-container {
+    height: 16px;
+    background: var(--color-border);
+    border-radius: 8px;
+    overflow: hidden;
+}
+.obs-capacity-bar {
+    height: 100%;
+    border-radius: 8px;
+    min-width: 4px;
+    transition: width 0.3s ease;
+}
+.obs-cap-high_capacity { background: #059669; }
+.obs-cap-normal { background: var(--color-accent); }
+.obs-cap-low { background: #d97706; }
+.obs-cap-critical { background: #dc2626; }
+.obs-capacity-state {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    text-align: right;
+}
+.obs-cap-label-high_capacity { color: #059669; }
+.obs-cap-label-normal { color: var(--color-accent); }
+.obs-cap-label-low { color: #d97706; }
+.obs-cap-label-critical { color: #dc2626; }
+
+/* Weight adjustment table */
+.obs-weight-table {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.obs-weight-header,
+.obs-weight-row {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr 1fr;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    align-items: center;
+}
+.obs-weight-header {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    border-bottom: 1px solid var(--color-border);
+}
+.obs-weight-row {
+    font-size: var(--font-size-sm);
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-background);
+}
+.obs-weight-row:last-child { border-bottom: none; }
+.obs-weight-col { text-align: center; }
+.obs-weight-col-wide {
+    text-align: left;
+    font-weight: 600;
+    font-size: var(--font-size-xs);
+}
+.obs-weight-col-wide small {
+    font-weight: 400;
+    color: var(--color-text-muted);
+}
+
+/* Empty state note */
+.obs-empty-note {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    text-align: center;
+    padding: var(--space-4);
+}
+
 /* Responsive */
 @media (max-width: 480px) {
     .obs-metrics-grid {
@@ -410,6 +676,17 @@
     }
     .obs-persona-header .obs-persona-col:nth-child(5),
     .obs-persona-row .obs-persona-col:nth-child(5) {
+        display: none;
+    }
+    .obs-capacity-day {
+        grid-template-columns: 40px 1fr 70px;
+    }
+    .obs-weight-header,
+    .obs-weight-row {
+        grid-template-columns: 2fr 1fr 1fr;
+    }
+    .obs-weight-header .obs-weight-col:last-child,
+    .obs-weight-row .obs-weight-col:last-child {
         display: none;
     }
 }

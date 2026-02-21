@@ -4,6 +4,9 @@ UAL — Intervention Decision Engine.
 Selects ONE intervention style based on the dominant scenario and
 fused composites. Determines what to surface (max 3) and what to
 suppress.
+
+v2: Confidence dampening modifies surfacing. Capacity modifies
+max surfaced items. Pattern hints adjust intensity.
 """
 import logging
 
@@ -46,8 +49,18 @@ INTERVENTION_DESCRIPTIONS = {
     EXECUTION: "Clean execution day. Top priority, one secondary, go.",
 }
 
-# Max items to surface
+# Max items to surface (default — may be overridden by capacity)
 MAX_SURFACED = 3
+
+# Confidence-level surfacing rules (v2)
+# LOW confidence: surface only 1 primary signal, soften
+# MODERATE: normal (up to MAX_SURFACED)
+# HIGH: full suppression allowed
+CONFIDENCE_SURFACE_LIMITS = {
+    "LOW": 1,
+    "MODERATE": None,  # Use default/capacity
+    "HIGH": None,      # Use default/capacity
+}
 
 
 def decide_intervention(
@@ -55,6 +68,8 @@ def decide_intervention(
     composites: list,
     strengths: dict,
     signals: dict,
+    capacity: dict = None,
+    pattern_hints: list = None,
 ) -> dict:
     """
     Select intervention style and determine surfaced/suppressed items.
@@ -64,6 +79,8 @@ def decide_intervention(
         composites: output of fuse_signals()
         strengths: raw signal strengths (0-1)
         signals: full ArbitrationInput dict
+        capacity: output of compute_capacity() (v2)
+        pattern_hints: escalation hints from PatternAnalyzer (v2)
 
     Returns:
         {
@@ -94,9 +111,12 @@ def decide_intervention(
     # Sort by priority (higher = more important to surface)
     candidates.sort(key=lambda x: x["priority"], reverse=True)
 
+    # Determine max surfaced items (v2: capacity + confidence)
+    max_items = _compute_max_surfaced(scenario_result, capacity)
+
     # Surface top N, suppress the rest
-    surfaced = candidates[:MAX_SURFACED]
-    suppressed = candidates[MAX_SURFACED:]
+    surfaced = candidates[:max_items]
+    suppressed = candidates[max_items:]
 
     return {
         "intervention_style": style,
@@ -105,6 +125,26 @@ def decide_intervention(
         "suppressed_items": suppressed,
         "primary_composite": primary_composite,
     }
+
+
+def _compute_max_surfaced(scenario_result: dict, capacity: dict = None) -> int:
+    """
+    Compute maximum surfaced items based on confidence and capacity.
+
+    Priority: confidence LOW override > capacity limit > default.
+    """
+    confidence_level = scenario_result.get("confidence_level", "MODERATE")
+
+    # LOW confidence always limits to 1
+    conf_limit = CONFIDENCE_SURFACE_LIMITS.get(confidence_level)
+    if conf_limit is not None:
+        return conf_limit
+
+    # Capacity-based limit
+    if capacity:
+        return capacity.get("max_surfaced", MAX_SURFACED)
+
+    return MAX_SURFACED
 
 
 def _build_candidates(strengths: dict, signals: dict) -> list:

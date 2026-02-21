@@ -10,6 +10,7 @@ The narrative:
 3. Offers clear next move
 4. Invites adjustment
 
+v2: Confidence-aware framing, capacity context, pattern mentions.
 Never lists 8 separate reminders. Always unifies.
 """
 import logging
@@ -22,6 +23,8 @@ def build_narrative(
     composites: list,
     intervention: dict,
     signals: dict,
+    capacity: dict = None,
+    pattern_hints: list = None,
 ) -> str:
     """
     Build the executive narrative for system prompt injection.
@@ -33,12 +36,16 @@ def build_narrative(
     surfaced = intervention["surfaced_items"]
     suppressed = intervention["suppressed_items"]
     composite = intervention.get("primary_composite")
+    confidence_level = scenario_result.get("confidence_level", "MODERATE")
 
     # Build the narrative parts
     story = _build_story(dominant, composite, signals, surfaced)
     framing = _build_framing_directive(style, intervention["style_description"])
     surface_block = _build_surfaced_block(surfaced)
     suppress_block = _build_suppressed_block(suppressed)
+    confidence_note = _build_confidence_note(confidence_level)
+    capacity_note = _build_capacity_note(capacity)
+    pattern_note = _build_pattern_note(pattern_hints)
 
     parts = [
         "=== EXECUTIVE JUDGMENT (UAL) ===",
@@ -53,12 +60,33 @@ def build_narrative(
     if composite:
         parts.append(f"COMPOSITE: {composite}")
 
+    # v2: Confidence level
+    parts.append(f"CONFIDENCE: {confidence_level}")
+
+    # v2: Capacity state
+    if capacity:
+        parts.append(f"CAPACITY: {capacity['capacity_state']} ({capacity['capacity_score']:.2f})")
+
     parts.append("")
     parts.append(f"INTERVENTION STYLE: {style}")
     parts.append(framing)
+
+    # v2: Confidence-specific instruction
+    if confidence_note:
+        parts.append(confidence_note)
+
     parts.append("")
     parts.append("NARRATIVE FRAME:")
     parts.append(story)
+
+    # v2: Capacity context
+    if capacity_note:
+        parts.append(capacity_note)
+
+    # v2: Pattern warning
+    if pattern_note:
+        parts.append(pattern_note)
+
     parts.append("")
     parts.append(surface_block)
 
@@ -74,6 +102,62 @@ def build_narrative(
     parts.append("=== END EXECUTIVE JUDGMENT ===")
 
     return "\n".join(parts)
+
+
+def _build_confidence_note(confidence_level: str) -> str:
+    """Build confidence-specific framing instruction."""
+    if confidence_level == "LOW":
+        return (
+            "- CONFIDENCE IS LOW: Multiple scenarios are nearly tied. "
+            "Do NOT use directive language. Present gently. "
+            "Avoid strong recommendations — acknowledge ambiguity."
+        )
+    if confidence_level == "HIGH":
+        return (
+            "- CONFIDENCE IS HIGH: Clear dominant scenario. "
+            "Full framing and direct surfacing appropriate."
+        )
+    return ""  # MODERATE = normal, no extra note
+
+
+def _build_capacity_note(capacity: dict) -> str:
+    """Build capacity context for narrative."""
+    if not capacity:
+        return ""
+
+    state = capacity.get("capacity_state", "NORMAL")
+    score = capacity.get("capacity_score", 0.5)
+
+    if state == "CRITICAL":
+        return (
+            f"CAPACITY IS CRITICAL ({score:.2f}). "
+            "Minimize demands. Only surface the single most important item. "
+            "Frame everything as optional."
+        )
+    if state == "LOW":
+        return (
+            f"Capacity is reduced ({score:.2f}). "
+            "Keep suggestions light. Limit to essentials."
+        )
+    return ""  # NORMAL/HIGH = no extra note
+
+
+def _build_pattern_note(pattern_hints: list) -> str:
+    """Build pattern escalation note."""
+    if not pattern_hints:
+        return ""
+
+    hints = []
+    for hint in pattern_hints[:2]:  # Max 2 pattern mentions
+        pattern = hint.get("pattern", "")
+        scenario = hint.get("scenario", "")
+        count = hint.get("count", 0)
+        window = hint.get("window_days", 0)
+        hints.append(
+            f"{scenario} has occurred {count} times in the last {window} days"
+        )
+
+    return "PATTERN NOTE: " + ". ".join(hints) + ". Consider this context gently."
 
 
 def _build_story(
@@ -235,7 +319,7 @@ def _build_surfaced_block(surfaced: list) -> str:
     if not surfaced:
         return "SURFACE: No critical items — focus on user's request."
 
-    lines = ["SURFACE (max 3):"]
+    lines = [f"SURFACE (max {len(surfaced)}):"]
     for i, item in enumerate(surfaced, 1):
         lines.append(
             f"  {i}. {item['label']} — {item['detail']} [{item['category']}]"

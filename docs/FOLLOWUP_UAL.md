@@ -1,6 +1,13 @@
 # Universal Arbitration Layer — Future Refinements
 
-**Status:** Deferred — capability-first implementation complete. These items are for future calibration after production observation.
+**Status:** v2 deployed (2026-02-21). Items below are for future calibration after production observation.
+
+**Completed in v2:**
+- ✅ Confidence dampening (LOW/MODERATE/HIGH based on scenario gap)
+- ✅ Scenario history tracking + multi-day pattern analysis
+- ✅ Adaptive weight tuning (slow, bounded ±0.10)
+- ✅ Capacity composite modeling (sleep + mood + emotional + schedule + loops)
+- ✅ Observability panels (confidence, frequency, capacity, weights)
 
 ---
 
@@ -37,15 +44,14 @@
 
 ## 6. Composite Refinement
 
-- **Temporal composites:** Detect patterns across days (e.g., 3 consecutive LOW_CAPACITY_DAYs → BURNOUT_RISK)
+- **Temporal composites:** Detect patterns across days (e.g., 3 consecutive LOW_CAPACITY_DAYs → BURNOUT_RISK) — *partially addressed by v2 PatternAnalyzer*
 - **Seasonal awareness:** Adjust baseline signal thresholds for known seasonal patterns (holiday stress, etc.)
 - **Composite confidence:** Add confidence scoring to composites based on historical accuracy
 
-## 7. Feedback Loop
+## 7. Feedback Loop Enhancement
 
-- **Outcome tracking:** After each arbitration, track whether user's next actions aligned with the surfaced items
 - **Narrative effectiveness:** A/B test different narrative framings and track engagement
-- **User preference learning:** Some users prefer DIRECTIVE even in MOOD_CRITICAL — learn from dismissal patterns
+- **User preference learning:** Some users prefer DIRECTIVE even in MOOD_CRITICAL — learn from dismissal patterns — *partially addressed by v2 adaptive weights*
 - **Outcome scoring API:** Expose an endpoint to retroactively score arbitration decisions
 
 ## 8. Performance Optimization
@@ -63,3 +69,4 @@
 ---
 
 *Created: 2026-02-21 — UAL v1.0 initial release*
+*Updated: 2026-02-21 — UAL v2.0 stability & adaptation layer*

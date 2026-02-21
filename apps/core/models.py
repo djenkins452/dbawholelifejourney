@@ -2293,4 +2293,7 @@ from apps.core.ai_governance.models import (  # noqa: E402, F401
 # Import ai_arbitration models so Django discovers them for migrations
 from apps.core.ai_arbitration.models import (  # noqa: E402, F401
     ArbitrationDecisionLog,
+    DailyCapacityLog,
+    ScenarioHistory,
+    WeightAdjustment,
 )

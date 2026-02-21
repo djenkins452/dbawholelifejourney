@@ -2685,6 +2685,18 @@ After significant events, the system queues a brief morning reflection check-in.
 ### Relationship Intelligence
 Tracks important people with relationship types, importance tiers, and interaction cadence targets. Detects when the user hasn't connected with someone too long and suggests reconnection. People are extracted from journal entries and reflections.
 
+### Executive Operator (Behavioral Intelligence)
+Transforms the CoS from reactive assistant into proactive executive operator:
+- **Morning Executive Briefing** — First-of-day structured greeting with sleep data, approaching life events, medication/health gates, day overview narrative, and journal pattern follow-up. Replaces simple greeting injection with a multi-section briefing service.
+- **Session Gap Detection** — Computes time since last interaction, translates to human language ("It's been 3 days"), summarizes what changed during absence (missed journals, medication gaps, overdue tasks).
+- **Rolling Conversation Memory** — When messages exceed 20, generates an AI summary of older messages (beyond the 15-message window) using gpt-4o-mini. Stored in `conversation.context_summary` and injected into every response for continuity.
+- **Life Event Surfacing** — Queries `SignificantEvent` and `LifeEvent` models for approaching events (14-day window in CoS context, 7-day window in morning briefing). Cross-references with Person records for relational context.
+- **Journal Review Intelligence** — Mood trend analysis (numeric scoring across last 5 entries, decline detection) and repeated health keyword detection (regex scan for pain/injury/fatigue terms across entries).
+- **Health Gates** — Before tasks, checks medication adherence, active fasting window, and scheduled workouts. Instructs the AI to address health first.
+- **Extended Learning Categories** — 3 new extraction patterns: health_concern, life_event_mention, commitment_made. Stored in UserLearnedProfile for cross-conversation recall.
+- **Key files:** `apps/ai/executive_briefing.py`, `apps/ai/personal_assistant.py` (lines 2785+)
+- **Tests:** 28 in `apps/ai/tests/test_executive_briefing.py`
+
 ### Governance Onboarding
 When a user first enables the CoS, a governance session classifies their enabled modules, sets up non-negotiables, and asks for the CoS display name.
 

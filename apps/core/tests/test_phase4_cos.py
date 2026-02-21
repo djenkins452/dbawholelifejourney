@@ -119,7 +119,8 @@ class ToneModeTest(TestCase):
 class SystemInjectionTest(TestCase):
     """Tests for format_cos_system_injection with Phase 4 fields."""
 
-    def test_includes_tone_mode(self):
+    def test_includes_insights(self):
+        """format_cos_system_injection renders active insights."""
         from apps.core.ai_orchestrator.cos_context import format_cos_system_injection
 
         context = {
@@ -142,11 +143,43 @@ class SystemInjectionTest(TestCase):
             'learned_profile_prompt': '',
         }
         output = format_cos_system_injection(context)
-        self.assertIn("EXECUTIVE TONE", output)
-        self.assertIn("STRATEGIC EXECUTIVE", output)
+        # Insights are rendered in the SITUATIONAL AWARENESS block
         self.assertIn("Weight up", output)
+        self.assertIn("SITUATIONAL AWARENESS", output)
 
-    def test_includes_learned_profile(self):
+    def test_tone_mode_in_executive_context(self):
+        """executive_tone_mode is stored in executive sub-dict, not in formatter.
+
+        The tone mode is used by build_executive_context (line 906) and
+        governance_strategy_prompt (rendered at line 843). The raw
+        executive_tone_mode field is NOT rendered as-is by the formatter.
+        """
+        from apps.core.ai_orchestrator.cos_context import format_cos_system_injection
+
+        # When governance_strategy_prompt is provided, it IS rendered
+        context = {
+            'blueprint_state': {},
+            'executive_tone_mode': 'strategic_executive',
+            'active_insights': [],
+            'active_predictions': [],
+            'relationship_signals': [],
+            'mood_status': {},
+            'health_signals': {},
+            'open_loops': {},
+            'module_permissions': {},
+            'governance_strategy_prompt': 'STRATEGY: Be direct and accountable.',
+        }
+        output = format_cos_system_injection(context)
+        self.assertIn("Be direct and accountable", output)
+
+    def test_learned_profile_not_in_injection(self):
+        """learned_profile_prompt is NOT rendered by format_cos_system_injection.
+
+        The learned profile is injected as a separate priority layer in
+        personal_assistant.py (Layer 5) to avoid duplication. The formatter
+        intentionally skips it. build_cos_context collects it, but the
+        formatted output should not include it.
+        """
         from apps.core.ai_orchestrator.cos_context import format_cos_system_injection
 
         context = {
@@ -166,8 +199,9 @@ class SystemInjectionTest(TestCase):
             'learned_profile_prompt': '--- LEARNED USER PROFILE ---\nCore Values: discipline',
         }
         output = format_cos_system_injection(context)
-        self.assertIn("LEARNED USER PROFILE", output)
-        self.assertIn("discipline", output)
+        # Learned profile is injected separately in personal_assistant.py Layer 5,
+        # NOT inside the situational awareness block.
+        self.assertNotIn("LEARNED USER PROFILE", output)
 
 
 class DBEStrategicNarrativeTest(TestCase):

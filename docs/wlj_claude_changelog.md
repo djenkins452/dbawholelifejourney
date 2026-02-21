@@ -9,6 +9,18 @@
 
 # WLJ Change History
 
+## 2026-02-21 — Fix pre-existing SystemInjectionTest failures
+
+**Changes:**
+- Fixed `test_includes_tone_mode` → split into `test_includes_insights` + `test_tone_mode_in_executive_context` — tests were asserting `format_cos_system_injection` renders "EXECUTIVE TONE" directly, but tone mode is rendered via `governance_strategy_prompt`, not as a standalone label.
+- Fixed `test_includes_learned_profile` → renamed to `test_learned_profile_not_in_injection` — learned profile is injected as a separate priority layer in `personal_assistant.py` (Layer 5), not by the formatter.
+
+**Files modified:** `apps/core/tests/test_phase4_cos.py`
+
+**Why:** Pre-existing test failures — tests written for an architecture that was later refactored but tests weren't updated.
+
+---
+
 ## 2026-02-21 — Schedule UAL/SAE/PIE/PRIE synthetic runners to fix missed cadence
 
 **Fix:** UAL, SAE, PIE, and PRIE engines were only triggered per-request (during chat) or via manual "Re-run now" from the Ops Command Center. They were never registered in the ISE scheduler registry (`SCHEDULED_TASKS`), so during idle periods their 5-minute cadence expectation expired and SAME flagged them as MISSED. Added all four synthetic batch runners to `scheduler_registry.py` — UAL/SAE/PIE at 5-minute intervals, PRIE at 1-hour interval. The ISE scheduler auto-picks up new entries via `_ensure_task_records()` on next cycle.

@@ -736,6 +736,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for Celery + Redis infrastructure (PK 84)
         self._reset_celery_infrastructure_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for SAME Manual Execution Control (PK 85)
+        self._reset_same_manual_execution_fixtures(DataLoadConfig, force, verbosity)
+
         # One-time: Reset help_topics to fix 3 entries missing help_id (PKs 89-91) + brain training timestamps
         self._reset_help_topics_fixture_safe(DataLoadConfig, force, verbosity)
 
@@ -3179,3 +3182,31 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset help_topics fixture-safe FAILED: {e}'))
+
+    def _reset_same_manual_execution_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes for SAME Manual Execution Control.
+        - release_notes PK 85 (SAME Manual Execution Control)
+        """
+        reset_tracker_name = 'reset_same_manual_execution_2026_02_21'
+        try:
+            if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
+                return
+
+            config = DataLoadConfig.objects.get(loader_name='release_notes')
+            if config.is_loaded:
+                config.is_loaded = False
+                config.save()
+                if verbosity >= 1:
+                    self.stdout.write(f'  Reset release_notes loader for SAME Manual Execution Control')
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for SAME Manual Execution Control (Feb 2026)',
+                'command',
+                'One-time reset to reload release_notes PK 85'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset SAME manual execution fixtures FAILED: {e}'))

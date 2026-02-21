@@ -5,6 +5,8 @@ Routes:
   /admin-console/ops/              -> OpsWallView (flagship page)
   /admin-console/ops/stream/       -> OpsStreamView (JSON polling)
   /admin-console/ops/actions/      -> OpsActionView (POST: admin actions)
+  /admin-console/ops/trigger-same/ -> TriggerSAMEView (POST: manual SAME execution)
+  /admin-console/ops/same-status/  -> SAMEStatusView (GET: execution status)
   /admin-console/ops/all-engines/  -> AllEnginesView (table/search)
 
 Project: Whole Life Journey
@@ -345,6 +347,131 @@ class CadenceTimelineView(View):
             "server_time": now.isoformat(),
             "window_minutes": minutes,
             "timelines": timelines,
+        })
+
+
+class TriggerSAMEView(View):
+    """
+    Manual SAME execution trigger.
+
+    POST /admin-console/ops/trigger-same/
+
+    Dispatches run_same_cycle_task.delay() with idempotency guard:
+    rejects if a SAME execution is already queued/running (within 5 min).
+    Creates SAMEExecutionLog + AdminIntervention audit records.
+    """
+
+    def post(self, request):
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return JsonResponse({"error": "forbidden"}, status=403)
+
+        from apps.core.ai_observability.models import (
+            AdminIntervention,
+            SAMEExecutionLog,
+        )
+
+        # Idempotency guard — reject if execution already active
+        if SAMEExecutionLog.is_execution_active():
+            active = SAMEExecutionLog.objects.filter(
+                status__in=["queued", "running"],
+                started_at__gte=timezone.now() - timedelta(minutes=5),
+            ).first()
+            return JsonResponse({
+                "success": False,
+                "error": "execution_active",
+                "message": "SAME execution already in progress.",
+                "execution_id": active.id if active else None,
+                "status": active.status if active else "unknown",
+            }, status=409)
+
+        # Create execution log entry
+        execution = SAMEExecutionLog.objects.create(
+            trigger_source="manual",
+            status="queued",
+            triggered_by=request.user,
+        )
+
+        # Dispatch Celery task
+        try:
+            from apps.core.tasks import run_same_cycle_task
+
+            result = run_same_cycle_task.delay()
+            execution.celery_task_id = result.id
+            execution.save(update_fields=["celery_task_id"])
+        except Exception as e:
+            execution.status = "failed"
+            execution.error_detail = str(e)[:500]
+            execution.completed_at = timezone.now()
+            execution.save(update_fields=["status", "error_detail", "completed_at"])
+            logger.exception("Failed to dispatch SAME task: %s", e)
+            return JsonResponse({
+                "success": False,
+                "error": "dispatch_failed",
+                "message": f"Failed to dispatch SAME task: {str(e)[:200]}",
+                "execution_id": execution.id,
+            }, status=500)
+
+        # Audit record
+        trace_id = str(uuid.uuid4())
+        AdminIntervention.objects.create(
+            admin_user=request.user,
+            action_type="rerun_engine",
+            engine_name="SAME",
+            trace_id=trace_id,
+            notes=f"Manual SAME execution triggered (execution_id={execution.id}, celery_task_id={result.id})",
+            result_status="pending",
+        )
+
+        logger.info(
+            "SAME manual trigger by %s (execution_id=%s, celery_task_id=%s)",
+            request.user.email,
+            execution.id,
+            result.id,
+        )
+
+        return JsonResponse({
+            "success": True,
+            "message": "SAME cycle queued for execution.",
+            "execution_id": execution.id,
+            "celery_task_id": result.id,
+            "status": "queued",
+        })
+
+
+class SAMEStatusView(View):
+    """
+    SAME execution status endpoint.
+
+    GET /admin-console/ops/same-status/
+
+    Returns the latest SAMEExecutionLog entry with status,
+    duration, trigger source, and timestamps.
+    """
+
+    def get(self, request):
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return JsonResponse({"error": "forbidden"}, status=403)
+
+        from apps.core.ai_observability.models import SAMEExecutionLog
+
+        latest = SAMEExecutionLog.get_latest()
+        if not latest:
+            return JsonResponse({
+                "has_data": False,
+                "message": "No SAME executions recorded yet.",
+            })
+
+        return JsonResponse({
+            "has_data": True,
+            "execution_id": latest.id,
+            "trigger_source": latest.trigger_source,
+            "status": latest.status,
+            "started_at": latest.started_at.isoformat(),
+            "completed_at": latest.completed_at.isoformat() if latest.completed_at else None,
+            "duration_ms": latest.duration_ms,
+            "error_detail": latest.error_detail if latest.status == "failed" else "",
+            "triggered_by": latest.triggered_by.email if latest.triggered_by else None,
+            "is_active": latest.status in ["queued", "running"],
         })
 
 

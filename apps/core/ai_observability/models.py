@@ -737,3 +737,94 @@ class SystemIntegritySnapshot(models.Model):
 
     def __str__(self):
         return f"Integrity {self.score:.1f} [{self.posture}] at {self.created_at}"
+
+
+class SAMEExecutionLog(models.Model):
+    """
+    Execution metadata for every SAME cycle run.
+
+    Records manual and scheduled trigger events with duration, status, and
+    audit fields. Used by the Ops Command Center to display last run time,
+    duration, trigger source, and manual execution state.
+    """
+
+    class Meta:
+        app_label = "core"
+        db_table = "core_same_execution_log"
+        ordering = ["-started_at"]
+        indexes = [
+            models.Index(fields=["-started_at"], name="idx_same_exec_time"),
+        ]
+
+    TRIGGER_CHOICES = [
+        ("scheduled", "Scheduled (Celery Beat)"),
+        ("manual", "Manual (Admin)"),
+    ]
+    STATUS_CHOICES = [
+        ("queued", "Queued"),
+        ("running", "Running"),
+        ("completed", "Completed"),
+        ("failed", "Failed"),
+        ("timeout", "Timeout"),
+        ("skipped", "Skipped (lock held)"),
+    ]
+
+    trigger_source = models.CharField(
+        max_length=10,
+        choices=TRIGGER_CHOICES,
+        help_text="How this cycle was triggered.",
+    )
+    status = models.CharField(
+        max_length=10,
+        choices=STATUS_CHOICES,
+        default="queued",
+        help_text="Current execution state.",
+    )
+    celery_task_id = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="Celery AsyncResult task ID.",
+    )
+    triggered_by = models.ForeignKey(
+        "users.User",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        help_text="Admin who triggered manually (null for scheduled).",
+    )
+    started_at = models.DateTimeField(
+        default=timezone.now,
+        help_text="When this execution was initiated.",
+    )
+    completed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When execution finished.",
+    )
+    duration_ms = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Execution duration in milliseconds.",
+    )
+    error_detail = models.TextField(
+        blank=True,
+        default="",
+        help_text="Error message if status is failed.",
+    )
+
+    def __str__(self):
+        return f"SAME {self.trigger_source} [{self.status}] at {self.started_at}"
+
+    @classmethod
+    def get_latest(cls):
+        """Get the most recent execution log entry."""
+        return cls.objects.first()
+
+    @classmethod
+    def is_execution_active(cls):
+        """Check if a SAME execution is currently queued or running."""
+        return cls.objects.filter(
+            status__in=["queued", "running"],
+            started_at__gte=timezone.now() - timezone.timedelta(minutes=5),
+        ).exists()

@@ -245,6 +245,49 @@
 .ops-posture-text { flex: 1; font-weight: 500; }
 .ops-posture-meta { font-size: 0.6875rem; color: var(--ops-text-dim); }
 
+/* ---- SAME Execute Now Controls ---- */
+.ops-same-controls {
+    display: flex; align-items: center; gap: 8px; margin-left: auto; flex-shrink: 0;
+}
+.ops-same-execute-btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 6px 14px; border-radius: 6px; border: 1px solid rgba(16,185,129,0.4);
+    background: rgba(16,185,129,0.12); color: var(--ops-green);
+    font-size: 0.75rem; font-weight: 600; cursor: pointer;
+    transition: all 0.2s ease; white-space: nowrap;
+}
+.ops-same-execute-btn:hover {
+    background: rgba(16,185,129,0.25); border-color: rgba(16,185,129,0.6);
+    box-shadow: 0 0 12px rgba(16,185,129,0.2);
+}
+.ops-same-execute-btn:disabled {
+    opacity: 0.5; cursor: not-allowed;
+    background: rgba(100,100,100,0.12); border-color: rgba(100,100,100,0.3);
+    color: var(--ops-text-dim);
+}
+.ops-same-execute-btn.running {
+    border-color: rgba(59,130,246,0.5); background: rgba(59,130,246,0.12); color: var(--ops-blue);
+    animation: pulseBtn 1.5s infinite;
+}
+@keyframes pulseBtn { 0%,100% { opacity: 1; } 50% { opacity: 0.7; } }
+.ops-same-btn-icon { font-size: 0.65rem; }
+.ops-same-status-badge {
+    font-size: 0.65rem; padding: 2px 8px; border-radius: 4px;
+    font-weight: 600; text-transform: uppercase; white-space: nowrap;
+}
+.ops-same-status-badge.queued { background: rgba(168,85,247,0.15); color: #a855f7; }
+.ops-same-status-badge.running { background: rgba(59,130,246,0.15); color: #3b82f6; }
+.ops-same-status-badge.completed { background: rgba(16,185,129,0.15); color: var(--ops-green); }
+.ops-same-status-badge.failed { background: rgba(239,68,68,0.15); color: var(--ops-red); }
+.ops-same-status-badge.timeout { background: rgba(245,158,11,0.15); color: var(--ops-yellow); }
+.ops-same-status-badge.skipped { background: rgba(100,100,100,0.15); color: var(--ops-text-dim); }
+.ops-same-last-run {
+    font-size: 0.625rem; color: var(--ops-text-dim); white-space: nowrap;
+}
+@media (max-width: 768px) {
+    .ops-same-controls { flex-wrap: wrap; margin-left: 0; margin-top: 6px; }
+}
+
 /* ---- SAME Narration Bar ---- */
 .ops-narration {
     display: grid;
@@ -824,6 +867,14 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
         <span class="ops-posture-dot OK" id="postureDot"></span>
         <span class="ops-posture-text" id="postureText">Initializing SAME...</span>
         <span class="ops-posture-meta">Updated: <span id="lastUpdateTime">&mdash;</span></span>
+        <div class="ops-same-controls" id="sameControls">
+            <button class="ops-same-execute-btn" id="sameExecuteBtn" title="Manually trigger a SAME monitoring cycle">
+                <span class="ops-same-btn-icon">▶</span>
+                <span class="ops-same-btn-label">Execute Now</span>
+            </button>
+            <span class="ops-same-status-badge" id="sameStatusBadge" style="display: none;"></span>
+            <span class="ops-same-last-run" id="sameLastRun"></span>
+        </div>
     </div>
 
     <!-- SAME Narration Bar -->
@@ -1959,6 +2010,121 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
         });
     }
 
+    /* =====================================================================
+       SAME Manual Execution
+       ===================================================================== */
+    var sameStatusPollId = null;
+    var sameStatusPollCount = 0;
+    var SAME_STATUS_MAX_POLLS = 120;  // 2 minutes at 1s intervals
+
+    function triggerSAME() {
+        var btn = document.getElementById('sameExecuteBtn');
+        var badge = document.getElementById('sameStatusBadge');
+        btn.disabled = true;
+        btn.classList.add('running');
+        btn.querySelector('.ops-same-btn-label').textContent = 'Queuing...';
+
+        fetch('/admin-console/ops/trigger-same/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken'),
+            },
+        })
+        .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, status: r.status, data: d }; }); })
+        .then(function(resp) {
+            if (resp.ok && resp.data.success) {
+                showToast('SAME cycle queued — executing...', 'success');
+                updateSAMEBadge('queued');
+                startSAMEStatusPoll();
+            } else if (resp.status === 409) {
+                showToast('SAME execution already in progress.', 'failure');
+                updateSAMEBadge(resp.data.status || 'running');
+                startSAMEStatusPoll();
+                btn.disabled = false;
+                btn.classList.remove('running');
+                btn.querySelector('.ops-same-btn-label').textContent = 'Execute Now';
+            } else {
+                showToast(resp.data.message || 'Trigger failed', 'failure');
+                btn.disabled = false;
+                btn.classList.remove('running');
+                btn.querySelector('.ops-same-btn-label').textContent = 'Execute Now';
+            }
+        })
+        .catch(function(err) {
+            showToast('Trigger failed: ' + err.message, 'failure');
+            btn.disabled = false;
+            btn.classList.remove('running');
+            btn.querySelector('.ops-same-btn-label').textContent = 'Execute Now';
+        });
+    }
+
+    function startSAMEStatusPoll() {
+        stopSAMEStatusPoll();
+        sameStatusPollCount = 0;
+        sameStatusPollId = setInterval(function() {
+            sameStatusPollCount++;
+            if (sameStatusPollCount > SAME_STATUS_MAX_POLLS) {
+                stopSAMEStatusPoll();
+                resetSAMEButton();
+                return;
+            }
+            fetchSAMEStatus();
+        }, 1000);
+    }
+
+    function stopSAMEStatusPoll() {
+        if (sameStatusPollId) { clearInterval(sameStatusPollId); sameStatusPollId = null; }
+    }
+
+    function fetchSAMEStatus() {
+        fetch('/admin-console/ops/same-status/', {
+            headers: { 'X-CSRFToken': getCookie('csrftoken') },
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.has_data) return;
+            updateSAMEBadge(data.status);
+            updateSAMELastRun(data);
+
+            // If execution complete, stop polling and reset button
+            if (data.status !== 'queued' && data.status !== 'running') {
+                stopSAMEStatusPoll();
+                resetSAMEButton();
+                // Trigger a main poll to refresh all data
+                setTimeout(function() { poll(); }, 500);
+            }
+        })
+        .catch(function() {});
+    }
+
+    function updateSAMEBadge(status) {
+        var badge = document.getElementById('sameStatusBadge');
+        badge.style.display = 'inline';
+        badge.className = 'ops-same-status-badge ' + status;
+        badge.textContent = status;
+    }
+
+    function updateSAMELastRun(data) {
+        var el = document.getElementById('sameLastRun');
+        if (!data.has_data) { el.textContent = ''; return; }
+        var parts = [];
+        if (data.duration_ms) parts.push(data.duration_ms + 'ms');
+        if (data.started_at) parts.push(formatAgo(data.started_at));
+        if (data.trigger_source === 'manual' && data.triggered_by) parts.push(data.triggered_by);
+        el.textContent = parts.length ? parts.join(' · ') : '';
+    }
+
+    function resetSAMEButton() {
+        var btn = document.getElementById('sameExecuteBtn');
+        btn.disabled = false;
+        btn.classList.remove('running');
+        btn.querySelector('.ops-same-btn-label').textContent = 'Execute Now';
+    }
+
+    // Fetch initial SAME status on load
+    fetchSAMEStatus();
+
     function showToast(message, type) {
         var toast = document.createElement('div');
         toast.className = 'ops-toast ' + type;
@@ -2011,6 +2177,10 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
         var line = e.target.closest('[data-trace-id]');
         if (!line || !line.dataset.traceId) return;
         window.location.href = '/admin-console/diagnostics/trace/' + line.dataset.traceId + '/';
+    });
+
+    document.getElementById('sameExecuteBtn').addEventListener('click', function() {
+        triggerSAME();
     });
 
     document.getElementById('watchlistPanel').addEventListener('click', function(e) {

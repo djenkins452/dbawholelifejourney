@@ -9,6 +9,31 @@
 
 # WLJ Change History
 
+## 2026-02-21 — SAME Manual Execution Control
+
+**Feature:** Enterprise-grade manual trigger for the SAME monitoring engine from the Ops Command Center. Operators can now execute a SAME cycle on demand via an "Execute Now" button with real-time status feedback.
+
+**Changes:**
+- **SAMEExecutionLog model:** New model tracks every SAME cycle execution with trigger source (manual/scheduled), status lifecycle (queued→running→completed/failed/timeout), Celery task ID, duration, and audit fields. Used by both the UI and the Celery task.
+- **TriggerSAMEView (POST):** Idempotent endpoint that rejects duplicate triggers (409 Conflict) when a cycle is already queued/running (5-min window). Creates execution log + AdminIntervention audit record, dispatches `run_same_cycle_task.delay()`.
+- **SAMEStatusView (GET):** Returns latest execution status, timing, trigger source, and triggered-by user.
+- **run_same_cycle_task updated:** Now writes SAMEExecutionLog entries for all execution paths (scheduled and manual). Records running→completed/failed/timeout transitions with duration in ms.
+- **Ops Wall UI:** Execute Now button in posture banner with glass-morphism styling. Real-time 1-second status polling during execution, status badge (queued/running/completed/failed), duration + timestamp display. CSP-compliant (addEventListener, no inline handlers).
+- **Migration:** `core.0084_sameexecutionlog`
+
+**Files:**
+- `apps/core/ai_observability/models.py` — SAMEExecutionLog model
+- `apps/core/ai_observability/ops_views.py` — TriggerSAMEView, SAMEStatusView
+- `apps/admin_console/urls.py` — trigger-same, same-status routes
+- `apps/core/tasks.py` — Execution logging in run_same_cycle_task
+- `templates/admin_console/operations_wall.html` — Execute Now button, CSS, JS
+- `apps/core/migrations/0084_sameexecutionlog.py`
+- `apps/core/fixtures/release_notes.json` — PK 85
+
+**Why:** Operators need the ability to trigger SAME monitoring cycles on demand for debugging, verification after deploys, and ad-hoc health checks — without waiting for the next scheduled Beat interval.
+
+---
+
 ## 2026-02-21 — Fix Deployment IntegrityError on Help Fixture Loading
 
 **Problem:** `django.db.utils.IntegrityError: null value in column "created_at" of relation "help_helptopic"` crashed deployment. Root cause: `loaddata` uses `save_base(raw=True)` which bypasses `auto_now_add` field hooks. `help_topics_brain_training.json` omitted `created_at`/`updated_at` → NULL on NOT NULL columns in PostgreSQL.

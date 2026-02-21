@@ -1,6 +1,22 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 85,
+        "fields": {
+            "title": "SAME Manual Execution Control",
+            "description": "Operators can now manually trigger a SAME monitoring cycle directly from the Ops Command Center using a new 'Execute Now' button. The button provides real-time status feedback (queued, running, completed, failed) with automatic polling, execution duration tracking, and full audit logging. An idempotency guard prevents duplicate triggers while a cycle is already running. All executions — both manual and scheduled — are now tracked in a dedicated execution log with trigger source, timing, and outcome metadata.",
+            "entry_type": "enhancement",
+            "version": "",
+            "release_date": "2026-02-21",
+            "is_published": true,
+            "is_major": false,
+            "learn_more_url": "",
+            "created_at": "2026-02-21T00:00:00Z",
+            "updated_at": "2026-02-21T00:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 84,
         "fields": {
             "title": "Celery + Redis Background Infrastructure",

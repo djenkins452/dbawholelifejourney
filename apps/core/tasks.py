@@ -183,3 +183,141 @@ def _complete_execution_log(execution_log, status, duration_ms, error_detail="")
         )
     except Exception:
         logger.warning("Failed to update SAMEExecutionLog", exc_info=True)
+
+
+# =========================================================================
+# PER-ENGINE EXECUTION TASK
+# =========================================================================
+
+
+@shared_task(
+    bind=True,
+    name="apps.core.tasks.run_engine_task",
+    max_retries=2,
+    default_retry_delay=15,
+    acks_late=True,
+    reject_on_worker_lost=True,
+    soft_time_limit=300,
+)
+def run_engine_task(self, engine_name, execution_log_id):
+    """
+    Generic Celery task for running any manually-executable engine.
+
+    Resolves the batch runner from ENGINE_REGISTRY, executes it,
+    and updates the EngineExecutionLog with result/duration.
+
+    Args:
+        engine_name: Engine code (DBE, WIRE, DNE, PGE)
+        execution_log_id: PK of EngineExecutionLog to update
+    """
+    task_id = self.request.id or "local"
+    start = time.monotonic()
+    logger.info(
+        "Engine task starting: %s (execution_log=%s, task_id=%s)",
+        engine_name, execution_log_id, task_id,
+    )
+
+    # Load execution log
+    execution_log = _get_engine_execution_log(execution_log_id, task_id)
+
+    try:
+        # Mark as running
+        if execution_log:
+            execution_log.status = "running"
+            execution_log.save(update_fields=["status"])
+
+        # Resolve and call the batch runner
+        from apps.core.ai_observability.engine_registry import resolve_batch_runner
+
+        runner = resolve_batch_runner(engine_name)
+        if not runner:
+            raise ValueError(f"No batch runner configured for engine {engine_name}")
+
+        result = runner()
+
+        duration_ms = int((time.monotonic() - start) * 1000)
+        logger.info(
+            "Engine task completed: %s (%dms, result=%s)",
+            engine_name, duration_ms, result,
+        )
+
+        if execution_log:
+            _finish_engine_execution_log(
+                execution_log, "completed", duration_ms, result_summary=result,
+            )
+
+        return {
+            "status": "ok",
+            "engine": engine_name,
+            "duration_ms": duration_ms,
+            "result": result,
+        }
+
+    except SoftTimeLimitExceeded:
+        duration_ms = int((time.monotonic() - start) * 1000)
+        logger.warning(
+            "Engine task hit soft time limit: %s (%dms)", engine_name, duration_ms,
+        )
+        if execution_log:
+            _finish_engine_execution_log(execution_log, "timeout", duration_ms)
+        return {"status": "timeout", "engine": engine_name}
+
+    except Exception as exc:
+        duration_ms = int((time.monotonic() - start) * 1000)
+        logger.exception("Engine task failed: %s (%dms)", engine_name, duration_ms)
+        try:
+            raise self.retry(exc=exc)
+        except self.MaxRetriesExceededError:
+            logger.error(
+                "Engine task max retries exceeded: %s (task_id=%s)",
+                engine_name, task_id,
+            )
+            if execution_log:
+                _finish_engine_execution_log(
+                    execution_log, "failed", duration_ms,
+                    error_detail=f"Max retries exceeded: {str(exc)[:400]}",
+                )
+            return {
+                "status": "failed",
+                "engine": engine_name,
+                "error": str(exc)[:200],
+            }
+
+
+def _get_engine_execution_log(execution_log_id, task_id):
+    """Load EngineExecutionLog by ID and update its celery_task_id."""
+    try:
+        from apps.core.ai_observability.models import EngineExecutionLog
+
+        log = EngineExecutionLog.objects.filter(pk=execution_log_id).first()
+        if log and not log.celery_task_id:
+            log.celery_task_id = task_id
+            log.save(update_fields=["celery_task_id"])
+        return log
+    except Exception:
+        logger.warning(
+            "Failed to load EngineExecutionLog %s", execution_log_id, exc_info=True,
+        )
+        return None
+
+
+def _finish_engine_execution_log(
+    execution_log, status, duration_ms, result_summary=None, error_detail="",
+):
+    """Update EngineExecutionLog with final status."""
+    try:
+        from django.utils import timezone as tz
+
+        execution_log.status = status
+        execution_log.completed_at = tz.now()
+        execution_log.duration_ms = duration_ms
+        update_fields = ["status", "completed_at", "duration_ms"]
+        if result_summary:
+            execution_log.result_summary = result_summary
+            update_fields.append("result_summary")
+        if error_detail:
+            execution_log.error_detail = error_detail
+            update_fields.append("error_detail")
+        execution_log.save(update_fields=update_fields)
+    except Exception:
+        logger.warning("Failed to update EngineExecutionLog", exc_info=True)

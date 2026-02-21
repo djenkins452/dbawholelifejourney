@@ -1,6 +1,22 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 86,
+        "fields": {
+            "title": "Per-Engine Manual Execution Controls",
+            "description": "Individual intelligence engines can now be triggered manually from the Ops Command Center. Each engine card for DBE, WIRE, DNE, and PGE now has an 'Execute' button that queues the engine for immediate background execution via Celery, with real-time status feedback showing queued, running, and completed states with execution duration. Includes idempotency guards to prevent duplicate runs, freeze detection for disabled engines, and full audit logging. This also fixes an existing issue where engine re-run buttons could fail for certain engines.",
+            "entry_type": "enhancement",
+            "version": "",
+            "release_date": "2026-02-21",
+            "is_published": true,
+            "is_major": false,
+            "learn_more_url": "",
+            "created_at": "2026-02-21T00:00:00Z",
+            "updated_at": "2026-02-21T00:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 85,
         "fields": {
             "title": "SAME Manual Execution Control",

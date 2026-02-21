@@ -617,37 +617,62 @@ def _run_autonomous_remediation(now):
 
 
 def _auto_rerun_engine(anomaly, now):
-    """Auto-rerun a missed engine (P3 only, system engines only)."""
+    """
+    Auto-rerun a missed engine via Celery (non-blocking).
+
+    Uses ENGINE_REGISTRY to validate the engine supports manual execution,
+    then dispatches run_engine_task via Celery with trigger_source=auto_remediation.
+    Creates EngineExecutionLog + AdminIntervention audit records.
+    """
     import uuid
 
-    from apps.core.ai_observability.models import AdminIntervention
+    from apps.core.ai_observability.engine_registry import get_engine_meta
+    from apps.core.ai_observability.models import AdminIntervention, EngineExecutionLog
 
     engine = anomaly.engine_name
-    # Only auto-rerun system engines (not user-context engines)
-    system_engines = {"DBE", "WIRE", "DNE"}
-    if engine not in system_engines:
+    meta = get_engine_meta(engine)
+    if not meta or not meta["can_manual_run"]:
+        return False
+
+    # Idempotency: skip if already executing
+    if EngineExecutionLog.is_engine_active(engine):
+        logger.info("SAME auto-remediation: %s already active, skipping", engine)
         return False
 
     trace_id = str(uuid.uuid4())
 
     try:
-        from apps.core.ai_observability.ops_views import _action_rerun_engine
-        result = _action_rerun_engine(engine, trace_id)
+        # Create execution log
+        execution = EngineExecutionLog.objects.create(
+            engine_name=engine,
+            trigger_source="auto_remediation",
+            status="queued",
+            triggered_by=None,
+        )
+
+        # Dispatch via Celery (non-blocking)
+        from apps.core.tasks import run_engine_task
+
+        result = run_engine_task.delay(engine, execution.id)
+        execution.celery_task_id = result.id
+        execution.save(update_fields=["celery_task_id"])
 
         AdminIntervention.objects.create(
             admin_user=None,
             action_type="auto_rerun_engine",
             engine_name=engine,
             trace_id=trace_id,
-            notes=f"SAME autonomous remediation: auto-rerun for P3 MISSED_RUN on {engine}",
-            result_status=result["status"],
-            result_detail=result["detail"],
+            notes=(
+                f"SAME autonomous remediation: {engine} "
+                f"(execution_id={execution.id}, celery_task_id={result.id})"
+            ),
+            result_status="pending",
             is_system_initiated=True,
         )
 
         logger.info(
-            "SAME auto-remediation: rerun %s (trace=%s, result=%s)",
-            engine, trace_id, result["status"],
+            "SAME auto-remediation: dispatched %s (trace=%s, execution_id=%s)",
+            engine, trace_id, execution.id,
         )
         return True
 

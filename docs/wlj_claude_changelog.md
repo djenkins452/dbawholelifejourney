@@ -9,6 +9,23 @@
 
 # WLJ Change History
 
+## 2026-02-21 — Phase 1: Engine-Level Manual Execution & Recovery Controls
+
+**Feature:** Per-engine manual execution controls in the Ops Command Center. Admins can now trigger individual engines (DBE, WIRE, DNE, PGE) directly from engine cards without running a full SAME cycle.
+
+**Changes:**
+- **ENGINE_REGISTRY** (`engine_registry.py`): Centralized engine metadata — module paths, batch runners, can_manual_run flag. Replaces scattered hardcoded dicts.
+- **EngineExecutionLog model**: Tracks per-engine executions (manual/auto_remediation), status lifecycle, Celery task ID, duration, result summary.
+- **`run_engine_task` Celery task**: Generic task resolving batch runners from ENGINE_REGISTRY. Retry, time limit, execution logging.
+- **TriggerEngineView / EngineStatusView**: Admin-only endpoints with freeze guard, idempotency, Celery dispatch, audit trail.
+- **Bug fix**: `_action_rerun_engine` was calling DBE/WIRE per-user functions with no args (TypeError). Now uses batch runners.
+- **SAME auto-remediation**: Now dispatches via `run_engine_task.delay()` (non-blocking) instead of synchronous call.
+- **UI**: Execute button on engine cards (DBE/WIRE/DNE/PGE), 1s status polling, status badge, duration display.
+
+**Files:** `engine_registry.py` (NEW), `models.py`, `tasks.py`, `ops_views.py`, `urls.py`, `same_engine.py`, `operations_wall.html`, migration 0085
+
+---
+
 ## 2026-02-21 — SAME Manual Execution Control
 
 **Feature:** Enterprise-grade manual trigger for the SAME monitoring engine from the Ops Command Center. Operators can now execute a SAME cycle on demand via an "Execute Now" button with real-time status feedback.

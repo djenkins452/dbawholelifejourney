@@ -569,6 +569,50 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
     padding-top: 4px; border-top: 1px solid rgba(255,255,255,0.04);
 }
 
+/* ---- Per-Engine Execute Button ---- */
+.ops-engine-exec-row {
+    display: flex; align-items: center; gap: 8px;
+    padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.04);
+}
+.ops-engine-exec-btn {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 10px; border-radius: 5px;
+    border: 1px solid rgba(16,185,129,0.35);
+    background: rgba(16,185,129,0.08); color: var(--ops-green);
+    font-size: 0.6875rem; font-weight: 600; cursor: pointer;
+    transition: all 0.2s ease; white-space: nowrap;
+}
+.ops-engine-exec-btn:hover {
+    background: rgba(16,185,129,0.22); border-color: rgba(16,185,129,0.55);
+    box-shadow: 0 0 10px rgba(16,185,129,0.15);
+}
+.ops-engine-exec-btn:disabled {
+    opacity: 0.5; cursor: not-allowed;
+    background: rgba(100,100,100,0.1); border-color: rgba(100,100,100,0.25);
+    color: var(--ops-text-dim);
+}
+.ops-engine-exec-btn.running {
+    border-color: rgba(59,130,246,0.4); background: rgba(59,130,246,0.1);
+    color: var(--ops-blue); animation: pulseBtn 1.5s infinite;
+}
+.ops-engine-exec-icon { font-size: 0.6rem; }
+.ops-engine-exec-status {
+    font-size: 0.6rem; padding: 2px 6px; border-radius: 3px;
+    font-weight: 600; text-transform: uppercase; white-space: nowrap;
+}
+.ops-engine-exec-status.queued { background: rgba(168,85,247,0.12); color: #a855f7; }
+.ops-engine-exec-status.running { background: rgba(59,130,246,0.12); color: #3b82f6; }
+.ops-engine-exec-status.completed { background: rgba(16,185,129,0.12); color: var(--ops-green); }
+.ops-engine-exec-status.failed { background: rgba(239,68,68,0.12); color: var(--ops-red); }
+.ops-engine-exec-status.timeout { background: rgba(245,158,11,0.12); color: var(--ops-yellow); }
+.ops-engine-exec-duration {
+    font-size: 0.6rem; color: var(--ops-text-dim); white-space: nowrap;
+}
+@media (max-width: 480px) {
+    .ops-engine-exec-btn .ops-engine-exec-label { display: none; }
+    .ops-engine-exec-btn { padding: 6px 8px; min-width: 32px; min-height: 32px; }
+}
+
 /* =========================================================================
    PHASE 4 — Watchlist Drama
    ========================================================================= */
@@ -1778,7 +1822,18 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
                 '<div class="ops-engine-timing">' +
                 '  <span data-field="last">Last: ' + ago + '</span>' +
                 '  <span data-field="next">Next: ' + nextAt + '</span>' +
-                '</div>';
+                '</div>' +
+                (c.can_manual_run ?
+                    '<div class="ops-engine-exec-row">' +
+                    '  <button class="ops-engine-exec-btn" data-exec-engine="' + c.name + '"' +
+                         (c.is_frozen ? ' disabled title="Engine is frozen"' : ' title="Execute ' + c.name + ' now"') + '>' +
+                    '    <span class="ops-engine-exec-icon">&#9654;</span>' +
+                    '    <span class="ops-engine-exec-label">Execute</span>' +
+                    '  </button>' +
+                    '  <span class="ops-engine-exec-status" data-exec-status="' + c.name + '" style="display:none;"></span>' +
+                    '  <span class="ops-engine-exec-duration" data-exec-dur="' + c.name + '"></span>' +
+                    '</div>'
+                : '');
 
             container.appendChild(card);
 
@@ -2125,6 +2180,121 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
     // Fetch initial SAME status on load
     fetchSAMEStatus();
 
+    /* =====================================================================
+       Per-Engine Manual Execution
+       ===================================================================== */
+    var engineStatusPolls = {};  // engine -> intervalId
+
+    function triggerEngine(engine, btn) {
+        btn.disabled = true;
+        btn.classList.add('running');
+        var label = btn.querySelector('.ops-engine-exec-label');
+        if (label) label.textContent = 'Queuing...';
+
+        fetch('/admin-console/ops/trigger-engine/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken'),
+            },
+            body: JSON.stringify({ engine: engine }),
+        })
+        .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, status: r.status, data: d }; }); })
+        .then(function(resp) {
+            if (resp.ok && resp.data.success) {
+                showToast(engine + ' queued for execution', 'success');
+                updateEngineExecBadge(engine, 'queued');
+                startEngineStatusPoll(engine);
+            } else if (resp.status === 409) {
+                showToast(resp.data.message || engine + ' already running', 'failure');
+                updateEngineExecBadge(engine, resp.data.status || 'running');
+                startEngineStatusPoll(engine);
+                resetEngineExecButton(engine);
+            } else {
+                showToast(resp.data.message || 'Trigger failed', 'failure');
+                resetEngineExecButton(engine);
+            }
+        })
+        .catch(function(err) {
+            showToast('Trigger failed: ' + err.message, 'failure');
+            resetEngineExecButton(engine);
+        });
+    }
+
+    function startEngineStatusPoll(engine) {
+        stopEngineStatusPoll(engine);
+        var count = 0;
+        engineStatusPolls[engine] = setInterval(function() {
+            count++;
+            if (count > 120) {
+                stopEngineStatusPoll(engine);
+                resetEngineExecButton(engine);
+                return;
+            }
+            fetchEngineStatus(engine);
+        }, 1000);
+    }
+
+    function stopEngineStatusPoll(engine) {
+        if (engineStatusPolls[engine]) {
+            clearInterval(engineStatusPolls[engine]);
+            delete engineStatusPolls[engine];
+        }
+    }
+
+    function fetchEngineStatus(engine) {
+        fetch('/admin-console/ops/engine-status/?engine=' + encodeURIComponent(engine), {
+            headers: { 'X-CSRFToken': getCookie('csrftoken') },
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.has_data) return;
+            updateEngineExecBadge(engine, data.status);
+
+            // Show duration when available
+            var durEl = document.querySelector('[data-exec-dur="' + engine + '"]');
+            if (durEl && data.duration_ms) {
+                durEl.textContent = data.duration_ms + 'ms';
+            }
+
+            // If execution complete, stop polling and reset button
+            if (data.status !== 'queued' && data.status !== 'running') {
+                stopEngineStatusPoll(engine);
+                resetEngineExecButton(engine);
+                if (data.result_summary && typeof data.result_summary === 'object') {
+                    var parts = [];
+                    Object.keys(data.result_summary).forEach(function(k) {
+                        parts.push(k + '=' + data.result_summary[k]);
+                    });
+                    if (parts.length) {
+                        showToast(engine + ' done: ' + parts.join(', '), data.status === 'completed' ? 'success' : 'failure');
+                    }
+                }
+                setTimeout(function() { poll(); }, 500);
+            }
+        })
+        .catch(function() {});
+    }
+
+    function updateEngineExecBadge(engine, status) {
+        var el = document.querySelector('[data-exec-status="' + engine + '"]');
+        if (el) {
+            el.style.display = 'inline';
+            el.className = 'ops-engine-exec-status ' + status;
+            el.textContent = status;
+        }
+    }
+
+    function resetEngineExecButton(engine) {
+        var btn = document.querySelector('[data-exec-engine="' + engine + '"]');
+        if (btn) {
+            btn.disabled = false;
+            btn.classList.remove('running');
+            var label = btn.querySelector('.ops-engine-exec-label');
+            if (label) label.textContent = 'Execute';
+        }
+    }
+
     function showToast(message, type) {
         var toast = document.createElement('div');
         toast.className = 'ops-toast ' + type;
@@ -2168,6 +2338,14 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
     });
 
     document.getElementById('engineCards').addEventListener('click', function(e) {
+        // Per-engine Execute button (intercept before card navigation)
+        var execBtn = e.target.closest('[data-exec-engine]');
+        if (execBtn) {
+            e.stopPropagation();
+            triggerEngine(execBtn.dataset.execEngine, execBtn);
+            return;
+        }
+        // Card click → navigate to diagnostics
         var card = e.target.closest('[data-engine]');
         if (!card) return;
         window.location.href = '/admin-console/diagnostics/?engine=' + card.dataset.engine + '&since=-15m';

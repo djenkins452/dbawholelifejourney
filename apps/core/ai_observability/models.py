@@ -828,3 +828,112 @@ class SAMEExecutionLog(models.Model):
             status__in=["queued", "running"],
             started_at__gte=timezone.now() - timezone.timedelta(minutes=5),
         ).exists()
+
+
+class EngineExecutionLog(models.Model):
+    """
+    Execution metadata for per-engine manual/auto executions.
+
+    Separate from SAMEExecutionLog (which tracks full SAME cycle runs).
+    Records manual admin triggers and SAME auto-remediation runs
+    for individual engines (DBE, WIRE, DNE, PGE).
+
+    Used by the Ops Command Center for per-engine status polling,
+    execution duration display, and audit trail.
+    """
+
+    class Meta:
+        app_label = "core"
+        db_table = "core_engine_execution_log"
+        ordering = ["-started_at"]
+        indexes = [
+            models.Index(fields=["-started_at"], name="idx_eng_exec_time"),
+            models.Index(
+                fields=["engine_name", "-started_at"],
+                name="idx_eng_exec_engine_time",
+            ),
+        ]
+
+    TRIGGER_CHOICES = [
+        ("manual", "Manual (Admin)"),
+        ("auto_remediation", "Auto-Remediation (SAME)"),
+    ]
+    STATUS_CHOICES = [
+        ("queued", "Queued"),
+        ("running", "Running"),
+        ("completed", "Completed"),
+        ("failed", "Failed"),
+        ("timeout", "Timeout"),
+        ("skipped", "Skipped (frozen/disabled)"),
+    ]
+
+    engine_name = models.CharField(
+        max_length=10,
+        help_text="Engine acronym: DBE, WIRE, DNE, PGE.",
+    )
+    trigger_source = models.CharField(
+        max_length=20,
+        choices=TRIGGER_CHOICES,
+        help_text="How this execution was triggered.",
+    )
+    status = models.CharField(
+        max_length=10,
+        choices=STATUS_CHOICES,
+        default="queued",
+        help_text="Current execution state.",
+    )
+    celery_task_id = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="Celery AsyncResult task ID.",
+    )
+    triggered_by = models.ForeignKey(
+        "users.User",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="engine_executions",
+        help_text="Admin who triggered manually (null for auto-remediation).",
+    )
+    started_at = models.DateTimeField(
+        default=timezone.now,
+        help_text="When this execution was initiated.",
+    )
+    completed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When execution finished.",
+    )
+    duration_ms = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Execution duration in milliseconds.",
+    )
+    result_summary = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text='Engine return value, e.g. {"generated": 5, "errors": 0}.',
+    )
+    error_detail = models.TextField(
+        blank=True,
+        default="",
+        help_text="Error message if status is failed.",
+    )
+
+    def __str__(self):
+        return f"{self.engine_name} {self.trigger_source} [{self.status}] at {self.started_at}"
+
+    @classmethod
+    def is_engine_active(cls, engine_name):
+        """Check if an execution is already queued/running for this engine."""
+        return cls.objects.filter(
+            engine_name=engine_name,
+            status__in=["queued", "running"],
+            started_at__gte=timezone.now() - timezone.timedelta(minutes=10),
+        ).exists()
+
+    @classmethod
+    def get_latest_for_engine(cls, engine_name):
+        """Get the most recent execution log for a specific engine."""
+        return cls.objects.filter(engine_name=engine_name).first()

@@ -475,6 +475,177 @@ class SAMEStatusView(View):
         })
 
 
+class TriggerEngineView(View):
+    """
+    Per-engine manual execution trigger.
+
+    POST /admin-console/ops/trigger-engine/
+    Body: {"engine": "DBE"}
+
+    Guards:
+    - Admin-only
+    - Engine must exist in ENGINE_REGISTRY with can_manual_run=True
+    - Engine must not be frozen (EngineExpectedCadence.is_enabled)
+    - Idempotency: reject if EngineExecutionLog already active for engine
+    """
+
+    def post(self, request):
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return JsonResponse({"error": "forbidden"}, status=403)
+
+        try:
+            body = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({"error": "invalid JSON"}, status=400)
+
+        engine = body.get("engine", "")
+
+        # Validate engine
+        from apps.core.ai_observability.engine_registry import get_engine_meta
+
+        meta = get_engine_meta(engine)
+        if not meta:
+            return JsonResponse(
+                {"error": f"Unknown engine: {engine}"}, status=400,
+            )
+        if not meta["can_manual_run"]:
+            return JsonResponse({
+                "success": False,
+                "error": "not_manual",
+                "message": f"{engine} requires user context and cannot be run manually.",
+            }, status=400)
+
+        # Freeze check via EngineExpectedCadence
+        from apps.core.ai_observability.models import EngineExpectedCadence
+
+        try:
+            cadence = EngineExpectedCadence.objects.get(engine_name=engine)
+            if not cadence.is_enabled:
+                return JsonResponse({
+                    "success": False,
+                    "error": "engine_frozen",
+                    "message": f"{engine} is currently frozen/disabled.",
+                }, status=409)
+        except EngineExpectedCadence.DoesNotExist:
+            pass  # No cadence config = not frozen
+
+        # Idempotency guard
+        from apps.core.ai_observability.models import EngineExecutionLog
+
+        if EngineExecutionLog.is_engine_active(engine):
+            active = EngineExecutionLog.objects.filter(
+                engine_name=engine,
+                status__in=["queued", "running"],
+            ).first()
+            return JsonResponse({
+                "success": False,
+                "error": "execution_active",
+                "message": f"{engine} execution already in progress.",
+                "execution_id": active.id if active else None,
+            }, status=409)
+
+        # Create execution log
+        execution = EngineExecutionLog.objects.create(
+            engine_name=engine,
+            trigger_source="manual",
+            status="queued",
+            triggered_by=request.user,
+        )
+
+        # Dispatch Celery task
+        try:
+            from apps.core.tasks import run_engine_task
+
+            result = run_engine_task.delay(engine, execution.id)
+            execution.celery_task_id = result.id
+            execution.save(update_fields=["celery_task_id"])
+        except Exception as e:
+            execution.status = "failed"
+            execution.error_detail = str(e)[:500]
+            execution.completed_at = timezone.now()
+            execution.save(update_fields=["status", "error_detail", "completed_at"])
+            logger.exception("Failed to dispatch engine task %s: %s", engine, e)
+            return JsonResponse({
+                "success": False,
+                "error": "dispatch_failed",
+                "message": f"Failed to dispatch {engine} task: {str(e)[:200]}",
+                "execution_id": execution.id,
+            }, status=500)
+
+        # Audit trail
+        trace_id = str(uuid.uuid4())
+        from apps.core.ai_observability.models import AdminIntervention
+
+        AdminIntervention.objects.create(
+            admin_user=request.user,
+            action_type="rerun_engine",
+            engine_name=engine,
+            trace_id=trace_id,
+            notes=(
+                f"Manual engine execution: {engine} "
+                f"(execution_id={execution.id}, celery_task_id={result.id})"
+            ),
+            result_status="pending",
+        )
+
+        logger.info(
+            "Engine manual trigger by %s: %s (execution_id=%s, celery_task_id=%s)",
+            request.user.email, engine, execution.id, result.id,
+        )
+
+        return JsonResponse({
+            "success": True,
+            "message": f"{engine} queued for execution.",
+            "execution_id": execution.id,
+            "celery_task_id": result.id,
+            "engine": engine,
+            "status": "queued",
+        })
+
+
+class EngineStatusView(View):
+    """
+    Per-engine execution status endpoint (polling).
+
+    GET /admin-console/ops/engine-status/?engine=DBE
+
+    Returns the latest EngineExecutionLog for the given engine.
+    """
+
+    def get(self, request):
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return JsonResponse({"error": "forbidden"}, status=403)
+
+        engine = request.GET.get("engine", "")
+        if not engine:
+            return JsonResponse({"error": "engine parameter required"}, status=400)
+
+        from apps.core.ai_observability.models import EngineExecutionLog
+
+        latest = EngineExecutionLog.get_latest_for_engine(engine)
+        if not latest:
+            return JsonResponse({"has_data": False, "engine": engine})
+
+        return JsonResponse({
+            "has_data": True,
+            "execution_id": latest.id,
+            "engine": latest.engine_name,
+            "trigger_source": latest.trigger_source,
+            "status": latest.status,
+            "started_at": latest.started_at.isoformat(),
+            "completed_at": (
+                latest.completed_at.isoformat() if latest.completed_at else None
+            ),
+            "duration_ms": latest.duration_ms,
+            "result_summary": latest.result_summary,
+            "error_detail": latest.error_detail if latest.status == "failed" else "",
+            "triggered_by": (
+                latest.triggered_by.email if latest.triggered_by else None
+            ),
+            "is_active": latest.status in ["queued", "running"],
+        })
+
+
 class AllEnginesView(AdminRequiredMixin, TemplateView):
     """All engines table view with search."""
 
@@ -621,6 +792,12 @@ def _build_engine_cards(engine_names, cadence_config, heartbeats, now):
         else:
             cadence_label = f"{interval // 60}m"
 
+        # Engine manual execution metadata from registry
+        from apps.core.ai_observability.engine_registry import get_engine_meta
+
+        eng_meta = get_engine_meta(name)
+        can_manual = eng_meta["can_manual_run"] if eng_meta else False
+
         cards.append({
             "name": name,
             "status": card_status,
@@ -634,6 +811,8 @@ def _build_engine_cards(engine_names, cadence_config, heartbeats, now):
             "duration_p95_1h": duration_p95,
             "sparkline": sparkline,
             "lateness_seconds": hb.get("lateness_seconds", 0),
+            "can_manual_run": can_manual,
+            "is_frozen": not cfg.get("enabled", True),
         })
 
     return cards
@@ -730,48 +909,44 @@ def _execute_action(action, engine, trace_id):
 
 
 def _action_rerun_engine(engine, trace_id):
-    """Re-run an engine by calling its entry point."""
+    """
+    Re-run an engine using ENGINE_REGISTRY batch runners.
+
+    Uses centralized registry to resolve the correct batch runner function.
+    For engines with can_manual_run=True, calls the batch runner that
+    iterates all active users internally. For user-context engines,
+    returns a message that they'll run on next interaction.
+    """
+    from apps.core.ai_observability.engine_registry import (
+        get_engine_meta,
+        resolve_batch_runner,
+    )
     from apps.core.ai_observability.trace import trace_context
 
-    engine_runners = {
-        "UAL": ("apps.core.ai_arbitration.arbitration_engine", "run_arbitration"),
-        "SAE": ("apps.core.ai_state.state_updater", "update_user_state"),
-        "PIE": ("apps.core.ai_insights.insight_engine", "run_insights"),
-        "PRIE": ("apps.core.ai_predictions.prediction_engine", "generate_predictions"),
-        "PGE": ("apps.core.ai_guidance.guidance_engine", "generate_guidance"),
-        "DBE": ("apps.core.ai_briefing.briefing_engine", "generate_daily_briefing"),
-        "WIRE": ("apps.core.ai_weekly_report.report_engine", "generate_weekly_report"),
-        "DNE": ("apps.core.ai_delivery.delivery_engine", "deliver_due_notifications"),
-        "ICQG": ("apps.core.ai_quality.quality_gate", "apply_quality_gate"),
-    }
+    meta = get_engine_meta(engine)
+    if not meta:
+        return {"status": "failure", "detail": f"No registry entry for {engine}"}
 
-    if engine not in engine_runners:
-        return {"status": "failure", "detail": f"No runner configured for {engine}"}
-
-    # Engines that need a user arg can't be rerun generically
-    user_required = {"UAL", "SAE", "PIE", "PRIE", "PGE", "ICQG"}
-    if engine in user_required:
+    if not meta["can_manual_run"]:
         return {
             "status": "success",
             "detail": (
-                f"{engine} requires a user context — "
+                f"{engine} requires user context — "
                 f"it will run on next user interaction. Trace: {trace_id}"
             ),
         }
 
-    module_path, func_name = engine_runners[engine]
     try:
-        import importlib
-
-        module = importlib.import_module(module_path)
-        func = getattr(module, func_name)
+        runner = resolve_batch_runner(engine)
+        if not runner:
+            return {"status": "failure", "detail": f"No batch runner for {engine}"}
 
         with trace_context(trace_id=trace_id, source="admin_action"):
-            func()
+            result = runner()
 
         return {
             "status": "success",
-            "detail": f"{engine} re-run successfully. Trace: {trace_id}",
+            "detail": f"{engine} re-run successfully. Result: {result}. Trace: {trace_id}",
         }
     except Exception as e:
         return {

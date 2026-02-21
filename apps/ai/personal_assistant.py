@@ -2809,6 +2809,18 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         except Exception:
             pass  # Executive briefing must never break chat
 
+        # Universal Arbitration Layer (UAL)
+        # Sits between signal generation and user-facing intervention.
+        # Classifies dominant scenario, fuses cross-domain signals,
+        # selects ONE executive narrative, and shapes AI framing.
+        try:
+            from apps.core.ai_arbitration import run_arbitration
+            arbitration = run_arbitration(self.user)
+            if arbitration and arbitration.narrative_injection:
+                system_prompt += "\n\n" + arbitration.narrative_injection
+        except Exception:
+            pass  # UAL must never break chat
+
         # Fallback: lightweight greeting for mid-conversation greetings
         # (when briefing gate didn't fire — not first-of-day)
         message_lower = message.lower()

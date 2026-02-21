@@ -1,6 +1,22 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 79,
+        "fields": {
+            "title": "Monica Now Makes One Decision, Not Ten Suggestions",
+            "description": "Monica's intelligence system now includes a Universal Arbitration Layer that evaluates all of your signals — sleep, medication, mood, schedule, relationships, goals, and more — and decides the ONE most important thing to focus on right now. Instead of listing 8 separate reminders, she now tells you a unified story: 'You're running on 5 hours of sleep with a packed schedule — today is about protection, not production.' She'll surface a maximum of 3 items and suppress competing signals, so every interaction feels decisive and human.",
+            "entry_type": "enhancement",
+            "version": "",
+            "release_date": "2026-02-21",
+            "is_published": true,
+            "is_major": true,
+            "learn_more_url": "",
+            "created_at": "2026-02-21T00:00:00Z",
+            "updated_at": "2026-02-21T00:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 78,
         "fields": {
             "title": "Monica Now Greets You Like a Real Chief of Staff",

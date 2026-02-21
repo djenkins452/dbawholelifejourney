@@ -1610,4 +1610,82 @@ ISE runs DNE every 10 minutes (600 seconds). Registry entry: `deliver_intelligen
 
 ---
 
-*Last updated: 2026-02-15 — Twelve-engine cognitive stack (added GLOE + DBE + ISE + WIRE)*
+## Engine 15: UAL — Universal Arbitration Layer
+
+**Phase:** 3 — Post-Execution (arbitration layer)
+**Location:** `apps/core/ai_arbitration/`
+**Purpose:** Central reasoning layer between multi-engine signal generation and user-facing intervention. Collects signals from all active engines, classifies the dominant scenario, fuses cross-domain signals, selects ONE executive narrative, decides intervention level, and logs its reasoning.
+
+### Public API
+
+```python
+from apps.core.ai_arbitration import run_arbitration
+
+result = run_arbitration(user)
+# result.dominant_scenario     → "TIME_CRITICAL" | "HEALTH_CRITICAL" | etc.
+# result.intervention_style    → "DIRECTIVE" | "PROTECTIVE" | etc.
+# result.narrative_injection   → str (system prompt injection)
+# result.surfaced_items        → list (max 3)
+# result.suppressed_items      → list
+# result.composites            → list (cross-domain patterns)
+# result.success               → bool
+```
+
+### Pipeline
+
+```
+Signal Collection (13 sources)
+  → Normalise to 14 signal dimensions (0-1)
+  → Scenario Classification (weighted scoring → 1 dominant)
+  → Signal Fusion (7 cross-domain composites)
+  → Intervention Decision (6 styles, max 3 surfaced)
+  → Executive Narrative (system prompt injection)
+  → Decision Logging (ArbitrationDecisionLog)
+```
+
+### Scenario Types
+
+| Scenario | Intervention | Primary Signals |
+|----------|-------------|-----------------|
+| TIME_CRITICAL | DIRECTIVE | Calendar urgency, deadlines, schedule |
+| HEALTH_CRITICAL | PROTECTIVE | Medication, sleep, injury |
+| DRIFT_CRITICAL | ACCOUNTABILITY | Drift score, non-negotiable misses |
+| MOOD_CRITICAL | SUPPORTIVE | Mood trend, emotional load |
+| RELATIONSHIP_CRITICAL | STRATEGIC | Relationship events, drift |
+| STABLE_EXECUTION | EXECUTION | Default (no critical signals) |
+
+### Composites
+
+LOW_CAPACITY_DAY, PHYSICAL_RISK, RELATIONAL_OPPORTUNITY, EMOTIONAL_OVERLOAD, RECOVERY_NEEDED, ALIGNMENT_CRISIS, DEADLINE_CONVERGENCE
+
+### Integration Point
+
+Wired into `personal_assistant.py:_generate_response()` — runs after Executive Briefing assembly, before final message generation. Narrative injection shapes AI framing.
+
+### Files
+
+| File | Purpose |
+|------|---------|
+| `signal_collector.py` | Collect + normalise signals from 13 sources |
+| `scenario_classifier.py` | Weighted scoring → dominant scenario |
+| `signal_fuser.py` | Cross-domain composite detection |
+| `intervention_engine.py` | Style selection + surface/suppress |
+| `narrative_engine.py` | Executive narrative builder |
+| `arbitration_engine.py` | Main orchestrator: `run_arbitration()` |
+| `models.py` | ArbitrationDecisionLog |
+| `admin.py` | Read-only admin |
+
+### Safety
+
+- UAL failures NEVER break chat (wrapped in try/except)
+- Returns safe STABLE_EXECUTION fallback on any error
+- No AI API calls — pure deterministic Python
+- Decision logging is non-blocking
+
+### Tests
+
+42 tests in `apps/core/ai_arbitration/tests.py`
+
+---
+
+*Last updated: 2026-02-21 — Fifteen-engine cognitive stack (added UAL)*

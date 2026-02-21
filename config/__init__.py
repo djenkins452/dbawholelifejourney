@@ -14,12 +14,6 @@ Package Contents:
     - settings.py: Django settings configuration
     - urls.py: Root URL routing
     - wsgi.py: WSGI application for production deployment
-    - asgi.py: ASGI application (if async features are needed)
-
-Package Contents:
-    - settings.py: Django settings configuration
-    - urls.py: Root URL routing
-    - wsgi.py: WSGI application for production deployment
     - celery.py: Celery application for background task processing
     - asgi.py: ASGI application (if async features are needed)
 

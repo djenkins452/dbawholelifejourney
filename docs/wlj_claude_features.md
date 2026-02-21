@@ -337,7 +337,7 @@ A task-focused personal assistant that helps users get things done and stay alig
 ### URL Routes (`/assistant/`)
 | Route | View | Description |
 |-------|------|-------------|
-| `/assistant/` | `AssistantDashboardView` | Full-page assistant UI |
+| `/assistant/` | `AssistantDashboardView` | Redirects to dashboard (legacy — CoS panel is the single chat interface) |
 | `/assistant/api/opening/` | `AssistantOpeningView` | Daily check-in message |
 | `/assistant/api/chat/` | `AssistantChatView` | Send/receive messages |
 | `/assistant/api/history/` | `ConversationHistoryView` | Get conversation history |

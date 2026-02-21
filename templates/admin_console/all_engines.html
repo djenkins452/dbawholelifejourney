@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}All Engines - Intelligence Command Center{% endblock %}
+
+{% block content %}
+<style nonce="{{ csp_nonce }}">
+.all-engines {
+    --ae-bg: #0a0e1a;
+    --ae-surface: #111827;
+    --ae-border: #374151;
+    --ae-text: #e5e7eb;
+    --ae-text-muted: #9ca3af;
+    --ae-text-dim: #6b7280;
+    --ae-green: #10b981;
+    --ae-yellow: #f59e0b;
+    --ae-red: #ef4444;
+    --ae-blue: #3b82f6;
+
+    background: var(--ae-bg);
+    color: var(--ae-text);
+    min-height: 100vh;
+    padding: 16px 20px;
+}
+
+.ae-header {
+    display: flex; justify-content: space-between;
+    align-items: center; margin-bottom: 20px;
+    flex-wrap: wrap; gap: 8px;
+}
+.ae-title {
+    font-size: 1rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.05em; color: var(--ae-text-muted);
+}
+.ae-back {
+    padding: 6px 14px; border-radius: 6px;
+    border: 1px solid var(--ae-border); background: var(--ae-surface);
+    color: var(--ae-text-muted); text-decoration: none; font-size: 0.75rem;
+    min-height: 36px; display: inline-flex; align-items: center;
+}
+.ae-back:hover { background: #283044; color: var(--ae-text); }
+
+.ae-search {
+    width: 100%; max-width: 300px;
+    padding: 8px 12px; border-radius: 6px;
+    border: 1px solid var(--ae-border); background: var(--ae-surface);
+    color: var(--ae-text); font-size: 0.8125rem;
+    margin-bottom: 16px;
+}
+.ae-search:focus { outline: none; border-color: var(--ae-blue); }
+
+.ae-table {
+    width: 100%; border-collapse: collapse;
+    background: var(--ae-surface); border-radius: 8px;
+    overflow: hidden; border: 1px solid var(--ae-border);
+}
+.ae-table th {
+    font-size: 0.625rem; text-transform: uppercase;
+    letter-spacing: 0.1em; color: var(--ae-text-dim);
+    padding: 10px 14px; text-align: left;
+    border-bottom: 1px solid var(--ae-border);
+    font-weight: 600;
+}
+.ae-table td {
+    padding: 10px 14px; border-bottom: 1px solid rgba(55,65,81,0.3);
+    font-size: 0.8125rem;
+}
+.ae-table tr:hover td { background: #1f2937; }
+
+.ae-status {
+    display: inline-block; padding: 2px 8px; border-radius: 4px;
+    font-size: 0.625rem; text-transform: uppercase;
+    font-weight: 600; letter-spacing: 0.08em;
+}
+.ae-status.success { color: var(--ae-green); background: rgba(16,185,129,0.15); }
+.ae-status.error { color: var(--ae-red); background: rgba(239,68,68,0.15); }
+.ae-status.never { color: var(--ae-text-dim); background: rgba(107,114,128,0.15); }
+.ae-status.skipped { color: var(--ae-yellow); background: rgba(245,158,11,0.15); }
+
+.ae-enabled { color: var(--ae-green); }
+.ae-disabled { color: var(--ae-text-dim); }
+</style>
+
+<div class="all-engines">
+    <div class="ae-header">
+        <span class="ae-title">All Intelligence Engines</span>
+        <a href="{% url 'admin_console:ops_wall' %}" class="ae-back">Back to Ops Wall</a>
+    </div>
+
+    <input type="text" class="ae-search" id="engineSearch" placeholder="Search engines...">
+
+    <table class="ae-table" id="engineTable">
+        <thead>
+            <tr>
+                <th>Engine</th>
+                <th>Interval</th>
+                <th>Monitoring</th>
+                <th>Last Run</th>
+                <th>Status</th>
+                <th>Duration</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for engine in engines %}
+            <tr data-name="{{ engine.name }}">
+                <td><strong>{{ engine.name }}</strong></td>
+                <td>{{ engine.interval_label }}</td>
+                <td>
+                    {% if engine.enabled %}
+                    <span class="ae-enabled">Enabled</span>
+                    {% else %}
+                    <span class="ae-disabled">Disabled</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if engine.last_run_at %}
+                    {{ engine.last_run_at|timesince }} ago
+                    {% else %}Never{% endif %}
+                </td>
+                <td><span class="ae-status {{ engine.last_status }}">{{ engine.last_status }}</span></td>
+                <td>{{ engine.last_duration }}ms</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<script nonce="{{ csp_nonce }}">
+(function() {
+    document.getElementById('engineSearch').addEventListener('input', function() {
+        var query = this.value.toLowerCase();
+        var rows = document.querySelectorAll('#engineTable tbody tr');
+        rows.forEach(function(row) {
+            var name = (row.dataset.name || '').toLowerCase();
+            row.style.display = name.indexOf(query) !== -1 ? '' : 'none';
+        });
+    });
+})();
+</script>
+{% endblock %}

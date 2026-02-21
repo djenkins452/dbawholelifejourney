@@ -1,14 +1,19 @@
 """
-IOCD — Admin registration (read-only).
+IOCD — Admin registration (read-only for diagnostics, editable for cadence config).
 """
 
 from django.contrib import admin
 
 from apps.core.ai_observability.models import (
+    AdminIntervention,
     DecisionRecord,
+    EngineExpectedCadence,
+    EngineHeartbeat,
     EngineRun,
     EngineSpan,
     IntelligenceMetricsSnapshot,
+    OpsAnomaly,
+    OpsNarrativeSnapshot,
 )
 
 
@@ -145,6 +150,129 @@ class DecisionRecordAdmin(admin.ModelAdmin):
         "user_id",
         "confidence",
         "created_at",
+    ]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+# --- Vegas Ops Wall v2 Models ---
+
+
+@admin.register(EngineExpectedCadence)
+class EngineExpectedCadenceAdmin(admin.ModelAdmin):
+    list_display = [
+        "engine_name",
+        "expected_interval_seconds",
+        "expected_jitter_seconds",
+        "is_enabled",
+    ]
+    list_filter = ["is_enabled"]
+    search_fields = ["engine_name"]
+
+
+@admin.register(EngineHeartbeat)
+class EngineHeartbeatAdmin(admin.ModelAdmin):
+    list_display = [
+        "engine_name",
+        "status",
+        "observed_at",
+        "last_run_at",
+        "lateness_seconds",
+    ]
+    list_filter = ["engine_name", "status"]
+    readonly_fields = [
+        "engine_name",
+        "observed_at",
+        "status",
+        "last_run_at",
+        "next_expected_at",
+        "lateness_seconds",
+        "metadata",
+    ]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(AdminIntervention)
+class AdminInterventionAdmin(admin.ModelAdmin):
+    list_display = [
+        "action_type",
+        "engine_name",
+        "admin_user",
+        "result_status",
+        "created_at",
+    ]
+    list_filter = ["action_type", "result_status"]
+    search_fields = ["engine_name", "trace_id", "notes"]
+    readonly_fields = [
+        "created_at",
+        "admin_user",
+        "action_type",
+        "engine_name",
+        "trace_id",
+        "notes",
+        "result_status",
+        "result_detail",
+    ]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(OpsAnomaly)
+class OpsAnomalyAdmin(admin.ModelAdmin):
+    list_display = [
+        "severity",
+        "anomaly_type",
+        "engine_name",
+        "is_active",
+        "created_at",
+    ]
+    list_filter = ["severity", "anomaly_type", "is_active"]
+    search_fields = ["engine_name", "summary"]
+    readonly_fields = [
+        "created_at",
+        "updated_at",
+        "severity",
+        "engine_name",
+        "anomaly_type",
+        "summary",
+        "evidence",
+        "suggested_actions",
+        "is_active",
+        "resolved_at",
+    ]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(OpsNarrativeSnapshot)
+class OpsNarrativeSnapshotAdmin(admin.ModelAdmin):
+    list_display = ["posture", "headline", "created_at"]
+    list_filter = ["posture"]
+    readonly_fields = [
+        "created_at",
+        "posture",
+        "headline",
+        "bullets_now",
+        "recommendations",
+        "watching_next",
+        "supporting_metrics",
     ]
 
     def has_add_permission(self, request):

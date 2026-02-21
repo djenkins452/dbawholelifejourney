@@ -1,6 +1,22 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 82,
+        "fields": {
+            "title": "Operations Wall Upgraded to Vegas v2",
+            "description": "The admin Operations Wall has been completely rebuilt with a NASA/SOC-grade dark monitoring interface. A new System Autonomous Monitoring Engine (SAME) watches all 10 intelligence engines in real-time — detecting missed runs, error spikes, suppression storms, and more — then narrates what's happening in plain English. Engine heartbeats track expected vs actual cadence, anomalies persist with full lifecycle tracking, and admin actions (re-run engine, clear caches, acknowledge alerts) are fully audited. The wall shows system posture (OK/DEGRADED/AT_RISK), engine cards with sparklines, a live watchlist, and a scrolling SOC feed. 42 new tests cover the full stack.",
+            "entry_type": "enhancement",
+            "version": "",
+            "release_date": "2026-02-21",
+            "is_published": true,
+            "is_major": false,
+            "learn_more_url": "",
+            "created_at": "2026-02-21T00:00:00Z",
+            "updated_at": "2026-02-21T00:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 81,
         "fields": {
             "title": "Monica's Intelligence Gets Sharper and More Self-Aware",

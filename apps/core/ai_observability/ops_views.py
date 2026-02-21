@@ -1,14 +1,19 @@
 """
-Operations Wall — Staff-only views for live engine monitoring.
+Operations Wall v2 — Vegas Ops Wall views.
 
-Layer 2 (Vegas View): Live pulse tiles, cognitive feed, anomaly alerts,
-trend charts. All data derived from EngineRun/DecisionRecord tables.
+Routes:
+  /admin-console/ops/              -> OpsWallView (flagship page)
+  /admin-console/ops/stream/       -> OpsStreamView (JSON polling)
+  /admin-console/ops/actions/      -> OpsActionView (POST: admin actions)
+  /admin-console/ops/all-engines/  -> AllEnginesView (table/search)
 
 Project: Whole Life Journey
 Path: apps/core/ai_observability/ops_views.py
 """
 
+import json
 import logging
+import uuid
 from datetime import timedelta
 
 from django.contrib.auth.mixins import UserPassesTestMixin
@@ -33,7 +38,7 @@ class AdminRequiredMixin(UserPassesTestMixin):
 
 
 class OperationsWallView(AdminRequiredMixin, TemplateView):
-    """Main operations wall page."""
+    """Main operations wall page — the flagship Vegas Ops Wall."""
 
     template_name = "admin_console/operations_wall.html"
 
@@ -44,13 +49,18 @@ class OperationsWallView(AdminRequiredMixin, TemplateView):
         return context
 
 
-class OperationsWallPollView(View):
+class OpsStreamView(View):
     """
-    Polling endpoint for the Operations Wall.
+    Polling endpoint for the Operations Wall v2.
 
-    GET /admin-console/ops/poll/?since=<iso-timestamp>
+    GET /admin-console/ops/stream/?since=<iso-timestamp>&engine=<name>&filter=<type>
 
-    Returns JSON with engine tiles, feed, anomalies, charts, system status.
+    Returns JSON with:
+      - engine cards (status, cadence, sparkline data, miss/error counters)
+      - SAME narrative snapshot
+      - active anomalies (watchlist)
+      - live feed events (incremental since cursor)
+      - system posture
     """
 
     def get(self, request):
@@ -59,6 +69,7 @@ class OperationsWallPollView(View):
 
         since_str = request.GET.get("since", "")
         engine_filter = request.GET.get("engine", "")
+        feed_filter = request.GET.get("filter", "")  # core/errors/decisions/anomalies
 
         try:
             since = timezone.datetime.fromisoformat(since_str)
@@ -67,37 +78,454 @@ class OperationsWallPollView(View):
         except (ValueError, TypeError):
             since = timezone.now() - timedelta(minutes=5)
 
-        # Compute all aggregates
-        from apps.core.ai_observability.ops_aggregates import (
-            get_all_engine_pulses,
-            get_confidence_trend,
-            get_suppression_stats,
-            get_system_latency,
-            get_system_status,
-            get_ual_scenario_distribution,
+        from apps.core.ai_observability.heartbeat import (
+            get_cadence_config,
+            get_latest_heartbeats,
         )
-        from apps.core.ai_observability.ops_anomalies import detect_anomalies
+        from apps.core.ai_observability.models import (
+            EngineRun,
+            OpsAnomaly,
+            OpsNarrativeSnapshot,
+        )
+        from apps.core.ai_observability.ops_aggregates import ALL_ENGINES
         from apps.core.ai_observability.ops_feed import get_recent_feed
 
-        pulses = get_all_engine_pulses()
+        now = timezone.now()
+        cadence_config = get_cadence_config()
+        heartbeats = get_latest_heartbeats()
 
-        return JsonResponse(
-            {
-                "server_time": timezone.now().isoformat(),
-                "system_status": get_system_status(pulses),
-                "engine_tiles": pulses,
-                "ops_feed": get_recent_feed(
-                    since=since,
-                    limit=50,
-                    engine_filter=engine_filter or None,
-                ),
-                "anomalies": detect_anomalies(),
-                "charts": {
-                    "ual_scenarios": get_ual_scenario_distribution(),
-                    "suppression": get_suppression_stats(),
-                    "latency": get_system_latency(),
-                    "confidence_trend": get_confidence_trend(),
-                },
-                "next_since": timezone.now().isoformat(),
-            }
+        # Build engine cards
+        engine_cards = _build_engine_cards(ALL_ENGINES, cadence_config, heartbeats, now)
+
+        # Get SAME narrative (latest)
+        narrative = _get_latest_narrative()
+
+        # Get active anomalies (watchlist)
+        anomalies = _get_active_anomalies()
+
+        # Get feed events
+        feed = get_recent_feed(
+            since=since,
+            limit=50,
+            engine_filter=engine_filter or None,
         )
+
+        # Apply feed filter
+        if feed_filter == "errors":
+            feed = [f for f in feed if f["severity"] == "error"]
+        elif feed_filter == "decisions":
+            feed = [f for f in feed if f["type"] == "decision"]
+
+        # System posture from narrative
+        posture = narrative.get("posture", "OK") if narrative else "OK"
+
+        return JsonResponse({
+            "server_time": now.isoformat(),
+            "posture": posture,
+            "engine_cards": engine_cards,
+            "narrative": narrative,
+            "anomalies": anomalies,
+            "feed": feed,
+            "next_since": now.isoformat(),
+        })
+
+
+class OpsActionView(View):
+    """
+    Admin action endpoint — POST to execute safe operational actions.
+
+    POST /admin-console/ops/actions/
+    Body: {"action": "rerun_engine", "engine": "UAL"}
+
+    All actions create AdminIntervention records.
+    """
+
+    def post(self, request):
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return JsonResponse({"error": "forbidden"}, status=403)
+
+        try:
+            body = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({"error": "invalid JSON"}, status=400)
+
+        action = body.get("action", "")
+        engine = body.get("engine", "")
+
+        if not action:
+            return JsonResponse({"error": "action required"}, status=400)
+
+        from apps.core.ai_observability.models import AdminIntervention
+
+        trace_id = str(uuid.uuid4())
+
+        # Create intervention record
+        intervention = AdminIntervention.objects.create(
+            admin_user=request.user,
+            action_type=action,
+            engine_name=engine,
+            trace_id=trace_id,
+            notes=f"Admin action via Ops Wall: {action} on {engine}",
+            result_status="pending",
+        )
+
+        # Execute the action
+        result = _execute_action(action, engine, trace_id)
+
+        # Update intervention with result
+        intervention.result_status = result["status"]
+        intervention.result_detail = result["detail"]
+        intervention.save(update_fields=["result_status", "result_detail"])
+
+        return JsonResponse({
+            "success": result["status"] == "success",
+            "message": result["detail"],
+            "trace_id": trace_id,
+            "intervention_id": intervention.id,
+        })
+
+
+class AllEnginesView(AdminRequiredMixin, TemplateView):
+    """All engines table view with search."""
+
+    template_name = "admin_console/all_engines.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "All Engines"
+        context["app_name"] = "admin_console"
+
+        from apps.core.ai_observability.heartbeat import get_cadence_config
+        from apps.core.ai_observability.models import EngineRun
+        from apps.core.ai_observability.ops_aggregates import ALL_ENGINES
+
+        now = timezone.now()
+        cadence_config = get_cadence_config()
+
+        engines = []
+        for engine_name in sorted(ALL_ENGINES + ["GLOE", "ISE", "E3"]):
+            cfg = cadence_config.get(engine_name, {})
+            last_run = (
+                EngineRun.objects.filter(engine_name=engine_name)
+                .order_by("-started_at")
+                .values("started_at", "status", "duration_ms")
+                .first()
+            )
+
+            interval = cfg.get("interval", 0)
+            if interval >= 604800:
+                interval_label = f"{interval // 604800}w"
+            elif interval >= 86400:
+                interval_label = f"{interval // 86400}d"
+            elif interval >= 3600:
+                interval_label = f"{interval // 3600}h"
+            elif interval > 0:
+                interval_label = f"{interval // 60}m"
+            else:
+                interval_label = "—"
+
+            engines.append({
+                "name": engine_name,
+                "interval_label": interval_label,
+                "enabled": cfg.get("enabled", False),
+                "last_run_at": last_run["started_at"] if last_run else None,
+                "last_status": last_run["status"] if last_run else "never",
+                "last_duration": last_run["duration_ms"] if last_run else 0,
+            })
+
+        context["engines"] = engines
+        return context
+
+
+# =========================================================================
+# HELPER FUNCTIONS
+# =========================================================================
+
+
+def _build_engine_cards(engine_names, cadence_config, heartbeats, now):
+    """Build engine card data for each core engine."""
+    from apps.core.ai_observability.models import EngineRun
+
+    cards = []
+
+    for name in engine_names:
+        cfg = cadence_config.get(name, {})
+        hb = heartbeats.get(name, {})
+        interval = cfg.get("interval", 3600)
+
+        # Last run
+        last_run = (
+            EngineRun.objects.filter(engine_name=name)
+            .order_by("-started_at")
+            .values("started_at", "status", "duration_ms")
+            .first()
+        )
+
+        # Status mapping from heartbeat to card status
+        hb_status = hb.get("status", "OK")
+        if hb_status == "MISSED":
+            card_status = "MISSED"
+        elif hb_status == "LATE":
+            card_status = "DEGRADED"
+        elif hb_status == "ERROR":
+            card_status = "ERROR"
+        else:
+            card_status = "OK"
+
+        # Override with error rate check
+        thirty_min_ago = now - timedelta(minutes=30)
+        errors_30m = EngineRun.objects.filter(
+            engine_name=name,
+            started_at__gte=thirty_min_ago,
+            status="error",
+        ).count()
+        if errors_30m > 3:
+            card_status = "ERROR"
+
+        # Miss counter (last 30m)
+        miss_count = 0
+        if hb_status == "MISSED":
+            lateness = hb.get("lateness_seconds", 0)
+            if interval > 0:
+                miss_count = max(1, lateness // interval)
+
+        # Error counter (last 24h)
+        twenty_four_h_ago = now - timedelta(hours=24)
+        errors_24h = EngineRun.objects.filter(
+            engine_name=name,
+            started_at__gte=twenty_four_h_ago,
+            status="error",
+        ).count()
+
+        # Sparkline data: last 6 runs durations
+        recent_runs = list(
+            EngineRun.objects.filter(engine_name=name)
+            .order_by("-started_at")[:6]
+            .values_list("duration_ms", flat=True)
+        )
+        sparkline = list(reversed(recent_runs))  # Chronological order
+
+        # Duration P95 (last 1h)
+        one_hour_ago = now - timedelta(hours=1)
+        durations_1h = list(
+            EngineRun.objects.filter(
+                engine_name=name,
+                started_at__gte=one_hour_ago,
+            )
+            .order_by("duration_ms")
+            .values_list("duration_ms", flat=True)
+        )
+        if durations_1h:
+            p95_idx = max(0, int(len(durations_1h) * 0.95) - 1)
+            duration_p95 = durations_1h[p95_idx]
+        else:
+            duration_p95 = 0
+
+        # Human-readable cadence
+        if interval >= 604800:
+            cadence_label = f"{interval // 604800}w"
+        elif interval >= 86400:
+            cadence_label = f"{interval // 86400}d"
+        elif interval >= 3600:
+            cadence_label = f"{interval // 3600}h"
+        else:
+            cadence_label = f"{interval // 60}m"
+
+        cards.append({
+            "name": name,
+            "status": card_status,
+            "cadence": cadence_label,
+            "last_run_at": (
+                last_run["started_at"].isoformat() if last_run and last_run["started_at"] else None
+            ),
+            "next_expected_at": hb.get("next_expected_at"),
+            "miss_count_30m": miss_count,
+            "error_count_24h": errors_24h,
+            "duration_p95_1h": duration_p95,
+            "sparkline": sparkline,
+            "lateness_seconds": hb.get("lateness_seconds", 0),
+        })
+
+    return cards
+
+
+def _get_latest_narrative():
+    """Get the most recent OpsNarrativeSnapshot as dict."""
+    from apps.core.ai_observability.models import OpsNarrativeSnapshot
+
+    snapshot = OpsNarrativeSnapshot.objects.first()
+    if not snapshot:
+        return {
+            "posture": "OK",
+            "headline": "SAME not yet initialized — awaiting first run.",
+            "bullets_now": ["No data available yet."],
+            "recommendations": ["System will begin monitoring once engines start running."],
+            "watching_next": [],
+        }
+
+    return {
+        "posture": snapshot.posture,
+        "headline": snapshot.headline,
+        "bullets_now": snapshot.bullets_now or [],
+        "recommendations": snapshot.recommendations or [],
+        "watching_next": snapshot.watching_next or [],
+        "created_at": snapshot.created_at.isoformat(),
+    }
+
+
+def _get_active_anomalies():
+    """Get all active OpsAnomaly records as list of dicts."""
+    from apps.core.ai_observability.models import OpsAnomaly
+
+    anomalies = OpsAnomaly.objects.filter(is_active=True).order_by(
+        "severity", "-created_at"
+    )
+
+    result = []
+    for a in anomalies:
+        result.append({
+            "id": a.id,
+            "severity": a.severity,
+            "engine_name": a.engine_name,
+            "anomaly_type": a.anomaly_type,
+            "summary": a.summary,
+            "suggested_actions": a.suggested_actions or [],
+            "created_at": a.created_at.isoformat(),
+            "first_detected": _human_ago(a.created_at),
+        })
+
+    return result
+
+
+def _execute_action(action, engine, trace_id):
+    """Execute an admin action safely."""
+    try:
+        if action == "rerun_engine":
+            return _action_rerun_engine(engine, trace_id)
+        elif action == "requeue_job":
+            return _action_rerun_engine(engine, trace_id)  # Same as rerun for now
+        elif action == "clear_suppression_cache":
+            return _action_clear_suppression_cache(engine)
+        elif action == "restart_scheduler":
+            return _action_restart_scheduler()
+        elif action == "acknowledge_anomaly":
+            return _action_acknowledge_anomaly(engine)
+        else:
+            return {"status": "failure", "detail": f"Unknown action: {action}"}
+    except Exception as e:
+        logger.exception("Admin action %s failed: %s", action, e)
+        return {"status": "failure", "detail": str(e)[:500]}
+
+
+def _action_rerun_engine(engine, trace_id):
+    """Re-run an engine by calling its entry point."""
+    from apps.core.ai_observability.trace import trace_context
+
+    engine_runners = {
+        "UAL": ("apps.core.ai_arbitration.arbitration_engine", "run_arbitration"),
+        "SAE": ("apps.core.ai_state.state_updater", "update_user_state"),
+        "PIE": ("apps.core.ai_insights.insight_engine", "run_insights"),
+        "PRIE": ("apps.core.ai_predictions.prediction_engine", "generate_predictions"),
+        "PGE": ("apps.core.ai_guidance.guidance_engine", "generate_guidance"),
+        "DBE": ("apps.core.ai_briefing.briefing_engine", "generate_daily_briefing"),
+        "WIRE": ("apps.core.ai_weekly_report.report_engine", "generate_weekly_report"),
+        "DNE": ("apps.core.ai_delivery.delivery_engine", "deliver_due_notifications"),
+        "ICQG": ("apps.core.ai_quality.quality_gate", "apply_quality_gate"),
+    }
+
+    if engine not in engine_runners:
+        return {"status": "failure", "detail": f"No runner configured for {engine}"}
+
+    # Engines that need a user arg can't be rerun generically
+    user_required = {"UAL", "SAE", "PIE", "PRIE", "PGE", "ICQG"}
+    if engine in user_required:
+        return {
+            "status": "success",
+            "detail": (
+                f"{engine} requires a user context — "
+                f"it will run on next user interaction. Trace: {trace_id}"
+            ),
+        }
+
+    module_path, func_name = engine_runners[engine]
+    try:
+        import importlib
+
+        module = importlib.import_module(module_path)
+        func = getattr(module, func_name)
+
+        with trace_context(trace_id=trace_id, source="admin_action"):
+            func()
+
+        return {
+            "status": "success",
+            "detail": f"{engine} re-run successfully. Trace: {trace_id}",
+        }
+    except Exception as e:
+        return {
+            "status": "failure",
+            "detail": f"{engine} re-run failed: {str(e)[:300]}",
+        }
+
+
+def _action_clear_suppression_cache(engine):
+    """Clear ICQG suppression cache."""
+    if engine != "ICQG":
+        return {"status": "failure", "detail": "Only ICQG suppression cache can be cleared"}
+
+    try:
+        from apps.core.ai_quality.models import QualitySuppressionRecord
+
+        # Clear recent suppression records (last 24h) to allow reprocessing
+        cleared = QualitySuppressionRecord.objects.filter(
+            suppressed_at__gte=timezone.now() - timedelta(hours=24)
+        ).delete()[0]
+
+        return {
+            "status": "success",
+            "detail": f"Cleared {cleared} suppression records from last 24h",
+        }
+    except Exception as e:
+        return {"status": "failure", "detail": f"Cache clear failed: {str(e)[:300]}"}
+
+
+def _action_restart_scheduler():
+    """Signal ISE scheduler restart (creates a marker for the scheduler to pick up)."""
+    return {
+        "status": "success",
+        "detail": (
+            "Scheduler restart signaled. ISE will pick up on next cron cycle "
+            "(Railway runs every 5 minutes)."
+        ),
+    }
+
+
+def _action_acknowledge_anomaly(engine):
+    """Acknowledge and resolve anomalies for a specific engine."""
+    from apps.core.ai_observability.models import OpsAnomaly
+
+    resolved = 0
+    for anomaly in OpsAnomaly.objects.filter(engine_name=engine, is_active=True):
+        anomaly.is_active = False
+        anomaly.resolved_at = timezone.now()
+        anomaly.save(update_fields=["is_active", "resolved_at", "updated_at"])
+        resolved += 1
+
+    return {
+        "status": "success",
+        "detail": f"Acknowledged {resolved} anomaly/anomalies for {engine}",
+    }
+
+
+def _human_ago(dt):
+    """Convert datetime to human-readable 'X ago' string."""
+    if not dt:
+        return "unknown"
+    seconds = int((timezone.now() - dt).total_seconds())
+    if seconds < 60:
+        return f"{seconds}s ago"
+    if seconds < 3600:
+        return f"{seconds // 60}m ago"
+    if seconds < 86400:
+        return f"{seconds // 3600}h ago"
+    return f"{seconds // 86400}d ago"

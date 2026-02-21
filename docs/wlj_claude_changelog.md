@@ -9,6 +9,36 @@
 
 # WLJ Change History
 
+## 2026-02-21 — Vegas Ops Wall v2 (SAME Engine + Persistent Anomalies)
+
+**Changes:**
+- **5 New Models:** EngineExpectedCadence, EngineHeartbeat, AdminIntervention, OpsAnomaly, OpsNarrativeSnapshot — persistent observability layer replacing in-memory anomaly detection.
+- **Heartbeat Calculator:** Computes OK/LATE/MISSED/ERROR status for all 10 engines based on expected cadence vs actual runs. Database-overridable cadence config.
+- **SAME Engine (System Autonomous Monitoring Engine):** Deterministic, no-OpenAI cognition layer with 7 anomaly detectors (missed runs, error spikes, confidence volatility, suppression storms, looping reminders, engine starvation, delivery retry spikes). Reconciles anomaly lifecycle (active → resolved).
+- **Vegas-Grade UI Redesign:** Bloomberg/SOC/NASA dark theme with system posture banner (OK/DEGRADED/AT_RISK), SAME narration bar (3-column), engine cards with sparklines, anomaly watchlist, SOC live feed with filters.
+- **Admin Actions:** rerun_engine, clear_suppression_cache, acknowledge_anomaly, restart_scheduler — all audited with AdminIntervention records and trace IDs.
+- **All Engines View:** Searchable table of all engines with interval, status, last run, duration.
+- **42 Tests:** Full coverage of models, heartbeat calculator, SAME detection, anomaly reconciliation, narrative generation, stream endpoint, admin actions, access control.
+
+**New Files:**
+- `apps/core/ai_observability/heartbeat.py` — Heartbeat calculator
+- `apps/core/ai_observability/same_engine.py` — SAME engine
+- `apps/core/ai_observability/tests_ops_wall_v2.py` — 42 tests
+- `apps/core/migrations/0079_vegas_ops_wall_v2_models.py` — Migration
+- `templates/admin_console/all_engines.html` — All Engines view
+- `docs/OPS_WALL_V2_REPORT.md` — Architecture report
+
+**Modified Files:**
+- `apps/core/ai_observability/models.py` — 5 new models
+- `apps/core/ai_observability/admin.py` — Admin registration for new models
+- `apps/core/ai_observability/ops_views.py` — Rewritten: OpsStreamView, OpsActionView, AllEnginesView
+- `apps/admin_console/urls.py` — New routes: stream, actions, all-engines
+- `templates/admin_console/operations_wall.html` — Full Vegas UI redesign
+
+**Why:** Replace in-memory anomaly detection with persistent, auditable ops monitoring. SAME provides deterministic narration without OpenAI. Admin actions create audit trail. Vegas UI gives real-time situational awareness.
+
+---
+
 ## 2026-02-21 — UAL v2.1 Structural Intelligence Hardening
 
 **Changes:**

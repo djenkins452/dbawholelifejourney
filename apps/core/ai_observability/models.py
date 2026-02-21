@@ -315,3 +315,343 @@ class DecisionRecord(models.Model):
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.engine_name} {self.decision_type}: {self.decision[:50]}"
+
+
+# =========================================================================
+# VEGAS OPS WALL v2 — HEARTBEAT + CADENCE + SAME MODELS
+# =========================================================================
+
+
+class EngineExpectedCadence(models.Model):
+    """
+    Configurable expected run cadence per engine.
+
+    Replaces hardcoded ENGINE_CADENCES dict with database-driven config.
+    Used by heartbeat calculator and SAME to detect missed/late runs.
+    """
+
+    class Meta:
+        app_label = "core"
+        db_table = "core_engine_expected_cadence"
+        ordering = ["engine_name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["engine_name"],
+                name="unique_cadence_per_engine",
+            ),
+        ]
+
+    engine_name = models.CharField(
+        max_length=10,
+        unique=True,
+        help_text="Engine acronym: UAL, SAE, PIE, etc.",
+    )
+    expected_interval_seconds = models.IntegerField(
+        help_text="Expected run interval in seconds.",
+    )
+    expected_jitter_seconds = models.IntegerField(
+        default=60,
+        help_text="Allowed late window before marking LATE.",
+    )
+    is_enabled = models.BooleanField(
+        default=True,
+        help_text="Whether heartbeat monitoring is enabled for this engine.",
+    )
+    notes = models.TextField(
+        blank=True,
+        default="",
+        help_text="Admin notes about this engine's expected behavior.",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        interval = self.expected_interval_seconds
+        if interval >= 86400:
+            human = f"{interval // 86400}d"
+        elif interval >= 3600:
+            human = f"{interval // 3600}h"
+        else:
+            human = f"{interval // 60}m"
+        return f"{self.engine_name} (every {human})"
+
+
+class EngineHeartbeat(models.Model):
+    """
+    Tracks expected vs actual engine runs for cadence monitoring.
+
+    Computed every 1-2 minutes by SAME or on-demand when Ops Wall polls.
+    A run is MISSED if now > next_expected_at + jitter.
+    A run is LATE if now > next_expected_at and <= next_expected_at + jitter.
+    """
+
+    class Meta:
+        app_label = "core"
+        db_table = "core_engine_heartbeat"
+        ordering = ["-observed_at"]
+        indexes = [
+            models.Index(
+                fields=["engine_name", "-observed_at"],
+                name="idx_heartbeat_eng_time",
+            ),
+            models.Index(
+                fields=["-observed_at"],
+                name="idx_heartbeat_time",
+            ),
+        ]
+
+    STATUS_CHOICES = [
+        ("OK", "OK"),
+        ("MISSED", "Missed"),
+        ("LATE", "Late"),
+        ("ERROR", "Error"),
+    ]
+
+    engine_name = models.CharField(max_length=10, db_index=True)
+    observed_at = models.DateTimeField(
+        help_text="When this heartbeat was computed.",
+    )
+    status = models.CharField(
+        max_length=10,
+        choices=STATUS_CHOICES,
+        help_text="OK / MISSED / LATE / ERROR",
+    )
+    last_run_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the engine last ran (from EngineRun).",
+    )
+    next_expected_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the next run is expected.",
+    )
+    lateness_seconds = models.IntegerField(
+        default=0,
+        help_text="How many seconds late (0 if on time or early).",
+    )
+    metadata = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Additional context: error counts, run counts, etc.",
+    )
+
+    def __str__(self):
+        return f"{self.engine_name} [{self.status}] at {self.observed_at}"
+
+
+class AdminIntervention(models.Model):
+    """
+    Audit record for admin actions taken via the Ops Wall.
+
+    Every action button (rerun engine, clear cache, requeue) creates
+    one of these records for traceability.
+    """
+
+    class Meta:
+        app_label = "core"
+        db_table = "core_admin_intervention"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(
+                fields=["-created_at"],
+                name="idx_intervention_time",
+            ),
+            models.Index(
+                fields=["engine_name", "-created_at"],
+                name="idx_intervention_eng_time",
+            ),
+        ]
+
+    ACTION_TYPES = [
+        ("rerun_engine", "Re-run Engine"),
+        ("requeue_job", "Requeue Last Job"),
+        ("clear_suppression_cache", "Clear Suppression Cache"),
+        ("restart_scheduler", "Restart Scheduler Task"),
+        ("acknowledge_anomaly", "Acknowledge Anomaly"),
+        ("other", "Other"),
+    ]
+
+    RESULT_CHOICES = [
+        ("success", "Success"),
+        ("failure", "Failure"),
+        ("pending", "Pending"),
+    ]
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    admin_user = models.ForeignKey(
+        "users.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="admin_interventions",
+    )
+    action_type = models.CharField(max_length=30, choices=ACTION_TYPES)
+    engine_name = models.CharField(
+        max_length=10,
+        blank=True,
+        default="",
+        help_text="Target engine (if applicable).",
+    )
+    trace_id = models.CharField(
+        max_length=36,
+        blank=True,
+        default="",
+        help_text="Trace ID for the triggered action.",
+    )
+    notes = models.TextField(
+        blank=True,
+        default="",
+        help_text="Admin notes or auto-generated context.",
+    )
+    result_status = models.CharField(
+        max_length=10,
+        choices=RESULT_CHOICES,
+        default="pending",
+    )
+    result_detail = models.TextField(
+        blank=True,
+        default="",
+        help_text="Result message or error detail.",
+    )
+
+    def __str__(self):
+        user = self.admin_user.email if self.admin_user else "system"
+        return f"{self.action_type} on {self.engine_name} by {user}"
+
+
+class OpsAnomaly(models.Model):
+    """
+    Persistent anomaly record created by SAME.
+
+    Unlike the in-memory anomaly detection in ops_anomalies.py, these
+    are stored in the database with lifecycle management (active/resolved).
+    """
+
+    class Meta:
+        app_label = "core"
+        db_table = "core_ops_anomaly"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(
+                fields=["is_active", "-created_at"],
+                name="idx_anomaly_active",
+            ),
+            models.Index(
+                fields=["engine_name", "-created_at"],
+                name="idx_anomaly_engine",
+            ),
+        ]
+
+    SEVERITY_CHOICES = [
+        ("P1", "P1 — Critical"),
+        ("P2", "P2 — Warning"),
+        ("P3", "P3 — Info"),
+    ]
+
+    ANOMALY_TYPES = [
+        ("MISSED_RUN", "Missed Run"),
+        ("ERROR_SPIKE", "Error Spike"),
+        ("CONFIDENCE_VOLATILITY", "Confidence Volatility"),
+        ("SUPPRESSION_STORM", "Suppression Storm"),
+        ("LOOPING_REMINDER", "Looping Reminder"),
+        ("ENGINE_STARVATION", "Engine Starvation"),
+        ("DELIVERY_RETRY_SPIKE", "Delivery Retry Spike"),
+    ]
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    severity = models.CharField(max_length=2, choices=SEVERITY_CHOICES)
+    engine_name = models.CharField(
+        max_length=10,
+        blank=True,
+        default="",
+        help_text="Affected engine (blank for cross-engine anomalies).",
+    )
+    anomaly_type = models.CharField(max_length=25, choices=ANOMALY_TYPES)
+    summary = models.TextField(
+        help_text="Human-readable anomaly summary.",
+    )
+    evidence = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="References to EngineRun / DecisionRecord / Heartbeat data.",
+    )
+    suggested_actions = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="List of suggested admin actions.",
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Whether this anomaly is still active.",
+    )
+    resolved_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this anomaly was resolved/deactivated.",
+    )
+
+    def __str__(self):
+        status = "ACTIVE" if self.is_active else "RESOLVED"
+        return f"[{self.severity}] {self.anomaly_type} — {self.engine_name} ({status})"
+
+
+class OpsNarrativeSnapshot(models.Model):
+    """
+    SAME narrative snapshot — system posture + commentary.
+
+    Generated every poll window or every 2 minutes. Reads like
+    a human operator commenting on system state.
+    """
+
+    class Meta:
+        app_label = "core"
+        db_table = "core_ops_narrative_snapshot"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(
+                fields=["-created_at"],
+                name="idx_narrative_time",
+            ),
+        ]
+
+    POSTURE_CHOICES = [
+        ("OK", "OK"),
+        ("DEGRADED", "Degraded"),
+        ("AT_RISK", "At Risk"),
+    ]
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    posture = models.CharField(
+        max_length=10,
+        choices=POSTURE_CHOICES,
+        help_text="System posture: OK / DEGRADED / AT_RISK.",
+    )
+    headline = models.CharField(
+        max_length=200,
+        blank=True,
+        default="",
+        help_text="One-sentence system posture headline.",
+    )
+    bullets_now = models.JSONField(
+        default=list,
+        help_text='What\'s happening right now: ["UAL running normally", ...]',
+    )
+    recommendations = models.JSONField(
+        default=list,
+        help_text='Actionable recommendations: ["Re-run DBE manually", ...]',
+    )
+    watching_next = models.JSONField(
+        default=list,
+        help_text='What SAME is watching: ["PRIE cadence drift", ...]',
+    )
+    supporting_metrics = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Key metrics that informed this narrative.",
+    )

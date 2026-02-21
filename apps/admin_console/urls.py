@@ -28,9 +28,13 @@ urlpatterns = [
     path("diagnostics/trace/<str:trace_id>/", diag_views.DiagnosticsTraceDetailView.as_view(), name="diagnostics_trace_detail"),
     path("diagnostics/search/", diag_views.DiagnosticsSearchView.as_view(), name="diagnostics_search"),
 
-    # Operations Wall (Vegas Layer)
+    # Operations Wall v2 (Vegas Layer)
     path("ops/", ops_views.OperationsWallView.as_view(), name="ops_wall"),
-    path("ops/poll/", ops_views.OperationsWallPollView.as_view(), name="ops_poll"),
+    path("ops/stream/", ops_views.OpsStreamView.as_view(), name="ops_stream"),
+    path("ops/actions/", ops_views.OpsActionView.as_view(), name="ops_actions"),
+    path("ops/all-engines/", ops_views.AllEnginesView.as_view(), name="ops_all_engines"),
+    # Legacy poll endpoint (redirect to stream)
+    path("ops/poll/", ops_views.OpsStreamView.as_view(), name="ops_poll"),
 
     # Site Configuration
     path("config/", views.SiteConfigView.as_view(), name="site_config"),

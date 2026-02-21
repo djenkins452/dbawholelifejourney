@@ -1,6 +1,22 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 76,
+        "fields": {
+            "title": "Apple Watch Workout Display — See Your Full Activity Data",
+            "description": "Workouts synced from your Apple Watch (like Pickleball, Running, Cycling) now display properly! Instead of showing '0 Exercises / 0 Sets', you'll see the real activity data: duration, calories burned, distance, average heart rate, and start/end times. The workout list also shows a quick summary like '45 min • 320 cal • 142 bpm'. Look for the Apple Health badge on synced workouts.",
+            "entry_type": "enhancement",
+            "version": "",
+            "release_date": "2026-02-21",
+            "is_published": true,
+            "is_major": false,
+            "learn_more_url": "",
+            "created_at": "2026-02-21T00:00:00Z",
+            "updated_at": "2026-02-21T00:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 75,
         "fields": {
             "title": "Password Visibility Toggle",

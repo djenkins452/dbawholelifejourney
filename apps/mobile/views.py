@@ -1531,6 +1531,7 @@ def process_workout_metric(user, metric_date, source, sync_id, data):
     workout_distance = data.get("workout_distance")
     workout_start_time = data.get("workout_start_time")
     workout_end_time = data.get("workout_end_time")
+    workout_avg_heart_rate = data.get("workout_avg_heart_rate")
 
     if workout_duration is None:
         raise ValueError("workout_duration is required for workout")
@@ -1561,6 +1562,15 @@ def process_workout_metric(user, metric_date, source, sync_id, data):
                 workout_distance = None
         except (TypeError, InvalidOperation):
             workout_distance = None
+
+    # Parse optional average heart rate
+    if workout_avg_heart_rate is not None:
+        try:
+            workout_avg_heart_rate = int(workout_avg_heart_rate)
+            if workout_avg_heart_rate < 20 or workout_avg_heart_rate > 250:
+                workout_avg_heart_rate = None
+        except (TypeError, ValueError):
+            workout_avg_heart_rate = None
 
     # Parse start and end times
     started_at = None
@@ -1597,6 +1607,9 @@ def process_workout_metric(user, metric_date, source, sync_id, data):
         if existing.distance_miles != workout_distance:
             existing.distance_miles = workout_distance
             changed = True
+        if existing.avg_heart_rate != workout_avg_heart_rate:
+            existing.avg_heart_rate = workout_avg_heart_rate
+            changed = True
 
         if changed:
             existing.save()
@@ -1612,6 +1625,7 @@ def process_workout_metric(user, metric_date, source, sync_id, data):
         duration_minutes=workout_duration,
         calories_burned=workout_calories,
         distance_miles=workout_distance,
+        avg_heart_rate=workout_avg_heart_rate,
         started_at=started_at,
         completed_at=completed_at,
         source=source,

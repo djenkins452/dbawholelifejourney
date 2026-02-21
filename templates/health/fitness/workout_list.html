@@ -43,14 +43,34 @@
                                 <div class="workout-content">
                                     <a href="{% url 'health:workout_detail' workout.pk %}" class="workout-title">
                                         {{ workout.name|default:"Workout" }}
+                                        {% if workout.source == "apple_health" %}
+                                            <span class="source-badge apple-health">
+                                                <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.51-3.23 0-1.44.64-2.2.52-3.06-.4C3.79 16.17 4.36 9.05 8.67 8.82c1.18.06 2 .78 2.73.82.99-.2 1.94-.96 3.01-.87 1.28.11 2.24.66 2.87 1.7-2.66 1.6-2.03 5.12.37 6.1-.49 1.3-1.12 2.58-2.6 3.71zM12.03 8.78c-.14-2.38 1.88-4.39 4.08-4.56.3 2.62-2.36 4.75-4.08 4.56z"/></svg>
+                                            </span>
+                                        {% endif %}
                                     </a>
                                     <div class="workout-meta">
-                                        <span>{{ workout.exercise_count }} exercises</span>
-                                        {% if workout.total_sets %}
-                                            <span>&bull; {{ workout.total_sets }} sets</span>
-                                        {% endif %}
-                                        {% if workout.total_volume %}
-                                            <span>&bull; {{ workout.total_volume|floatformat:0 }} lbs volume</span>
+                                        {% if workout.source == "apple_health" or workout.duration_minutes and not workout.exercise_count %}
+                                            {% if workout.duration_minutes %}
+                                                <span>{{ workout.duration_minutes }} min</span>
+                                            {% endif %}
+                                            {% if workout.calories_burned %}
+                                                <span>&bull; {{ workout.calories_burned }} cal</span>
+                                            {% endif %}
+                                            {% if workout.distance_miles %}
+                                                <span>&bull; {{ workout.distance_miles|floatformat:1 }} mi</span>
+                                            {% endif %}
+                                            {% if workout.avg_heart_rate %}
+                                                <span>&bull; {{ workout.avg_heart_rate }} bpm</span>
+                                            {% endif %}
+                                        {% else %}
+                                            <span>{{ workout.exercise_count }} exercises</span>
+                                            {% if workout.total_sets %}
+                                                <span>&bull; {{ workout.total_sets }} sets</span>
+                                            {% endif %}
+                                            {% if workout.total_volume %}
+                                                <span>&bull; {{ workout.total_volume|floatformat:0 }} lbs volume</span>
+                                            {% endif %}
                                         {% endif %}
                                     </div>
                                 </div>
@@ -189,6 +209,22 @@
 
 .workout-title:hover {
     color: var(--color-accent);
+}
+
+.source-badge {
+    display: inline-flex;
+    align-items: center;
+    vertical-align: middle;
+    margin-left: var(--space-1);
+}
+
+.source-badge.apple-health {
+    color: #999;
+}
+
+.source-badge svg {
+    width: 14px;
+    height: 14px;
 }
 
 .workout-meta {

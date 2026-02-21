@@ -1192,6 +1192,16 @@ class HealthKitManager {
                     // Distance (for cardio workouts)
                     let distance = workout.totalDistance?.doubleValue(for: .mile())
 
+                    // Average heart rate from workout statistics (iOS 16+)
+                    var avgHeartRate: Int? = nil
+                    if #available(iOS 16.0, *) {
+                        let hrType = HKQuantityType(.heartRate)
+                        if let hrStats = workout.statistics(for: hrType),
+                           let avgHR = hrStats.averageQuantity() {
+                            avgHeartRate = Int(avgHR.doubleValue(for: HKUnit.count().unitDivided(by: .minute())))
+                        }
+                    }
+
                     // Workout type name
                     let workoutType = Self.workoutTypeName(for: workout.workoutActivityType)
 
@@ -1207,6 +1217,7 @@ class HealthKitManager {
                         workoutDistance: distance,
                         workoutStartTime: startTimeStr,
                         workoutEndTime: endTimeStr,
+                        workoutAvgHeartRate: avgHeartRate,
                         source: "apple_health",
                         syncId: syncId
                     ))

@@ -74,6 +74,7 @@ struct HealthMetric: Codable {
     var workoutDistance: Double?
     var workoutStartTime: String?
     var workoutEndTime: String?
+    var workoutAvgHeartRate: Int?
 
     // Lean Body Mass
     var leanMassValue: Double?
@@ -176,6 +177,7 @@ struct HealthMetric: Codable {
         case workoutDistance = "workout_distance"
         case workoutStartTime = "workout_start_time"
         case workoutEndTime = "workout_end_time"
+        case workoutAvgHeartRate = "workout_avg_heart_rate"
         case leanMassValue = "lean_mass_value"
         case leanMassUnit = "lean_mass_unit"
         case respiratoryRate = "respiratory_rate"
@@ -376,7 +378,8 @@ struct HealthMetric: Codable {
     /// Create a workout metric
     init(type: String, date: String, workoutType: String, workoutDuration: Int,
          workoutCalories: Int?, workoutDistance: Double?, workoutStartTime: String,
-         workoutEndTime: String, source: String, syncId: String) {
+         workoutEndTime: String, workoutAvgHeartRate: Int? = nil,
+         source: String, syncId: String) {
         self.type = type
         self.date = date
         self.workoutType = workoutType
@@ -385,6 +388,7 @@ struct HealthMetric: Codable {
         self.workoutDistance = workoutDistance
         self.workoutStartTime = workoutStartTime
         self.workoutEndTime = workoutEndTime
+        self.workoutAvgHeartRate = workoutAvgHeartRate
         self.source = source
         self.syncId = syncId
     }

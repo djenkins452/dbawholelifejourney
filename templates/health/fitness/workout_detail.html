@@ -17,121 +17,196 @@
 
     <div class="page-header">
         <div>
-            <h1 class="page-title">{{ workout.name|default:"Workout" }}</h1>
+            <h1 class="page-title">
+                {{ workout.name|default:"Workout" }}
+                {% if workout.source == "apple_health" %}
+                    <span class="source-badge apple-health">
+                        <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.51-3.23 0-1.44.64-2.2.52-3.06-.4C3.79 16.17 4.36 9.05 8.67 8.82c1.18.06 2 .78 2.73.82.99-.2 1.94-.96 3.01-.87 1.28.11 2.24.66 2.87 1.7-2.66 1.6-2.03 5.12.37 6.1-.49 1.3-1.12 2.58-2.6 3.71zM12.03 8.78c-.14-2.38 1.88-4.39 4.08-4.56.3 2.62-2.36 4.75-4.08 4.56z"/></svg>
+                        Apple Health
+                    </span>
+                {% endif %}
+            </h1>
             <p class="page-subtitle">{{ workout.date|date:"l, F j, Y" }}</p>
         </div>
         <div class="header-actions">
-            <a href="{% url 'health:workout_copy' workout.pk %}" class="btn btn-secondary">
-                <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                </svg>
-                Copy
-            </a>
-            <a href="{% url 'health:workout_update' workout.pk %}" class="btn btn-secondary">
-                <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                </svg>
-                Edit
-            </a>
+            {% if workout.source != "apple_health" %}
+                <a href="{% url 'health:workout_copy' workout.pk %}" class="btn btn-secondary">
+                    <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                    Copy
+                </a>
+                <a href="{% url 'health:workout_update' workout.pk %}" class="btn btn-secondary">
+                    <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                    </svg>
+                    Edit
+                </a>
+            {% endif %}
         </div>
     </div>
 
-    <!-- Workout Summary -->
-    <div class="workout-summary mb-6">
-        <div class="summary-stat">
-            <span class="stat-value">{{ workout.exercise_count }}</span>
-            <span class="stat-label">Exercises</span>
-        </div>
-        <div class="summary-stat">
-            <span class="stat-value">{{ workout.total_sets }}</span>
-            <span class="stat-label">Sets</span>
-        </div>
-        <div class="summary-stat">
-            <span class="stat-value">{{ workout.total_volume|floatformat:0 }}</span>
-            <span class="stat-label">Total Volume (lbs)</span>
-        </div>
-    </div>
-
-    <!-- Exercises -->
-    <div class="exercises-list">
-        {% for we in workout_exercises %}
-            <div class="exercise-card">
-                <div class="exercise-header">
-                    <h2 class="exercise-name">{{ we.exercise.name }}</h2>
-                    {% if we.exercise.muscle_group %}
-                        <span class="muscle-group">{{ we.exercise.muscle_group }}</span>
-                    {% endif %}
+    {% if workout.source == "apple_health" or workout.duration_minutes and not workout.exercise_count %}
+        <!-- HealthKit / Activity Workout Summary -->
+        <div class="workout-summary mb-6">
+            {% if workout.workout_type %}
+                <div class="summary-stat">
+                    <span class="stat-value">{{ workout.workout_type }}</span>
+                    <span class="stat-label">Activity</span>
                 </div>
+            {% endif %}
+            {% if workout.duration_minutes %}
+                <div class="summary-stat">
+                    <span class="stat-value">{{ workout.duration_minutes }}</span>
+                    <span class="stat-label">Minutes</span>
+                </div>
+            {% endif %}
+            {% if workout.calories_burned %}
+                <div class="summary-stat">
+                    <span class="stat-value">{{ workout.calories_burned }}</span>
+                    <span class="stat-label">Calories Burned</span>
+                </div>
+            {% endif %}
+            {% if workout.distance_miles %}
+                <div class="summary-stat">
+                    <span class="stat-value">{{ workout.distance_miles|floatformat:2 }}</span>
+                    <span class="stat-label">Miles</span>
+                </div>
+            {% endif %}
+            {% if workout.avg_heart_rate %}
+                <div class="summary-stat">
+                    <span class="stat-value">{{ workout.avg_heart_rate }}</span>
+                    <span class="stat-label">Avg Heart Rate</span>
+                </div>
+            {% endif %}
+        </div>
 
-                {% if we.exercise.category == "resistance" %}
-                    {% if we.sets.exists %}
-                        <table class="sets-table">
-                            <thead>
-                                <tr>
-                                    <th>Set</th>
-                                    <th>Weight</th>
-                                    <th>Reps</th>
-                                    <th>Volume</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for set in we.sets.all %}
-                                    <tr class="{% if set.is_warmup %}warmup-set{% endif %}{% if set.is_pr %}pr-set{% endif %}">
-                                        <td>
-                                            {{ set.set_number }}
-                                            {% if set.is_warmup %}<span class="set-badge warmup">W</span>{% endif %}
-                                            {% if set.is_pr %}<span class="set-badge pr">PR</span>{% endif %}
-                                        </td>
-                                        <td>{{ set.weight|default:"-" }}{% if set.weight %} lbs{% endif %}</td>
-                                        <td>{{ set.reps|default:"-" }}</td>
-                                        <td>{{ set.volume|floatformat:0 }}</td>
-                                    </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    {% else %}
-                        <p class="text-muted">No sets recorded</p>
-                    {% endif %}
-                {% else %}
-                    <!-- Cardio details -->
-                    {% if we.cardio_details %}
-                        <div class="cardio-details">
-                            {% if we.cardio_details.duration_minutes %}
-                                <div class="cardio-stat">
-                                    <span class="stat-value">{{ we.cardio_details.duration_minutes }}</span>
-                                    <span class="stat-label">minutes</span>
-                                </div>
-                            {% endif %}
-                            {% if we.cardio_details.distance %}
-                                <div class="cardio-stat">
-                                    <span class="stat-value">{{ we.cardio_details.distance }}</span>
-                                    <span class="stat-label">miles</span>
-                                </div>
-                            {% endif %}
-                            <div class="cardio-stat">
-                                <span class="stat-value intensity-{{ we.cardio_details.intensity }}">{{ we.cardio_details.get_intensity_display }}</span>
-                                <span class="stat-label">intensity</span>
-                            </div>
-                            {% if we.cardio_details.avg_heart_rate %}
-                                <div class="cardio-stat">
-                                    <span class="stat-value">{{ we.cardio_details.avg_heart_rate }}</span>
-                                    <span class="stat-label">avg BPM</span>
-                                </div>
-                            {% endif %}
+        {% if workout.started_at or workout.completed_at %}
+            <div class="time-details mb-6">
+                {% if workout.started_at %}
+                    <div class="time-entry">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="time-icon">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <polyline points="12 6 12 12 16 14"></polyline>
+                        </svg>
+                        <div>
+                            <span class="time-label">Started</span>
+                            <span class="time-value">{{ workout.started_at|date:"g:i A" }}</span>
                         </div>
-                    {% endif %}
+                    </div>
                 {% endif %}
-
-                {% if we.notes %}
-                    <p class="exercise-notes">{{ we.notes }}</p>
+                {% if workout.completed_at %}
+                    <div class="time-entry">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="time-icon">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                        </svg>
+                        <div>
+                            <span class="time-label">Finished</span>
+                            <span class="time-value">{{ workout.completed_at|date:"g:i A" }}</span>
+                        </div>
+                    </div>
                 {% endif %}
             </div>
-        {% empty %}
-            <p class="text-muted">No exercises in this workout</p>
-        {% endfor %}
-    </div>
+        {% endif %}
+    {% else %}
+        <!-- Manual / Resistance Training Summary -->
+        <div class="workout-summary mb-6">
+            <div class="summary-stat">
+                <span class="stat-value">{{ workout.exercise_count }}</span>
+                <span class="stat-label">Exercises</span>
+            </div>
+            <div class="summary-stat">
+                <span class="stat-value">{{ workout.total_sets }}</span>
+                <span class="stat-label">Sets</span>
+            </div>
+            <div class="summary-stat">
+                <span class="stat-value">{{ workout.total_volume|floatformat:0 }}</span>
+                <span class="stat-label">Total Volume (lbs)</span>
+            </div>
+        </div>
+
+        <!-- Exercises -->
+        <div class="exercises-list">
+            {% for we in workout_exercises %}
+                <div class="exercise-card">
+                    <div class="exercise-header">
+                        <h2 class="exercise-name">{{ we.exercise.name }}</h2>
+                        {% if we.exercise.muscle_group %}
+                            <span class="muscle-group">{{ we.exercise.muscle_group }}</span>
+                        {% endif %}
+                    </div>
+
+                    {% if we.exercise.category == "resistance" %}
+                        {% if we.sets.exists %}
+                            <table class="sets-table">
+                                <thead>
+                                    <tr>
+                                        <th>Set</th>
+                                        <th>Weight</th>
+                                        <th>Reps</th>
+                                        <th>Volume</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for set in we.sets.all %}
+                                        <tr class="{% if set.is_warmup %}warmup-set{% endif %}{% if set.is_pr %}pr-set{% endif %}">
+                                            <td>
+                                                {{ set.set_number }}
+                                                {% if set.is_warmup %}<span class="set-badge warmup">W</span>{% endif %}
+                                                {% if set.is_pr %}<span class="set-badge pr">PR</span>{% endif %}
+                                            </td>
+                                            <td>{{ set.weight|default:"-" }}{% if set.weight %} lbs{% endif %}</td>
+                                            <td>{{ set.reps|default:"-" }}</td>
+                                            <td>{{ set.volume|floatformat:0 }}</td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        {% else %}
+                            <p class="text-muted">No sets recorded</p>
+                        {% endif %}
+                    {% else %}
+                        <!-- Cardio details -->
+                        {% if we.cardio_details %}
+                            <div class="cardio-details">
+                                {% if we.cardio_details.duration_minutes %}
+                                    <div class="cardio-stat">
+                                        <span class="stat-value">{{ we.cardio_details.duration_minutes }}</span>
+                                        <span class="stat-label">minutes</span>
+                                    </div>
+                                {% endif %}
+                                {% if we.cardio_details.distance %}
+                                    <div class="cardio-stat">
+                                        <span class="stat-value">{{ we.cardio_details.distance }}</span>
+                                        <span class="stat-label">miles</span>
+                                    </div>
+                                {% endif %}
+                                <div class="cardio-stat">
+                                    <span class="stat-value intensity-{{ we.cardio_details.intensity }}">{{ we.cardio_details.get_intensity_display }}</span>
+                                    <span class="stat-label">intensity</span>
+                                </div>
+                                {% if we.cardio_details.avg_heart_rate %}
+                                    <div class="cardio-stat">
+                                        <span class="stat-value">{{ we.cardio_details.avg_heart_rate }}</span>
+                                        <span class="stat-label">avg BPM</span>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                    {% endif %}
+
+                    {% if we.notes %}
+                        <p class="exercise-notes">{{ we.notes }}</p>
+                    {% endif %}
+                </div>
+            {% empty %}
+                <p class="text-muted">No exercises in this workout</p>
+            {% endfor %}
+        </div>
+    {% endif %}
 
     {% if workout.notes %}
         <div class="workout-notes mt-6">
@@ -178,9 +253,32 @@
     margin-right: var(--space-2);
 }
 
+.source-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-full);
+    vertical-align: middle;
+    position: relative;
+    top: -2px;
+}
+
+.source-badge.apple-health {
+    background: #f0f0f0;
+    color: #555;
+}
+
+.source-badge svg {
+    width: 14px;
+    height: 14px;
+}
+
 .workout-summary {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
     gap: var(--space-4);
     padding: var(--space-4);
     background: var(--color-background);
@@ -202,6 +300,42 @@
 .summary-stat .stat-label {
     font-size: var(--font-size-sm);
     color: var(--color-text-muted);
+}
+
+.time-details {
+    display: flex;
+    gap: var(--space-6);
+    padding: var(--space-4);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+}
+
+.time-entry {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.time-icon {
+    width: 20px;
+    height: 20px;
+    color: var(--color-text-muted);
+    flex-shrink: 0;
+}
+
+.time-label {
+    display: block;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.time-value {
+    display: block;
+    font-size: var(--font-size-lg);
+    font-weight: 500;
 }
 
 .exercises-list {
@@ -363,7 +497,12 @@
     }
 
     .workout-summary {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .time-details {
+        flex-direction: column;
+        gap: var(--space-3);
     }
 
     .sets-table {

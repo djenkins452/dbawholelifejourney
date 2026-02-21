@@ -430,7 +430,7 @@ def build_cos_context(user):
         health_signals = {
             'sleep_avg_7d': get_state_value(user, 'health.sleep_avg_hours_7d'),
             'sleep_trend': get_state_value(user, 'health.sleep_trend', 'stable'),
-            'workout_count_7d': get_state_value(user, 'health.workout_count_7d', 0),
+            'workout_count_7d': get_state_value(user, 'fitness.workouts_7d', 0),
             'steps_avg_7d': get_state_value(user, 'health.steps_avg_7d'),
         }
 
@@ -488,6 +488,15 @@ def build_cos_context(user):
                 ).aggregate(avg=Avg('asleep_duration_minutes'))['avg']
                 if sleep_avg:
                     health_signals['sleep_avg_7d'] = round(float(sleep_avg) / 60, 1)
+
+            # Workouts count (fallback if state engine doesn't have it)
+            if not health_signals.get('workout_count_7d'):
+                from apps.health.models import WorkoutSession
+                workout_count = WorkoutSession.objects.filter(
+                    user=user, date__gte=week_ago
+                ).count()
+                if workout_count > 0:
+                    health_signals['workout_count_7d'] = workout_count
 
             # Heart rate events (clinically important)
             from apps.health.models import HeartRateEventEntry

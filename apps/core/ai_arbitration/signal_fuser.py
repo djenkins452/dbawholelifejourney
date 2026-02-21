@@ -7,6 +7,8 @@ patterns that emerge only when multiple domains are viewed together.
 """
 import logging
 
+from apps.core.ai_observability.instrumentation import log_engine_span as _instrument_span
+
 logger = logging.getLogger(__name__)
 
 # Composite signal definitions
@@ -111,6 +113,7 @@ COMPOSITE_DEFINITIONS = [
 ]
 
 
+@_instrument_span("UAL", "fuse_signals")
 def fuse_signals(strengths: dict) -> list:
     """
     Detect cross-domain composite patterns from signal strengths.

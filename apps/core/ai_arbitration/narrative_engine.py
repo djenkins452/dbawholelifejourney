@@ -14,9 +14,12 @@ Never lists 8 separate reminders. Always unifies.
 """
 import logging
 
+from apps.core.ai_observability.instrumentation import log_engine_span as _instrument_span
+
 logger = logging.getLogger(__name__)
 
 
+@_instrument_span("UAL", "build_narrative")
 def build_narrative(
     scenario_result: dict,
     composites: list,

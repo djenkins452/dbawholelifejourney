@@ -9,6 +9,67 @@
 
 # WLJ Change History
 
+## 2026-02-21 — Engine Diagnostics Console + Operations Wall
+
+**Changes:**
+- Added trace context infrastructure (contextvars-based trace_id propagation through middleware + scheduler)
+- Created 3 new models: EngineRun, EngineSpan, DecisionRecord (migration 0076) with indexed queries
+- Built instrumentation decorators (@log_engine_run, @log_engine_span, record_decision) — fire-and-forget, never blocks engines
+- Wired all 9 Phase 3 engines with decorators: UAL, ICQG, PIE, PRIE, PGE, SAE, DBE, WIRE, DNE
+- Added @log_engine_span to 5 UAL sub-steps (signal_collector, scenario_classifier, signal_fuser, intervention_engine, narrative_engine)
+- Wrapped intelligence_hook.fire_intelligence and all 17 scheduler_runner.run_* functions with trace_context
+- Built Diagnostics Console at /admin-console/diagnostics/ — live trace feed, trace waterfall detail, search by trace/user/engine/error
+- Built Operations Wall at /admin-console/ops/ — dark-themed Vegas monitoring with engine pulse tiles, cognitive feed, anomaly detection, trend charts
+- Implemented 6 anomaly detection rules: engine silence, error burst, suppression spike, scenario dominance, confidence volatility, delivery storm
+- Added rolling aggregates (engine pulse, suppression stats, UAL scenario distribution, confidence trend, p50/p95 latency)
+- Connected deep links: engine tile → diagnostics filtered by engine, feed item → trace detail, alert → diagnostics search
+- Added cleanup_diagnostics management command (7-day retention)
+- Registered all 3 models in Django admin (read-only)
+- Added 2 teaching destinations (Diagnostics Console, Operations Wall)
+- 67 tests covering all layers
+
+**New Files:**
+- `apps/core/ai_observability/trace.py` — trace context (contextvars)
+- `apps/core/ai_observability/instrumentation.py` — decorators
+- `apps/core/ai_observability/diagnostics_views.py` — diagnostics console views
+- `apps/core/ai_observability/ops_views.py` — operations wall views
+- `apps/core/ai_observability/ops_aggregates.py` — rolling aggregates
+- `apps/core/ai_observability/ops_feed.py` — cognitive feed formatter
+- `apps/core/ai_observability/ops_anomalies.py` — anomaly detection rules
+- `apps/core/ai_observability/tests_diagnostics.py` — 67 tests
+- `apps/core/management/commands/cleanup_diagnostics.py` — data pruning
+- `templates/admin_console/diagnostics_console.html` — diagnostics template
+- `templates/admin_console/operations_wall.html` — Vegas wall template
+- `apps/core/migrations/0076_diagnostics_engine_run_span_decision.py`
+
+**Modified Files:**
+- `apps/core/ai_observability/models.py` — 3 new models
+- `apps/core/ai_observability/admin.py` — registered 3 models
+- `apps/core/middleware.py` — DiagnosticsTraceMiddleware
+- `config/settings.py` — middleware list
+- `apps/admin_console/urls.py` — 6 routes
+- `apps/core/ai_arbitration/arbitration_engine.py` — @log_engine_run + record_decision
+- `apps/core/ai_arbitration/signal_collector.py` — @log_engine_span
+- `apps/core/ai_arbitration/scenario_classifier.py` — @log_engine_span
+- `apps/core/ai_arbitration/signal_fuser.py` — @log_engine_span
+- `apps/core/ai_arbitration/intervention_engine.py` — @log_engine_span
+- `apps/core/ai_arbitration/narrative_engine.py` — @log_engine_span
+- `apps/core/ai_quality/quality_gate.py` — @log_engine_run + record_decision
+- `apps/core/ai_insights/insight_engine.py` — @log_engine_run
+- `apps/core/ai_predictions/prediction_engine.py` — @log_engine_run
+- `apps/core/ai_guidance/guidance_engine.py` — @log_engine_run
+- `apps/core/ai_state/state_updater.py` — @log_engine_run
+- `apps/core/ai_briefing/briefing_engine.py` — @log_engine_run
+- `apps/core/ai_weekly_report/report_engine.py` — @log_engine_run
+- `apps/core/ai_delivery/delivery_engine.py` — @log_engine_run
+- `apps/core/ai_orchestrator/intelligence_hook.py` — trace_context wrapper
+- `apps/core/ai_scheduler/scheduler_runner.py` — trace_context wrappers
+- `apps/core/fixtures/release_notes.json` — PK 80
+- `apps/help/fixtures/teaching_destinations.json` — PKs 155-156
+- `apps/core/management/commands/load_initial_data.py` — fixture reset
+
+**Why:** The intelligence pipeline (15 engines, 3 phases) had no request-level observability. When something went wrong — a repeated reminder, a suppressed insight, a vague alert — there was no way to trace root cause through the engine chain. This adds two layers: a truth-layer diagnostics console for trace inspection and a Vegas-themed operations wall for live monitoring.
+
 ## 2026-02-21
 
 - **Feature: Universal Arbitration Layer (UAL) — Executive Judgment Architecture** — Creates a central reasoning layer that sits between multi-engine signal generation and user-facing intervention. UAL collects signals from 13 sources (SAE, PIE, PRIE, PGE, Drift Engine, Relationship Engine, Sleep, Medication, Calendar, Schedule, Mood, Life Events, Open Loops), normalises them into 14 signal dimensions (0-1), classifies into one of 6 scenario types (TIME_CRITICAL, HEALTH_CRITICAL, DRIFT_CRITICAL, MOOD_CRITICAL, RELATIONSHIP_CRITICAL, STABLE_EXECUTION) using weighted scoring, fuses cross-domain composites (7 patterns: LOW_CAPACITY_DAY, PHYSICAL_RISK, RELATIONAL_OPPORTUNITY, EMOTIONAL_OVERLOAD, RECOVERY_NEEDED, ALIGNMENT_CRISIS, DEADLINE_CONVERGENCE), selects one of 6 intervention styles (DIRECTIVE, PROTECTIVE, ACCOUNTABILITY, SUPPORTIVE, STRATEGIC, EXECUTION), and builds a unified executive narrative injected into the system prompt. Max 3 items surfaced, competing signals suppressed. ArbitrationDecisionLog model for refinement. No AI calls — pure deterministic Python. 42 tests pass.

@@ -9,9 +9,12 @@ import logging
 
 from django.utils import timezone
 
+from apps.core.ai_observability.instrumentation import log_engine_run as _instrument_engine_run
+
 logger = logging.getLogger(__name__)
 
 
+@_instrument_engine_run("DNE", 3)
 def deliver_due_notifications():
     """
     Run one delivery cycle.

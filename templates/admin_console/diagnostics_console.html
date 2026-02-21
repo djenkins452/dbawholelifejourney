@@ -1,0 +1,376 @@
+{% extends "base.html" %}
+{% block title %}Diagnostics Console - Admin{% endblock %}
+
+{% block content %}
+<style nonce="{{ csp_nonce }}">
+.diag-container { max-width: 1400px; margin: 0 auto; padding: var(--space-4); }
+.diag-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4); flex-wrap: wrap; gap: var(--space-2); }
+.diag-header h1 { font-size: 1.5rem; font-weight: 700; color: var(--color-text); margin: 0; }
+.diag-header-actions { display: flex; gap: var(--space-2); align-items: center; }
+.diag-nav-link { padding: 8px 16px; border-radius: var(--radius-lg); background: var(--color-surface); color: var(--color-text); text-decoration: none; font-size: 0.875rem; border: 1px solid var(--color-border); }
+.diag-nav-link:hover { background: var(--color-border); }
+
+/* Engine Stats Grid */
+.diag-stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--space-3); margin-bottom: var(--space-4); }
+.diag-stat-card { background: var(--color-background); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: var(--space-3); text-align: center; }
+.diag-stat-card .stat-engine { font-weight: 700; font-size: 1rem; margin-bottom: 4px; }
+.diag-stat-card .stat-value { font-size: 1.5rem; font-weight: 600; }
+.diag-stat-card .stat-label { font-size: 0.75rem; color: var(--color-text-muted); }
+
+/* Filters */
+.diag-filters { display: flex; gap: var(--space-2); margin-bottom: var(--space-3); flex-wrap: wrap; align-items: center; }
+.diag-filters input, .diag-filters select { padding: 8px 12px; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-background); color: var(--color-text); font-size: 0.875rem; min-height: 44px; }
+.diag-filters input { min-width: 200px; font-size: 16px; }
+.diag-btn { padding: 8px 16px; border-radius: var(--radius-lg); border: 1px solid var(--color-border); background: var(--color-accent, #6366f1); color: #fff; cursor: pointer; font-size: 0.875rem; min-height: 44px; }
+.diag-btn-outline { background: transparent; color: var(--color-text); }
+.diag-btn-active { background: #10b981; border-color: #10b981; }
+
+/* Feed */
+.diag-feed { max-height: 500px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-background); }
+.diag-feed-row { display: grid; grid-template-columns: 140px 70px 70px 1fr 80px; padding: 10px var(--space-3); border-bottom: 1px solid var(--color-border); cursor: pointer; min-height: 44px; align-items: center; font-size: 0.8125rem; }
+.diag-feed-row:hover { background: var(--color-surface); }
+.diag-feed-header { font-weight: 700; background: var(--color-surface); cursor: default; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-muted); }
+.diag-feed-header:hover { background: var(--color-surface); }
+.status-success { color: #10b981; }
+.status-error { color: #ef4444; }
+.status-skipped { color: #f59e0b; }
+
+/* Trace Detail Panel */
+.diag-detail { display: none; margin-top: var(--space-4); border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-background); padding: var(--space-4); }
+.diag-detail.active { display: block; }
+.diag-detail-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-3); }
+.diag-detail-header h2 { font-size: 1.125rem; font-weight: 600; margin: 0; }
+
+/* Waterfall */
+.diag-waterfall { position: relative; margin: var(--space-3) 0; }
+.diag-wf-row { display: flex; align-items: center; margin-bottom: 6px; min-height: 28px; }
+.diag-wf-label { width: 120px; font-size: 0.75rem; font-weight: 600; flex-shrink: 0; }
+.diag-wf-track { flex: 1; position: relative; height: 20px; background: var(--color-surface); border-radius: 4px; overflow: hidden; }
+.diag-wf-bar { position: absolute; height: 100%; border-radius: 4px; min-width: 4px; }
+.diag-wf-bar.success { background: #10b981; }
+.diag-wf-bar.error { background: #ef4444; }
+.diag-wf-bar.skipped { background: #f59e0b; }
+.diag-wf-duration { font-size: 0.6875rem; color: var(--color-text-muted); margin-left: 8px; white-space: nowrap; }
+
+/* Decision cards */
+.diag-decision { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: var(--space-3); margin-bottom: var(--space-2); }
+.diag-decision .dec-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+.diag-decision .dec-engine { font-weight: 700; font-size: 0.875rem; }
+.diag-decision .dec-type { font-size: 0.75rem; color: var(--color-text-muted); background: var(--color-background); padding: 2px 8px; border-radius: 4px; }
+.diag-decision .dec-decision { font-family: monospace; font-size: 0.8125rem; margin: 4px 0; }
+.diag-decision .dec-rationale { font-size: 0.75rem; color: var(--color-text-muted); }
+
+/* Search */
+.diag-search-section { margin-top: var(--space-4); }
+.diag-search-section h2 { font-size: 1.125rem; font-weight: 600; margin-bottom: var(--space-2); }
+
+@media (max-width: 768px) {
+    .diag-feed-row { grid-template-columns: 100px 60px 50px 1fr; font-size: 0.75rem; }
+    .diag-stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .diag-filters { flex-direction: column; }
+    .diag-filters input { min-width: unset; width: 100%; }
+}
+@media (max-width: 480px) {
+    .diag-stats-grid { grid-template-columns: 1fr; }
+}
+</style>
+
+<div class="diag-container">
+    <div class="diag-header">
+        <h1>Diagnostics Console</h1>
+        <div class="diag-header-actions">
+            <button class="diag-btn diag-btn-outline" id="toggleLive">Live: OFF</button>
+            <a href="{% url 'admin_console:ops_wall' %}" class="diag-nav-link">Operations Wall</a>
+            <a href="{% url 'admin_console:dashboard' %}" class="diag-nav-link">Admin Home</a>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="diag-filters">
+        <input type="text" id="diagSearchInput" placeholder="Trace ID, error, or keyword...">
+        <select id="engineFilter">
+            <option value="">All Engines</option>
+            <option value="UAL">UAL</option>
+            <option value="SAE">SAE</option>
+            <option value="PIE">PIE</option>
+            <option value="PRIE">PRIE</option>
+            <option value="PGE">PGE</option>
+            <option value="ICQG">ICQG</option>
+            <option value="DBE">DBE</option>
+            <option value="WIRE">WIRE</option>
+            <option value="DNE">DNE</option>
+        </select>
+        <select id="statusFilter">
+            <option value="">All Statuses</option>
+            <option value="success">Success</option>
+            <option value="error">Error</option>
+            <option value="skipped">Skipped</option>
+        </select>
+        <button class="diag-btn" id="searchBtn">Search</button>
+    </div>
+
+    <!-- Live Feed -->
+    <div class="diag-feed" id="traceFeed">
+        <div class="diag-feed-row diag-feed-header">
+            <span>Time</span>
+            <span>Engine</span>
+            <span>Status</span>
+            <span>Details</span>
+            <span>Duration</span>
+        </div>
+        <!-- Rows injected by JS -->
+    </div>
+
+    <!-- Trace Detail -->
+    <div class="diag-detail" id="traceDetail">
+        <div class="diag-detail-header">
+            <h2>Trace: <span id="traceIdDisplay"></span></h2>
+            <button class="diag-btn diag-btn-outline" id="closeDetail">Close</button>
+        </div>
+        <div id="waterfallContainer" class="diag-waterfall"></div>
+        <h3 style="margin: var(--space-3) 0 var(--space-2);">Decisions</h3>
+        <div id="decisionsContainer"></div>
+    </div>
+</div>
+
+<script nonce="{{ csp_nonce }}">
+(function() {
+    var pollInterval = null;
+    var lastPollTime = new Date(Date.now() - 5 * 60000).toISOString();
+    var feedData = {{ recent_runs|safe }};
+    var decisionData = {{ recent_decisions|safe }};
+
+    // Parse URL params for deep links from Operations Wall
+    var urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('engine')) {
+        document.getElementById('engineFilter').value = urlParams.get('engine');
+    }
+    if (urlParams.get('status')) {
+        document.getElementById('statusFilter').value = urlParams.get('status');
+    }
+
+    // Initial render
+    renderFeed(feedData);
+
+    // Toggle live polling
+    document.getElementById('toggleLive').addEventListener('click', function() {
+        if (pollInterval) {
+            clearInterval(pollInterval);
+            pollInterval = null;
+            this.textContent = 'Live: OFF';
+            this.classList.remove('diag-btn-active');
+        } else {
+            startPolling();
+            this.textContent = 'Live: ON';
+            this.classList.add('diag-btn-active');
+        }
+    });
+
+    // Search
+    document.getElementById('searchBtn').addEventListener('click', function() {
+        doSearch();
+    });
+    document.getElementById('diagSearchInput').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') doSearch();
+    });
+
+    // Close detail
+    document.getElementById('closeDetail').addEventListener('click', function() {
+        document.getElementById('traceDetail').classList.remove('active');
+    });
+
+    // Feed row clicks (event delegation)
+    document.getElementById('traceFeed').addEventListener('click', function(e) {
+        var row = e.target.closest('[data-trace-id]');
+        if (!row || row.classList.contains('diag-feed-header')) return;
+        loadTraceDetail(row.dataset.traceId);
+    });
+
+    function startPolling() {
+        poll();
+        pollInterval = setInterval(poll, 2000);
+    }
+
+    function poll() {
+        var engine = document.getElementById('engineFilter').value;
+        var status = document.getElementById('statusFilter').value;
+        var url = '/admin-console/diagnostics/stream/?since=' + encodeURIComponent(lastPollTime);
+        if (engine) url += '&engine=' + engine;
+        if (status) url += '&status=' + status;
+
+        fetch(url, {
+            headers: { 'X-CSRFToken': getCookie('csrftoken') }
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            lastPollTime = data.server_time;
+            if (data.runs && data.runs.length > 0) {
+                prependFeedRows(data.runs);
+            }
+        })
+        .catch(function(err) { console.error('Poll failed:', err); });
+    }
+
+    function doSearch() {
+        var q = document.getElementById('diagSearchInput').value.trim();
+        var engine = document.getElementById('engineFilter').value;
+        var status = document.getElementById('statusFilter').value;
+        var url = '/admin-console/diagnostics/search/?q=' + encodeURIComponent(q);
+        if (engine) url += '&engine=' + engine;
+        if (status) url += '&status=' + status;
+
+        fetch(url, { headers: { 'X-CSRFToken': getCookie('csrftoken') } })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            renderFeed(data.results || []);
+        })
+        .catch(function(err) { console.error('Search failed:', err); });
+    }
+
+    function renderFeed(runs) {
+        var container = document.getElementById('traceFeed');
+        // Keep header
+        var header = container.querySelector('.diag-feed-header');
+        container.innerHTML = '';
+        if (header) container.appendChild(header);
+
+        runs.forEach(function(r) {
+            container.appendChild(createFeedRow(r));
+        });
+    }
+
+    function prependFeedRows(runs) {
+        var container = document.getElementById('traceFeed');
+        var header = container.querySelector('.diag-feed-header');
+        var refNode = header ? header.nextSibling : container.firstChild;
+
+        runs.forEach(function(r) {
+            var row = createFeedRow(r);
+            container.insertBefore(row, refNode);
+        });
+
+        // Trim to 200 rows max
+        var rows = container.querySelectorAll('[data-trace-id]');
+        for (var i = 200; i < rows.length; i++) {
+            rows[i].remove();
+        }
+    }
+
+    function createFeedRow(r) {
+        var row = document.createElement('div');
+        row.className = 'diag-feed-row';
+        row.dataset.traceId = r.trace_id || '';
+
+        var time = r.started_at ? new Date(r.started_at).toLocaleTimeString() : '—';
+        var statusClass = 'status-' + (r.status || 'success');
+        var detail = r.error_type ? r.error_type : (r.trace_id || '').substring(0, 8);
+
+        row.innerHTML =
+            '<span>' + time + '</span>' +
+            '<span><strong>' + (r.engine_name || '') + '</strong></span>' +
+            '<span class="' + statusClass + '">' + (r.status || '') + '</span>' +
+            '<span>' + detail + '</span>' +
+            '<span>' + (r.duration_ms || 0) + 'ms</span>';
+        return row;
+    }
+
+    function loadTraceDetail(traceId) {
+        fetch('/admin-console/diagnostics/trace/' + traceId + '/', {
+            headers: { 'X-CSRFToken': getCookie('csrftoken') }
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            renderTraceDetail(data);
+        })
+        .catch(function(err) { console.error('Trace load failed:', err); });
+    }
+
+    function renderTraceDetail(data) {
+        document.getElementById('traceIdDisplay').textContent = data.trace_id;
+
+        // Waterfall
+        var wfContainer = document.getElementById('waterfallContainer');
+        wfContainer.innerHTML = '';
+
+        if (data.runs.length === 0) {
+            wfContainer.innerHTML = '<p style="color:var(--color-text-muted)">No engine runs for this trace.</p>';
+        } else {
+            var traceStart = data.runs[0].started_at ? new Date(data.runs[0].started_at).getTime() : 0;
+            var maxEnd = traceStart;
+            data.runs.forEach(function(r) {
+                var end = r.ended_at ? new Date(r.ended_at).getTime() : traceStart;
+                if (end > maxEnd) maxEnd = end;
+            });
+            var totalSpan = Math.max(maxEnd - traceStart, 1);
+
+            // Render runs
+            data.runs.forEach(function(r) {
+                var start = r.started_at ? new Date(r.started_at).getTime() : traceStart;
+                var leftPct = ((start - traceStart) / totalSpan * 100).toFixed(1);
+                var widthPct = Math.max((r.duration_ms / totalSpan * 100), 1).toFixed(1);
+
+                var row = document.createElement('div');
+                row.className = 'diag-wf-row';
+                row.innerHTML =
+                    '<span class="diag-wf-label">' + r.engine_name + '</span>' +
+                    '<div class="diag-wf-track">' +
+                    '  <div class="diag-wf-bar ' + (r.status || 'success') + '" style="left:' + leftPct + '%;width:' + widthPct + '%"></div>' +
+                    '</div>' +
+                    '<span class="diag-wf-duration">' + r.duration_ms + 'ms</span>';
+                wfContainer.appendChild(row);
+            });
+
+            // Render spans
+            data.spans.forEach(function(s) {
+                var start = s.started_at ? new Date(s.started_at).getTime() : traceStart;
+                var leftPct = ((start - traceStart) / totalSpan * 100).toFixed(1);
+                var widthPct = Math.max((s.duration_ms / totalSpan * 100), 0.5).toFixed(1);
+
+                var row = document.createElement('div');
+                row.className = 'diag-wf-row';
+                row.innerHTML =
+                    '<span class="diag-wf-label" style="padding-left:20px;font-weight:400;font-size:0.6875rem">' + s.engine_name + '.' + s.span_name + '</span>' +
+                    '<div class="diag-wf-track">' +
+                    '  <div class="diag-wf-bar ' + (s.status || 'success') + '" style="left:' + leftPct + '%;width:' + widthPct + '%;opacity:0.7"></div>' +
+                    '</div>' +
+                    '<span class="diag-wf-duration">' + s.duration_ms + 'ms</span>';
+                wfContainer.appendChild(row);
+            });
+        }
+
+        // Decisions
+        var decContainer = document.getElementById('decisionsContainer');
+        decContainer.innerHTML = '';
+        data.decisions.forEach(function(d) {
+            var card = document.createElement('div');
+            card.className = 'diag-decision';
+            card.innerHTML =
+                '<div class="dec-header">' +
+                '  <span class="dec-engine">' + d.engine_name + '</span>' +
+                '  <span class="dec-type">' + d.decision_type + '</span>' +
+                '</div>' +
+                '<div class="dec-decision">' + escapeHtml(d.decision) + '</div>' +
+                (d.rationale ? '<div class="dec-rationale">' + escapeHtml(d.rationale) + '</div>' : '') +
+                (d.confidence !== null ? '<div class="dec-rationale">Confidence: ' + d.confidence + '</div>' : '');
+            decContainer.appendChild(card);
+        });
+
+        document.getElementById('traceDetail').classList.add('active');
+        document.getElementById('traceDetail').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function escapeHtml(text) {
+        var div = document.createElement('div');
+        div.textContent = text || '';
+        return div.innerHTML;
+    }
+
+    function getCookie(name) {
+        var value = '; ' + document.cookie;
+        var parts = value.split('; ' + name + '=');
+        if (parts.length === 2) return parts.pop().split(';').shift();
+        return '';
+    }
+})();
+</script>
+{% endblock %}

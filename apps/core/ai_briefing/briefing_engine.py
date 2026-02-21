@@ -17,10 +17,12 @@ from apps.core.ai_briefing.briefing_logger import store_briefing
 from apps.core.ai_briefing.briefing_ranker import rank_briefing_items
 from apps.core.ai_briefing.briefing_selector import select_briefing_items
 from apps.core.ai_briefing.models import DailyBriefing
+from apps.core.ai_observability.instrumentation import log_engine_run as _instrument_engine_run
 
 logger = logging.getLogger(__name__)
 
 
+@_instrument_engine_run("DBE", 3)
 def generate_daily_briefing(user):
     """
     Generate the daily intelligence briefing for a user.

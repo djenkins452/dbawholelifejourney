@@ -7,6 +7,8 @@ optional secondary scenarios.
 """
 import logging
 
+from apps.core.ai_observability.instrumentation import log_engine_span as _instrument_span
+
 logger = logging.getLogger(__name__)
 
 # Scenario types
@@ -71,6 +73,7 @@ DOMINANT_THRESHOLD = 0.30
 CONFIDENCE_GAP = 0.10
 
 
+@_instrument_span("UAL", "classify_scenario")
 def classify_scenario(strengths: dict) -> dict:
     """
     Classify the dominant scenario from signal strengths.

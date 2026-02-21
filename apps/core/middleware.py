@@ -323,6 +323,28 @@ class ContentSecurityPolicyMiddleware:
         return response
 
 
+class DiagnosticsTraceMiddleware:
+    """
+    Sets a trace_id on every request via contextvars.
+
+    Engine instrumentation decorators read the trace_id automatically
+    without any changes to engine function signatures.
+
+    Position: After AuthenticationMiddleware (needs user context).
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        from apps.core.ai_observability.trace import trace_context
+
+        with trace_context(source="request") as trace_id:
+            request.trace_id = trace_id
+            response = self.get_response(request)
+            return response
+
+
 class APIRequestLoggingMiddleware:
     """
     Logs API requests for security monitoring and anomaly detection.

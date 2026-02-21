@@ -7,6 +7,8 @@ suppress.
 """
 import logging
 
+from apps.core.ai_observability.instrumentation import log_engine_span as _instrument_span
+
 logger = logging.getLogger(__name__)
 
 # Intervention styles
@@ -50,6 +52,7 @@ INTERVENTION_DESCRIPTIONS = {
 MAX_SURFACED = 3
 
 
+@_instrument_span("UAL", "decide_intervention")
 def decide_intervention(
     scenario_result: dict,
     composites: list,

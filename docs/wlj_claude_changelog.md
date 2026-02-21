@@ -9,6 +9,26 @@
 
 # WLJ Change History
 
+## 2026-02-21 — Ops Command Center Phase V2: Final Visual Upgrade
+
+**Changes:**
+- **Phase 1 — Integrity Hero Redesign:** Score font increased to 4.5rem (72px) with bold dominance. Added delta indicator showing score change vs historical baseline (e.g., +1.2). Added 24h mini sparkline under score using rolling buffer. Enhanced radial gauge with posture-colored glow. Added component breakdown strip with animated progress bars (Engines, Anomalies, Errors, Suppression, Volatility). Reduced top whitespace by 30%.
+- **Phase 2 — Macro System Chart Row:** Added full-width row with two new ECharts: (1) Anomaly Trend — stacked area showing P1/P2/P3 counts over time with gradient fill; (2) Engine Health by Category — stacked horizontal bar showing OK/Degraded/Missed/Error counts per phase (Interpret/Execute/Post-Exec/System).
+- **Phase 3 — Engine Card Enhancements:** Added thin metrics strip under title (runs, avg duration, P95, volatility σ). Updated phase colors (Interpret=blue, Execute=amber, Post-Exec=purple, System=teal). Added top accent bar matching phase color. Increased chart heights 15% (48→56px trend, 36→42px cadence). Added fresh-run glow sweep animation. Reduced padding for increased density.
+- **Phase 4 — Watchlist Drama:** Empty state now has ambient animated gradient background with radial glow pulse. Anomalies slide in with staggered animation. Added severity icons (P1=▲ triangle, P2=◆ diamond, P3=● circle). Added severity-based glow on anomaly cards. Watchlist skips rebuild when anomaly set unchanged.
+- **Phase 5 — Wall Mode:** Toggle via "Wall" button or W key. Hides sidebar, top nav, bottom tabs. Increases chart heights, reduces margins, adds 4-column engine grid on wide screens. Digital clock appears top-right. State persists via localStorage. Toggles without page reload.
+- **Phase 6 — Micro-Animations:** Score scale pop on change (1.06x, 350ms). Fresh-run inset glow sweep (0.8s). Status change glow (1.2s). Smooth easing (200-400ms) throughout. All animations use smart DOM patching — no chart reinit.
+- **Phase 7 — Visual Polish:** Enhanced glass-morphism (blur 20px, top border highlight). Typography: brighter key metrics (#f1f5f9), warmer dim text (#7c8594). Consistent 14px section spacing. Reduced feed line height. Refined hover effects. No excessive glow.
+
+**Modified Files:**
+- `templates/admin_console/operations_wall.html` — Complete Phase V2 visual upgrade (819 insertions, 183 deletions)
+
+**Backend impact:** Zero. No models, views, URLs, SAME logic, Celery, or API structure changed.
+**Tests:** 82 ops_wall_v2 + 24 Celery + 67 diagnostics = 173 tests pass — 0 regressions.
+**Performance:** Chart updates use setOption merge mode. Smart DOM patching preserves scroll. No chart memory leaks. CPU stable after extended runtime.
+
+---
+
 ## 2026-02-21 — Ops Command Center v3 Visual Redesign
 
 **Changes:**

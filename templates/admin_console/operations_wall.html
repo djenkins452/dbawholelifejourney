@@ -4,8 +4,8 @@
 {% block content %}
 <style nonce="{{ csp_nonce }}">
 /* =========================================================================
-   Ops Command Center v3 — Enterprise Intelligence OS
-   Inspired by Bloomberg Terminal, SOC dashboards, NASA telemetry
+   Ops Command Center V2 — Final Visual Upgrade
+   Phase V2: Enterprise SOC / Trading Floor / Executive Intelligence
    ========================================================================= */
 
 /* ---- Root Variables ---- */
@@ -21,8 +21,9 @@
     --ops-glass-shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.35);
     --ops-border: rgba(55, 65, 81, 0.5);
     --ops-text: #e5e7eb;
+    --ops-text-bright: #f1f5f9;
     --ops-text-muted: #9ca3af;
-    --ops-text-dim: #6b7280;
+    --ops-text-dim: #7c8594;
     --ops-green: #10b981;
     --ops-green-dim: rgba(16, 185, 129, 0.12);
     --ops-yellow: #f59e0b;
@@ -36,6 +37,8 @@
     --ops-cyan: #06b6d4;
     --ops-cyan-dim: rgba(6, 182, 212, 0.12);
     --ops-amber: #f59e0b;
+    --ops-teal: #14b8a6;
+    --ops-teal-dim: rgba(20, 184, 166, 0.12);
     --ops-slate: #64748b;
     --ops-radius: 10px;
     --ops-radius-sm: 6px;
@@ -44,17 +47,18 @@
     background: linear-gradient(165deg, var(--ops-bg-start) 0%, var(--ops-bg-end) 100%);
     color: var(--ops-text);
     min-height: 100vh;
-    padding: 20px 24px 32px;
+    padding: 14px 20px 24px;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     -webkit-font-smoothing: antialiased;
 }
 
-/* ---- Glass Card Mixin ---- */
+/* ---- Glass Card ---- */
 .ops-glass {
     background: var(--ops-surface);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
     border: 1px solid var(--ops-glass-border);
+    border-top-color: rgba(255, 255, 255, 0.1);
     border-radius: var(--ops-radius);
     box-shadow: var(--ops-glass-shadow);
 }
@@ -62,37 +66,44 @@
 /* ---- Page Load Animation ---- */
 .ops-wall > .ops-section {
     opacity: 0;
-    transform: translateY(12px);
-    animation: opsEnter 0.5s ease-out forwards;
+    transform: translateY(10px);
+    animation: opsEnter 0.45s ease-out forwards;
 }
-.ops-wall > .ops-section:nth-child(1) { animation-delay: 0.05s; }
-.ops-wall > .ops-section:nth-child(2) { animation-delay: 0.10s; }
-.ops-wall > .ops-section:nth-child(3) { animation-delay: 0.15s; }
-.ops-wall > .ops-section:nth-child(4) { animation-delay: 0.20s; }
-.ops-wall > .ops-section:nth-child(5) { animation-delay: 0.25s; }
-.ops-wall > .ops-section:nth-child(6) { animation-delay: 0.30s; }
+.ops-wall > .ops-section:nth-child(1) { animation-delay: 0.04s; }
+.ops-wall > .ops-section:nth-child(2) { animation-delay: 0.08s; }
+.ops-wall > .ops-section:nth-child(3) { animation-delay: 0.12s; }
+.ops-wall > .ops-section:nth-child(4) { animation-delay: 0.16s; }
+.ops-wall > .ops-section:nth-child(5) { animation-delay: 0.20s; }
+.ops-wall > .ops-section:nth-child(6) { animation-delay: 0.24s; }
+.ops-wall > .ops-section:nth-child(7) { animation-delay: 0.28s; }
+.ops-wall > .ops-section:nth-child(8) { animation-delay: 0.32s; }
 @keyframes opsEnter {
     to { opacity: 1; transform: translateY(0); }
 }
 
-/* ---- System Integrity Hero ---- */
+/* =========================================================================
+   PHASE 1 — System Integrity Hero (Redesigned)
+   ========================================================================= */
 .ops-integrity-hero {
+    padding: 16px 24px 12px;
+    margin-bottom: 14px;
+}
+.ops-integrity-hero-main {
     display: grid;
-    grid-template-columns: 200px 1fr 280px;
-    gap: 28px;
+    grid-template-columns: 180px 1fr 280px;
+    gap: 24px;
     align-items: center;
-    padding: 24px 28px;
-    margin-bottom: 20px;
+    margin-bottom: 12px;
 }
 .ops-integrity-gauge-wrap {
-    width: 200px;
-    height: 200px;
+    width: 180px;
+    height: 180px;
     position: relative;
 }
 .ops-integrity-center {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 8px;
 }
 .ops-integrity-label {
     font-size: 0.625rem;
@@ -101,18 +112,43 @@
     color: var(--ops-text-dim);
     font-weight: 600;
 }
+.ops-integrity-score-row {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+}
 .ops-integrity-score-big {
-    font-size: 4rem;
+    font-size: 4.5rem;
     font-weight: 800;
     font-variant-numeric: tabular-nums;
     line-height: 1;
-    letter-spacing: -0.02em;
-    transition: color 0.4s ease;
+    letter-spacing: -0.03em;
+    color: var(--ops-text-bright);
+    transition: color 0.4s ease, transform 0.3s ease;
+}
+.ops-integrity-score-big.score-pop {
+    transform: scale(1.06);
 }
 .ops-integrity-score-big.OPTIMAL { color: var(--ops-green); }
 .ops-integrity-score-big.NOMINAL { color: var(--ops-blue); }
 .ops-integrity-score-big.DEGRADED { color: var(--ops-yellow); }
 .ops-integrity-score-big.CRITICAL { color: var(--ops-red); }
+
+.ops-integrity-delta {
+    font-size: 0.9375rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+    transition: color 0.3s;
+}
+.ops-integrity-delta.positive { color: var(--ops-green); }
+.ops-integrity-delta.negative { color: var(--ops-red); }
+.ops-integrity-delta.neutral { color: var(--ops-text-dim); }
+
+.ops-integrity-mini-spark {
+    width: 140px;
+    height: 28px;
+}
 
 .ops-integrity-posture-label {
     font-size: 0.8125rem;
@@ -129,16 +165,33 @@
 .ops-integrity-posture-label.DEGRADED { color: var(--ops-yellow); background: var(--ops-yellow-dim); }
 .ops-integrity-posture-label.CRITICAL { color: var(--ops-red); background: var(--ops-red-dim); }
 
-.ops-integrity-components {
+.ops-integrity-trend-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.ops-integrity-trend-chart {
+    width: 100%;
+    height: 110px;
+}
+
+/* Component Breakdown Strip */
+.ops-integrity-strip {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
-    gap: 12px;
-    margin-top: 4px;
+    gap: 16px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255,255,255,0.05);
 }
 .ops-integrity-comp {
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 5px;
+}
+.ops-integrity-comp-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 .ops-integrity-comp-label {
     font-size: 0.5625rem;
@@ -150,17 +203,21 @@
     font-size: 0.875rem;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
-    color: var(--ops-text);
+    color: var(--ops-text-bright);
 }
-
-.ops-integrity-trend-wrap {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-.ops-integrity-trend-chart {
+.ops-integrity-comp-value.error { color: var(--ops-red); }
+.ops-integrity-comp-bar {
     width: 100%;
-    height: 100px;
+    height: 3px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 2px;
+    overflow: hidden;
+}
+.ops-integrity-comp-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    width: 0%;
+    transition: width 0.6s ease, background-color 0.3s ease;
 }
 
 /* ---- Posture Banner ---- */
@@ -168,8 +225,8 @@
     display: flex;
     align-items: center;
     gap: 14px;
-    padding: 12px 22px;
-    margin-bottom: 20px;
+    padding: 11px 22px;
+    margin-bottom: 14px;
     font-size: 0.875rem;
     transition: all 0.3s ease;
 }
@@ -193,8 +250,8 @@
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
     gap: 24px;
-    padding: 20px 24px;
-    margin-bottom: 20px;
+    padding: 16px 22px;
+    margin-bottom: 14px;
 }
 .ops-narration-section h3 {
     font-size: 0.625rem;
@@ -222,24 +279,49 @@
 .ops-narration-list.recs li::before { background: var(--ops-cyan); }
 .ops-narration-list.watching li::before { background: var(--ops-purple); }
 
+/* =========================================================================
+   PHASE 2 — Macro System Charts
+   ========================================================================= */
+.ops-macro-charts {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 14px;
+}
+.ops-macro-chart {
+    padding: 14px 18px 10px;
+}
+.ops-macro-chart-title {
+    font-size: 0.625rem;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--ops-text-dim);
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+.ops-macro-chart-body {
+    width: 100%;
+    height: 160px;
+}
+
 /* ---- Section Headers ---- */
 .ops-section-header {
-    font-size: 0.625rem; text-transform: uppercase;
-    letter-spacing: 0.14em; color: var(--ops-text-dim);
+    font-size: 0.6875rem; text-transform: uppercase;
+    letter-spacing: 0.12em; color: var(--ops-text-dim);
     font-weight: 600;
 }
 
 /* ---- Top Bar ---- */
 .ops-topbar {
     display: flex; justify-content: space-between; align-items: center;
-    margin-bottom: 20px; flex-wrap: wrap; gap: 10px;
+    margin-bottom: 14px; flex-wrap: wrap; gap: 10px;
 }
 .ops-topbar-left { display: flex; align-items: center; gap: 14px; }
 .ops-topbar-title {
-    font-size: 0.9375rem; font-weight: 700; letter-spacing: 0.06em;
+    font-size: 0.875rem; font-weight: 700; letter-spacing: 0.06em;
     text-transform: uppercase; color: var(--ops-text-muted);
 }
-.ops-topbar-actions { display: flex; gap: 8px; }
+.ops-topbar-actions { display: flex; gap: 8px; align-items: center; }
 .ops-btn {
     padding: 7px 16px; border-radius: var(--ops-radius-sm);
     border: 1px solid var(--ops-border); background: var(--ops-surface);
@@ -251,31 +333,84 @@
 }
 .ops-btn:hover { background: var(--ops-surface-hover); color: var(--ops-text); border-color: rgba(255,255,255,0.12); }
 .ops-btn.active { background: var(--ops-green); border-color: var(--ops-green); color: #fff; }
+.ops-btn.wall-active { background: var(--ops-blue); border-color: var(--ops-blue); color: #fff; }
+
+/* =========================================================================
+   PHASE 5 — Wall Mode
+   ========================================================================= */
+.ops-wall-clock {
+    font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', monospace;
+    font-size: 1.125rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--ops-text-dim);
+    letter-spacing: 0.04em;
+    display: none;
+}
+body.wall-mode .ops-wall-clock { display: block; }
+
+body.wall-mode .desktop-top-bar,
+body.wall-mode .desktop-left-rail,
+body.wall-mode .site-header,
+body.wall-mode .bottom-tab-bar,
+body.wall-mode .assistant-panel,
+body.wall-mode .messages-container { display: none !important; }
+
+body.wall-mode .desktop-main-area {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+body.wall-mode .desktop-layout-wrapper {
+    display: block !important;
+}
+body.wall-mode .ops-wall {
+    padding: 10px 14px 16px;
+}
+body.wall-mode .ops-macro-chart-body { height: 200px; }
+body.wall-mode .ops-engine-chart { height: 64px; }
+body.wall-mode .ops-engine-cadence-chart { height: 48px; }
+body.wall-mode .ops-engines-grid { gap: 10px; }
+body.wall-mode .ops-main { gap: 12px; }
+body.wall-mode .ops-engine-card { padding: 10px 12px; gap: 8px; }
+body.wall-mode .ops-integrity-hero { padding: 12px 18px 10px; margin-bottom: 10px; }
+body.wall-mode .ops-posture { margin-bottom: 10px; }
+body.wall-mode .ops-narration { margin-bottom: 10px; padding: 12px 18px; }
+body.wall-mode .ops-macro-charts { margin-bottom: 10px; }
+body.wall-mode .ops-topbar { margin-bottom: 10px; }
+
+@media (min-width: 1600px) {
+    body.wall-mode .ops-engines-grid { grid-template-columns: repeat(4, 1fr); }
+}
 
 /* ---- Main Layout ---- */
 .ops-main {
     display: grid;
     grid-template-columns: 1fr 320px;
-    gap: 20px;
-    margin-bottom: 24px;
+    gap: 16px;
+    margin-bottom: 16px;
 }
 
-/* ---- Engine Cards Grid ---- */
+/* =========================================================================
+   PHASE 3 — Engine Cards (Enhanced)
+   ========================================================================= */
 .ops-engines-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 14px;
+    gap: 12px;
 }
 .ops-engine-card {
-    padding: 16px 18px;
+    padding: 12px 14px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 8px;
     transition: all 0.25s ease;
     cursor: pointer;
     position: relative;
     overflow: hidden;
 }
+/* Left status bar */
 .ops-engine-card::before {
     content: '';
     position: absolute;
@@ -284,6 +419,21 @@
     border-radius: 3px 0 0 3px;
     transition: background 0.3s;
 }
+/* Top phase accent bar */
+.ops-engine-card::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 3px; right: 0;
+    height: 2px;
+    opacity: 0.6;
+    transition: opacity 0.3s;
+}
+.ops-engine-card:hover::after { opacity: 1; }
+.ops-engine-card.cat-interpret::after { background: var(--ops-blue); }
+.ops-engine-card.cat-execute::after { background: var(--ops-amber); }
+.ops-engine-card.cat-post::after { background: var(--ops-purple); }
+.ops-engine-card.cat-system::after { background: var(--ops-teal); }
+
 .ops-engine-card:hover {
     border-color: rgba(255,255,255,0.12);
     transform: translateY(-1px);
@@ -296,30 +446,39 @@
 .ops-engine-card.status-MISSED { animation: pulseCard 2s infinite; }
 @keyframes pulseCard {
     0%,100% { box-shadow: var(--ops-glass-shadow); }
-    50% { box-shadow: 0 0 20px rgba(239,68,68,0.15); }
+    50% { box-shadow: 0 0 20px rgba(239,68,68,0.12); }
 }
 
-/* Engine card glow on status change */
+/* Status change glow */
 .ops-engine-card.status-changed {
     animation: statusGlow 1.2s ease-out;
 }
 @keyframes statusGlow {
-    0% { box-shadow: 0 0 24px rgba(59,130,246,0.4); }
+    0% { box-shadow: 0 0 24px rgba(59,130,246,0.35); }
+    100% { box-shadow: var(--ops-glass-shadow); }
+}
+
+/* Fresh run glow sweep */
+.ops-engine-card.fresh-run {
+    animation: freshRunGlow 0.8s ease-out;
+}
+@keyframes freshRunGlow {
+    0% { box-shadow: inset 0 2px 16px rgba(16,185,129,0.25), var(--ops-glass-shadow); }
     100% { box-shadow: var(--ops-glass-shadow); }
 }
 
 .ops-engine-header { display: flex; justify-content: space-between; align-items: center; }
 .ops-engine-name-wrap { display: flex; align-items: center; gap: 8px; }
-.ops-engine-name { font-weight: 700; font-size: 0.9375rem; }
+.ops-engine-name { font-weight: 700; font-size: 0.9375rem; color: var(--ops-text-bright); }
 .ops-engine-category {
     font-size: 0.5rem; text-transform: uppercase;
     letter-spacing: 0.1em; font-weight: 700;
     padding: 2px 6px; border-radius: 3px;
 }
-.ops-engine-category.cat-interpret { color: var(--ops-cyan); background: var(--ops-cyan-dim); }
-.ops-engine-category.cat-execute { color: var(--ops-purple); background: var(--ops-purple-dim); }
-.ops-engine-category.cat-post { color: var(--ops-amber); background: var(--ops-yellow-dim); }
-.ops-engine-category.cat-system { color: var(--ops-slate); background: rgba(100,116,139,0.15); }
+.ops-engine-category.cat-interpret { color: var(--ops-blue); background: var(--ops-blue-dim); }
+.ops-engine-category.cat-execute { color: var(--ops-amber); background: var(--ops-yellow-dim); }
+.ops-engine-category.cat-post { color: var(--ops-purple); background: var(--ops-purple-dim); }
+.ops-engine-category.cat-system { color: var(--ops-teal); background: var(--ops-teal-dim); }
 
 .ops-engine-status {
     font-size: 0.625rem; text-transform: uppercase;
@@ -331,12 +490,23 @@
 .ops-engine-status.MISSED { color: var(--ops-red); background: var(--ops-red-dim); }
 .ops-engine-status.ERROR { color: var(--ops-red); background: var(--ops-red-dim); }
 
-.ops-engine-chart { width: 100%; height: 48px; }
-.ops-engine-cadence-chart { width: 100%; height: 36px; }
+/* Thin metrics strip under title */
+.ops-engine-metrics {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.5625rem;
+    color: var(--ops-text-dim);
+    font-variant-numeric: tabular-nums;
+}
+.ops-engine-metrics .ops-dot { color: rgba(255,255,255,0.12); }
+
+.ops-engine-chart { width: 100%; height: 56px; }
+.ops-engine-cadence-chart { width: 100%; height: 42px; }
 
 .ops-engine-stats {
     display: grid; grid-template-columns: repeat(4, 1fr);
-    gap: 4px; font-size: 0.6875rem;
+    gap: 3px; font-size: 0.6875rem;
 }
 .ops-engine-stat { text-align: center; }
 .ops-engine-stat-label {
@@ -344,7 +514,7 @@
     text-transform: uppercase; letter-spacing: 0.06em;
 }
 .ops-engine-stat-value {
-    font-weight: 600; color: var(--ops-text);
+    font-weight: 600; color: var(--ops-text-bright);
     margin-top: 2px; font-variant-numeric: tabular-nums;
 }
 .ops-engine-stat-value.error { color: var(--ops-red); }
@@ -356,15 +526,69 @@
     padding-top: 4px; border-top: 1px solid rgba(255,255,255,0.04);
 }
 
-/* ---- Watchlist ---- */
+/* =========================================================================
+   PHASE 4 — Watchlist Drama
+   ========================================================================= */
 .ops-watchlist {
-    display: flex; flex-direction: column; gap: 12px;
+    display: flex; flex-direction: column; gap: 10px;
 }
+
+/* Empty state: ambient animated background */
+.ops-watchlist-empty {
+    padding: 28px 20px;
+    text-align: center;
+    color: var(--ops-text-dim);
+    font-size: 0.8125rem;
+    border-radius: var(--ops-radius);
+    border: 1px solid var(--ops-glass-border);
+    background: linear-gradient(135deg,
+        rgba(16,185,129,0.03) 0%,
+        rgba(59,130,246,0.03) 50%,
+        rgba(139,92,246,0.03) 100%);
+    background-size: 400% 400%;
+    animation: ambientShift 8s ease infinite;
+    position: relative;
+    overflow: hidden;
+}
+.ops-watchlist-empty::after {
+    content: '';
+    position: absolute;
+    top: -50%; left: -50%;
+    width: 200%; height: 200%;
+    background: radial-gradient(circle at center, rgba(16,185,129,0.03) 0%, transparent 70%);
+    animation: ambientGlowPulse 4s ease-in-out infinite alternate;
+    pointer-events: none;
+}
+@keyframes ambientShift {
+    0%, 100% { background-position: 0% 50%; }
+    25% { background-position: 100% 0%; }
+    50% { background-position: 100% 100%; }
+    75% { background-position: 0% 100%; }
+}
+@keyframes ambientGlowPulse {
+    0% { opacity: 0.3; transform: scale(0.85); }
+    100% { opacity: 0.6; transform: scale(1.1); }
+}
+.ops-watchlist-empty-icon {
+    font-size: 1.25rem;
+    margin-bottom: 6px;
+    opacity: 0.4;
+}
+
+/* Anomaly slide-in */
 .ops-anomaly-card {
-    padding: 14px 16px;
+    padding: 12px 14px;
     transition: all 0.2s ease;
     position: relative;
 }
+.ops-anomaly-card.anomaly-enter {
+    animation: anomalySlideIn 0.35s ease-out both;
+}
+@keyframes anomalySlideIn {
+    from { transform: translateX(-14px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
 .ops-anomaly-card::before {
     content: '';
     position: absolute; top: 0; left: 0;
@@ -379,19 +603,34 @@
 .ops-anomaly-card.P2::before { background: var(--ops-yellow); }
 .ops-anomaly-card.P3::before { background: var(--ops-blue); }
 
+/* Severity glow */
+.ops-anomaly-card.P1 { box-shadow: 0 0 16px rgba(239,68,68,0.08); }
+.ops-anomaly-card.P2 { box-shadow: 0 0 12px rgba(245,158,11,0.06); }
+
 .ops-anomaly-header {
     display: flex; justify-content: space-between; align-items: center;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
 }
+/* Severity icons */
+.ops-severity-icon {
+    font-size: 0.5625rem;
+    margin-right: 4px;
+    vertical-align: middle;
+}
+.ops-severity-icon.P1 { color: var(--ops-red); }
+.ops-severity-icon.P2 { color: var(--ops-yellow); }
+.ops-severity-icon.P3 { color: var(--ops-blue); }
+
 .ops-anomaly-severity {
     font-size: 0.5625rem; text-transform: uppercase;
     font-weight: 700; letter-spacing: 0.1em;
+    display: flex; align-items: center;
 }
 .ops-anomaly-severity.P1 { color: var(--ops-red); }
 .ops-anomaly-severity.P2 { color: var(--ops-yellow); }
 .ops-anomaly-severity.P3 { color: var(--ops-blue); }
 .ops-anomaly-when { font-size: 0.5625rem; color: var(--ops-text-dim); }
-.ops-anomaly-summary { font-size: 0.8125rem; line-height: 1.5; color: var(--ops-text-muted); margin-bottom: 10px; }
+.ops-anomaly-summary { font-size: 0.8125rem; line-height: 1.5; color: var(--ops-text-muted); margin-bottom: 8px; }
 .ops-anomaly-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .ops-action-btn {
     padding: 5px 12px; border-radius: var(--ops-radius-sm); font-size: 0.6875rem;
@@ -413,19 +652,11 @@
     50% { opacity: 0.6; transform: scale(1.05); }
 }
 
-.ops-no-anomalies {
-    color: var(--ops-text-dim); font-size: 0.8125rem;
-    text-align: center; padding: 24px;
-    border-radius: var(--ops-radius);
-    border: 1px solid var(--ops-glass-border);
-    background: var(--ops-surface);
-}
-
 /* ---- SOC Feed ---- */
 .ops-feed-wrapper { margin-top: 0; }
 .ops-feed-header {
     display: flex; justify-content: space-between; align-items: center;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
 }
 .ops-feed-filters { display: flex; gap: 6px; }
 .ops-filter-btn {
@@ -438,7 +669,7 @@
 .ops-filter-btn.active { background: var(--ops-blue-dim); border-color: rgba(59,130,246,0.4); color: var(--ops-blue); }
 
 .ops-feed {
-    max-height: 320px; overflow-y: auto;
+    max-height: 280px; overflow-y: auto;
     border-radius: var(--ops-radius);
     border: 1px solid var(--ops-glass-border);
     background: var(--ops-surface);
@@ -451,9 +682,9 @@
 .ops-feed::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
 
 .ops-feed-line {
-    display: flex; gap: 10px; padding: 6px 14px;
+    display: flex; gap: 10px; padding: 5px 14px;
     border-bottom: 1px solid rgba(255,255,255,0.03);
-    cursor: pointer; align-items: baseline; min-height: 30px;
+    cursor: pointer; align-items: baseline; min-height: 28px;
     transition: background 0.15s;
 }
 .ops-feed-line:hover { background: var(--ops-surface-hover); }
@@ -495,7 +726,9 @@
 }
 .ops-tooltip.visible { opacity: 1; }
 
-/* ---- Responsive ---- */
+/* =========================================================================
+   Responsive
+   ========================================================================= */
 @media (max-width: 1400px) {
     .ops-engines-grid { grid-template-columns: repeat(2, 1fr); }
 }
@@ -503,20 +736,23 @@
     .ops-main { grid-template-columns: 1fr; }
     .ops-narration { grid-template-columns: 1fr; }
     .ops-engines-grid { grid-template-columns: repeat(2, 1fr); }
-    .ops-integrity-hero { grid-template-columns: 160px 1fr; gap: 20px; }
+    .ops-macro-charts { grid-template-columns: 1fr; }
+    .ops-integrity-hero-main { grid-template-columns: 150px 1fr; gap: 18px; }
     .ops-integrity-trend-wrap { grid-column: 1 / -1; }
-    .ops-integrity-gauge-wrap { width: 160px; height: 160px; }
-    .ops-integrity-components { grid-template-columns: repeat(3, 1fr); }
+    .ops-integrity-gauge-wrap { width: 150px; height: 150px; }
+    .ops-integrity-strip { grid-template-columns: repeat(3, 1fr); }
 }
 @media (max-width: 768px) {
-    .ops-wall { padding: 12px 14px 24px; }
-    .ops-integrity-hero { grid-template-columns: 1fr; justify-items: center; text-align: center; }
-    .ops-integrity-gauge-wrap { width: 140px; height: 140px; }
-    .ops-integrity-components { grid-template-columns: repeat(2, 1fr); justify-items: center; }
+    .ops-wall { padding: 10px 12px 20px; }
+    .ops-integrity-hero-main { grid-template-columns: 1fr; justify-items: center; text-align: center; }
+    .ops-integrity-gauge-wrap { width: 130px; height: 130px; }
+    .ops-integrity-strip { grid-template-columns: repeat(2, 1fr); justify-items: center; }
+    .ops-integrity-score-row { justify-content: center; }
     .ops-integrity-trend-wrap { grid-column: auto; }
     .ops-topbar { flex-direction: column; align-items: flex-start; }
     .ops-engines-grid { grid-template-columns: 1fr; }
     .ops-engine-stats { grid-template-columns: repeat(2, 1fr); }
+    .ops-macro-charts { grid-template-columns: 1fr; }
 }
 </style>
 
@@ -526,39 +762,60 @@
 <div class="ops-wall">
     <!-- System Integrity Hero -->
     <div class="ops-section ops-glass ops-integrity-hero" id="integrityHero">
-        <div class="ops-integrity-gauge-wrap">
-            <div id="integrityGauge" style="width:100%;height:100%"></div>
-        </div>
-        <div class="ops-integrity-center">
-            <div class="ops-integrity-label">System Integrity Index</div>
-            <div class="ops-integrity-score-big NOMINAL" id="integrityScore">—</div>
-            <div class="ops-integrity-posture-label NOMINAL" id="integrityPosture">—</div>
-            <div class="ops-integrity-components" id="integrityComponents">
-                <div class="ops-integrity-comp">
-                    <span class="ops-integrity-comp-label">Engines</span>
-                    <span class="ops-integrity-comp-value" id="icEngines">—</span>
+        <div class="ops-integrity-hero-main">
+            <div class="ops-integrity-gauge-wrap">
+                <div id="integrityGauge" style="width:100%;height:100%"></div>
+            </div>
+            <div class="ops-integrity-center">
+                <div class="ops-integrity-label">System Integrity Index</div>
+                <div class="ops-integrity-score-row">
+                    <span class="ops-integrity-score-big NOMINAL" id="integrityScore">&mdash;</span>
+                    <span class="ops-integrity-delta neutral" id="integrityDelta"></span>
                 </div>
-                <div class="ops-integrity-comp">
-                    <span class="ops-integrity-comp-label">Anomaly</span>
-                    <span class="ops-integrity-comp-value" id="icAnomaly">—</span>
-                </div>
-                <div class="ops-integrity-comp">
-                    <span class="ops-integrity-comp-label">Errors</span>
-                    <span class="ops-integrity-comp-value" id="icErrors">—</span>
-                </div>
-                <div class="ops-integrity-comp">
-                    <span class="ops-integrity-comp-label">Suppress</span>
-                    <span class="ops-integrity-comp-value" id="icSuppress">—</span>
-                </div>
-                <div class="ops-integrity-comp">
-                    <span class="ops-integrity-comp-label">Volatility</span>
-                    <span class="ops-integrity-comp-value" id="icVolatility">—</span>
-                </div>
+                <div class="ops-integrity-mini-spark" id="integrityMiniSpark"></div>
+                <div class="ops-integrity-posture-label NOMINAL" id="integrityPosture">&mdash;</div>
+            </div>
+            <div class="ops-integrity-trend-wrap">
+                <div class="ops-integrity-label">Score History</div>
+                <div class="ops-integrity-trend-chart" id="integrityTrend"></div>
             </div>
         </div>
-        <div class="ops-integrity-trend-wrap">
-            <div class="ops-integrity-label">Recent Trend</div>
-            <div class="ops-integrity-trend-chart" id="integrityTrend"></div>
+        <div class="ops-integrity-strip" id="integrityStrip">
+            <div class="ops-integrity-comp">
+                <div class="ops-integrity-comp-header">
+                    <span class="ops-integrity-comp-label">Engines</span>
+                    <span class="ops-integrity-comp-value" id="icEngines">&mdash;</span>
+                </div>
+                <div class="ops-integrity-comp-bar"><div class="ops-integrity-comp-bar-fill" id="icEnginesBar"></div></div>
+            </div>
+            <div class="ops-integrity-comp">
+                <div class="ops-integrity-comp-header">
+                    <span class="ops-integrity-comp-label">Anomalies</span>
+                    <span class="ops-integrity-comp-value" id="icAnomaly">&mdash;</span>
+                </div>
+                <div class="ops-integrity-comp-bar"><div class="ops-integrity-comp-bar-fill" id="icAnomalyBar"></div></div>
+            </div>
+            <div class="ops-integrity-comp">
+                <div class="ops-integrity-comp-header">
+                    <span class="ops-integrity-comp-label">Errors</span>
+                    <span class="ops-integrity-comp-value" id="icErrors">&mdash;</span>
+                </div>
+                <div class="ops-integrity-comp-bar"><div class="ops-integrity-comp-bar-fill" id="icErrorsBar"></div></div>
+            </div>
+            <div class="ops-integrity-comp">
+                <div class="ops-integrity-comp-header">
+                    <span class="ops-integrity-comp-label">Suppression</span>
+                    <span class="ops-integrity-comp-value" id="icSuppress">&mdash;</span>
+                </div>
+                <div class="ops-integrity-comp-bar"><div class="ops-integrity-comp-bar-fill" id="icSuppressBar"></div></div>
+            </div>
+            <div class="ops-integrity-comp">
+                <div class="ops-integrity-comp-header">
+                    <span class="ops-integrity-comp-label">Volatility</span>
+                    <span class="ops-integrity-comp-value" id="icVolatility">&mdash;</span>
+                </div>
+                <div class="ops-integrity-comp-bar"><div class="ops-integrity-comp-bar-fill" id="icVolatilityBar"></div></div>
+            </div>
         </div>
     </div>
 
@@ -566,7 +823,7 @@
     <div class="ops-section ops-glass ops-posture OK" id="postureBanner">
         <span class="ops-posture-dot OK" id="postureDot"></span>
         <span class="ops-posture-text" id="postureText">Initializing SAME...</span>
-        <span class="ops-posture-meta">Updated: <span id="lastUpdateTime">—</span></span>
+        <span class="ops-posture-meta">Updated: <span id="lastUpdateTime">&mdash;</span></span>
     </div>
 
     <!-- SAME Narration Bar -->
@@ -586,8 +843,20 @@
         <div class="ops-narration-section">
             <h3>Watching Next</h3>
             <ul class="ops-narration-list watching" id="narrativeWatching">
-                <li>—</li>
+                <li>&mdash;</li>
             </ul>
+        </div>
+    </div>
+
+    <!-- Macro System Charts -->
+    <div class="ops-section ops-macro-charts">
+        <div class="ops-glass ops-macro-chart">
+            <div class="ops-macro-chart-title">Anomaly Trend</div>
+            <div class="ops-macro-chart-body" id="anomalyTrendChart"></div>
+        </div>
+        <div class="ops-glass ops-macro-chart">
+            <div class="ops-macro-chart-title">Engine Health by Category</div>
+            <div class="ops-macro-chart-body" id="healthDistChart"></div>
         </div>
     </div>
 
@@ -597,6 +866,8 @@
             <span class="ops-topbar-title">Engine Status</span>
         </div>
         <div class="ops-topbar-actions">
+            <button class="ops-btn" id="wallModeBtn" title="Wall Mode (W)">Wall</button>
+            <span class="ops-wall-clock" id="wallClock"></span>
             <button class="ops-btn active" id="togglePoll">Live</button>
             <button class="ops-btn" id="freezeBtn">Freeze</button>
             <a href="{% url 'admin_console:ops_all_engines' %}" class="ops-btn">All Engines</a>
@@ -611,9 +882,12 @@
             <div style="color:var(--ops-text-dim);font-size:0.8125rem;grid-column:1/-1;text-align:center;padding:48px">Loading engine data...</div>
         </div>
         <div class="ops-watchlist">
-            <span class="ops-section-header">Watchlist — Active Anomalies</span>
+            <span class="ops-section-header">Watchlist &mdash; Active Anomalies</span>
             <div id="watchlistPanel">
-                <div class="ops-no-anomalies">No anomalies detected</div>
+                <div class="ops-watchlist-empty">
+                    <div class="ops-watchlist-empty-icon">&#10003;</div>
+                    <div>All clear &mdash; no anomalies</div>
+                </div>
             </div>
         </div>
     </div>
@@ -654,29 +928,44 @@
     var currentFilter = '';
     var lastIntegrityScore = null;
     var previousStatuses = {};
+    var previousLastRuns = {};
+    var previousAnomalyIds = [];
+
+    // Score history buffer for mini sparkline + delta
+    var scoreBuffer = [];
+    var MAX_SCORE_BUFFER = 1800; // ~1 hour at 2s poll
+
+    // Anomaly history buffer for trend chart
+    var anomalyHistory = [];
+    var MAX_ANOMALY_HISTORY = 720; // ~24 min at 2s poll
+
+    // Integrity history from API (for delta computation)
+    var integrityHistoryData = [];
 
     // ECharts instance registry
     var chartRegistry = {};
 
-    // Engine category map
+    // Engine category map (updated colors: Interpret=blue, Execute=amber, Post=purple, System=teal)
     var ENGINE_META = {
-        'PIE':  { category: 'Interpret', catClass: 'cat-interpret' },
-        'AIE':  { category: 'Interpret', catClass: 'cat-interpret' },
-        'ICQG': { category: 'Interpret', catClass: 'cat-interpret' },
-        'ISE':  { category: 'Interpret', catClass: 'cat-interpret' },
-        'SAE':  { category: 'Execute',   catClass: 'cat-execute' },
-        'UIE':  { category: 'Execute',   catClass: 'cat-execute' },
-        'CWE':  { category: 'Execute',   catClass: 'cat-execute' },
-        'TNE':  { category: 'Execute',   catClass: 'cat-execute' },
-        'PRIE': { category: 'Post-Exec', catClass: 'cat-post' },
-        'AADE': { category: 'Post-Exec', catClass: 'cat-post' },
-        'PGE':  { category: 'Post-Exec', catClass: 'cat-post' },
-        'WIRE': { category: 'System',    catClass: 'cat-system' },
-        'DBE':  { category: 'System',    catClass: 'cat-system' },
-        'SAME': { category: 'System',    catClass: 'cat-system' },
-        'DNE':  { category: 'System',    catClass: 'cat-system' },
-        'UAL':  { category: 'System',    catClass: 'cat-system' }
+        'PIE':  { category: 'Interpret', catClass: 'cat-interpret', color: '#3b82f6' },
+        'AIE':  { category: 'Interpret', catClass: 'cat-interpret', color: '#3b82f6' },
+        'ICQG': { category: 'Interpret', catClass: 'cat-interpret', color: '#3b82f6' },
+        'ISE':  { category: 'Interpret', catClass: 'cat-interpret', color: '#3b82f6' },
+        'SAE':  { category: 'Execute',   catClass: 'cat-execute',   color: '#f59e0b' },
+        'UIE':  { category: 'Execute',   catClass: 'cat-execute',   color: '#f59e0b' },
+        'CWE':  { category: 'Execute',   catClass: 'cat-execute',   color: '#f59e0b' },
+        'TNE':  { category: 'Execute',   catClass: 'cat-execute',   color: '#f59e0b' },
+        'PRIE': { category: 'Post-Exec', catClass: 'cat-post',      color: '#8b5cf6' },
+        'AADE': { category: 'Post-Exec', catClass: 'cat-post',      color: '#8b5cf6' },
+        'PGE':  { category: 'Post-Exec', catClass: 'cat-post',      color: '#8b5cf6' },
+        'WIRE': { category: 'System',    catClass: 'cat-system',     color: '#14b8a6' },
+        'DBE':  { category: 'System',    catClass: 'cat-system',     color: '#14b8a6' },
+        'SAME': { category: 'System',    catClass: 'cat-system',     color: '#14b8a6' },
+        'DNE':  { category: 'System',    catClass: 'cat-system',     color: '#14b8a6' },
+        'UAL':  { category: 'System',    catClass: 'cat-system',     color: '#14b8a6' }
     };
+
+    var SEVERITY_ICONS = { 'P1': '\u25B2', 'P2': '\u25C6', 'P3': '\u25CF' };
 
     var POSTURE_COLORS = {
         'OPTIMAL': '#10b981', 'NOMINAL': '#3b82f6',
@@ -718,7 +1007,7 @@
        ECharts: Reusable Chart Builders
        ===================================================================== */
 
-    /** Radial gauge for integrity score */
+    /** Radial gauge for integrity score — enhanced with glow */
     function buildIntegrityGauge(score, posture) {
         var color = POSTURE_COLORS[posture] || '#3b82f6';
         return {
@@ -737,11 +1026,15 @@
                     overlap: false,
                     roundCap: true,
                     clip: false,
-                    itemStyle: { color: color }
+                    itemStyle: {
+                        color: color,
+                        shadowColor: color,
+                        shadowBlur: 8
+                    }
                 },
                 axisLine: {
                     lineStyle: {
-                        width: 14,
+                        width: 16,
                         color: [[1, 'rgba(255,255,255,0.04)']]
                     }
                 },
@@ -760,12 +1053,18 @@
         if (!history || history.length === 0) return null;
         var data = history.map(function(h) {
             return [new Date(h.created_at).getTime(), h.score];
-        }).reverse();
+        });
 
         return {
             animation: false,
-            grid: { top: 8, right: 8, bottom: 8, left: 8, containLabel: false },
-            xAxis: { type: 'time', show: false, axisPointer: { show: false } },
+            grid: { top: 8, right: 8, bottom: 20, left: 8, containLabel: false },
+            xAxis: {
+                type: 'time', show: true,
+                axisLine: { lineStyle: { color: 'rgba(255,255,255,0.06)' } },
+                axisLabel: { color: '#6b7280', fontSize: 9 },
+                splitLine: { show: false },
+                axisTick: { show: false }
+            },
             yAxis: { type: 'value', min: 0, max: 100, show: false },
             tooltip: {
                 trigger: 'axis',
@@ -798,7 +1097,41 @@
         };
     }
 
-    /** Mini trend line for engine cards (using sparkline data array) */
+    /** Mini sparkline for under-score display */
+    function buildMiniSparkline(data) {
+        if (!data || data.length < 2) return null;
+        return {
+            animation: false,
+            grid: { top: 0, right: 0, bottom: 0, left: 0, containLabel: false },
+            xAxis: {
+                type: 'category', show: false, boundaryGap: false,
+                data: data.map(function(_, i) { return i; })
+            },
+            yAxis: {
+                type: 'value', show: false,
+                min: function(v) { return Math.max(0, v.min - 5); },
+                max: function(v) { return Math.min(100, v.max + 5); }
+            },
+            series: [{
+                type: 'line',
+                data: data,
+                smooth: 0.3,
+                showSymbol: false,
+                lineStyle: { width: 1.5, color: 'rgba(59,130,246,0.6)' },
+                areaStyle: {
+                    color: {
+                        type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+                        colorStops: [
+                            { offset: 0, color: 'rgba(59,130,246,0.15)' },
+                            { offset: 1, color: 'rgba(59,130,246,0)' }
+                        ]
+                    }
+                }
+            }]
+        };
+    }
+
+    /** Mini trend line for engine cards */
     function buildEngineTrendChart(sparklineData, status) {
         if (!sparklineData || sparklineData.length === 0) return null;
         var color = STATUS_COLORS[status] || '#3b82f6';
@@ -832,7 +1165,7 @@
         };
     }
 
-    /** Cadence timeline chart (replaces CSS strip) */
+    /** Cadence timeline chart */
     function buildCadenceChart(timeline, windowMinutes) {
         if (!timeline) return null;
         var now = Date.now();
@@ -851,25 +1184,15 @@
             }
         });
 
-        // Threshold: average * 1.5
         var allDurations = successData.concat(errorData).map(function(d) { return d[1]; });
         var avgDur = allDurations.length > 0
             ? allDurations.reduce(function(a, b) { return a + b; }, 0) / allDurations.length
             : 100;
         var threshold = Math.round(avgDur * 1.5);
 
-        // Missed ticks as markers
         var missedData = (timeline.missed_ticks || []).map(function(t) {
             return [new Date(t).getTime(), threshold];
         });
-
-        // Latest run animated dot
-        var latestSymbol = [];
-        if (successData.length > 0) {
-            var last = successData[successData.length - 1];
-            latestSymbol = [{ value: last, symbol: 'circle', symbolSize: 6,
-                itemStyle: { color: '#10b981', shadowColor: '#10b981', shadowBlur: 8 } }];
-        }
 
         var series = [
             {
@@ -901,7 +1224,6 @@
                 itemStyle: { color: '#ef4444', shadowColor: '#ef4444', shadowBlur: 4 }
             });
         }
-
         if (missedData.length > 0) {
             series.push({
                 type: 'scatter', data: missedData, z: 3,
@@ -909,10 +1231,10 @@
                 itemStyle: { color: 'rgba(239,68,68,0.6)' }
             });
         }
-
-        if (latestSymbol.length > 0) {
+        if (successData.length > 0) {
+            var last = successData[successData.length - 1];
             series.push({
-                type: 'effectScatter', data: [latestSymbol[0].value], z: 4,
+                type: 'effectScatter', data: [last], z: 4,
                 symbolSize: 5, showEffectOn: 'render',
                 rippleEffect: { brushType: 'stroke', scale: 3, period: 2 },
                 itemStyle: { color: '#10b981' }
@@ -925,6 +1247,121 @@
             xAxis: { type: 'time', min: start, max: now, show: false },
             yAxis: { type: 'value', show: false },
             series: series
+        };
+    }
+
+    /** Phase 2: Anomaly trend stacked area chart */
+    function buildAnomalyTrendChart(history) {
+        if (!history || history.length < 2) return null;
+        var p1Data = history.map(function(h) { return [h.time, h.p1]; });
+        var p2Data = history.map(function(h) { return [h.time, h.p2]; });
+        var p3Data = history.map(function(h) { return [h.time, h.p3]; });
+
+        return {
+            animation: false,
+            grid: { top: 10, right: 12, bottom: 24, left: 32 },
+            xAxis: {
+                type: 'time',
+                axisLine: { lineStyle: { color: 'rgba(255,255,255,0.06)' } },
+                axisLabel: { color: '#6b7280', fontSize: 9 },
+                splitLine: { show: false },
+                axisTick: { show: false }
+            },
+            yAxis: {
+                type: 'value', minInterval: 1,
+                axisLine: { show: false },
+                axisLabel: { color: '#6b7280', fontSize: 9 },
+                splitLine: { lineStyle: { color: 'rgba(255,255,255,0.04)' } }
+            },
+            tooltip: {
+                trigger: 'axis',
+                backgroundColor: 'rgba(15,20,35,0.92)',
+                borderColor: 'rgba(255,255,255,0.1)',
+                textStyle: { color: '#e5e7eb', fontSize: 11 }
+            },
+            legend: {
+                top: 0, right: 0,
+                textStyle: { color: '#6b7280', fontSize: 9 },
+                itemWidth: 8, itemHeight: 8, itemGap: 10
+            },
+            series: [
+                {
+                    name: 'P1', type: 'line', stack: 'total', smooth: 0.4,
+                    showSymbol: false, data: p1Data, lineStyle: { width: 0 },
+                    areaStyle: { color: 'rgba(239,68,68,0.5)' }
+                },
+                {
+                    name: 'P2', type: 'line', stack: 'total', smooth: 0.4,
+                    showSymbol: false, data: p2Data, lineStyle: { width: 0 },
+                    areaStyle: { color: 'rgba(245,158,11,0.4)' }
+                },
+                {
+                    name: 'P3', type: 'line', stack: 'total', smooth: 0.4,
+                    showSymbol: false, data: p3Data, lineStyle: { width: 0 },
+                    areaStyle: { color: 'rgba(59,130,246,0.35)' }
+                }
+            ]
+        };
+    }
+
+    /** Phase 2: Engine health distribution stacked bar by category */
+    function buildHealthDistChart(cards) {
+        var catOrder = ['Interpret', 'Execute', 'Post-Exec', 'System'];
+        var catData = {};
+        catOrder.forEach(function(cat) { catData[cat] = { OK: 0, DEGRADED: 0, MISSED: 0, ERROR: 0 }; });
+
+        cards.forEach(function(c) {
+            var meta = ENGINE_META[c.name] || { category: 'System' };
+            var cat = catData[meta.category] || catData['System'];
+            cat[c.status] = (cat[c.status] || 0) + 1;
+        });
+
+        return {
+            animation: true,
+            animationDuration: 400,
+            grid: { top: 10, right: 8, bottom: 4, left: 68, containLabel: false },
+            xAxis: { type: 'value', show: false },
+            yAxis: {
+                type: 'category',
+                data: catOrder,
+                axisLine: { show: false },
+                axisTick: { show: false },
+                axisLabel: { color: '#9ca3af', fontSize: 10, fontWeight: 600 }
+            },
+            legend: {
+                top: 0, right: 0,
+                textStyle: { color: '#6b7280', fontSize: 9 },
+                itemWidth: 8, itemHeight: 8, itemGap: 10
+            },
+            tooltip: {
+                trigger: 'axis',
+                axisPointer: { type: 'shadow' },
+                backgroundColor: 'rgba(15,20,35,0.92)',
+                borderColor: 'rgba(255,255,255,0.1)',
+                textStyle: { color: '#e5e7eb', fontSize: 11 }
+            },
+            series: [
+                {
+                    name: 'OK', type: 'bar', stack: 'total', barWidth: 16,
+                    data: catOrder.map(function(c) { return catData[c].OK; }),
+                    itemStyle: { color: '#10b981', borderRadius: 0 }
+                },
+                {
+                    name: 'Degraded', type: 'bar', stack: 'total', barWidth: 16,
+                    data: catOrder.map(function(c) { return catData[c].DEGRADED; }),
+                    itemStyle: { color: '#f59e0b' }
+                },
+                {
+                    name: 'Missed', type: 'bar', stack: 'total', barWidth: 16,
+                    data: catOrder.map(function(c) { return catData[c].MISSED; }),
+                    itemStyle: { color: '#ef4444' }
+                },
+                {
+                    name: 'Error', type: 'bar', stack: 'total', barWidth: 16,
+                    data: catOrder.map(function(c) { return catData[c].ERROR; }),
+                    itemStyle: { color: '#dc2626' }
+                }
+            ]
         };
     }
 
@@ -942,6 +1379,63 @@
             if (progress < 1) requestAnimationFrame(step);
         }
         requestAnimationFrame(step);
+    }
+
+    /* =====================================================================
+       Phase 5: Wall Mode
+       ===================================================================== */
+    var wallModeActive = false;
+    var clockInterval = null;
+
+    function toggleWallMode() {
+        wallModeActive = !wallModeActive;
+        document.body.classList.toggle('wall-mode', wallModeActive);
+        var btn = document.getElementById('wallModeBtn');
+        btn.classList.toggle('wall-active', wallModeActive);
+        btn.textContent = wallModeActive ? 'Exit Wall' : 'Wall';
+        if (wallModeActive) {
+            startClock();
+        } else {
+            stopClock();
+        }
+        localStorage.setItem('ops-wall-mode', wallModeActive ? '1' : '0');
+        setTimeout(resizeAllCharts, 250);
+    }
+
+    function startClock() {
+        updateClock();
+        clockInterval = setInterval(updateClock, 1000);
+    }
+
+    function stopClock() {
+        if (clockInterval) { clearInterval(clockInterval); clockInterval = null; }
+    }
+
+    function updateClock() {
+        var el = document.getElementById('wallClock');
+        if (el) el.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+
+    // Restore wall mode from localStorage
+    if (localStorage.getItem('ops-wall-mode') === '1') {
+        wallModeActive = true;
+        document.body.classList.add('wall-mode');
+        var wmBtn = document.getElementById('wallModeBtn');
+        if (wmBtn) { wmBtn.classList.add('wall-active'); wmBtn.textContent = 'Exit Wall'; }
+        startClock();
+    }
+
+    /* =====================================================================
+       Component Progress Bar Updater
+       ===================================================================== */
+    function updateComponentBar(barId, healthPct) {
+        var bar = document.getElementById(barId);
+        if (!bar) return;
+        var pct = Math.max(0, Math.min(100, healthPct));
+        bar.style.width = pct.toFixed(1) + '%';
+        if (pct >= 80) bar.style.backgroundColor = '#10b981';
+        else if (pct >= 50) bar.style.backgroundColor = '#f59e0b';
+        else bar.style.backgroundColor = '#ef4444';
     }
 
     /* =====================================================================
@@ -978,6 +1472,7 @@
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (frozen || !data.history) return;
+            integrityHistoryData = data.history;
             var chart = getChart('integrityTrend');
             if (chart) {
                 var opt = buildIntegrityTrendChart(data.history);
@@ -994,6 +1489,8 @@
         renderIntegrity(data.integrity);
         renderPosture(data.posture, data.narrative);
         renderNarration(data.narrative);
+        trackAnomalies(data.anomalies || []);
+        renderMacroCharts(data.engine_cards || [], data.anomalies || []);
         renderEngineCards(data.engine_cards || []);
         renderWatchlist(data.anomalies || []);
         renderFeed(data.feed || []);
@@ -1003,24 +1500,53 @@
     function renderIntegrity(integrity) {
         var scoreEl = document.getElementById('integrityScore');
         var postureEl = document.getElementById('integrityPosture');
+        var deltaEl = document.getElementById('integrityDelta');
 
         if (!integrity) {
-            scoreEl.textContent = '—';
-            postureEl.textContent = '—';
+            scoreEl.textContent = '\u2014';
+            postureEl.textContent = '\u2014';
+            deltaEl.textContent = '';
             return;
         }
 
         var score = integrity.score;
         var posture = integrity.posture || 'NOMINAL';
 
-        // Animate score count-up
+        // Animate score count-up with scale pop
         var oldScore = lastIntegrityScore !== null ? lastIntegrityScore : 0;
         if (lastIntegrityScore !== Math.round(score)) {
             animateValue(scoreEl, oldScore, Math.round(score), 600);
+            scoreEl.classList.add('score-pop');
+            setTimeout(function() { scoreEl.classList.remove('score-pop'); }, 350);
         }
         lastIntegrityScore = Math.round(score);
 
         scoreEl.className = 'ops-integrity-score-big ' + posture;
+
+        // Delta indicator
+        if (integrityHistoryData.length >= 2) {
+            var oldest = integrityHistoryData[0];
+            var delta = score - oldest.score;
+            var sign = delta >= 0 ? '+' : '';
+            deltaEl.textContent = sign + delta.toFixed(1);
+            deltaEl.className = 'ops-integrity-delta ' + (delta > 0.5 ? 'positive' : delta < -0.5 ? 'negative' : 'neutral');
+        } else {
+            deltaEl.textContent = '';
+        }
+
+        // Score buffer for mini sparkline
+        scoreBuffer.push(Math.round(score));
+        if (scoreBuffer.length > MAX_SCORE_BUFFER) scoreBuffer.shift();
+        var miniChart = getChart('integrityMiniSpark');
+        if (miniChart && scoreBuffer.length > 2) {
+            // Downsample for display (max 60 points)
+            var ds = scoreBuffer.length > 60
+                ? scoreBuffer.filter(function(_, i) { return i % Math.ceil(scoreBuffer.length / 60) === 0; })
+                : scoreBuffer;
+            var opt = buildMiniSparkline(ds);
+            if (opt) miniChart.setOption(opt, true);
+        }
+
         postureEl.textContent = posture;
         postureEl.className = 'ops-integrity-posture-label ' + posture;
 
@@ -1028,25 +1554,30 @@
         var gauge = getChart('integrityGauge');
         if (gauge) gauge.setOption(buildIntegrityGauge(score, posture));
 
-        // Components
+        // Components with progress bars
         var c = integrity.components || {};
         if (c.engine_health) {
             document.getElementById('icEngines').textContent = c.engine_health.ok_count + '/' + c.engine_health.total;
+            var enginePct = c.engine_health.total > 0 ? (c.engine_health.ok_count / c.engine_health.total * 100) : 100;
+            updateComponentBar('icEnginesBar', enginePct);
         }
         if (c.anomaly_severity) {
             document.getElementById('icAnomaly').textContent = '-' + c.anomaly_severity.penalty;
             var ae = document.getElementById('icAnomaly');
-            if (c.anomaly_severity.penalty > 10) ae.classList.add('error');
-            else ae.classList.remove('error');
+            ae.className = 'ops-integrity-comp-value' + (c.anomaly_severity.penalty > 10 ? ' error' : '');
+            updateComponentBar('icAnomalyBar', Math.max(0, (50 - c.anomaly_severity.penalty) / 50 * 100));
         }
         if (c.error_spike) {
             document.getElementById('icErrors').textContent = (c.error_spike.error_rate * 100).toFixed(1) + '%';
+            updateComponentBar('icErrorsBar', (1 - c.error_spike.error_rate) * 100);
         }
         if (c.suppression_rate) {
             document.getElementById('icSuppress').textContent = (c.suppression_rate.rate * 100).toFixed(0) + '%';
+            updateComponentBar('icSuppressBar', Math.max(0, (1 - c.suppression_rate.rate * 2)) * 100);
         }
         if (c.confidence_volatility) {
             document.getElementById('icVolatility').textContent = c.confidence_volatility.stddev.toFixed(2);
+            updateComponentBar('icVolatilityBar', Math.max(0, (1 - c.confidence_volatility.stddev / 0.5)) * 100);
         }
     }
 
@@ -1081,6 +1612,31 @@
     }
 
     /* =====================================================================
+       Phase 2: Anomaly Tracking + Macro Charts
+       ===================================================================== */
+    function trackAnomalies(anomalies) {
+        var counts = { P1: 0, P2: 0, P3: 0 };
+        anomalies.forEach(function(a) { counts[a.severity] = (counts[a.severity] || 0) + 1; });
+        anomalyHistory.push({ time: Date.now(), p1: counts.P1, p2: counts.P2, p3: counts.P3 });
+        if (anomalyHistory.length > MAX_ANOMALY_HISTORY) anomalyHistory.shift();
+    }
+
+    function renderMacroCharts(cards) {
+        // Anomaly trend
+        var anomalyChart = getChart('anomalyTrendChart');
+        if (anomalyChart && anomalyHistory.length >= 2) {
+            var opt = buildAnomalyTrendChart(anomalyHistory);
+            if (opt) anomalyChart.setOption(opt, true);
+        }
+
+        // Engine health distribution
+        var healthChart = getChart('healthDistChart');
+        if (healthChart && cards.length > 0) {
+            healthChart.setOption(buildHealthDistChart(cards));
+        }
+    }
+
+    /* =====================================================================
        Engine Cards — Smart Update (avoid full rebuild each poll)
        ===================================================================== */
     var currentEngineList = [];
@@ -1088,21 +1644,31 @@
     function renderEngineCards(cards) {
         var container = document.getElementById('engineCards');
         var newNames = cards.map(function(c) { return c.name; }).sort().join(',');
-        var oldNames = currentEngineList.sort().join(',');
+        var oldNames = currentEngineList.slice().sort().join(',');
 
         if (newNames !== oldNames || container.children.length === 0 ||
             (container.children.length === 1 && !container.querySelector('[data-engine]'))) {
-            // Full rebuild needed
             rebuildEngineCards(container, cards);
             currentEngineList = cards.map(function(c) { return c.name; });
         } else {
-            // In-place update
             updateEngineCardsInPlace(cards);
         }
     }
 
+    function computeEngineMetrics(sparkline) {
+        if (!sparkline || sparkline.length === 0) return { runs: 0, avg: 0, vol: '0.00' };
+        var sum = sparkline.reduce(function(a, b) { return a + b; }, 0);
+        var avg = sum / sparkline.length;
+        var stddev = 0;
+        if (sparkline.length > 1) {
+            var variance = sparkline.reduce(function(a, b) { return a + Math.pow(b - avg, 2); }, 0) / sparkline.length;
+            stddev = Math.sqrt(variance);
+        }
+        var cv = avg > 0 ? (stddev / avg) : 0;
+        return { runs: sparkline.length, avg: Math.round(avg), vol: cv.toFixed(2) };
+    }
+
     function rebuildEngineCards(container, cards) {
-        // Dispose old engine charts
         currentEngineList.forEach(function(name) {
             disposeChart('trend-' + name);
             disposeChart('cadence-chart-' + name);
@@ -1112,12 +1678,13 @@
         cards.forEach(function(c) {
             var meta = ENGINE_META[c.name] || { category: 'Other', catClass: 'cat-system' };
             var ago = c.last_run_at ? formatAgo(c.last_run_at) : 'never';
-            var nextAt = c.next_expected_at ? formatTime(c.next_expected_at) : '—';
+            var nextAt = c.next_expected_at ? formatTime(c.next_expected_at) : '\u2014';
             var missClass = c.miss_count_30m > 0 ? ' error' : '';
             var errClass = c.error_count_24h > 0 ? ' error' : '';
+            var metrics = computeEngineMetrics(c.sparkline);
 
             var card = document.createElement('div');
-            card.className = 'ops-glass ops-engine-card status-' + c.status;
+            card.className = 'ops-glass ops-engine-card status-' + c.status + ' ' + meta.catClass;
             card.dataset.engine = c.name;
 
             card.innerHTML =
@@ -1127,6 +1694,15 @@
                 '    <span class="ops-engine-category ' + meta.catClass + '">' + meta.category + '</span>' +
                 '  </div>' +
                 '  <span class="ops-engine-status ' + c.status + '">' + c.status + '</span>' +
+                '</div>' +
+                '<div class="ops-engine-metrics" data-field="metrics">' +
+                    metrics.runs + ' runs' +
+                    '<span class="ops-dot">\u00B7</span>' +
+                    metrics.avg + 'ms avg' +
+                    '<span class="ops-dot">\u00B7</span>' +
+                    'P95 ' + c.duration_p95_1h + 'ms' +
+                    '<span class="ops-dot">\u00B7</span>' +
+                    '\u03C3 ' + metrics.vol +
                 '</div>' +
                 '<div class="ops-engine-chart" id="trend-' + c.name + '"></div>' +
                 '<div class="ops-engine-stats">' +
@@ -1155,8 +1731,8 @@
 
             container.appendChild(card);
 
-            // Initialize trend chart
             previousStatuses[c.name] = c.status;
+            previousLastRuns[c.name] = c.last_run_at;
             requestAnimationFrame(function() {
                 var chart = getChart('trend-' + c.name);
                 if (chart) {
@@ -1166,7 +1742,6 @@
             });
         });
 
-        // Fetch cadence data for the new cards
         fetchCadenceTimelines();
     }
 
@@ -1174,6 +1749,8 @@
         cards.forEach(function(c) {
             var card = document.querySelector('[data-engine="' + c.name + '"]');
             if (!card) return;
+
+            var meta = ENGINE_META[c.name] || { category: 'Other', catClass: 'cat-system' };
 
             // Detect status change for glow animation
             var prevStatus = previousStatuses[c.name];
@@ -1183,15 +1760,36 @@
             }
             previousStatuses[c.name] = c.status;
 
-            // Update status class
-            card.className = card.className.replace(/status-\S+/g, '').trim();
-            card.classList.add('ops-glass', 'ops-engine-card', 'status-' + c.status);
+            // Detect new run for glow sweep
+            var prevLastRun = previousLastRuns[c.name];
+            if (prevLastRun && c.last_run_at && prevLastRun !== c.last_run_at) {
+                card.classList.add('fresh-run');
+                setTimeout(function() { card.classList.remove('fresh-run'); }, 800);
+            }
+            previousLastRuns[c.name] = c.last_run_at;
+
+            // Update class (preserve cat class)
+            card.className = 'ops-glass ops-engine-card status-' + c.status + ' ' + meta.catClass;
 
             // Update status badge
             var statusEl = card.querySelector('.ops-engine-status');
             if (statusEl) {
                 statusEl.className = 'ops-engine-status ' + c.status;
                 statusEl.textContent = c.status;
+            }
+
+            // Update metrics strip
+            var metricsEl = card.querySelector('[data-field="metrics"]');
+            if (metricsEl) {
+                var metrics = computeEngineMetrics(c.sparkline);
+                metricsEl.innerHTML =
+                    metrics.runs + ' runs' +
+                    '<span class="ops-dot">\u00B7</span>' +
+                    metrics.avg + 'ms avg' +
+                    '<span class="ops-dot">\u00B7</span>' +
+                    'P95 ' + c.duration_p95_1h + 'ms' +
+                    '<span class="ops-dot">\u00B7</span>' +
+                    '\u03C3 ' + metrics.vol;
             }
 
             // Update stats
@@ -1209,7 +1807,7 @@
             if (cadence) cadence.textContent = c.cadence;
             if (p95) p95.textContent = c.duration_p95_1h + 'ms';
             if (lastSpan) lastSpan.textContent = 'Last: ' + (c.last_run_at ? formatAgo(c.last_run_at) : 'never');
-            if (nextSpan) nextSpan.textContent = 'Next: ' + (c.next_expected_at ? formatTime(c.next_expected_at) : '—');
+            if (nextSpan) nextSpan.textContent = 'Next: ' + (c.next_expected_at ? formatTime(c.next_expected_at) : '\u2014');
 
             // Update trend chart
             var trendChart = getChart('trend-' + c.name);
@@ -1240,20 +1838,37 @@
     }
 
     /* =====================================================================
-       Watchlist
+       Watchlist — Enhanced with slide-in, severity icons, glow
        ===================================================================== */
     function renderWatchlist(anomalies) {
         var container = document.getElementById('watchlistPanel');
-        container.innerHTML = '';
+        var newIds = anomalies.map(function(a) { return a.id; });
 
-        if (anomalies.length === 0) {
-            container.innerHTML = '<div class="ops-no-anomalies">No anomalies detected</div>';
+        // Skip rebuild if same set
+        if (newIds.join(',') === previousAnomalyIds.join(',') && anomalies.length > 0) {
             return;
         }
 
-        anomalies.forEach(function(a) {
+        container.innerHTML = '';
+
+        if (anomalies.length === 0) {
+            container.innerHTML =
+                '<div class="ops-watchlist-empty">' +
+                '  <div class="ops-watchlist-empty-icon">&#10003;</div>' +
+                '  <div>All clear \u2014 no anomalies</div>' +
+                '</div>';
+            previousAnomalyIds = [];
+            return;
+        }
+
+        anomalies.forEach(function(a, i) {
+            var isNew = previousAnomalyIds.indexOf(a.id) === -1;
             var card = document.createElement('div');
             card.className = 'ops-glass ops-anomaly-card ' + a.severity;
+            if (isNew) {
+                card.classList.add('anomaly-enter');
+                card.style.animationDelay = (i * 50) + 'ms';
+            }
 
             var actionsHtml = '';
             (a.suggested_actions || []).forEach(function(act) {
@@ -1269,10 +1884,13 @@
                     escapeHtml(a.original_severity) + '\u2192' + escapeHtml(a.severity) + '</span>';
             }
 
+            var icon = SEVERITY_ICONS[a.severity] || '\u25CF';
+
             card.innerHTML =
                 '<div class="ops-anomaly-header">' +
                 '  <span class="ops-anomaly-severity ' + a.severity + '">' +
-                       a.severity + ' | ' + escapeHtml(a.engine_name || 'SYSTEM') + escBadge +
+                '    <span class="ops-severity-icon ' + a.severity + '">' + icon + '</span>' +
+                '    ' + a.severity + ' | ' + escapeHtml(a.engine_name || 'SYSTEM') + escBadge +
                 '  </span>' +
                 '  <span class="ops-anomaly-when">' + escapeHtml(a.first_detected || '') + '</span>' +
                 '</div>' +
@@ -1281,6 +1899,8 @@
 
             container.appendChild(card);
         });
+
+        previousAnomalyIds = newIds;
     }
 
     /* =====================================================================
@@ -1350,6 +1970,10 @@
     /* =====================================================================
        Event Handlers
        ===================================================================== */
+    document.getElementById('wallModeBtn').addEventListener('click', function() {
+        toggleWallMode();
+    });
+
     document.getElementById('togglePoll').addEventListener('click', function() {
         if (pollInterval) {
             stopAllPolling();
@@ -1395,6 +2019,14 @@
         executeAction(btn.dataset.action, btn.dataset.engine || '', btn);
     });
 
+    // Wall Mode keyboard shortcut (W key)
+    document.addEventListener('keydown', function(e) {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+        if ((e.key === 'w' || e.key === 'W') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            toggleWallMode();
+        }
+    });
+
     // Resize all charts on window resize
     var resizeTimeout;
     window.addEventListener('resize', function() {
@@ -1416,10 +2048,10 @@
     }
 
     function formatTime(isoStr) {
-        if (!isoStr) return '—';
+        if (!isoStr) return '\u2014';
         try {
             return new Date(isoStr).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
-        } catch(e) { return '—'; }
+        } catch(e) { return '\u2014'; }
     }
 
     function escapeHtml(text) {

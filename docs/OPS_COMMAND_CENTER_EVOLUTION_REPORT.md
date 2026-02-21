@@ -17,6 +17,8 @@ The Vegas Ops Wall has been evolved from a monitoring dashboard into a productio
 
 **Iteration 3 (Phase 11):** Visual architecture — enterprise-grade UI redesign with Apache ECharts, glass-morphism, smart DOM patching.
 
+**Iteration 4 (Phase V2):** Final visual upgrade — dominant integrity hero, macro system charts, engine card enhancements, watchlist drama, wall mode, micro-animations, visual polish.
+
 **106 total tests. 3 new migrations. 2 new dependencies. 0 regressions.**
 
 ---
@@ -502,6 +504,97 @@ python manage.py shell -c "from apps.core.jobs import run_same_cycle; run_same_c
 | `docs/project.md` | Added phase 11 |
 | `docs/wlj_claude_changelog.md` | Changelog entry |
 
+### Iteration 4 (Phase V2)
+
+| File | Changes |
+|------|---------|
+| `templates/admin_console/operations_wall.html` | Phase V2 final visual upgrade (819 insertions, 183 deletions) |
+| `docs/project.md` | Added Phase V2 tracking |
+| `docs/wlj_claude_changelog.md` | Changelog entry |
+| `docs/OPS_COMMAND_CENTER_EVOLUTION_REPORT.md` | Added Iteration 4 documentation |
+
 ---
 
-*Generated: 2026-02-21 (updated with v3 visual redesign)*
+## Iteration 4 — Final Visual Upgrade (Phase V2)
+
+### Phase V2 — 7 Sub-Phases
+
+**Problem:** Backend intelligence (SAME pipeline, integrity index, escalation, remediation) was powerful. The v3 UI was good but not elite. Needed conference-demo quality.
+
+**Solution:** 7 sub-phases of visual refinement. Zero backend changes.
+
+#### V2.1 — Redesign System Integrity Hero
+
+| Element | Before | After |
+|---------|--------|-------|
+| Score font | 4rem (64px) | 4.5rem (72px), weight 800 |
+| Delta indicator | None | +1.2 / -0.5 vs historical baseline |
+| Mini sparkline | None | 140×28px rolling score buffer under score |
+| Component bars | Text-only values | Animated progress bars with color thresholds |
+| Hero padding | 24px 28px | 16px 24px (30% reduction) |
+| Gauge glow | None | Posture-colored shadowBlur on arc |
+
+#### V2.2 — Macro System Chart Row
+
+| Chart | Type | Data Source |
+|-------|------|-------------|
+| Anomaly Trend | Stacked area (P1 red, P2 amber, P3 blue) | Rolling buffer from poll anomaly counts |
+| Engine Health | Stacked horizontal bar by category | Computed from engine_cards per poll |
+
+#### V2.3 — Engine Card Enhancements
+
+| Enhancement | Detail |
+|-------------|--------|
+| Metrics strip | "6 runs · 42ms avg · P95 85ms · σ 0.12" under title |
+| Phase colors | Interpret=blue, Execute=amber, Post-Exec=purple, System=teal |
+| Top accent bar | 2px colored bar matching phase (::after pseudo-element) |
+| Chart height | Trend: 48→56px (+17%), Cadence: 36→42px (+17%) |
+| Fresh-run glow | Inset green glow sweep animation (0.8s) |
+| Padding | 16px 18px → 12px 14px |
+
+#### V2.4 — Watchlist Drama
+
+| State | Effect |
+|-------|--------|
+| Empty | Animated ambient gradient (8s cycle) + radial glow pulse (4s) |
+| New anomaly | Slide-in from left (0.35s, staggered 50ms) |
+| Severity icons | P1=▲ triangle, P2=◆ diamond, P3=● circle |
+| P1 cards | Subtle red box-shadow glow |
+| P2 cards | Subtle amber box-shadow glow |
+
+#### V2.5 — Wall Mode
+
+| Feature | Detail |
+|---------|--------|
+| Toggle | "Wall" button or W key |
+| Hides | Sidebar, top nav, bottom tabs, assistant panel |
+| Increases | Chart heights, engine grid density (4-col at 1600px+) |
+| Reduces | All margins and padding |
+| Clock | Digital clock top-right (HH:MM:SS) |
+| Persistence | localStorage (`ops-wall-mode`) |
+| Reload | None required — instant toggle |
+
+#### V2.6 — Micro-Animations
+
+| Animation | Trigger | Duration |
+|-----------|---------|----------|
+| Score pop | Integrity score changes | scale(1.06), 350ms |
+| Fresh-run glow | New engine run detected | inset box-shadow, 800ms |
+| Status glow | Engine status changes | box-shadow, 1200ms |
+| Anomaly slide-in | New watchlist entry | translateX, 350ms |
+| Page entrance | Initial load | translateY staggered, 450ms |
+
+#### V2.7 — Visual Polish
+
+| Element | Change |
+|---------|--------|
+| Glass blur | 16px → 20px |
+| Top border | Added rgba(255,255,255,0.1) highlight |
+| Key metrics | #e5e7eb → #f1f5f9 (brighter) |
+| Dim text | #6b7280 → #7c8594 (warmer) |
+| Section spacing | Standardized to 14px |
+| Feed lines | Reduced min-height 30→28px |
+
+---
+
+*Generated: 2026-02-21 (updated with Phase V2 final visual upgrade)*

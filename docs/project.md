@@ -21,6 +21,7 @@
 | 9 | Celery + Redis: Hardening + DB lock tests | **Complete** | None | 4 tests |
 | 10 | Celery + Redis: Railway deployment docs | **Complete** | None | 2 tests |
 | 11 | UI v3: Enterprise Visual Redesign | **Complete** | None | 0 (frontend-only) |
+| V2 | Final Visual Upgrade (7 sub-phases) | **Complete** | None | 0 (frontend-only) |
 
 ---
 
@@ -271,6 +272,28 @@
 | R-4 | Autonomous remediation could mask real failures | Restricted to P3/system-only engines, max 3/cycle, 30min cooldown, full audit trail via AdminIntervention |
 | R-5 | Celery Beat must be single instance | Running multiple Beat processes would duplicate scheduled tasks. Railway should run exactly one Beat service |
 | R-6 | Redis availability required for SAME | If Redis is down, Celery cannot deliver tasks. DB lock prevents stale state but SAME won't run until Redis recovers |
+
+---
+
+## Phase V2 — Final Visual Upgrade
+
+**Objective:** Elevate Ops Wall from 8/10 to 10/10 visual quality. Conference-demo ready.
+
+**Sub-phases:**
+
+| # | Sub-phase | Status |
+|---|-----------|--------|
+| V2.1 | Redesign System Integrity Hero (dominant score, delta, mini sparkline, progress bars) | Complete |
+| V2.2 | Add Macro System Chart Row (anomaly trend + health distribution) | Complete |
+| V2.3 | Engine Card Enhancements (metrics strip, phase colors, top accent, 15% taller charts) | Complete |
+| V2.4 | Watchlist Drama (ambient empty state, slide-in, severity icons, glow) | Complete |
+| V2.5 | Wall Mode (toggle, hide nav, clock, density, localStorage persistence) | Complete |
+| V2.6 | Micro-Animations (score pop, glow sweep, fade-in, 200-400ms easing) | Complete |
+| V2.7 | Visual Polish (glassmorphism refinement, typography hierarchy, contrast, spacing) | Complete |
+
+**Files Modified:** `templates/admin_console/operations_wall.html` (819 insertions, 183 deletions)
+**Backend Impact:** Zero — no models, views, URLs, SAME, Celery, or API changes
+**Tests:** 173 tests pass, 0 regressions
 
 ---
 

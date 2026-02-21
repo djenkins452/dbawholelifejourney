@@ -20,6 +20,7 @@
 | 8 | Celery + Redis: SAME task + Beat schedule | **Complete** | None | 4 tests |
 | 9 | Celery + Redis: Hardening + DB lock tests | **Complete** | None | 4 tests |
 | 10 | Celery + Redis: Railway deployment docs | **Complete** | None | 2 tests |
+| 11 | UI v3: Enterprise Visual Redesign | **Complete** | None | 0 (frontend-only) |
 
 ---
 

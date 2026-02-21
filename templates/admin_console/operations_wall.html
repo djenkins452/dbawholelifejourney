@@ -1,313 +1,387 @@
 {% extends "base.html" %}
-{% block title %}Vegas Ops Wall - Intelligence Command Center{% endblock %}
+{% block title %}Ops Command Center — Intelligence OS{% endblock %}
 
 {% block content %}
 <style nonce="{{ csp_nonce }}">
 /* =========================================================================
-   Vegas Ops Wall v2 — Dark Operations Theme
-   Bloomberg + SOC + NASA Telemetry
+   Ops Command Center v3 — Enterprise Intelligence OS
+   Inspired by Bloomberg Terminal, SOC dashboards, NASA telemetry
    ========================================================================= */
+
+/* ---- Root Variables ---- */
 .ops-wall {
-    --ops-bg: #0a0e1a;
-    --ops-surface: #111827;
-    --ops-surface-alt: #1f2937;
-    --ops-surface-hover: #283044;
-    --ops-border: #374151;
-    --ops-border-light: #1f2937;
+    --ops-bg-start: #0B1020;
+    --ops-bg-end: #0E1428;
+    --ops-surface: rgba(17, 24, 42, 0.65);
+    --ops-surface-solid: #111827;
+    --ops-surface-alt: rgba(31, 41, 63, 0.5);
+    --ops-surface-hover: rgba(40, 48, 68, 0.8);
+    --ops-glass-border: rgba(255, 255, 255, 0.07);
+    --ops-glass-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+    --ops-glass-shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.35);
+    --ops-border: rgba(55, 65, 81, 0.5);
     --ops-text: #e5e7eb;
     --ops-text-muted: #9ca3af;
     --ops-text-dim: #6b7280;
     --ops-green: #10b981;
-    --ops-green-dim: rgba(16,185,129,0.15);
+    --ops-green-dim: rgba(16, 185, 129, 0.12);
     --ops-yellow: #f59e0b;
-    --ops-yellow-dim: rgba(245,158,11,0.15);
+    --ops-yellow-dim: rgba(245, 158, 11, 0.12);
     --ops-red: #ef4444;
-    --ops-red-dim: rgba(239,68,68,0.15);
+    --ops-red-dim: rgba(239, 68, 68, 0.12);
     --ops-blue: #3b82f6;
-    --ops-blue-dim: rgba(59,130,246,0.12);
+    --ops-blue-dim: rgba(59, 130, 246, 0.10);
     --ops-purple: #8b5cf6;
+    --ops-purple-dim: rgba(139, 92, 246, 0.12);
     --ops-cyan: #06b6d4;
+    --ops-cyan-dim: rgba(6, 182, 212, 0.12);
+    --ops-amber: #f59e0b;
+    --ops-slate: #64748b;
+    --ops-radius: 10px;
+    --ops-radius-sm: 6px;
+    --ops-transition: 0.2s ease;
 
-    background: var(--ops-bg);
+    background: linear-gradient(165deg, var(--ops-bg-start) 0%, var(--ops-bg-end) 100%);
     color: var(--ops-text);
     min-height: 100vh;
-    padding: 16px 20px;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    padding: 20px 24px 32px;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* ---- Glass Card Mixin ---- */
+.ops-glass {
+    background: var(--ops-surface);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--ops-glass-border);
+    border-radius: var(--ops-radius);
+    box-shadow: var(--ops-glass-shadow);
+}
+
+/* ---- Page Load Animation ---- */
+.ops-wall > .ops-section {
+    opacity: 0;
+    transform: translateY(12px);
+    animation: opsEnter 0.5s ease-out forwards;
+}
+.ops-wall > .ops-section:nth-child(1) { animation-delay: 0.05s; }
+.ops-wall > .ops-section:nth-child(2) { animation-delay: 0.10s; }
+.ops-wall > .ops-section:nth-child(3) { animation-delay: 0.15s; }
+.ops-wall > .ops-section:nth-child(4) { animation-delay: 0.20s; }
+.ops-wall > .ops-section:nth-child(5) { animation-delay: 0.25s; }
+.ops-wall > .ops-section:nth-child(6) { animation-delay: 0.30s; }
+@keyframes opsEnter {
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* ---- System Integrity Hero ---- */
+.ops-integrity-hero {
+    display: grid;
+    grid-template-columns: 200px 1fr 280px;
+    gap: 28px;
+    align-items: center;
+    padding: 24px 28px;
+    margin-bottom: 20px;
+}
+.ops-integrity-gauge-wrap {
+    width: 200px;
+    height: 200px;
+    position: relative;
+}
+.ops-integrity-center {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+.ops-integrity-label {
+    font-size: 0.625rem;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--ops-text-dim);
+    font-weight: 600;
+}
+.ops-integrity-score-big {
+    font-size: 4rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    transition: color 0.4s ease;
+}
+.ops-integrity-score-big.OPTIMAL { color: var(--ops-green); }
+.ops-integrity-score-big.NOMINAL { color: var(--ops-blue); }
+.ops-integrity-score-big.DEGRADED { color: var(--ops-yellow); }
+.ops-integrity-score-big.CRITICAL { color: var(--ops-red); }
+
+.ops-integrity-posture-label {
+    font-size: 0.8125rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 4px 12px;
+    border-radius: 4px;
+    display: inline-block;
+    width: fit-content;
+}
+.ops-integrity-posture-label.OPTIMAL { color: var(--ops-green); background: var(--ops-green-dim); }
+.ops-integrity-posture-label.NOMINAL { color: var(--ops-blue); background: var(--ops-blue-dim); }
+.ops-integrity-posture-label.DEGRADED { color: var(--ops-yellow); background: var(--ops-yellow-dim); }
+.ops-integrity-posture-label.CRITICAL { color: var(--ops-red); background: var(--ops-red-dim); }
+
+.ops-integrity-components {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+    margin-top: 4px;
+}
+.ops-integrity-comp {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.ops-integrity-comp-label {
+    font-size: 0.5625rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ops-text-dim);
+}
+.ops-integrity-comp-value {
+    font-size: 0.875rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--ops-text);
+}
+
+.ops-integrity-trend-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.ops-integrity-trend-chart {
+    width: 100%;
+    height: 100px;
 }
 
 /* ---- Posture Banner ---- */
 .ops-posture {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 10px 20px;
-    border-radius: 8px;
-    margin-bottom: 16px;
+    gap: 14px;
+    padding: 12px 22px;
+    margin-bottom: 20px;
     font-size: 0.875rem;
-    border: 1px solid var(--ops-border);
-    background: var(--ops-surface);
+    transition: all 0.3s ease;
 }
-.ops-posture.OK { border-color: var(--ops-green); background: var(--ops-green-dim); }
-.ops-posture.DEGRADED { border-color: var(--ops-yellow); background: var(--ops-yellow-dim); }
-.ops-posture.AT_RISK { border-color: var(--ops-red); background: var(--ops-red-dim); animation: pulse-risk 2s infinite; }
-@keyframes pulse-risk { 0%,100% { opacity: 1; } 50% { opacity: 0.85; } }
+.ops-posture.OK { border-color: rgba(16,185,129,0.3); background: rgba(16,185,129,0.06); }
+.ops-posture.DEGRADED { border-color: rgba(245,158,11,0.3); background: rgba(245,158,11,0.06); }
+.ops-posture.AT_RISK { border-color: rgba(239,68,68,0.3); background: rgba(239,68,68,0.06); animation: pulseRisk 2s infinite; }
+@keyframes pulseRisk { 0%,100% { opacity: 1; } 50% { opacity: 0.8; } }
 
 .ops-posture-dot {
     width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+    transition: all 0.3s ease;
 }
-.ops-posture-dot.OK { background: var(--ops-green); box-shadow: 0 0 8px var(--ops-green); }
-.ops-posture-dot.DEGRADED { background: var(--ops-yellow); box-shadow: 0 0 8px var(--ops-yellow); }
-.ops-posture-dot.AT_RISK { background: var(--ops-red); box-shadow: 0 0 8px var(--ops-red); }
-
+.ops-posture-dot.OK { background: var(--ops-green); box-shadow: 0 0 10px var(--ops-green); }
+.ops-posture-dot.DEGRADED { background: var(--ops-yellow); box-shadow: 0 0 10px var(--ops-yellow); }
+.ops-posture-dot.AT_RISK { background: var(--ops-red); box-shadow: 0 0 10px var(--ops-red); }
 .ops-posture-text { flex: 1; font-weight: 500; }
+.ops-posture-meta { font-size: 0.6875rem; color: var(--ops-text-dim); }
 
 /* ---- SAME Narration Bar ---- */
 .ops-narration {
-    background: var(--ops-surface);
-    border: 1px solid var(--ops-border);
-    border-radius: 8px;
-    padding: 16px 20px;
-    margin-bottom: 16px;
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
-    gap: 20px;
+    gap: 24px;
+    padding: 20px 24px;
+    margin-bottom: 20px;
 }
 .ops-narration-section h3 {
     font-size: 0.625rem;
     text-transform: uppercase;
-    letter-spacing: 0.12em;
+    letter-spacing: 0.14em;
     color: var(--ops-text-dim);
-    margin: 0 0 8px;
+    margin: 0 0 10px;
     font-weight: 600;
 }
 .ops-narration-list {
     list-style: none; margin: 0; padding: 0;
-    font-size: 0.8125rem; line-height: 1.6;
+    font-size: 0.8125rem; line-height: 1.7;
     color: var(--ops-text-muted);
 }
-.ops-narration-list li { padding-left: 12px; position: relative; }
+.ops-narration-list li {
+    padding-left: 14px; position: relative;
+    transition: color 0.2s;
+}
+.ops-narration-list li:hover { color: var(--ops-text); }
 .ops-narration-list li::before {
-    content: ''; position: absolute; left: 0; top: 9px;
+    content: ''; position: absolute; left: 0; top: 10px;
     width: 4px; height: 4px; border-radius: 50%;
     background: var(--ops-text-dim);
 }
 .ops-narration-list.recs li::before { background: var(--ops-cyan); }
 .ops-narration-list.watching li::before { background: var(--ops-purple); }
 
-/* ---- System Integrity Index Tile ---- */
-.ops-integrity {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    background: var(--ops-surface);
-    border: 1px solid var(--ops-border);
-    border-radius: 8px;
-    padding: 12px 20px;
-    margin-bottom: 16px;
-}
-.ops-integrity-score {
-    font-size: 2rem;
-    font-weight: 800;
-    font-variant-numeric: tabular-nums;
-    line-height: 1;
-    min-width: 72px;
-    text-align: center;
-}
-.ops-integrity-score.OPTIMAL { color: var(--ops-green); }
-.ops-integrity-score.NOMINAL { color: var(--ops-blue); }
-.ops-integrity-score.DEGRADED { color: var(--ops-yellow); }
-.ops-integrity-score.CRITICAL { color: var(--ops-red); }
-.ops-integrity-label {
-    font-size: 0.625rem;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    color: var(--ops-text-dim);
+/* ---- Section Headers ---- */
+.ops-section-header {
+    font-size: 0.625rem; text-transform: uppercase;
+    letter-spacing: 0.14em; color: var(--ops-text-dim);
     font-weight: 600;
-}
-.ops-integrity-posture {
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-}
-.ops-integrity-posture.OPTIMAL { color: var(--ops-green); }
-.ops-integrity-posture.NOMINAL { color: var(--ops-blue); }
-.ops-integrity-posture.DEGRADED { color: var(--ops-yellow); }
-.ops-integrity-posture.CRITICAL { color: var(--ops-red); }
-.ops-integrity-breakdown {
-    flex: 1;
-    display: flex;
-    gap: 16px;
-    font-size: 0.6875rem;
-    color: var(--ops-text-dim);
-}
-.ops-integrity-component {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-.ops-integrity-component-value {
-    font-weight: 600;
-    color: var(--ops-text-muted);
-    font-variant-numeric: tabular-nums;
 }
 
 /* ---- Top Bar ---- */
 .ops-topbar {
     display: flex; justify-content: space-between; align-items: center;
-    margin-bottom: 16px; flex-wrap: wrap; gap: 8px;
+    margin-bottom: 20px; flex-wrap: wrap; gap: 10px;
 }
-.ops-topbar-left { display: flex; align-items: center; gap: 12px; }
+.ops-topbar-left { display: flex; align-items: center; gap: 14px; }
 .ops-topbar-title {
-    font-size: 1rem; font-weight: 700; letter-spacing: 0.05em;
+    font-size: 0.9375rem; font-weight: 700; letter-spacing: 0.06em;
     text-transform: uppercase; color: var(--ops-text-muted);
 }
-.ops-topbar-meta { font-size: 0.6875rem; color: var(--ops-text-dim); }
-.ops-topbar-actions { display: flex; gap: 6px; }
+.ops-topbar-actions { display: flex; gap: 8px; }
 .ops-btn {
-    padding: 6px 14px; border-radius: 6px;
+    padding: 7px 16px; border-radius: var(--ops-radius-sm);
     border: 1px solid var(--ops-border); background: var(--ops-surface);
     color: var(--ops-text-muted); cursor: pointer;
     font-size: 0.75rem; min-height: 36px;
-    transition: all 0.15s; text-decoration: none;
+    transition: all var(--ops-transition); text-decoration: none;
     display: inline-flex; align-items: center;
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
 }
-.ops-btn:hover { background: var(--ops-surface-hover); color: var(--ops-text); }
+.ops-btn:hover { background: var(--ops-surface-hover); color: var(--ops-text); border-color: rgba(255,255,255,0.12); }
 .ops-btn.active { background: var(--ops-green); border-color: var(--ops-green); color: #fff; }
 
 /* ---- Main Layout ---- */
 .ops-main {
     display: grid;
-    grid-template-columns: 1fr 300px;
-    gap: 16px;
+    grid-template-columns: 1fr 320px;
+    gap: 20px;
+    margin-bottom: 24px;
 }
 
 /* ---- Engine Cards Grid ---- */
 .ops-engines-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
 }
 .ops-engine-card {
-    background: var(--ops-surface);
-    border: 1px solid var(--ops-border);
-    border-radius: 8px;
-    padding: 14px 16px;
+    padding: 16px 18px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    transition: border-color 0.15s;
+    gap: 12px;
+    transition: all 0.25s ease;
     cursor: pointer;
+    position: relative;
+    overflow: hidden;
 }
-.ops-engine-card:hover { border-color: var(--ops-blue); }
-.ops-engine-card.status-OK { border-left: 3px solid var(--ops-green); }
-.ops-engine-card.status-DEGRADED { border-left: 3px solid var(--ops-yellow); }
-.ops-engine-card.status-MISSED { border-left: 3px solid var(--ops-red); animation: pulse-card 2s infinite; }
-.ops-engine-card.status-ERROR { border-left: 3px solid var(--ops-red); }
-@keyframes pulse-card { 0%,100% { border-left-color: var(--ops-red); } 50% { border-left-color: rgba(239,68,68,0.4); } }
+.ops-engine-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 3px; height: 100%;
+    border-radius: 3px 0 0 3px;
+    transition: background 0.3s;
+}
+.ops-engine-card:hover {
+    border-color: rgba(255,255,255,0.12);
+    transform: translateY(-1px);
+    box-shadow: var(--ops-glass-shadow-lg);
+}
+.ops-engine-card.status-OK::before { background: var(--ops-green); }
+.ops-engine-card.status-DEGRADED::before { background: var(--ops-yellow); }
+.ops-engine-card.status-MISSED::before { background: var(--ops-red); }
+.ops-engine-card.status-ERROR::before { background: var(--ops-red); }
+.ops-engine-card.status-MISSED { animation: pulseCard 2s infinite; }
+@keyframes pulseCard {
+    0%,100% { box-shadow: var(--ops-glass-shadow); }
+    50% { box-shadow: 0 0 20px rgba(239,68,68,0.15); }
+}
+
+/* Engine card glow on status change */
+.ops-engine-card.status-changed {
+    animation: statusGlow 1.2s ease-out;
+}
+@keyframes statusGlow {
+    0% { box-shadow: 0 0 24px rgba(59,130,246,0.4); }
+    100% { box-shadow: var(--ops-glass-shadow); }
+}
 
 .ops-engine-header { display: flex; justify-content: space-between; align-items: center; }
+.ops-engine-name-wrap { display: flex; align-items: center; gap: 8px; }
 .ops-engine-name { font-weight: 700; font-size: 0.9375rem; }
+.ops-engine-category {
+    font-size: 0.5rem; text-transform: uppercase;
+    letter-spacing: 0.1em; font-weight: 700;
+    padding: 2px 6px; border-radius: 3px;
+}
+.ops-engine-category.cat-interpret { color: var(--ops-cyan); background: var(--ops-cyan-dim); }
+.ops-engine-category.cat-execute { color: var(--ops-purple); background: var(--ops-purple-dim); }
+.ops-engine-category.cat-post { color: var(--ops-amber); background: var(--ops-yellow-dim); }
+.ops-engine-category.cat-system { color: var(--ops-slate); background: rgba(100,116,139,0.15); }
+
 .ops-engine-status {
     font-size: 0.625rem; text-transform: uppercase;
     letter-spacing: 0.1em; font-weight: 600;
-    padding: 2px 8px; border-radius: 4px;
+    padding: 3px 10px; border-radius: 4px;
 }
 .ops-engine-status.OK { color: var(--ops-green); background: var(--ops-green-dim); }
 .ops-engine-status.DEGRADED { color: var(--ops-yellow); background: var(--ops-yellow-dim); }
 .ops-engine-status.MISSED { color: var(--ops-red); background: var(--ops-red-dim); }
 .ops-engine-status.ERROR { color: var(--ops-red); background: var(--ops-red-dim); }
 
-.ops-engine-meta {
-    display: grid; grid-template-columns: repeat(3, 1fr);
+.ops-engine-chart { width: 100%; height: 48px; }
+.ops-engine-cadence-chart { width: 100%; height: 36px; }
+
+.ops-engine-stats {
+    display: grid; grid-template-columns: repeat(4, 1fr);
     gap: 4px; font-size: 0.6875rem;
 }
 .ops-engine-stat { text-align: center; }
-.ops-engine-stat-label { color: var(--ops-text-dim); font-size: 0.5625rem; text-transform: uppercase; letter-spacing: 0.08em; }
-.ops-engine-stat-value { font-weight: 600; color: var(--ops-text); margin-top: 2px; }
+.ops-engine-stat-label {
+    color: var(--ops-text-dim); font-size: 0.5625rem;
+    text-transform: uppercase; letter-spacing: 0.06em;
+}
+.ops-engine-stat-value {
+    font-weight: 600; color: var(--ops-text);
+    margin-top: 2px; font-variant-numeric: tabular-nums;
+}
 .ops-engine-stat-value.error { color: var(--ops-red); }
 .ops-engine-stat-value.warn { color: var(--ops-yellow); }
 
 .ops-engine-timing {
     display: flex; justify-content: space-between;
     font-size: 0.625rem; color: var(--ops-text-dim);
+    padding-top: 4px; border-top: 1px solid rgba(255,255,255,0.04);
 }
 
-/* Sparkline */
-.ops-sparkline {
-    width: 100%; height: 24px; display: flex;
-    align-items: flex-end; gap: 2px;
-}
-.ops-sparkline-bar {
-    flex: 1; border-radius: 2px 2px 0 0;
-    min-height: 2px; transition: height 0.3s;
-    background: var(--ops-blue);
-}
-.ops-sparkline-bar.slow { background: var(--ops-yellow); }
-.ops-sparkline-bar.error { background: var(--ops-red); }
-
-/* ---- Cadence Timeline Strip ---- */
-.ops-cadence-strip {
-    width: 100%;
-    height: 12px;
-    background: var(--ops-surface-alt);
-    border-radius: 3px;
-    position: relative;
-    margin-top: 6px;
-    overflow: hidden;
-}
-.ops-cadence-tick {
-    position: absolute;
-    top: 0;
-    width: 2px;
-    height: 100%;
-    background: var(--ops-border);
-    opacity: 0.5;
-}
-.ops-cadence-run {
-    position: absolute;
-    top: 1px;
-    width: 4px;
-    height: 10px;
-    border-radius: 1px;
-    background: var(--ops-green);
-}
-.ops-cadence-run.error { background: var(--ops-red); }
-.ops-cadence-miss {
-    position: absolute;
-    top: 0;
-    width: 6px;
-    height: 100%;
-    background: var(--ops-red-dim);
-    border: 1px solid var(--ops-red);
-    border-radius: 2px;
-    opacity: 0.7;
-}
-
-/* ---- Watchlist (Right) ---- */
+/* ---- Watchlist ---- */
 .ops-watchlist {
-    display: flex; flex-direction: column; gap: 10px;
-}
-.ops-section-header {
-    font-size: 0.625rem; text-transform: uppercase;
-    letter-spacing: 0.12em; color: var(--ops-text-dim);
-    font-weight: 600; margin: 0 0 4px;
+    display: flex; flex-direction: column; gap: 12px;
 }
 .ops-anomaly-card {
-    background: var(--ops-surface);
-    border: 1px solid var(--ops-border);
-    border-radius: 8px;
-    padding: 12px 14px;
-    transition: border-color 0.15s;
+    padding: 14px 16px;
+    transition: all 0.2s ease;
+    position: relative;
 }
-.ops-anomaly-card:hover { border-color: var(--ops-blue); }
-.ops-anomaly-card.P1 { border-left: 3px solid var(--ops-red); }
-.ops-anomaly-card.P2 { border-left: 3px solid var(--ops-yellow); }
-.ops-anomaly-card.P3 { border-left: 3px solid var(--ops-blue); }
+.ops-anomaly-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0;
+    width: 3px; height: 100%;
+    border-radius: 3px 0 0 3px;
+}
+.ops-anomaly-card:hover {
+    border-color: rgba(255,255,255,0.12);
+    transform: translateX(2px);
+}
+.ops-anomaly-card.P1::before { background: var(--ops-red); }
+.ops-anomaly-card.P2::before { background: var(--ops-yellow); }
+.ops-anomaly-card.P3::before { background: var(--ops-blue); }
 
 .ops-anomaly-header {
     display: flex; justify-content: space-between; align-items: center;
-    margin-bottom: 6px;
+    margin-bottom: 8px;
 }
 .ops-anomaly-severity {
     font-size: 0.5625rem; text-transform: uppercase;
@@ -317,120 +391,186 @@
 .ops-anomaly-severity.P2 { color: var(--ops-yellow); }
 .ops-anomaly-severity.P3 { color: var(--ops-blue); }
 .ops-anomaly-when { font-size: 0.5625rem; color: var(--ops-text-dim); }
-.ops-anomaly-summary { font-size: 0.8125rem; line-height: 1.4; color: var(--ops-text-muted); margin-bottom: 8px; }
+.ops-anomaly-summary { font-size: 0.8125rem; line-height: 1.5; color: var(--ops-text-muted); margin-bottom: 10px; }
 .ops-anomaly-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .ops-action-btn {
-    padding: 4px 10px; border-radius: 4px; font-size: 0.6875rem;
+    padding: 5px 12px; border-radius: var(--ops-radius-sm); font-size: 0.6875rem;
     border: 1px solid var(--ops-border); background: var(--ops-surface-alt);
     color: var(--ops-text-muted); cursor: pointer; min-height: 28px;
-    transition: all 0.15s;
+    transition: all var(--ops-transition);
 }
 .ops-action-btn:hover { background: var(--ops-blue); border-color: var(--ops-blue); color: #fff; }
+
+.ops-esc-badge {
+    font-size: 0.5625rem; font-weight: 700; color: var(--ops-red);
+    padding: 1px 6px; border-radius: 3px;
+    background: var(--ops-red-dim);
+    animation: escPulse 1.5s ease-in-out infinite;
+    display: inline-block; margin-left: 6px;
+}
+@keyframes escPulse {
+    0%,100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.6; transform: scale(1.05); }
+}
+
 .ops-no-anomalies {
     color: var(--ops-text-dim); font-size: 0.8125rem;
-    text-align: center; padding: 20px;
-    background: var(--ops-surface); border-radius: 8px;
-    border: 1px solid var(--ops-border);
+    text-align: center; padding: 24px;
+    border-radius: var(--ops-radius);
+    border: 1px solid var(--ops-glass-border);
+    background: var(--ops-surface);
 }
 
 /* ---- SOC Feed ---- */
-.ops-feed-wrapper {
-    margin-top: 16px;
-}
+.ops-feed-wrapper { margin-top: 0; }
 .ops-feed-header {
     display: flex; justify-content: space-between; align-items: center;
-    margin-bottom: 8px;
+    margin-bottom: 10px;
 }
-.ops-feed-filters { display: flex; gap: 4px; }
+.ops-feed-filters { display: flex; gap: 6px; }
 .ops-filter-btn {
-    padding: 3px 10px; border-radius: 4px; font-size: 0.6875rem;
+    padding: 4px 12px; border-radius: var(--ops-radius-sm); font-size: 0.6875rem;
     border: 1px solid var(--ops-border); background: transparent;
     color: var(--ops-text-dim); cursor: pointer;
-    transition: all 0.15s; min-height: 28px;
+    transition: all var(--ops-transition); min-height: 28px;
 }
 .ops-filter-btn:hover { color: var(--ops-text); }
-.ops-filter-btn.active { background: var(--ops-blue-dim); border-color: var(--ops-blue); color: var(--ops-blue); }
+.ops-filter-btn.active { background: var(--ops-blue-dim); border-color: rgba(59,130,246,0.4); color: var(--ops-blue); }
 
 .ops-feed {
-    max-height: 350px; overflow-y: auto;
-    border: 1px solid var(--ops-border); border-radius: 8px;
+    max-height: 320px; overflow-y: auto;
+    border-radius: var(--ops-radius);
+    border: 1px solid var(--ops-glass-border);
     background: var(--ops-surface);
-    font-family: 'SF Mono', 'Fira Code', 'Menlo', monospace;
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', 'Menlo', monospace;
     font-size: 0.6875rem;
 }
+.ops-feed::-webkit-scrollbar { width: 6px; }
+.ops-feed::-webkit-scrollbar-track { background: transparent; }
+.ops-feed::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+
 .ops-feed-line {
-    display: flex; gap: 8px; padding: 5px 12px;
-    border-bottom: 1px solid rgba(55,65,81,0.3);
-    cursor: pointer; align-items: baseline; min-height: 28px;
+    display: flex; gap: 10px; padding: 6px 14px;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    cursor: pointer; align-items: baseline; min-height: 30px;
+    transition: background 0.15s;
 }
 .ops-feed-line:hover { background: var(--ops-surface-hover); }
-.ops-feed-time { color: var(--ops-text-dim); min-width: 60px; flex-shrink: 0; }
-.ops-feed-engine { font-weight: 700; min-width: 42px; flex-shrink: 0; }
+.ops-feed-time { color: var(--ops-text-dim); min-width: 64px; flex-shrink: 0; }
+.ops-feed-engine { font-weight: 700; min-width: 44px; flex-shrink: 0; }
 .ops-feed-action { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ops-feed-line.severity-error { color: var(--ops-red); }
 .ops-feed-line.severity-warn { color: var(--ops-yellow); }
 
-/* ---- Toast Notifications ---- */
+/* ---- Toast ---- */
 .ops-toast {
-    position: fixed; bottom: 20px; right: 20px;
-    padding: 12px 20px; border-radius: 8px;
+    position: fixed; bottom: 24px; right: 24px;
+    padding: 14px 22px; border-radius: var(--ops-radius);
     font-size: 0.8125rem; z-index: 9999;
-    animation: toast-in 0.3s ease-out;
-    max-width: 400px;
+    animation: toastIn 0.35s ease-out;
+    max-width: 420px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
 }
-.ops-toast.success { background: var(--ops-green); color: #fff; }
-.ops-toast.failure { background: var(--ops-red); color: #fff; }
-@keyframes toast-in { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.ops-toast.success { background: rgba(16,185,129,0.9); color: #fff; }
+.ops-toast.failure { background: rgba(239,68,68,0.9); color: #fff; }
+@keyframes toastIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+/* ---- Tooltip ---- */
+.ops-tooltip {
+    position: absolute;
+    background: rgba(15, 20, 35, 0.95);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 0.6875rem;
+    color: var(--ops-text);
+    pointer-events: none;
+    z-index: 100;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+.ops-tooltip.visible { opacity: 1; }
 
 /* ---- Responsive ---- */
+@media (max-width: 1400px) {
+    .ops-engines-grid { grid-template-columns: repeat(2, 1fr); }
+}
 @media (max-width: 1024px) {
     .ops-main { grid-template-columns: 1fr; }
     .ops-narration { grid-template-columns: 1fr; }
-    .ops-engines-grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+    .ops-engines-grid { grid-template-columns: repeat(2, 1fr); }
+    .ops-integrity-hero { grid-template-columns: 160px 1fr; gap: 20px; }
+    .ops-integrity-trend-wrap { grid-column: 1 / -1; }
+    .ops-integrity-gauge-wrap { width: 160px; height: 160px; }
+    .ops-integrity-components { grid-template-columns: repeat(3, 1fr); }
 }
 @media (max-width: 768px) {
-    .ops-wall { padding: 8px 12px; }
+    .ops-wall { padding: 12px 14px 24px; }
+    .ops-integrity-hero { grid-template-columns: 1fr; justify-items: center; text-align: center; }
+    .ops-integrity-gauge-wrap { width: 140px; height: 140px; }
+    .ops-integrity-components { grid-template-columns: repeat(2, 1fr); justify-items: center; }
+    .ops-integrity-trend-wrap { grid-column: auto; }
     .ops-topbar { flex-direction: column; align-items: flex-start; }
     .ops-engines-grid { grid-template-columns: 1fr; }
+    .ops-engine-stats { grid-template-columns: repeat(2, 1fr); }
 }
 </style>
 
+<!-- ECharts Library -->
+<script nonce="{{ csp_nonce }}" src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+
 <div class="ops-wall">
-    <!-- System Posture Banner -->
-    <div class="ops-posture OK" id="postureBanner">
-        <span class="ops-posture-dot OK" id="postureDot"></span>
-        <span class="ops-posture-text" id="postureText">Initializing SAME...</span>
-        <span class="ops-topbar-meta">Updated: <span id="lastUpdateTime">—</span></span>
+    <!-- System Integrity Hero -->
+    <div class="ops-section ops-glass ops-integrity-hero" id="integrityHero">
+        <div class="ops-integrity-gauge-wrap">
+            <div id="integrityGauge" style="width:100%;height:100%"></div>
+        </div>
+        <div class="ops-integrity-center">
+            <div class="ops-integrity-label">System Integrity Index</div>
+            <div class="ops-integrity-score-big NOMINAL" id="integrityScore">—</div>
+            <div class="ops-integrity-posture-label NOMINAL" id="integrityPosture">—</div>
+            <div class="ops-integrity-components" id="integrityComponents">
+                <div class="ops-integrity-comp">
+                    <span class="ops-integrity-comp-label">Engines</span>
+                    <span class="ops-integrity-comp-value" id="icEngines">—</span>
+                </div>
+                <div class="ops-integrity-comp">
+                    <span class="ops-integrity-comp-label">Anomaly</span>
+                    <span class="ops-integrity-comp-value" id="icAnomaly">—</span>
+                </div>
+                <div class="ops-integrity-comp">
+                    <span class="ops-integrity-comp-label">Errors</span>
+                    <span class="ops-integrity-comp-value" id="icErrors">—</span>
+                </div>
+                <div class="ops-integrity-comp">
+                    <span class="ops-integrity-comp-label">Suppress</span>
+                    <span class="ops-integrity-comp-value" id="icSuppress">—</span>
+                </div>
+                <div class="ops-integrity-comp">
+                    <span class="ops-integrity-comp-label">Volatility</span>
+                    <span class="ops-integrity-comp-value" id="icVolatility">—</span>
+                </div>
+            </div>
+        </div>
+        <div class="ops-integrity-trend-wrap">
+            <div class="ops-integrity-label">Recent Trend</div>
+            <div class="ops-integrity-trend-chart" id="integrityTrend"></div>
+        </div>
     </div>
 
-    <!-- System Integrity Index -->
-    <div class="ops-integrity" id="integrityTile">
-        <div>
-            <div class="ops-integrity-label">System Integrity</div>
-            <div class="ops-integrity-score NOMINAL" id="integrityScore">—</div>
-        </div>
-        <div>
-            <div class="ops-integrity-label">Posture</div>
-            <div class="ops-integrity-posture NOMINAL" id="integrityPosture">—</div>
-        </div>
-        <div class="ops-integrity-breakdown" id="integrityBreakdown">
-            <div class="ops-integrity-component">
-                <span>Engines OK</span>
-                <span class="ops-integrity-component-value" id="intEngines">—</span>
-            </div>
-            <div class="ops-integrity-component">
-                <span>Anomaly Penalty</span>
-                <span class="ops-integrity-component-value" id="intAnomalyPenalty">—</span>
-            </div>
-            <div class="ops-integrity-component">
-                <span>Error Rate</span>
-                <span class="ops-integrity-component-value" id="intErrorRate">—</span>
-            </div>
-        </div>
+    <!-- Posture Banner -->
+    <div class="ops-section ops-glass ops-posture OK" id="postureBanner">
+        <span class="ops-posture-dot OK" id="postureDot"></span>
+        <span class="ops-posture-text" id="postureText">Initializing SAME...</span>
+        <span class="ops-posture-meta">Updated: <span id="lastUpdateTime">—</span></span>
     </div>
 
     <!-- SAME Narration Bar -->
-    <div class="ops-narration" id="narrationBar">
+    <div class="ops-section ops-glass ops-narration" id="narrationBar">
         <div class="ops-narration-section">
             <h3>What's Happening Now</h3>
             <ul class="ops-narration-list" id="narrativeBullets">
@@ -451,8 +591,8 @@
         </div>
     </div>
 
-    <!-- Top Bar -->
-    <div class="ops-topbar">
+    <!-- Engine Status Top Bar -->
+    <div class="ops-section ops-topbar">
         <div class="ops-topbar-left">
             <span class="ops-topbar-title">Engine Status</span>
         </div>
@@ -466,13 +606,10 @@
     </div>
 
     <!-- Main Grid: Cards + Watchlist -->
-    <div class="ops-main">
-        <!-- Engine Cards -->
+    <div class="ops-section ops-main">
         <div class="ops-engines-grid" id="engineCards">
-            <div style="color:var(--ops-text-dim);font-size:0.8125rem;grid-column:1/-1;text-align:center;padding:40px">Loading engine data...</div>
+            <div style="color:var(--ops-text-dim);font-size:0.8125rem;grid-column:1/-1;text-align:center;padding:48px">Loading engine data...</div>
         </div>
-
-        <!-- Watchlist -->
         <div class="ops-watchlist">
             <span class="ops-section-header">Watchlist — Active Anomalies</span>
             <div id="watchlistPanel">
@@ -482,7 +619,7 @@
     </div>
 
     <!-- SOC Feed -->
-    <div class="ops-feed-wrapper">
+    <div class="ops-section ops-feed-wrapper">
         <div class="ops-feed-header">
             <span class="ops-section-header">Live Feed</span>
             <div class="ops-feed-filters">
@@ -501,70 +638,325 @@
 
 <script nonce="{{ csp_nonce }}">
 (function() {
+    'use strict';
+
+    /* =====================================================================
+       Configuration & State
+       ===================================================================== */
+    var HAS_ECHARTS = typeof echarts !== 'undefined';
+    var POLL_INTERVAL_MS = 2000;
+    var INTEGRITY_HISTORY_INTERVAL_MS = 30000;
+
     var pollInterval = null;
+    var integrityHistoryInterval = null;
     var lastSince = new Date(Date.now() - 5 * 60000).toISOString();
     var frozen = false;
     var currentFilter = '';
+    var lastIntegrityScore = null;
+    var previousStatuses = {};
 
-    startPolling();
+    // ECharts instance registry
+    var chartRegistry = {};
 
-    // Toggle polling
-    document.getElementById('togglePoll').addEventListener('click', function() {
-        if (pollInterval) {
-            clearInterval(pollInterval);
-            pollInterval = null;
-            this.textContent = 'Paused';
-            this.classList.remove('active');
-        } else {
-            startPolling();
-            this.textContent = 'Live';
-            this.classList.add('active');
+    // Engine category map
+    var ENGINE_META = {
+        'PIE':  { category: 'Interpret', catClass: 'cat-interpret' },
+        'AIE':  { category: 'Interpret', catClass: 'cat-interpret' },
+        'ICQG': { category: 'Interpret', catClass: 'cat-interpret' },
+        'ISE':  { category: 'Interpret', catClass: 'cat-interpret' },
+        'SAE':  { category: 'Execute',   catClass: 'cat-execute' },
+        'UIE':  { category: 'Execute',   catClass: 'cat-execute' },
+        'CWE':  { category: 'Execute',   catClass: 'cat-execute' },
+        'TNE':  { category: 'Execute',   catClass: 'cat-execute' },
+        'PRIE': { category: 'Post-Exec', catClass: 'cat-post' },
+        'AADE': { category: 'Post-Exec', catClass: 'cat-post' },
+        'PGE':  { category: 'Post-Exec', catClass: 'cat-post' },
+        'WIRE': { category: 'System',    catClass: 'cat-system' },
+        'DBE':  { category: 'System',    catClass: 'cat-system' },
+        'SAME': { category: 'System',    catClass: 'cat-system' },
+        'DNE':  { category: 'System',    catClass: 'cat-system' },
+        'UAL':  { category: 'System',    catClass: 'cat-system' }
+    };
+
+    var POSTURE_COLORS = {
+        'OPTIMAL': '#10b981', 'NOMINAL': '#3b82f6',
+        'DEGRADED': '#f59e0b', 'CRITICAL': '#ef4444'
+    };
+    var STATUS_COLORS = {
+        'OK': '#10b981', 'DEGRADED': '#f59e0b',
+        'MISSED': '#ef4444', 'ERROR': '#ef4444'
+    };
+
+    /* =====================================================================
+       ECharts: Chart Instance Management
+       ===================================================================== */
+    function getChart(id) {
+        if (!HAS_ECHARTS) return null;
+        if (chartRegistry[id] && !chartRegistry[id].isDisposed()) return chartRegistry[id];
+        var el = document.getElementById(id);
+        if (!el) return null;
+        chartRegistry[id] = echarts.init(el, null, { renderer: 'canvas' });
+        return chartRegistry[id];
+    }
+
+    function disposeChart(id) {
+        if (chartRegistry[id] && !chartRegistry[id].isDisposed()) {
+            chartRegistry[id].dispose();
         }
-    });
+        delete chartRegistry[id];
+    }
 
-    // Freeze
-    document.getElementById('freezeBtn').addEventListener('click', function() {
-        frozen = !frozen;
-        this.classList.toggle('active', frozen);
-        this.textContent = frozen ? 'Frozen' : 'Freeze';
-    });
-
-    // Feed filter buttons (event delegation)
-    document.querySelector('.ops-feed-filters').addEventListener('click', function(e) {
-        var btn = e.target.closest('[data-filter]');
-        if (!btn) return;
-        currentFilter = btn.dataset.filter;
-        document.querySelectorAll('.ops-filter-btn').forEach(function(b) {
-            b.classList.toggle('active', b.dataset.filter === currentFilter);
+    function resizeAllCharts() {
+        Object.keys(chartRegistry).forEach(function(id) {
+            if (chartRegistry[id] && !chartRegistry[id].isDisposed()) {
+                chartRegistry[id].resize();
+            }
         });
-    });
+    }
 
-    // Engine card clicks
-    document.getElementById('engineCards').addEventListener('click', function(e) {
-        var card = e.target.closest('[data-engine]');
-        if (!card) return;
-        window.location.href = '/admin-console/diagnostics/?engine=' + card.dataset.engine + '&since=-15m';
-    });
+    /* =====================================================================
+       ECharts: Reusable Chart Builders
+       ===================================================================== */
 
-    // Feed line clicks
-    document.getElementById('opsFeed').addEventListener('click', function(e) {
-        var line = e.target.closest('[data-trace-id]');
-        if (!line || !line.dataset.traceId) return;
-        window.location.href = '/admin-console/diagnostics/trace/' + line.dataset.traceId + '/';
-    });
+    /** Radial gauge for integrity score */
+    function buildIntegrityGauge(score, posture) {
+        var color = POSTURE_COLORS[posture] || '#3b82f6';
+        return {
+            animation: true,
+            animationDuration: 800,
+            animationEasing: 'cubicOut',
+            series: [{
+                type: 'gauge',
+                startAngle: 220,
+                endAngle: -40,
+                min: 0,
+                max: 100,
+                pointer: { show: false },
+                progress: {
+                    show: true,
+                    overlap: false,
+                    roundCap: true,
+                    clip: false,
+                    itemStyle: { color: color }
+                },
+                axisLine: {
+                    lineStyle: {
+                        width: 14,
+                        color: [[1, 'rgba(255,255,255,0.04)']]
+                    }
+                },
+                axisTick: { show: false },
+                splitLine: { show: false },
+                axisLabel: { show: false },
+                title: { show: false },
+                detail: { show: false },
+                data: [{ value: Math.round(score || 0) }]
+            }]
+        };
+    }
 
-    // Watchlist action buttons (event delegation)
-    document.getElementById('watchlistPanel').addEventListener('click', function(e) {
-        var btn = e.target.closest('[data-action]');
-        if (!btn) return;
-        var action = btn.dataset.action;
-        var engine = btn.dataset.engine || '';
-        executeAction(action, engine, btn);
-    });
+    /** Sparkline area chart for integrity trend history */
+    function buildIntegrityTrendChart(history) {
+        if (!history || history.length === 0) return null;
+        var data = history.map(function(h) {
+            return [new Date(h.created_at).getTime(), h.score];
+        }).reverse();
 
+        return {
+            animation: false,
+            grid: { top: 8, right: 8, bottom: 8, left: 8, containLabel: false },
+            xAxis: { type: 'time', show: false, axisPointer: { show: false } },
+            yAxis: { type: 'value', min: 0, max: 100, show: false },
+            tooltip: {
+                trigger: 'axis',
+                backgroundColor: 'rgba(15,20,35,0.92)',
+                borderColor: 'rgba(255,255,255,0.1)',
+                textStyle: { color: '#e5e7eb', fontSize: 11 },
+                formatter: function(params) {
+                    var p = params[0];
+                    if (!p) return '';
+                    var d = new Date(p.value[0]);
+                    return d.toLocaleTimeString() + '<br/>Score: <b>' + Math.round(p.value[1]) + '</b>';
+                }
+            },
+            series: [{
+                type: 'line',
+                data: data,
+                smooth: 0.4,
+                showSymbol: false,
+                lineStyle: { width: 2, color: '#3b82f6' },
+                areaStyle: {
+                    color: {
+                        type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+                        colorStops: [
+                            { offset: 0, color: 'rgba(59,130,246,0.25)' },
+                            { offset: 1, color: 'rgba(59,130,246,0.02)' }
+                        ]
+                    }
+                }
+            }]
+        };
+    }
+
+    /** Mini trend line for engine cards (using sparkline data array) */
+    function buildEngineTrendChart(sparklineData, status) {
+        if (!sparklineData || sparklineData.length === 0) return null;
+        var color = STATUS_COLORS[status] || '#3b82f6';
+        var gradStart = status === 'OK' ? 'rgba(16,185,129,0.3)' :
+                        status === 'DEGRADED' ? 'rgba(245,158,11,0.3)' : 'rgba(239,68,68,0.3)';
+
+        return {
+            animation: false,
+            grid: { top: 2, right: 2, bottom: 2, left: 2, containLabel: false },
+            xAxis: {
+                type: 'category', show: false, boundaryGap: false,
+                data: sparklineData.map(function(_, i) { return i; })
+            },
+            yAxis: { type: 'value', show: false },
+            series: [{
+                type: 'line',
+                data: sparklineData,
+                smooth: 0.3,
+                showSymbol: false,
+                lineStyle: { width: 1.5, color: color },
+                areaStyle: {
+                    color: {
+                        type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+                        colorStops: [
+                            { offset: 0, color: gradStart },
+                            { offset: 1, color: 'rgba(0,0,0,0)' }
+                        ]
+                    }
+                }
+            }]
+        };
+    }
+
+    /** Cadence timeline chart (replaces CSS strip) */
+    function buildCadenceChart(timeline, windowMinutes) {
+        if (!timeline) return null;
+        var now = Date.now();
+        var start = now - windowMinutes * 60000;
+
+        var successData = [];
+        var errorData = [];
+        (timeline.runs || []).forEach(function(r) {
+            var t = new Date(r.time).getTime();
+            if (t >= start && t <= now) {
+                if (r.status === 'error') {
+                    errorData.push([t, r.duration_ms]);
+                } else {
+                    successData.push([t, r.duration_ms]);
+                }
+            }
+        });
+
+        // Threshold: average * 1.5
+        var allDurations = successData.concat(errorData).map(function(d) { return d[1]; });
+        var avgDur = allDurations.length > 0
+            ? allDurations.reduce(function(a, b) { return a + b; }, 0) / allDurations.length
+            : 100;
+        var threshold = Math.round(avgDur * 1.5);
+
+        // Missed ticks as markers
+        var missedData = (timeline.missed_ticks || []).map(function(t) {
+            return [new Date(t).getTime(), threshold];
+        });
+
+        // Latest run animated dot
+        var latestSymbol = [];
+        if (successData.length > 0) {
+            var last = successData[successData.length - 1];
+            latestSymbol = [{ value: last, symbol: 'circle', symbolSize: 6,
+                itemStyle: { color: '#10b981', shadowColor: '#10b981', shadowBlur: 8 } }];
+        }
+
+        var series = [
+            {
+                type: 'line', data: successData, smooth: 0.3,
+                showSymbol: false, z: 2,
+                lineStyle: { width: 1.5, color: '#10b981' },
+                areaStyle: {
+                    color: {
+                        type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+                        colorStops: [
+                            { offset: 0, color: 'rgba(16,185,129,0.2)' },
+                            { offset: 1, color: 'rgba(16,185,129,0)' }
+                        ]
+                    }
+                },
+                markLine: threshold > 0 ? {
+                    silent: true, symbol: 'none',
+                    data: [{ yAxis: threshold }],
+                    lineStyle: { type: 'dashed', color: 'rgba(245,158,11,0.4)', width: 1 },
+                    label: { show: false }
+                } : undefined
+            }
+        ];
+
+        if (errorData.length > 0) {
+            series.push({
+                type: 'scatter', data: errorData, z: 3,
+                symbolSize: 5,
+                itemStyle: { color: '#ef4444', shadowColor: '#ef4444', shadowBlur: 4 }
+            });
+        }
+
+        if (missedData.length > 0) {
+            series.push({
+                type: 'scatter', data: missedData, z: 3,
+                symbol: 'triangle', symbolSize: 5,
+                itemStyle: { color: 'rgba(239,68,68,0.6)' }
+            });
+        }
+
+        if (latestSymbol.length > 0) {
+            series.push({
+                type: 'effectScatter', data: [latestSymbol[0].value], z: 4,
+                symbolSize: 5, showEffectOn: 'render',
+                rippleEffect: { brushType: 'stroke', scale: 3, period: 2 },
+                itemStyle: { color: '#10b981' }
+            });
+        }
+
+        return {
+            animation: false,
+            grid: { top: 2, right: 4, bottom: 2, left: 4, containLabel: false },
+            xAxis: { type: 'time', min: start, max: now, show: false },
+            yAxis: { type: 'value', show: false },
+            series: series
+        };
+    }
+
+    /* =====================================================================
+       Animated Value Counter
+       ===================================================================== */
+    function animateValue(el, startVal, endVal, duration) {
+        if (startVal === endVal) { el.textContent = Math.round(endVal); return; }
+        var startTime = null;
+        function step(ts) {
+            if (!startTime) startTime = ts;
+            var progress = Math.min((ts - startTime) / duration, 1);
+            var eased = 1 - Math.pow(1 - progress, 3); // easeOutCubic
+            el.textContent = Math.round(startVal + (endVal - startVal) * eased);
+            if (progress < 1) requestAnimationFrame(step);
+        }
+        requestAnimationFrame(step);
+    }
+
+    /* =====================================================================
+       Polling
+       ===================================================================== */
     function startPolling() {
         poll();
-        pollInterval = setInterval(poll, 2000);
+        pollInterval = setInterval(poll, POLL_INTERVAL_MS);
+        fetchIntegrityHistory();
+        integrityHistoryInterval = setInterval(fetchIntegrityHistory, INTEGRITY_HISTORY_INTERVAL_MS);
+    }
+
+    function stopAllPolling() {
+        if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+        if (integrityHistoryInterval) { clearInterval(integrityHistoryInterval); integrityHistoryInterval = null; }
     }
 
     function poll() {
@@ -581,9 +973,26 @@
         .catch(function(err) { console.error('Poll failed:', err); });
     }
 
+    function fetchIntegrityHistory() {
+        fetch('/admin-console/ops/integrity/', { headers: { 'X-CSRFToken': getCookie('csrftoken') } })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (frozen || !data.history) return;
+            var chart = getChart('integrityTrend');
+            if (chart) {
+                var opt = buildIntegrityTrendChart(data.history);
+                if (opt) chart.setOption(opt, true);
+            }
+        })
+        .catch(function() {});
+    }
+
+    /* =====================================================================
+       Render Pipeline
+       ===================================================================== */
     function render(data) {
-        renderPosture(data.posture, data.narrative);
         renderIntegrity(data.integrity);
+        renderPosture(data.posture, data.narrative);
         renderNarration(data.narrative);
         renderEngineCards(data.engine_cards || []);
         renderWatchlist(data.anomalies || []);
@@ -594,9 +1003,6 @@
     function renderIntegrity(integrity) {
         var scoreEl = document.getElementById('integrityScore');
         var postureEl = document.getElementById('integrityPosture');
-        var enginesEl = document.getElementById('intEngines');
-        var anomalyEl = document.getElementById('intAnomalyPenalty');
-        var errorEl = document.getElementById('intErrorRate');
 
         if (!integrity) {
             scoreEl.textContent = '—';
@@ -606,20 +1012,41 @@
 
         var score = integrity.score;
         var posture = integrity.posture || 'NOMINAL';
-        scoreEl.textContent = Math.round(score);
-        scoreEl.className = 'ops-integrity-score ' + posture;
-        postureEl.textContent = posture;
-        postureEl.className = 'ops-integrity-posture ' + posture;
 
+        // Animate score count-up
+        var oldScore = lastIntegrityScore !== null ? lastIntegrityScore : 0;
+        if (lastIntegrityScore !== Math.round(score)) {
+            animateValue(scoreEl, oldScore, Math.round(score), 600);
+        }
+        lastIntegrityScore = Math.round(score);
+
+        scoreEl.className = 'ops-integrity-score-big ' + posture;
+        postureEl.textContent = posture;
+        postureEl.className = 'ops-integrity-posture-label ' + posture;
+
+        // Gauge
+        var gauge = getChart('integrityGauge');
+        if (gauge) gauge.setOption(buildIntegrityGauge(score, posture));
+
+        // Components
         var c = integrity.components || {};
         if (c.engine_health) {
-            enginesEl.textContent = c.engine_health.ok_count + '/' + c.engine_health.total;
+            document.getElementById('icEngines').textContent = c.engine_health.ok_count + '/' + c.engine_health.total;
         }
         if (c.anomaly_severity) {
-            anomalyEl.textContent = '-' + c.anomaly_severity.penalty;
+            document.getElementById('icAnomaly').textContent = '-' + c.anomaly_severity.penalty;
+            var ae = document.getElementById('icAnomaly');
+            if (c.anomaly_severity.penalty > 10) ae.classList.add('error');
+            else ae.classList.remove('error');
         }
         if (c.error_spike) {
-            errorEl.textContent = (c.error_spike.error_rate * 100).toFixed(1) + '%';
+            document.getElementById('icErrors').textContent = (c.error_spike.error_rate * 100).toFixed(1) + '%';
+        }
+        if (c.suppression_rate) {
+            document.getElementById('icSuppress').textContent = (c.suppression_rate.rate * 100).toFixed(0) + '%';
+        }
+        if (c.confidence_volatility) {
+            document.getElementById('icVolatility').textContent = c.confidence_volatility.stddev.toFixed(2);
         }
     }
 
@@ -627,15 +1054,15 @@
         var banner = document.getElementById('postureBanner');
         var dot = document.getElementById('postureDot');
         var text = document.getElementById('postureText');
+        var p = posture || 'OK';
 
-        banner.className = 'ops-posture ' + (posture || 'OK');
-        dot.className = 'ops-posture-dot ' + (posture || 'OK');
+        banner.className = 'ops-section ops-glass ops-posture ' + p;
+        dot.className = 'ops-posture-dot ' + p;
         text.textContent = narrative ? narrative.headline : 'System status unknown';
     }
 
     function renderNarration(narrative) {
         if (!narrative) return;
-
         var bullets = document.getElementById('narrativeBullets');
         var recs = document.getElementById('narrativeRecs');
         var watching = document.getElementById('narrativeWatching');
@@ -653,125 +1080,168 @@
         }).join('') || '<li>Nothing to watch.</li>';
     }
 
+    /* =====================================================================
+       Engine Cards — Smart Update (avoid full rebuild each poll)
+       ===================================================================== */
+    var currentEngineList = [];
+
     function renderEngineCards(cards) {
         var container = document.getElementById('engineCards');
+        var newNames = cards.map(function(c) { return c.name; }).sort().join(',');
+        var oldNames = currentEngineList.sort().join(',');
+
+        if (newNames !== oldNames || container.children.length === 0 ||
+            (container.children.length === 1 && !container.querySelector('[data-engine]'))) {
+            // Full rebuild needed
+            rebuildEngineCards(container, cards);
+            currentEngineList = cards.map(function(c) { return c.name; });
+        } else {
+            // In-place update
+            updateEngineCardsInPlace(cards);
+        }
+    }
+
+    function rebuildEngineCards(container, cards) {
+        // Dispose old engine charts
+        currentEngineList.forEach(function(name) {
+            disposeChart('trend-' + name);
+            disposeChart('cadence-chart-' + name);
+        });
         container.innerHTML = '';
 
         cards.forEach(function(c) {
-            var card = document.createElement('div');
-            card.className = 'ops-engine-card status-' + c.status;
-            card.dataset.engine = c.name;
-
+            var meta = ENGINE_META[c.name] || { category: 'Other', catClass: 'cat-system' };
             var ago = c.last_run_at ? formatAgo(c.last_run_at) : 'never';
             var nextAt = c.next_expected_at ? formatTime(c.next_expected_at) : '—';
-
-            // Sparkline
-            var sparkHtml = '<div class="ops-sparkline">';
-            var maxDur = Math.max.apply(null, (c.sparkline || [1]).concat([1]));
-            (c.sparkline || []).forEach(function(d) {
-                var pct = Math.max(8, (d / maxDur) * 100);
-                var cls = d > 1000 ? 'slow' : '';
-                sparkHtml += '<div class="ops-sparkline-bar ' + cls + '" style="height:' + pct + '%"></div>';
-            });
-            sparkHtml += '</div>';
-
             var missClass = c.miss_count_30m > 0 ? ' error' : '';
             var errClass = c.error_count_24h > 0 ? ' error' : '';
 
+            var card = document.createElement('div');
+            card.className = 'ops-glass ops-engine-card status-' + c.status;
+            card.dataset.engine = c.name;
+
             card.innerHTML =
                 '<div class="ops-engine-header">' +
-                '  <span class="ops-engine-name">' + c.name + '</span>' +
+                '  <div class="ops-engine-name-wrap">' +
+                '    <span class="ops-engine-name">' + c.name + '</span>' +
+                '    <span class="ops-engine-category ' + meta.catClass + '">' + meta.category + '</span>' +
+                '  </div>' +
                 '  <span class="ops-engine-status ' + c.status + '">' + c.status + '</span>' +
                 '</div>' +
-                '<div class="ops-engine-meta">' +
+                '<div class="ops-engine-chart" id="trend-' + c.name + '"></div>' +
+                '<div class="ops-engine-stats">' +
                 '  <div class="ops-engine-stat">' +
                 '    <div class="ops-engine-stat-label">Cadence</div>' +
-                '    <div class="ops-engine-stat-value">' + c.cadence + '</div>' +
+                '    <div class="ops-engine-stat-value" data-field="cadence">' + c.cadence + '</div>' +
                 '  </div>' +
                 '  <div class="ops-engine-stat">' +
                 '    <div class="ops-engine-stat-label">Misses 30m</div>' +
-                '    <div class="ops-engine-stat-value' + missClass + '">' + c.miss_count_30m + '</div>' +
+                '    <div class="ops-engine-stat-value' + missClass + '" data-field="misses">' + c.miss_count_30m + '</div>' +
                 '  </div>' +
                 '  <div class="ops-engine-stat">' +
                 '    <div class="ops-engine-stat-label">Errors 24h</div>' +
-                '    <div class="ops-engine-stat-value' + errClass + '">' + c.error_count_24h + '</div>' +
+                '    <div class="ops-engine-stat-value' + errClass + '" data-field="errors">' + c.error_count_24h + '</div>' +
+                '  </div>' +
+                '  <div class="ops-engine-stat">' +
+                '    <div class="ops-engine-stat-label">P95</div>' +
+                '    <div class="ops-engine-stat-value" data-field="p95">' + c.duration_p95_1h + 'ms</div>' +
                 '  </div>' +
                 '</div>' +
-                sparkHtml +
-                '<div class="ops-cadence-strip" id="cadence-' + c.name + '" title="30m cadence timeline"></div>' +
+                '<div class="ops-engine-cadence-chart" id="cadence-chart-' + c.name + '"></div>' +
                 '<div class="ops-engine-timing">' +
-                '  <span>Last: ' + ago + '</span>' +
-                '  <span>P95: ' + c.duration_p95_1h + 'ms</span>' +
-                '  <span>Next: ' + nextAt + '</span>' +
+                '  <span data-field="last">Last: ' + ago + '</span>' +
+                '  <span data-field="next">Next: ' + nextAt + '</span>' +
                 '</div>';
 
             container.appendChild(card);
+
+            // Initialize trend chart
+            previousStatuses[c.name] = c.status;
+            requestAnimationFrame(function() {
+                var chart = getChart('trend-' + c.name);
+                if (chart) {
+                    var opt = buildEngineTrendChart(c.sparkline, c.status);
+                    if (opt) chart.setOption(opt, true);
+                }
+            });
         });
 
-        // Fetch cadence timeline data
+        // Fetch cadence data for the new cards
         fetchCadenceTimelines();
     }
 
+    function updateEngineCardsInPlace(cards) {
+        cards.forEach(function(c) {
+            var card = document.querySelector('[data-engine="' + c.name + '"]');
+            if (!card) return;
+
+            // Detect status change for glow animation
+            var prevStatus = previousStatuses[c.name];
+            if (prevStatus && prevStatus !== c.status) {
+                card.classList.add('status-changed');
+                setTimeout(function() { card.classList.remove('status-changed'); }, 1200);
+            }
+            previousStatuses[c.name] = c.status;
+
+            // Update status class
+            card.className = card.className.replace(/status-\S+/g, '').trim();
+            card.classList.add('ops-glass', 'ops-engine-card', 'status-' + c.status);
+
+            // Update status badge
+            var statusEl = card.querySelector('.ops-engine-status');
+            if (statusEl) {
+                statusEl.className = 'ops-engine-status ' + c.status;
+                statusEl.textContent = c.status;
+            }
+
+            // Update stats
+            var missClass = c.miss_count_30m > 0 ? ' error' : '';
+            var errClass = c.error_count_24h > 0 ? ' error' : '';
+            var misses = card.querySelector('[data-field="misses"]');
+            var errors = card.querySelector('[data-field="errors"]');
+            var cadence = card.querySelector('[data-field="cadence"]');
+            var p95 = card.querySelector('[data-field="p95"]');
+            var lastSpan = card.querySelector('[data-field="last"]');
+            var nextSpan = card.querySelector('[data-field="next"]');
+
+            if (misses) { misses.textContent = c.miss_count_30m; misses.className = 'ops-engine-stat-value' + missClass; }
+            if (errors) { errors.textContent = c.error_count_24h; errors.className = 'ops-engine-stat-value' + errClass; }
+            if (cadence) cadence.textContent = c.cadence;
+            if (p95) p95.textContent = c.duration_p95_1h + 'ms';
+            if (lastSpan) lastSpan.textContent = 'Last: ' + (c.last_run_at ? formatAgo(c.last_run_at) : 'never');
+            if (nextSpan) nextSpan.textContent = 'Next: ' + (c.next_expected_at ? formatTime(c.next_expected_at) : '—');
+
+            // Update trend chart
+            var trendChart = getChart('trend-' + c.name);
+            if (trendChart) {
+                var opt = buildEngineTrendChart(c.sparkline, c.status);
+                if (opt) trendChart.setOption(opt, true);
+            }
+        });
+    }
+
+    /* =====================================================================
+       Cadence Timelines
+       ===================================================================== */
     function fetchCadenceTimelines() {
         fetch('/admin-console/ops/cadence/?minutes=30')
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 var timelines = data.timelines || {};
                 Object.keys(timelines).forEach(function(engine) {
-                    renderCadenceStrip(engine, timelines[engine], data.window_minutes);
+                    var chart = getChart('cadence-chart-' + engine);
+                    if (chart) {
+                        var opt = buildCadenceChart(timelines[engine], data.window_minutes);
+                        if (opt) chart.setOption(opt, true);
+                    }
                 });
             })
             .catch(function() {});
     }
 
-    function renderCadenceStrip(engine, timeline, windowMinutes) {
-        var strip = document.getElementById('cadence-' + engine);
-        if (!strip) return;
-        strip.innerHTML = '';
-
-        var now = new Date();
-        var start = new Date(now.getTime() - windowMinutes * 60000);
-        var totalMs = windowMinutes * 60000;
-
-        // Expected ticks
-        (timeline.expected_ticks || []).forEach(function(t) {
-            var dt = new Date(t);
-            var pct = ((dt - start) / totalMs) * 100;
-            if (pct >= 0 && pct <= 100) {
-                var tick = document.createElement('div');
-                tick.className = 'ops-cadence-tick';
-                tick.style.left = pct + '%';
-                strip.appendChild(tick);
-            }
-        });
-
-        // Missed ticks
-        (timeline.missed_ticks || []).forEach(function(t) {
-            var dt = new Date(t);
-            var pct = ((dt - start) / totalMs) * 100;
-            if (pct >= 0 && pct <= 100) {
-                var miss = document.createElement('div');
-                miss.className = 'ops-cadence-miss';
-                miss.style.left = Math.max(0, pct - 0.3) + '%';
-                miss.title = 'Missed at ' + dt.toLocaleTimeString();
-                strip.appendChild(miss);
-            }
-        });
-
-        // Actual runs
-        (timeline.runs || []).forEach(function(r) {
-            var dt = new Date(r.time);
-            var pct = ((dt - start) / totalMs) * 100;
-            if (pct >= 0 && pct <= 100) {
-                var run = document.createElement('div');
-                run.className = 'ops-cadence-run' + (r.status === 'error' ? ' error' : '');
-                run.style.left = pct + '%';
-                run.title = engine + ' ' + r.status + ' at ' + dt.toLocaleTimeString() + ' (' + r.duration_ms + 'ms)';
-                strip.appendChild(run);
-            }
-        });
-    }
-
+    /* =====================================================================
+       Watchlist
+       ===================================================================== */
     function renderWatchlist(anomalies) {
         var container = document.getElementById('watchlistPanel');
         container.innerHTML = '';
@@ -783,7 +1253,7 @@
 
         anomalies.forEach(function(a) {
             var card = document.createElement('div');
-            card.className = 'ops-anomaly-card ' + a.severity;
+            card.className = 'ops-glass ops-anomaly-card ' + a.severity;
 
             var actionsHtml = '';
             (a.suggested_actions || []).forEach(function(act) {
@@ -795,14 +1265,16 @@
 
             var escBadge = '';
             if (a.escalation_count > 0) {
-                escBadge = ' <span style="font-size:0.6rem;color:var(--ops-red);font-weight:700">ESC ' +
-                    a.original_severity + '→' + a.severity + '</span>';
+                escBadge = ' <span class="ops-esc-badge">ESC ' +
+                    escapeHtml(a.original_severity) + '\u2192' + escapeHtml(a.severity) + '</span>';
             }
 
             card.innerHTML =
                 '<div class="ops-anomaly-header">' +
-                '  <span class="ops-anomaly-severity ' + a.severity + '">' + a.severity + ' | ' + (a.engine_name || 'SYSTEM') + escBadge + '</span>' +
-                '  <span class="ops-anomaly-when">' + (a.first_detected || '') + '</span>' +
+                '  <span class="ops-anomaly-severity ' + a.severity + '">' +
+                       a.severity + ' | ' + escapeHtml(a.engine_name || 'SYSTEM') + escBadge +
+                '  </span>' +
+                '  <span class="ops-anomaly-when">' + escapeHtml(a.first_detected || '') + '</span>' +
                 '</div>' +
                 '<div class="ops-anomaly-summary">' + escapeHtml(a.summary) + '</div>' +
                 '<div class="ops-anomaly-actions">' + actionsHtml + '</div>';
@@ -811,6 +1283,9 @@
         });
     }
 
+    /* =====================================================================
+       SOC Feed
+       ===================================================================== */
     function renderFeed(feed) {
         var container = document.getElementById('opsFeed');
         container.innerHTML = '';
@@ -835,6 +1310,9 @@
         });
     }
 
+    /* =====================================================================
+       Actions
+       ===================================================================== */
     function executeAction(action, engine, btn) {
         btn.disabled = true;
         btn.textContent = 'Running...';
@@ -869,6 +1347,64 @@
         setTimeout(function() { toast.remove(); }, 4000);
     }
 
+    /* =====================================================================
+       Event Handlers
+       ===================================================================== */
+    document.getElementById('togglePoll').addEventListener('click', function() {
+        if (pollInterval) {
+            stopAllPolling();
+            this.textContent = 'Paused';
+            this.classList.remove('active');
+        } else {
+            startPolling();
+            this.textContent = 'Live';
+            this.classList.add('active');
+        }
+    });
+
+    document.getElementById('freezeBtn').addEventListener('click', function() {
+        frozen = !frozen;
+        this.classList.toggle('active', frozen);
+        this.textContent = frozen ? 'Frozen' : 'Freeze';
+    });
+
+    document.querySelector('.ops-feed-filters').addEventListener('click', function(e) {
+        var btn = e.target.closest('[data-filter]');
+        if (!btn) return;
+        currentFilter = btn.dataset.filter;
+        document.querySelectorAll('.ops-filter-btn').forEach(function(b) {
+            b.classList.toggle('active', b.dataset.filter === currentFilter);
+        });
+    });
+
+    document.getElementById('engineCards').addEventListener('click', function(e) {
+        var card = e.target.closest('[data-engine]');
+        if (!card) return;
+        window.location.href = '/admin-console/diagnostics/?engine=' + card.dataset.engine + '&since=-15m';
+    });
+
+    document.getElementById('opsFeed').addEventListener('click', function(e) {
+        var line = e.target.closest('[data-trace-id]');
+        if (!line || !line.dataset.traceId) return;
+        window.location.href = '/admin-console/diagnostics/trace/' + line.dataset.traceId + '/';
+    });
+
+    document.getElementById('watchlistPanel').addEventListener('click', function(e) {
+        var btn = e.target.closest('[data-action]');
+        if (!btn) return;
+        executeAction(btn.dataset.action, btn.dataset.engine || '', btn);
+    });
+
+    // Resize all charts on window resize
+    var resizeTimeout;
+    window.addEventListener('resize', function() {
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(resizeAllCharts, 150);
+    });
+
+    /* =====================================================================
+       Utilities
+       ===================================================================== */
     function formatAgo(isoStr) {
         if (!isoStr) return 'never';
         var seconds = Math.floor((Date.now() - new Date(isoStr).getTime()) / 1000);
@@ -882,8 +1418,7 @@
     function formatTime(isoStr) {
         if (!isoStr) return '—';
         try {
-            var d = new Date(isoStr);
-            return d.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+            return new Date(isoStr).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
         } catch(e) { return '—'; }
     }
 
@@ -903,6 +1438,12 @@
         if (parts.length === 2) return parts.pop().split(';').shift();
         return '';
     }
+
+    /* =====================================================================
+       Init
+       ===================================================================== */
+    startPolling();
+
 })();
 </script>
 {% endblock %}

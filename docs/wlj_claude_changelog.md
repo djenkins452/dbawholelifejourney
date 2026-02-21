@@ -9,6 +9,26 @@
 
 # WLJ Change History
 
+## 2026-02-21 — Ops Command Center v3 Visual Redesign
+
+**Changes:**
+- **Phase 1 — Apache ECharts Integration:** Added ECharts 5.5.1 via CDN. Created reusable chart builder functions: `buildIntegrityGauge()`, `buildEngineTrendChart()`, `buildIntegrityTrendChart()`, `buildCadenceChart()`. Charts update via `setOption()` during polling without full redraw.
+- **Phase 2 — Layout Hierarchy Redesign:** Reorganized into hero integrity section (large score + radial gauge + trend sparkline), posture banner, SAME narration (3-col), engine grid (3-col max), watchlist, SOC feed.
+- **Phase 3 — Visual System Upgrade:** Dark gradient background (#0B1020→#0E1428), glass-morphism cards with backdrop-filter blur, soft box shadows, engine category color badges (Interpret/Execute/Post-Exec/System).
+- **Phase 4 — ECharts Cadence Timelines:** Replaced CSS-only timeline strips with smooth ECharts line graphs featuring gradient fill, error scatter overlays, dashed threshold lines, and animated `effectScatter` dots for latest runs.
+- **Phase 5 — Micro-Animations:** Integrity score count-up animation with easeOutCubic, escalation badge pulse on promotion, engine card glow on status change, staggered fade-in page entrance.
+- **Phase 6 — Responsiveness:** 3-col engine grid on large screens, 2-col at ≤1400px, 1-col at ≤768px. Integrity hero collapses gracefully.
+- **Phase 7 — Polish:** Increased whitespace rhythm, refined typography scale, improved contrast ratios, custom scrollbar styling on SOC feed.
+- **Smart engine card updates:** Cards update in-place via DOM patching rather than full rebuild each poll cycle — eliminates chart flicker.
+
+**Modified Files:**
+- `templates/admin_console/operations_wall.html` — Full frontend visual overhaul
+
+**Backend impact:** None. No models, views, URLs, SAME logic, anomaly logic, or Celery configuration changed.
+**Tests:** 82 ops_wall_v2 + 91 Celery/diagnostics tests pass — 0 regressions.
+
+---
+
 ## 2026-02-21 — Celery + Redis Infrastructure (Phases 6–10)
 
 **Changes:**

@@ -597,6 +597,54 @@ def build_cos_context(user):
         logger.debug("CoS context: governance strategy unavailable: %s", e)
         context['governance_strategy_prompt'] = ''
 
+    # Approaching life events (next 14 days)
+    try:
+        from apps.life.models import SignificantEvent, LifeEvent
+        from apps.core.utils import get_user_today
+        today = get_user_today(user)
+        approaching_events = []
+
+        # Significant recurring events (birthdays, anniversaries, memorials)
+        for event in SignificantEvent.objects.filter(user=user):
+            try:
+                days_until = event.days_until_next(today)
+                if days_until is not None and days_until <= 14:
+                    event_info = {
+                        'title': event.title,
+                        'type': event.event_type,
+                        'days_until': days_until,
+                        'person': event.person_name or '',
+                    }
+                    if event.original_year:
+                        years = today.year - event.original_year
+                        if days_until > 0:
+                            years = years  # this year's occurrence
+                        event_info['years'] = years
+                    approaching_events.append(event_info)
+            except Exception:
+                continue
+
+        # One-time life events in the next 14 days
+        from datetime import timedelta
+        cutoff = today + timedelta(days=14)
+        for event in LifeEvent.objects.filter(
+            user=user, start_date__gte=today, start_date__lte=cutoff
+        ).exclude(status='deleted').order_by('start_date')[:10]:
+            days_until = (event.start_date - today).days
+            approaching_events.append({
+                'title': event.title,
+                'type': event.event_type if hasattr(event, 'event_type') else 'event',
+                'days_until': days_until,
+                'person': '',
+            })
+
+        # Sort by soonest first, cap at 5
+        approaching_events.sort(key=lambda e: e['days_until'])
+        context['approaching_life_events'] = approaching_events[:5]
+    except Exception as e:
+        logger.debug("CoS context: life events unavailable: %s", e)
+        context['approaching_life_events'] = []
+
     return context
 
 
@@ -762,6 +810,23 @@ def format_cos_system_injection(context):
             lines.append("Health Signals (7-day):")
             for hl in health_lines:
                 lines.append(f"  {hl}")
+
+    # Approaching life events
+    life_events = context.get('approaching_life_events', [])
+    if life_events:
+        lines.append("")
+        lines.append("Approaching Life Events:")
+        for ev in life_events:
+            day_label = "today" if ev['days_until'] == 0 else (
+                "tomorrow" if ev['days_until'] == 1 else
+                f"in {ev['days_until']} days"
+            )
+            parts = [f"  {ev['title']} ({day_label})"]
+            if ev.get('person'):
+                parts.append(f"— {ev['person']}")
+            if ev.get('years'):
+                parts.append(f"({ev['years']} years)")
+            lines.append(' '.join(parts))
 
     # Open loops (things to address)
     loops = context.get('open_loops', {})

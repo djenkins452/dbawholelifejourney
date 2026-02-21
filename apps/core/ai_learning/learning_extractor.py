@@ -71,6 +71,22 @@ EXTRACTION_PATTERNS = {
         r"(?:I (?:don't want|refuse|avoid|hate) to)\s+(.+?)(?:\.|,|$)",
         r"(?:I (?:keep )?(?:avoiding|putting off|procrastinating))\s+(.+?)(?:\.|,|$)",
     ],
+    "health_concern": [
+        r"(?:my (?:back|knee|shoulder|calf|leg|arm|wrist|ankle|hip|neck|head|elbow|foot|hamstring) (?:is|has been|hurts|aches|still))\s*(.+?)(?:\.|,|$)",
+        r"(?:I've been (?:dealing with|having|experiencing|struggling with))\s+(.+?)(?:\.|,|$)",
+        r"(?:(?:the|my) (?:pain|soreness|tightness|stiffness|injury|swelling) (?:in|with|from))\s+(.+?)(?:\.|,|$)",
+        r"(?:I (?:pulled|strained|hurt|injured|tweaked|sprained) (?:my )?)\s*(.+?)(?:\.|,|$)",
+    ],
+    "life_event_mention": [
+        r"(?:(?:my (?:sister|brother|mom|dad|wife|husband|son|daughter|friend|mother|father))'?s? (?:surgery|wedding|graduation|birthday|funeral|visit|trip|appointment|procedure) (?:is|on|at|next|this))\s+(.+?)(?:\.|,|$)",
+        r"(?:(?:we|I) (?:have|got) (?:a |an )?(?:trip|vacation|appointment|surgery|meeting|event|procedure|visit) (?:on|in|at|coming up|next|this))\s+(.+?)(?:\.|,|$)",
+        r"(?:(?:on|this|next) (?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|week|month))[,]?\s+(.+?)(?:\.|$)",
+    ],
+    "commitment_made": [
+        r"(?:I (?:promised|committed|agreed|said I would|told \w+ I'd))\s+(.+?)(?:\.|,|$)",
+        r"(?:I need to (?:make sure|remember) to)\s+(.+?)(?:\.|,|$)",
+        r"(?:I'm going to make sure)\s+(.+?)(?:\.|,|$)",
+    ],
 }
 
 # Category → profile field mapping
@@ -83,6 +99,9 @@ CATEGORY_FIELD_MAP = {
     "identity_statement": "identity_statements",
     "motivational_trigger": "motivational_triggers",
     "avoidance_pattern": "avoidance_patterns",
+    "health_concern": "health_concerns",
+    "life_event_mention": "life_event_mentions",
+    "commitment_made": "commitments_made",
 }
 
 # Max items per category

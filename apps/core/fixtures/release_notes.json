@@ -1,6 +1,22 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 78,
+        "fields": {
+            "title": "Monica Now Greets You Like a Real Chief of Staff",
+            "description": "Monica's morning greeting has been completely upgraded. She now reviews your sleep, checks if you've taken your medicine, surfaces approaching birthdays and life events, scans your journal for patterns, and presents your day as a narrative — not a data dump. If you've been away for a few days, she'll catch you up on what shifted. She also now remembers conversation topics beyond the last 15 messages through rolling memory summaries. This is the executive arrival experience — proactive, aware, and human.",
+            "entry_type": "enhancement",
+            "version": "",
+            "release_date": "2026-02-21",
+            "is_published": true,
+            "is_major": true,
+            "learn_more_url": "",
+            "created_at": "2026-02-21T00:00:00Z",
+            "updated_at": "2026-02-21T00:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 77,
         "fields": {
             "title": "Monica Now Proactively Checks In With You",

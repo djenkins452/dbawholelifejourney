@@ -2175,6 +2175,13 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         conversation.updated_at = timezone.now()
         conversation.save(update_fields=['updated_at'])
 
+        # Post-response: trigger rolling conversation summary if needed
+        try:
+            from apps.ai.executive_briefing import maybe_generate_rolling_summary
+            maybe_generate_rolling_summary(self.user, conversation)
+        except Exception:
+            pass  # Summary generation must never break chat
+
         # Return structured response
         result = {'response': response}
         if actions_taken:
@@ -2782,38 +2789,51 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         except Exception as cos_err:
             logger.debug("CoS context injection skipped: %s", cos_err)
 
-        # Schedule-aware greeting enrichment
-        # When user sends a greeting (especially morning), instruct CoS to
-        # reference the day's schedule, note anything overdue or upcoming,
-        # and behave like a real executive assistant who checked the calendar.
+        # Executive Briefing (replaces simple greeting injection)
+        # Delivers morning briefing, gap detection, life events, health gates,
+        # journal follow-ups on first-of-day or gap re-entry interactions.
+        briefing = ""
+        try:
+            from apps.ai.executive_briefing import (
+                build_executive_briefing,
+                get_conversation_memory,
+            )
+            briefing = build_executive_briefing(self.user, conversation)
+            if briefing:
+                system_prompt += "\n\n" + briefing
+
+            # Inject conversation memory (rolling summary of older messages)
+            memory = get_conversation_memory(conversation)
+            if memory:
+                system_prompt += "\n\n" + memory
+        except Exception:
+            pass  # Executive briefing must never break chat
+
+        # Fallback: lightweight greeting for mid-conversation greetings
+        # (when briefing gate didn't fire — not first-of-day)
         message_lower = message.lower()
-        is_greeting = any(g in message_lower for g in [
-            'good morning', 'morning', 'good afternoon', 'good evening',
-            'hello', 'hey', 'hi', 'howdy', "what's up", 'sup',
-        ])
-        if is_greeting:
-            try:
-                from apps.core.utils import get_user_now
-                user_now = get_user_now(self.user)
-                time_of_day = 'morning' if user_now.hour < 12 else (
-                    'afternoon' if user_now.hour < 17 else 'evening'
-                )
-                greeting_injection = f"""
---- GREETING CONTEXT ---
-The user just greeted you ({time_of_day}, {user_now.strftime('%I:%M %p').lstrip('0')}).
-You have their calendar events in the OPERATIONAL CONTEXT above.
-As their Chief of Staff, respond like an executive assistant who has already reviewed their schedule:
-- Greet them warmly and reference the time of day
-- Mention what's on their schedule — especially anything happening soon or already overdue
-- If they appear to be running behind (e.g., it's past a scheduled event start time), gently ask how it went or offer to reschedule
-- If the next event is coming up, mention it proactively
-- Be conversational, not robotic. Don't dump the whole schedule — highlight what matters NOW
-- If it's morning, ask about their morning routine or how they're feeling to start the day
-Do NOT just say "Good morning" generically. Show that you KNOW their day.
-"""
-                system_prompt += greeting_injection
-            except Exception:
-                pass  # Greeting enrichment must never break chat
+        if not briefing:
+            is_greeting = any(g in message_lower for g in [
+                'good morning', 'morning', 'good afternoon', 'good evening',
+                'hello', 'hey', 'hi', 'howdy', "what's up", 'sup',
+            ])
+            if is_greeting:
+                try:
+                    from apps.core.utils import get_user_now
+                    user_now = get_user_now(self.user)
+                    time_of_day = 'morning' if user_now.hour < 12 else (
+                        'afternoon' if user_now.hour < 17 else 'evening'
+                    )
+                    greeting_injection = (
+                        f"\n--- GREETING CONTEXT ---\n"
+                        f"The user just greeted you ({time_of_day}, "
+                        f"{user_now.strftime('%I:%M %p').lstrip('0')}). "
+                        f"Reference their schedule from OPERATIONAL CONTEXT. "
+                        f"Be conversational, not robotic.\n"
+                    )
+                    system_prompt += greeting_injection
+                except Exception:
+                    pass
 
         # Check if user is asking about tasks/priorities/habits/focus
         # Include full state data so the AI can give data-driven answers

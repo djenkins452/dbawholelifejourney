@@ -718,6 +718,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for Monica proactive chat check-ins (PK 77)
         self._reset_monica_proactive_checkins_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for Executive Operator upgrade (PK 78)
+        self._reset_executive_operator_fixtures(DataLoadConfig, force, verbosity)
+
         # Auto-sync CoS documentation to admin guide (runs if checksum changed)
         self._sync_cos_documentation(DataLoadConfig, force, verbosity)
 
@@ -2947,3 +2950,33 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset Monica proactive check-ins fixtures FAILED: {e}'))
+
+    def _reset_executive_operator_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes for Executive Operator upgrade.
+        - release_notes PK 78 (Executive Operator morning briefing)
+        """
+        reset_tracker_name = 'reset_executive_operator_2026_02_21'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                config.reset()
+                if verbosity >= 1:
+                    self.stdout.write(f'  Reset release_notes loader for Executive Operator upgrade')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for Executive Operator upgrade (Feb 2026)',
+                'command',
+                'One-time reset to reload release_notes PK 78'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset Executive Operator fixtures FAILED: {e}'))

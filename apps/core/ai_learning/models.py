@@ -72,6 +72,23 @@ class UserLearnedProfile(models.Model):
         help_text="Patterns or topics the user consistently avoids.",
     )
 
+    # Extended recall categories (Executive Operator)
+    health_concerns = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Health issues, injuries, or physical concerns mentioned.",
+    )
+    life_event_mentions = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Upcoming life events mentioned with date/context.",
+    )
+    commitments_made = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Promises or commitments the user stated they would do.",
+    )
+
     # Metadata
     total_extractions = models.IntegerField(default=0)
     last_extraction_at = models.DateTimeField(null=True, blank=True)
@@ -113,6 +130,12 @@ class UserLearnedProfile(models.Model):
             lines.append(f"Known Frustrations: {', '.join(self.repeated_frustrations[:5])}")
         if self.avoidance_patterns:
             lines.append(f"Avoidance Patterns: {', '.join(self.avoidance_patterns[:3])}")
+        if self.health_concerns:
+            lines.append(f"Active Health Concerns: {', '.join(self.health_concerns[:5])}")
+        if self.life_event_mentions:
+            lines.append(f"Upcoming Events Mentioned: {', '.join(self.life_event_mentions[:5])}")
+        if self.commitments_made:
+            lines.append(f"Commitments Made: {', '.join(self.commitments_made[:5])}")
 
         if len(lines) == 1:
             return ""  # Nothing learned yet
@@ -139,6 +162,9 @@ class LearningExtraction(models.Model):
         ("identity_statement", "Identity Statement"),
         ("motivational_trigger", "Motivational Trigger"),
         ("avoidance_pattern", "Avoidance Pattern"),
+        ("health_concern", "Health Concern"),
+        ("life_event_mention", "Life Event Mention"),
+        ("commitment_made", "Commitment Made"),
     ]
 
     user = models.ForeignKey(

@@ -671,11 +671,40 @@ def format_cos_system_injection(context):
     if mood.get('trend') and mood['trend'] != 'stable':
         lines.append(f"Mood Trend: {mood['trend']}")
 
-    # Sleep alert (actionable)
+    # Health signals — ALWAYS include so CoS has awareness of user's health data
     health_sig = context.get('health_signals', {})
-    sleep = health_sig.get('sleep_avg_7d')
-    if sleep and sleep < 6.5:
-        lines.append(f"Sleep: {sleep:.1f}h avg this week (low)")
+    if health_sig:
+        health_lines = []
+        sleep = health_sig.get('sleep_avg_7d')
+        if sleep:
+            label = f"{sleep:.1f}h avg" + (" (low)" if sleep < 6.5 else "")
+            health_lines.append(f"Sleep: {label}")
+        steps = health_sig.get('steps_avg_7d')
+        if steps:
+            health_lines.append(f"Steps: {steps:,} avg/day")
+        hr = health_sig.get('heart_rate_avg_7d')
+        if hr:
+            health_lines.append(f"Heart Rate: {hr} bpm avg")
+        bp = health_sig.get('bp_latest')
+        if bp:
+            health_lines.append(f"Blood Pressure: {bp}")
+        glucose = health_sig.get('glucose_avg_7d')
+        if glucose:
+            health_lines.append(f"Glucose: {glucose} mg/dL avg")
+        spo2 = health_sig.get('blood_oxygen_avg_7d')
+        if spo2:
+            health_lines.append(f"Blood Oxygen: {spo2}%")
+        workouts = health_sig.get('workout_count_7d')
+        if workouts:
+            health_lines.append(f"Workouts: {workouts} this week")
+        hr_events = health_sig.get('heart_rate_events_7d')
+        if hr_events:
+            health_lines.append(f"Heart Rate Events: {hr_events} this week")
+        if health_lines:
+            lines.append("")
+            lines.append("Health Signals (7-day):")
+            for hl in health_lines:
+                lines.append(f"  {hl}")
 
     # Open loops (things to address)
     loops = context.get('open_loops', {})

@@ -164,6 +164,7 @@ def process_assistant_message(
         'weight', 'journal', 'medication', 'food', 'mood', 'glucose', 'faith', 'goals',
         'heart_rate', 'blood_pressure', 'blood_oxygen', 'workout', 'fasting', 'task', 'user',
         'steps', 'sleep', 'mobility', 'heart_rate_events', 'audio_exposure', 'dietary_nutrients',
+        'health_summary',
     ]
 
     # Map unsupported types to supported ones that provide relevant data
@@ -271,6 +272,7 @@ def _get_friendly_data_type_name(data_type: str) -> str:
         'heart_rate_events': 'heart rate events',
         'audio_exposure': 'audio exposure',
         'dietary_nutrients': 'dietary nutrients',
+        'health_summary': 'health',
     }
     return friendly_names.get(data_type, data_type.replace('_', ' '))
 

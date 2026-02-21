@@ -2833,6 +2833,11 @@ Do NOT just say "Good morning" generically. Show that you KNOW their day.
             'since i started', 'how consistent', 'how am i doing',
             'where am i', 'where do i need', 'where should i',
             'what areas', 'which areas',
+            # Health data visibility questions
+            'health data', 'healthkit', 'health records', 'health metrics',
+            'my health', 'my vitals', 'vital signs', 'see my data',
+            'see any data', 'new data', 'new activity', 'synced data',
+            'apple health',
         ])
 
         if is_asking_about_tasks or is_asking_for_analysis:

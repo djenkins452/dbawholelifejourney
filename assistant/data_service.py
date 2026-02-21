@@ -1976,6 +1976,240 @@ class PersonalDataService:
 
         return result
 
+    def get_health_summary_data(
+        self,
+        since_date: Optional[datetime] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get a comprehensive summary across ALL health data types.
+
+        This is triggered when users ask generic questions like "what health data
+        do you have?" or "can you see my HealthKit data?" — it pulls from every
+        health model and provides a consolidated overview.
+
+        Args:
+            since_date: Optional datetime to filter entries from this date.
+
+        Returns:
+            A dict with summaries from each health type that has data, or None.
+        """
+        from datetime import timedelta
+        from django.db.models import Avg, Max, Min, Count
+
+        if since_date is None:
+            since_date = timezone.now() - timedelta(days=7)
+        elif isinstance(since_date, date) and not isinstance(since_date, datetime):
+            since_date = timezone.make_aware(
+                datetime.combine(since_date, datetime.min.time())
+            )
+
+        summaries = {}
+
+        # Weight
+        try:
+            from apps.health.models import WeightEntry
+            qs = WeightEntry.objects.filter(user=self.user)
+            latest = qs.order_by('-recorded_at').first()
+            if latest:
+                summaries['weight'] = {
+                    'latest': float(latest.value_in_lb),
+                    'latest_date': latest.recorded_at,
+                    'total_entries': qs.count(),
+                }
+        except Exception:
+            pass
+
+        # Steps
+        try:
+            from apps.health.models import StepsEntry
+            qs = StepsEntry.objects.filter(
+                user=self.user, logged_date__gte=since_date
+            )
+            if qs.exists():
+                agg = qs.aggregate(avg=Avg('count'), total=Count('id'))
+                latest = qs.order_by('-logged_date').first()
+                summaries['steps'] = {
+                    'avg': int(agg['avg']) if agg['avg'] else 0,
+                    'entries': agg['total'],
+                    'latest': latest.count if latest else 0,
+                    'latest_date': latest.logged_date if latest else None,
+                }
+        except Exception:
+            pass
+
+        # Heart Rate
+        try:
+            from apps.health.models import HeartRateEntry
+            qs = HeartRateEntry.objects.filter(
+                user=self.user, recorded_at__date__gte=since_date
+            )
+            if qs.exists():
+                agg = qs.aggregate(
+                    avg=Avg('bpm'), lo=Min('bpm'), hi=Max('bpm'), total=Count('id')
+                )
+                summaries['heart_rate'] = {
+                    'avg_bpm': round(float(agg['avg'])) if agg['avg'] else None,
+                    'range': f"{agg['lo']}-{agg['hi']}" if agg['lo'] else None,
+                    'entries': agg['total'],
+                }
+        except Exception:
+            pass
+
+        # Sleep
+        try:
+            from apps.health.models import SleepEntry
+            qs = SleepEntry.objects.filter(
+                user=self.user, sleep_date__gte=since_date
+            )
+            if qs.exists():
+                agg = qs.aggregate(avg=Avg('asleep_duration_minutes'), total=Count('id'))
+                latest = qs.order_by('-sleep_date').first()
+                summaries['sleep'] = {
+                    'avg_hours': round(float(agg['avg']) / 60, 1) if agg['avg'] else None,
+                    'entries': agg['total'],
+                    'latest_hours': round(latest.asleep_duration_minutes / 60, 1) if latest and latest.asleep_duration_minutes else None,
+                }
+        except Exception:
+            pass
+
+        # Blood Pressure
+        try:
+            from apps.health.models import BloodPressureEntry
+            qs = BloodPressureEntry.objects.filter(
+                user=self.user, recorded_at__date__gte=since_date
+            )
+            if qs.exists():
+                agg = qs.aggregate(
+                    avg_sys=Avg('systolic'), avg_dia=Avg('diastolic'), total=Count('id')
+                )
+                summaries['blood_pressure'] = {
+                    'avg': f"{round(float(agg['avg_sys']))}/{round(float(agg['avg_dia']))}" if agg['avg_sys'] else None,
+                    'entries': agg['total'],
+                }
+        except Exception:
+            pass
+
+        # Glucose
+        try:
+            from apps.health.models import GlucoseEntry
+            qs = GlucoseEntry.objects.filter(
+                user=self.user, recorded_at__date__gte=since_date
+            )
+            if qs.exists():
+                agg = qs.aggregate(avg=Avg('value'), total=Count('id'))
+                summaries['glucose'] = {
+                    'avg': round(float(agg['avg'])) if agg['avg'] else None,
+                    'entries': agg['total'],
+                }
+        except Exception:
+            pass
+
+        # Blood Oxygen
+        try:
+            from apps.health.models import BloodOxygenEntry
+            qs = BloodOxygenEntry.objects.filter(
+                user=self.user, recorded_at__date__gte=since_date
+            )
+            if qs.exists():
+                agg = qs.aggregate(avg=Avg('spo2'), total=Count('id'))
+                summaries['blood_oxygen'] = {
+                    'avg_spo2': round(float(agg['avg']), 1) if agg['avg'] else None,
+                    'entries': agg['total'],
+                }
+        except Exception:
+            pass
+
+        # Workouts
+        try:
+            from apps.health.models import WorkoutSession
+            qs = WorkoutSession.objects.filter(
+                user=self.user, date__gte=since_date
+            )
+            if qs.exists():
+                summaries['workouts'] = {
+                    'count': qs.count(),
+                    'latest_date': qs.order_by('-date').first().date,
+                }
+        except Exception:
+            pass
+
+        # Mobility
+        try:
+            from apps.health.models import MobilityEntry
+            qs = MobilityEntry.objects.filter(
+                user=self.user, recorded_at__date__gte=since_date
+            )
+            if qs.exists():
+                summaries['mobility'] = {
+                    'entries': qs.count(),
+                }
+        except Exception:
+            pass
+
+        # Heart Rate Events
+        try:
+            from apps.health.models import HeartRateEventEntry
+            qs = HeartRateEventEntry.objects.filter(
+                user=self.user, recorded_at__date__gte=since_date
+            )
+            if qs.exists():
+                summaries['heart_rate_events'] = {
+                    'count': qs.count(),
+                }
+        except Exception:
+            pass
+
+        # Audio Exposure
+        try:
+            from apps.health.models import AudioExposureEntry
+            qs = AudioExposureEntry.objects.filter(
+                user=self.user, recorded_at__date__gte=since_date
+            )
+            if qs.exists():
+                summaries['audio_exposure'] = {
+                    'entries': qs.count(),
+                }
+        except Exception:
+            pass
+
+        # Fasting
+        try:
+            from apps.health.models import FastingWindow
+            qs = FastingWindow.objects.filter(
+                user=self.user, started_at__date__gte=since_date,
+                ended_at__isnull=False,
+            )
+            if qs.exists():
+                summaries['fasting'] = {
+                    'completed': qs.count(),
+                }
+        except Exception:
+            pass
+
+        # Medication
+        try:
+            from apps.health.models import MedicineLog
+            qs = MedicineLog.objects.filter(
+                user=self.user, taken_at__date__gte=since_date
+            )
+            if qs.exists():
+                summaries['medication'] = {
+                    'doses_logged': qs.count(),
+                }
+        except Exception:
+            pass
+
+        if not summaries:
+            return None
+
+        return {
+            'type': 'health_summary',
+            'period': 'last 7 days',
+            'data_types_found': list(summaries.keys()),
+            'data_types_count': len(summaries),
+            'summaries': summaries,
+        }
+
     def query_by_intent(
         self,
         data_types: List[str],
@@ -2035,6 +2269,7 @@ class PersonalDataService:
             'heart_rate_events': self.get_heart_rate_events_data,
             'audio_exposure': self.get_audio_exposure_data,
             'dietary_nutrients': self.get_dietary_nutrients_data,
+            'health_summary': self.get_health_summary_data,
         }
 
         # Collect results

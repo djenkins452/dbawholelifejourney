@@ -420,6 +420,23 @@ PERSONAL_DATA_KEYWORDS: Dict[str, List[str]] = {
         'daily sodium', 'daily cholesterol', 'daily potassium',
         'daily calcium', 'daily iron', 'vitamin d intake',
     ],
+
+    # =========================================================================
+    # HEALTH SUMMARY — Catches generic "health data" / "HealthKit" queries
+    # When users ask broadly about "my health data" or "HealthKit data"
+    # without specifying a type, pull a comprehensive summary.
+    # =========================================================================
+    'health_summary': [
+        'health data', 'health records', 'healthkit', 'healthkit data',
+        'apple health', 'apple health data', 'health information',
+        'health metrics', 'health stats', 'health statistics',
+        'health summary', 'health overview', 'health snapshot',
+        'my health', 'all my health', 'all health data',
+        'new health data', 'new health records', 'new activity',
+        'synced data', 'synced health', 'sync data', 'sync health',
+        'health tracking', 'what health', 'any health',
+        'vitals', 'my vitals', 'vital signs',
+    ],
 }
 
 

@@ -172,6 +172,12 @@ def build_personal_context(
         if dietary_section:
             sections.append(dietary_section)
 
+    # Format health summary data if present
+    if 'health_summary' in data_results:
+        summary_section = _format_health_summary_data(data_results['health_summary'], user_timezone)
+        if summary_section:
+            sections.append(summary_section)
+
     # Format user data if present
     if 'user' in data_results:
         user_section = _format_user_data(data_results['user'])
@@ -707,6 +713,100 @@ def _format_task_data(task_data: Dict[str, Any]) -> str:
     completion_rate = task_data.get('completion_rate')
     if completion_rate is not None:
         lines.append(f'- Completion rate: {completion_rate}%')
+
+    return '\n'.join(lines)
+
+
+def _format_health_summary_data(
+    summary_data: Dict[str, Any],
+    user_timezone: Optional[str] = None,
+) -> str:
+    """Format comprehensive health summary data into natural language.
+
+    This produces a consolidated overview when users ask generic questions
+    like 'what health data do you have?' or 'can you see my HealthKit data?'
+    """
+    if not summary_data:
+        return ''
+
+    summaries = summary_data.get('summaries', {})
+    if not summaries:
+        return ''
+
+    period = summary_data.get('period', 'recent')
+    data_count = summary_data.get('data_types_count', 0)
+
+    lines = [f'Comprehensive Health Summary ({period}) — {data_count} data types found:']
+
+    # Weight
+    w = summaries.get('weight')
+    if w:
+        date_str = _format_date(w['latest_date'], user_timezone) if w.get('latest_date') else ''
+        lines.append(f'- Weight: {w["latest"]:.1f} lb (latest{", " + date_str if date_str else ""}), {w["total_entries"]} total entries')
+
+    # Steps
+    s = summaries.get('steps')
+    if s:
+        lines.append(f'- Steps: {s["avg"]:,} avg/day, {s["entries"]} entries, latest: {s["latest"]:,}')
+
+    # Heart Rate
+    hr = summaries.get('heart_rate')
+    if hr:
+        lines.append(f'- Heart Rate: {hr["avg_bpm"]} bpm avg, range {hr["range"]}, {hr["entries"]} readings')
+
+    # Sleep
+    sl = summaries.get('sleep')
+    if sl:
+        lines.append(f'- Sleep: {sl["avg_hours"]}h avg, {sl["entries"]} nights logged')
+
+    # Blood Pressure
+    bp = summaries.get('blood_pressure')
+    if bp:
+        lines.append(f'- Blood Pressure: {bp["avg"]} avg, {bp["entries"]} readings')
+
+    # Glucose
+    g = summaries.get('glucose')
+    if g:
+        lines.append(f'- Glucose: {g["avg"]} mg/dL avg, {g["entries"]} readings')
+
+    # Blood Oxygen
+    o2 = summaries.get('blood_oxygen')
+    if o2:
+        lines.append(f'- Blood Oxygen: {o2["avg_spo2"]}% avg, {o2["entries"]} readings')
+
+    # Workouts
+    wo = summaries.get('workouts')
+    if wo:
+        lines.append(f'- Workouts: {wo["count"]} sessions')
+
+    # Mobility
+    mob = summaries.get('mobility')
+    if mob:
+        lines.append(f'- Mobility: {mob["entries"]} data points')
+
+    # Heart Rate Events
+    hre = summaries.get('heart_rate_events')
+    if hre:
+        lines.append(f'- Heart Rate Events: {hre["count"]} events')
+
+    # Audio Exposure
+    ae = summaries.get('audio_exposure')
+    if ae:
+        lines.append(f'- Audio Exposure: {ae["entries"]} data points')
+
+    # Fasting
+    fa = summaries.get('fasting')
+    if fa:
+        lines.append(f'- Fasting: {fa["completed"]} completed fasts')
+
+    # Medication
+    med = summaries.get('medication')
+    if med:
+        lines.append(f'- Medication: {med["doses_logged"]} doses logged')
+
+    lines.append('')
+    lines.append('IMPORTANT: The user is asking about their health data. You DO have this data. '
+                 'Lead with what you see. Summarize confidently and offer to drill into any specific area.')
 
     return '\n'.join(lines)
 

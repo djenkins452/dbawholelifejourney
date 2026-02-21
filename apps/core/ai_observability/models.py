@@ -473,6 +473,8 @@ class AdminIntervention(models.Model):
         ("clear_suppression_cache", "Clear Suppression Cache"),
         ("restart_scheduler", "Restart Scheduler Task"),
         ("acknowledge_anomaly", "Acknowledge Anomaly"),
+        ("auto_rerun_engine", "Auto Re-run Engine"),
+        ("auto_clear_suppression", "Auto Clear Suppression Cache"),
         ("other", "Other"),
     ]
 
@@ -517,10 +519,16 @@ class AdminIntervention(models.Model):
         default="",
         help_text="Result message or error detail.",
     )
+    is_system_initiated = models.BooleanField(
+        default=False,
+        help_text="True if triggered by autonomous remediation, not a human.",
+    )
 
     def __str__(self):
-        user = self.admin_user.email if self.admin_user else "system"
-        return f"{self.action_type} on {self.engine_name} by {user}"
+        who = "system" if self.is_system_initiated else (
+            self.admin_user.email if self.admin_user else "unknown"
+        )
+        return f"{self.action_type} on {self.engine_name} by {who}"
 
 
 class OpsAnomaly(models.Model):
@@ -596,9 +604,28 @@ class OpsAnomaly(models.Model):
         help_text="When this anomaly was resolved/deactivated.",
     )
 
+    # Escalation fields
+    original_severity = models.CharField(
+        max_length=2,
+        choices=SEVERITY_CHOICES,
+        blank=True,
+        default="",
+        help_text="Severity when first created (before any escalation).",
+    )
+    escalation_count = models.IntegerField(
+        default=0,
+        help_text="Number of times this anomaly has been escalated.",
+    )
+    last_escalated_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this anomaly was last escalated.",
+    )
+
     def __str__(self):
         status = "ACTIVE" if self.is_active else "RESOLVED"
-        return f"[{self.severity}] {self.anomaly_type} — {self.engine_name} ({status})"
+        esc = f" esc={self.escalation_count}" if self.escalation_count else ""
+        return f"[{self.severity}] {self.anomaly_type} — {self.engine_name} ({status}{esc})"
 
 
 class OpsNarrativeSnapshot(models.Model):
@@ -655,3 +682,58 @@ class OpsNarrativeSnapshot(models.Model):
         blank=True,
         help_text="Key metrics that informed this narrative.",
     )
+
+
+class SystemIntegritySnapshot(models.Model):
+    """
+    Executive-level system health metric (0–100) computed every SAME cycle.
+
+    Score reflects overall intelligence platform health considering:
+    - Percentage of engines in OK status
+    - Severity-weighted anomaly penalties (P1 > P2 > P3)
+    - Error spike penalty
+    - Suppression rate impact
+    - Confidence volatility impact
+
+    Posture is derived from score:
+    - OPTIMAL: 90–100
+    - NOMINAL: 70–89
+    - DEGRADED: 40–69
+    - CRITICAL: 0–39
+    """
+
+    class Meta:
+        app_label = "core"
+        db_table = "core_system_integrity_snapshot"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(
+                fields=["-created_at"],
+                name="idx_integrity_time",
+            ),
+        ]
+
+    POSTURE_CHOICES = [
+        ("OPTIMAL", "Optimal"),
+        ("NOMINAL", "Nominal"),
+        ("DEGRADED", "Degraded"),
+        ("CRITICAL", "Critical"),
+    ]
+
+    score = models.FloatField(
+        help_text="System integrity score 0.0–100.0.",
+    )
+    posture = models.CharField(
+        max_length=10,
+        choices=POSTURE_CHOICES,
+        help_text="Derived from score: OPTIMAL/NOMINAL/DEGRADED/CRITICAL.",
+    )
+    components = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Score breakdown by component.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Integrity {self.score:.1f} [{self.posture}] at {self.created_at}"

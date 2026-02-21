@@ -492,11 +492,12 @@ class DiagnosticsViewAccessTests(TestCase):
         response = self.client.get("/admin-console/ops/poll/")
         self.assertEqual(response.status_code, 200)
         data = response.json()
-        self.assertIn("system_status", data)
-        self.assertIn("engine_tiles", data)
-        self.assertIn("ops_feed", data)
+        # v2 response keys
+        self.assertIn("posture", data)
+        self.assertIn("engine_cards", data)
+        self.assertIn("feed", data)
         self.assertIn("anomalies", data)
-        self.assertIn("charts", data)
+        self.assertIn("integrity", data)
 
     def test_ops_poll_non_staff_forbidden(self):
         self.client.force_login(self.regular_user)

@@ -31,6 +31,7 @@ from apps.core.ai_observability.models import (
     EngineRun,
     OpsAnomaly,
     OpsNarrativeSnapshot,
+    SystemIntegritySnapshot,
 )
 from apps.users.models import TermsAcceptance, User
 
@@ -796,3 +797,716 @@ class SAMEConfidenceVolatilityTest(TestCase):
         from apps.core.ai_observability.same_engine import _detect_confidence_volatility
         anomalies = _detect_confidence_volatility(now)
         self.assertEqual(len(anomalies), 0)
+
+
+# ============================================================
+# Phase 1 — SAME Background Execution Tests
+# ============================================================
+
+
+class SAMEBackgroundExecutionTest(TestCase):
+    """Test SAME background job (run_same_cycle) from apps.core.jobs."""
+
+    def test_same_cycle_runs_without_ui(self):
+        """SAME cycle creates heartbeats and narrative without browser request."""
+        _create_engine_run("UAL", minutes_ago=1)
+        _create_engine_run("PIE", minutes_ago=1)
+
+        from apps.core.jobs import run_same_cycle
+        run_same_cycle()
+
+        # Heartbeats persisted
+        self.assertTrue(EngineHeartbeat.objects.filter(engine_name="UAL").exists())
+        # Narrative snapshot persisted
+        self.assertTrue(OpsNarrativeSnapshot.objects.exists())
+
+    def test_same_cycle_no_duplicate_anomalies(self):
+        """Running SAME twice doesn't create duplicate anomalies."""
+        _create_engine_run("UAL", minutes_ago=60)  # Will be MISSED
+
+        from apps.core.jobs import run_same_cycle
+        run_same_cycle()
+        count_after_first = OpsAnomaly.objects.filter(
+            engine_name="UAL", anomaly_type="MISSED_RUN", is_active=True
+        ).count()
+
+        run_same_cycle()
+        count_after_second = OpsAnomaly.objects.filter(
+            engine_name="UAL", anomaly_type="MISSED_RUN", is_active=True
+        ).count()
+
+        self.assertEqual(count_after_first, 1)
+        self.assertEqual(count_after_second, 1)
+
+    def test_narrative_always_present_after_cycle(self):
+        """After a SAME cycle, there's always at least one narrative snapshot."""
+        self.assertEqual(OpsNarrativeSnapshot.objects.count(), 0)
+
+        from apps.core.jobs import run_same_cycle
+        run_same_cycle()
+
+        self.assertGreater(OpsNarrativeSnapshot.objects.count(), 0)
+
+    def test_lock_prevents_concurrent_execution(self):
+        """SAME lock prevents overlapping execution."""
+        from apps.core.ai_scheduler.scheduler_models import SchedulerLock
+        from django.utils import timezone as tz
+
+        # Simulate an existing fresh lock
+        SchedulerLock.objects.create(
+            lock_name="same_execution",
+            locked_at=tz.now(),
+            locked_by="other-host-99999",
+        )
+
+        _create_engine_run("UAL", minutes_ago=60)
+
+        from apps.core.jobs import run_same_cycle
+        run_same_cycle()
+
+        # SAME should NOT have run — no anomalies created
+        self.assertFalse(
+            OpsAnomaly.objects.filter(
+                engine_name="UAL", anomaly_type="MISSED_RUN", is_active=True
+            ).exists()
+        )
+
+    def test_stale_lock_gets_overridden(self):
+        """Stale SAME lock (>120s) is taken over and SAME runs."""
+        from apps.core.ai_scheduler.scheduler_models import SchedulerLock
+        from django.utils import timezone as tz
+
+        # Create a stale lock (3 minutes old)
+        SchedulerLock.objects.create(
+            lock_name="same_execution",
+            locked_at=tz.now() - timedelta(minutes=3),
+            locked_by="dead-host-00000",
+        )
+
+        _create_engine_run("UAL", minutes_ago=1)
+
+        from apps.core.jobs import run_same_cycle
+        run_same_cycle()
+
+        # SAME should have run — narrative present
+        self.assertTrue(OpsNarrativeSnapshot.objects.exists())
+
+    def test_lock_released_after_cycle(self):
+        """SAME lock is released after successful cycle."""
+        from apps.core.ai_scheduler.scheduler_models import SchedulerLock
+
+        _create_engine_run("UAL", minutes_ago=1)
+
+        from apps.core.jobs import run_same_cycle
+        run_same_cycle()
+
+        # Lock should be released
+        self.assertFalse(
+            SchedulerLock.objects.filter(lock_name="same_execution").exists()
+        )
+
+    def test_ops_stream_reads_stored_state(self):
+        """OpsStream endpoint returns data without triggering SAME."""
+        # Run SAME once to populate state
+        _create_engine_run("UAL", minutes_ago=1)
+        from apps.core.jobs import run_same_cycle
+        run_same_cycle()
+
+        # Now hit the endpoint — it should read stored state
+        staff = _staff_user(email="bg-staff@test.com")
+        _login_staff(self.client, staff)
+
+        with patch("apps.core.ai_observability.same_engine.run_same") as mock_same:
+            response = self.client.get("/admin-console/ops/stream/")
+            # SAME should NOT have been called by the endpoint
+            mock_same.assert_not_called()
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn("narrative", data)
+        self.assertIsNotNone(data["narrative"])
+
+
+# ============================================================
+# Phase 2 — System Integrity Index Tests
+# ============================================================
+
+
+class SystemIntegritySnapshotModelTest(TestCase):
+    """Test SystemIntegritySnapshot model."""
+
+    def test_create_snapshot(self):
+        snapshot = SystemIntegritySnapshot.objects.create(
+            score=95.0, posture="OPTIMAL", components={"test": True}
+        )
+        self.assertIn("95.0", str(snapshot))
+        self.assertIn("OPTIMAL", str(snapshot))
+
+    def test_ordering(self):
+        now = timezone.now()
+        SystemIntegritySnapshot.objects.create(
+            score=90.0, posture="OPTIMAL",
+        )
+        SystemIntegritySnapshot.objects.create(
+            score=50.0, posture="DEGRADED",
+        )
+        first = SystemIntegritySnapshot.objects.first()
+        self.assertEqual(first.score, 50.0)  # Newest first
+
+
+class IntegrityScoreCalculationTest(TestCase):
+    """Test the integrity score computation logic."""
+
+    def test_perfect_score_when_all_healthy(self):
+        """All engines OK, no anomalies → score ~100."""
+        for engine in ["UAL", "SAE", "PIE", "PRIE", "PGE", "ICQG", "DBE", "WIRE", "DNE"]:
+            _create_engine_run(engine, minutes_ago=1)
+
+        from apps.core.ai_observability.same_engine import run_same
+        result = run_same()
+
+        snapshot = result["integrity"]
+        self.assertGreaterEqual(snapshot.score, 90.0)
+        self.assertEqual(snapshot.posture, "OPTIMAL")
+        self.assertIn("engine_health", snapshot.components)
+
+    def test_score_drops_with_p1_anomaly(self):
+        """P1 anomaly penalizes score by ~25 points."""
+        for engine in ["UAL", "SAE", "PIE", "PRIE", "PGE", "ICQG", "DBE", "WIRE", "DNE"]:
+            _create_engine_run(engine, minutes_ago=1)
+
+        # Create a P1 anomaly that won't be auto-resolved
+        OpsAnomaly.objects.create(
+            severity="P1", anomaly_type="ENGINE_STARVATION",
+            engine_name="GLOE", summary="test P1", is_active=True,
+        )
+
+        from apps.core.ai_observability.heartbeat import compute_heartbeats
+        from apps.core.ai_observability.same_engine import _compute_integrity_snapshot
+
+        hbs = compute_heartbeats()
+        snapshot = _compute_integrity_snapshot(hbs, timezone.now())
+
+        # Score should be reduced by P1 penalty (~25)
+        self.assertLess(snapshot.score, 80.0)
+        self.assertIn(snapshot.posture, ["NOMINAL", "DEGRADED"])
+
+    def test_score_drops_with_missed_engines(self):
+        """Missed engines reduce the engine health component."""
+        # Only 1 of 10 engines has a recent run
+        _create_engine_run("UAL", minutes_ago=1)
+        _create_engine_run("PIE", minutes_ago=120)  # Will be MISSED
+
+        from apps.core.ai_observability.same_engine import run_same
+        result = run_same()
+
+        snapshot = result["integrity"]
+        components = snapshot.components
+        # Most engines never ran (OK status since no historical data)
+        # But PIE is MISSED → reduces engine_health
+        self.assertIn("engine_health", components)
+
+    def test_score_clamped_to_0_100(self):
+        """Score never goes below 0 or above 100."""
+        # Create many active P1 anomalies to drive score below 0
+        for i in range(10):
+            OpsAnomaly.objects.create(
+                severity="P1", anomaly_type="ENGINE_STARVATION",
+                engine_name=f"E{i}", summary=f"test {i}", is_active=True,
+            )
+
+        from apps.core.ai_observability.same_engine import run_same
+        result = run_same()
+
+        snapshot = result["integrity"]
+        self.assertGreaterEqual(snapshot.score, 0.0)
+        self.assertLessEqual(snapshot.score, 100.0)
+
+    def test_posture_mapping(self):
+        """Score ranges map to correct postures."""
+        from apps.core.ai_observability.same_engine import _compute_integrity_snapshot
+        from apps.core.ai_observability.heartbeat import compute_heartbeats
+
+        # Healthy setup → should be OPTIMAL
+        for engine in ["UAL", "SAE", "PIE", "PRIE", "PGE", "ICQG", "DBE", "WIRE", "DNE"]:
+            _create_engine_run(engine, minutes_ago=1)
+
+        hbs = compute_heartbeats()
+        snapshot = _compute_integrity_snapshot(hbs, timezone.now())
+        self.assertEqual(snapshot.posture, "OPTIMAL")
+
+    def test_integrity_components_present(self):
+        """All five component categories are present in snapshot."""
+        _create_engine_run("UAL", minutes_ago=1)
+
+        from apps.core.ai_observability.same_engine import run_same
+        result = run_same()
+
+        components = result["integrity"].components
+        expected_keys = [
+            "engine_health", "anomaly_severity", "error_spike",
+            "suppression_rate", "confidence_volatility",
+        ]
+        for key in expected_keys:
+            self.assertIn(key, components, f"Missing component: {key}")
+
+    def test_error_spike_penalty(self):
+        """High error rate in 30m reduces score."""
+        now = timezone.now()
+        # Create 5 success + 5 error runs in last 30m
+        for i in range(5):
+            EngineRun.objects.create(
+                trace_id=f"ok-{i}", engine_name="PIE", phase=3,
+                started_at=now - timedelta(minutes=i), duration_ms=50,
+                status="success",
+            )
+        for i in range(5):
+            EngineRun.objects.create(
+                trace_id=f"err-{i}", engine_name="PIE", phase=3,
+                started_at=now - timedelta(minutes=i), duration_ms=50,
+                status="error", error_type="TestError",
+            )
+
+        # Ensure at least one other engine is healthy
+        _create_engine_run("UAL", minutes_ago=1)
+
+        from apps.core.ai_observability.same_engine import run_same
+        result = run_same()
+
+        components = result["integrity"].components
+        self.assertGreater(components["error_spike"]["penalty"], 0)
+
+
+class IntegrityEndpointTest(TestCase):
+    """Test /admin-console/ops/integrity/ endpoint."""
+
+    def setUp(self):
+        self.staff = _staff_user(email="integ-staff@test.com")
+
+    def test_integrity_returns_json(self):
+        """Integrity endpoint returns valid JSON."""
+        _login_staff(self.client, self.staff)
+
+        # Seed data
+        SystemIntegritySnapshot.objects.create(
+            score=85.0, posture="NOMINAL",
+            components={"engine_health": {"ok_count": 9, "total": 10}},
+        )
+
+        response = self.client.get("/admin-console/ops/integrity/")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["score"], 85.0)
+        self.assertEqual(data["posture"], "NOMINAL")
+        self.assertIn("history", data)
+
+    def test_integrity_returns_null_when_empty(self):
+        """Integrity endpoint returns null score when no snapshots exist."""
+        _login_staff(self.client, self.staff)
+        response = self.client.get("/admin-console/ops/integrity/")
+        data = response.json()
+        self.assertIsNone(data["score"])
+
+    def test_integrity_forbidden_for_non_staff(self):
+        """Non-staff users get 403."""
+        user = _regular_user(email="nope-integ@test.com")
+        self.client.force_login(user)
+        response = self.client.get("/admin-console/ops/integrity/")
+        self.assertEqual(response.status_code, 403)
+
+    def test_stream_includes_integrity(self):
+        """OpsStream endpoint includes integrity data."""
+        _create_engine_run("UAL", minutes_ago=1)
+        from apps.core.jobs import run_same_cycle
+        run_same_cycle()
+
+        _login_staff(self.client, self.staff)
+        response = self.client.get("/admin-console/ops/stream/")
+        data = response.json()
+        self.assertIn("integrity", data)
+        self.assertIsNotNone(data["integrity"])
+        self.assertIn("score", data["integrity"])
+
+
+# ============================================================
+# Phase 3 — Escalation State Machine Tests
+# ============================================================
+
+
+class EscalationStateMachineTest(TestCase):
+    """Test anomaly escalation logic."""
+
+    def test_p3_promotes_to_p2_after_10_minutes(self):
+        """P3 anomaly older than 10 minutes promotes to P2."""
+        now = timezone.now()
+        anomaly = OpsAnomaly.objects.create(
+            severity="P3", anomaly_type="CONFIDENCE_VOLATILITY",
+            engine_name="UAL", summary="test volatility",
+            is_active=True, original_severity="P3",
+        )
+        # Backdate created_at to 15 minutes ago
+        OpsAnomaly.objects.filter(id=anomaly.id).update(
+            created_at=now - timedelta(minutes=15)
+        )
+
+        from apps.core.ai_observability.same_engine import _escalate_anomalies
+        escalated = _escalate_anomalies(now)
+
+        self.assertEqual(escalated, 1)
+        anomaly.refresh_from_db()
+        self.assertEqual(anomaly.severity, "P2")
+        self.assertEqual(anomaly.escalation_count, 1)
+        self.assertEqual(anomaly.original_severity, "P3")
+        self.assertIsNotNone(anomaly.last_escalated_at)
+
+    def test_p2_promotes_to_p1_after_20_minutes(self):
+        """P2 anomaly older than 20 minutes promotes to P1."""
+        now = timezone.now()
+        anomaly = OpsAnomaly.objects.create(
+            severity="P2", anomaly_type="ERROR_SPIKE",
+            engine_name="PIE", summary="test error spike",
+            is_active=True, original_severity="P2",
+        )
+        OpsAnomaly.objects.filter(id=anomaly.id).update(
+            created_at=now - timedelta(minutes=25)
+        )
+
+        from apps.core.ai_observability.same_engine import _escalate_anomalies
+        escalated = _escalate_anomalies(now)
+
+        self.assertEqual(escalated, 1)
+        anomaly.refresh_from_db()
+        self.assertEqual(anomaly.severity, "P1")
+
+    def test_p1_is_terminal(self):
+        """P1 anomaly does not escalate further."""
+        now = timezone.now()
+        OpsAnomaly.objects.create(
+            severity="P1", anomaly_type="ENGINE_STARVATION",
+            engine_name="UAL", summary="test starvation",
+            is_active=True, original_severity="P1",
+        )
+        OpsAnomaly.objects.all().update(
+            created_at=now - timedelta(hours=2)
+        )
+
+        from apps.core.ai_observability.same_engine import _escalate_anomalies
+        escalated = _escalate_anomalies(now)
+
+        self.assertEqual(escalated, 0)
+
+    def test_no_duplicate_escalations(self):
+        """Cooldown prevents re-escalation within 5 minutes."""
+        now = timezone.now()
+        anomaly = OpsAnomaly.objects.create(
+            severity="P3", anomaly_type="CONFIDENCE_VOLATILITY",
+            engine_name="UAL", summary="test",
+            is_active=True, original_severity="P3",
+        )
+        OpsAnomaly.objects.filter(id=anomaly.id).update(
+            created_at=now - timedelta(minutes=15)
+        )
+
+        from apps.core.ai_observability.same_engine import _escalate_anomalies
+
+        # First escalation: P3 → P2
+        escalated1 = _escalate_anomalies(now)
+        self.assertEqual(escalated1, 1)
+
+        # Immediately try again — should be blocked by cooldown
+        escalated2 = _escalate_anomalies(now)
+        self.assertEqual(escalated2, 0)
+
+    def test_resolution_resets_escalation(self):
+        """Resolving and recreating an anomaly starts escalation fresh."""
+        now = timezone.now()
+        # Create and escalate
+        anomaly = OpsAnomaly.objects.create(
+            severity="P3", anomaly_type="CONFIDENCE_VOLATILITY",
+            engine_name="UAL", summary="original",
+            is_active=True, original_severity="P3",
+        )
+        OpsAnomaly.objects.filter(id=anomaly.id).update(
+            created_at=now - timedelta(minutes=15)
+        )
+
+        from apps.core.ai_observability.same_engine import _escalate_anomalies
+        _escalate_anomalies(now)
+
+        # Resolve it
+        anomaly.refresh_from_db()
+        anomaly.is_active = False
+        anomaly.resolved_at = now
+        anomaly.save()
+
+        # Create fresh anomaly
+        new_anomaly = OpsAnomaly.objects.create(
+            severity="P3", anomaly_type="CONFIDENCE_VOLATILITY",
+            engine_name="UAL", summary="new occurrence",
+            is_active=True, original_severity="P3",
+        )
+        # It's brand new — should NOT escalate (< 10 min)
+        escalated = _escalate_anomalies(now)
+        self.assertEqual(escalated, 0)
+        new_anomaly.refresh_from_db()
+        self.assertEqual(new_anomaly.severity, "P3")
+
+    def test_young_anomaly_not_escalated(self):
+        """Anomaly younger than threshold is not escalated."""
+        now = timezone.now()
+        OpsAnomaly.objects.create(
+            severity="P3", anomaly_type="CONFIDENCE_VOLATILITY",
+            engine_name="UAL", summary="fresh anomaly",
+            is_active=True, original_severity="P3",
+        )
+        # created_at is now (< 10 min), so no escalation
+
+        from apps.core.ai_observability.same_engine import _escalate_anomalies
+        escalated = _escalate_anomalies(now)
+        self.assertEqual(escalated, 0)
+
+    def test_stream_includes_escalation_data(self):
+        """OpsStream response includes escalation fields in anomalies."""
+        anomaly = OpsAnomaly.objects.create(
+            severity="P2", anomaly_type="ERROR_SPIKE",
+            engine_name="PIE", summary="escalated spike",
+            is_active=True, original_severity="P3",
+            escalation_count=1,
+            last_escalated_at=timezone.now(),
+        )
+
+        staff = _staff_user(email="esc-staff@test.com")
+        _login_staff(self.client, staff)
+
+        response = self.client.get("/admin-console/ops/stream/")
+        data = response.json()
+        anomalies = data["anomalies"]
+        self.assertGreater(len(anomalies), 0)
+
+        esc_anomaly = anomalies[0]
+        self.assertEqual(esc_anomaly["escalation_count"], 1)
+        self.assertEqual(esc_anomaly["original_severity"], "P3")
+        self.assertIsNotNone(esc_anomaly["last_escalated_at"])
+
+
+# ============================================================
+# Phase 4 — Cadence Timeline Endpoint Tests
+# ============================================================
+
+
+class CadenceTimelineTest(TestCase):
+    """Test /admin-console/ops/cadence/ endpoint."""
+
+    def setUp(self):
+        self.staff = _staff_user(email="cad-staff@test.com")
+
+    def test_cadence_returns_json(self):
+        """Cadence endpoint returns valid JSON."""
+        _create_engine_run("UAL", minutes_ago=5)
+        _create_engine_run("UAL", minutes_ago=10)
+
+        _login_staff(self.client, self.staff)
+        response = self.client.get("/admin-console/ops/cadence/?minutes=30")
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn("server_time", data)
+        self.assertIn("window_minutes", data)
+        self.assertIn("timelines", data)
+        self.assertEqual(data["window_minutes"], 30)
+
+    def test_cadence_includes_runs(self):
+        """Cadence timeline includes engine runs."""
+        _create_engine_run("UAL", minutes_ago=5)
+        _create_engine_run("UAL", minutes_ago=15)
+
+        _login_staff(self.client, self.staff)
+        response = self.client.get("/admin-console/ops/cadence/?engine=UAL")
+        data = response.json()
+
+        self.assertIn("UAL", data["timelines"])
+        timeline = data["timelines"]["UAL"]
+        self.assertIn("runs", timeline)
+        self.assertGreaterEqual(len(timeline["runs"]), 2)
+        self.assertIn("time", timeline["runs"][0])
+        self.assertIn("status", timeline["runs"][0])
+        self.assertIn("duration_ms", timeline["runs"][0])
+
+    def test_cadence_includes_expected_ticks(self):
+        """Cadence timeline includes expected cadence ticks."""
+        _login_staff(self.client, self.staff)
+        response = self.client.get("/admin-console/ops/cadence/?engine=UAL&minutes=30")
+        data = response.json()
+
+        timeline = data["timelines"]["UAL"]
+        self.assertIn("expected_ticks", timeline)
+        # UAL has 5m cadence, so in 30 min there should be ~6 ticks
+        self.assertGreaterEqual(len(timeline["expected_ticks"]), 5)
+
+    def test_cadence_forbidden_for_non_staff(self):
+        """Non-staff users get 403."""
+        user = _regular_user(email="nope-cad@test.com")
+        self.client.force_login(user)
+        response = self.client.get("/admin-console/ops/cadence/")
+        self.assertEqual(response.status_code, 403)
+
+    def test_cadence_does_not_trigger_same(self):
+        """Cadence endpoint does NOT run SAME."""
+        _login_staff(self.client, self.staff)
+
+        with patch("apps.core.ai_observability.same_engine.run_same") as mock_same:
+            response = self.client.get("/admin-console/ops/cadence/")
+            mock_same.assert_not_called()
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_cadence_caps_window(self):
+        """Window is capped at 120 minutes."""
+        _login_staff(self.client, self.staff)
+        response = self.client.get("/admin-console/ops/cadence/?minutes=999")
+        data = response.json()
+        self.assertEqual(data["window_minutes"], 120)
+
+
+# ============================================================
+# Phase 5 — Autonomous Remediation Tests
+# ============================================================
+
+
+class AutonomousRemediationTest(TestCase):
+    """Test controlled autonomous remediation logic."""
+
+    def test_auto_rerun_fires_for_p3_missed_system_engine(self):
+        """Auto-rerun fires once for a P3 MISSED_RUN on a system engine."""
+        now = timezone.now()
+        OpsAnomaly.objects.create(
+            severity="P3", anomaly_type="MISSED_RUN",
+            engine_name="DBE", summary="DBE missed cadence",
+            is_active=True, original_severity="P3",
+        )
+
+        from apps.core.ai_observability.same_engine import _run_autonomous_remediation
+        remediated = _run_autonomous_remediation(now)
+
+        self.assertEqual(remediated, 1)
+        intervention = AdminIntervention.objects.filter(
+            action_type="auto_rerun_engine", engine_name="DBE",
+            is_system_initiated=True,
+        ).first()
+        self.assertIsNotNone(intervention)
+        self.assertTrue(intervention.is_system_initiated)
+        self.assertIn("SAME autonomous", intervention.notes)
+
+    def test_auto_rerun_does_not_fire_for_p2(self):
+        """Auto-rerun does NOT fire for P2 or P1 anomalies."""
+        now = timezone.now()
+        OpsAnomaly.objects.create(
+            severity="P2", anomaly_type="MISSED_RUN",
+            engine_name="DBE", summary="DBE missed (P2)",
+            is_active=True, original_severity="P2",
+        )
+
+        from apps.core.ai_observability.same_engine import _run_autonomous_remediation
+        remediated = _run_autonomous_remediation(now)
+
+        self.assertEqual(remediated, 0)
+        self.assertFalse(
+            AdminIntervention.objects.filter(is_system_initiated=True).exists()
+        )
+
+    def test_auto_rerun_does_not_fire_for_user_engines(self):
+        """Auto-rerun does NOT fire for user-context engines (UAL, SAE, etc.)."""
+        now = timezone.now()
+        OpsAnomaly.objects.create(
+            severity="P3", anomaly_type="MISSED_RUN",
+            engine_name="UAL", summary="UAL missed (P3)",
+            is_active=True, original_severity="P3",
+        )
+
+        from apps.core.ai_observability.same_engine import _run_autonomous_remediation
+        remediated = _run_autonomous_remediation(now)
+
+        self.assertEqual(remediated, 0)
+
+    def test_cooldown_prevents_repeat_action(self):
+        """Cooldown prevents auto-action on same engine within 30 minutes."""
+        now = timezone.now()
+        OpsAnomaly.objects.create(
+            severity="P3", anomaly_type="MISSED_RUN",
+            engine_name="DBE", summary="DBE missed",
+            is_active=True, original_severity="P3",
+        )
+
+        from apps.core.ai_observability.same_engine import _run_autonomous_remediation
+
+        # First remediation
+        result1 = _run_autonomous_remediation(now)
+        self.assertEqual(result1, 1)
+
+        # Second attempt — cooldown blocks
+        result2 = _run_autonomous_remediation(now)
+        self.assertEqual(result2, 0)
+
+    def test_feature_flag_disables_remediation(self):
+        """Setting AUTONOMOUS_REMEDIATION_ENABLED=False disables all auto-actions."""
+        import apps.core.ai_observability.same_engine as se
+
+        original = se.AUTONOMOUS_REMEDIATION_ENABLED
+        try:
+            se.AUTONOMOUS_REMEDIATION_ENABLED = False
+
+            now = timezone.now()
+            OpsAnomaly.objects.create(
+                severity="P3", anomaly_type="MISSED_RUN",
+                engine_name="DBE", summary="DBE missed",
+                is_active=True, original_severity="P3",
+            )
+
+            remediated = se._run_autonomous_remediation(now)
+            self.assertEqual(remediated, 0)
+        finally:
+            se.AUTONOMOUS_REMEDIATION_ENABLED = original
+
+    def test_max_actions_per_cycle(self):
+        """No more than MAX_AUTO_ACTIONS_PER_CYCLE actions per cycle."""
+        import apps.core.ai_observability.same_engine as se
+
+        original_max = se.MAX_AUTO_ACTIONS_PER_CYCLE
+        try:
+            se.MAX_AUTO_ACTIONS_PER_CYCLE = 1
+
+            now = timezone.now()
+            # Create 3 P3 anomalies for system engines
+            for engine in ["DBE", "WIRE", "DNE"]:
+                OpsAnomaly.objects.create(
+                    severity="P3", anomaly_type="MISSED_RUN",
+                    engine_name=engine, summary=f"{engine} missed",
+                    is_active=True, original_severity="P3",
+                )
+
+            remediated = se._run_autonomous_remediation(now)
+            # Only 1 action should fire (capped at max_per_cycle=1)
+            self.assertEqual(remediated, 1)
+        finally:
+            se.MAX_AUTO_ACTIONS_PER_CYCLE = original_max
+
+    def test_intervention_logged_correctly(self):
+        """System-initiated intervention has correct fields."""
+        now = timezone.now()
+        OpsAnomaly.objects.create(
+            severity="P3", anomaly_type="MISSED_RUN",
+            engine_name="DNE", summary="DNE missed",
+            is_active=True, original_severity="P3",
+        )
+
+        from apps.core.ai_observability.same_engine import _run_autonomous_remediation
+        _run_autonomous_remediation(now)
+
+        intervention = AdminIntervention.objects.filter(
+            is_system_initiated=True
+        ).first()
+        self.assertIsNotNone(intervention)
+        self.assertIsNone(intervention.admin_user)
+        self.assertEqual(intervention.action_type, "auto_rerun_engine")
+        self.assertTrue(len(intervention.trace_id) > 0)
+        self.assertIn(intervention.result_status, ["success", "failure"])

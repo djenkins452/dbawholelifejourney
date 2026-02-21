@@ -262,9 +262,24 @@ def start_scheduler():
             replace_existing=True,
         )
 
+        # =====================================================================
+        # SAME — System Autonomous Monitoring Engine
+        # =====================================================================
+
+        # Job 16: SAME monitoring cycle every 60 seconds
+        # Computes heartbeats, detects anomalies, generates narrative.
+        # Uses its own DB lock to prevent overlapping execution.
+        scheduler.add_job(
+            'apps.core.jobs:run_same_cycle',
+            trigger=IntervalTrigger(seconds=60),
+            id="run_same_cycle",
+            max_instances=1,
+            replace_existing=True,
+        )
+
         scheduler.start()
         logger.info("=" * 60)
-        logger.info("APScheduler STARTED successfully with 15 jobs:")
+        logger.info("APScheduler STARTED successfully with 16 jobs:")
         logger.info("  - SMS: schedule_daily_sms_reminders (daily at 00:00 UTC) [on hold]")
         logger.info("  - SMS: send_pending_sms (every 5 minutes) [on hold]")
         logger.info("  - Life: recalculate_task_priorities (daily at 06:00 UTC / 01:00 EST)")
@@ -280,6 +295,7 @@ def start_scheduler():
         logger.info("  - Capture: send_pending_capture_reminders (hourly)")
         logger.info("  - ISE: run_intelligence_scheduler (every 5 minutes)")
         logger.info("  - ISE: refresh_scheduler_lock (every 4 minutes)")
+        logger.info("  - SAME: run_same_cycle (every 60 seconds)")
         logger.info("=" * 60)
 
         # Ensure scheduler shuts down on exit and releases DB lock

@@ -1,6 +1,22 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 83,
+        "fields": {
+            "title": "Ops Command Center Evolution — Full Intelligence OS",
+            "description": "The Operations Wall has evolved into a full Intelligence Operating System with 5 major upgrades: (1) SAME engine now runs autonomously in the background every 60 seconds — no more depending on someone having the page open. (2) A new System Integrity Index scores overall platform health 0–100 with a color-coded tile showing OPTIMAL/NOMINAL/DEGRADED/CRITICAL posture. (3) Anomalies now escalate automatically — P3 issues promote to P2 after 10 minutes, P2 to P1 after 20 minutes, with cooldown logic to prevent flapping. (4) Each engine card shows a 30-minute cadence timeline strip with expected ticks, actual runs, and highlighted missed intervals. (5) Low-severity anomalies on background engines (DBE/WIRE/DNE) can now be auto-remediated — missed runs get re-triggered and suppression caches get cleared automatically, all logged with full audit trail. 82 tests cover all new functionality.",
+            "entry_type": "enhancement",
+            "version": "",
+            "release_date": "2026-02-21",
+            "is_published": true,
+            "is_major": false,
+            "learn_more_url": "",
+            "created_at": "2026-02-21T00:00:00Z",
+            "updated_at": "2026-02-21T00:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 82,
         "fields": {
             "title": "Operations Wall Upgraded to Vegas v2",

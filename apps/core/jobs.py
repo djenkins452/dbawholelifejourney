@@ -194,3 +194,73 @@ def run_intelligence_scheduler():
     except Exception as e:
         logger.exception(f"Intelligence scheduler cycle failed: {e}")
         raise
+
+
+def run_same_cycle():
+    """
+    Run one SAME (System Autonomous Monitoring Engine) cycle.
+
+    Computes heartbeats, detects anomalies, generates narrative snapshot.
+    Uses a database lock to prevent overlapping execution across workers.
+
+    Scheduled: Every 60 seconds via APScheduler IntervalTrigger.
+    """
+    logger.info("SAME cycle starting...")
+
+    # Concurrency guard — prevent overlapping SAME executions
+    from apps.core.ai_scheduler.scheduler_models import SchedulerLock
+    from django.utils import timezone as tz
+    import os
+    import socket
+
+    lock_name = "same_execution"
+    lock_timeout_seconds = 120  # 2 minutes — generous for a 60s cycle
+    now = tz.now()
+    locked_by = f"{socket.gethostname()}-{os.getpid()}"
+
+    try:
+        lock, created = SchedulerLock.objects.get_or_create(
+            lock_name=lock_name,
+            defaults={"locked_at": now, "locked_by": locked_by},
+        )
+
+        if not created:
+            age = (now - lock.locked_at).total_seconds()
+            if age < lock_timeout_seconds:
+                logger.info(
+                    f"SAME cycle skipped: lock held by {lock.locked_by} "
+                    f"({age:.0f}s ago)"
+                )
+                return
+            # Stale lock — take it over
+            logger.warning(
+                f"SAME cycle: taking over stale lock from {lock.locked_by} "
+                f"({age:.0f}s old)"
+            )
+            lock.locked_at = now
+            lock.locked_by = locked_by
+            lock.save(update_fields=["locked_at", "locked_by"])
+
+    except Exception as e:
+        logger.warning(f"SAME cycle: lock check failed ({e}), proceeding anyway")
+
+    try:
+        from apps.core.ai_observability.same_engine import run_same
+
+        result = run_same()
+        logger.info(
+            f"SAME cycle completed: "
+            f"anomalies_created={result['anomalies_created']}, "
+            f"anomalies_resolved={result['anomalies_resolved']}, "
+            f"posture={result['narrative'].posture if result.get('narrative') else 'N/A'}"
+        )
+    except Exception as e:
+        logger.exception(f"SAME cycle failed: {e}")
+    finally:
+        # Release lock
+        try:
+            SchedulerLock.objects.filter(
+                lock_name=lock_name, locked_by=locked_by
+            ).delete()
+        except Exception:
+            pass  # Best-effort release

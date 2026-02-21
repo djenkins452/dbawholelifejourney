@@ -86,6 +86,7 @@ class OpsStreamView(View):
             EngineRun,
             OpsAnomaly,
             OpsNarrativeSnapshot,
+            SystemIntegritySnapshot,
         )
         from apps.core.ai_observability.ops_aggregates import ALL_ENGINES
         from apps.core.ai_observability.ops_feed import get_recent_feed
@@ -119,6 +120,9 @@ class OpsStreamView(View):
         # System posture from narrative
         posture = narrative.get("posture", "OK") if narrative else "OK"
 
+        # System Integrity Index (latest snapshot)
+        integrity = _get_latest_integrity()
+
         return JsonResponse({
             "server_time": now.isoformat(),
             "posture": posture,
@@ -126,6 +130,7 @@ class OpsStreamView(View):
             "narrative": narrative,
             "anomalies": anomalies,
             "feed": feed,
+            "integrity": integrity,
             "next_since": now.isoformat(),
         })
 
@@ -182,6 +187,164 @@ class OpsActionView(View):
             "message": result["detail"],
             "trace_id": trace_id,
             "intervention_id": intervention.id,
+        })
+
+
+class IntegrityIndexView(View):
+    """
+    Dedicated endpoint for System Integrity Index.
+
+    GET /admin-console/ops/integrity/
+
+    Returns JSON with current score, posture, component breakdown,
+    and recent history (last 30 snapshots).
+    """
+
+    def get(self, request):
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return JsonResponse({"error": "forbidden"}, status=403)
+
+        from apps.core.ai_observability.models import SystemIntegritySnapshot
+
+        # Latest snapshot
+        latest = SystemIntegritySnapshot.objects.first()
+        if not latest:
+            return JsonResponse({
+                "score": None,
+                "posture": "UNKNOWN",
+                "components": {},
+                "history": [],
+            })
+
+        # Recent history (last 30 snapshots for sparkline)
+        history = list(
+            SystemIntegritySnapshot.objects.order_by("-created_at")[:30]
+            .values("score", "posture", "created_at")
+        )
+        history = [
+            {
+                "score": h["score"],
+                "posture": h["posture"],
+                "created_at": h["created_at"].isoformat(),
+            }
+            for h in reversed(history)  # Chronological order
+        ]
+
+        return JsonResponse({
+            "score": latest.score,
+            "posture": latest.posture,
+            "components": latest.components,
+            "created_at": latest.created_at.isoformat(),
+            "history": history,
+        })
+
+
+class CadenceTimelineView(View):
+    """
+    Time-series heartbeat history for cadence visualization.
+
+    GET /admin-console/ops/cadence/?minutes=30&engine=UAL
+
+    Returns JSON with per-engine timeline data including:
+    - Expected cadence ticks
+    - Actual heartbeat observations
+    - Status at each observation
+    """
+
+    def get(self, request):
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return JsonResponse({"error": "forbidden"}, status=403)
+
+        from apps.core.ai_observability.heartbeat import get_cadence_config
+        from apps.core.ai_observability.models import EngineHeartbeat, EngineRun
+        from apps.core.ai_observability.ops_aggregates import ALL_ENGINES
+
+        minutes = min(int(request.GET.get("minutes", 30)), 120)
+        engine_filter = request.GET.get("engine", "")
+
+        now = timezone.now()
+        since = now - timedelta(minutes=minutes)
+        cadence_config = get_cadence_config()
+
+        engines = [engine_filter] if engine_filter else ALL_ENGINES
+        timelines = {}
+
+        for engine in engines:
+            cfg = cadence_config.get(engine, {})
+            if not cfg.get("enabled", True):
+                continue
+
+            interval = cfg.get("interval", 3600)
+
+            # Actual heartbeats in window
+            heartbeats = list(
+                EngineHeartbeat.objects.filter(
+                    engine_name=engine,
+                    observed_at__gte=since,
+                ).order_by("observed_at").values(
+                    "observed_at", "status", "lateness_seconds"
+                )[:60]  # Cap at 60 entries per engine
+            )
+
+            # Actual engine runs in window
+            runs = list(
+                EngineRun.objects.filter(
+                    engine_name=engine,
+                    started_at__gte=since,
+                ).order_by("started_at").values(
+                    "started_at", "status", "duration_ms"
+                )[:60]
+            )
+
+            # Expected cadence ticks in window
+            expected_ticks = []
+            if interval > 0 and interval <= minutes * 60:
+                tick = since
+                while tick <= now:
+                    expected_ticks.append(tick.isoformat())
+                    tick += timedelta(seconds=interval)
+
+            # Identify missed intervals (expected ticks with no nearby run)
+            run_times = [r["started_at"] for r in runs]
+            missed_ticks = []
+            for tick_iso in expected_ticks:
+                tick_dt = timezone.datetime.fromisoformat(tick_iso)
+                if timezone.is_naive(tick_dt):
+                    tick_dt = timezone.make_aware(tick_dt)
+                jitter = cfg.get("jitter", 60)
+                hit = any(
+                    abs((rt - tick_dt).total_seconds()) < interval + jitter
+                    for rt in run_times
+                )
+                if not hit:
+                    missed_ticks.append(tick_iso)
+
+            timelines[engine] = {
+                "interval_seconds": interval,
+                "heartbeats": [
+                    {
+                        "time": h["observed_at"].isoformat(),
+                        "status": h["status"],
+                        "lateness": h["lateness_seconds"],
+                    }
+                    for h in heartbeats
+                ],
+                "runs": [
+                    {
+                        "time": r["started_at"].isoformat(),
+                        "status": r["status"],
+                        "duration_ms": r["duration_ms"],
+                    }
+                    for r in runs
+                ],
+                "expected_ticks": expected_ticks,
+                "missed_ticks": missed_ticks,
+            }
+
+        return JsonResponse({
+            "server_time": now.isoformat(),
+            "window_minutes": minutes,
+            "timelines": timelines,
         })
 
 
@@ -373,6 +536,22 @@ def _get_latest_narrative():
     }
 
 
+def _get_latest_integrity():
+    """Get the latest SystemIntegritySnapshot as dict."""
+    from apps.core.ai_observability.models import SystemIntegritySnapshot
+
+    snapshot = SystemIntegritySnapshot.objects.first()
+    if not snapshot:
+        return None
+
+    return {
+        "score": snapshot.score,
+        "posture": snapshot.posture,
+        "components": snapshot.components,
+        "created_at": snapshot.created_at.isoformat(),
+    }
+
+
 def _get_active_anomalies():
     """Get all active OpsAnomaly records as list of dicts."""
     from apps.core.ai_observability.models import OpsAnomaly
@@ -383,7 +562,7 @@ def _get_active_anomalies():
 
     result = []
     for a in anomalies:
-        result.append({
+        entry = {
             "id": a.id,
             "severity": a.severity,
             "engine_name": a.engine_name,
@@ -392,7 +571,13 @@ def _get_active_anomalies():
             "suggested_actions": a.suggested_actions or [],
             "created_at": a.created_at.isoformat(),
             "first_detected": _human_ago(a.created_at),
-        })
+            "escalation_count": a.escalation_count,
+            "original_severity": a.original_severity or a.severity,
+            "last_escalated_at": (
+                a.last_escalated_at.isoformat() if a.last_escalated_at else None
+            ),
+        }
+        result.append(entry)
 
     return result
 

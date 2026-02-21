@@ -9,6 +9,38 @@
 
 # WLJ Change History
 
+## 2026-02-21 — Ops Command Center Evolution (Phases 1–5)
+
+**Changes:**
+- **Phase 1 — SAME Background Execution:** SAME engine now runs as APScheduler Job 16 every 60s via `run_same_cycle()` in `apps/core/jobs.py`. Uses SchedulerLock DB lock for concurrency guard. OpsStream endpoint confirmed read-only.
+- **Phase 2 — System Integrity Index:** New `SystemIntegritySnapshot` model with 5-component weighted score (0–100). Exposed via `/ops/integrity/` endpoint and new UI tile. Posture levels: OPTIMAL/NOMINAL/DEGRADED/CRITICAL.
+- **Phase 3 — Escalation State Machine:** OpsAnomaly gains `original_severity`, `escalation_count`, `last_escalated_at` fields. Rules: P3→P2 @10min, P2→P1 @20min, 5min cooldown. UI shows escalation badges.
+- **Phase 4 — Temporal Engine Cadence Visualization:** New `/ops/cadence/` endpoint returning 30min rolling heartbeat/run history with expected and missed ticks. CSS cadence timeline strips on each engine card.
+- **Phase 5 — Controlled Autonomous Remediation:** Auto-rerun for P3 missed-run anomalies on system engines (DBE/WIRE/DNE). Auto-clear suppression cache above threshold. Feature flag, max 3 actions/cycle, 30min cooldown. All actions logged as system-initiated `AdminIntervention`.
+- **Bug Fix:** Updated `tests_diagnostics.py` `test_ops_poll_staff_access` to check v2 response keys.
+- **Test Suite:** 82 tests in `tests_ops_wall_v2.py` + 9 diagnostic view tests = 91 total, all passing.
+
+**Modified Files:**
+- `apps/core/jobs.py` — Added `run_same_cycle()` background job
+- `config/wsgi.py` — Registered Job 16 (SAME 60s interval)
+- `apps/core/ai_observability/models.py` — Added SystemIntegritySnapshot, escalation fields on OpsAnomaly, system-initiated flag on AdminIntervention
+- `apps/core/ai_observability/same_engine.py` — Added integrity computation, escalation logic, autonomous remediation
+- `apps/core/ai_observability/ops_views.py` — Added IntegrityIndexView, CadenceTimelineView, updated stream with integrity/escalation data
+- `apps/admin_console/urls.py` — Added `/ops/integrity/` and `/ops/cadence/` routes
+- `templates/admin_console/operations_wall.html` — Added integrity tile, cadence strips, escalation badges
+- `apps/core/ai_observability/tests_ops_wall_v2.py` — 82 tests across 8 test classes
+- `apps/core/ai_observability/tests_diagnostics.py` — Fixed v1→v2 response key assertions
+- `docs/project.md` — Full project tracker with all 5 phases, architectural decisions, risks
+
+**New Migrations:**
+- `apps/core/migrations/0080_system_integrity_snapshot.py`
+- `apps/core/migrations/0081_anomaly_escalation_fields.py`
+- `apps/core/migrations/0082_intervention_system_initiated.py`
+
+**Why:** Evolve the Vegas Ops Wall from a dashboard into a production-grade intelligence operating system with background monitoring, executive metrics, escalation intelligence, temporal awareness, and safe autonomous remediation.
+
+---
+
 ## 2026-02-21 — Mobile UX: Bottom Bar Overlap, Chat Bubble, Tap Targets
 
 **Changes:**

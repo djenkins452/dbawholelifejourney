@@ -94,6 +94,64 @@
 .ops-narration-list.recs li::before { background: var(--ops-cyan); }
 .ops-narration-list.watching li::before { background: var(--ops-purple); }
 
+/* ---- System Integrity Index Tile ---- */
+.ops-integrity {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: var(--ops-surface);
+    border: 1px solid var(--ops-border);
+    border-radius: 8px;
+    padding: 12px 20px;
+    margin-bottom: 16px;
+}
+.ops-integrity-score {
+    font-size: 2rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    min-width: 72px;
+    text-align: center;
+}
+.ops-integrity-score.OPTIMAL { color: var(--ops-green); }
+.ops-integrity-score.NOMINAL { color: var(--ops-blue); }
+.ops-integrity-score.DEGRADED { color: var(--ops-yellow); }
+.ops-integrity-score.CRITICAL { color: var(--ops-red); }
+.ops-integrity-label {
+    font-size: 0.625rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--ops-text-dim);
+    font-weight: 600;
+}
+.ops-integrity-posture {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+.ops-integrity-posture.OPTIMAL { color: var(--ops-green); }
+.ops-integrity-posture.NOMINAL { color: var(--ops-blue); }
+.ops-integrity-posture.DEGRADED { color: var(--ops-yellow); }
+.ops-integrity-posture.CRITICAL { color: var(--ops-red); }
+.ops-integrity-breakdown {
+    flex: 1;
+    display: flex;
+    gap: 16px;
+    font-size: 0.6875rem;
+    color: var(--ops-text-dim);
+}
+.ops-integrity-component {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.ops-integrity-component-value {
+    font-weight: 600;
+    color: var(--ops-text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
 /* ---- Top Bar ---- */
 .ops-topbar {
     display: flex; justify-content: space-between; align-items: center;
@@ -187,6 +245,44 @@
 }
 .ops-sparkline-bar.slow { background: var(--ops-yellow); }
 .ops-sparkline-bar.error { background: var(--ops-red); }
+
+/* ---- Cadence Timeline Strip ---- */
+.ops-cadence-strip {
+    width: 100%;
+    height: 12px;
+    background: var(--ops-surface-alt);
+    border-radius: 3px;
+    position: relative;
+    margin-top: 6px;
+    overflow: hidden;
+}
+.ops-cadence-tick {
+    position: absolute;
+    top: 0;
+    width: 2px;
+    height: 100%;
+    background: var(--ops-border);
+    opacity: 0.5;
+}
+.ops-cadence-run {
+    position: absolute;
+    top: 1px;
+    width: 4px;
+    height: 10px;
+    border-radius: 1px;
+    background: var(--ops-green);
+}
+.ops-cadence-run.error { background: var(--ops-red); }
+.ops-cadence-miss {
+    position: absolute;
+    top: 0;
+    width: 6px;
+    height: 100%;
+    background: var(--ops-red-dim);
+    border: 1px solid var(--ops-red);
+    border-radius: 2px;
+    opacity: 0.7;
+}
 
 /* ---- Watchlist (Right) ---- */
 .ops-watchlist {
@@ -305,6 +401,32 @@
         <span class="ops-posture-dot OK" id="postureDot"></span>
         <span class="ops-posture-text" id="postureText">Initializing SAME...</span>
         <span class="ops-topbar-meta">Updated: <span id="lastUpdateTime">—</span></span>
+    </div>
+
+    <!-- System Integrity Index -->
+    <div class="ops-integrity" id="integrityTile">
+        <div>
+            <div class="ops-integrity-label">System Integrity</div>
+            <div class="ops-integrity-score NOMINAL" id="integrityScore">—</div>
+        </div>
+        <div>
+            <div class="ops-integrity-label">Posture</div>
+            <div class="ops-integrity-posture NOMINAL" id="integrityPosture">—</div>
+        </div>
+        <div class="ops-integrity-breakdown" id="integrityBreakdown">
+            <div class="ops-integrity-component">
+                <span>Engines OK</span>
+                <span class="ops-integrity-component-value" id="intEngines">—</span>
+            </div>
+            <div class="ops-integrity-component">
+                <span>Anomaly Penalty</span>
+                <span class="ops-integrity-component-value" id="intAnomalyPenalty">—</span>
+            </div>
+            <div class="ops-integrity-component">
+                <span>Error Rate</span>
+                <span class="ops-integrity-component-value" id="intErrorRate">—</span>
+            </div>
+        </div>
     </div>
 
     <!-- SAME Narration Bar -->
@@ -461,11 +583,44 @@
 
     function render(data) {
         renderPosture(data.posture, data.narrative);
+        renderIntegrity(data.integrity);
         renderNarration(data.narrative);
         renderEngineCards(data.engine_cards || []);
         renderWatchlist(data.anomalies || []);
         renderFeed(data.feed || []);
         document.getElementById('lastUpdateTime').textContent = new Date().toLocaleTimeString();
+    }
+
+    function renderIntegrity(integrity) {
+        var scoreEl = document.getElementById('integrityScore');
+        var postureEl = document.getElementById('integrityPosture');
+        var enginesEl = document.getElementById('intEngines');
+        var anomalyEl = document.getElementById('intAnomalyPenalty');
+        var errorEl = document.getElementById('intErrorRate');
+
+        if (!integrity) {
+            scoreEl.textContent = '—';
+            postureEl.textContent = '—';
+            return;
+        }
+
+        var score = integrity.score;
+        var posture = integrity.posture || 'NOMINAL';
+        scoreEl.textContent = Math.round(score);
+        scoreEl.className = 'ops-integrity-score ' + posture;
+        postureEl.textContent = posture;
+        postureEl.className = 'ops-integrity-posture ' + posture;
+
+        var c = integrity.components || {};
+        if (c.engine_health) {
+            enginesEl.textContent = c.engine_health.ok_count + '/' + c.engine_health.total;
+        }
+        if (c.anomaly_severity) {
+            anomalyEl.textContent = '-' + c.anomaly_severity.penalty;
+        }
+        if (c.error_spike) {
+            errorEl.textContent = (c.error_spike.error_rate * 100).toFixed(1) + '%';
+        }
     }
 
     function renderPosture(posture, narrative) {
@@ -543,6 +698,7 @@
                 '  </div>' +
                 '</div>' +
                 sparkHtml +
+                '<div class="ops-cadence-strip" id="cadence-' + c.name + '" title="30m cadence timeline"></div>' +
                 '<div class="ops-engine-timing">' +
                 '  <span>Last: ' + ago + '</span>' +
                 '  <span>P95: ' + c.duration_p95_1h + 'ms</span>' +
@@ -550,6 +706,69 @@
                 '</div>';
 
             container.appendChild(card);
+        });
+
+        // Fetch cadence timeline data
+        fetchCadenceTimelines();
+    }
+
+    function fetchCadenceTimelines() {
+        fetch('/admin-console/ops/cadence/?minutes=30')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var timelines = data.timelines || {};
+                Object.keys(timelines).forEach(function(engine) {
+                    renderCadenceStrip(engine, timelines[engine], data.window_minutes);
+                });
+            })
+            .catch(function() {});
+    }
+
+    function renderCadenceStrip(engine, timeline, windowMinutes) {
+        var strip = document.getElementById('cadence-' + engine);
+        if (!strip) return;
+        strip.innerHTML = '';
+
+        var now = new Date();
+        var start = new Date(now.getTime() - windowMinutes * 60000);
+        var totalMs = windowMinutes * 60000;
+
+        // Expected ticks
+        (timeline.expected_ticks || []).forEach(function(t) {
+            var dt = new Date(t);
+            var pct = ((dt - start) / totalMs) * 100;
+            if (pct >= 0 && pct <= 100) {
+                var tick = document.createElement('div');
+                tick.className = 'ops-cadence-tick';
+                tick.style.left = pct + '%';
+                strip.appendChild(tick);
+            }
+        });
+
+        // Missed ticks
+        (timeline.missed_ticks || []).forEach(function(t) {
+            var dt = new Date(t);
+            var pct = ((dt - start) / totalMs) * 100;
+            if (pct >= 0 && pct <= 100) {
+                var miss = document.createElement('div');
+                miss.className = 'ops-cadence-miss';
+                miss.style.left = Math.max(0, pct - 0.3) + '%';
+                miss.title = 'Missed at ' + dt.toLocaleTimeString();
+                strip.appendChild(miss);
+            }
+        });
+
+        // Actual runs
+        (timeline.runs || []).forEach(function(r) {
+            var dt = new Date(r.time);
+            var pct = ((dt - start) / totalMs) * 100;
+            if (pct >= 0 && pct <= 100) {
+                var run = document.createElement('div');
+                run.className = 'ops-cadence-run' + (r.status === 'error' ? ' error' : '');
+                run.style.left = pct + '%';
+                run.title = engine + ' ' + r.status + ' at ' + dt.toLocaleTimeString() + ' (' + r.duration_ms + 'ms)';
+                strip.appendChild(run);
+            }
         });
     }
 
@@ -574,9 +793,15 @@
                     escapeHtml(act.label) + '</button>';
             });
 
+            var escBadge = '';
+            if (a.escalation_count > 0) {
+                escBadge = ' <span style="font-size:0.6rem;color:var(--ops-red);font-weight:700">ESC ' +
+                    a.original_severity + '→' + a.severity + '</span>';
+            }
+
             card.innerHTML =
                 '<div class="ops-anomaly-header">' +
-                '  <span class="ops-anomaly-severity ' + a.severity + '">' + a.severity + ' | ' + (a.engine_name || 'SYSTEM') + '</span>' +
+                '  <span class="ops-anomaly-severity ' + a.severity + '">' + a.severity + ' | ' + (a.engine_name || 'SYSTEM') + escBadge + '</span>' +
                 '  <span class="ops-anomaly-when">' + (a.first_detected || '') + '</span>' +
                 '</div>' +
                 '<div class="ops-anomaly-summary">' + escapeHtml(a.summary) + '</div>' +

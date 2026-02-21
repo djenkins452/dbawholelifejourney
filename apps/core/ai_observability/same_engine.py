@@ -28,10 +28,10 @@ logger = logging.getLogger(__name__)
 
 def run_same():
     """
-    Main SAME entry point. Compute anomalies + narrative, persist both.
+    Main SAME entry point. Compute anomalies + narrative + integrity, persist all.
 
     Returns:
-        dict with keys: anomalies_created, anomalies_resolved, narrative
+        dict with keys: anomalies_created, anomalies_resolved, narrative, integrity
     """
     from apps.core.ai_observability.heartbeat import compute_and_save_heartbeats
 
@@ -53,13 +53,25 @@ def run_same():
     # Step 3: Reconcile anomalies (activate new, resolve old)
     stats = _reconcile_anomalies(detected, now)
 
+    # Step 3.5: Escalation state machine
+    escalated = _escalate_anomalies(now)
+
+    # Step 3.6: Autonomous remediation (if enabled)
+    remediated = _run_autonomous_remediation(now)
+
     # Step 4: Generate narrative
     narrative = _generate_narrative(heartbeats, detected, now)
+
+    # Step 5: Compute System Integrity Index
+    integrity = _compute_integrity_snapshot(heartbeats, now)
 
     return {
         "anomalies_created": stats["created"],
         "anomalies_resolved": stats["resolved"],
+        "anomalies_escalated": escalated,
+        "auto_remediated": remediated,
         "narrative": narrative,
+        "integrity": integrity,
     }
 
 
@@ -441,6 +453,7 @@ def _reconcile_anomalies(detected, now):
             OpsAnomaly.objects.create(
                 anomaly_type=d["anomaly_type"],
                 severity=d["severity"],
+                original_severity=d["severity"],
                 engine_name=d["engine_name"],
                 summary=d["summary"],
                 evidence=d["evidence"],
@@ -450,6 +463,231 @@ def _reconcile_anomalies(detected, now):
             created += 1
 
     return {"created": created, "resolved": resolved}
+
+
+# =========================================================================
+# ESCALATION STATE MACHINE
+# =========================================================================
+
+# Escalation rules: (from_severity, minutes_unresolved, to_severity)
+ESCALATION_RULES = [
+    ("P3", 10, "P2"),   # P3 unresolved > 10 minutes → P2
+    ("P2", 20, "P1"),   # P2 unresolved > 20 minutes → P1
+]
+
+# Cooldown: minimum minutes between escalations of the same anomaly
+ESCALATION_COOLDOWN_MINUTES = 5
+
+
+def _escalate_anomalies(now):
+    """
+    Apply escalation state machine to active anomalies.
+
+    Rules:
+    - P3 unresolved > 10 minutes → promote to P2
+    - P2 unresolved > 20 minutes → promote to P1
+    - Cooldown: no re-escalation within 5 minutes
+    - Resolution resets escalation (new anomaly starts fresh)
+    - P1 is terminal — no further escalation
+
+    Returns:
+        int — number of anomalies escalated this cycle.
+    """
+    from apps.core.ai_observability.models import OpsAnomaly
+
+    escalated = 0
+    active = OpsAnomaly.objects.filter(is_active=True)
+
+    for anomaly in active:
+        # P1 is terminal — skip
+        if anomaly.severity == "P1":
+            continue
+
+        for from_sev, minutes_threshold, to_sev in ESCALATION_RULES:
+            if anomaly.severity != from_sev:
+                continue
+
+            # Check if anomaly has been active long enough
+            age_minutes = (now - anomaly.created_at).total_seconds() / 60
+            if age_minutes < minutes_threshold:
+                continue
+
+            # Cooldown check
+            if anomaly.last_escalated_at:
+                cooldown_elapsed = (
+                    now - anomaly.last_escalated_at
+                ).total_seconds() / 60
+                if cooldown_elapsed < ESCALATION_COOLDOWN_MINUTES:
+                    continue
+
+            # Promote severity
+            old_severity = anomaly.severity
+            anomaly.severity = to_sev
+            anomaly.escalation_count += 1
+            anomaly.last_escalated_at = now
+            if not anomaly.original_severity:
+                anomaly.original_severity = old_severity
+            anomaly.summary = (
+                f"[ESCALATED {old_severity}→{to_sev}] {anomaly.summary}"
+                if "[ESCALATED" not in anomaly.summary
+                else anomaly.summary.replace(
+                    anomaly.summary.split("]")[0] + "]",
+                    f"[ESCALATED {anomaly.original_severity}→{to_sev}]",
+                )
+            )
+            anomaly.save(update_fields=[
+                "severity", "escalation_count", "last_escalated_at",
+                "original_severity", "summary", "updated_at",
+            ])
+
+            logger.info(
+                "SAME escalation: %s %s on %s promoted %s → %s "
+                "(age=%dm, count=%d)",
+                anomaly.anomaly_type, anomaly.id, anomaly.engine_name,
+                old_severity, to_sev, int(age_minutes), anomaly.escalation_count,
+            )
+            escalated += 1
+            break  # Only one escalation per anomaly per cycle
+
+    return escalated
+
+
+# =========================================================================
+# AUTONOMOUS REMEDIATION
+# =========================================================================
+
+# Feature flag — set to False to disable all autonomous actions
+AUTONOMOUS_REMEDIATION_ENABLED = True
+
+# Max auto-actions per SAME cycle (prevents infinite loop)
+MAX_AUTO_ACTIONS_PER_CYCLE = 3
+
+# Cooldown: minutes since last auto-action on same anomaly
+AUTO_ACTION_COOLDOWN_MINUTES = 30
+
+
+def _run_autonomous_remediation(now):
+    """
+    Execute safe automatic actions for eligible anomalies.
+
+    Rules:
+    - Only acts on P3 severity anomalies (low risk)
+    - Auto-rerun for single MISSED_RUN (P3 only, once per anomaly)
+    - Auto-clear suppression cache for SUPPRESSION_STORM (P3 only)
+    - Logs every action as a system-initiated AdminIntervention
+    - Respects MAX_AUTO_ACTIONS_PER_CYCLE to prevent runaway
+    - Respects AUTO_ACTION_COOLDOWN_MINUTES to prevent infinite loops
+    - Can be disabled via AUTONOMOUS_REMEDIATION_ENABLED flag
+
+    Returns:
+        int — number of auto-actions taken.
+    """
+    if not AUTONOMOUS_REMEDIATION_ENABLED:
+        return 0
+
+    from apps.core.ai_observability.models import AdminIntervention, OpsAnomaly
+
+    actions_taken = 0
+    active_p3 = OpsAnomaly.objects.filter(is_active=True, severity="P3")
+
+    for anomaly in active_p3:
+        if actions_taken >= MAX_AUTO_ACTIONS_PER_CYCLE:
+            break
+
+        # Check cooldown: has this anomaly already been auto-remediated recently?
+        recent_auto = AdminIntervention.objects.filter(
+            is_system_initiated=True,
+            engine_name=anomaly.engine_name,
+            created_at__gte=now - timedelta(minutes=AUTO_ACTION_COOLDOWN_MINUTES),
+        ).exists()
+        if recent_auto:
+            continue
+
+        if anomaly.anomaly_type == "MISSED_RUN":
+            result = _auto_rerun_engine(anomaly, now)
+            if result:
+                actions_taken += 1
+
+        elif anomaly.anomaly_type == "SUPPRESSION_STORM":
+            result = _auto_clear_suppression(anomaly, now)
+            if result:
+                actions_taken += 1
+
+    return actions_taken
+
+
+def _auto_rerun_engine(anomaly, now):
+    """Auto-rerun a missed engine (P3 only, system engines only)."""
+    import uuid
+
+    from apps.core.ai_observability.models import AdminIntervention
+
+    engine = anomaly.engine_name
+    # Only auto-rerun system engines (not user-context engines)
+    system_engines = {"DBE", "WIRE", "DNE"}
+    if engine not in system_engines:
+        return False
+
+    trace_id = str(uuid.uuid4())
+
+    try:
+        from apps.core.ai_observability.ops_views import _action_rerun_engine
+        result = _action_rerun_engine(engine, trace_id)
+
+        AdminIntervention.objects.create(
+            admin_user=None,
+            action_type="auto_rerun_engine",
+            engine_name=engine,
+            trace_id=trace_id,
+            notes=f"SAME autonomous remediation: auto-rerun for P3 MISSED_RUN on {engine}",
+            result_status=result["status"],
+            result_detail=result["detail"],
+            is_system_initiated=True,
+        )
+
+        logger.info(
+            "SAME auto-remediation: rerun %s (trace=%s, result=%s)",
+            engine, trace_id, result["status"],
+        )
+        return True
+
+    except Exception as e:
+        logger.warning("SAME auto-remediation failed for %s: %s", engine, e)
+        return False
+
+
+def _auto_clear_suppression(anomaly, now):
+    """Auto-clear ICQG suppression cache for P3 suppression storm."""
+    import uuid
+
+    from apps.core.ai_observability.models import AdminIntervention
+
+    trace_id = str(uuid.uuid4())
+
+    try:
+        from apps.core.ai_observability.ops_views import _action_clear_suppression_cache
+        result = _action_clear_suppression_cache("ICQG")
+
+        AdminIntervention.objects.create(
+            admin_user=None,
+            action_type="auto_clear_suppression",
+            engine_name="ICQG",
+            trace_id=trace_id,
+            notes="SAME autonomous remediation: auto-clear suppression cache for P3 SUPPRESSION_STORM",
+            result_status=result["status"],
+            result_detail=result["detail"],
+            is_system_initiated=True,
+        )
+
+        logger.info(
+            "SAME auto-remediation: clear suppression (trace=%s, result=%s)",
+            trace_id, result["status"],
+        )
+        return True
+
+    except Exception as e:
+        logger.warning("SAME auto-remediation suppression clear failed: %s", e)
+        return False
 
 
 # =========================================================================
@@ -620,3 +858,160 @@ def _build_watching_next(heartbeats, now):
         watching.append("No engines approaching thresholds.")
 
     return watching
+
+
+# =========================================================================
+# SYSTEM INTEGRITY INDEX
+# =========================================================================
+
+# Severity penalty weights (subtracted from base score)
+_SEVERITY_WEIGHTS = {
+    "P1": 25.0,  # Critical — heavy penalty
+    "P2": 10.0,  # Warning — moderate penalty
+    "P3": 3.0,   # Info — light penalty
+}
+
+
+def _compute_integrity_snapshot(heartbeats, now):
+    """
+    Compute System Integrity Index (0–100) and persist as snapshot.
+
+    Score formula:
+      base = 100
+      - Engine health: subtract (1 - pct_ok) * 40
+      - Anomaly penalties: subtract per active anomaly by severity
+      - Error spike penalty: subtract based on 30m error rate
+      - Suppression rate penalty: subtract if suppression rate > 50%
+      - Confidence volatility: subtract if UAL stddev > 0.3
+
+    Posture:
+      OPTIMAL: 90–100
+      NOMINAL: 70–89
+      DEGRADED: 40–69
+      CRITICAL: 0–39
+
+    Returns saved SystemIntegritySnapshot instance.
+    """
+    from apps.core.ai_observability.models import (
+        EngineRun,
+        OpsAnomaly,
+        SystemIntegritySnapshot,
+    )
+
+    score = 100.0
+    components = {}
+
+    # --- Component 1: Engine health (max 40 point penalty) ---
+    total_engines = len(heartbeats) if heartbeats else 1
+    ok_count = sum(1 for h in heartbeats if h.status == "OK")
+    pct_ok = ok_count / total_engines if total_engines > 0 else 1.0
+    engine_penalty = (1.0 - pct_ok) * 40.0
+    score -= engine_penalty
+    components["engine_health"] = {
+        "ok_count": ok_count,
+        "total": total_engines,
+        "pct_ok": round(pct_ok, 3),
+        "penalty": round(engine_penalty, 1),
+    }
+
+    # --- Component 2: Anomaly severity penalties (max ~50 point penalty) ---
+    active_anomalies = OpsAnomaly.objects.filter(is_active=True)
+    anomaly_penalty = 0.0
+    anomaly_counts = {"P1": 0, "P2": 0, "P3": 0}
+    for anomaly in active_anomalies:
+        weight = _SEVERITY_WEIGHTS.get(anomaly.severity, 3.0)
+        anomaly_penalty += weight
+        anomaly_counts[anomaly.severity] = anomaly_counts.get(anomaly.severity, 0) + 1
+    # Cap anomaly penalty at 50
+    anomaly_penalty = min(anomaly_penalty, 50.0)
+    score -= anomaly_penalty
+    components["anomaly_severity"] = {
+        "counts": anomaly_counts,
+        "penalty": round(anomaly_penalty, 1),
+    }
+
+    # --- Component 3: Error spike penalty (max 10 point penalty) ---
+    thirty_min_ago = now - timedelta(minutes=30)
+    total_runs_30m = EngineRun.objects.filter(
+        started_at__gte=thirty_min_ago
+    ).count()
+    error_runs_30m = EngineRun.objects.filter(
+        started_at__gte=thirty_min_ago, status="error"
+    ).count()
+    error_rate = error_runs_30m / total_runs_30m if total_runs_30m > 0 else 0.0
+    error_penalty = min(error_rate * 50.0, 10.0)  # 20% error rate = 10 pts
+    score -= error_penalty
+    components["error_spike"] = {
+        "errors_30m": error_runs_30m,
+        "total_runs_30m": total_runs_30m,
+        "error_rate": round(error_rate, 3),
+        "penalty": round(error_penalty, 1),
+    }
+
+    # --- Component 4: Suppression rate (max 5 point penalty) ---
+    from apps.core.ai_observability.models import DecisionRecord
+
+    suppressions_30m = DecisionRecord.objects.filter(
+        engine_name="ICQG",
+        decision_type="suppression",
+        created_at__gte=thirty_min_ago,
+    ).count()
+    total_icqg_30m = DecisionRecord.objects.filter(
+        engine_name="ICQG",
+        created_at__gte=thirty_min_ago,
+    ).count()
+    suppression_rate = (
+        suppressions_30m / total_icqg_30m if total_icqg_30m > 0 else 0.0
+    )
+    suppression_penalty = max(0.0, (suppression_rate - 0.5) * 10.0)  # Penalty above 50%
+    suppression_penalty = min(suppression_penalty, 5.0)
+    score -= suppression_penalty
+    components["suppression_rate"] = {
+        "suppressions_30m": suppressions_30m,
+        "total_icqg_30m": total_icqg_30m,
+        "rate": round(suppression_rate, 3),
+        "penalty": round(suppression_penalty, 1),
+    }
+
+    # --- Component 5: Confidence volatility (max 5 point penalty) ---
+    twenty_four_h_ago = now - timedelta(hours=24)
+    stats = DecisionRecord.objects.filter(
+        engine_name="UAL",
+        decision_type="arbitration",
+        confidence__isnull=False,
+        created_at__gte=twenty_four_h_ago,
+    ).aggregate(
+        stddev=StdDev("confidence"),
+        count=Count("id"),
+    )
+    confidence_stddev = stats.get("stddev") or 0.0
+    volatility_penalty = 0.0
+    if stats.get("count", 0) >= 5 and confidence_stddev > 0.3:
+        volatility_penalty = min((confidence_stddev - 0.3) * 15.0, 5.0)
+    score -= volatility_penalty
+    components["confidence_volatility"] = {
+        "stddev": round(confidence_stddev, 3),
+        "sample_count": stats.get("count", 0),
+        "penalty": round(volatility_penalty, 1),
+    }
+
+    # Clamp score
+    score = max(0.0, min(100.0, score))
+
+    # Derive posture
+    if score >= 90:
+        posture = "OPTIMAL"
+    elif score >= 70:
+        posture = "NOMINAL"
+    elif score >= 40:
+        posture = "DEGRADED"
+    else:
+        posture = "CRITICAL"
+
+    snapshot = SystemIntegritySnapshot.objects.create(
+        score=round(score, 1),
+        posture=posture,
+        components=components,
+    )
+
+    return snapshot

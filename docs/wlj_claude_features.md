@@ -3611,6 +3611,7 @@ The Ops Command Center (formerly Operations Wall) is a live Bloomberg/NASA-style
 - **Engine cards** — Per-engine tiles showing status (OK/MISSED/STALE), last-run time, cadence timeline strip (30-min rolling window), and miss count
 - **Manual execution controls** — Execute buttons on all 9 engines. Batch-native engines (DBE, WIRE, DNE, PGE) run directly; context-dependent engines (UAL, SAE, PIE, PRIE, ICQG) run in Synthetic Batch Evaluation Mode with purple "Synthetic" badge
 - **Synthetic Batch Evaluation** — Iterates all active AI users, calls each engine's existing logic with current stored data. No fake events, no data alteration. Uses `trace_context(source="manual_synthetic")`
+- **Scheduler Heartbeat tile** — Live status of ISE scheduler (Railway cron, 5-min) and SAME monitor (Celery Beat, 60s). Shows ALIVE/DELAYED/OFFLINE with pulse indicators, last tick, expected interval, and drift delta. Configurable thresholds (1.5x→DELAYED, 3x→OFFLINE). Auto-refreshes with 2s polling
 - **SAME engine** — System Autonomous Monitoring Engine runs every 60s via Celery Beat. Computes heartbeats, detects anomalies, escalates severity (P3→P2→P1), auto-remediates low-severity issues
 - **Anomaly detection** — 7 detectors: missed runs, error bursts, suppression spikes, delivery storms, latency degradation, stale state, guidance drought
 - **Hybrid Recovery Model** — Manual execution immediately recomputes heartbeats, resolves MISSED_RUN anomalies, and creates fresh integrity snapshots. Historical misses age out naturally over 30 minutes
@@ -3630,6 +3631,7 @@ The Ops Command Center (formerly Operations Wall) is a live Bloomberg/NASA-style
 | `OpsNarrativeSnapshot` | AI-generated system summaries |
 | `SystemIntegritySnapshot` | Point-in-time integrity scores |
 | `AdminIntervention` | Manual action audit records |
+| `SchedulerHeartbeat` | ISE/SAME scheduler liveness tracking (single-row per scheduler) |
 
 ### Key Files
 - `apps/core/ai_observability/same_engine.py` — SAME cycle, heartbeats, integrity scoring, recovery

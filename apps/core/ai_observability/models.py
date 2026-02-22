@@ -937,3 +937,118 @@ class EngineExecutionLog(models.Model):
     def get_latest_for_engine(cls, engine_name):
         """Get the most recent execution log for a specific engine."""
         return cls.objects.filter(engine_name=engine_name).first()
+
+
+class SchedulerHeartbeat(models.Model):
+    """
+    Tracks whether the ISE scheduler process is alive.
+
+    Single-row table updated atomically at the end of each scheduler cycle.
+    The Command Center uses this to detect scheduler drift, silent failure,
+    or worker death via drift_seconds = now - last_tick_at.
+
+    Thresholds (configurable via threshold fields):
+      ALIVE:   drift <= expected_interval * alive_threshold_multiplier
+      DELAYED: drift <= expected_interval * offline_threshold_multiplier
+      OFFLINE: drift > expected_interval * offline_threshold_multiplier
+    """
+
+    class Meta:
+        app_label = "core"
+        db_table = "core_scheduler_heartbeat"
+
+    SCHEDULER_ISE = "ISE"
+    SCHEDULER_SAME = "SAME"
+    SCHEDULER_CHOICES = [
+        (SCHEDULER_ISE, "Intelligence Scheduler Engine"),
+        (SCHEDULER_SAME, "SAME Monitoring Cycle"),
+    ]
+
+    STATUS_CHOICES = [
+        ("ALIVE", "Alive"),
+        ("DELAYED", "Delayed"),
+        ("OFFLINE", "Offline"),
+    ]
+
+    scheduler_name = models.CharField(
+        max_length=10,
+        unique=True,
+        choices=SCHEDULER_CHOICES,
+        help_text="Which scheduler process this heartbeat tracks.",
+    )
+    last_tick_at = models.DateTimeField(
+        db_index=True,
+        help_text="When the scheduler last completed a cycle.",
+    )
+    expected_interval_seconds = models.IntegerField(
+        help_text="Expected interval between ticks in seconds.",
+    )
+    cycle_result = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Summary of the last cycle (executed, skipped, failed).",
+    )
+    alive_threshold_multiplier = models.FloatField(
+        default=1.5,
+        help_text="Drift multiplier for ALIVE->DELAYED transition.",
+    )
+    offline_threshold_multiplier = models.FloatField(
+        default=3.0,
+        help_text="Drift multiplier for DELAYED->OFFLINE transition.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"SchedulerHeartbeat({self.scheduler_name}) last_tick={self.last_tick_at}"
+
+    @property
+    def drift_seconds(self):
+        """Current drift: seconds since last tick."""
+        return int((timezone.now() - self.last_tick_at).total_seconds())
+
+    @property
+    def status(self):
+        """Compute status from drift and thresholds."""
+        drift = self.drift_seconds
+        alive_limit = self.expected_interval_seconds * self.alive_threshold_multiplier
+        offline_limit = self.expected_interval_seconds * self.offline_threshold_multiplier
+        if drift <= alive_limit:
+            return "ALIVE"
+        elif drift <= offline_limit:
+            return "DELAYED"
+        return "OFFLINE"
+
+    @classmethod
+    def get_for_scheduler(cls, scheduler_name):
+        """Get the heartbeat record for a scheduler, or None."""
+        try:
+            return cls.objects.get(scheduler_name=scheduler_name)
+        except cls.DoesNotExist:
+            return None
+
+    @classmethod
+    def tick(cls, scheduler_name, expected_interval_seconds, cycle_result=None):
+        """
+        Record a scheduler tick. Atomic update_or_create.
+
+        Called at the end of each scheduler cycle. Must never raise —
+        failures are logged but do not crash the scheduler.
+        """
+        import logging
+
+        logger = logging.getLogger(__name__)
+        try:
+            cls.objects.update_or_create(
+                scheduler_name=scheduler_name,
+                defaults={
+                    "last_tick_at": timezone.now(),
+                    "expected_interval_seconds": expected_interval_seconds,
+                    "cycle_result": cycle_result or {},
+                },
+            )
+        except Exception as e:
+            logger.warning(
+                "SchedulerHeartbeat.tick failed for %s: %s",
+                scheduler_name, e,
+            )

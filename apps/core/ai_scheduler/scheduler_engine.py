@@ -53,11 +53,26 @@ def run_scheduler_cycle():
         else:
             failed += 1
 
+    result = {"executed": executed, "skipped": skipped, "failed": failed}
+
     logger.info(
         f"ISE: Scheduler cycle complete — "
         f"executed={executed}, skipped={skipped}, failed={failed}"
     )
-    return {"executed": executed, "skipped": skipped, "failed": failed}
+
+    # Record scheduler heartbeat (fail-silent — never crash the cycle)
+    try:
+        from apps.core.ai_observability.models import SchedulerHeartbeat
+
+        SchedulerHeartbeat.tick(
+            scheduler_name=SchedulerHeartbeat.SCHEDULER_ISE,
+            expected_interval_seconds=300,  # Railway cron every 5 min
+            cycle_result=result,
+        )
+    except Exception:
+        pass
+
+    return result
 
 
 def _execute_task(task, now):

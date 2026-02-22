@@ -77,6 +77,7 @@
 .ops-wall > .ops-section:nth-child(6) { animation-delay: 0.24s; }
 .ops-wall > .ops-section:nth-child(7) { animation-delay: 0.28s; }
 .ops-wall > .ops-section:nth-child(8) { animation-delay: 0.32s; }
+.ops-wall > .ops-section:nth-child(9) { animation-delay: 0.36s; }
 @keyframes opsEnter {
     to { opacity: 1; transform: translateY(0); }
 }
@@ -822,6 +823,93 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
 .ops-tooltip.visible { opacity: 1; }
 
 /* =========================================================================
+   SCHEDULER HEARTBEAT TILE
+   ========================================================================= */
+.ops-scheduler-heartbeat {
+    padding: 14px 20px;
+    margin-bottom: 14px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+.ops-sched-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 16px;
+    background: var(--ops-surface-alt);
+    border-radius: var(--ops-radius-sm);
+    border: 1px solid var(--ops-glass-border);
+    transition: border-color 0.3s;
+}
+.ops-sched-card.DELAYED { border-color: rgba(245, 158, 11, 0.3); }
+.ops-sched-card.OFFLINE { border-color: rgba(239, 68, 68, 0.3); }
+.ops-sched-pulse {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    position: relative;
+}
+.ops-sched-pulse.ALIVE { background: var(--ops-green); box-shadow: 0 0 8px rgba(16,185,129,0.5); }
+.ops-sched-pulse.DELAYED { background: var(--ops-yellow); box-shadow: 0 0 8px rgba(245,158,11,0.5); animation: schedPulseAmber 1.5s ease-in-out infinite; }
+.ops-sched-pulse.OFFLINE { background: var(--ops-red); box-shadow: 0 0 8px rgba(239,68,68,0.5); animation: schedPulseRed 1s ease-in-out infinite; }
+@keyframes schedPulseAmber {
+    0%,100% { box-shadow: 0 0 8px rgba(245,158,11,0.5); }
+    50% { box-shadow: 0 0 16px rgba(245,158,11,0.8); }
+}
+@keyframes schedPulseRed {
+    0%,100% { box-shadow: 0 0 8px rgba(239,68,68,0.5); }
+    50% { box-shadow: 0 0 20px rgba(239,68,68,0.9); }
+}
+.ops-sched-info { flex: 1; min-width: 0; }
+.ops-sched-name {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ops-text-bright);
+    margin-bottom: 2px;
+}
+.ops-sched-status-label {
+    font-size: 0.5625rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 2px 8px;
+    border-radius: 3px;
+    display: inline-block;
+}
+.ops-sched-status-label.ALIVE { color: var(--ops-green); background: var(--ops-green-dim); }
+.ops-sched-status-label.DELAYED { color: var(--ops-yellow); background: var(--ops-yellow-dim); }
+.ops-sched-status-label.OFFLINE { color: var(--ops-red); background: var(--ops-red-dim); }
+.ops-sched-metrics {
+    display: flex;
+    gap: 16px;
+    margin-top: 6px;
+    flex-wrap: wrap;
+}
+.ops-sched-metric {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+.ops-sched-metric-label {
+    font-size: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ops-text-dim);
+}
+.ops-sched-metric-value {
+    font-size: 0.75rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--ops-text);
+}
+.ops-sched-metric-value.drift-ok { color: var(--ops-green); }
+.ops-sched-metric-value.drift-warn { color: var(--ops-yellow); }
+.ops-sched-metric-value.drift-critical { color: var(--ops-red); }
+
+/* =========================================================================
    Responsive
    ========================================================================= */
 @media (max-width: 1400px) {
@@ -839,6 +927,7 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
 }
 @media (max-width: 768px) {
     .ops-wall { padding: 10px 12px 20px; }
+    .ops-scheduler-heartbeat { grid-template-columns: 1fr; }
     .ops-integrity-hero-main { grid-template-columns: 1fr; justify-items: center; text-align: center; }
     .ops-integrity-gauge-wrap { width: 130px; height: 130px; }
     .ops-integrity-strip { grid-template-columns: repeat(2, 1fr); justify-items: center; }
@@ -910,6 +999,52 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
                     <span class="ops-integrity-comp-value" id="icVolatility">&mdash;</span>
                 </div>
                 <div class="ops-integrity-comp-bar"><div class="ops-integrity-comp-bar-fill" id="icVolatilityBar"></div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scheduler Heartbeat Tile -->
+    <div class="ops-section ops-glass ops-scheduler-heartbeat" id="schedulerHeartbeat">
+        <div class="ops-sched-card" id="schedCardISE">
+            <div class="ops-sched-pulse OFFLINE" id="schedPulseISE"></div>
+            <div class="ops-sched-info">
+                <div class="ops-sched-name">ISE Scheduler</div>
+                <span class="ops-sched-status-label OFFLINE" id="schedStatusISE">OFFLINE</span>
+                <div class="ops-sched-metrics">
+                    <div class="ops-sched-metric">
+                        <span class="ops-sched-metric-label">Last Tick</span>
+                        <span class="ops-sched-metric-value" id="schedLastTickISE">&mdash;</span>
+                    </div>
+                    <div class="ops-sched-metric">
+                        <span class="ops-sched-metric-label">Interval</span>
+                        <span class="ops-sched-metric-value" id="schedIntervalISE">&mdash;</span>
+                    </div>
+                    <div class="ops-sched-metric">
+                        <span class="ops-sched-metric-label">Drift</span>
+                        <span class="ops-sched-metric-value" id="schedDriftISE">&mdash;</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="ops-sched-card" id="schedCardSAME">
+            <div class="ops-sched-pulse OFFLINE" id="schedPulseSAME"></div>
+            <div class="ops-sched-info">
+                <div class="ops-sched-name">SAME Monitor</div>
+                <span class="ops-sched-status-label OFFLINE" id="schedStatusSAME">OFFLINE</span>
+                <div class="ops-sched-metrics">
+                    <div class="ops-sched-metric">
+                        <span class="ops-sched-metric-label">Last Tick</span>
+                        <span class="ops-sched-metric-value" id="schedLastTickSAME">&mdash;</span>
+                    </div>
+                    <div class="ops-sched-metric">
+                        <span class="ops-sched-metric-label">Interval</span>
+                        <span class="ops-sched-metric-value" id="schedIntervalSAME">&mdash;</span>
+                    </div>
+                    <div class="ops-sched-metric">
+                        <span class="ops-sched-metric-label">Drift</span>
+                        <span class="ops-sched-metric-value" id="schedDriftSAME">&mdash;</span>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -1588,8 +1723,12 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
     /* =====================================================================
        Render Pipeline
        ===================================================================== */
+    // Scheduler heartbeat state tracking for transition logging
+    var previousSchedulerStatuses = {};
+
     function render(data) {
         renderIntegrity(data.integrity);
+        renderSchedulerHeartbeats(data.scheduler_heartbeats || []);
         renderPosture(data.posture, data.narrative);
         renderNarration(data.narrative);
         trackAnomalies(data.anomalies || []);
@@ -1598,6 +1737,74 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
         renderWatchlist(data.anomalies || []);
         renderFeed(data.feed || []);
         document.getElementById('lastUpdateTime').textContent = new Date().toLocaleTimeString();
+    }
+
+    function renderSchedulerHeartbeats(schedulers) {
+        if (!schedulers || schedulers.length === 0) return;
+
+        schedulers.forEach(function(s) {
+            var name = s.scheduler_name;
+            var status = s.status || 'OFFLINE';
+
+            // State transition logging
+            var prevStatus = previousSchedulerStatuses[name];
+            if (prevStatus && prevStatus !== status) {
+                console.log('[Scheduler] ' + name + ' transition: ' + prevStatus + ' → ' + status);
+            }
+            previousSchedulerStatuses[name] = status;
+
+            // Update pulse indicator
+            var pulse = document.getElementById('schedPulse' + name);
+            if (pulse) {
+                pulse.className = 'ops-sched-pulse ' + status;
+            }
+
+            // Update card border
+            var card = document.getElementById('schedCard' + name);
+            if (card) {
+                card.className = 'ops-sched-card ' + status;
+            }
+
+            // Update status badge
+            var statusEl = document.getElementById('schedStatus' + name);
+            if (statusEl) {
+                statusEl.textContent = status;
+                statusEl.className = 'ops-sched-status-label ' + status;
+            }
+
+            // Last tick
+            var tickEl = document.getElementById('schedLastTick' + name);
+            if (tickEl) {
+                if (s.last_tick_at) {
+                    tickEl.textContent = new Date(s.last_tick_at).toLocaleTimeString();
+                } else {
+                    tickEl.textContent = 'Never';
+                }
+            }
+
+            // Expected interval
+            var intervalEl = document.getElementById('schedInterval' + name);
+            if (intervalEl) {
+                intervalEl.textContent = s.expected_interval_seconds + 's';
+            }
+
+            // Drift
+            var driftEl = document.getElementById('schedDrift' + name);
+            if (driftEl) {
+                if (s.drift_seconds !== null && s.drift_seconds !== undefined) {
+                    var sign = s.drift_seconds >= 0 ? '+' : '';
+                    driftEl.textContent = sign + s.drift_seconds + 's';
+                    // Color based on status
+                    driftEl.className = 'ops-sched-metric-value ' + (
+                        status === 'ALIVE' ? 'drift-ok' :
+                        status === 'DELAYED' ? 'drift-warn' : 'drift-critical'
+                    );
+                } else {
+                    driftEl.textContent = '\u2014';
+                    driftEl.className = 'ops-sched-metric-value drift-critical';
+                }
+            }
+        });
     }
 
     function renderIntegrity(integrity) {

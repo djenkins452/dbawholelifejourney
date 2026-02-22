@@ -125,6 +125,9 @@ class OpsStreamView(View):
         # System Integrity Index (latest snapshot)
         integrity = _get_latest_integrity()
 
+        # Scheduler heartbeats (ISE + SAME)
+        scheduler_heartbeats = _get_scheduler_heartbeats()
+
         return JsonResponse({
             "server_time": now.isoformat(),
             "posture": posture,
@@ -133,6 +136,7 @@ class OpsStreamView(View):
             "anomalies": anomalies,
             "feed": feed,
             "integrity": integrity,
+            "scheduler_heartbeats": scheduler_heartbeats,
             "next_since": now.isoformat(),
         })
 
@@ -647,6 +651,25 @@ class EngineStatusView(View):
         })
 
 
+class SchedulerHeartbeatView(View):
+    """
+    Scheduler heartbeat endpoint.
+
+    GET /admin-console/ops/scheduler-heartbeat/
+
+    Returns status, drift, and thresholds for ISE and SAME schedulers.
+    """
+
+    def get(self, request):
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return JsonResponse({"error": "forbidden"}, status=403)
+
+        return JsonResponse({
+            "server_time": timezone.now().isoformat(),
+            "schedulers": _get_scheduler_heartbeats(),
+        })
+
+
 class AllEnginesView(AdminRequiredMixin, TemplateView):
     """All engines table view with search."""
 
@@ -1010,6 +1033,47 @@ def _action_acknowledge_anomaly(engine):
         "status": "success",
         "detail": f"Acknowledged {resolved} anomaly/anomalies for {engine}",
     }
+
+
+def _get_scheduler_heartbeats():
+    """Get heartbeat status for all tracked schedulers."""
+    from apps.core.ai_observability.models import SchedulerHeartbeat
+
+    schedulers = []
+    try:
+        for hb in SchedulerHeartbeat.objects.all():
+            schedulers.append({
+                "scheduler_name": hb.scheduler_name,
+                "status": hb.status,
+                "last_tick_at": hb.last_tick_at.isoformat(),
+                "expected_interval_seconds": hb.expected_interval_seconds,
+                "drift_seconds": hb.drift_seconds,
+                "cycle_result": hb.cycle_result,
+                "alive_threshold_multiplier": hb.alive_threshold_multiplier,
+                "offline_threshold_multiplier": hb.offline_threshold_multiplier,
+                "updated_at": hb.updated_at.isoformat(),
+            })
+    except Exception:
+        pass  # Table may not exist yet
+
+    # If no heartbeat rows exist, return OFFLINE indicators
+    known_schedulers = {"ISE", "SAME"}
+    found = {s["scheduler_name"] for s in schedulers}
+    for name in known_schedulers - found:
+        expected = 300 if name == "ISE" else 60
+        schedulers.append({
+            "scheduler_name": name,
+            "status": "OFFLINE",
+            "last_tick_at": None,
+            "expected_interval_seconds": expected,
+            "drift_seconds": None,
+            "cycle_result": {},
+            "alive_threshold_multiplier": 1.5,
+            "offline_threshold_multiplier": 3.0,
+            "updated_at": None,
+        })
+
+    return schedulers
 
 
 def _human_ago(dt):

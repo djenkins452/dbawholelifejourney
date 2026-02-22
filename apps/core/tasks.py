@@ -87,6 +87,18 @@ def run_same_cycle_task(self):
         if execution_log:
             _complete_execution_log(execution_log, "completed", duration_ms)
 
+        # Record SAME scheduler heartbeat (fail-silent)
+        try:
+            from apps.core.ai_observability.models import SchedulerHeartbeat
+
+            SchedulerHeartbeat.tick(
+                scheduler_name=SchedulerHeartbeat.SCHEDULER_SAME,
+                expected_interval_seconds=60,  # Celery beat every 60s
+                cycle_result={"duration_ms": duration_ms},
+            )
+        except Exception:
+            pass
+
         return {
             "status": "ok",
             "duration_seconds": round(duration, 2),

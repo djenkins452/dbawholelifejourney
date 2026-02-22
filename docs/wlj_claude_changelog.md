@@ -9,6 +9,37 @@
 
 # WLJ Change History
 
+## 2026-02-21 — Scheduler Heartbeat Tile (Ops Command Center)
+
+**Feature:** Added a Scheduler Heartbeat tile to the Ops Command Center that monitors whether the ISE scheduler (Railway cron, 5-min) and SAME monitoring cycle (Celery Beat, 60s) are alive, delayed, or offline.
+
+**What it shows:**
+- Status: ALIVE (green) / DELAYED (amber) / OFFLINE (red)
+- Last tick timestamp, expected interval, drift delta
+- Auto-refreshes every 2s with the existing polling pipeline
+- Color-coded pulse indicators with animated state
+
+**Architecture:**
+- New `SchedulerHeartbeat` model (single-row per scheduler, atomic `update_or_create`)
+- Heartbeat tick injected at end of `run_scheduler_cycle()` (ISE) and `run_same_cycle_task()` (SAME)
+- Configurable drift thresholds: ALIVE <= 1.5x interval, DELAYED <= 3x, OFFLINE > 3x
+- Fail-silent: heartbeat update never crashes the scheduler
+- Missing rows show OFFLINE status automatically
+- State transitions logged to browser console for debugging
+
+**Files modified:**
+- `apps/core/ai_observability/models.py` — added `SchedulerHeartbeat` model
+- `apps/core/ai_scheduler/scheduler_engine.py` — ISE heartbeat tick
+- `apps/core/tasks.py` — SAME heartbeat tick
+- `apps/core/ai_observability/ops_views.py` — added `SchedulerHeartbeatView` + stream integration
+- `apps/admin_console/urls.py` — added `/ops/scheduler-heartbeat/` endpoint
+- `templates/admin_console/operations_wall.html` — tile CSS, HTML, JS rendering
+- `apps/core/migrations/0086_schedulerheartbeat.py` — migration
+
+**Why:** Detect scheduler drift, silent failure, or worker death from the Command Center.
+
+---
+
 ## 2026-02-21 — Fix pre-existing SystemInjectionTest failures
 
 **Changes:**

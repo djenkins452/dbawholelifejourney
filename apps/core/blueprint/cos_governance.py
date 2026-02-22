@@ -189,9 +189,9 @@ CALIBRATION_WELCOME_TEMPLATE = (
     "the gaps. You can pause anytime by saying 'that's enough for now.'"
 )
 
-# Fallback for users with no data at all
+# Fallback for users with no data at all (uses {cos_intro} placeholder)
 CALIBRATION_WELCOME_NO_DATA = (
-    "I'm your Chief of Staff — think of me as someone who pays attention "
+    "I'm {cos_intro} — think of me as someone who pays attention "
     "to what matters to you and helps you stay on track. Before I can do "
     "that, I need to understand you. Not the surface stuff — what actually "
     "drives you, what your priorities are, and what you'd want me to protect "
@@ -1384,14 +1384,18 @@ def build_calibration_system_injection(user):
             welcome = CALIBRATION_WELCOME_TEMPLATE.format(
                 data_summary=data_summary)
         else:
-            welcome = CALIBRATION_WELCOME_NO_DATA
+            cos_name = user.preferences.get_cos_name()
+            has_custom = bool(user.preferences.cos_display_name.strip())
+            cos_intro = cos_name if has_custom else f"your {cos_name}"
+            welcome = CALIBRATION_WELCOME_NO_DATA.format(cos_intro=cos_intro)
 
         lines.append("## YOUR ROLE RIGHT NOW")
+        cos_name = user.preferences.get_cos_name()
         lines.append(
-            "This is your FIRST conversation with this person. You are their "
-            "Chief of Staff — someone who has already analyzed everything they "
-            "have been doing in this app. You are NOT a blank slate. You have "
-            "studied their data and you are coming to THEM with observations."
+            f"This is your FIRST conversation with this person. You are their "
+            f"{cos_name} — someone who has already analyzed everything they "
+            f"have been doing in this app. You are NOT a blank slate. You have "
+            f"studied their data and you are coming to THEM with observations."
         )
         lines.append("")
         lines.append("## WHAT TO SAY (follow this structure closely)")

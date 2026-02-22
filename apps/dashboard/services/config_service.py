@@ -281,7 +281,7 @@ TILE_DEFINITIONS = {
     'cos_priorities': {
         'id': 'cos_priorities',
         'name': "Today's Priorities",
-        'description': 'Your Chief of Staff daily priorities — interactive checkboxes to track what matters most today.',
+        'description': 'Daily priorities — interactive checkboxes to track what matters most today.',
         'icon': 'list-checks',
         'module_dependency': 'personal_assistant_enabled',
         'default_visible': True,

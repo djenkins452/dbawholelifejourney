@@ -119,6 +119,7 @@ def theme_context(request):
             context['personal_assistant_enabled'] = prefs.personal_assistant_enabled
             context['personal_assistant_consent'] = prefs.personal_assistant_consent
             context['cos_display_name'] = prefs.get_cos_name()
+            context['cos_has_custom_name'] = bool(prefs.cos_display_name.strip())
             # Calibration state for chat auto-start
             context['calibration_active'] = False
             context['calibration_summary'] = ''

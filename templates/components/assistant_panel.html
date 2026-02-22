@@ -75,7 +75,7 @@
                     </button>
 
                     <input type="text" id="ap-chat-input" class="ap-chat-input"
-                           placeholder="Message your {{ cos_display_name|default:'Chief of Staff' }}..."
+                           placeholder="Message {% if not cos_has_custom_name %}your {% endif %}{{ cos_display_name|default:'Chief of Staff' }}..."
                            autocomplete="off" maxlength="2000">
 
                     <button type="button" id="ap-voice-btn" class="ap-voice-btn" title="Voice input" style="display:none;">

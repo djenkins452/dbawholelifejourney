@@ -7,7 +7,7 @@
 <div class="page-container" style="max-width: 640px; margin: 0 auto; padding: 1rem;">
     <h1 style="font-size: 1.5rem; font-weight: 600; margin-bottom: 0.25rem;">{{ cos_display_name|default:"Chief of Staff" }} Settings</h1>
     <p style="color: var(--text-secondary); margin-bottom: 1.5rem; font-size: 0.9rem;">
-        Control how your {{ cos_display_name|default:"Chief of Staff" }} communicates. Everything else is learned through conversation.
+        Control how {% if not cos_has_custom_name %}your {% endif %}{{ cos_display_name|default:"Chief of Staff" }} communicates. Everything else is learned through conversation.
     </p>
 
     {% if not pa_enabled %}
@@ -84,7 +84,7 @@
         {# --- Display Name --- #}
         <div class="cos-setting-group">
             <label class="cos-setting-label">Display Name</label>
-            <p class="cos-setting-help">Give your {{ cos_display_name|default:"Chief of Staff" }} a custom name, or leave blank for "Chief of Staff".</p>
+            <p class="cos-setting-help">{% if cos_has_custom_name %}Rename {{ cos_display_name }}, or clear to reset to "Chief of Staff".{% else %}Give your Chief of Staff a custom name, or leave blank for "Chief of Staff".{% endif %}</p>
             <input type="text" name="cos_display_name" class="cos-text-input"
                    value="{{ cos_display_name_raw }}"
                    placeholder="e.g. Max, Jarvis, Friday"
@@ -94,7 +94,7 @@
         {# --- Accountability Style --- #}
         <div class="cos-setting-group">
             <label class="cos-setting-label">How firm should I be?</label>
-            <p class="cos-setting-help">Controls how directly the CoS holds you accountable.</p>
+            <p class="cos-setting-help">Controls how directly {{ cos_display_name|default:"the CoS" }} holds you accountable.</p>
             <div class="cos-radio-group">
                 <label class="cos-radio-option {% if blueprint.accountability_style == 'light' %}active{% endif %}">
                     <input type="radio" name="accountability_style" value="light"
@@ -167,7 +167,7 @@
         {# --- Sensitivity Tags --- #}
         <div class="cos-setting-group">
             <label class="cos-setting-label">Sensitivity topics</label>
-            <p class="cos-setting-help">Topics where the CoS should be extra gentle (comma-separated).</p>
+            <p class="cos-setting-help">Topics where {{ cos_display_name|default:"the CoS" }} should be extra gentle (comma-separated).</p>
             <input type="text" name="sensitivity_tags" class="cos-text-input"
                    value="{{ sensitivity_tags|join:', ' }}"
                    placeholder="e.g. medicine, relationships, faith">

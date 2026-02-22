@@ -803,7 +803,7 @@
                             </button>
                             <div class="accordion-body">
                                 <p class="text-muted text-sm mb-4">
-                                    Control the depth and detail of your Chief of Staff's responses.
+                                    Control the depth and detail of {% if cos_has_custom_name %}{{ cos_display_name }}'s{% else %}your Chief of Staff's{% endif %} responses.
                                 </p>
                                 <div class="coaching-style-options">
                                     <label class="coaching-style-card {% if form.cos_response_style.value == 'concise' %}selected{% endif %}">

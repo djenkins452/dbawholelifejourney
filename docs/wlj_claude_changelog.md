@@ -9,6 +9,30 @@
 
 # WLJ Change History
 
+## 2026-02-22 — Fix "your" prefix on custom CoS display names
+
+**Changes:**
+- When user sets a custom CoS name (e.g. "Beth"), removed the awkward "your" prefix from all UI text
+- "your Chief of Staff" is preserved when no custom name is set (the default)
+- Added `cos_has_custom_name` context variable to the global context processor
+- Fixed templates: cos_settings.html, assistant_panel.html, preferences.html, cos_command_mode.html
+- Fixed Python strings: calibration welcome message in cos_governance.py, widget description in config_service.py
+- Also replaced hardcoded "CoS" references in settings page with dynamic display name
+
+**Files modified:**
+- `apps/core/context_processors.py` — added `cos_has_custom_name` bool to template context
+- `templates/ai/cos_settings.html` — conditional "your" prefix, dynamic name in help text
+- `templates/components/assistant_panel.html` — conditional "your" in chat placeholder
+- `templates/users/preferences.html` — dynamic name in response style help text
+- `templates/components/cos_command_mode.html` — conditional "your" in calibration greeting
+- `apps/core/blueprint/cos_governance.py` — dynamic cos_intro in welcome message and system prompt
+- `apps/dashboard/views.py` — format cos_intro in calibration welcome
+- `apps/dashboard/services/config_service.py` — removed "Your Chief of Staff" from widget description
+
+**Why:** When the CoS is named "Beth", saying "your Beth" sounds unnatural. The "your" possessive only makes sense with the role title "Chief of Staff".
+
+---
+
 ## 2026-02-22 — CoS Foundational Restructure Phase 1 (Learning Mode, Priority Weighting, Conflict Detection)
 
 **Changes:**

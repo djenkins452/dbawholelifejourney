@@ -586,8 +586,12 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                         }
                 elif not cal_state['welcome_shown']:
                     # First calibration session — show welcome prompt
+                    cos_name = user.preferences.get_cos_name()
+                    has_custom = bool(user.preferences.cos_display_name.strip())
+                    cos_intro = cos_name if has_custom else f"your {cos_name}"
                     cos_question = {
-                        'question': CALIBRATION_WELCOME_MESSAGE,
+                        'question': CALIBRATION_WELCOME_MESSAGE.format(
+                            cos_intro=cos_intro),
                         'category': 'calibration_welcome',
                         'follow_up': '',
                         'meaning_type': 'calibration_welcome',

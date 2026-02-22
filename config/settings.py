@@ -145,6 +145,7 @@ INSTALLED_APPS = [
     'apps.medical',  # Medical lab ingestion & results
     'apps.calendar_engine',  # Unified calendar / CoS Time Command Center
     'apps.core.ai_relationships',  # Relationship intelligence (CoS Phase III)
+    'apps.owner_finance',  # Owner Financial Command Center (cost telemetry & dashboards)
     'assistant',
     'django_apscheduler',
     'djstripe',

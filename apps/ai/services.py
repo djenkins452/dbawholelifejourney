@@ -402,6 +402,29 @@ class AIService:
             )
         except Exception as log_err:
             logger.debug("AIUsageLog write failed: %s", log_err)
+
+        # --- Owner Finance telemetry (best-effort, never raises) ---
+        if success and total_tokens > 0:
+            try:
+                from apps.owner_finance.services.telemetry import log_llm_usage
+                # Map endpoint names to LLMUsageEvent feature codes
+                _endpoint_to_feature = {
+                    'journal_reflection': 'JOURNAL_REFLECTION',
+                    'daily_insight': 'DAILY_INSIGHT',
+                    'weekly_summary': 'WEEKLY_SUMMARY',
+                    'cos_chat': 'COS_CHAT',
+                    'exec_briefing': 'EXEC_BRIEFING',
+                }
+                feature = _endpoint_to_feature.get(endpoint, 'MAIN_RESPONSE')
+                log_llm_usage(
+                    user=user,
+                    feature=feature,
+                    model_name=self.model,
+                    input_tokens=prompt_tokens,
+                    output_tokens=completion_tokens,
+                )
+            except Exception:
+                pass  # telemetry must never break core flow
     
     # =========================================================================
     # JOURNAL INSIGHTS

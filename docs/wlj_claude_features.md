@@ -67,6 +67,7 @@ For core project context, see `CLAUDE.md` (project root).
 49. [Security Assessment](#security-assessment)
 50. [Ops Command Center (Intelligence Monitoring)](#ops-command-center-intelligence-monitoring)
 51. [Calendar Engine (Technical Reference)](#calendar-engine-technical-reference)
+52. [Owner Financial Command Center](#owner-financial-command-center) *(Feb 2026)*
 
 ---
 
@@ -3715,6 +3716,44 @@ This section provides the full technical reference for the Time Command Center (
 - **Purpose app** — Goals and habits sync to calendar; habits get `is_protected=True` flag
 - **CoS action handlers** — `apps/ai/action_handlers.py` creates events and runs post-scheduling chain (conflict detection → drift recomputation → Google Calendar sync)
 - **Google Calendar** — Life app's `GoogleCalendarService` pushes events to external calendar
+
+---
+
+## Owner Financial Command Center
+
+**App:** `apps/owner_finance/`
+**URL:** `/owner/finance/`
+**Access:** Superuser only (OwnerOnlyMixin)
+
+### Overview
+Internal owner dashboard for tracking LLM costs, per-user economics, gross margin, and vendor billing. Answers: "What does it cost to run WLJ, and is each user profitable?"
+
+### Key Models
+| Model | Purpose |
+|-------|---------|
+| `ThirdPartyVendor` | External service vendors (OpenAI, Twilio, Railway, etc.) |
+| `VendorBillingRecord` | Monthly/periodic billing from vendors |
+| `LLMPriceBook` | Per-model pricing by effective date (never hardcoded) |
+| `LLMUsageEvent` | Ledger row per LLM call with auto-computed cost |
+| `UserSubscriptionSnapshot` | User tier snapshots for margin calculations |
+
+### Pages
+- **Overview** (`/owner/finance/`) — KPI cards (total cost, revenue, margin, avg cost/user), top 10 users, top features by cost, escalation economics
+- **Per-User** (`/owner/finance/users/`) — Per-user cost, revenue, margin, and tier breakdown
+- **Features** (`/owner/finance/features/`) — Cost by feature, model, and engine
+- **Vendors** (`/owner/finance/vendors/`) — Vendor billing ledger and summary
+
+### Telemetry Integration
+- `log_llm_usage()` in `services/telemetry.py` — called from `apps/ai/services.py:_log_usage()` and `apps/ai/intent_service.py`
+- Auto-computes cost from `LLMPriceBook` effective date range
+- If PriceBook entry missing, stores cost=0 with `missing_pricebook=True` metadata flag
+
+### Roadmap (Phase 3-5)
+- Scenario Simulator (what-if modeling for user growth, tier mix, model costs)
+- Budget Guardrails & Alerts
+- Daily/Monthly cost rollup tables
+- CSV export, per-call audit ledger
+- Full spec: `docs/owner/ultimate_financial_command_center.md`
 
 ---
 

@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}Vendor Ledger - Financial Command Center{% endblock %}
+
+{% block extra_css %}
+<style nonce="{{ csp_nonce }}">
+.ofc-container { max-width: 1200px; margin: 0 auto; padding: var(--space-4); }
+.ofc-header { margin-bottom: var(--space-6, 1.5rem); }
+.ofc-header h1 { font-size: 1.5rem; font-weight: 700; color: var(--color-text); }
+.ofc-nav { display: flex; gap: var(--space-2, 0.5rem); flex-wrap: wrap; margin-bottom: var(--space-4); }
+.ofc-nav a { padding: 0.5rem 1rem; border-radius: var(--radius-md, 0.375rem); background: var(--color-surface); color: var(--color-text); text-decoration: none; font-size: 0.875rem; font-weight: 500; border: 1px solid var(--color-border); }
+.ofc-nav a.active, .ofc-nav a:hover { background: var(--color-accent, #6366f1); color: #fff; border-color: var(--color-accent, #6366f1); }
+.ofc-section { margin-bottom: var(--space-6, 1.5rem); }
+.ofc-section h2 { font-size: 1.125rem; font-weight: 600; margin-bottom: var(--space-3, 0.75rem); color: var(--color-text); }
+.ofc-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.ofc-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+.ofc-table th { text-align: left; padding: 0.625rem 0.75rem; border-bottom: 2px solid var(--color-border); color: var(--color-text-muted); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; }
+.ofc-table td { padding: 0.625rem 0.75rem; border-bottom: 1px solid var(--color-border); color: var(--color-text); }
+.ofc-table tr:hover { background: var(--color-surface); }
+.ofc-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.ofc-empty { padding: 2rem; text-align: center; color: var(--color-text-muted); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ofc-container">
+    <div class="ofc-header">
+        <h1>Vendor Billing Ledger</h1>
+    </div>
+
+    <nav class="ofc-nav">
+        <a href="{% url 'owner_finance:overview' %}">Overview</a>
+        <a href="{% url 'owner_finance:users' %}">Per-User</a>
+        <a href="{% url 'owner_finance:features' %}">Features</a>
+        <a href="{% url 'owner_finance:vendors' %}" class="active">Vendors</a>
+    </nav>
+
+    <!-- Summary by Vendor -->
+    <div class="ofc-section">
+        <h2>Summary by Vendor</h2>
+        {% if vendor_summary %}
+        <div class="ofc-table-wrap">
+            <table class="ofc-table">
+                <thead>
+                    <tr>
+                        <th>Vendor</th>
+                        <th>Category</th>
+                        <th class="num">Records</th>
+                        <th class="num">Total Cost</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in vendor_summary %}
+                    <tr>
+                        <td>{{ row.vendor__name }}</td>
+                        <td>{{ row.vendor__category }}</td>
+                        <td class="num">{{ row.record_count }}</td>
+                        <td class="num">${{ row.total_cost|floatformat:2 }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="ofc-empty">No vendor billing records yet. Add them via Django Admin.</div>
+        {% endif %}
+    </div>
+
+    <!-- Recent Records -->
+    <div class="ofc-section">
+        <h2>Recent Billing Records</h2>
+        {% if records %}
+        <div class="ofc-table-wrap">
+            <table class="ofc-table">
+                <thead>
+                    <tr>
+                        <th>Vendor</th>
+                        <th>Period</th>
+                        <th>Type</th>
+                        <th class="num">Cost</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in records %}
+                    <tr>
+                        <td>{{ r.vendor.name }}</td>
+                        <td>{{ r.period_start }} – {{ r.period_end }}</td>
+                        <td>{{ r.get_cost_type_display }}</td>
+                        <td class="num">${{ r.cost_usd|floatformat:2 }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="ofc-empty">No billing records found.</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

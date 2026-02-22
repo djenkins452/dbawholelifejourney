@@ -165,7 +165,26 @@
 
 ---
 
+## TODO: Owner Financial Command Center — Remaining Phases
+
+**Target:** Complete within a few days of 2026-02-21
+**Spec:** `docs/owner/ultimate_financial_command_center.md`
+
+- [ ] **Phase 3 — Ultimate UI:** Charts (daily cost trend, stacked feature cost), model mix pie chart, power user diagnostics, CSV export, per-call audit ledger
+- [ ] **Phase 4 — Scenario Simulator:** Backend calculation service (`services/simulator.py`), form UI with sliders for user_count, escalation_rate, model_mix, tier_mix; projected cost/revenue/margin output
+- [ ] **Phase 5 — Budget Guardrails:** `BudgetGuardrail` model, daily check management command, warning tiles on dashboard, notification integration
+- [ ] **Extend telemetry** to remaining untracked call sites: Whisper transcription, summarization, AI nutrition, vision/scan, healthcare lookup
+- [ ] **Daily/Monthly rollup tables** for faster aggregation at scale
+- [ ] **Sync BillingProfile** tier changes into `UserSubscriptionSnapshot` automatically
+
+---
+
 ## Progress Log
+
+### 2026-02-21
+- Owner Financial Command Center Phase 1 + 2 implemented
+- Telemetry integrated into _call_api and intent_service
+- Dashboard live at /owner/finance/ with 4 pages
 
 ### 2026-01-20
 - Created initial task list from comprehensive app analysis

@@ -123,6 +123,8 @@ urlpatterns = [
     path('intelligence/delivery/', include('apps.core.ai_delivery.urls', namespace='ai_delivery')),
     # Calendar Engine — CoS Time Command Center
     path('calendar/', include('apps.calendar_engine.urls', namespace='calendar_engine')),
+    # Owner Financial Command Center (superuser only)
+    path('owner/finance/', include('apps.owner_finance.urls', namespace='owner_finance')),
     # Referral link redirect (short URL)
     path('join', include([
         path('', lambda r: __import__('django.shortcuts', fromlist=['redirect']).redirect('billing:capture_referral') if r.GET.get('ref') else __import__('django.shortcuts', fromlist=['redirect']).redirect('account_signup')),

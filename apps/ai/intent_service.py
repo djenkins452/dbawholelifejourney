@@ -143,6 +143,21 @@ class IntentService:
                 temperature=0.1,  # Low temperature for consistent parsing
             )
 
+            # --- Owner Finance telemetry (best-effort) ---
+            try:
+                usage = getattr(response, 'usage', None)
+                if usage:
+                    from apps.owner_finance.services.telemetry import log_llm_usage
+                    log_llm_usage(
+                        user=user,
+                        feature='INTENT',
+                        model_name=self.model,
+                        input_tokens=getattr(usage, 'prompt_tokens', 0),
+                        output_tokens=getattr(usage, 'completion_tokens', 0),
+                    )
+            except Exception:
+                pass  # telemetry must never break intent recognition
+
             # Parse the response
             message = response.choices[0].message
 

@@ -9,6 +9,32 @@
 
 # WLJ Change History
 
+## 2026-02-21 — Owner Financial Command Center (Phase 1 + 2)
+
+**Changes:**
+- Created new `apps/owner_finance/` Django app with 5 models: `ThirdPartyVendor`, `VendorBillingRecord`, `LLMPriceBook`, `LLMUsageEvent`, `UserSubscriptionSnapshot`
+- Built telemetry service (`services/telemetry.py`) with `log_llm_usage()` that auto-computes cost from LLMPriceBook
+- Integrated telemetry into `apps/ai/services.py:_log_usage()` (all _call_api flows) and `apps/ai/intent_service.py:recognize_intents()`
+- Built owner-only dashboard at `/owner/finance/` with 4 pages: Overview, Per-User Costs, Feature Breakdown, Vendor Ledger
+- Overview shows KPI cards (total cost, revenue, margin, active users, avg cost/user), top 10 users, top features, escalation economics
+- `OwnerOnlyMixin` security: only superusers can access; regular users get 302
+- Seed command: `python manage.py seed_pricebook` for OpenAI pricing
+- Full spec for Phase 3-5 in `docs/owner/ultimate_financial_command_center.md`
+
+**Files added:**
+- `apps/owner_finance/` (models, views, urls, admin, mixins, templates, tests, services, management commands)
+- `docs/owner/ultimate_financial_command_center.md`
+
+**Files modified:**
+- `config/settings.py` (INSTALLED_APPS)
+- `config/urls.py` (URL route)
+- `apps/ai/services.py` (telemetry hook in `_log_usage`)
+- `apps/ai/intent_service.py` (telemetry hook in `recognize_intents`)
+
+**Why:** Owner needs visibility into LLM costs, per-user economics, and margin tracking. Phase 1 provides the data foundation; Phase 2 provides the dashboard.
+
+---
+
 ## 2026-02-21 — Document Railway Beat service deployment
 
 **Changes:**

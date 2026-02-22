@@ -116,9 +116,12 @@ After ANY code changes, do ALL of the following **automatically without asking**
    - **Fixture loader reset** (`apps/core/management/commands/load_initial_data.py`) — if any fixture modified
 3. **Commit & Deploy** — do this immediately, never ask "ready to deploy?":
    - Commit all changed files with a descriptive message
-   - Push main: `GIT_SSH_COMMAND="ssh -p 443" git push git@ssh.github.com:djenkins452/dbawholelifejourney.git main`
+   - **ALWAYS merge to main and push main** — never leave changes only on a feature/worktree branch:
+     - If on a worktree branch: `cd /Users/dannyjenkins/Projects/dbawholelifejourney && git merge <branch-name>` then push main
+     - Push main: `GIT_SSH_COMMAND="ssh -p 443" git push git@ssh.github.com:djenkins452/dbawholelifejourney.git main`
+   - **DO NOT** push only to the worktree branch — that does NOT deploy. Main must be pushed.
 
-**A task is NOT complete until deployed. Deploy automatically — never wait for permission.**
+**A task is NOT complete until main is pushed to GitHub. Deploy automatically — never wait for permission.**
 
 4. **Post-Completion Summary** — After deploying, always provide a brief summary:
    - **Root cause:** What was wrong and why

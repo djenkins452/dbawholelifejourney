@@ -9,6 +9,31 @@
 
 # WLJ Change History
 
+## 2026-02-22 — Output Compliance Gate: Three-Layer Gate (Future-Promise + Mode-Name)
+
+**Changes:**
+- Elevated compliance gate from single-layer (write-verb rewriting) to three-layer architecture:
+  - Layer 1: Write-verb tense rewriting with clause-level negation guard (existing)
+  - Layer 2: Future-promise stripping — removes "when execution resumes", "once writes are available", "will be saved later", "I'll save this later", etc.
+  - Layer 3: Mode-name scrubbing — replaces "Learning Mode" with "the current configuration"
+- Added `_FUTURE_PROMISE_PATTERNS` (4 compiled regexes) covering: when/once/after + execution/writes/system + resumes/available/ends; when you exit Learning Mode; will be saved/logged later; I'll save this later
+- Added `_MODE_NAME_PATTERN` regex for Learning Mode name references
+- Added `_strip_future_promises()` with clause-level stripping (comma-delimited clauses vs. sentence-level)
+- Added `_strip_mode_names()` for simple replacement
+- Added write-suppressed behavioral rules block to `format_learning_mode_injection()`:
+  - 4 DON'T rules: no future promises, no mode naming, no mechanism explanation, no apologies
+  - "Instead" rules: acknowledge intent in present tense, redirect to actionable
+  - Compliant response examples
+- Fixed `_build_replacement()` for "I have saved" → "I would have saved" (was producing "I have would have saved")
+- 33/33 standalone tests pass + 161/161 Django tests pass
+
+**Files modified:**
+- `apps/core/ai_orchestrator/cos_context.py` — three-layer gate, behavioral rules in learning mode injection, replacement fix
+
+**Why:** Stress tests (INTENT BAN + NO FUTURE PROMISES) revealed the write-verb gate was necessary but insufficient — the LLM could still leak future promises ("when execution resumes") and internal system names ("Learning Mode"). Prompt-level rules provide primary defense; gate-level patterns serve as safety net.
+
+---
+
 ## 2026-02-22 — Output Compliance Gate: Clause-Level Negation Guard
 
 **Changes:**

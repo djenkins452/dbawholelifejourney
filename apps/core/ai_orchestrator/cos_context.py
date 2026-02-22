@@ -1752,10 +1752,111 @@ def _build_replacement(match):
 
     # Pattern 4: "(I've|I have|I) (logged|recorded|...)"
     if len(groups) == 2 and groups[0].lower() in ("i've", "i have", "i"):
-        return f'{groups[0]} would have {groups[1].lower()}'
+        # "I have saved" → "I would have saved" (not "I have would have saved")
+        # "I've recorded" → "I would have recorded"
+        # "I logged" → "I would have logged"
+        return f'I would have {groups[1].lower()}'
 
     # Fallback: return original (should not reach here)
     return full
+
+
+# -------------------------------------------------------------------------
+# Future-promise and mode-naming patterns (gate-level safety net)
+# -------------------------------------------------------------------------
+# These patterns strip language that the prompt-level rules should prevent,
+# but serve as a safety net for when the LLM ignores those instructions.
+
+# Future-promise phrases: "when execution resumes", "once writes are available",
+# "when you exit Learning Mode", "will be saved later", etc.
+_FUTURE_PROMISE_PATTERNS = [
+    # "when/once <execution/writes/Learning Mode> <resumes/ends/available/re-enabled>"
+    re.compile(
+        r'\b(?:when|once|after|as soon as)\s+'
+        r'(?:execution|writes?|write operations?|saving|logging|recording|'
+        r'learning mode|the system)\s+'
+        r'(?:resumes?|is re-enabled|is enabled|is available|are available|'
+        r'are re-enabled|ends?|is lifted|is turned off|comes back|returns?)\b',
+        re.IGNORECASE,
+    ),
+    # "when you exit/leave Learning Mode" / "when you turn off Learning Mode"
+    re.compile(
+        r'\b(?:when|once|after)\s+you\s+'
+        r'(?:exit|leave|turn off|disable|deactivate)\s+'
+        r'(?:learning mode|this mode|the current mode)\b',
+        re.IGNORECASE,
+    ),
+    # "will be <saved/logged/recorded/...> later/afterward/when ready"
+    re.compile(
+        r'\bwill be\s+'
+        r'(?:saved|logged|recorded|tracked|flagged|noted|persisted|stored|updated|scheduled)'
+        r'\s+(?:later|afterward|afterwards|when ready|when available|when possible)\b',
+        re.IGNORECASE,
+    ),
+    # "I'll <save/log/record/...> this/that/it <later/when/once>"
+    re.compile(
+        r"\b(?:I'll|I will)\s+"
+        r'(?:save|log|record|track|flag|note|persist|store|update|schedule)\s+'
+        r'(?:this|that|it)\s+'
+        r'(?:later|afterward|afterwards|when|once)\b',
+        re.IGNORECASE,
+    ),
+]
+
+# Learning Mode name references (should never be exposed to user)
+_MODE_NAME_PATTERN = re.compile(
+    r'\b[Ll]earning\s+[Mm]ode\b',
+)
+
+
+def _strip_future_promises(text):
+    """
+    Remove future-promise phrases from text.
+
+    Strips the promise clause while preserving surrounding sentence structure.
+    For sentence-level promises, removes the entire sentence.
+    For clause-level promises (after comma/semicolon), removes the clause.
+    """
+    result = text
+    for pattern in _FUTURE_PROMISE_PATTERNS:
+        matches = list(pattern.finditer(result))
+        for match in reversed(matches):
+            start = match.start()
+            end = match.end()
+
+            # Check if the promise is preceded by a comma/semicolon (clause-level)
+            # If so, strip from the comma onward to end of sentence
+            prefix_start = start
+            while prefix_start > 0 and result[prefix_start - 1] in ' \t':
+                prefix_start -= 1
+            if prefix_start > 0 and result[prefix_start - 1] in ',;':
+                # Strip from the comma to end of the promise phrase
+                # Also consume trailing punctuation and whitespace
+                strip_end = end
+                while strip_end < len(result) and result[strip_end] in ' \t':
+                    strip_end += 1
+                # If the promise continues to end of sentence, consume the period
+                if strip_end < len(result) and result[strip_end] in '.!':
+                    strip_end += 1
+                result = result[:prefix_start - 1].rstrip() + '.' + result[strip_end:]
+            else:
+                # Promise starts a sentence or clause — remove the full promise phrase
+                # Consume trailing punctuation, comma, space
+                strip_end = end
+                while strip_end < len(result) and result[strip_end] in ' ,;:\t':
+                    strip_end += 1
+                result = result[:start] + result[strip_end:]
+
+    return result
+
+
+def _strip_mode_names(text):
+    """
+    Replace 'Learning Mode' references with neutral phrasing.
+
+    'Learning Mode' is an internal system name the user should never see.
+    """
+    return _MODE_NAME_PATTERN.sub('the current configuration', text)
 
 
 def apply_output_compliance_gate(text, writes_suppressed):
@@ -1765,7 +1866,12 @@ def apply_output_compliance_gate(text, writes_suppressed):
 
     Language-level guarantee only. No logging, no persistence, no side effects.
 
-    Clause-level negation guard (Option A):
+    Three-layer gate:
+    1. Write-verb tense rewriting (clause-level negation guard)
+    2. Future-promise stripping (safety net)
+    3. Mode-name scrubbing (safety net)
+
+    Clause-level negation guard (Layer 1):
     - For each write-verb match, extracts the surrounding clause
       (to nearest sentence boundary or ±80 chars).
     - If the clause contains a negation token, the match is a denial
@@ -1774,6 +1880,8 @@ def apply_output_compliance_gate(text, writes_suppressed):
 
     When writes are suppressed:
     - Affirmative write claims become counterfactual ("would be logged as X")
+    - Future promises stripped ("when execution resumes" → removed)
+    - Mode names scrubbed ("Learning Mode" → "the current configuration")
     - Denials/negations pass through unchanged
     - Authority posture preserved — no apologies, no explanations
 
@@ -1794,6 +1902,8 @@ def apply_output_compliance_gate(text, writes_suppressed):
         return text
 
     result = text
+
+    # Layer 1: Write-verb tense rewriting with clause-level negation guard
     for pattern in _WRITE_CLAIM_PATTERNS:
         # Process matches right-to-left so replacements don't shift offsets
         matches = list(pattern.finditer(result))
@@ -1802,6 +1912,12 @@ def apply_output_compliance_gate(text, writes_suppressed):
                 continue  # Denial — skip
             replacement = _build_replacement(match)
             result = result[:match.start()] + replacement + result[match.end():]
+
+    # Layer 2: Future-promise stripping
+    result = _strip_future_promises(result)
+
+    # Layer 3: Mode-name scrubbing
+    result = _strip_mode_names(result)
 
     return result
 
@@ -2059,6 +2175,37 @@ def format_learning_mode_injection(context):
         lines.append("Today's Calendar:")
         for ev in cal[:6]:
             lines.append(f"  {ev['start']} {ev['title']}")
+
+    # Write-suppressed behavioral constraints
+    lines.append("")
+    lines.append("--- WRITE-SUPPRESSED BEHAVIORAL RULES ---")
+    lines.append("")
+    lines.append("Execution is paused. All write operations are suppressed.")
+    lines.append("")
+    lines.append("When the user requests a write action (log, save, record, schedule,")
+    lines.append("flag, mark, update, note, track, persist):")
+    lines.append("")
+    lines.append("1. Do NOT promise future execution. No 'when execution resumes',")
+    lines.append("   'once writes are available', 'when you exit', 'will be saved later'.")
+    lines.append("2. Do NOT name the suppression mode. No 'Learning Mode', no internal")
+    lines.append("   system terminology. The user does not need to know why.")
+    lines.append("3. Do NOT explain the suppression mechanism.")
+    lines.append("4. Do NOT apologize for the suppression.")
+    lines.append("")
+    lines.append("Instead:")
+    lines.append("- Acknowledge the intent in present tense: 'Noted.' or 'Intent: [action].'")
+    lines.append("- If the request contains a behavioral commitment, respond with the")
+    lines.append("  relevant trajectory or identity framing.")
+    lines.append("- If the request is purely mechanical (save/schedule), acknowledge")
+    lines.append("  and redirect to what IS actionable right now.")
+    lines.append("")
+    lines.append("Examples of compliant responses:")
+    lines.append("  User: 'Schedule workout tomorrow at 6.' -> 'Noted. Morning workout, tomorrow, 6 AM.'")
+    lines.append("  User: 'Record my workout.' -> 'What did you do? Duration, format, time.'")
+    lines.append("  User: 'Log it.' -> 'Noted.'")
+    lines.append("  User: 'Flag today as drift.' -> 'Today's trajectory is already visible in the signals.'")
+    lines.append("")
+    lines.append("--- END WRITE-SUPPRESSED RULES ---")
 
     lines.append("")
     lines.append("=== END LEARNING MODE AWARENESS ===")

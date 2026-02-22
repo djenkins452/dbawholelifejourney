@@ -757,6 +757,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for Financial Command Center full suite (PK 89)
         self._reset_financial_command_center_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Seed LLMPriceBook and backfill event costs
+        self._seed_pricebook_and_backfill(DataLoadConfig, force, verbosity)
+
         # Auto-sync CoS documentation to admin guide (runs if checksum changed)
         self._sync_cos_documentation(DataLoadConfig, force, verbosity)
 
@@ -3365,3 +3368,108 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset Financial Command Center fixtures FAILED: {e}'))
+
+    def _seed_pricebook_and_backfill(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time: Seed LLMPriceBook with OpenAI pricing and backfill costs
+        on existing LLMUsageEvent rows that have cost_usd=0.
+        """
+        reset_tracker_name = 'seed_pricebook_backfill_2026_02_22'
+        try:
+            if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
+                return
+
+            from datetime import date as dt_date
+            from decimal import Decimal
+            from apps.owner_finance.models import ThirdPartyVendor, LLMPriceBook, LLMUsageEvent
+
+            if verbosity >= 1:
+                self.stdout.write('  Seeding LLMPriceBook...')
+
+            openai_vendor, _ = ThirdPartyVendor.objects.get_or_create(
+                name='OpenAI', defaults={'category': 'LLM'},
+            )
+
+            entries = [
+                {
+                    'model_name': 'gpt-4o',
+                    'effective_start': dt_date(2024, 5, 1),
+                    'input_cost_per_1m_tokens_usd': '2.50',
+                    'output_cost_per_1m_tokens_usd': '10.00',
+                },
+                {
+                    'model_name': 'gpt-4o-mini',
+                    'effective_start': dt_date(2024, 7, 1),
+                    'input_cost_per_1m_tokens_usd': '0.15',
+                    'output_cost_per_1m_tokens_usd': '0.60',
+                },
+                {
+                    'model_name': 'whisper-1',
+                    'effective_start': dt_date(2024, 1, 1),
+                    'input_cost_per_1m_tokens_usd': '0.00',
+                    'output_cost_per_1m_tokens_usd': '0.00',
+                },
+            ]
+
+            created = 0
+            for entry in entries:
+                _, was_created = LLMPriceBook.objects.get_or_create(
+                    vendor=openai_vendor,
+                    model_name=entry['model_name'],
+                    effective_start=entry['effective_start'],
+                    defaults={
+                        'input_cost_per_1m_tokens_usd': entry['input_cost_per_1m_tokens_usd'],
+                        'output_cost_per_1m_tokens_usd': entry['output_cost_per_1m_tokens_usd'],
+                        'is_active': True,
+                    },
+                )
+                if was_created:
+                    created += 1
+
+            if verbosity >= 1:
+                self.stdout.write(f'    PriceBook: {created} created, {len(entries) - created} existing')
+
+            # Backfill costs on events with cost_usd=0
+            zero_events = LLMUsageEvent.objects.filter(cost_usd=0)
+            total_backfilled = 0
+
+            for model_name in zero_events.values_list('model_name', flat=True).distinct():
+                price = (
+                    LLMPriceBook.objects
+                    .filter(model_name=model_name, is_active=True)
+                    .order_by('-effective_start')
+                    .first()
+                )
+                if not price:
+                    if verbosity >= 1:
+                        self.stdout.write(f'    No price for {model_name}, skipping')
+                    continue
+
+                for event in zero_events.filter(model_name=model_name):
+                    input_cost = (
+                        Decimal(str(event.input_tokens))
+                        * price.input_cost_per_1m_tokens_usd
+                        / Decimal('1000000')
+                    )
+                    output_cost = (
+                        Decimal(str(event.output_tokens))
+                        * price.output_cost_per_1m_tokens_usd
+                        / Decimal('1000000')
+                    )
+                    event.cost_usd = input_cost + output_cost
+                    event.save(update_fields=['cost_usd'])
+                    total_backfilled += 1
+
+            if verbosity >= 1:
+                self.stdout.write(f'    Backfilled costs on {total_backfilled} events')
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Seed LLMPriceBook and backfill event costs (Feb 2026)',
+                'command',
+                'One-time seed + backfill for owner_finance'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'PriceBook seed/backfill FAILED: {e}'))

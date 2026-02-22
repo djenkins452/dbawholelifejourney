@@ -228,6 +228,64 @@
 
 ---
 
+## 2026-02-22 — Fix Learning Mode exit confirmation via chat (not settings page)
+
+**Changes:**
+- Exit confirmation now happens conversationally in CoS chat instead of redirecting to Settings page
+- `handle_exit_learning_mode` builds structured markdown summary (priorities + learned preferences) and presents in chat with yes/no prompt
+- Added modal gate `_handle_learning_mode_exit_confirmation` in personal_assistant.py — intercepts ALL messages while exit is pending
+- "yes" confirms exit, "no" cancels, anything else re-prompts with "Exit confirmation pending"
+
+**Files modified:**
+- `apps/ai/action_handlers.py` — conversational summary builder
+- `apps/ai/personal_assistant.py` — modal exit confirmation gate
+
+**Why:** Requiring navigation to settings page for exit confirmation breaks the conversational flow. Modal state ensures no other intents execute until user confirms or cancels.
+
+---
+
+## 2026-02-22 — Learning Mode control-plane bypass for enter/exit intents
+
+**Changes:**
+- Created `learning_mode_intents.py` with enter/exit intent definitions
+- Registered across all 5 intent registration points (tool defs, handler map, engine category, dispatch, action handlers)
+- Added `LEARNING_MODE_CONTROL_INTENTS` whitelist bypass in execution_engine.py and intent_service.py
+- Orchestrator allows control intents through even after domain intents are blocked
+
+**Files added:**
+- `apps/ai/intents/learning_mode_intents.py`
+
+**Files modified:**
+- `apps/ai/intents/__init__.py` — registration
+- `apps/core/ai_orchestrator/intent_engine.py` — engine category
+- `apps/core/ai_orchestrator/execution_engine.py` — whitelist bypass
+- `apps/core/ai_orchestrator/orchestrator.py` — control-plane passthrough
+- `apps/ai/intent_service.py` — dispatch + bypass
+- `apps/ai/action_handlers.py` — enter/exit handlers
+- `apps/ai/tests/test_intent_registration.py` — updated for new intents
+
+**Why:** "Exit Learning Mode" was being blocked by the UAIO suppression gate. Control-plane operations (enter/exit) must bypass the execution gates they control.
+
+---
+
+## 2026-02-22 — Deduplicate Learning Mode suppression response
+
+**Changes:**
+- Fixed Learning Mode suppression message appearing 3x when multiple intents detected
+- Orchestrator short-circuits after first `learning_mode_active` error (skips remaining domain intents)
+- Response builder deduplicates when all action results share same error type
+- Standardized suppression message to clean single-paragraph format
+
+**Files modified:**
+- `apps/core/ai_orchestrator/orchestrator.py` — short-circuit after first suppression
+- `apps/core/ai_orchestrator/response_builder.py` — deduplication safety net
+- `apps/core/ai_orchestrator/execution_engine.py` — standardized message
+- `apps/ai/intent_service.py` — standardized message
+
+**Why:** Multiple detected intents each hit the execution gate independently, producing identical suppression messages that were joined by `" ".join()`.
+
+---
+
 ## 2026-02-22 — Fix "your" prefix on custom CoS display names
 
 **Changes:**

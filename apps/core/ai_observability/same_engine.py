@@ -585,10 +585,19 @@ def _run_autonomous_remediation(now):
     if not AUTONOMOUS_REMEDIATION_ENABLED:
         return 0
 
+    from apps.core.ai_observability.engine_registry import ENGINE_REGISTRY
     from apps.core.ai_observability.models import AdminIntervention, OpsAnomaly
 
+    # Only auto-remediate system engines (needs_user_context=False)
+    system_engines = [
+        name for name, meta in ENGINE_REGISTRY.items()
+        if not meta.get("needs_user_context", False)
+    ]
+
     actions_taken = 0
-    active_p3 = OpsAnomaly.objects.filter(is_active=True, severity="P3")
+    active_p3 = OpsAnomaly.objects.filter(
+        is_active=True, severity="P3", engine_name__in=system_engines,
+    )
 
     for anomaly in active_p3:
         if actions_taken >= MAX_AUTO_ACTIONS_PER_CYCLE:

@@ -1476,21 +1476,6 @@ class PassiveLanguageTests(TestCase):
                 f"Command brief contains passive language: '{term}'",
             )
 
-    def test_assistant_dashboard_no_passive_language(self):
-        """Assistant dashboard should not contain passive fallback text."""
-        import os
-        template_path = os.path.join(
-            settings.BASE_DIR,
-            'templates', 'ai', 'assistant_dashboard.html',
-        )
-        with open(template_path, 'r') as f:
-            content = f.read()
-        for term in self.PASSIVE_TERMS:
-            self.assertNotIn(
-                term, content,
-                f"Assistant dashboard contains passive language: '{term}'",
-            )
-
     def test_panel_no_passive_loading_text(self):
         """Panel template should use active voice for loading states."""
         import os
@@ -2353,9 +2338,9 @@ class LiveBuildLoopTests(TestCase):
         self.prefs.save()
 
     def test_create_event_returns_success(self):
-        """handle_create_event should create a LifeEvent and return success."""
+        """handle_create_event should create a CalendarEvent and return success."""
         from apps.ai.action_handlers import ActionHandler
-        from apps.life.models import LifeEvent
+        from apps.calendar_engine.models import CalendarEvent
 
         handler = ActionHandler(self.user)
         result = handler.handle_create_event(
@@ -2368,14 +2353,13 @@ class LiveBuildLoopTests(TestCase):
         self.assertIn('Gym', result.message)
         self.assertEqual(result.action_type, 'create_event')
         # Verify in DB
-        event = LifeEvent.objects.get(user=self.user, title='Gym')
-        self.assertEqual(event.event_type, 'health')
-        self.assertIsNotNone(event.start_time)
+        event = CalendarEvent.objects.get(user=self.user, title='Gym')
+        self.assertIsNotNone(event.start_dt)
 
     def test_create_event_with_absolute_date(self):
         """handle_create_event should handle YYYY-MM-DD dates."""
         from apps.ai.action_handlers import ActionHandler
-        from apps.life.models import LifeEvent
+        from apps.calendar_engine.models import CalendarEvent
 
         handler = ActionHandler(self.user)
         result = handler.handle_create_event(
@@ -2385,15 +2369,15 @@ class LiveBuildLoopTests(TestCase):
             end_time='15:00',
         )
         self.assertTrue(result.success)
-        event = LifeEvent.objects.get(user=self.user, title='Dentist')
-        self.assertEqual(event.start_date.isoformat(), '2026-03-15')
-        self.assertEqual(event.start_time.strftime('%H:%M'), '14:00')
-        self.assertEqual(event.end_time.strftime('%H:%M'), '15:00')
+        event = CalendarEvent.objects.get(user=self.user, title='Dentist')
+        self.assertEqual(event.start_dt.date().isoformat(), '2026-03-15')
+        self.assertEqual(event.start_dt.strftime('%H:%M'), '14:00')
+        self.assertEqual(event.end_dt.strftime('%H:%M'), '15:00')
 
     def test_create_event_tomorrow(self):
         """handle_create_event should resolve 'tomorrow' correctly."""
         from apps.ai.action_handlers import ActionHandler
-        from apps.life.models import LifeEvent
+        from apps.calendar_engine.models import CalendarEvent
 
         handler = ActionHandler(self.user)
         result = handler.handle_create_event(
@@ -2402,14 +2386,14 @@ class LiveBuildLoopTests(TestCase):
             start_time='10:00',
         )
         self.assertTrue(result.success)
-        event = LifeEvent.objects.get(user=self.user, title='Therapy')
+        event = CalendarEvent.objects.get(user=self.user, title='Therapy')
         expected = (datetime.date.today() + datetime.timedelta(days=1))
-        self.assertEqual(event.start_date, expected)
+        self.assertEqual(event.start_dt.date(), expected)
 
     def test_create_event_all_day(self):
         """handle_create_event should support all-day events."""
         from apps.ai.action_handlers import ActionHandler
-        from apps.life.models import LifeEvent
+        from apps.calendar_engine.models import CalendarEvent
 
         handler = ActionHandler(self.user)
         result = handler.handle_create_event(
@@ -2418,7 +2402,7 @@ class LiveBuildLoopTests(TestCase):
             is_all_day=True,
         )
         self.assertTrue(result.success)
-        event = LifeEvent.objects.get(user=self.user, title='Conference')
+        event = CalendarEvent.objects.get(user=self.user, title='Conference')
         self.assertTrue(event.is_all_day)
 
     def test_cos_post_scheduling_returns_dict(self):

@@ -505,9 +505,12 @@ Examples of messages that should NOT trigger functions:
             ActionResult with success status and details
         """
         # Defense-in-depth: Learning Mode gate (primary gate is in execution_engine)
+        # Control-plane intents (enter/exit learning mode) always bypass.
+        LEARNING_MODE_CONTROL_INTENTS = {'enter_learning_mode', 'exit_learning_mode'}
         try:
             from apps.core.blueprint.learning_mode import is_learning_mode_active
-            if is_learning_mode_active(user):
+            if (is_learning_mode_active(user)
+                    and intent_result.intent_type not in LEARNING_MODE_CONTROL_INTENTS):
                 return ActionResult(
                     success=False,
                     message=(
@@ -630,6 +633,12 @@ Examples of messages that should NOT trigger functions:
                 return handler.handle_pause_calibration(**parameters)
             elif intent_type == 'complete_calibration':
                 return handler.handle_complete_calibration(**parameters)
+
+            # Learning Mode control-plane handlers
+            elif intent_type == 'exit_learning_mode':
+                return handler.handle_exit_learning_mode(**parameters)
+            elif intent_type == 'enter_learning_mode':
+                return handler.handle_enter_learning_mode(**parameters)
 
             else:
                 return ActionResult(

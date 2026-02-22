@@ -2809,3 +2809,127 @@ class ActionHandler:
                 message="Something went wrong, but I'll consider the intro done.",
                 error=str(e),
             )
+
+    # =========================================================================
+    # LEARNING MODE HANDLERS (control-plane — bypasses UAIO suppression)
+    # =========================================================================
+
+    def handle_exit_learning_mode(self, **kwargs) -> ActionResult:
+        """
+        Exit Learning Mode — initiate the confirmation flow.
+
+        Sets exit_pending state so the CoS can summarize what was learned
+        before execution resumes. Actual deactivation happens on confirm.
+        """
+        try:
+            from apps.core.blueprint.learning_mode import (
+                is_learning_mode_active,
+                request_exit_learning_mode,
+                get_exit_summary,
+            )
+            if not is_learning_mode_active(self.user):
+                return ActionResult(
+                    success=True,
+                    message="You're not in Learning Mode — execution is already active.",
+                    action_type='exit_learning_mode',
+                )
+
+            # Build a summary of declared priorities for the exit confirmation
+            summary_parts = []
+            try:
+                from apps.core.blueprint.models import UserPriorityProfile
+                priorities = UserPriorityProfile.get_user_priorities(self.user)
+                if priorities:
+                    summary_parts.append("Declared priorities:")
+                    for p in priorities:
+                        sub = f".{p.sub_module_key}" if p.sub_module_key else ""
+                        level = p.get_declared_priority_level_display()
+                        summary_parts.append(
+                            f"  - {p.module_key}{sub}: {level}"
+                        )
+                        if p.declared_reason:
+                            summary_parts.append(f"    Reason: {p.declared_reason}")
+            except Exception:
+                pass
+
+            summary_text = "\n".join(summary_parts) if summary_parts else ""
+            success = request_exit_learning_mode(self.user, summary_text)
+
+            if success:
+                return ActionResult(
+                    success=True,
+                    message=(
+                        "Ready to exit Learning Mode. Before I resume taking "
+                        "actions, please confirm on the CoS Settings page — "
+                        "I've prepared a summary of what I've learned."
+                    ),
+                    action_type='exit_learning_mode',
+                )
+            return ActionResult(
+                success=False,
+                message="Something went wrong requesting the exit.",
+                error='exit_request_failed',
+                action_type='exit_learning_mode',
+            )
+        except Exception as e:
+            logger.error(f"Error exiting learning mode: {e}", exc_info=True)
+            return ActionResult(
+                success=False,
+                message="Something went wrong, but I'll keep listening for now.",
+                error=str(e),
+                action_type='exit_learning_mode',
+            )
+
+    def handle_enter_learning_mode(self, **kwargs) -> ActionResult:
+        """
+        Enter Learning Mode — pause execution and just listen.
+        """
+        try:
+            from apps.core.blueprint.learning_mode import (
+                is_learning_mode_active,
+                enter_learning_mode,
+            )
+            if is_learning_mode_active(self.user):
+                return ActionResult(
+                    success=True,
+                    message=(
+                        "I'm already in Learning Mode — listening and learning, "
+                        "not executing. Keep telling me what matters to you."
+                    ),
+                    action_type='enter_learning_mode',
+                )
+
+            success = enter_learning_mode(self.user)
+            if success:
+                # Start priority onboarding
+                try:
+                    from apps.core.blueprint.priority_questions import (
+                        start_priority_onboarding,
+                    )
+                    start_priority_onboarding(self.user)
+                except Exception:
+                    pass
+
+                return ActionResult(
+                    success=True,
+                    message=(
+                        "Learning Mode is now active. I'm listening and learning "
+                        "— I won't execute any actions until you're ready. "
+                        "Tell me about your priorities, values, and what matters most."
+                    ),
+                    action_type='enter_learning_mode',
+                )
+            return ActionResult(
+                success=False,
+                message="Something went wrong entering Learning Mode.",
+                error='enter_failed',
+                action_type='enter_learning_mode',
+            )
+        except Exception as e:
+            logger.error(f"Error entering learning mode: {e}", exc_info=True)
+            return ActionResult(
+                success=False,
+                message="Something went wrong. I'll keep operating normally for now.",
+                error=str(e),
+                action_type='enter_learning_mode',
+            )

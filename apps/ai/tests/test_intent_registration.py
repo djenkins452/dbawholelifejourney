@@ -49,6 +49,7 @@ from apps.core.ai_orchestrator.intent_engine import (
     SETTINGS_INTENTS,
     CALIBRATION_INTENTS,
     TRANSFORMATION_INTENTS,
+    LEARNING_MODE_INTENTS,
     TIME_AWARE_INTENTS,
     get_intent_module,
 )
@@ -81,6 +82,7 @@ def _get_all_engine_intents():
         | SETTINGS_INTENTS
         | CALIBRATION_INTENTS
         | TRANSFORMATION_INTENTS
+        | LEARNING_MODE_INTENTS
     )
 
 
@@ -118,6 +120,8 @@ NON_TIME_INTENTS = {
     'pause_calibration',
     'complete_calibration',
     'set_cos_name',
+    'enter_learning_mode',     # Control-plane — no date/time component
+    'exit_learning_mode',      # Control-plane — no date/time component
     'complete_shopping_item',  # Updates existing item, no date
     'create_task',             # Tasks have due_date, not recorded_at
     'create_event',            # Events have start/end, not recorded_at

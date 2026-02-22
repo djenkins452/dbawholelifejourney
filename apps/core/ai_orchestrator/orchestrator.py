@@ -202,12 +202,14 @@ def enrich_and_execute(user, intent_results, orchestrator_result):
     enriched_actions = []
 
     learning_mode_blocked = False
+    LEARNING_MODE_CONTROL_INTENTS = {'enter_learning_mode', 'exit_learning_mode'}
 
     for intent_result in intent_results:
-        # If Learning Mode already blocked a previous action, skip remaining.
-        # All actions will fail identically — no point repeating the gate.
+        # If Learning Mode blocked a domain action, skip remaining domain
+        # actions — but always allow control-plane intents through.
         if learning_mode_blocked:
-            break
+            if intent_result.intent_type not in LEARNING_MODE_CONTROL_INTENTS:
+                continue
 
         # Route and enrich
         enriched = route_action(

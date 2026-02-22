@@ -33,6 +33,7 @@ from .life_intents import LIFE_INTENT_TOOLS
 from .fitness_intents import FITNESS_INTENT_TOOLS
 from .settings_intents import SETTINGS_INTENT_TOOLS
 from .calibration_intents import CALIBRATION_INTENT_TOOLS
+from .learning_mode_intents import LEARNING_MODE_INTENT_TOOLS
 
 # Combine all intent tools for the OpenAI API
 ALL_INTENT_TOOLS = (
@@ -45,7 +46,8 @@ ALL_INTENT_TOOLS = (
     LIFE_INTENT_TOOLS +
     FITNESS_INTENT_TOOLS +
     SETTINGS_INTENT_TOOLS +
-    CALIBRATION_INTENT_TOOLS
+    CALIBRATION_INTENT_TOOLS +
+    LEARNING_MODE_INTENT_TOOLS
 )
 
 # Intent type to handler mapping (for routing)
@@ -89,6 +91,9 @@ INTENT_HANDLERS = {
     # Calibration
     'pause_calibration': 'calibration',
     'complete_calibration': 'calibration',
+    # Learning Mode (control-plane — bypasses UAIO suppression)
+    'exit_learning_mode': 'learning_mode',
+    'enter_learning_mode': 'learning_mode',
     # Transformation
     'log_transformation_protocol': 'transformation',
     'log_shopping_item': 'transformation',
@@ -110,4 +115,5 @@ __all__ = [
     'FITNESS_INTENT_TOOLS',
     'SETTINGS_INTENT_TOOLS',
     'CALIBRATION_INTENT_TOOLS',
+    'LEARNING_MODE_INTENT_TOOLS',
 ]

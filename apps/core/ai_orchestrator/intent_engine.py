@@ -77,6 +77,11 @@ CALIBRATION_INTENTS = {
     "complete_calibration",
 }
 
+LEARNING_MODE_INTENTS = {
+    "exit_learning_mode",
+    "enter_learning_mode",
+}
+
 # All intents that support a recorded_at timestamp override.
 # IMPORTANT: If you add a new intent category, add it here too unless
 # the intents truly have no date/time component. The test in
@@ -138,6 +143,8 @@ def get_intent_module(intent_type):
     if intent_type in SETTINGS_INTENTS:
         return "settings"
     if intent_type in CALIBRATION_INTENTS:
+        return "core"
+    if intent_type in LEARNING_MODE_INTENTS:
         return "core"
     return "unknown"
 

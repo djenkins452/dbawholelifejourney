@@ -3194,6 +3194,41 @@ Rules for this response:
             logger.debug("Calibration intent check failed: %s", e)
             return None
 
+    def _try_learning_mode_control_intents(self, message, intent_service, actions_taken):
+        """During Learning Mode, check for enter/exit control-plane intents.
+
+        These bypass UAIO suppression and execute directly.
+        Returns response string if a control-plane intent was matched,
+        or None to fall through to normal intent flow (which will
+        handle domain intents via the suppression gate).
+        """
+        LEARNING_MODE_CONTROL_INTENTS = {'enter_learning_mode', 'exit_learning_mode'}
+        try:
+            results = intent_service.recognize_intents(message, self.user)
+            lm_intents = [
+                r for r in results
+                if r.intent_type in LEARNING_MODE_CONTROL_INTENTS
+            ]
+            if not lm_intents:
+                return None
+
+            from apps.core.ai_orchestrator.orchestrator import enrich_and_execute
+            from apps.core.ai_orchestrator.orchestrator import (
+                process_user_input as orchestrator_process,
+            )
+            orch_result = orchestrator_process(self.user, message)
+            orch_actions = enrich_and_execute(
+                self.user, lm_intents, orch_result)
+            parts = []
+            for ar in orch_actions:
+                if ar.success:
+                    actions_taken.append(self._build_action_taken(ar))
+                parts.append(ar.message)
+            return " ".join(parts) if parts else None
+        except Exception as e:
+            logger.debug("Learning mode control intent check failed: %s", e)
+            return None
+
     def _is_calibration_active(self) -> bool:
         """Check if user is in active calibration (getting-to-know-you) mode.
 

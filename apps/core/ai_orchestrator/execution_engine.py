@@ -42,10 +42,13 @@ def execute_action(user, enriched_action):
     """
     from apps.ai.intent_service import IntentResult, intent_service
 
-    # Step 0: Learning Mode gate — block all execution
+    # Step 0: Learning Mode gate — block domain execution
+    # Control-plane intents (enter/exit learning mode) always bypass this gate.
+    LEARNING_MODE_CONTROL_INTENTS = {'enter_learning_mode', 'exit_learning_mode'}
     try:
         from apps.core.blueprint.learning_mode import is_learning_mode_active
-        if is_learning_mode_active(user):
+        if (is_learning_mode_active(user)
+                and enriched_action.intent_type not in LEARNING_MODE_CONTROL_INTENTS):
             from apps.ai.intent_service import ActionResult
             logger.info(
                 "UAIO execution blocked (Learning Mode active): %s for user %s",

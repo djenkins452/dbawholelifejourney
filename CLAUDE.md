@@ -120,6 +120,11 @@ After ANY code changes, do ALL of the following **automatically without asking**
 
 **A task is NOT complete until deployed. Deploy automatically — never wait for permission.**
 
+4. **Post-Completion Summary** — After deploying, always provide a brief summary:
+   - **Root cause:** What was wrong and why
+   - **Changes:** Files modified and approach taken
+   - **Verification:** Tests run and results
+
 ---
 
 ## Slash Commands

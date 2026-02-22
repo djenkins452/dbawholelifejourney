@@ -725,3 +725,286 @@ class WIREStrategicReviewTest(TestCase):
         # With empty data, still produces structured review with defaults
         self.assertIn("MOMENTUM TRAJECTORY", summary)
         self.assertIn("GOVERNANCE COMPLIANCE", summary)
+
+
+class DecisionBranchModelingTest(TestCase):
+    """Tests for Phase 4 R1 — Decision Branch Modeling."""
+
+    def _make_context(self, activation_state=None, db_signals=None,
+                      traj_signals=None, db_gate=None):
+        """Minimal context with decision branch fields."""
+        from apps.core.ai_orchestrator.cos_context import ACTIVATION_CLEAN
+        ctx = {
+            'blueprint_state': {},
+            'executive_tone_mode': 'strategic_executive',
+            'active_insights': [],
+            'active_predictions': [],
+            'relationship_signals': [],
+            'mood_status': {},
+            'health_signals': {},
+            'open_loops': {},
+            'module_permissions': {'health': True},
+            'trajectory_signals': traj_signals or {
+                'renegotiation_patterns': [],
+                'tier1_skip_patterns': [],
+                'consecutive_tier1_skips': 0,
+            },
+            'trajectory_activation_state': activation_state or ACTIVATION_CLEAN,
+            'decision_branch_signals': db_signals or {
+                'goals_within_14d': [],
+                'protected_blocks_today': [],
+                'deferrals_7d': 0,
+            },
+            'decision_branch_gate': db_gate or {'active': False, 'reason': '', 'signals': {}},
+        }
+        return ctx
+
+    # ------------------------------------------------------------------
+    # Decision language detection
+    # ------------------------------------------------------------------
+
+    def test_detect_decision_language_matches(self):
+        """Decision indicators detected in user input."""
+        from apps.core.ai_orchestrator.cos_context import _detect_decision_language
+        result = _detect_decision_language("Should I skip today?")
+        self.assertIn('should i', result)
+        self.assertIn('skip today', result)
+
+    def test_detect_decision_language_no_match(self):
+        """Non-decision input returns empty list."""
+        from apps.core.ai_orchestrator.cos_context import _detect_decision_language
+        result = _detect_decision_language("What is my blood pressure?")
+        self.assertEqual(result, [])
+
+    def test_detect_decision_language_empty(self):
+        """Empty/None input returns empty list."""
+        from apps.core.ai_orchestrator.cos_context import _detect_decision_language
+        self.assertEqual(_detect_decision_language(''), [])
+        self.assertEqual(_detect_decision_language(None), [])
+
+    # ------------------------------------------------------------------
+    # Activation gate — non-activation cases
+    # ------------------------------------------------------------------
+
+    def test_gate_inactive_no_decision_language(self):
+        """No decision language → gate inactive."""
+        from apps.core.ai_orchestrator.cos_context import evaluate_decision_branch_gate
+        ctx = self._make_context(db_signals={
+            'goals_within_14d': [{'title': 'Lose weight', 'days_remaining': 7}],
+            'protected_blocks_today': [],
+            'deferrals_7d': 0,
+        })
+        result = evaluate_decision_branch_gate(ctx, "What is my blood pressure?")
+        self.assertFalse(result['active'])
+
+    def test_gate_inactive_decision_language_no_targets(self):
+        """Decision language but no alignment targets → gate inactive."""
+        from apps.core.ai_orchestrator.cos_context import evaluate_decision_branch_gate
+        ctx = self._make_context(db_signals={
+            'goals_within_14d': [],
+            'protected_blocks_today': [],
+            'deferrals_7d': 0,
+        })
+        result = evaluate_decision_branch_gate(ctx, "Should I go to bed early?")
+        self.assertFalse(result['active'])
+
+    def test_gate_inactive_trivial_question(self):
+        """Trivial non-decision question → gate inactive."""
+        from apps.core.ai_orchestrator.cos_context import evaluate_decision_branch_gate
+        ctx = self._make_context()
+        result = evaluate_decision_branch_gate(ctx, "What time is it?")
+        self.assertFalse(result['active'])
+
+    # ------------------------------------------------------------------
+    # Activation gate — activation cases
+    # ------------------------------------------------------------------
+
+    def test_gate_active_decision_impacts_goal(self):
+        """Decision language + goal within 14d → gate active."""
+        from apps.core.ai_orchestrator.cos_context import evaluate_decision_branch_gate
+        ctx = self._make_context(db_signals={
+            'goals_within_14d': [{'title': 'Lose 10 lbs', 'days_remaining': 5}],
+            'protected_blocks_today': [],
+            'deferrals_7d': 0,
+        })
+        result = evaluate_decision_branch_gate(ctx, "Should I skip today's workout?")
+        self.assertTrue(result['active'])
+        self.assertEqual(result['reason'], 'decision_impacts_goal_deadline')
+
+    def test_gate_active_decision_impacts_protected_block(self):
+        """Decision language + protected block → gate active."""
+        from apps.core.ai_orchestrator.cos_context import evaluate_decision_branch_gate
+        ctx = self._make_context(db_signals={
+            'goals_within_14d': [],
+            'protected_blocks_today': [{'title': 'Bible reading', 'start': '06:00'}],
+            'deferrals_7d': 0,
+        })
+        result = evaluate_decision_branch_gate(ctx, "Thinking about pushing it to tomorrow")
+        self.assertTrue(result['active'])
+        self.assertEqual(result['reason'], 'decision_impacts_protected_block')
+
+    def test_gate_active_decision_during_threshold_risk(self):
+        """Decision language + threshold risk pattern → gate active."""
+        from apps.core.ai_orchestrator.cos_context import evaluate_decision_branch_gate
+        ctx = self._make_context(
+            traj_signals={
+                'renegotiation_patterns': [
+                    {'behavior': 'workout', 'count': 4, 'window_days': 10},
+                ],
+                'tier1_skip_patterns': [],
+                'consecutive_tier1_skips': 0,
+            },
+            db_signals={
+                'goals_within_14d': [],
+                'protected_blocks_today': [],
+                'deferrals_7d': 0,
+            },
+        )
+        result = evaluate_decision_branch_gate(ctx, "Should I reschedule my workout?")
+        self.assertTrue(result['active'])
+        self.assertEqual(result['reason'], 'decision_during_threshold_risk')
+
+    def test_gate_active_repeated_deferral(self):
+        """Decision language + ≥2 deferrals in 7d → gate active."""
+        from apps.core.ai_orchestrator.cos_context import evaluate_decision_branch_gate
+        ctx = self._make_context(db_signals={
+            'goals_within_14d': [],
+            'protected_blocks_today': [],
+            'deferrals_7d': 3,
+        })
+        result = evaluate_decision_branch_gate(ctx, "Considering whether to postpone again")
+        self.assertTrue(result['active'])
+        self.assertEqual(result['reason'], 'repeated_deferral')
+
+    # ------------------------------------------------------------------
+    # Injection output per tier
+    # ------------------------------------------------------------------
+
+    def test_clean_tier_decision_branch_output(self):
+        """CLEAN + active gate → neutral decision branch block."""
+        from apps.core.ai_orchestrator.cos_context import (
+            format_cos_system_injection, ACTIVATION_CLEAN,
+        )
+        gate = {
+            'active': True,
+            'reason': 'decision_impacts_goal_deadline',
+            'signals': {
+                'goals': [{'title': 'Lose 10 lbs', 'days_remaining': 5}],
+                'decision_language': True,
+            },
+        }
+        ctx = self._make_context(
+            activation_state=ACTIVATION_CLEAN,
+            db_gate=gate,
+        )
+        output = format_cos_system_injection(ctx)
+        self.assertIn("DECISION BRANCH MODELING", output)
+        self.assertIn("Decision Branch A", output)
+        self.assertIn("Decision Branch B", output)
+        self.assertIn("Executive Framing", output)
+        self.assertIn("DECISION CONTEXT", output)
+        self.assertIn("Lose 10 lbs", output)
+        self.assertIn("5 days remaining", output)
+        # Should NOT have erosion or drift framing
+        self.assertNotIn("EROSION CONTAINMENT", output)
+        self.assertNotIn("STRUCTURAL DRIFT", output)
+
+    def test_early_erosion_decision_branch_output(self):
+        """EARLY_EROSION + active gate → erosion containment framing."""
+        from apps.core.ai_orchestrator.cos_context import (
+            format_cos_system_injection, ACTIVATION_EARLY_EROSION,
+        )
+        gate = {
+            'active': True,
+            'reason': 'decision_impacts_protected_block',
+            'signals': {
+                'protected_blocks': [{'title': 'Bible reading', 'start': '06:00'}],
+                'decision_language': True,
+            },
+        }
+        ctx = self._make_context(
+            activation_state=ACTIVATION_EARLY_EROSION,
+            db_gate=gate,
+        )
+        output = format_cos_system_injection(ctx)
+        self.assertIn("DECISION BRANCH MODELING", output)
+        self.assertIn("EROSION CONTAINMENT", output)
+        self.assertIn("Do not authorize deferral", output)
+        self.assertIn("Bible reading", output)
+
+    def test_structural_drift_decision_branch_output(self):
+        """STRUCTURAL_DRIFT + active gate → drift-integrated modeling."""
+        from apps.core.ai_orchestrator.cos_context import (
+            format_cos_system_injection, ACTIVATION_STRUCTURAL_DRIFT,
+        )
+        gate = {
+            'active': True,
+            'reason': 'decision_during_threshold_risk',
+            'signals': {
+                'renegotiations': 3,
+                'tier1_skips': 0,
+                'consecutive_skips': 0,
+                'decision_language': True,
+            },
+        }
+        ctx = self._make_context(
+            activation_state=ACTIVATION_STRUCTURAL_DRIFT,
+            db_gate=gate,
+        )
+        output = format_cos_system_injection(ctx)
+        self.assertIn("DECISION BRANCH MODELING", output)
+        self.assertIn("STRUCTURAL DRIFT", output)
+        self.assertIn("72h/30d", output)
+        # Trajectory framework should also be present
+        self.assertIn("TRAJECTORY PRECISION", output)
+
+    def test_no_gate_no_decision_block(self):
+        """Inactive gate → no decision branch block in output."""
+        from apps.core.ai_orchestrator.cos_context import (
+            format_cos_system_injection, ACTIVATION_CLEAN,
+        )
+        ctx = self._make_context(activation_state=ACTIVATION_CLEAN)
+        output = format_cos_system_injection(ctx)
+        self.assertNotIn("DECISION BRANCH MODELING", output)
+        self.assertNotIn("DECISION CONTEXT", output)
+
+    def test_no_fabricated_projections(self):
+        """Decision branch framework prohibits probability/prediction language."""
+        from apps.core.ai_orchestrator.cos_context import (
+            DECISION_BRANCH_FRAMEWORK_CLEAN,
+            DECISION_BRANCH_FRAMEWORK_EROSION,
+            DECISION_BRANCH_FRAMEWORK_DRIFT,
+        )
+        for fw in [DECISION_BRANCH_FRAMEWORK_CLEAN,
+                    DECISION_BRANCH_FRAMEWORK_EROSION,
+                    DECISION_BRANCH_FRAMEWORK_DRIFT]:
+            self.assertIn("Do NOT predict unknown outcomes", fw)
+            self.assertIn("assign probabilities", fw)
+            self.assertNotIn("percentage", fw.lower())
+            self.assertNotIn("likely", fw.lower())
+
+    def test_overdue_goal_formatting(self):
+        """Overdue goals show 'X days overdue' in context block."""
+        from apps.core.ai_orchestrator.cos_context import _format_decision_branch_injection
+        from apps.core.ai_orchestrator.cos_context import ACTIVATION_CLEAN
+        gate = {
+            'active': True,
+            'reason': 'decision_impacts_goal_deadline',
+            'signals': {
+                'goals': [{'title': 'Run marathon', 'days_remaining': -3}],
+            },
+        }
+        output = _format_decision_branch_injection(gate, ACTIVATION_CLEAN)
+        self.assertIn("3 days overdue", output)
+
+    def test_gate_priority_goal_over_protected(self):
+        """Goal deadline takes priority in gate reason when both present."""
+        from apps.core.ai_orchestrator.cos_context import evaluate_decision_branch_gate
+        ctx = self._make_context(db_signals={
+            'goals_within_14d': [{'title': 'Goal A', 'days_remaining': 3}],
+            'protected_blocks_today': [{'title': 'Block B', 'start': '08:00'}],
+            'deferrals_7d': 5,
+        })
+        result = evaluate_decision_branch_gate(ctx, "Should I skip this?")
+        self.assertTrue(result['active'])
+        self.assertEqual(result['reason'], 'decision_impacts_goal_deadline')

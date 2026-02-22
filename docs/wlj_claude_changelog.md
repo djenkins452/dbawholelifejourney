@@ -9,6 +9,30 @@
 
 # WLJ Change History
 
+## 2026-02-22 — Phase 4 R1: Conditional Decision Branch Modeling
+
+**Changes:**
+- Added decision branch activation gate (`evaluate_decision_branch_gate`) with two trigger conditions:
+  - Condition A: Decision language + alignment-impacting target (goal deadline ≤14d, protected block, threshold risk pattern)
+  - Condition B: Decision language + ≥2 deferrals in 7 days
+- Added `_build_decision_branch_signals(user)` — gathers goals within 14d, overdue goals, protected blocks, deferral count
+- Added `_detect_decision_language(user_input)` — 19 decision-indicating phrases
+- Added three tier-proportional framework constants: CLEAN (neutral), EROSION (containment), DRIFT (72h/30d integrated)
+- Added `_format_decision_branch_injection()` — formats framework + contextual signal block
+- Wired gate evaluation into personal_assistant.py Layer 6 flow
+- Injection occurs between Phase 3 tier injection and END SITUATIONAL AWARENESS
+- 17 new tests covering gate activation/non-activation, tier-proportional output, no-fabrication constraints
+- All 61 Phase 4 CoS tests pass
+
+**Files modified:**
+- `apps/core/ai_orchestrator/cos_context.py` — Decision branch gate, signals, formatter, framework constants
+- `apps/ai/personal_assistant.py` — Gate evaluation wired into CoS context flow
+- `apps/core/tests/test_phase4_cos.py` — DecisionBranchModelingTest class (17 tests)
+
+**Why:** When users face alignment-impacting decisions, the CoS now generates structured Act vs. Delay branch modeling with deterministic grounding — improving decision precision, timing intelligence, and identity alignment clarity without noise inflation or emotional tone drift.
+
+---
+
 ## 2026-02-22 — EARLY_EROSION Tightening: Deferral Prohibition + Corrective Minimum
 
 **Changes:**

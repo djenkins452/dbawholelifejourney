@@ -2841,6 +2841,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                         build_learning_mode_context,
                         format_cos_system_injection,
                         determine_activation_state,
+                        evaluate_decision_branch_gate,
                         _build_trajectory_signals,
                     )
                     from apps.core.blueprint.learning_mode import is_learning_mode_active
@@ -2858,6 +2859,10 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                         cos_context['trajectory_signals'] = traj_signals
                         cos_context['trajectory_activation_state'] = (
                             determine_activation_state(traj_signals, message)
+                        )
+                        # Phase 4 R1: Decision Branch Gate evaluation
+                        cos_context['decision_branch_gate'] = (
+                            evaluate_decision_branch_gate(cos_context, message)
                         )
 
                     cos_injection = format_cos_system_injection(cos_context)

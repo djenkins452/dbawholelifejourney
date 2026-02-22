@@ -606,6 +606,13 @@ def build_cos_context(user):
         logger.debug("CoS context: trajectory signals unavailable: %s", e)
         context['trajectory_signals'] = {}
 
+    # Phase 4 R1: Decision branch signals (goals, deadlines, deferrals)
+    try:
+        context['decision_branch_signals'] = _build_decision_branch_signals(user)
+    except Exception as e:
+        logger.debug("CoS context: decision branch signals unavailable: %s", e)
+        context['decision_branch_signals'] = {}
+
     # Approaching life events (next 14 days)
     try:
         from apps.life.models import SignificantEvent, LifeEvent
@@ -917,6 +924,16 @@ def format_cos_system_injection(context):
         # Soft probe only — no full framework, no horizon modeling
         lines.append("")
         lines.append(EARLY_EROSION_FRAMEWORK.strip())
+
+    # Phase 4 R1: Decision Branch Modeling (conditional injection)
+    # Evaluates AFTER Phase 3 tier determination, BEFORE final render.
+    # Only activates when decision branch gate conditions are met.
+    db_gate = context.get('decision_branch_gate', {})
+    if db_gate.get('active'):
+        db_block = _format_decision_branch_injection(db_gate, activation_state)
+        if db_block:
+            lines.append("")
+            lines.append(db_block)
 
     lines.append("")
     lines.append("=== END SITUATIONAL AWARENESS ===")
@@ -1626,6 +1643,415 @@ def _format_trajectory_injection(signals):
         lines.append(f"INSUFFICIENT SIGNAL: {sig}")
 
     lines.append("--- END TRAJECTORY SIGNALS ---")
+    return '\n'.join(lines)
+
+
+# =========================================================================
+# PHASE 4 R1 — DECISION BRANCH MODELING
+# =========================================================================
+
+# Decision-indicating keywords — user expresses a pending decision.
+# Must co-occur with alignment-impacting context to activate.
+_DECISION_INDICATORS = (
+    'should i',
+    'thinking about',
+    'considering',
+    'debating whether',
+    'not sure if i should',
+    'torn between',
+    'trying to decide',
+    'would it be better',
+    'skip today',
+    'skip this',
+    'push it',
+    'push this',
+    'move it to',
+    'reschedule',
+    'defer',
+    'postpone',
+    'drop it',
+    'cancel',
+    'swap',
+)
+
+
+def _build_decision_branch_signals(user):
+    """
+    Gather signals relevant to decision branch activation.
+
+    Collects:
+    - Active goals with deadlines within 14 days
+    - Protected time blocks for today
+    - Deferred decision count (renegotiations in last 7 days)
+
+    Read-only — no writes, no side effects.
+
+    Returns:
+        dict — decision branch signals.
+    """
+    signals = {
+        'goals_within_14d': [],
+        'protected_blocks_today': [],
+        'deferrals_7d': 0,
+    }
+
+    fourteen_days = timezone.localdate() + datetime.timedelta(days=14)
+    today = timezone.localdate()
+
+    # Goals with deadlines within 14 days
+    try:
+        from apps.purpose.models import LifeGoal
+        upcoming_goals = LifeGoal.objects.filter(
+            user=user,
+            status='active',
+            target_date__isnull=False,
+            target_date__lte=fourteen_days,
+            target_date__gte=today,
+        ).values('title', 'target_date')[:10]
+        for g in upcoming_goals:
+            days_left = (g['target_date'] - today).days
+            signals['goals_within_14d'].append({
+                'title': g['title'],
+                'days_remaining': days_left,
+            })
+    except Exception:
+        pass
+
+    # Overdue goals (active, past target_date)
+    try:
+        from apps.purpose.models import LifeGoal
+        overdue = LifeGoal.objects.filter(
+            user=user,
+            status='active',
+            target_date__isnull=False,
+            target_date__lt=today,
+        ).values('title', 'target_date')[:5]
+        for g in overdue:
+            days_overdue = (today - g['target_date']).days
+            signals['goals_within_14d'].append({
+                'title': g['title'],
+                'days_remaining': -days_overdue,
+            })
+    except Exception:
+        pass
+
+    # Protected blocks for today
+    try:
+        from apps.core.blueprint.models import ArchitecturePlan
+        plan = ArchitecturePlan.get_active_for_date(user, today)
+        if plan:
+            protected = plan.blocks.filter(tier=1, is_completed=False)
+            for b in protected[:5]:
+                signals['protected_blocks_today'].append({
+                    'title': b.title,
+                    'start': b.start_time.strftime('%H:%M') if b.start_time else '',
+                })
+    except Exception:
+        pass
+
+    # Deferral count: distinct days with renegotiations in last 7 days
+    try:
+        from apps.core.blueprint.models import InterventionLog
+        seven_days_ago = timezone.now() - datetime.timedelta(days=7)
+        signals['deferrals_7d'] = InterventionLog.objects.filter(
+            user=user,
+            created_at__gte=seven_days_ago,
+            user_response__in=['proceeded', 'dismissed'],
+        ).count()
+    except Exception:
+        pass
+
+    return signals
+
+
+def _detect_decision_language(user_input):
+    """
+    Detect decision-indicating language in user input.
+
+    Simple case-insensitive substring matching — no NLP.
+
+    Returns:
+        list[str] — matched decision indicator phrases (empty if none).
+    """
+    if not user_input:
+        return []
+    lowered = user_input.lower()
+    return [d for d in _DECISION_INDICATORS if d in lowered]
+
+
+def evaluate_decision_branch_gate(context, user_input=''):
+    """
+    Evaluate whether Decision Branch Modeling should activate.
+
+    Condition A: User expresses a pending decision that impacts:
+    - An active goal with deadline ≤14 days
+    - A protected time block
+    - A known threshold risk pattern
+
+    Condition B: A decision has been deferred ≥2 times within 7 days.
+
+    Both conditions require decision language in user input (Condition A)
+    or sufficient deferral history (Condition B).
+
+    Args:
+        context: dict from build_cos_context().
+        user_input: str — the user's current message.
+
+    Returns:
+        dict — {'active': bool, 'reason': str, 'signals': dict}
+    """
+    db_signals = context.get('decision_branch_signals', {})
+    traj_signals = context.get('trajectory_signals', {})
+
+    has_decision_language = bool(_detect_decision_language(user_input))
+
+    # Condition A: Decision language + alignment-impacting target
+    if has_decision_language:
+        # Check: goal with deadline ≤14 days
+        goals_14d = db_signals.get('goals_within_14d', [])
+        if goals_14d:
+            return {
+                'active': True,
+                'reason': 'decision_impacts_goal_deadline',
+                'signals': {
+                    'goals': goals_14d,
+                    'decision_language': True,
+                },
+            }
+
+        # Check: protected time block today
+        protected = db_signals.get('protected_blocks_today', [])
+        if protected:
+            return {
+                'active': True,
+                'reason': 'decision_impacts_protected_block',
+                'signals': {
+                    'protected_blocks': protected,
+                    'decision_language': True,
+                },
+            }
+
+        # Check: threshold risk pattern active
+        renegotiations = traj_signals.get('renegotiation_patterns', [])
+        tier1_skips = traj_signals.get('tier1_skip_patterns', [])
+        consecutive = traj_signals.get('consecutive_tier1_skips', 0)
+        if renegotiations or tier1_skips or consecutive >= 2:
+            return {
+                'active': True,
+                'reason': 'decision_during_threshold_risk',
+                'signals': {
+                    'renegotiations': len(renegotiations),
+                    'tier1_skips': len(tier1_skips),
+                    'consecutive_skips': consecutive,
+                    'decision_language': True,
+                },
+            }
+
+    # Condition B: Decision deferred ≥2 times in 7 days
+    deferrals = db_signals.get('deferrals_7d', 0)
+    if deferrals >= 2 and has_decision_language:
+        return {
+            'active': True,
+            'reason': 'repeated_deferral',
+            'signals': {
+                'deferrals_7d': deferrals,
+                'decision_language': True,
+            },
+        }
+
+    return {'active': False, 'reason': '', 'signals': {}}
+
+
+DECISION_BRANCH_FRAMEWORK_CLEAN = """
+--- DECISION BRANCH MODELING ---
+
+The user is expressing a decision that impacts an active alignment target.
+
+MODELING RULES:
+- Strictly deterministic. Reference only known goals, deadlines, behavioral
+  history, renegotiation counts, skip counts, protected blocks, workload density.
+- Do NOT predict unknown outcomes, invent projections, estimate numbers,
+  assign probabilities, or fabricate timeline forecasts.
+
+OUTPUT STRUCTURE (mandatory):
+
+Decision Branch A — Act
+• Immediate operational impact
+• Short-term alignment effect
+• Threshold containment effect
+• Identity reinforcement or erosion vector
+
+Decision Branch B — Delay / Do Not Act
+• Immediate relief effect
+• Threshold proximity effect
+• Drift pressure increase (qualitative only)
+• Identity erosion vector (if applicable)
+
+Executive Framing
+One-line directive recommendation. No permission language.
+No motivational phrasing. No open-ended question.
+
+TONE: Dense. Calm. Authoritative. Minimal wording.
+No coaching language. No encouragement language.
+Neutral executive modeling. No escalation framing.
+
+--- END DECISION BRANCH MODELING ---
+"""
+
+DECISION_BRANCH_FRAMEWORK_EROSION = """
+--- DECISION BRANCH MODELING (EROSION CONTAINMENT) ---
+
+The user is expressing a decision that impacts an active alignment target.
+Erosion markers are present. Do not authorize deferral.
+
+MODELING RULES:
+- Strictly deterministic. Reference only known goals, deadlines, behavioral
+  history, renegotiation counts, skip counts, protected blocks, workload density.
+- Do NOT predict unknown outcomes, invent projections, estimate numbers,
+  assign probabilities, or fabricate timeline forecasts.
+- Include erosion containment framing in both branches.
+
+OUTPUT STRUCTURE (mandatory):
+
+Decision Branch A — Act
+• Immediate operational impact
+• Short-term alignment effect
+• Threshold containment effect
+• Identity reinforcement or erosion vector
+
+Decision Branch B — Delay / Do Not Act
+• Immediate relief effect
+• Threshold proximity effect
+• Drift pressure increase (qualitative only)
+• Identity erosion vector
+
+Executive Framing
+One-line directive recommendation. No permission language.
+No motivational phrasing. No open-ended question.
+Erosion containment is the priority.
+
+TONE: Dense. Calm. Authoritative. Minimal wording.
+No coaching language. No encouragement language.
+Include erosion containment framing. Do not authorize deferral.
+
+--- END DECISION BRANCH MODELING ---
+"""
+
+DECISION_BRANCH_FRAMEWORK_DRIFT = """
+--- DECISION BRANCH MODELING (STRUCTURAL DRIFT) ---
+
+The user is expressing a decision that impacts an active alignment target.
+Structural drift is active. Integrate with 72h/30d modeling.
+
+MODELING RULES:
+- Strictly deterministic. Reference only known goals, deadlines, behavioral
+  history, renegotiation counts, skip counts, protected blocks, workload density.
+- Do NOT predict unknown outcomes, invent projections, estimate numbers,
+  assign probabilities, or fabricate timeline forecasts.
+- Integrate branch modeling with existing 72h/30d trajectory modeling.
+- Do not override Structural Drift escalation tone.
+
+OUTPUT STRUCTURE (mandatory):
+
+Decision Branch A — Act
+• Immediate operational impact
+• Short-term alignment effect (72h horizon integration)
+• Threshold containment effect
+• Identity reinforcement vector (30d horizon integration)
+
+Decision Branch B — Delay / Do Not Act
+• Immediate relief effect
+• Threshold proximity effect (72h horizon integration)
+• Drift pressure increase (qualitative only)
+• Identity erosion vector (30d horizon integration)
+
+Executive Framing
+One-line directive recommendation. No permission language.
+No motivational phrasing. No open-ended question.
+Structural drift tone preserved.
+
+TONE: Dense. Calm. Authoritative. Minimal wording.
+No coaching language. No encouragement language.
+Structural drift escalation tone intact.
+
+--- END DECISION BRANCH MODELING ---
+"""
+
+
+def _format_decision_branch_injection(gate_result, activation_state):
+    """
+    Format the decision branch modeling block for prompt injection.
+
+    Selects the tier-appropriate framework variant and appends
+    contextual signal data for LLM grounding.
+
+    Args:
+        gate_result: dict from evaluate_decision_branch_gate().
+        activation_state: str — CLEAN / EARLY_EROSION / STRUCTURAL_DRIFT.
+
+    Returns:
+        str — formatted decision branch injection, or empty string.
+    """
+    if not gate_result.get('active'):
+        return ''
+
+    # Select tier-appropriate framework
+    if activation_state == ACTIVATION_STRUCTURAL_DRIFT:
+        framework = DECISION_BRANCH_FRAMEWORK_DRIFT
+    elif activation_state == ACTIVATION_EARLY_EROSION:
+        framework = DECISION_BRANCH_FRAMEWORK_EROSION
+    else:
+        framework = DECISION_BRANCH_FRAMEWORK_CLEAN
+
+    lines = [framework.strip()]
+
+    # Append grounding signals
+    signals = gate_result.get('signals', {})
+    reason = gate_result.get('reason', '')
+
+    signal_lines = ["--- DECISION CONTEXT ---"]
+
+    if reason:
+        signal_lines.append(f"ACTIVATION: {reason}")
+
+    goals = signals.get('goals', [])
+    if goals:
+        for g in goals[:3]:
+            days = g['days_remaining']
+            if days < 0:
+                signal_lines.append(f"GOAL: {g['title']} — {abs(days)} days overdue")
+            elif days == 0:
+                signal_lines.append(f"GOAL: {g['title']} — due today")
+            else:
+                signal_lines.append(f"GOAL: {g['title']} — {days} days remaining")
+
+    protected = signals.get('protected_blocks', [])
+    if protected:
+        for b in protected[:3]:
+            signal_lines.append(f"PROTECTED BLOCK: {b['title']} at {b['start']}")
+
+    if signals.get('renegotiations'):
+        signal_lines.append(
+            f"RENEGOTIATION PATTERNS: {signals['renegotiations']} active"
+        )
+    if signals.get('tier1_skips'):
+        signal_lines.append(
+            f"TIER1 SKIP PATTERNS: {signals['tier1_skips']} active"
+        )
+    if signals.get('consecutive_skips', 0) >= 2:
+        signal_lines.append(
+            f"CONSECUTIVE SKIPS: {signals['consecutive_skips']} days"
+        )
+    if signals.get('deferrals_7d', 0) >= 2:
+        signal_lines.append(
+            f"DEFERRALS: {signals['deferrals_7d']} in 7 days"
+        )
+
+    signal_lines.append("--- END DECISION CONTEXT ---")
+
+    lines.append("")
+    lines.append('\n'.join(signal_lines))
+
     return '\n'.join(lines)
 
 

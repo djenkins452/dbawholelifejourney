@@ -9,6 +9,21 @@
 
 # WLJ Change History
 
+## 2026-02-22 — CoS Phase 2: System Challenge Containment
+
+**Changes:**
+- Added System Challenge Containment protocol to COGNITIVE_PRECISION_FRAMEWORK
+  - When user calls system rigid, controlling, or dismisses priority logic: do not defend, explain, justify, or debate
+  - 3-step containment: re-anchor to declared priorities → offer recalibration → close with governance posture
+  - No trailing questions, no philosophical language, no debate tone
+
+**Files modified:**
+- `apps/core/ai_orchestrator/cos_context.py` — added containment section to COGNITIVE_PRECISION_FRAMEWORK
+
+**Why:** Prevent CoS from entering defensive or philosophical debate when challenged. Governance posture only.
+
+---
+
 ## 2026-02-22 — CoS Phase 2: Override Posture Hardening
 
 **Changes:**

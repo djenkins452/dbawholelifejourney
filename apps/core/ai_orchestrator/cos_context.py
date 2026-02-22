@@ -2111,12 +2111,56 @@ def build_learning_mode_context(user):
     return context
 
 
+# =========================================================================
+# WRITE-SUPPRESSED SYSTEM PROMPT CONTRACT
+# =========================================================================
+# This is the hard behavioral contract injected into the system prompt
+# when writes are suppressed. It replaces the post-generation compliance
+# gate with generation-time enforcement.
+
+COS_WRITE_SUPPRESSED_CONTRACT = """
+--- WRITE-SUPPRESSED CONTRACT ---
+
+ALL write operations are suppressed. This contract is absolute.
+
+FORBIDDEN OUTPUT — never produce any of the following:
+- Write verbs in any tense: log, logged, logging, save, saved, saving,
+  record, recorded, recording, mark, marked, marking, flag, flagged,
+  flagging, update, updated, updating, schedule, scheduled, scheduling,
+  set, confirm, noted, note, captured, tracked, persist, calendar.
+- Shadow-write language: "intent captured", "queued", "will apply",
+  "taking note", "adding to", "putting on", "entering", "filing".
+- Future-promise phrasing: when, once, after, until, resumes, available,
+  ends, later, "when ready", "after exit", "execution resumes".
+- Internal system references: "Learning Mode", "current configuration",
+  "write suppression", "execution mode", "the system".
+- Apologies or explanations about why writes are unavailable.
+
+WHEN THE USER DEMANDS A WRITE (log/save/record/mark/flag/update/schedule/set/confirm):
+Respond with EXACTLY two lines:
+Line 1: "Writes are suppressed."
+Line 2: A single directive sentence. No time-anchored phrasing (no when/after/once).
+Acceptable directives:
+  - "Repeat this request in a new session."
+  - "Handle this manually; it cannot be applied here."
+
+WHEN THE USER DOES NOT DEMAND A WRITE:
+Respond normally. Apply Phase 2/3 cognitive structure.
+Do NOT mention suppression, modes, or system state.
+Use behavioral directives, identity framing, trajectory precision.
+Weekly reviews, accountability, strategic analysis — all function normally.
+The only thing suppressed is persistence operations.
+
+--- END WRITE-SUPPRESSED CONTRACT ---
+"""
+
+
 def format_learning_mode_injection(context):
     """
     Format the reduced Learning Mode context as a system prompt injection.
 
-    This is a lighter version of format_cos_system_injection() that excludes
-    executive briefing, insights, predictions, and UAL narrative blocks.
+    Uses the WRITE_SUPPRESSED template: hard behavioral contract enforced
+    at generation time. No post-processing gate needed.
 
     Args:
         context: dict from build_learning_mode_context()
@@ -2125,7 +2169,7 @@ def format_learning_mode_injection(context):
         str — formatted system injection block.
     """
     lines = []
-    lines.append("=== LEARNING MODE AWARENESS ===")
+    lines.append("=== OPERATIONAL AWARENESS ===")
     lines.append("")
 
     # What the user has enabled
@@ -2176,38 +2220,11 @@ def format_learning_mode_injection(context):
         for ev in cal[:6]:
             lines.append(f"  {ev['start']} {ev['title']}")
 
-    # Write-suppressed behavioral constraints
+    # Hard write-suppressed contract
     lines.append("")
-    lines.append("--- WRITE-SUPPRESSED BEHAVIORAL RULES ---")
-    lines.append("")
-    lines.append("Execution is paused. All write operations are suppressed.")
-    lines.append("")
-    lines.append("When the user requests a write action (log, save, record, schedule,")
-    lines.append("flag, mark, update, note, track, persist):")
-    lines.append("")
-    lines.append("1. Do NOT promise future execution. No 'when execution resumes',")
-    lines.append("   'once writes are available', 'when you exit', 'will be saved later'.")
-    lines.append("2. Do NOT name the suppression mode. No 'Learning Mode', no internal")
-    lines.append("   system terminology. The user does not need to know why.")
-    lines.append("3. Do NOT explain the suppression mechanism.")
-    lines.append("4. Do NOT apologize for the suppression.")
-    lines.append("")
-    lines.append("Instead:")
-    lines.append("- Acknowledge the intent in present tense: 'Noted.' or 'Intent: [action].'")
-    lines.append("- If the request contains a behavioral commitment, respond with the")
-    lines.append("  relevant trajectory or identity framing.")
-    lines.append("- If the request is purely mechanical (save/schedule), acknowledge")
-    lines.append("  and redirect to what IS actionable right now.")
-    lines.append("")
-    lines.append("Examples of compliant responses:")
-    lines.append("  User: 'Schedule workout tomorrow at 6.' -> 'Noted. Morning workout, tomorrow, 6 AM.'")
-    lines.append("  User: 'Record my workout.' -> 'What did you do? Duration, format, time.'")
-    lines.append("  User: 'Log it.' -> 'Noted.'")
-    lines.append("  User: 'Flag today as drift.' -> 'Today's trajectory is already visible in the signals.'")
-    lines.append("")
-    lines.append("--- END WRITE-SUPPRESSED RULES ---")
+    lines.append(COS_WRITE_SUPPRESSED_CONTRACT.strip())
 
     lines.append("")
-    lines.append("=== END LEARNING MODE AWARENESS ===")
+    lines.append("=== END OPERATIONAL AWARENESS ===")
 
     return '\n'.join(lines)

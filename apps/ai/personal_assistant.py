@@ -2834,12 +2834,20 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
 
                 # Layer 6: Operational context (schedule, calendar, key signals)
                 # This is COMPACT — only what the LLM needs to be situationally aware.
+                # Dual template: NORMAL vs WRITE_SUPPRESSED selected deterministically.
                 try:
                     from apps.core.ai_orchestrator.cos_context import (
                         build_cos_context,
+                        build_learning_mode_context,
                         format_cos_system_injection,
                     )
-                    cos_context = build_cos_context(self.user)
+                    from apps.core.blueprint.learning_mode import is_learning_mode_active
+
+                    if is_learning_mode_active(self.user):
+                        cos_context = build_learning_mode_context(self.user)
+                    else:
+                        cos_context = build_cos_context(self.user)
+
                     cos_injection = format_cos_system_injection(cos_context)
                     # Append operational context AFTER personality layers
                     # so the LLM prioritizes relationship over raw data.
@@ -3233,16 +3241,9 @@ Rules for this response:
                 user=self.user,
             ) or self._get_fallback_response(message)
 
-            # Output Compliance Gate — rewrite write-implying language
-            # when execution_mode suppresses writes (Learning Mode).
-            try:
-                from apps.core.blueprint.learning_mode import is_learning_mode_active
-                from apps.core.ai_orchestrator.cos_context import apply_output_compliance_gate
-                response = apply_output_compliance_gate(
-                    response, writes_suppressed=is_learning_mode_active(self.user)
-                )
-            except Exception:
-                pass  # Gate failure must not block response delivery
+            # Write-suppressed behavior is now enforced at generation time
+            # via COS_WRITE_SUPPRESSED_CONTRACT in the system prompt.
+            # Post-generation compliance gate removed — prompt-level enforcement only.
 
             return response
         except Exception as e:

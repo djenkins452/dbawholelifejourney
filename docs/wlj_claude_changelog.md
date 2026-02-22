@@ -9,6 +9,26 @@
 
 # WLJ Change History
 
+## 2026-02-22 — Dual Prompt Templates: Generation-Time Write Suppression
+
+**Changes:**
+- Replaced post-generation regex compliance gate with generation-time enforcement via `COS_WRITE_SUPPRESSED_CONTRACT` system prompt constant
+- Hard behavioral contract: forbidden output list (write verbs, shadow-write language, future promises, mode names), exact 2-line response format for write demands, normal Phase 2/3 for non-write requests
+- Dual template selection in `_generate_response()`: `is_learning_mode_active(user)` → `build_learning_mode_context()` → `format_learning_mode_injection()` with contract; else normal path
+- Removed post-generation compliance gate call from `personal_assistant.py` (comment-replaced, gate function kept for backward compat)
+- Renamed Learning Mode injection header from "LEARNING MODE AWARENESS" to "OPERATIONAL AWARENESS" (no internal system names exposed)
+- Added 10 write-suppressed contract tests (WriteSuppressedContractTest) covering contract presence, forbidden tokens, two-line format, normal mode exclusion, backward compat
+- 171/171 core tests pass, 365/365 AI tests pass, 22/22 CoS tests pass
+
+**Files modified:**
+- `apps/core/ai_orchestrator/cos_context.py` — COS_WRITE_SUPPRESSED_CONTRACT constant, replaced format_learning_mode_injection() write rules with hard contract
+- `apps/ai/personal_assistant.py` — deterministic template selection via is_learning_mode_active(), removed compliance gate post-processing
+- `apps/core/tests/test_phase4_cos.py` — 10 new WriteSuppressedContractTest cases
+
+**Why:** Post-generation regex gates were brittle — they could only rewrite patterns they anticipated. Generation-time contract enforcement is deterministic: the LLM receives an absolute behavioral contract that specifies exact output format for write demands and forbids all write-implying language.
+
+---
+
 ## 2026-02-22 — Output Compliance Gate: Three-Layer Gate (Future-Promise + Mode-Name)
 
 **Changes:**

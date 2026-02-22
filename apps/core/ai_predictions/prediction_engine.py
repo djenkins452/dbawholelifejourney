@@ -137,6 +137,15 @@ def generate_predictions(user, module=None, record_id=None):
     Returns:
         List of Prediction instances created/updated.
     """
+    # Learning Mode gate — block prediction generation
+    try:
+        from apps.core.blueprint.learning_mode import is_learning_mode_active
+        if is_learning_mode_active(user):
+            logger.debug("PRIE blocked (Learning Mode active) for user %s", user.id)
+            return []
+    except Exception:
+        pass  # Learning mode check must never break prediction pipeline
+
     now = get_current_time()
     event = {
         "event_type": "prediction_check",

@@ -2705,13 +2705,48 @@ When a user first enables the CoS, a governance session classifies their enabled
 ### Configurable Display Name
 Users can rename the CoS via settings or natural language ("Call yourself Max"). The name persists in `UserPreferences.cos_display_name` and is available as `{{ cos_display_name }}` in all templates.
 
+### Learning Mode & Priority System *(Feb 2026)*
+Phase 1 of the CoS Foundational Restructure adds structured listening and priority accountability:
+
+**Learning Mode** — A system-wide state where the CoS listens and learns without taking actions:
+- UAIO execution, PIE insights, PRIE predictions, SAE writes, and action audit entries are suppressed
+- SAE reads, conversation memory, governance evaluation, and safety remain fully active
+- SLCME stores only preference/value mappings actively; execution-relevant types stored inactive for Phase 2 review
+- Lighter system prompt injection during Learning Mode (excludes active insights/predictions/executive block)
+- Toggle UI on CoS Settings page with enter → exit → confirm flow
+- Exit confirmation: CoS summarizes what it learned, user confirms before execution resumes
+
+**Priority Weighting** — Declare what matters most:
+- `UserPriorityProfile` model with 3 tiers: Non-Negotiable (weight 3.0), Important (2.0), Flexible (1.0)
+- Hierarchical drill-down onboarding: top-level modules → health physical/cognitive → specific sub-areas
+- Priority onboarding injected into Learning Mode system prompt (one question at a time)
+
+**Priority Conflict Detection** — Behavioral accountability:
+- Compares declared priorities vs 7-day behavior across health, faith, purpose, journal
+- Health sub-module awareness (weight, activity, sleep, medications, nutrition, fasting)
+- Tier 1 gaps → accountability tone, Tier 2/3 → curious reflection tone
+- Respects partial task progress (>0% = "worked on")
+
+**System Gap Awareness** — Proactive transparency:
+- Surfaces known system limitations (from ImprovementTaskModel) in governance prompt
+- CoS acknowledges what it can't do yet instead of guessing
+
+**Partial Task Progress** — Track work-in-progress:
+- `progress_percentage` (0-100) range slider on task edit form
+- `progress_state` JSON for flexible step tracking
+- Counts toward priority conflict resolution
+
 ### Key Files
 - `apps/core/blueprint/` — All CoS models, governance, engines, human language
+- `apps/core/blueprint/learning_mode.py` — Learning Mode state management
+- `apps/core/blueprint/priority_conflict_detector.py` — Priority vs behavior conflicts
+- `apps/core/blueprint/priority_questions.py` — Priority onboarding drill-down
+- `apps/core/blueprint/system_gap_awareness.py` — System limitation transparency
 - `apps/core/ai_governance/` — Alignment sessions, governance profile
 - `templates/components/cos_command_mode.html` — Command mode UI
 - `templates/components/assistant_panel.html` — Assistant panel UI
 - `templates/components/cos_arrival_briefing.html` — Morning briefing
-- `templates/ai/cos_settings.html` — CoS settings page
+- `templates/ai/cos_settings.html` — CoS settings page + Learning Mode toggle
 - `apps/dashboard/views.py` — Dashboard views with CoS context
 
 ---

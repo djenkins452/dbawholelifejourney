@@ -16,11 +16,27 @@ def log_interaction(user, user_input, orchestrator_result):
     """
     Log an orchestrator interaction.
 
+    During Learning Mode, action-specific audit entries are suppressed.
+    System integrity entries (conversation, governance, safety) are preserved.
+
     Args:
         user: Django user instance.
         user_input: Original user message.
         orchestrator_result: OrchestratorResult from the main pipeline.
     """
+    # During Learning Mode, suppress audit entries for action execution attempts
+    try:
+        from apps.core.blueprint.learning_mode import is_learning_mode_active
+        if is_learning_mode_active(user) and orchestrator_result.actions_enriched:
+            logger.debug(
+                "Audit log suppressed (Learning Mode): user=%s actions=%s",
+                user.id,
+                [a.intent_type for a in orchestrator_result.actions_enriched],
+            )
+            return
+    except Exception:
+        pass  # Audit suppression check must never break logging
+
     try:
         log_data = {
             "user_id": user.id,

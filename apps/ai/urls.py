@@ -50,6 +50,9 @@ urlpatterns = [
     path('cos/settings/', views.CosSettingsView.as_view(), name='cos_settings'),
     path('cos/settings/save/', views.CosSettingsSaveView.as_view(), name='cos_settings_save'),
 
+    # Learning Mode Toggle (Phase 1)
+    path('cos/learning-mode/toggle/', views.LearningModeToggleView.as_view(), name='cos_learning_mode_toggle'),
+
     # Event Reflections (Post-Event Check-ins)
     path('api/event-reflection/', views.EventReflectionView.as_view(), name='api_event_reflection'),
 

@@ -757,6 +757,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for Financial Command Center full suite (PK 89)
         self._reset_financial_command_center_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for CoS Phase 1 Learning Mode (PK 90)
+        self._reset_cos_phase1_learning_mode_fixtures(DataLoadConfig, force, verbosity)
+
         # One-time: Seed LLMPriceBook and backfill event costs
         self._seed_pricebook_and_backfill(DataLoadConfig, force, verbosity)
 
@@ -3368,6 +3371,34 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset Financial Command Center fixtures FAILED: {e}'))
+
+    def _reset_cos_phase1_learning_mode_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes for CoS Phase 1 Learning Mode.
+        - release_notes PK 90 (Learning Mode & Priority System)
+        """
+        reset_tracker_name = 'reset_cos_phase1_learning_mode_2026_02_22'
+        try:
+            if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
+                return
+
+            config = DataLoadConfig.objects.get(loader_name='release_notes')
+            if config.is_loaded:
+                config.is_loaded = False
+                config.save()
+                if verbosity >= 1:
+                    self.stdout.write(f'  Reset release_notes loader for CoS Phase 1 Learning Mode')
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for CoS Phase 1 Learning Mode (Feb 2026)',
+                'command',
+                'One-time reset to reload release_notes PK 90'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset CoS Phase 1 fixtures FAILED: {e}'))
 
     def _seed_pricebook_and_backfill(self, DataLoadConfig, force=False, verbosity=1):
         """

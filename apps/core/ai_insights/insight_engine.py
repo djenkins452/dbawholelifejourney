@@ -40,6 +40,15 @@ def run_insights(user, event):
     if not getattr(settings, "AI_INSIGHTS_ENABLED", True):
         return []
 
+    # Learning Mode gate — block insight generation from conversation
+    try:
+        from apps.core.blueprint.learning_mode import is_learning_mode_active
+        if is_learning_mode_active(user):
+            logger.debug("PIE blocked (Learning Mode active) for user %s", user.id)
+            return []
+    except Exception:
+        pass  # Learning mode check must never break insight pipeline
+
     # Enrich event with SAE state (if available)
     event = _enrich_event_with_state(user, event)
 

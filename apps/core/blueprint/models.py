@@ -239,6 +239,15 @@ class PersonalOperatingBlueprint(models.Model):
         help_text="Topics requiring sensitivity (e.g. ['medicine','relationships','faith'])",
     )
 
+    cos_learning_mode_active = models.BooleanField(
+        default=False,
+        help_text=(
+            "Independent Learning Mode toggle. When True, UAIO execution, "
+            "PIE, PRIE, and domain writes are suppressed. SAE reads and "
+            "governance evaluation remain active."
+        ),
+    )
+
     calibration_day = models.PositiveSmallIntegerField(
         default=0,
         help_text="Day counter for calibration mode (0-14)",
@@ -1124,3 +1133,127 @@ class EventReflection(models.Model):
             if timezone.now() > cutoff:
                 self.status = self.STATUS_EXPIRED
                 self.save(update_fields=['status', 'updated_at'])
+
+
+# =============================================================================
+# USER PRIORITY PROFILE (Phase 1 — CoS Foundational Restructure)
+# =============================================================================
+
+
+class UserPriorityProfile(models.Model):
+    """
+    Per-module declared priority with importance weighting.
+
+    This is an extension layer that complements (does NOT replace):
+    - PersonalOperatingBlueprint.pillars_ranked
+    - PersonalOperatingBlueprint.tier1_protected_behaviors
+    - NonNegotiable model
+
+    During Learning Mode onboarding, the user declares which modules and
+    sub-modules matter most. The PriorityConflictDetector compares these
+    declarations against actual 7-day behavior patterns.
+
+    Internal tier mapping:
+        1 = Non-Negotiable (weight 3.0)
+        2 = Important (weight 2.0)
+        3 = Flexible (weight 1.0)
+
+    User-facing language never uses "tier" labels.
+    """
+
+    PRIORITY_NON_NEGOTIABLE = 1
+    PRIORITY_IMPORTANT = 2
+    PRIORITY_FLEXIBLE = 3
+
+    PRIORITY_CHOICES = [
+        (PRIORITY_NON_NEGOTIABLE, 'Non-Negotiable'),
+        (PRIORITY_IMPORTANT, 'Important'),
+        (PRIORITY_FLEXIBLE, 'Flexible'),
+    ]
+
+    WEIGHT_MAP = {
+        PRIORITY_NON_NEGOTIABLE: 3.0,
+        PRIORITY_IMPORTANT: 2.0,
+        PRIORITY_FLEXIBLE: 1.0,
+    }
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='priority_profiles',
+    )
+
+    module_key = models.CharField(
+        max_length=30,
+        help_text="Top-level module (e.g. 'health', 'faith', 'purpose')",
+    )
+
+    sub_module_key = models.CharField(
+        max_length=60,
+        blank=True,
+        default='',
+        help_text=(
+            "Sub-module path (e.g. 'health.weight', 'health.cognitive.focus'). "
+            "Empty string = module-level priority."
+        ),
+    )
+
+    declared_priority_level = models.PositiveSmallIntegerField(
+        choices=PRIORITY_CHOICES,
+        default=PRIORITY_FLEXIBLE,
+        help_text="1=Non-Negotiable, 2=Important, 3=Flexible",
+    )
+
+    importance_weight = models.DecimalField(
+        max_digits=3,
+        decimal_places=1,
+        default=1.0,
+        help_text="Derived from priority level: 3.0 / 2.0 / 1.0",
+    )
+
+    declared_reason = models.TextField(
+        blank=True,
+        help_text="Why this matters to the user (from Learning Mode conversation)",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-importance_weight', 'module_key', 'sub_module_key']
+        unique_together = ['user', 'module_key', 'sub_module_key']
+        verbose_name = "User Priority Profile"
+        verbose_name_plural = "User Priority Profiles"
+
+    def __str__(self):
+        level = self.get_declared_priority_level_display()
+        sub = f".{self.sub_module_key}" if self.sub_module_key else ""
+        return f"{self.module_key}{sub} → {level} (w={self.importance_weight})"
+
+    def save(self, *args, **kwargs):
+        """Auto-set importance_weight from declared_priority_level."""
+        self.importance_weight = self.WEIGHT_MAP.get(
+            self.declared_priority_level, 1.0
+        )
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_user_priorities(cls, user, module_key=None):
+        """
+        Get all declared priorities for a user, optionally filtered by module.
+
+        Returns:
+            QuerySet of UserPriorityProfile instances.
+        """
+        qs = cls.objects.filter(user=user)
+        if module_key:
+            qs = qs.filter(module_key=module_key)
+        return qs
+
+    @classmethod
+    def get_non_negotiables(cls, user):
+        """Get all priorities declared as non-negotiable."""
+        return cls.objects.filter(
+            user=user,
+            declared_priority_level=cls.PRIORITY_NON_NEGOTIABLE,
+        )

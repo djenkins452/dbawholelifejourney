@@ -504,6 +504,19 @@ Examples of messages that should NOT trigger functions:
         Returns:
             ActionResult with success status and details
         """
+        # Defense-in-depth: Learning Mode gate (primary gate is in execution_engine)
+        try:
+            from apps.core.blueprint.learning_mode import is_learning_mode_active
+            if is_learning_mode_active(user):
+                return ActionResult(
+                    success=False,
+                    message="I'm in Learning Mode — just listening right now.",
+                    error='learning_mode_active',
+                    action_type=intent_result.intent_type,
+                )
+        except Exception:
+            pass
+
         from .action_handlers import ActionHandler
 
         handler = ActionHandler(user)

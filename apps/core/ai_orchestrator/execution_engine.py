@@ -25,9 +25,10 @@ def execute_action(user, enriched_action):
     This is the SINGLE execution authority. All AI-initiated actions
     flow through here. Post-execution, the intelligence chain fires:
 
-    1. Safety validation
-    2. Delegate to existing execute_intent
-    3. Intelligence chain (on success):
+    1. Learning Mode gate (blocks all execution)
+    2. Safety validation
+    3. Delegate to existing execute_intent
+    4. Intelligence chain (on success):
        a. State Awareness Engine (future — SAE placeholder)
        b. Proactive Insight Engine (PIE)
        c. Predictive Intelligence Engine (PRIE, triggered by PIE)
@@ -40,6 +41,27 @@ def execute_action(user, enriched_action):
         ActionResult from the existing intent service, or None on safety failure.
     """
     from apps.ai.intent_service import IntentResult, intent_service
+
+    # Step 0: Learning Mode gate — block all execution
+    try:
+        from apps.core.blueprint.learning_mode import is_learning_mode_active
+        if is_learning_mode_active(user):
+            from apps.ai.intent_service import ActionResult
+            logger.info(
+                "UAIO execution blocked (Learning Mode active): %s for user %s",
+                enriched_action.intent_type, user.id,
+            )
+            return ActionResult(
+                success=False,
+                message=(
+                    "I'm in Learning Mode right now — just listening and understanding. "
+                    "I'll be able to take actions once we finish."
+                ),
+                error='learning_mode_active',
+                action_type=enriched_action.intent_type,
+            )
+    except Exception as e:
+        logger.debug("Learning mode check skipped: %s", e)
 
     # Step 1: Safety check
     safety_result = validate_action(enriched_action)

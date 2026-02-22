@@ -32,6 +32,15 @@ def update_user_state(user, module, record_id=None):
         record_id: Optional record ID for context (currently unused,
                    reserved for future delta updates).
     """
+    # Learning Mode gate — block state writes (reads remain active)
+    try:
+        from apps.core.blueprint.learning_mode import is_learning_mode_active
+        if is_learning_mode_active(user):
+            logger.debug("SAE write blocked (Learning Mode active) for user %s", user.id)
+            return
+    except Exception:
+        pass  # Learning mode check must never break state pipeline
+
     # Resolve module to canonical name for state key
     canonical = _canonical_module(module)
 

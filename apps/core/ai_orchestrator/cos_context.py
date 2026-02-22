@@ -56,6 +56,7 @@ def build_cos_context(user):
         dict — Comprehensive CoS context.
     """
     context = {
+        '_user': user,  # Internal ref for priority injection in format_cos_system_injection
         'blueprint_state': {},
         'protected_tiers': [],
         'capacity_snapshot': {},
@@ -655,12 +656,19 @@ def format_cos_system_injection(context):
     This string is prepended to the LLM system prompt so the model
     always has full operational awareness.
 
+    During Learning Mode, delegates to format_learning_mode_injection()
+    for a lighter context profile.
+
     Args:
-        context: dict from build_cos_context()
+        context: dict from build_cos_context() or build_learning_mode_context()
 
     Returns:
         str — formatted system injection block.
     """
+    # Learning Mode: use reduced profile
+    if context.get('learning_mode'):
+        return format_learning_mode_injection(context)
+
     lines = []
     lines.append("=== SITUATIONAL AWARENESS ===")
     lines.append("")
@@ -852,6 +860,23 @@ def format_cos_system_injection(context):
         if tone_text:
             lines.append("")
             lines.append(f"EXECUTIVE TONE: {tone_text}")
+
+    # Phase 1: Declared user priorities (from UserPriorityProfile)
+    try:
+        from apps.core.blueprint.models import UserPriorityProfile
+        priorities = UserPriorityProfile.objects.filter(
+            user=context.get('_user'),
+        ) if context.get('_user') else None
+        if priorities and priorities.exists():
+            lines.append("")
+            lines.append("Declared Priorities:")
+            for p in priorities[:10]:
+                sub = f".{p.sub_module_key}" if p.sub_module_key else ""
+                level = p.get_declared_priority_level_display()
+                reason = f" — {p.declared_reason[:100]}" if p.declared_reason else ""
+                lines.append(f"  {p.module_key}{sub}: {level}{reason}")
+    except Exception:
+        pass
 
     # NOTE: learned_profile_prompt is intentionally NOT rendered here.
     # It is injected as a separate priority layer in personal_assistant.py
@@ -1089,3 +1114,263 @@ def _get_current_intervention_level(context):
     if drift >= 15:
         return 1  # nudge
     return 0  # silent
+
+
+# =========================================================================
+# PHASE 1 — LEARNING MODE CONTEXT (Reduced Profile)
+# =========================================================================
+
+
+def build_learning_mode_context(user):
+    """
+    Build a reduced context profile for Learning Mode.
+
+    Includes only what CoS needs to ask informed questions:
+    - Module permissions (what's enabled)
+    - Blueprint state (pillars, tier1 list, style)
+    - Governance profile (accountability, sensitivity)
+    - Persona profile (coaching style)
+    - Schedule awareness (today's load, calendar, medication, fasting)
+    - Health/transformation metrics (for informed questioning)
+
+    Excludes (to prevent prompt bloat and tone drift):
+    - Executive context object
+    - PIE insights / PRIE predictions
+    - UAL narrative blocks / governance strategy prompt
+    - Learned profile prompt (avoids circular injection during learning)
+    - Weekly pressure / feedback profiles / relationship signals
+    - Open loops / risk warnings
+
+    Args:
+        user: Django User instance.
+
+    Returns:
+        dict — Reduced context for Learning Mode.
+    """
+    context = {
+        'learning_mode': True,
+        'module_permissions': {},
+        'blueprint_state': {},
+        'protected_tiers': [],
+        'governance_profile': {},
+        'persona_profile': {},
+        'capacity_snapshot': {},
+        'medication_adherence_state': {},
+        'active_fast_status': {},
+        'calendar_events_today': [],
+        'transformation_metrics': {},
+        'health_signals': {},
+        'user_priorities': [],
+    }
+
+    try:
+        prefs = user.preferences
+        context['module_permissions'] = {
+            'health': prefs.health_enabled,
+            'journal': prefs.journal_enabled,
+            'faith': prefs.faith_enabled,
+            'life': prefs.life_enabled,
+            'purpose': prefs.purpose_enabled,
+            'finance': prefs.finances_enabled,
+            'capture': prefs.capture_enabled,
+            'ai': prefs.ai_enabled,
+        }
+    except Exception:
+        pass
+
+    # Blueprint state
+    try:
+        from apps.core.blueprint import engine as blueprint_engine
+        blueprint = blueprint_engine.get_blueprint(user)
+        explanation = blueprint_engine.explain_blueprint(user)
+        context['blueprint_state'] = {
+            'operating_style': getattr(blueprint, 'operating_style', 'balanced'),
+            'pillars_ranked': explanation.get('pillars_ranked', []),
+            'tier1_protected': explanation.get('tier1_protected', []),
+        }
+        context['protected_tiers'] = explanation.get('tier1_protected', [])
+    except Exception:
+        pass
+
+    # Governance profile
+    try:
+        from apps.core.blueprint import engine as bp_engine
+        bp = bp_engine.get_blueprint(user)
+        context['governance_profile'] = {
+            'accountability_style': getattr(bp, 'accountability_style', 'standard'),
+            'question_frequency': getattr(bp, 'question_frequency', 'medium'),
+            'sensitivity_tags': getattr(bp, 'sensitivity_tags', []) or [],
+        }
+    except Exception:
+        pass
+
+    # Persona
+    try:
+        from apps.core.ai_persona.persona_registry import get_persona_profile
+        prefs = user.preferences
+        persona_key = getattr(prefs, 'ai_coaching_style', 'supportive')
+        profile = get_persona_profile(persona_key)
+        context['persona_profile'] = {
+            'key': persona_key,
+            'name': profile.get('name', persona_key),
+            'tone': profile.get('tone', 'calm'),
+        }
+    except Exception:
+        pass
+
+    # Schedule awareness (light — just today's load)
+    try:
+        from apps.core.blueprint import architecture_engine
+        plan = architecture_engine.get_todays_plan(user)
+        if plan:
+            blocks = list(plan.blocks.all().order_by('start_time'))
+            context['capacity_snapshot'] = {
+                'total_blocks': len(blocks),
+                'completed_blocks': sum(1 for b in blocks if b.is_completed),
+            }
+    except Exception:
+        pass
+
+    # Calendar events
+    try:
+        from apps.calendar_engine.models import CalendarEvent
+        from apps.core.utils import get_user_now
+        user_now = get_user_now(user)
+        today_start = user_now.replace(hour=0, minute=0, second=0, microsecond=0)
+        today_end = user_now.replace(hour=23, minute=59, second=59, microsecond=0)
+        events = CalendarEvent.objects.filter(
+            user=user, start_dt__lte=today_end, end_dt__gte=today_start,
+            status='scheduled',
+        ).order_by('start_dt')[:8]
+        context['calendar_events_today'] = [
+            {'title': ev.title, 'start': ev.start_dt.strftime('%I:%M %p').lstrip('0')}
+            for ev in events
+        ]
+    except Exception:
+        pass
+
+    # Medication + fasting (actionable awareness)
+    try:
+        from apps.health.models import MedicineSchedule
+        today = timezone.localdate()
+        schedules = MedicineSchedule.objects.filter(user=user, is_active=True)
+        total = schedules.count()
+        if total > 0:
+            taken = sum(
+                1 for s in schedules
+                if hasattr(s, 'logs') and s.logs.filter(taken_at__date=today).exists()
+            )
+            context['medication_adherence_state'] = {
+                'total_scheduled': total, 'taken_today': taken,
+            }
+    except Exception:
+        pass
+
+    try:
+        from apps.health.models import FastingSession
+        active_fast = FastingSession.objects.filter(user=user, is_active=True).first()
+        if active_fast:
+            context['active_fast_status'] = {'active': True}
+    except Exception:
+        pass
+
+    # Transformation metrics (so CoS can reference user's data)
+    try:
+        from apps.core.ai_state.state_engine import get_state_value
+        context['transformation_metrics'] = {
+            'weight_current': get_state_value(user, 'health.weight_current'),
+            'weight_trend': get_state_value(user, 'health.weight_trend'),
+            'active_goals': get_state_value(user, 'goals.active_goal_count', 0),
+        }
+    except Exception:
+        pass
+
+    # User declared priorities (from UserPriorityProfile)
+    try:
+        from apps.core.blueprint.models import UserPriorityProfile
+        priorities = UserPriorityProfile.objects.filter(user=user)
+        context['user_priorities'] = [
+            {
+                'module': p.module_key,
+                'sub_module': p.sub_module_key,
+                'level': p.get_declared_priority_level_display(),
+                'weight': float(p.importance_weight),
+                'reason': p.declared_reason[:200] if p.declared_reason else '',
+            }
+            for p in priorities
+        ]
+    except Exception:
+        pass
+
+    return context
+
+
+def format_learning_mode_injection(context):
+    """
+    Format the reduced Learning Mode context as a system prompt injection.
+
+    This is a lighter version of format_cos_system_injection() that excludes
+    executive briefing, insights, predictions, and UAL narrative blocks.
+
+    Args:
+        context: dict from build_learning_mode_context()
+
+    Returns:
+        str — formatted system injection block.
+    """
+    lines = []
+    lines.append("=== LEARNING MODE AWARENESS ===")
+    lines.append("")
+
+    # What the user has enabled
+    mods = context.get('module_permissions', {})
+    enabled = [k for k, v in mods.items() if v]
+    disabled = [k for k, v in mods.items() if not v]
+    if enabled:
+        lines.append(f"Enabled Modules: {', '.join(enabled)}")
+    if disabled:
+        lines.append(f"Disabled Modules (do not reference): {', '.join(disabled)}")
+
+    # Non-negotiables
+    protected = context.get('protected_tiers', [])
+    if protected:
+        lines.append(f"Non-Negotiable Commitments: {', '.join(protected)}")
+
+    bp = context.get('blueprint_state', {})
+    pillars = bp.get('pillars_ranked', [])
+    if pillars:
+        lines.append(f"Life Priorities (ranked): {', '.join(pillars)}")
+
+    # Declared priorities (from UserPriorityProfile)
+    priorities = context.get('user_priorities', [])
+    if priorities:
+        lines.append("")
+        lines.append("Declared Priorities:")
+        for p in priorities:
+            sub = f".{p['sub_module']}" if p['sub_module'] else ""
+            reason = f" — {p['reason']}" if p['reason'] else ""
+            lines.append(f"  {p['module']}{sub}: {p['level']} (w={p['weight']}){reason}")
+
+    # Medication (still important to know during learning)
+    med = context.get('medication_adherence_state', {})
+    if med.get('total_scheduled', 0) > 0:
+        lines.append(
+            f"Medication: {med.get('taken_today', 0)}/{med.get('total_scheduled', 0)} taken today"
+        )
+
+    # Active fast
+    if context.get('active_fast_status', {}).get('active'):
+        lines.append("Active Fast: In progress")
+
+    # Calendar
+    cal = context.get('calendar_events_today', [])
+    if cal:
+        lines.append("")
+        lines.append("Today's Calendar:")
+        for ev in cal[:6]:
+            lines.append(f"  {ev['start']} {ev['title']}")
+
+    lines.append("")
+    lines.append("=== END LEARNING MODE AWARENESS ===")
+
+    return '\n'.join(lines)

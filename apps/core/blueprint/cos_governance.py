@@ -453,16 +453,19 @@ def record_governance_interaction(user, question_category, user_response):
     blueprint.governance_overrides = overrides
     blueprint.save(update_fields=['governance_overrides', 'updated_at'])
 
-    # Also store in SLCME if answered
+    # Also store in SLCME if answered (preference_only during Learning Mode)
     if user_response == 'answered':
         try:
-            from apps.core.ai_memory.memory_engine import store_learned_mapping
+            from apps.core.ai_memory.learning_engine import store_learned_mapping
+            from apps.core.blueprint.learning_mode import is_learning_mode_active
+            lc = 'preference_only' if is_learning_mode_active(user) else None
             store_learned_mapping(
                 user=user,
                 phrase=f"governance_{question_category}",
                 meaning_type='governance_preference',
                 meaning_identifier=question_category,
                 confidence=0.8,
+                learning_context=lc,
             )
         except Exception as e:
             logger.debug("SLCME store skipped for governance: %s", e)
@@ -749,16 +752,19 @@ def record_calibration_answer(user, question_key, answer_text):
         (q for q in CALIBRATION_QUESTIONS if q['key'] == question_key), None
     )
 
-    # Store in SLCME for long-term learning
+    # Store in SLCME for long-term learning (preference_only during Learning Mode)
     if q_def:
         try:
-            from apps.core.ai_memory.memory_engine import store_learned_mapping
+            from apps.core.ai_memory.learning_engine import store_learned_mapping
+            from apps.core.blueprint.learning_mode import is_learning_mode_active
+            lc = 'preference_only' if is_learning_mode_active(user) else None
             store_learned_mapping(
                 user=user,
                 phrase=f"calibration_{question_key}",
                 meaning_type=q_def.get('meaning_type', 'calibration_response'),
                 meaning_identifier=question_key,
                 confidence=0.9,
+                learning_context=lc,
             )
         except Exception as e:
             logger.debug("SLCME store skipped for calibration: %s", e)
@@ -1756,6 +1762,8 @@ def build_governance_instructions(user):
     Returns a compact instruction block that tells the LLM how to
     modulate its behavior based on the user's governance profile.
 
+    Includes priority conflict signals (Phase 1) when not in Learning Mode.
+
     Returns:
         str — governance instructions for system prompt.
     """
@@ -1839,6 +1847,32 @@ def build_governance_instructions(user):
     # Standard "why" response
     lines.append("If the user asks 'why are you asking' about ANY question, "
                  f'respond: "{WHY_RESPONSE}"')
+
+    # Phase 1: Priority conflict signals (only when NOT in Learning Mode)
+    try:
+        from apps.core.blueprint.learning_mode import is_learning_mode_active
+        if not is_learning_mode_active(user):
+            from apps.core.blueprint.priority_conflict_detector import (
+                get_conflict_prompt_injection,
+            )
+            conflict_block = get_conflict_prompt_injection(user)
+            if conflict_block:
+                lines.append("")
+                lines.append(conflict_block)
+    except Exception:
+        pass
+
+    # Phase 1: System gap awareness — proactive transparency about limitations
+    try:
+        from apps.core.blueprint.system_gap_awareness import (
+            get_gap_awareness_injection,
+        )
+        gap_block = get_gap_awareness_injection(user)
+        if gap_block:
+            lines.append("")
+            lines.append(gap_block)
+    except Exception:
+        pass
 
     lines.append("--- END GOVERNANCE ---")
 

@@ -19,7 +19,35 @@ CONFIDENCE_INCREMENT = 0.05
 MAX_CONFIDENCE = 1.0
 
 
-def store_learned_mapping(user, phrase, meaning_type, meaning_identifier):
+# Meaning types allowed during Learning Mode (preference_only context).
+# These are value/priority declarations — not execution-relevant mappings.
+PREFERENCE_ONLY_ALLOWED_TYPES = frozenset({
+    'sacred_activity',
+    'core_people',
+    'stated_value',
+    'module_priority',
+    'accountability_preference',
+    'communication_frequency',
+    'peak_productivity',
+    'leisure_preference',
+    'personal_time_preference',
+    'negotiable_activity',
+    'checkin_time_preference',
+    'reconnection_target',
+    'identity_statement',
+    'motivational_trigger',
+    'avoidance_pattern',
+    'recurring_goal',
+    'governance_preference',
+    'calibration_response',
+    'relationship_checkin',
+})
+
+
+def store_learned_mapping(
+    user, phrase, meaning_type, meaning_identifier,
+    confidence=None, learning_context=None,
+):
     """
     Store or update a learned phrase→meaning mapping.
 
@@ -29,33 +57,55 @@ def store_learned_mapping(user, phrase, meaning_type, meaning_identifier):
     - Update last_used_at
     - Update meaning if different (reset confidence slightly)
 
+    During Learning Mode (learning_context='preference_only'):
+    - Only preference-based meaning types are stored at full confidence
+    - Execution-relevant mappings are stored inactive with confidence=0.0
+      (preserved for Phase 2 review, never auto-resolved into actions)
+
     Args:
         user: Django user instance.
         phrase: The user's phrase (e.g., "the scripture").
         meaning_type: Category (e.g., "scripture", "goal").
         meaning_identifier: Specific ID (e.g., "John 3:16", "goal:42").
+        confidence: Optional override for initial confidence.
+        learning_context: Optional context flag. 'preference_only' constrains
+            which meaning types are stored actively.
 
     Returns:
         LearnedMapping instance (created or updated).
     """
     now = get_current_time()
 
+    # Learning Mode constraint: execution-relevant mappings stored inactive
+    store_inactive = False
+    if learning_context == 'preference_only':
+        if meaning_type not in PREFERENCE_ONLY_ALLOWED_TYPES:
+            store_inactive = True
+
+    # Determine initial confidence
+    initial_conf = confidence if confidence is not None else INITIAL_CONFIDENCE
+    if store_inactive:
+        initial_conf = 0.0
+
     mapping, created = LearnedMapping.objects.get_or_create(
         user=user,
         phrase__iexact=phrase.strip(),
-        is_active=True,
+        is_active=not store_inactive,
         defaults={
             "phrase": phrase.strip(),
             "meaning_type": meaning_type,
             "meaning_identifier": meaning_identifier,
-            "confidence_score": INITIAL_CONFIDENCE,
+            "confidence_score": initial_conf,
             "usage_count": 1,
             "last_used_at": now,
         },
     )
 
     if not created:
-        # Same meaning — reinforce
+        # Same meaning — reinforce (but not if being stored inactive)
+        if store_inactive:
+            return mapping
+
         if (
             mapping.meaning_type == meaning_type
             and mapping.meaning_identifier == meaning_identifier
@@ -68,7 +118,7 @@ def store_learned_mapping(user, phrase, meaning_type, meaning_identifier):
             # Different meaning — user corrected. Update but lower confidence.
             mapping.meaning_type = meaning_type
             mapping.meaning_identifier = meaning_identifier
-            mapping.confidence_score = INITIAL_CONFIDENCE
+            mapping.confidence_score = initial_conf or INITIAL_CONFIDENCE
             mapping.usage_count = 1
 
         mapping.last_used_at = now

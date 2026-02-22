@@ -9,6 +9,48 @@
 
 # WLJ Change History
 
+## 2026-02-22 — CoS Foundational Restructure Phase 1 (Learning Mode, Priority Weighting, Conflict Detection)
+
+**Changes:**
+- **Learning Mode:** New system-wide state (`cos_learning_mode_active` on PersonalOperatingBlueprint) that suppresses UAIO execution, PIE insights, PRIE predictions, SAE writes, and action audit entries while preserving SAE reads, conversation memory, governance evaluation, and safety/guardrails. Toggle UI on CoS Settings page with enter/exit/confirm flow.
+- **Priority Weighting:** New `UserPriorityProfile` model with 3-tier system (Non-Negotiable=3.0, Important=2.0, Flexible=1.0). Hierarchical drill-down onboarding questions for Learning Mode (health → physical/cognitive → sub-areas).
+- **Priority Conflict Detection:** `PriorityConflictDetector` service compares declared priorities vs 7-day behavior. Tier 1 gaps → accountability tone, Tier 2/3 → curious reflection. Health sub-module awareness (weight, activity, sleep, meds, nutrition, fasting). Injected into CoS governance prompt.
+- **SLCME Preference-Only Constraint:** During Learning Mode, only preference/value meaning types stored actively. Execution-relevant mappings stored inactive (confidence=0.0, is_active=False) for Phase 2 review.
+- **Lighter Learning Context:** Reduced system prompt injection during Learning Mode — includes blueprint, governance, persona, capacity snapshot but excludes active insights, predictions, executive block, weekly pressure.
+- **System Gap Awareness:** Surfaces known ImprovementTaskModel gaps in CoS prompt so AI acknowledges limitations transparently instead of guessing.
+- **Partial Task Progress:** `progress_percentage` (0-100) and `progress_state` (JSON) fields on Task model. Range slider on task edit form. >0% counts as "worked on" for conflict detection.
+- **Exit Confirmation Flow:** Uses governance_overrides JSON for learning_mode_exit_pending, summary, and timestamp. CoS confirms what was learned before execution resumes.
+
+**Files added:**
+- `apps/core/blueprint/learning_mode.py` — Central Learning Mode state management
+- `apps/core/blueprint/priority_conflict_detector.py` — Priority vs behavior conflict detection
+- `apps/core/blueprint/priority_questions.py` — Hierarchical priority onboarding tree
+- `apps/core/blueprint/system_gap_awareness.py` — System limitation transparency
+- `apps/core/migrations/0087_cos_phase1_learning_mode.py`
+- `apps/life/migrations/0013_cos_phase1_task_progress.py`
+
+**Files modified:**
+- `apps/core/blueprint/models.py` — cos_learning_mode_active field + UserPriorityProfile model
+- `apps/core/blueprint/cos_governance.py` — Conflict + gap injection, SLCME learning_context flag
+- `apps/core/ai_orchestrator/cos_context.py` — Learning mode context injection, priority profile
+- `apps/core/ai_orchestrator/execution_engine.py` — UAIO learning mode gate
+- `apps/core/ai_orchestrator/audit_logger.py` — Surgical audit suppression
+- `apps/core/ai_insights/insight_engine.py` — PIE suppression gate
+- `apps/core/ai_predictions/prediction_engine.py` — PRIE suppression gate
+- `apps/core/ai_state/state_updater.py` — SAE write suppression gate
+- `apps/core/ai_memory/learning_engine.py` — preference_only constraint
+- `apps/ai/intent_service.py` — Defense-in-depth execution gate
+- `apps/ai/views.py` — LearningModeToggleView + CosSettingsView learning mode context
+- `apps/ai/urls.py` — Learning mode toggle URL
+- `apps/life/models.py` — Task progress fields
+- `apps/life/views.py` — TaskUpdateView progress_percentage
+- `templates/ai/cos_settings.html` — Learning Mode toggle UI
+- `templates/life/task_form.html` — Progress slider on edit
+
+**Why:** Phase 1 of CoS Foundational Restructure — strengthens the human alignment layer with structured listening, priority declaration, behavioral accountability, and system transparency before Phase 2 adds deeper intelligence.
+
+---
+
 ## 2026-02-22 — Owner Financial Command Center (Phases 3-5: Ultimate UI, Simulator, Guardrails)
 
 **Changes:**

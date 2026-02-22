@@ -1102,6 +1102,22 @@ class CosSettingsView(LoginRequiredMixin, TemplateView):
         context['prefs'] = prefs
         context['pa_enabled'] = getattr(prefs, 'personal_assistant_enabled', False)
         context['cos_display_name_raw'] = getattr(prefs, 'cos_display_name', '')
+
+        # Learning Mode state for toggle UI
+        try:
+            from apps.core.blueprint.learning_mode import (
+                is_learning_mode_active,
+                is_exit_pending,
+                get_exit_summary,
+            )
+            context['learning_mode_active'] = is_learning_mode_active(user)
+            context['learning_mode_exit_pending'] = is_exit_pending(user)
+            context['learning_mode_exit_summary'] = get_exit_summary(user)
+        except Exception:
+            context['learning_mode_active'] = False
+            context['learning_mode_exit_pending'] = False
+            context['learning_mode_exit_summary'] = ''
+
         return context
 
 
@@ -1192,5 +1208,77 @@ class EventReflectionView(LoginRequiredMixin, View):
             from apps.core.blueprint.reflection_engine import process_reflection_answer
             result = process_reflection_answer(user, reflection_id, answer_text)
             return JsonResponse(result)
+
+        return JsonResponse({'error': 'Unknown action'}, status=400)
+
+
+class LearningModeToggleView(LoginRequiredMixin, View):
+    """
+    Toggle Learning Mode on/off.
+
+    POST: { action: 'enter' | 'exit' | 'confirm_exit' | 'cancel_exit' }
+
+    Phase 1 — CoS Foundational Restructure:
+    - 'enter': Activates Learning Mode, blocks UAIO/PIE/PRIE
+    - 'exit': Requests exit (pending confirmation), CoS generates summary
+    - 'confirm_exit': User confirms summary, execution resumes
+    - 'cancel_exit': User rejects summary, stays in Learning Mode
+    """
+
+    def post(self, request, *args, **kwargs):
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        user = request.user
+        action = data.get('action', '')
+
+        from apps.core.blueprint.learning_mode import (
+            enter_learning_mode,
+            request_exit_learning_mode,
+            confirm_exit_learning_mode,
+            cancel_exit_learning_mode,
+            is_learning_mode_active,
+            is_exit_pending,
+            get_exit_summary,
+        )
+
+        if action == 'enter':
+            success = enter_learning_mode(user)
+            # Optionally start priority onboarding
+            if success:
+                try:
+                    from apps.core.blueprint.priority_questions import start_priority_onboarding
+                    start_priority_onboarding(user)
+                except Exception:
+                    pass
+            return JsonResponse({
+                'success': success,
+                'learning_mode_active': is_learning_mode_active(user),
+            })
+
+        elif action == 'exit':
+            summary = data.get('summary', '')
+            success = request_exit_learning_mode(user, summary)
+            return JsonResponse({
+                'success': success,
+                'exit_pending': is_exit_pending(user),
+                'summary': get_exit_summary(user),
+            })
+
+        elif action == 'confirm_exit':
+            success = confirm_exit_learning_mode(user)
+            return JsonResponse({
+                'success': success,
+                'learning_mode_active': is_learning_mode_active(user),
+            })
+
+        elif action == 'cancel_exit':
+            success = cancel_exit_learning_mode(user)
+            return JsonResponse({
+                'success': success,
+                'learning_mode_active': is_learning_mode_active(user),
+            })
 
         return JsonResponse({'error': 'Unknown action'}, status=400)

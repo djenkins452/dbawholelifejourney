@@ -139,6 +139,21 @@
                 </div>
             </div>
 
+            {% if object %}
+            <div class="form-section">
+                <div class="form-group">
+                    <label for="id_progress_percentage" class="form-label">Progress</label>
+                    <div class="progress-input-row">
+                        <input type="range" name="progress_percentage" id="id_progress_percentage"
+                               class="progress-slider" min="0" max="100" step="5"
+                               value="{{ form.progress_percentage.value|default:'0' }}">
+                        <span class="progress-value" id="progress-value-display">{{ form.progress_percentage.value|default:'0' }}%</span>
+                    </div>
+                    <p class="form-help">Track how far along you are. Any progress counts toward your priorities.</p>
+                </div>
+            </div>
+            {% endif %}
+
             <div class="form-actions">
                 <button type="submit" class="btn btn-primary">
                     {% if object %}Save Changes{% else %}Create Task{% endif %}
@@ -182,6 +197,15 @@ function toggleTaskType() {
 document.getElementById('id_is_recurring').addEventListener('change', toggleTaskType);
 // Run on page load to set initial state
 document.addEventListener('DOMContentLoaded', toggleTaskType);
+
+// Progress slider
+var progressSlider = document.getElementById('id_progress_percentage');
+var progressDisplay = document.getElementById('progress-value-display');
+if (progressSlider && progressDisplay) {
+    progressSlider.addEventListener('input', function() {
+        progressDisplay.textContent = this.value + '%';
+    });
+}
 </script>
 
 <style nonce="{{ csp_nonce }}">
@@ -284,6 +308,49 @@ document.addEventListener('DOMContentLoaded', toggleTaskType);
 
 .text-error {
     color: var(--color-error);
+}
+
+.progress-input-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.progress-slider {
+    flex: 1;
+    height: 6px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--color-border);
+    border-radius: 3px;
+    outline: none;
+}
+
+.progress-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--color-accent);
+    cursor: pointer;
+}
+
+.progress-slider::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--color-accent);
+    cursor: pointer;
+    border: none;
+}
+
+.progress-value {
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    min-width: 3rem;
+    text-align: right;
+    color: var(--color-text);
 }
 </style>
 {% endblock %}

@@ -1,6 +1,22 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 90,
+        "fields": {
+            "title": "Learning Mode & Priority System",
+            "description": "Your Chief of Staff can now enter Learning Mode — a dedicated listening state where it learns your priorities, values, and preferences without taking any actions. A new priority weighting system lets you declare what matters most (non-negotiable, important, or flexible), and the CoS will gently hold you accountable when your behavior drifts from your declared priorities. You can also track partial progress on tasks with a progress slider.",
+            "entry_type": "new_feature",
+            "version": "",
+            "release_date": "2026-02-22",
+            "is_published": true,
+            "is_major": true,
+            "learn_more_url": "",
+            "created_at": "2026-02-22T19:30:00Z",
+            "updated_at": "2026-02-22T19:30:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 89,
         "fields": {
             "title": "Financial Command Center — Full Suite",

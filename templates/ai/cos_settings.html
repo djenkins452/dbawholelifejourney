@@ -26,6 +26,58 @@
     {% endif %}
 
     {% if blueprint %}
+
+    {# --- Learning Mode Toggle (Phase 1) --- #}
+    <div class="cos-setting-group cos-learning-mode-section">
+        <label class="cos-setting-label">Learning Mode</label>
+        <p class="cos-setting-help">
+            When active, your {{ cos_display_name|default:"Chief of Staff" }} listens and learns without taking any actions.
+            Use this to teach preferences, priorities, and values before execution begins.
+        </p>
+
+        <div class="cos-learning-toggle-container" id="learning-mode-container">
+            {% if learning_mode_exit_pending %}
+            {# Exit pending — show summary + confirm/cancel #}
+            <div class="cos-learning-status cos-learning-status-pending">
+                <div class="cos-learning-status-header">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    <span>Exit pending — confirm what was learned</span>
+                </div>
+                {% if learning_mode_exit_summary %}
+                <div class="cos-learning-summary">{{ learning_mode_exit_summary }}</div>
+                {% endif %}
+                <div class="cos-learning-actions">
+                    <button type="button" class="cos-btn cos-btn-primary" data-learning-action="confirm_exit">Confirm & Resume</button>
+                    <button type="button" class="cos-btn cos-btn-ghost" data-learning-action="cancel_exit">Stay in Learning Mode</button>
+                </div>
+            </div>
+            {% elif learning_mode_active %}
+            {# Active — show status + exit button #}
+            <div class="cos-learning-status cos-learning-status-active">
+                <div class="cos-learning-status-header">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                    <span>Learning Mode is active</span>
+                </div>
+                <p class="cos-learning-detail">Actions, insights, and predictions are paused. Your {{ cos_display_name|default:"CoS" }} is listening and storing preferences only.</p>
+                <div class="cos-learning-actions">
+                    <button type="button" class="cos-btn cos-btn-secondary" data-learning-action="exit">Exit Learning Mode</button>
+                </div>
+            </div>
+            {% else %}
+            {# Inactive — show enter button #}
+            <div class="cos-learning-status cos-learning-status-inactive">
+                <div class="cos-learning-status-header">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    <span>Normal mode — actions enabled</span>
+                </div>
+                <div class="cos-learning-actions">
+                    <button type="button" class="cos-btn cos-btn-outline" data-learning-action="enter">Enter Learning Mode</button>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
     <form method="post" action="{% url 'ai:cos_settings_save' %}">
         {% csrf_token %}
 
@@ -311,6 +363,87 @@
     flex-shrink: 0;
 }
 
+/* Learning Mode styles */
+.cos-learning-mode-section {
+    background: var(--surface, #f9fafb);
+    border-radius: 10px;
+    padding: 1.25rem;
+    border: 1px solid var(--border, #e5e7eb);
+}
+.cos-learning-status {
+    border-radius: 8px;
+    padding: 1rem;
+}
+.cos-learning-status-active {
+    background: rgba(79, 70, 229, 0.06);
+    border: 1px solid rgba(79, 70, 229, 0.2);
+}
+.cos-learning-status-pending {
+    background: rgba(245, 158, 11, 0.06);
+    border: 1px solid rgba(245, 158, 11, 0.2);
+}
+.cos-learning-status-inactive {
+    background: transparent;
+    border: 1px solid var(--border, #e5e7eb);
+}
+.cos-learning-status-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+}
+.cos-learning-detail {
+    font-size: 0.85rem;
+    color: var(--text-secondary, #6b7280);
+    margin: 0.25rem 0 0.75rem 0;
+}
+.cos-learning-summary {
+    font-size: 0.85rem;
+    color: var(--text-primary, #111);
+    background: var(--surface, #fff);
+    padding: 0.75rem;
+    border-radius: 6px;
+    margin: 0.5rem 0 0.75rem 0;
+    border: 1px solid var(--border, #e5e7eb);
+    white-space: pre-line;
+}
+.cos-learning-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+.cos-btn {
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: opacity 0.2s;
+}
+.cos-btn:hover { opacity: 0.85; }
+.cos-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.cos-btn-primary {
+    background: var(--primary, #4f46e5);
+    color: white;
+}
+.cos-btn-secondary {
+    background: var(--text-secondary, #6b7280);
+    color: white;
+}
+.cos-btn-outline {
+    background: transparent;
+    color: var(--primary, #4f46e5);
+    border: 1.5px solid var(--primary, #4f46e5);
+}
+.cos-btn-ghost {
+    background: transparent;
+    color: var(--text-secondary, #6b7280);
+    border: 1px solid var(--border, #e5e7eb);
+}
+
 @media (max-width: 480px) {
     .cos-radio-group {
         flex-direction: column;
@@ -318,6 +451,54 @@
     .cos-radio-option {
         min-width: auto;
     }
+    .cos-learning-actions {
+        flex-direction: column;
+    }
+    .cos-btn {
+        width: 100%;
+        text-align: center;
+    }
 }
 </style>
+
+<script nonce="{{ csp_nonce }}">
+(function() {
+    const container = document.getElementById('learning-mode-container');
+    if (!container) return;
+
+    container.addEventListener('click', function(e) {
+        const btn = e.target.closest('[data-learning-action]');
+        if (!btn) return;
+
+        const action = btn.getAttribute('data-learning-action');
+        btn.disabled = true;
+        btn.textContent = 'Working...';
+
+        fetch('{% url "ai:cos_learning_mode_toggle" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}',
+            },
+            body: JSON.stringify({ action: action }),
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                window.location.reload();
+            } else {
+                btn.disabled = false;
+                btn.textContent = 'Error — try again';
+                setTimeout(function() { window.location.reload(); }, 1500);
+            }
+        })
+        .catch(function() {
+            btn.disabled = false;
+            btn.textContent = 'Error — try again';
+            setTimeout(function() { window.location.reload(); }, 1500);
+        });
+    });
+})();
+</script>
+
 {% endblock %}

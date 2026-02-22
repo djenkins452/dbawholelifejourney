@@ -212,6 +212,17 @@ class Task(UserOwnedModel):
     is_completed = models.BooleanField(default=False)
     completed_at = models.DateTimeField(null=True, blank=True)
 
+    # Partial progress (Phase 1 — CoS Foundational Restructure)
+    progress_percentage = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="0-100 progress percentage. >0 counts as 'worked on' for conflict detection.",
+    )
+    progress_state = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Flexible progress state (e.g. steps completed, notes on progress)",
+    )
+
     # Recurrence
     is_recurring = models.BooleanField(default=False)
     recurrence_pattern = models.CharField(

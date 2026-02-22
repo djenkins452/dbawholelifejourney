@@ -9,6 +9,23 @@
 
 # WLJ Change History
 
+## 2026-02-22 — EARLY_EROSION Tightening: Deferral Prohibition + Corrective Minimum
+
+**Changes:**
+- Added FORBIDDEN DEFERRAL LANGUAGE block to EARLY_EROSION_FRAMEWORK — prohibits "tomorrow", "next week", "Monday", "later", "make up", "catch up", "start fresh" in CoS responses
+- Added mandatory corrective minimum requirement: "Corrective minimum: [duration/scope] today. [Format note.]" — must be immediate, not deferred
+- Updated sentence limit from "under 4 sentences" to "3–5 sentences"
+- Added 5 new tests: deferral prohibition, corrective minimum requirement, sentence limit, STRUCTURAL_DRIFT isolation, CLEAN isolation
+- All 44 CoS tests pass, 365 AI tests pass
+
+**Files modified:**
+- `apps/core/ai_orchestrator/cos_context.py` — EARLY_EROSION_FRAMEWORK updated with deferral block + corrective minimum structure
+- `apps/core/tests/test_phase4_cos.py` — 5 new tests in TieredActivationTest
+
+**Why:** EARLY_EROSION was observational-only, which allowed the user to defer action ("I'll do it tomorrow/next week"). Tightening ensures every erosion-detected response includes an immediate corrective minimum — no deferral authorized.
+
+---
+
 ## 2026-02-22 — Phase 3 Tiered Activation: CLEAN / EARLY_EROSION / STRUCTURAL_DRIFT
 
 **Changes:**

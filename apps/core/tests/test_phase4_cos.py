@@ -531,6 +531,61 @@ class TieredActivationTest(TestCase):
         self.assertIn("Do NOT produce 72-hour projections", output)
         self.assertIn("Do NOT produce 30-day identity projections", output)
 
+    def test_early_erosion_forbids_deferral(self):
+        """EARLY_EROSION framework contains FORBIDDEN DEFERRAL LANGUAGE block."""
+        from apps.core.ai_orchestrator.cos_context import (
+            format_cos_system_injection, ACTIVATION_EARLY_EROSION,
+        )
+        ctx = self._make_normal_context(activation_state=ACTIVATION_EARLY_EROSION)
+        output = format_cos_system_injection(ctx)
+        self.assertIn("FORBIDDEN DEFERRAL LANGUAGE", output)
+        # Must list specific forbidden words
+        output_lower = output.lower()
+        for word in ('tomorrow', 'next week', 'monday', 'later', 'make up', 'catch up', 'start fresh'):
+            self.assertIn(word, output_lower,
+                          f"Forbidden deferral word '{word}' not found in framework")
+
+    def test_early_erosion_requires_corrective_minimum(self):
+        """EARLY_EROSION framework mandates a corrective minimum line."""
+        from apps.core.ai_orchestrator.cos_context import (
+            format_cos_system_injection, ACTIVATION_EARLY_EROSION,
+        )
+        ctx = self._make_normal_context(activation_state=ACTIVATION_EARLY_EROSION)
+        output = format_cos_system_injection(ctx)
+        self.assertIn("Corrective minimum", output)
+        # Must specify "today" in the corrective minimum instruction
+        self.assertIn("today", output.lower())
+
+    def test_early_erosion_sentence_limit(self):
+        """EARLY_EROSION framework specifies 3-5 sentence limit."""
+        from apps.core.ai_orchestrator.cos_context import (
+            format_cos_system_injection, ACTIVATION_EARLY_EROSION,
+        )
+        ctx = self._make_normal_context(activation_state=ACTIVATION_EARLY_EROSION)
+        output = format_cos_system_injection(ctx)
+        self.assertIn("3–5 sentences", output)
+
+    def test_structural_drift_no_deferral_block(self):
+        """STRUCTURAL_DRIFT does NOT contain EARLY_EROSION's deferral block."""
+        from apps.core.ai_orchestrator.cos_context import (
+            format_cos_system_injection, ACTIVATION_STRUCTURAL_DRIFT,
+        )
+        ctx = self._make_normal_context(activation_state=ACTIVATION_STRUCTURAL_DRIFT)
+        output = format_cos_system_injection(ctx)
+        self.assertNotIn("FORBIDDEN DEFERRAL LANGUAGE", output)
+        self.assertNotIn("EARLY EROSION", output)
+
+    def test_clean_no_deferral_block(self):
+        """CLEAN does NOT contain any deferral or erosion framework."""
+        from apps.core.ai_orchestrator.cos_context import (
+            format_cos_system_injection, ACTIVATION_CLEAN,
+        )
+        ctx = self._make_normal_context(activation_state=ACTIVATION_CLEAN)
+        output = format_cos_system_injection(ctx)
+        self.assertNotIn("FORBIDDEN DEFERRAL LANGUAGE", output)
+        self.assertNotIn("EARLY EROSION", output)
+        self.assertNotIn("Corrective minimum", output)
+
     def test_structural_drift_injects_full_framework(self):
         """STRUCTURAL_DRIFT state: full trajectory framework + signals."""
         from apps.core.ai_orchestrator.cos_context import (

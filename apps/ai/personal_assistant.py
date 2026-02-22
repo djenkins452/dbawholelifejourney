@@ -3233,6 +3233,17 @@ Rules for this response:
                 user=self.user,
             ) or self._get_fallback_response(message)
 
+            # Output Compliance Gate — rewrite write-implying language
+            # when execution_mode suppresses writes (Learning Mode).
+            try:
+                from apps.core.blueprint.learning_mode import is_learning_mode_active
+                from apps.core.ai_orchestrator.cos_context import apply_output_compliance_gate
+                response = apply_output_compliance_gate(
+                    response, writes_suppressed=is_learning_mode_active(self.user)
+                )
+            except Exception:
+                pass  # Gate failure must not block response delivery
+
             return response
         except Exception as e:
             logger.error(f"Response generation error: {e}")

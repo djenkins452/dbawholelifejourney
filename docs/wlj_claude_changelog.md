@@ -9,6 +9,23 @@
 
 # WLJ Change History
 
+## 2026-02-22 — Output Compliance Gate (Phase 3 Refinement)
+
+**Changes:**
+- Added `apply_output_compliance_gate(text, writes_suppressed)` in `cos_context.py` — regex-based post-processing that rewrites write-implying language to counterfactual wording when execution_mode suppresses writes (Learning Mode)
+- Patterns covered: "will be logged", "has been recorded", "marked as", "is flagged", "I've logged", "tracking", "saving", "updating", "persisting", "noting", etc.
+- Single integration point in `personal_assistant.py` after `_call_api()` return, before response delivery
+- Gate failure is non-blocking — wrapped in try/except to prevent response delivery failure
+- No new logging, persistence, or side effects
+
+**Files modified:**
+- `apps/core/ai_orchestrator/cos_context.py` — `_WRITE_VERB_PATTERNS` compiled regexes, `apply_output_compliance_gate()`, `import re`
+- `apps/ai/personal_assistant.py` — single call site after `_call_api()` return
+
+**Why:** Ensure CoS never implies a write-side effect occurred when Learning Mode or other execution suppression is active. Language-level guarantee aligned with existing suppression rules.
+
+---
+
 ## 2026-02-22 — CoS Phase 3: Strategic Modeling Layer (Trajectory Precision)
 
 **Changes:**

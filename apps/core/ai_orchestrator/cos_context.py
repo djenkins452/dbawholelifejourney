@@ -36,6 +36,7 @@ Copyright:
 
 import datetime
 import logging
+import re
 
 from django.utils import timezone
 
@@ -1617,6 +1618,76 @@ def _format_trajectory_injection(signals):
 
     lines.append("--- END TRAJECTORY SIGNALS ---")
     return '\n'.join(lines)
+
+
+# =========================================================================
+# OUTPUT COMPLIANCE GATE
+# =========================================================================
+
+# Write-implying verb patterns: matches phrases where the LLM claims a
+# write-side effect occurred or will occur. Each pattern captures a
+# "verb + object" fragment so the replacement preserves the object.
+#
+# Anchored to word boundary (\b) to avoid partial matches inside words.
+# Case-insensitive to catch "Logged", "LOGGED", "logged".
+_WRITE_VERB_PATTERNS = [
+    # "This will be logged as X" / "This has been logged as X"
+    (re.compile(
+        r'\b(will be|has been|is being|is|was)\s+'
+        r'(logged|recorded|tracked|flagged|noted|persisted|saved|stored)\b',
+        re.IGNORECASE,
+    ), r'would be \2'),
+    # "Marked as X" / "This is marked as X"
+    (re.compile(
+        r'\b(marked|marking)\s+as\b',
+        re.IGNORECASE,
+    ), r'would be marked as'),
+    # "Logging this as X" / "Recording this as X"
+    (re.compile(
+        r'\b(logging|recording|tracking|flagging|noting|persisting|saving|updating)\s+',
+        re.IGNORECASE,
+    ), r'would \1 '),
+    # "I've logged X" / "I've recorded X" / "I logged X"
+    (re.compile(
+        r"\b(I've|I have|I)\s+(logged|recorded|tracked|flagged|noted|persisted|saved|stored|updated)\b",
+        re.IGNORECASE,
+    ), r'\1 would have \2'),
+]
+
+
+def apply_output_compliance_gate(text, writes_suppressed):
+    """
+    Output Compliance Gate — ensures CoS never implies a write-side effect
+    when execution_mode suppresses writes (Learning Mode / writes blocked).
+
+    Language-level guarantee only. No logging, no persistence, no side effects.
+
+    When writes are suppressed:
+    - Write-implying claims become counterfactual ("would be logged as X")
+    - Authority posture preserved — no apologies, no explanations
+    - Deterministic regex replacement, not heuristic
+
+    When writes are allowed:
+    - Returns text unchanged.
+
+    Args:
+        text: str — the LLM response text.
+        writes_suppressed: bool — True if execution_mode blocks writes.
+
+    Returns:
+        str — compliant text.
+    """
+    if not writes_suppressed:
+        return text
+
+    if not text:
+        return text
+
+    result = text
+    for pattern, replacement in _WRITE_VERB_PATTERNS:
+        result = pattern.sub(replacement, result)
+
+    return result
 
 
 # =========================================================================

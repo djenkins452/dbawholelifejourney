@@ -1008,3 +1008,320 @@ class DecisionBranchModelingTest(TestCase):
         result = evaluate_decision_branch_gate(ctx, "Should I skip this?")
         self.assertTrue(result['active'])
         self.assertEqual(result['reason'], 'decision_impacts_goal_deadline')
+
+
+class CostOfInactionModelingTest(TestCase):
+    """Tests for Phase 4 R2 — Cost-of-Inaction Modeling (CIM)."""
+
+    # ------------------------------------------------------------------
+    # Severity evaluator
+    # ------------------------------------------------------------------
+
+    def test_severity_low_no_factors(self):
+        """No severity factors → CIM suppressed."""
+        from apps.core.ai_orchestrator.cos_context import (
+            _evaluate_cim_severity, ACTIVATION_CLEAN,
+        )
+        gate = {
+            'active': True,
+            'reason': 'decision_impacts_goal_deadline',
+            'signals': {
+                'goals': [{'title': 'Goal A', 'days_remaining': 20}],
+            },
+        }
+        severity = _evaluate_cim_severity(gate, ACTIVATION_CLEAN)
+        # days_remaining=20 is outside ≤14d window
+        # No deferrals, no protected, no threshold, CLEAN tier
+        self.assertFalse(severity['moderate'])
+        self.assertEqual(severity['factors'], [])
+
+    def test_severity_moderate_goal_14d(self):
+        """Goal deadline ≤14d → severity Moderate."""
+        from apps.core.ai_orchestrator.cos_context import (
+            _evaluate_cim_severity, ACTIVATION_CLEAN,
+        )
+        gate = {
+            'active': True,
+            'reason': 'decision_impacts_goal_deadline',
+            'signals': {
+                'goals': [{'title': 'Goal A', 'days_remaining': 9}],
+            },
+        }
+        severity = _evaluate_cim_severity(gate, ACTIVATION_CLEAN)
+        self.assertTrue(severity['moderate'])
+        self.assertIn('goal_deadline_14d', severity['factors'])
+
+    def test_severity_moderate_overdue(self):
+        """Overdue goal → severity Moderate."""
+        from apps.core.ai_orchestrator.cos_context import (
+            _evaluate_cim_severity, ACTIVATION_CLEAN,
+        )
+        gate = {
+            'active': True,
+            'reason': 'decision_impacts_goal_deadline',
+            'signals': {
+                'goals': [{'title': 'Goal A', 'days_remaining': -3}],
+            },
+        }
+        severity = _evaluate_cim_severity(gate, ACTIVATION_CLEAN)
+        self.assertTrue(severity['moderate'])
+        self.assertIn('goal_overdue', severity['factors'])
+
+    def test_severity_moderate_deferrals(self):
+        """≥2 deferrals in 7d → severity Moderate."""
+        from apps.core.ai_orchestrator.cos_context import (
+            _evaluate_cim_severity, ACTIVATION_CLEAN,
+        )
+        gate = {
+            'active': True,
+            'reason': 'repeated_deferral',
+            'signals': {
+                'deferrals_7d': 3,
+            },
+        }
+        severity = _evaluate_cim_severity(gate, ACTIVATION_CLEAN)
+        self.assertTrue(severity['moderate'])
+        self.assertIn('repeated_deferrals', severity['factors'])
+
+    def test_severity_moderate_protected_block(self):
+        """Protected block cancellation → severity Moderate."""
+        from apps.core.ai_orchestrator.cos_context import (
+            _evaluate_cim_severity, ACTIVATION_CLEAN,
+        )
+        gate = {
+            'active': True,
+            'reason': 'decision_impacts_protected_block',
+            'signals': {
+                'protected_blocks': [{'title': 'Workout', 'start': '06:00'}],
+            },
+        }
+        severity = _evaluate_cim_severity(gate, ACTIVATION_CLEAN)
+        self.assertTrue(severity['moderate'])
+        self.assertIn('protected_block_impact', severity['factors'])
+
+    def test_severity_moderate_threshold_risk(self):
+        """Threshold risk adjacency → severity Moderate."""
+        from apps.core.ai_orchestrator.cos_context import (
+            _evaluate_cim_severity, ACTIVATION_CLEAN,
+        )
+        gate = {
+            'active': True,
+            'reason': 'decision_during_threshold_risk',
+            'signals': {
+                'renegotiations': 3,
+                'tier1_skips': 0,
+                'consecutive_skips': 0,
+            },
+        }
+        severity = _evaluate_cim_severity(gate, ACTIVATION_CLEAN)
+        self.assertTrue(severity['moderate'])
+        self.assertIn('threshold_risk', severity['factors'])
+
+    def test_severity_moderate_erosion_tier(self):
+        """EARLY_EROSION tier → severity Moderate."""
+        from apps.core.ai_orchestrator.cos_context import (
+            _evaluate_cim_severity, ACTIVATION_EARLY_EROSION,
+        )
+        gate = {
+            'active': True,
+            'reason': 'decision_impacts_goal_deadline',
+            'signals': {
+                'goals': [{'title': 'Goal A', 'days_remaining': 20}],
+            },
+        }
+        severity = _evaluate_cim_severity(gate, ACTIVATION_EARLY_EROSION)
+        self.assertTrue(severity['moderate'])
+        self.assertIn('tier_escalated', severity['factors'])
+
+    def test_severity_moderate_drift_tier(self):
+        """STRUCTURAL_DRIFT tier → severity Moderate."""
+        from apps.core.ai_orchestrator.cos_context import (
+            _evaluate_cim_severity, ACTIVATION_STRUCTURAL_DRIFT,
+        )
+        gate = {
+            'active': True,
+            'reason': 'decision_during_threshold_risk',
+            'signals': {},
+        }
+        severity = _evaluate_cim_severity(gate, ACTIVATION_STRUCTURAL_DRIFT)
+        self.assertTrue(severity['moderate'])
+        self.assertIn('tier_escalated', severity['factors'])
+
+    # ------------------------------------------------------------------
+    # CIM injection — activation / suppression
+    # ------------------------------------------------------------------
+
+    def test_cim_suppressed_low_severity(self):
+        """CLEAN + no severity factors → no CIM in output."""
+        from apps.core.ai_orchestrator.cos_context import (
+            _build_cim_injection, ACTIVATION_CLEAN,
+        )
+        gate = {
+            'active': True,
+            'reason': 'decision_impacts_goal_deadline',
+            'signals': {
+                'goals': [{'title': 'Goal A', 'days_remaining': 20}],
+            },
+        }
+        result = _build_cim_injection(gate, ACTIVATION_CLEAN)
+        self.assertEqual(result, '')
+
+    def test_cim_active_clean_with_deadline(self):
+        """CLEAN + goal ≤14d → CIM renders with 72h block."""
+        from apps.core.ai_orchestrator.cos_context import (
+            _build_cim_injection, ACTIVATION_CLEAN,
+        )
+        gate = {
+            'active': True,
+            'reason': 'decision_impacts_goal_deadline',
+            'signals': {
+                'goals': [{'title': 'Goal A', 'days_remaining': 9}],
+            },
+        }
+        result = _build_cim_injection(gate, ACTIVATION_CLEAN)
+        self.assertIn("Cost of Inaction", result)
+        self.assertIn("72h Window", result)
+        self.assertIn("What compresses", result)
+        self.assertIn("What compounds", result)
+        self.assertIn("What becomes harder", result)
+        # 14-30d window also renders for deadline ≤14d
+        self.assertIn("14–30 Day Window", result)
+        # No speculative language
+        self.assertNotIn("likely", result.lower())
+        self.assertNotIn("probably", result.lower())
+
+    def test_cim_active_erosion(self):
+        """EARLY_EROSION → CIM with erosion-specific language."""
+        from apps.core.ai_orchestrator.cos_context import (
+            _build_cim_injection, ACTIVATION_EARLY_EROSION,
+        )
+        gate = {
+            'active': True,
+            'reason': 'decision_impacts_goal_deadline',
+            'signals': {
+                'goals': [{'title': 'Goal A', 'days_remaining': 5}],
+                'deferrals_7d': 3,
+            },
+        }
+        result = _build_cim_injection(gate, ACTIVATION_EARLY_EROSION)
+        self.assertIn("Cost of Inaction", result)
+        self.assertIn("72h Window", result)
+        self.assertIn("erosion", result.lower())
+        self.assertIn("No deferral authorization", result)
+
+    def test_cim_active_drift(self):
+        """STRUCTURAL_DRIFT → CIM integrates with 72h/30d without duplication."""
+        from apps.core.ai_orchestrator.cos_context import (
+            _build_cim_injection, ACTIVATION_STRUCTURAL_DRIFT,
+        )
+        gate = {
+            'active': True,
+            'reason': 'decision_during_threshold_risk',
+            'signals': {
+                'renegotiations': 4,
+                'tier1_skips': 2,
+                'consecutive_skips': 2,
+            },
+        }
+        result = _build_cim_injection(gate, ACTIVATION_STRUCTURAL_DRIFT)
+        self.assertIn("Cost of Inaction", result)
+        self.assertIn("72h Window", result)
+        self.assertIn("do not duplicate", result.lower())
+        self.assertIn("Phase 3", result)
+
+    def test_cim_no_speculative_language_in_blocks(self):
+        """All CIM block templates are free of speculative language."""
+        from apps.core.ai_orchestrator.cos_context import (
+            CIM_BLOCK_CLEAN, CIM_BLOCK_EROSION, CIM_BLOCK_DRIFT,
+        )
+        forbidden = ['likely', 'probably', 'this will cause',
+                      "you'll fall behind", 'this could result in']
+        for block in [CIM_BLOCK_CLEAN, CIM_BLOCK_EROSION, CIM_BLOCK_DRIFT]:
+            lower = block.lower()
+            for word in forbidden:
+                self.assertNotIn(word, lower,
+                                 f"Speculative phrase '{word}' found in CIM block")
+
+    # ------------------------------------------------------------------
+    # Full injection integration
+    # ------------------------------------------------------------------
+
+    def test_full_injection_includes_cim_when_severe(self):
+        """_format_decision_branch_injection includes CIM when severity Moderate."""
+        from apps.core.ai_orchestrator.cos_context import (
+            _format_decision_branch_injection, ACTIVATION_CLEAN,
+        )
+        gate = {
+            'active': True,
+            'reason': 'decision_impacts_goal_deadline',
+            'signals': {
+                'goals': [{'title': 'Finish project', 'days_remaining': 7}],
+            },
+        }
+        output = _format_decision_branch_injection(gate, ACTIVATION_CLEAN)
+        self.assertIn("DECISION BRANCH MODELING", output)
+        self.assertIn("Cost of Inaction", output)
+        self.assertIn("DECISION CONTEXT", output)
+        self.assertIn("Finish project", output)
+
+    def test_full_injection_excludes_cim_when_low(self):
+        """_format_decision_branch_injection excludes CIM when severity Low."""
+        from apps.core.ai_orchestrator.cos_context import (
+            _format_decision_branch_injection, ACTIVATION_CLEAN,
+        )
+        gate = {
+            'active': True,
+            'reason': 'decision_impacts_goal_deadline',
+            'signals': {
+                'goals': [{'title': 'Long-term goal', 'days_remaining': 25}],
+            },
+        }
+        output = _format_decision_branch_injection(gate, ACTIVATION_CLEAN)
+        self.assertIn("DECISION BRANCH MODELING", output)
+        self.assertNotIn("Cost of Inaction", output)
+        self.assertIn("DECISION CONTEXT", output)
+
+    def test_cim_14_30d_included_for_overdue(self):
+        """Overdue goal triggers 14–30 Day Window section."""
+        from apps.core.ai_orchestrator.cos_context import (
+            _build_cim_injection, ACTIVATION_CLEAN,
+        )
+        gate = {
+            'active': True,
+            'reason': 'decision_impacts_goal_deadline',
+            'signals': {
+                'goals': [{'title': 'Overdue goal', 'days_remaining': -5}],
+            },
+        }
+        result = _build_cim_injection(gate, ACTIVATION_CLEAN)
+        self.assertIn("14–30 Day Window", result)
+        self.assertIn("Recovery cost increase", result)
+
+    def test_cim_14_30d_included_for_drift_tier(self):
+        """STRUCTURAL_DRIFT tier triggers 14–30 Day Window."""
+        from apps.core.ai_orchestrator.cos_context import (
+            _build_cim_injection, ACTIVATION_STRUCTURAL_DRIFT,
+        )
+        gate = {
+            'active': True,
+            'reason': 'decision_during_threshold_risk',
+            'signals': {
+                'renegotiations': 3,
+            },
+        }
+        result = _build_cim_injection(gate, ACTIVATION_STRUCTURAL_DRIFT)
+        self.assertIn("14–30 Day Window", result)
+
+    def test_structural_drift_cim_no_escalation_beyond_phase3(self):
+        """STRUCTURAL_DRIFT CIM explicitly preserves Phase 3 boundaries."""
+        from apps.core.ai_orchestrator.cos_context import (
+            _build_cim_injection, ACTIVATION_STRUCTURAL_DRIFT,
+        )
+        gate = {
+            'active': True,
+            'reason': 'decision_during_threshold_risk',
+            'signals': {'renegotiations': 4, 'consecutive_skips': 3},
+        }
+        result = _build_cim_injection(gate, ACTIVATION_STRUCTURAL_DRIFT)
+        self.assertIn("No intensification beyond", result)
+        self.assertIn("Phase 3", result)

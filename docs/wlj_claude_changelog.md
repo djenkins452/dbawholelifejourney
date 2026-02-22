@@ -9,6 +9,24 @@
 
 # WLJ Change History
 
+## 2026-02-22 — Phase 4 R2: Cost-of-Inaction Modeling (CIM)
+
+**Changes:**
+- Added `_evaluate_cim_severity()` — determines if alignment-impact severity reaches Moderate threshold based on 6 factors: goal ≤14d, overdue goal, ≥2 deferrals/7d, protected block impact, threshold risk adjacency, erosion/drift tier
+- Added 3 tier-proportional CIM instruction blocks: CLEAN (neutral consequence mapping), EROSION (compounding + no deferral authorization), DRIFT (72h/30d integration, no duplication)
+- Added `_build_cim_injection()` — builds CIM block with conditional 14–30 Day Window section
+- CIM renders between Decision Branch B and Executive Framing, only when Decision Branch is active AND severity ≥ Moderate
+- 18 new tests covering severity evaluation, CIM activation/suppression, tier proportionality, speculative language prohibition
+- All 79 Phase 4 CoS tests pass
+
+**Files modified:**
+- `apps/core/ai_orchestrator/cos_context.py` — CIM severity evaluator, injection builder, framework constants
+- `apps/core/tests/test_phase4_cos.py` — CostOfInactionModelingTest class (18 tests)
+
+**Why:** Decision Branch B ("Delay / Do Not Act") lacked consequence depth. CIM adds deterministic compounding/compression framing for Moderate+ severity decisions without speculative language, emotional framing, or escalation beyond Phase 3 boundaries.
+
+---
+
 ## 2026-02-22 — Phase 4 R1: Conditional Decision Branch Modeling
 
 **Changes:**

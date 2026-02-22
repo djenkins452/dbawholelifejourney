@@ -1982,8 +1982,9 @@ def _format_decision_branch_injection(gate_result, activation_state):
     """
     Format the decision branch modeling block for prompt injection.
 
-    Selects the tier-appropriate framework variant and appends
-    contextual signal data for LLM grounding.
+    Selects the tier-appropriate framework variant, conditionally appends
+    Cost-of-Inaction modeling (R2), and appends contextual signal data
+    for LLM grounding.
 
     Args:
         gate_result: dict from evaluate_decision_branch_gate().
@@ -2004,6 +2005,12 @@ def _format_decision_branch_injection(gate_result, activation_state):
         framework = DECISION_BRANCH_FRAMEWORK_CLEAN
 
     lines = [framework.strip()]
+
+    # R2: Cost-of-Inaction Modeling (conditional)
+    cim_block = _build_cim_injection(gate_result, activation_state)
+    if cim_block:
+        lines.append("")
+        lines.append(cim_block)
 
     # Append grounding signals
     signals = gate_result.get('signals', {})
@@ -2053,6 +2060,190 @@ def _format_decision_branch_injection(gate_result, activation_state):
     lines.append('\n'.join(signal_lines))
 
     return '\n'.join(lines)
+
+
+# =========================================================================
+# PHASE 4 R2 — COST-OF-INACTION MODELING (CIM)
+# =========================================================================
+
+
+def _evaluate_cim_severity(gate_result, activation_state):
+    """
+    Evaluate whether Cost-of-Inaction severity reaches Moderate threshold.
+
+    Severity is Moderate or Higher if ANY are true:
+    - Goal deadline ≤14 days
+    - Goal already overdue
+    - ≥2 deferrals within 7 days
+    - Protected block cancellation involved
+    - Threshold risk adjacency present (renegotiations, tier1 skips, consecutive)
+    - EARLY_EROSION or STRUCTURAL_DRIFT tier active
+
+    Args:
+        gate_result: dict from evaluate_decision_branch_gate().
+        activation_state: str — CLEAN / EARLY_EROSION / STRUCTURAL_DRIFT.
+
+    Returns:
+        dict — {'moderate': bool, 'factors': list[str],
+                 'has_overdue': bool, 'has_deadline_14d': bool,
+                 'has_deferrals': bool, 'has_protected': bool,
+                 'has_threshold_risk': bool, 'has_erosion_or_drift': bool}
+    """
+    signals = gate_result.get('signals', {})
+    factors = []
+
+    # Goal deadline ≤14 days
+    has_deadline_14d = False
+    goals = signals.get('goals', [])
+    for g in goals:
+        if 0 <= g.get('days_remaining', 999) <= 14:
+            has_deadline_14d = True
+            break
+    if has_deadline_14d:
+        factors.append('goal_deadline_14d')
+
+    # Goal already overdue
+    has_overdue = False
+    for g in goals:
+        if g.get('days_remaining', 0) < 0:
+            has_overdue = True
+            break
+    if has_overdue:
+        factors.append('goal_overdue')
+
+    # ≥2 deferrals within 7 days
+    has_deferrals = signals.get('deferrals_7d', 0) >= 2
+    if has_deferrals:
+        factors.append('repeated_deferrals')
+
+    # Protected block cancellation
+    has_protected = bool(signals.get('protected_blocks'))
+    if has_protected:
+        factors.append('protected_block_impact')
+
+    # Threshold risk adjacency
+    has_threshold_risk = (
+        bool(signals.get('renegotiations'))
+        or bool(signals.get('tier1_skips'))
+        or signals.get('consecutive_skips', 0) >= 2
+    )
+    if has_threshold_risk:
+        factors.append('threshold_risk')
+
+    # Erosion or drift tier
+    has_erosion_or_drift = activation_state in (
+        ACTIVATION_EARLY_EROSION, ACTIVATION_STRUCTURAL_DRIFT,
+    )
+    if has_erosion_or_drift:
+        factors.append('tier_escalated')
+
+    return {
+        'moderate': bool(factors),
+        'factors': factors,
+        'has_overdue': has_overdue,
+        'has_deadline_14d': has_deadline_14d,
+        'has_deferrals': has_deferrals,
+        'has_protected': has_protected,
+        'has_threshold_risk': has_threshold_risk,
+        'has_erosion_or_drift': has_erosion_or_drift,
+    }
+
+
+# CIM instruction blocks — tier-proportional.
+# Placed between Decision Branch B and Executive Framing in the LLM prompt.
+
+CIM_BLOCK_CLEAN = """\
+After Decision Branch B bullets, append:
+
+Cost of Inaction — 72h Window
+• What compresses (concrete: remaining work days, schedule density)
+• What compounds (concrete: deferral count, renegotiation proximity)
+• What becomes harder (concrete: recovery effort relative to current effort)
+
+{cim_14_30d}
+RULES: Deterministic only. Reference known deadlines, deferral counts,
+skip counts, protected blocks, workload density. No probabilities.
+No speculative language. No emotional framing. No catastrophic language.
+Controlled, neutral consequence mapping. No escalation tone.
+Keep CIM section to 3–6 lines total."""
+
+CIM_BLOCK_EROSION = """\
+After Decision Branch B bullets, append:
+
+Cost of Inaction — 72h Window
+• What compresses (concrete: remaining work days, schedule density)
+• What compounds (concrete: deferral count, erosion pattern reinforcement)
+• What becomes harder (concrete: recovery cost escalation)
+
+{cim_14_30d}
+RULES: Deterministic only. Reference known deadlines, deferral counts,
+skip counts, protected blocks, workload density. No probabilities.
+No speculative language. No emotional framing. Clear compounding language.
+No deferral authorization. Keep CIM section to 3–6 lines total."""
+
+CIM_BLOCK_DRIFT = """\
+After Decision Branch B bullets, append:
+
+Cost of Inaction — 72h Window
+• What compresses (integrate with existing 72h trajectory modeling)
+• What compounds (reference existing renegotiation/skip signal data)
+• What becomes harder (concrete: recovery cost at current drift rate)
+
+{cim_14_30d}
+RULES: Deterministic only. Integrate with existing 72h/30d modeling —
+do not duplicate trajectory framework content. Reference known deadlines,
+deferral counts, skip counts, protected blocks, workload density.
+No probabilities. No speculative language. No intensification beyond
+Phase 3 rules. Keep CIM section to 3–6 lines total."""
+
+CIM_14_30D_BLOCK = """\
+Cost of Inaction — 14–30 Day Window
+• Recovery cost increase (structural, not speculative)
+• Threshold proximity escalation (reference known counts vs thresholds)
+• Identity erosion reinforcement (directional, not predictive)"""
+
+
+def _build_cim_injection(gate_result, activation_state):
+    """
+    Build Cost-of-Inaction injection block if severity is Moderate+.
+
+    Renders ONLY when Decision Branch is active AND alignment-impact
+    severity reaches Moderate threshold. Placed between Branch B
+    and Executive Framing in the LLM instruction set.
+
+    Args:
+        gate_result: dict from evaluate_decision_branch_gate().
+        activation_state: str — CLEAN / EARLY_EROSION / STRUCTURAL_DRIFT.
+
+    Returns:
+        str — CIM instruction block, or empty string if severity is Low.
+    """
+    severity = _evaluate_cim_severity(gate_result, activation_state)
+    if not severity['moderate']:
+        return ''
+
+    # Determine whether 14–30 day window applies:
+    # Include if overdue, deadline ≤14d, repeated deferrals, threshold risk,
+    # or erosion/drift tier active.
+    include_14_30d = (
+        severity['has_overdue']
+        or severity['has_deadline_14d']
+        or severity['has_deferrals']
+        or severity['has_threshold_risk']
+        or severity['has_erosion_or_drift']
+    )
+
+    cim_14_30d = CIM_14_30D_BLOCK if include_14_30d else ''
+
+    # Select tier-appropriate CIM block
+    if activation_state == ACTIVATION_STRUCTURAL_DRIFT:
+        template = CIM_BLOCK_DRIFT
+    elif activation_state == ACTIVATION_EARLY_EROSION:
+        template = CIM_BLOCK_EROSION
+    else:
+        template = CIM_BLOCK_CLEAN
+
+    return template.format(cim_14_30d=cim_14_30d).strip()
 
 
 # =========================================================================

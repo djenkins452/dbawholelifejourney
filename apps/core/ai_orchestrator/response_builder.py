@@ -30,6 +30,18 @@ def build_response(orchestrator_result):
     if not orchestrator_result.action_results:
         return None
 
+    # Deduplicate suppression messages — if all results share the same
+    # error type (e.g. learning_mode_active), return one clean message.
+    error_types = {
+        getattr(r, 'error', None)
+        for r in orchestrator_result.action_results
+        if getattr(r, 'error', None)
+    }
+    if len(error_types) == 1 and len(orchestrator_result.action_results) >= 1:
+        first_error = orchestrator_result.action_results[0]
+        if not any(r.success for r in orchestrator_result.action_results):
+            return first_error.message
+
     parts = []
     for i, result in enumerate(orchestrator_result.action_results):
         message = result.message

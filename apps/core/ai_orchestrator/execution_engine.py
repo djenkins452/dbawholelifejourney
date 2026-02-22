@@ -54,8 +54,9 @@ def execute_action(user, enriched_action):
             return ActionResult(
                 success=False,
                 message=(
-                    "I'm in Learning Mode right now — just listening and understanding. "
-                    "I'll be able to take actions once we finish."
+                    "Learning Mode is active.\n"
+                    "I'm listening and learning right now, not executing actions.\n"
+                    "When you're ready, exit Learning Mode and I'll begin taking action."
                 ),
                 error='learning_mode_active',
                 action_type=enriched_action.intent_type,

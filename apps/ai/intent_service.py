@@ -510,7 +510,11 @@ Examples of messages that should NOT trigger functions:
             if is_learning_mode_active(user):
                 return ActionResult(
                     success=False,
-                    message="I'm in Learning Mode — just listening right now.",
+                    message=(
+                        "Learning Mode is active.\n"
+                        "I'm listening and learning right now, not executing actions.\n"
+                        "When you're ready, exit Learning Mode and I'll begin taking action."
+                    ),
                     error='learning_mode_active',
                     action_type=intent_result.intent_type,
                 )

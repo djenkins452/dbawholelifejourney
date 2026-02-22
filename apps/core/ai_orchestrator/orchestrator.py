@@ -201,7 +201,14 @@ def enrich_and_execute(user, intent_results, orchestrator_result):
     action_results = []
     enriched_actions = []
 
+    learning_mode_blocked = False
+
     for intent_result in intent_results:
+        # If Learning Mode already blocked a previous action, skip remaining.
+        # All actions will fail identically — no point repeating the gate.
+        if learning_mode_blocked:
+            break
+
         # Route and enrich
         enriched = route_action(
             intent_type=intent_result.intent_type,
@@ -215,6 +222,11 @@ def enrich_and_execute(user, intent_results, orchestrator_result):
         # Execute through existing handler
         result = execute_action(user, enriched)
         action_results.append(result)
+
+        # Short-circuit on Learning Mode — one message is enough
+        if result and getattr(result, 'error', None) == 'learning_mode_active':
+            learning_mode_blocked = True
+            continue
 
         # Learn from successful execution
         # Note: Intelligence chain (SAE → PIE → PRIE) is now centralized

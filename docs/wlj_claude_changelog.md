@@ -9,6 +9,19 @@
 
 # WLJ Change History
 
+## 2026-02-21 — Document Railway Beat service deployment
+
+**Changes:**
+- Updated `railway.toml` to document all three Railway services (Web, Worker, Beat) with exact start commands
+- Added "Railway Service Architecture" section to deploy docs with step-by-step instructions for creating the Beat service in Railway dashboard
+- Documented single-instance Beat requirement and failure isolation behavior
+
+**Files:** `railway.toml`, `docs/wlj_claude_deploy.md`
+
+**Why:** Celery Beat was defined in Procfile but never deployed as a Railway service. SAME monitoring requires Beat to dispatch `run_same_cycle_task` every 60s. The Worker service IS running (manual SAME execution works), only Beat is missing.
+
+---
+
 ## 2026-02-21 — Scheduler Heartbeat Tile (Ops Command Center)
 
 **Feature:** Added a Scheduler Heartbeat tile to the Ops Command Center that monitors whether the ISE scheduler (Railway cron, 5-min) and SAME monitoring cycle (Celery Beat, 60s) are alive, delayed, or offline.

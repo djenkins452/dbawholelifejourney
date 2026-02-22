@@ -3,15 +3,19 @@ builder = "nixpacks"
 
 # No [deploy] section — each Railway service defines its own Custom Start Command:
 #
-# Web Service:
+# Web Service (dbawholelifejourney):
 #   python manage.py migrate --noinput && \
 #   python manage.py load_initial_data -v 0 && \
 #   python manage.py recalculate_task_priorities -v 0 && \
 #   python manage.py collectstatic --noinput && \
 #   gunicorn config.wsgi --preload --log-file - --timeout 300
 #
-# Worker Service (dbawholelifejourney):
+# Worker Service (wlj-worker):
 #   celery -A config worker --loglevel=info --concurrency=2
 #
-# Note: Celery Beat is not yet deployed as a separate service.
-# SAME monitoring requires Beat to dispatch run_same_cycle_task every 60s.
+# Beat Service (wlj-beat):
+#   celery -A config beat --loglevel=info
+#   IMPORTANT: Must be single-instance. Multiple Beat processes = duplicate task dispatch.
+#
+# All three services must share the same environment variables (REDIS_URL, DATABASE_URL, etc.)
+# via Railway's shared variables or project-level env vars.

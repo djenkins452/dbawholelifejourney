@@ -193,6 +193,37 @@ except Exception as e:
 
 ---
 
+## Railway Service Architecture
+
+WLJ runs as three Railway services in one project, all sharing the same repo and environment variables:
+
+| Service | Start Command | Purpose |
+|---------|--------------|---------|
+| **Web** (dbawholelifejourney) | `python manage.py migrate --noinput && ... && gunicorn config.wsgi ...` | Django web server + migrations |
+| **Worker** (wlj-worker) | `celery -A config worker --loglevel=info --concurrency=2` | Consumes Celery tasks from Redis |
+| **Beat** (wlj-beat) | `celery -A config beat --loglevel=info` | Dispatches periodic tasks (SAME every 60s) |
+
+### Creating a New Railway Service
+
+1. Go to your Railway project dashboard
+2. Click **"+ New"** → **"GitHub Repo"** → Select `djenkins452/dbawholelifejourney`
+3. In the new service settings:
+   - **Name:** `wlj-beat` (or `wlj-worker`)
+   - **Custom Start Command:** `celery -A config beat --loglevel=info`
+   - **Root Directory:** leave empty (repo root)
+4. Ensure the service has access to the same **shared environment variables** (REDIS_URL, DATABASE_URL, SECRET_KEY, etc.)
+   - Railway project-level variables are inherited automatically
+   - Or use Railway's "Shared Variables" feature
+
+### Critical Rules for Beat
+
+- **Single instance only.** Never run two Beat processes — this causes duplicate task dispatch.
+- Beat requires no database migrations or static files — it just reads the schedule and pushes tasks to Redis.
+- If Beat crashes, the Worker keeps running (it just stops receiving new periodic tasks).
+- If Worker crashes, Beat keeps dispatching (tasks queue in Redis until Worker recovers).
+
+---
+
 ## Environment Variables
 
 ### Required for Production

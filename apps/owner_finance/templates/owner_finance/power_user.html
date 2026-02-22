@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Feature Breakdown - Financial Command Center{% endblock %}
+{% block title %}User Diagnostics - Financial Command Center{% endblock %}
 
 {% block extra_css %}
 <style nonce="{{ csp_nonce }}">
@@ -8,24 +8,36 @@
 .ofc-header h1 { font-size: 1.5rem; font-weight: 700; color: var(--color-text); }
 .ofc-nav { display: flex; gap: var(--space-2, 0.5rem); flex-wrap: wrap; margin-bottom: var(--space-4); }
 .ofc-nav a { padding: 0.5rem 1rem; border-radius: var(--radius-md, 0.375rem); background: var(--color-surface); color: var(--color-text); text-decoration: none; font-size: 0.875rem; font-weight: 500; border: 1px solid var(--color-border); }
-.ofc-nav a.active, .ofc-nav a:hover { background: var(--color-accent, #6366f1); color: #fff; border-color: var(--color-accent, #6366f1); }
+.ofc-nav a:hover { background: var(--color-accent, #6366f1); color: #fff; border-color: var(--color-accent, #6366f1); }
+.ofc-kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--space-3, 0.75rem); margin-bottom: var(--space-6, 1.5rem); }
+.ofc-kpi-card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg, 0.5rem); padding: var(--space-3, 0.75rem); }
+.ofc-kpi-card .kpi-label { font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-muted); margin-bottom: 0.125rem; }
+.ofc-kpi-card .kpi-value { font-size: 1.25rem; font-weight: 700; color: var(--color-text); }
 .ofc-section { margin-bottom: var(--space-6, 1.5rem); }
 .ofc-section h2 { font-size: 1.125rem; font-weight: 600; margin-bottom: var(--space-3, 0.75rem); color: var(--color-text); }
 .ofc-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-.ofc-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
-.ofc-table th { text-align: left; padding: 0.625rem 0.75rem; border-bottom: 2px solid var(--color-border); color: var(--color-text-muted); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; }
-.ofc-table td { padding: 0.625rem 0.75rem; border-bottom: 1px solid var(--color-border); color: var(--color-text); }
+.ofc-table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
+.ofc-table th { text-align: left; padding: 0.5rem 0.625rem; border-bottom: 2px solid var(--color-border); color: var(--color-text-muted); font-weight: 600; font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; }
+.ofc-table td { padding: 0.5rem 0.625rem; border-bottom: 1px solid var(--color-border); color: var(--color-text); }
 .ofc-table tr:hover { background: var(--color-surface); }
 .ofc-table .num { text-align: right; font-variant-numeric: tabular-nums; }
 .ofc-days-select { padding: 0.375rem 0.75rem; border-radius: var(--radius-md, 0.375rem); border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text); font-size: 0.875rem; }
-.ofc-empty { padding: 2rem; text-align: center; color: var(--color-text-muted); }
+.ofc-user-info { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg, 0.5rem); padding: var(--space-4); margin-bottom: var(--space-4); }
+.ofc-user-info h2 { margin: 0 0 0.5rem; font-size: 1.125rem; }
+.ofc-user-meta { font-size: 0.875rem; color: var(--color-text-muted); }
+.positive { color: #16a34a; }
+.negative { color: #dc2626; }
+@media (max-width: 480px) {
+    .ofc-kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .ofc-header { flex-direction: column; align-items: flex-start; }
+}
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="ofc-container">
     <div class="ofc-header">
-        <h1>Feature / Engine / Model Breakdown</h1>
+        <h1>User Diagnostics</h1>
         <form method="get" id="ofc-range-form">
             <select name="days" class="ofc-days-select" id="ofc-days-select">
                 <option value="7" {% if days == 7 %}selected{% endif %}>Last 7 days</option>
@@ -39,16 +51,52 @@
     <nav class="ofc-nav">
         <a href="{% url 'owner_finance:overview' %}">Overview</a>
         <a href="{% url 'owner_finance:users' %}">Per-User</a>
-        <a href="{% url 'owner_finance:features' %}" class="active">Features</a>
+        <a href="{% url 'owner_finance:features' %}">Features</a>
         <a href="{% url 'owner_finance:vendors' %}">Vendors</a>
         <a href="{% url 'owner_finance:audit' %}">Audit Ledger</a>
         <a href="{% url 'owner_finance:simulator' %}">Simulator</a>
         <a href="{% url 'owner_finance:budgets' %}">Budgets</a>
     </nav>
 
+    <!-- User Info -->
+    {% if target_user %}
+    <div class="ofc-user-info">
+        <h2>{{ target_user.email }}</h2>
+        <div class="ofc-user-meta">
+            Tier: {{ snap.get_tier_display|default:"Free" }}
+            {% if snap %} &middot; ${{ snap.monthly_price_usd }}/mo{% endif %}
+            &middot; Joined: {{ target_user.date_joined|date:"Y-m-d" }}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- KPI Summary -->
+    <div class="ofc-kpi-grid">
+        <div class="ofc-kpi-card">
+            <div class="kpi-label">Total Cost ({{ days }}d)</div>
+            <div class="kpi-value">${{ agg.total_cost|floatformat:4|default:"0.0000" }}</div>
+        </div>
+        <div class="ofc-kpi-card">
+            <div class="kpi-label">Total Calls</div>
+            <div class="kpi-value">{{ agg.total_calls|default:0 }}</div>
+        </div>
+        <div class="ofc-kpi-card">
+            <div class="kpi-label">Input Tokens</div>
+            <div class="kpi-value">{{ agg.total_input|default:0 }}</div>
+        </div>
+        <div class="ofc-kpi-card">
+            <div class="kpi-label">Output Tokens</div>
+            <div class="kpi-value">{{ agg.total_output|default:0 }}</div>
+        </div>
+        <div class="ofc-kpi-card">
+            <div class="kpi-label">Escalated Calls</div>
+            <div class="kpi-value">{{ agg.escalated_calls|default:0 }}</div>
+        </div>
+    </div>
+
     <!-- By Feature -->
     <div class="ofc-section">
-        <h2>Cost by Feature</h2>
+        <h2>Breakdown by Feature</h2>
         {% if by_feature %}
         <div class="ofc-table-wrap">
             <table class="ofc-table">
@@ -56,9 +104,7 @@
                     <tr>
                         <th>Feature</th>
                         <th class="num">Calls</th>
-                        <th class="num">Avg Input Tokens</th>
-                        <th class="num">Avg Output Tokens</th>
-                        <th class="num">Total Cost</th>
+                        <th class="num">Cost</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -66,8 +112,6 @@
                     <tr>
                         <td>{{ row.feature }}</td>
                         <td class="num">{{ row.total_calls }}</td>
-                        <td class="num">{{ row.avg_input|floatformat:0 }}</td>
-                        <td class="num">{{ row.avg_output|floatformat:0 }}</td>
                         <td class="num">${{ row.total_cost|floatformat:4 }}</td>
                     </tr>
                     {% endfor %}
@@ -75,13 +119,13 @@
             </table>
         </div>
         {% else %}
-        <div class="ofc-empty">No feature data for this period.</div>
+        <p style="color: var(--color-text-muted);">No feature data.</p>
         {% endif %}
     </div>
 
     <!-- By Model -->
     <div class="ofc-section">
-        <h2>Cost by Model</h2>
+        <h2>Breakdown by Model</h2>
         {% if by_model %}
         <div class="ofc-table-wrap">
             <table class="ofc-table">
@@ -89,9 +133,7 @@
                     <tr>
                         <th>Model</th>
                         <th class="num">Calls</th>
-                        <th class="num">Input Tokens</th>
-                        <th class="num">Output Tokens</th>
-                        <th class="num">Total Cost</th>
+                        <th class="num">Cost</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -99,8 +141,6 @@
                     <tr>
                         <td>{{ row.model_name }}</td>
                         <td class="num">{{ row.total_calls }}</td>
-                        <td class="num">{{ row.total_input|default:"0" }}</td>
-                        <td class="num">{{ row.total_output|default:"0" }}</td>
                         <td class="num">${{ row.total_cost|floatformat:4 }}</td>
                     </tr>
                     {% endfor %}
@@ -108,36 +148,42 @@
             </table>
         </div>
         {% else %}
-        <div class="ofc-empty">No model data for this period.</div>
+        <p style="color: var(--color-text-muted);">No model data.</p>
         {% endif %}
     </div>
 
-    <!-- By Engine -->
+    <!-- Recent Calls -->
     <div class="ofc-section">
-        <h2>Cost by Engine</h2>
-        {% if by_engine %}
+        <h2>Recent Calls (Last 50)</h2>
+        {% if recent %}
         <div class="ofc-table-wrap">
             <table class="ofc-table">
                 <thead>
                     <tr>
-                        <th>Engine</th>
-                        <th class="num">Calls</th>
-                        <th class="num">Total Cost</th>
+                        <th>Time</th>
+                        <th>Feature</th>
+                        <th>Model</th>
+                        <th class="num">In</th>
+                        <th class="num">Out</th>
+                        <th class="num">Cost</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for row in by_engine %}
+                    {% for e in recent %}
                     <tr>
-                        <td>{{ row.engine }}</td>
-                        <td class="num">{{ row.total_calls }}</td>
-                        <td class="num">${{ row.total_cost|floatformat:4 }}</td>
+                        <td>{{ e.created_at|date:"m-d H:i" }}</td>
+                        <td>{{ e.get_feature_display }}</td>
+                        <td>{{ e.model_name }}</td>
+                        <td class="num">{{ e.input_tokens }}</td>
+                        <td class="num">{{ e.output_tokens }}</td>
+                        <td class="num">${{ e.cost_usd|floatformat:6 }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
         {% else %}
-        <div class="ofc-empty">No engine data for this period.</div>
+        <p style="color: var(--color-text-muted);">No recent calls.</p>
         {% endif %}
     </div>
 </div>

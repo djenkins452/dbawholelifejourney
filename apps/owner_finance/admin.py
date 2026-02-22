@@ -6,6 +6,8 @@ from .models import (
     LLMPriceBook,
     LLMUsageEvent,
     UserSubscriptionSnapshot,
+    DailyCostRollup,
+    BudgetGuardrail,
 )
 
 
@@ -52,3 +54,17 @@ class UserSubscriptionSnapshotAdmin(admin.ModelAdmin):
     list_filter = ('tier',)
     search_fields = ('user__email',)
     raw_id_fields = ('user',)
+
+
+@admin.register(DailyCostRollup)
+class DailyCostRollupAdmin(admin.ModelAdmin):
+    list_display = ('date', 'user', 'feature', 'total_cost_usd', 'total_calls')
+    list_filter = ('feature',)
+    date_hierarchy = 'date'
+    raw_id_fields = ('user',)
+
+
+@admin.register(BudgetGuardrail)
+class BudgetGuardrailAdmin(admin.ModelAdmin):
+    list_display = ('name', 'scope', 'scope_value', 'budget_usd', 'period', 'alert_threshold_pct', 'is_active')
+    list_filter = ('scope', 'period', 'is_active')

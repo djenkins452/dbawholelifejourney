@@ -1,6 +1,22 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 89,
+        "fields": {
+            "title": "Financial Command Center — Full Suite",
+            "description": "The Owner Financial Command Center is now fully built out with 7 pages: interactive daily cost charts, per-call audit ledger with filtering, CSV data export, per-user deep-dive diagnostics, a what-if scenario simulator for cost/revenue projections, and budget guardrail monitoring with visual progress bars. All LLM call sites across the app now report cost telemetry automatically.",
+            "entry_type": "new_feature",
+            "version": "",
+            "release_date": "2026-02-22",
+            "is_published": true,
+            "is_major": false,
+            "learn_more_url": "",
+            "created_at": "2026-02-22T02:30:00Z",
+            "updated_at": "2026-02-22T02:30:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 88,
         "fields": {
             "title": "Smarter, Faster Chief of Staff Responses",

@@ -9,6 +9,44 @@
 
 # WLJ Change History
 
+## 2026-02-22 — Owner Financial Command Center (Phases 3-5: Ultimate UI, Simulator, Guardrails)
+
+**Changes:**
+- **Phase 3 — Charts & Diagnostics:** Daily cost trend chart (Chart.js bar+line combo) on overview, per-call audit ledger with filtering (feature/model/user/escalated), CSV export of all usage events, power user drill-down diagnostics page
+- **Phase 4 — Scenario Simulator:** What-if modeling form with adjustable user count, interactions/day, escalation rate, model mix, tier mix, and tier pricing — projects monthly LLM cost, non-LLM cost, revenue, gross margin, margin %, per-user cost, break-even users
+- **Phase 5 — Budget Guardrails:** BudgetGuardrail model (scope: TOTAL/PER_USER/PER_FEATURE, period: DAILY/MONTHLY), budget status cards with visual progress bars, warning/exceeded alerts on overview dashboard, `check_budget_guardrails` management command, `rollup_daily_costs` management command
+- **Telemetry Extended:** Added `log_llm_usage()` hooks to all 7 remaining LLM call sites (summarization, ai_nutrition, health provider lookup, vision, barcode, medicine_lookup, product_lookup) — now 9 total integration points
+- Added DailyCostRollup model for pre-aggregated chart data
+- Updated all nav bars across all 7 pages for full cross-navigation
+
+**Files added:**
+- `apps/owner_finance/migrations/0002_budgetguardrail_dailycostrollup.py`
+- `apps/owner_finance/templates/owner_finance/audit.html`
+- `apps/owner_finance/templates/owner_finance/simulator.html`
+- `apps/owner_finance/templates/owner_finance/budgets.html`
+- `apps/owner_finance/templates/owner_finance/power_user.html`
+
+**Files modified:**
+- `apps/owner_finance/views.py` (6 new views: DailyChartDataView, AuditLedgerView, ExportCSVView, PowerUserView, SimulatorView, BudgetGuardrailsView)
+- `apps/owner_finance/urls.py` (6 new URL routes)
+- `apps/owner_finance/models.py` (DailyCostRollup, BudgetGuardrail added)
+- `apps/owner_finance/admin.py` (new model registrations)
+- `apps/owner_finance/templates/owner_finance/overview.html` (chart, budget alerts, toolbar, nav)
+- `apps/owner_finance/templates/owner_finance/users.html` (nav update)
+- `apps/owner_finance/templates/owner_finance/features.html` (nav update)
+- `apps/owner_finance/templates/owner_finance/vendors.html` (nav update)
+- `apps/capture/services/summarization.py` (telemetry hook)
+- `apps/health/services/ai_nutrition.py` (telemetry hook)
+- `apps/health/views.py` (telemetry hook in ProviderAILookupView)
+- `apps/scan/services/vision.py` (telemetry hook)
+- `apps/scan/services/barcode.py` (telemetry hook)
+- `apps/scan/services/medicine_lookup.py` (telemetry hook)
+- `apps/scan/services/product_lookup.py` (telemetry hook)
+
+**Why:** Complete the Financial Command Center with full Phase 3-5 functionality: interactive charts, per-call audit trail, scenario modeling for business planning, and budget guardrails for cost control.
+
+---
+
 ## 2026-02-21 — Owner Financial Command Center (Phase 1 + 2)
 
 **Changes:**

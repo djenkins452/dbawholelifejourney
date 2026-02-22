@@ -5439,6 +5439,21 @@ Example format: {{"phone": "(555) 123-4567", "address_line1": "123 Main St", "ci
 
             result_text = response.choices[0].message.content.strip()
 
+            # Telemetry: log LLM usage
+            try:
+                usage = getattr(response, 'usage', None)
+                if usage:
+                    from apps.owner_finance.services.telemetry import log_llm_usage
+                    log_llm_usage(
+                        user=self.request.user,
+                        feature='HEALTHCARE_LOOKUP',
+                        model_name='gpt-4o-mini',
+                        input_tokens=getattr(usage, 'prompt_tokens', 0),
+                        output_tokens=getattr(usage, 'completion_tokens', 0),
+                    )
+            except Exception:
+                pass
+
             # Clean up potential markdown code blocks
             if result_text.startswith("```"):
                 lines = result_text.split("\n")

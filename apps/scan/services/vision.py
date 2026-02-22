@@ -496,6 +496,20 @@ class VisionService:
 
             processing_time_ms = int((time.time() - start_time) * 1000)
 
+            # Telemetry: log LLM usage
+            try:
+                usage = getattr(response, 'usage', None)
+                if usage:
+                    from apps.owner_finance.services.telemetry import log_llm_usage
+                    log_llm_usage(
+                        feature='VISION',
+                        model_name=self.model,
+                        input_tokens=getattr(usage, 'prompt_tokens', 0),
+                        output_tokens=getattr(usage, 'completion_tokens', 0),
+                    )
+            except Exception:
+                pass
+
             # Parse the response
             content = response.choices[0].message.content
             ai_result = json.loads(content)

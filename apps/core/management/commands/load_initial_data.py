@@ -754,6 +754,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for CoS adaptive intelligence (PK 88)
         self._reset_cos_adaptive_intelligence_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for Financial Command Center full suite (PK 89)
+        self._reset_financial_command_center_fixtures(DataLoadConfig, force, verbosity)
+
         # Auto-sync CoS documentation to admin guide (runs if checksum changed)
         self._sync_cos_documentation(DataLoadConfig, force, verbosity)
 
@@ -3334,3 +3337,31 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset CoS adaptive intelligence fixtures FAILED: {e}'))
+
+    def _reset_financial_command_center_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes for Financial Command Center full suite.
+        - release_notes PK 89 (Financial Command Center — Full Suite)
+        """
+        reset_tracker_name = 'reset_financial_command_center_2026_02_22'
+        try:
+            if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
+                return
+
+            config = DataLoadConfig.objects.get(loader_name='release_notes')
+            if config.is_loaded:
+                config.is_loaded = False
+                config.save()
+                if verbosity >= 1:
+                    self.stdout.write(f'  Reset release_notes loader for Financial Command Center')
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for Financial Command Center full suite (Feb 2026)',
+                'command',
+                'One-time reset to reload release_notes PK 89'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset Financial Command Center fixtures FAILED: {e}'))

@@ -25,10 +25,18 @@
 .ofc-table .num { text-align: right; font-variant-numeric: tabular-nums; }
 .ofc-days-select { padding: 0.375rem 0.75rem; border-radius: var(--radius-md, 0.375rem); border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text); font-size: 0.875rem; }
 .ofc-empty { padding: 2rem; text-align: center; color: var(--color-text-muted); }
+.ofc-chart-wrap { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg, 0.5rem); padding: var(--space-4); margin-bottom: var(--space-6, 1.5rem); position: relative; height: 300px; }
+.ofc-alert { padding: 0.75rem 1rem; border-radius: var(--radius-md, 0.375rem); margin-bottom: 0.5rem; font-size: 0.875rem; font-weight: 500; }
+.ofc-alert.exceeded { background: #fef2f2; border: 1px solid #fca5a5; color: #991b1b; }
+.ofc-alert.warning { background: #fffbeb; border: 1px solid #fcd34d; color: #92400e; }
+.ofc-toolbar { display: flex; gap: var(--space-2, 0.5rem); flex-wrap: wrap; margin-bottom: var(--space-4); }
+.ofc-toolbar a { padding: 0.375rem 0.75rem; border-radius: var(--radius-md, 0.375rem); background: var(--color-surface); color: var(--color-text); text-decoration: none; font-size: 0.8125rem; border: 1px solid var(--color-border); }
+.ofc-toolbar a:hover { background: var(--color-accent, #6366f1); color: #fff; border-color: var(--color-accent, #6366f1); }
 @media (max-width: 480px) {
     .ofc-kpi-grid { grid-template-columns: repeat(2, 1fr); }
     .ofc-kpi-card .kpi-value { font-size: 1.125rem; }
     .ofc-header { flex-direction: column; align-items: flex-start; }
+    .ofc-chart-wrap { height: 220px; }
 }
 </style>
 {% endblock %}
@@ -52,7 +60,28 @@
         <a href="{% url 'owner_finance:users' %}">Per-User</a>
         <a href="{% url 'owner_finance:features' %}">Features</a>
         <a href="{% url 'owner_finance:vendors' %}">Vendors</a>
+        <a href="{% url 'owner_finance:audit' %}">Audit Ledger</a>
+        <a href="{% url 'owner_finance:simulator' %}">Simulator</a>
+        <a href="{% url 'owner_finance:budgets' %}">Budgets</a>
     </nav>
+
+    <!-- Toolbar -->
+    <div class="ofc-toolbar">
+        <a href="{% url 'owner_finance:export_csv' %}?days={{ days }}" id="ofc-export-btn">Export CSV</a>
+    </div>
+
+    <!-- Budget Alerts -->
+    {% if budget_alerts %}
+    <div class="ofc-section">
+        <h2>Budget Alerts</h2>
+        {% for alert in budget_alerts %}
+        <div class="ofc-alert {% if alert.status == 'EXCEEDED' %}exceeded{% else %}warning{% endif %}">
+            <strong>[{{ alert.status }}]</strong> {{ alert.name }} ({{ alert.scope }}):
+            ${{ alert.spend|floatformat:2 }} / ${{ alert.budget|floatformat:2 }} ({{ alert.pct|floatformat:0 }}%)
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
 
     <!-- KPI Cards -->
     <div class="ofc-kpi-grid">
@@ -92,6 +121,14 @@
         </div>
     </div>
 
+    <!-- Daily Cost Chart -->
+    <div class="ofc-section">
+        <h2>Daily Cost Trend</h2>
+        <div class="ofc-chart-wrap">
+            <canvas id="ofc-daily-chart"></canvas>
+        </div>
+    </div>
+
     <!-- Top 10 Users -->
     <div class="ofc-section">
         <h2>Top 10 Most Expensive Users</h2>
@@ -105,6 +142,7 @@
                         <th class="num">Calls</th>
                         <th class="num">Tokens</th>
                         <th class="num">Cost</th>
+                        <th></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -115,6 +153,7 @@
                         <td class="num">{{ u.total_calls }}</td>
                         <td class="num">{{ u.total_tokens|default:"0" }}</td>
                         <td class="num">${{ u.total_cost|floatformat:4 }}</td>
+                        <td><a href="{% url 'owner_finance:power_user' u.user__id %}?days={{ days }}">Details</a></td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -143,7 +182,7 @@
                     {% for f in top_features %}
                     <tr>
                         <td>{{ forloop.counter }}</td>
-                        <td>{{ feature_labels|default_if_none:"" }}{% with label=f.feature %}{{ label }}{% endwith %}</td>
+                        <td>{{ f.feature }}</td>
                         <td class="num">{{ f.total_calls }}</td>
                         <td class="num">${{ f.total_cost|floatformat:4 }}</td>
                     </tr>
@@ -194,6 +233,7 @@
     </div>
 </div>
 
+<script nonce="{{ csp_nonce }}" src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <script nonce="{{ csp_nonce }}">
 document.addEventListener('DOMContentLoaded', function() {
     var select = document.getElementById('ofc-days-select');
@@ -201,6 +241,65 @@ document.addEventListener('DOMContentLoaded', function() {
         select.addEventListener('change', function() {
             document.getElementById('ofc-range-form').submit();
         });
+    }
+
+    var chartCanvas = document.getElementById('ofc-daily-chart');
+    if (chartCanvas) {
+        fetch('{% url "owner_finance:daily_chart" %}?days={{ days }}')
+            .then(function(resp) { return resp.json(); })
+            .then(function(data) {
+                var ctx = chartCanvas.getContext('2d');
+                new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: data.labels,
+                        datasets: [
+                            {
+                                label: 'Daily Cost ($)',
+                                data: data.costs,
+                                backgroundColor: 'rgba(99, 102, 241, 0.6)',
+                                borderColor: 'rgba(99, 102, 241, 1)',
+                                borderWidth: 1,
+                                yAxisID: 'y',
+                            },
+                            {
+                                label: 'Calls',
+                                data: data.calls,
+                                type: 'line',
+                                borderColor: 'rgba(234, 88, 12, 1)',
+                                backgroundColor: 'rgba(234, 88, 12, 0.1)',
+                                borderWidth: 2,
+                                pointRadius: 2,
+                                fill: false,
+                                yAxisID: 'y1',
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: { mode: 'index', intersect: false },
+                        scales: {
+                            y: {
+                                type: 'linear',
+                                position: 'left',
+                                title: { display: true, text: 'Cost ($)' },
+                                beginAtZero: true,
+                            },
+                            y1: {
+                                type: 'linear',
+                                position: 'right',
+                                title: { display: true, text: 'Calls' },
+                                beginAtZero: true,
+                                grid: { drawOnChartArea: false },
+                            },
+                            x: {
+                                ticks: { maxTicksLimit: 15 }
+                            }
+                        }
+                    }
+                });
+            });
     }
 });
 </script>

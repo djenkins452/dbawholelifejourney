@@ -553,6 +553,21 @@ class BarcodeService:
             )
 
             content = response.choices[0].message.content
+
+            # Telemetry: log LLM usage
+            try:
+                usage = getattr(response, 'usage', None)
+                if usage:
+                    from apps.owner_finance.services.telemetry import log_llm_usage
+                    log_llm_usage(
+                        feature='SCAN',
+                        model_name=self.model,
+                        input_tokens=getattr(usage, 'prompt_tokens', 0),
+                        output_tokens=getattr(usage, 'completion_tokens', 0),
+                    )
+            except Exception:
+                pass
+
             data = json.loads(content)
 
             if data.get('found'):

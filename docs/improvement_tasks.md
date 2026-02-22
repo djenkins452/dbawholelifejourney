@@ -165,21 +165,28 @@
 
 ---
 
-## TODO: Owner Financial Command Center — Remaining Phases
+## TODO: Owner Financial Command Center — Polish
 
-**Target:** Complete within a few days of 2026-02-21
 **Spec:** `docs/owner/ultimate_financial_command_center.md`
 
-- [ ] **Phase 3 — Ultimate UI:** Charts (daily cost trend, stacked feature cost), model mix pie chart, power user diagnostics, CSV export, per-call audit ledger
-- [ ] **Phase 4 — Scenario Simulator:** Backend calculation service (`services/simulator.py`), form UI with sliders for user_count, escalation_rate, model_mix, tier_mix; projected cost/revenue/margin output
-- [ ] **Phase 5 — Budget Guardrails:** `BudgetGuardrail` model, daily check management command, warning tiles on dashboard, notification integration
-- [ ] **Extend telemetry** to remaining untracked call sites: Whisper transcription, summarization, AI nutrition, vision/scan, healthcare lookup
-- [ ] **Daily/Monthly rollup tables** for faster aggregation at scale
+- [x] **Phase 3 — Ultimate UI:** Charts, power user diagnostics, CSV export, per-call audit ledger
+- [x] **Phase 4 — Scenario Simulator:** Backend + form UI with projections
+- [x] **Phase 5 — Budget Guardrails:** Model, check command, warning tiles, budgets page
+- [x] **Extend telemetry** to all 9 LLM call sites
+- [x] **Daily cost rollup tables** for fast chart queries
 - [ ] **Sync BillingProfile** tier changes into `UserSubscriptionSnapshot` automatically
+- [ ] **Stacked feature cost chart** (nice-to-have)
+- [ ] **Model mix pie chart** (nice-to-have)
 
 ---
 
 ## Progress Log
+
+### 2026-02-22
+- Owner Financial Command Center Phases 3-5 complete
+- Telemetry extended to 9 call sites across codebase
+- 7 dashboard pages: Overview, Per-User, Features, Vendors, Audit Ledger, Simulator, Budgets
+- Daily cost chart, CSV export, budget guardrail cards, power user drill-down
 
 ### 2026-02-21
 - Owner Financial Command Center Phase 1 + 2 implemented

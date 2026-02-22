@@ -41,6 +41,9 @@
         <a href="{% url 'owner_finance:users' %}" class="active">Per-User</a>
         <a href="{% url 'owner_finance:features' %}">Features</a>
         <a href="{% url 'owner_finance:vendors' %}">Vendors</a>
+        <a href="{% url 'owner_finance:audit' %}">Audit Ledger</a>
+        <a href="{% url 'owner_finance:simulator' %}">Simulator</a>
+        <a href="{% url 'owner_finance:budgets' %}">Budgets</a>
     </nav>
 
     {% if user_costs %}

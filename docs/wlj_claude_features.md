@@ -3736,24 +3736,31 @@ Internal owner dashboard for tracking LLM costs, per-user economics, gross margi
 | `LLMPriceBook` | Per-model pricing by effective date (never hardcoded) |
 | `LLMUsageEvent` | Ledger row per LLM call with auto-computed cost |
 | `UserSubscriptionSnapshot` | User tier snapshots for margin calculations |
+| `DailyCostRollup` | Pre-aggregated daily costs for fast chart queries |
+| `BudgetGuardrail` | Budget thresholds with alert triggers |
 
 ### Pages
-- **Overview** (`/owner/finance/`) — KPI cards (total cost, revenue, margin, avg cost/user), top 10 users, top features by cost, escalation economics
+- **Overview** (`/owner/finance/`) — KPI cards, daily cost chart (Chart.js), budget alert tiles, top 10 users (with drill-down links), top features, escalation economics, CSV export button
 - **Per-User** (`/owner/finance/users/`) — Per-user cost, revenue, margin, and tier breakdown
 - **Features** (`/owner/finance/features/`) — Cost by feature, model, and engine
 - **Vendors** (`/owner/finance/vendors/`) — Vendor billing ledger and summary
+- **Audit Ledger** (`/owner/finance/audit/`) — Per-call event log with filtering by feature, model, user, escalated status
+- **Power User** (`/owner/finance/users/<id>/`) — Deep-dive diagnostics for a single user: cost/call/token breakdown by feature and model, recent calls
+- **Simulator** (`/owner/finance/simulator/`) — What-if scenario modeling: adjust users, interactions, model mix, tier mix, pricing to project monthly costs, revenue, and margin
+- **Budgets** (`/owner/finance/budgets/`) — Visual budget guardrail cards showing current spend vs. budget with progress bars
 
 ### Telemetry Integration
-- `log_llm_usage()` in `services/telemetry.py` — called from `apps/ai/services.py:_log_usage()` and `apps/ai/intent_service.py`
+- `log_llm_usage()` in `services/telemetry.py` — called from 9 integration points across the codebase
 - Auto-computes cost from `LLMPriceBook` effective date range
-- If PriceBook entry missing, stores cost=0 with `missing_pricebook=True` metadata flag
+- **Call sites:** `apps/ai/services.py`, `apps/ai/intent_service.py`, `apps/capture/services/summarization.py`, `apps/health/services/ai_nutrition.py`, `apps/health/views.py` (ProviderAILookupView), `apps/scan/services/vision.py`, `apps/scan/services/barcode.py`, `apps/scan/services/medicine_lookup.py`, `apps/scan/services/product_lookup.py`
 
-### Roadmap (Phase 3-5)
-- Scenario Simulator (what-if modeling for user growth, tier mix, model costs)
-- Budget Guardrails & Alerts
-- Daily/Monthly cost rollup tables
-- CSV export, per-call audit ledger
-- Full spec: `docs/owner/ultimate_financial_command_center.md`
+### Management Commands
+- `seed_pricebook` — Seeds OpenAI pricing for gpt-4o, gpt-4o-mini, whisper-1
+- `rollup_daily_costs` — Aggregates LLMUsageEvent into DailyCostRollup (schedulable)
+- `check_budget_guardrails` — Checks active guardrails, logs warnings, creates notifications
+
+### Full Spec
+`docs/owner/ultimate_financial_command_center.md`
 
 ---
 

@@ -172,3 +172,64 @@ class UserSubscriptionSnapshot(models.Model):
 
     def __str__(self):
         return f"{self.user.email} — {self.tier} (${self.monthly_price_usd}/mo)"
+
+
+class DailyCostRollup(models.Model):
+    """Pre-aggregated daily cost summary for fast dashboard queries."""
+
+    date = models.DateField(db_index=True)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        null=True, blank=True, related_name='daily_cost_rollups',
+    )
+    feature = models.CharField(max_length=30, null=True, blank=True, db_index=True)
+    total_cost_usd = models.DecimalField(max_digits=10, decimal_places=4, default=0)
+    total_calls = models.PositiveIntegerField(default=0)
+    total_input_tokens = models.PositiveIntegerField(default=0)
+    total_output_tokens = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        unique_together = [('date', 'user', 'feature')]
+        ordering = ['-date']
+        verbose_name = 'Daily Cost Rollup'
+        verbose_name_plural = 'Daily Cost Rollups'
+
+    def __str__(self):
+        user_label = self.user.email if self.user else 'all'
+        return f"{self.date} | {user_label} | {self.feature or 'total'}: ${self.total_cost_usd}"
+
+
+class BudgetGuardrail(models.Model):
+    """Budget thresholds with alert triggers."""
+
+    SCOPE_CHOICES = [
+        ('TOTAL', 'Monthly Total'),
+        ('PER_USER', 'Per User'),
+        ('PER_FEATURE', 'Per Feature'),
+    ]
+    PERIOD_CHOICES = [
+        ('DAILY', 'Daily'),
+        ('MONTHLY', 'Monthly'),
+    ]
+
+    name = models.CharField(max_length=100)
+    scope = models.CharField(max_length=20, choices=SCOPE_CHOICES)
+    scope_value = models.CharField(
+        max_length=50, null=True, blank=True,
+        help_text='Feature name if scope is PER_FEATURE',
+    )
+    budget_usd = models.DecimalField(max_digits=10, decimal_places=2)
+    period = models.CharField(max_length=10, choices=PERIOD_CHOICES, default='MONTHLY')
+    alert_threshold_pct = models.IntegerField(
+        default=80, help_text='Alert when spend reaches this % of budget',
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['scope', 'name']
+        verbose_name = 'Budget Guardrail'
+        verbose_name_plural = 'Budget Guardrails'
+
+    def __str__(self):
+        return f"{self.name} ({self.get_scope_display()}): ${self.budget_usd}/{self.get_period_display()}"

@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+{% block title %}Scenario Simulator - Financial Command Center{% endblock %}
+
+{% block extra_css %}
+<style nonce="{{ csp_nonce }}">
+.ofc-container { max-width: 1200px; margin: 0 auto; padding: var(--space-4); }
+.ofc-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-2, 0.5rem); margin-bottom: var(--space-6, 1.5rem); }
+.ofc-header h1 { font-size: 1.5rem; font-weight: 700; color: var(--color-text); }
+.ofc-nav { display: flex; gap: var(--space-2, 0.5rem); flex-wrap: wrap; margin-bottom: var(--space-4); }
+.ofc-nav a { padding: 0.5rem 1rem; border-radius: var(--radius-md, 0.375rem); background: var(--color-surface); color: var(--color-text); text-decoration: none; font-size: 0.875rem; font-weight: 500; border: 1px solid var(--color-border); }
+.ofc-nav a.active, .ofc-nav a:hover { background: var(--color-accent, #6366f1); color: #fff; border-color: var(--color-accent, #6366f1); }
+.ofc-sim-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-6, 1.5rem); margin-bottom: var(--space-6, 1.5rem); }
+.ofc-sim-form { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg, 0.5rem); padding: var(--space-4); }
+.ofc-sim-form h2 { font-size: 1.125rem; font-weight: 600; margin-bottom: var(--space-4); color: var(--color-text); }
+.ofc-form-group { margin-bottom: var(--space-3, 0.75rem); }
+.ofc-form-group label { display: block; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-muted); margin-bottom: 0.25rem; }
+.ofc-form-group input { width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--color-border); border-radius: var(--radius-md, 0.375rem); background: var(--color-bg, #fff); color: var(--color-text); font-size: 16px; box-sizing: border-box; }
+.ofc-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2, 0.5rem); }
+.ofc-btn-run { display: block; width: 100%; padding: 0.75rem; background: var(--color-accent, #6366f1); color: #fff; border: none; border-radius: var(--radius-md, 0.375rem); font-size: 1rem; font-weight: 600; cursor: pointer; margin-top: var(--space-4); }
+.ofc-btn-run:hover { opacity: 0.9; }
+.ofc-results { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg, 0.5rem); padding: var(--space-4); }
+.ofc-results h2 { font-size: 1.125rem; font-weight: 600; margin-bottom: var(--space-4); color: var(--color-text); }
+.ofc-result-row { display: flex; justify-content: space-between; padding: 0.625rem 0; border-bottom: 1px solid var(--color-border); }
+.ofc-result-row:last-child { border-bottom: none; }
+.ofc-result-label { font-size: 0.875rem; color: var(--color-text-muted); }
+.ofc-result-value { font-size: 0.875rem; font-weight: 700; color: var(--color-text); font-variant-numeric: tabular-nums; }
+.ofc-result-value.positive { color: #16a34a; }
+.ofc-result-value.negative { color: #dc2626; }
+.ofc-empty { padding: 2rem; text-align: center; color: var(--color-text-muted); }
+.ofc-error { padding: 1rem; background: #fef2f2; border: 1px solid #fca5a5; border-radius: var(--radius-md, 0.375rem); color: #991b1b; margin-bottom: var(--space-4); }
+.ofc-form-section { font-size: 0.8125rem; font-weight: 700; color: var(--color-text); margin: var(--space-3, 0.75rem) 0 var(--space-2, 0.5rem); padding-top: var(--space-2, 0.5rem); border-top: 1px solid var(--color-border); }
+@media (max-width: 768px) {
+    .ofc-sim-grid { grid-template-columns: 1fr; }
+    .ofc-header { flex-direction: column; align-items: flex-start; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ofc-container">
+    <div class="ofc-header">
+        <h1>Scenario Simulator</h1>
+    </div>
+
+    <nav class="ofc-nav">
+        <a href="{% url 'owner_finance:overview' %}">Overview</a>
+        <a href="{% url 'owner_finance:users' %}">Per-User</a>
+        <a href="{% url 'owner_finance:features' %}">Features</a>
+        <a href="{% url 'owner_finance:vendors' %}">Vendors</a>
+        <a href="{% url 'owner_finance:audit' %}">Audit Ledger</a>
+        <a href="{% url 'owner_finance:simulator' %}" class="active">Simulator</a>
+        <a href="{% url 'owner_finance:budgets' %}">Budgets</a>
+    </nav>
+
+    {% if error %}
+    <div class="ofc-error">{{ error }}</div>
+    {% endif %}
+
+    <div class="ofc-sim-grid">
+        <div class="ofc-sim-form">
+            <h2>Scenario Parameters</h2>
+            <form method="post" id="ofc-sim-form">
+                {% csrf_token %}
+
+                <div class="ofc-form-group">
+                    <label>Total Users</label>
+                    <input type="number" name="user_count" value="{{ form_data.user_count|default:100 }}" min="1" max="100000">
+                </div>
+                <div class="ofc-form-group">
+                    <label>Avg Interactions / User / Day</label>
+                    <input type="number" name="avg_interactions" value="{{ form_data.avg_interactions|default:3.0 }}" step="0.1" min="0.1">
+                </div>
+                <div class="ofc-form-group">
+                    <label>Escalation Rate (0.0 - 1.0)</label>
+                    <input type="number" name="escalation_rate" value="{{ form_data.escalation_rate|default:0.15 }}" step="0.01" min="0" max="1">
+                </div>
+
+                <div class="ofc-form-section">Model Mix</div>
+                <div class="ofc-form-row">
+                    <div class="ofc-form-group">
+                        <label>GPT-4o %</label>
+                        <input type="number" name="gpt4o_pct" value="{{ form_data.gpt4o_pct|default:0.1 }}" step="0.05" min="0" max="1">
+                    </div>
+                    <div class="ofc-form-group">
+                        <label>GPT-4o-mini %</label>
+                        <input type="number" name="gpt4o_mini_pct" value="{{ form_data.gpt4o_mini_pct|default:0.9 }}" step="0.05" min="0" max="1">
+                    </div>
+                </div>
+
+                <div class="ofc-form-section">Tier Mix</div>
+                <div class="ofc-form-row">
+                    <div class="ofc-form-group">
+                        <label>Free %</label>
+                        <input type="number" name="free_pct" value="{{ form_data.free_pct|default:0.6 }}" step="0.05" min="0" max="1">
+                    </div>
+                    <div class="ofc-form-group">
+                        <label>Student %</label>
+                        <input type="number" name="student_pct" value="{{ form_data.student_pct|default:0.2 }}" step="0.05" min="0" max="1">
+                    </div>
+                </div>
+                <div class="ofc-form-row">
+                    <div class="ofc-form-group">
+                        <label>Adult %</label>
+                        <input type="number" name="adult_pct" value="{{ form_data.adult_pct|default:0.2 }}" step="0.05" min="0" max="1">
+                    </div>
+                    <div class="ofc-form-group">
+                        <label>&nbsp;</label>
+                    </div>
+                </div>
+
+                <div class="ofc-form-section">Tier Pricing</div>
+                <div class="ofc-form-row">
+                    <div class="ofc-form-group">
+                        <label>Student $/mo</label>
+                        <input type="number" name="student_price" value="{{ form_data.student_price|default:'3.99' }}" step="0.01" min="0">
+                    </div>
+                    <div class="ofc-form-group">
+                        <label>Adult $/mo</label>
+                        <input type="number" name="adult_price" value="{{ form_data.adult_price|default:'7.99' }}" step="0.01" min="0">
+                    </div>
+                </div>
+
+                <button type="submit" class="ofc-btn-run">Run Simulation</button>
+            </form>
+        </div>
+
+        <div class="ofc-results">
+            <h2>Projection Results</h2>
+            {% if result %}
+            <div class="ofc-result-row">
+                <span class="ofc-result-label">Monthly LLM Cost</span>
+                <span class="ofc-result-value">${{ result.monthly_llm_cost }}</span>
+            </div>
+            <div class="ofc-result-row">
+                <span class="ofc-result-label">Monthly Non-LLM Cost</span>
+                <span class="ofc-result-value">${{ result.monthly_non_llm_cost }}</span>
+            </div>
+            <div class="ofc-result-row">
+                <span class="ofc-result-label">Monthly Total Cost</span>
+                <span class="ofc-result-value">${{ result.monthly_total_cost }}</span>
+            </div>
+            <div class="ofc-result-row">
+                <span class="ofc-result-label">Monthly Revenue</span>
+                <span class="ofc-result-value">${{ result.monthly_revenue }}</span>
+            </div>
+            <div class="ofc-result-row">
+                <span class="ofc-result-label">Gross Margin</span>
+                <span class="ofc-result-value {% if result.gross_margin >= 0 %}positive{% else %}negative{% endif %}">
+                    ${{ result.gross_margin }}
+                </span>
+            </div>
+            <div class="ofc-result-row">
+                <span class="ofc-result-label">Margin %</span>
+                <span class="ofc-result-value {% if result.margin_pct >= 0 %}positive{% else %}negative{% endif %}">
+                    {{ result.margin_pct }}%
+                </span>
+            </div>
+            <div class="ofc-result-row">
+                <span class="ofc-result-label">Cost / User / Month</span>
+                <span class="ofc-result-value">${{ result.per_user_cost }}</span>
+            </div>
+            <div class="ofc-result-row">
+                <span class="ofc-result-label">Revenue / User / Month</span>
+                <span class="ofc-result-value">${{ result.per_user_revenue }}</span>
+            </div>
+            <div class="ofc-result-row">
+                <span class="ofc-result-label">Break-Even Users</span>
+                <span class="ofc-result-value">{{ result.break_even_users }}</span>
+            </div>
+            {% else %}
+            <div class="ofc-empty">Adjust parameters and click "Run Simulation" to see projections.</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

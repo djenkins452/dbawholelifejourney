@@ -223,6 +223,31 @@
 
     </div>
 
+    <!-- Owner Tools Section (superuser only) -->
+    {% if user.is_superuser %}
+    <div class="section-divider mt-8 mb-4">
+        <h2 class="section-title">Owner Tools</h2>
+    </div>
+
+    <div class="admin-grid">
+        <!-- Financial Command Center -->
+        <a href="{% url 'owner_finance:overview' %}" class="admin-card">
+            <div class="admin-card-icon" style="background: color-mix(in srgb, #059669 15%, transparent);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2">
+                    <path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
+                </svg>
+            </div>
+            <div class="admin-card-content">
+                <h3>Financial Command Center</h3>
+                <p>LLM costs, margins, per-user economics</p>
+            </div>
+            <svg class="admin-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"/>
+            </svg>
+        </a>
+    </div>
+    {% endif %}
+
     <!-- Data Imports Section -->
     <div class="section-divider mt-8 mb-4">
         <h2 class="section-title">Data Imports</h2>

@@ -2816,16 +2816,16 @@ class ActionHandler:
 
     def handle_exit_learning_mode(self, **kwargs) -> ActionResult:
         """
-        Exit Learning Mode — initiate the confirmation flow.
+        Exit Learning Mode — present summary in chat for confirmation.
 
-        Sets exit_pending state so the CoS can summarize what was learned
-        before execution resumes. Actual deactivation happens on confirm.
+        Sets exit_pending state and returns a structured summary of declared
+        priorities. The user confirms or declines directly in chat.
+        Execution remains blocked until confirmation.
         """
         try:
             from apps.core.blueprint.learning_mode import (
                 is_learning_mode_active,
                 request_exit_learning_mode,
-                get_exit_summary,
             )
             if not is_learning_mode_active(self.user):
                 return ActionResult(
@@ -2834,41 +2834,61 @@ class ActionHandler:
                     action_type='exit_learning_mode',
                 )
 
-            # Build a summary of declared priorities for the exit confirmation
+            # Build structured summary of what was learned
             summary_parts = []
             try:
                 from apps.core.blueprint.models import UserPriorityProfile
                 priorities = UserPriorityProfile.get_user_priorities(self.user)
                 if priorities:
-                    summary_parts.append("Declared priorities:")
                     for p in priorities:
-                        sub = f".{p.sub_module_key}" if p.sub_module_key else ""
+                        sub = f" > {p.sub_module_key}" if p.sub_module_key else ""
                         level = p.get_declared_priority_level_display()
-                        summary_parts.append(
-                            f"  - {p.module_key}{sub}: {level}"
-                        )
+                        line = f"- **{p.module_key}{sub}**: {level}"
                         if p.declared_reason:
-                            summary_parts.append(f"    Reason: {p.declared_reason}")
+                            line += f" — {p.declared_reason}"
+                        summary_parts.append(line)
+            except Exception:
+                pass
+
+            # Build learned preferences summary
+            try:
+                from apps.core.ai_memory.models import LearnedMapping
+                recent_prefs = LearnedMapping.objects.filter(
+                    user=self.user, is_active=True,
+                ).order_by('-updated_at')[:5]
+                if recent_prefs:
+                    summary_parts.append("")
+                    summary_parts.append("**Learned preferences:**")
+                    for lp in recent_prefs:
+                        summary_parts.append(
+                            f"- {lp.phrase} → {lp.meaning_type}"
+                        )
             except Exception:
                 pass
 
             summary_text = "\n".join(summary_parts) if summary_parts else ""
-            success = request_exit_learning_mode(self.user, summary_text)
+            request_exit_learning_mode(self.user, summary_text)
 
-            if success:
-                return ActionResult(
-                    success=True,
-                    message=(
-                        "Ready to exit Learning Mode. Before I resume taking "
-                        "actions, please confirm on the CoS Settings page — "
-                        "I've prepared a summary of what I've learned."
-                    ),
-                    action_type='exit_learning_mode',
+            # Build the chat confirmation message
+            if summary_parts:
+                msg = (
+                    "Here's what I've learned so far:\n\n"
+                    + summary_text
+                    + "\n\nDoes this accurately reflect your priorities? "
+                    "Say **yes** to confirm and resume execution, "
+                    "or **no** to stay in Learning Mode."
                 )
+            else:
+                msg = (
+                    "I haven't captured any specific priorities yet, but I've "
+                    "been listening to our conversation.\n\n"
+                    "Ready to exit Learning Mode and start taking actions? "
+                    "Say **yes** to confirm, or **no** to keep teaching me."
+                )
+
             return ActionResult(
-                success=False,
-                message="Something went wrong requesting the exit.",
-                error='exit_request_failed',
+                success=True,
+                message=msg,
                 action_type='exit_learning_mode',
             )
         except Exception as e:

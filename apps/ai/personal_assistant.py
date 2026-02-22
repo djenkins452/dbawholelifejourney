@@ -2007,6 +2007,10 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             elif self._handle_data_visibility_confirmation(message, conversation):
                 response = self._data_visibility_response
                 self._data_visibility_response = None  # Clear after use
+            # Then check for Learning Mode exit confirmation (in-chat)
+            elif self._handle_learning_mode_exit_confirmation(message, actions_taken):
+                response = self._learning_mode_exit_response
+                self._learning_mode_exit_response = None
             # Then check for pending action confirmation
             elif (pending := intent_service.get_pending_confirmation(self.user)):
                 # Handle confirmation response
@@ -2323,6 +2327,75 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             # Don't let bug report detection break the chat flow
             logger.warning(f"Bug report check failed: {e}")
             return None
+
+    def _handle_learning_mode_exit_confirmation(
+        self, message: str, actions_taken: list
+    ) -> bool:
+        """
+        Handle user's response to Learning Mode exit summary (modal state).
+
+        When exit is pending, this is a MODAL gate — ALL messages are
+        intercepted. The user must confirm or cancel before anything else
+        can happen.
+
+        Returns:
+            True if exit is pending (always handled when pending).
+            False if exit not pending.
+        """
+        try:
+            from apps.core.blueprint.learning_mode import (
+                is_exit_pending,
+                confirm_exit_learning_mode,
+                cancel_exit_learning_mode,
+                get_exit_summary,
+            )
+            if not is_exit_pending(self.user):
+                return False
+
+            msg_lower = message.lower().strip()
+            affirmative = {
+                'yes', 'y', 'yeah', 'yep', 'yup', 'confirm', 'correct',
+                'that looks right', 'looks good', 'ok', 'sure', 'do it',
+                'go ahead', "that's right", 'thats right', 'accurate',
+            }
+            negative = {
+                'no', 'n', 'nope', 'nah', 'not quite', 'wrong',
+                "that's not right", 'thats not right', 'incorrect',
+                'keep learning', 'stay', 'cancel',
+            }
+
+            if msg_lower in affirmative:
+                confirm_exit_learning_mode(self.user)
+                self._learning_mode_exit_response = (
+                    "Confirmed. Learning Mode is off — I'm back in action. "
+                    "I'll start using what I've learned to help you."
+                )
+                actions_taken.append({
+                    'type': 'confirm_exit_learning_mode',
+                    'success': True,
+                    'created': None,
+                })
+                return True
+
+            if msg_lower in negative:
+                cancel_exit_learning_mode(self.user)
+                self._learning_mode_exit_response = (
+                    "No problem — I'll stay in Learning Mode. "
+                    "Keep telling me what matters to you."
+                )
+                return True
+
+            # Not a clear yes/no — modal: block and re-prompt
+            self._learning_mode_exit_response = (
+                "Exit confirmation pending. Please confirm or cancel "
+                "before proceeding.\n\n"
+                "Say **yes** to exit Learning Mode and resume execution, "
+                "or **no** to stay in Learning Mode."
+            )
+            return True
+        except Exception as e:
+            logger.debug("Learning mode exit confirmation check failed: %s", e)
+            return False
 
     def _handle_data_visibility_confirmation(
         self, message: str, conversation: AssistantConversation

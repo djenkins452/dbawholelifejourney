@@ -1628,28 +1628,43 @@ def _format_trajectory_injection(signals):
 # write-side effect occurred or will occur. Each pattern captures a
 # "verb + object" fragment so the replacement preserves the object.
 #
+# Negation-aware: negative lookbehind prevents rewriting denials like
+# "Nothing has been logged", "not marked as", "hasn't been recorded".
+# The negation window covers common forms: not/no/never/nothing/don't/
+# didn't/isn't/hasn't/wasn't/cannot/won't + optional whitespace.
+#
 # Anchored to word boundary (\b) to avoid partial matches inside words.
 # Case-insensitive to catch "Logged", "LOGGED", "logged".
+
+# Negation lookbehind — matches negation words followed by optional space.
+# Used as prefix on every pattern to skip denial/negative contexts.
+_NEG = r'(?<!\bnot )(?<!\bno )(?<!\bnever )(?<!\bnothing )(?<!\bhasn.t )(?<!\bwasn.t )(?<!\bisn.t )(?<!\bdon.t )(?<!\bdidn.t )(?<!\bwon.t )(?<!\bcannot )(?<!\bwithout )'
+
+_WRITE_VERBS = r'(logged|recorded|tracked|flagged|noted|persisted|saved|stored)'
+
 _WRITE_VERB_PATTERNS = [
     # "This will be logged as X" / "This has been logged as X"
+    # Skip: "has not been logged", "wasn't logged", "nothing was logged"
     (re.compile(
-        r'\b(will be|has been|is being|is|was)\s+'
-        r'(logged|recorded|tracked|flagged|noted|persisted|saved|stored)\b',
+        _NEG + r'\b(will be|has been|is being|is|was)\s+' + _WRITE_VERBS,
         re.IGNORECASE,
     ), r'would be \2'),
     # "Marked as X" / "This is marked as X"
+    # Skip: "not marked as", "isn't marked as"
     (re.compile(
-        r'\b(marked|marking)\s+as\b',
+        _NEG + r'\b(marked|marking)\s+as\b',
         re.IGNORECASE,
     ), r'would be marked as'),
     # "Logging this as X" / "Recording this as X"
+    # Skip: "not logging", "without tracking"
     (re.compile(
-        r'\b(logging|recording|tracking|flagging|noting|persisting|saving|updating)\s+',
+        _NEG + r'\b(logging|recording|tracking|flagging|noting|persisting|saving|updating)\s+this\b',
         re.IGNORECASE,
-    ), r'would \1 '),
+    ), r'would \1 this'),
     # "I've logged X" / "I've recorded X" / "I logged X"
+    # Skip: "I haven't logged", "I didn't log"
     (re.compile(
-        r"\b(I've|I have|I)\s+(logged|recorded|tracked|flagged|noted|persisted|saved|stored|updated)\b",
+        _NEG + r"\b(I've|I have|I)\s+" + _WRITE_VERBS,
         re.IGNORECASE,
     ), r'\1 would have \2'),
 ]
@@ -1662,8 +1677,12 @@ def apply_output_compliance_gate(text, writes_suppressed):
 
     Language-level guarantee only. No logging, no persistence, no side effects.
 
+    Negation-aware: denials ("Nothing has been logged", "not marked as")
+    are preserved unchanged. Only affirmative write claims are rewritten.
+
     When writes are suppressed:
-    - Write-implying claims become counterfactual ("would be logged as X")
+    - Affirmative write claims become counterfactual ("would be logged as X")
+    - Denials/negations pass through unchanged
     - Authority posture preserved — no apologies, no explanations
     - Deterministic regex replacement, not heuristic
 

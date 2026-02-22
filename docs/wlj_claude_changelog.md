@@ -9,6 +9,30 @@
 
 # WLJ Change History
 
+## 2026-02-22 — CoS Phase 2: Cognitive Precision Layer
+
+**Changes:**
+- Added `COGNITIVE_PRECISION_FRAMEWORK` — structured decision framework injected into CoS system prompt
+  - Self-selecting: full 6-step framework for decisions/trade-offs/conflicts; direct answer for informational queries
+  - Includes second-order effects modeling (momentum decay, cognitive switching cost, identity reinforcement, recovery difficulty)
+  - Enforcement layer for non-negotiable conflicts (requires rescheduling or explicit confirmation)
+- Updated `TONE_MODE_INSTRUCTIONS` — authority posture (explanation first, then directive) across all three tone modes
+- Updated `POST_CALIBRATION_PERSONALITY` — shifted from "trusted friend" to "executive operator with relational awareness"
+- Updated language rules — added tone/compression avoidance guidance (not hard bans) for filler phrases
+- Updated `PERSONAL_ASSISTANT_BASE_PROMPT` — tightened response discipline, added authority posture directive
+
+**No infrastructure changes:** No models, engines, DB fields, Learning Mode, execution gates, or conflict detection logic modified.
+
+**Files modified:**
+- `apps/core/ai_orchestrator/cos_context.py` — COGNITIVE_PRECISION_FRAMEWORK constant, updated TONE_MODE_INSTRUCTIONS, injection point in format_cos_system_injection()
+- `apps/core/ai_governance/language_rules.py` — tone/compression avoidance guidance section
+- `apps/core/blueprint/cos_governance.py` — POST_CALIBRATION_PERSONALITY rewrite
+- `apps/ai/personal_assistant.py` — response philosophy and "what you never do" sections
+
+**Why:** Upgrade CoS reasoning quality from generic GPT behavior to structured executive reasoning. Prompt-architecture-only change.
+
+---
+
 ## 2026-02-22 — Fix "your" prefix on custom CoS display names
 
 **Changes:**

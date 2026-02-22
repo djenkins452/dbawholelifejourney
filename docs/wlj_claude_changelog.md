@@ -9,6 +9,22 @@
 
 # WLJ Change History
 
+## 2026-02-22 — CoS Phase 2: Override Posture Hardening
+
+**Changes:**
+- Added Non-Negotiable Override Protocol to COGNITIVE_PRECISION_FRAMEWORK
+  - Tier 1 violations treated as procedural override events, not negotiations
+  - 4-step structure: state contradiction → name cost → corrective minimum → require acknowledgment
+  - Explicit "priority inversion event" logging language on insistence
+  - No emotional tone, no conversational softening, no debate framing
+
+**Files modified:**
+- `apps/core/ai_orchestrator/cos_context.py` — added override protocol section to COGNITIVE_PRECISION_FRAMEWORK
+
+**Why:** Harden CoS governance posture when users attempt to bypass declared non-negotiable commitments. Prompt-architecture-only.
+
+---
+
 ## 2026-02-22 — CoS Phase 2: Cognitive Precision Layer
 
 **Changes:**

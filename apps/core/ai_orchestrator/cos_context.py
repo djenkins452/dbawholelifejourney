@@ -853,11 +853,9 @@ def format_cos_system_injection(context):
             lines.append("")
             lines.append(f"EXECUTIVE TONE: {tone_text}")
 
-    # Learned user profile (from calibration / observation)
-    learned_profile = context.get('learned_profile_prompt', '')
-    if learned_profile:
-        lines.append("")
-        lines.append(learned_profile)
+    # NOTE: learned_profile_prompt is intentionally NOT rendered here.
+    # It is injected as a separate priority layer in personal_assistant.py
+    # (Layer 5) to avoid duplication in the situational awareness block.
 
     lines.append("")
     lines.append("=== END SITUATIONAL AWARENESS ===")

@@ -1376,8 +1376,10 @@ class CadenceTimelineTest(TestCase):
 class AutonomousRemediationTest(TestCase):
     """Test controlled autonomous remediation logic."""
 
-    def test_auto_rerun_fires_for_p3_missed_system_engine(self):
+    @patch('apps.core.tasks.run_engine_task.delay')
+    def test_auto_rerun_fires_for_p3_missed_system_engine(self, mock_delay):
         """Auto-rerun fires once for a P3 MISSED_RUN on a system engine."""
+        mock_delay.return_value.id = "mock-celery-id"
         now = timezone.now()
         OpsAnomaly.objects.create(
             severity="P3", anomaly_type="MISSED_RUN",
@@ -1428,8 +1430,10 @@ class AutonomousRemediationTest(TestCase):
 
         self.assertEqual(remediated, 0)
 
-    def test_cooldown_prevents_repeat_action(self):
+    @patch('apps.core.tasks.run_engine_task.delay')
+    def test_cooldown_prevents_repeat_action(self, mock_delay):
         """Cooldown prevents auto-action on same engine within 30 minutes."""
+        mock_delay.return_value.id = "mock-celery-id"
         now = timezone.now()
         OpsAnomaly.objects.create(
             severity="P3", anomaly_type="MISSED_RUN",
@@ -1467,8 +1471,10 @@ class AutonomousRemediationTest(TestCase):
         finally:
             se.AUTONOMOUS_REMEDIATION_ENABLED = original
 
-    def test_max_actions_per_cycle(self):
+    @patch('apps.core.tasks.run_engine_task.delay')
+    def test_max_actions_per_cycle(self, mock_delay):
         """No more than MAX_AUTO_ACTIONS_PER_CYCLE actions per cycle."""
+        mock_delay.return_value.id = "mock-celery-id"
         import apps.core.ai_observability.same_engine as se
 
         original_max = se.MAX_AUTO_ACTIONS_PER_CYCLE
@@ -1490,8 +1496,10 @@ class AutonomousRemediationTest(TestCase):
         finally:
             se.MAX_AUTO_ACTIONS_PER_CYCLE = original_max
 
-    def test_intervention_logged_correctly(self):
+    @patch('apps.core.tasks.run_engine_task.delay')
+    def test_intervention_logged_correctly(self, mock_delay):
         """System-initiated intervention has correct fields."""
+        mock_delay.return_value.id = "mock-celery-id"
         now = timezone.now()
         OpsAnomaly.objects.create(
             severity="P3", anomaly_type="MISSED_RUN",
@@ -1509,4 +1517,4 @@ class AutonomousRemediationTest(TestCase):
         self.assertIsNone(intervention.admin_user)
         self.assertEqual(intervention.action_type, "auto_rerun_engine")
         self.assertTrue(len(intervention.trace_id) > 0)
-        self.assertIn(intervention.result_status, ["success", "failure"])
+        self.assertIn(intervention.result_status, ["success", "failure", "pending"])

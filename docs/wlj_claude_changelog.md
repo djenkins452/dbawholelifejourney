@@ -47,6 +47,24 @@
 
 ---
 
+## 2026-02-21 — Fix 10 CI test failures
+
+**Changes:**
+- Fixed 4 `LiveBuildLoopTests.test_create_event_*` errors: tests queried `LifeEvent` but implementation creates `CalendarEvent` — updated tests to use `CalendarEvent` model
+- Removed orphaned `test_assistant_dashboard_no_passive_language` test that referenced deleted `templates/ai/assistant_dashboard.html`
+- Fixed 4 `AutonomousRemediationTest` failures: added system engine filter (`needs_user_context=False`) to `_run_autonomous_remediation()` and mocked Celery `run_engine_task.delay` in tests
+- Fixed `SystemInjectionTest.test_learned_profile_not_in_injection`: removed learned_profile rendering from `format_cos_system_injection()` (it's injected separately in personal_assistant.py Layer 5)
+
+**Files Modified:**
+- `apps/core/blueprint/tests.py` — Updated create_event tests to use CalendarEvent, removed orphaned template test
+- `apps/core/ai_observability/same_engine.py` — Added system engine filter in `_run_autonomous_remediation()`
+- `apps/core/ai_observability/tests_ops_wall_v2.py` — Added Celery mock to remediation tests
+- `apps/core/ai_orchestrator/cos_context.py` — Removed learned_profile from situational awareness block
+
+**Why:** All 10 tests were failing in GitHub CI, blocking the pipeline.
+
+---
+
 ## 2026-02-21 — Owner Financial Command Center (Phase 1 + 2)
 
 **Changes:**

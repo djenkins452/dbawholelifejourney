@@ -9,7 +9,26 @@
 
 # WLJ Change History
 
-## 2026-02-22 — Output Compliance Gate (Phase 3 Refinement)
+## 2026-02-22 — Output Compliance Gate: Clause-Level Negation Guard
+
+**Changes:**
+- Replaced regex lookbehind approach with clause-level negation guard (Option A)
+- New architecture: for each write-verb match, `_extract_clause()` finds the surrounding sentence boundary (±80 chars), `_clause_has_negation()` tokenizes and checks for negation tokens — match is skipped if negation found
+- `_build_replacement(match)` callback produces counterfactual wording with correct casing
+- `_NEGATION_TOKENS` frozenset: not/no/never/nothing/none/can't/cannot/won't/wouldn't/isn't/doesn't/don't/didn't/hasn't/wasn't/weren't/shouldn't/without/unable
+- 38/38 test cases pass: 6 spec regression, 11 affirmative rewrites, 13 negation preservations, 3 mixed-sentence, 4 neutral, 1 writes-allowed
+- Fixed: "Logging without execution is not available" no longer corrupted
+- Fixed: "Nothing has been logged" no longer rewritten
+- Fixed: "This is not marked as completed" no longer rewritten
+
+**Files modified:**
+- `apps/core/ai_orchestrator/cos_context.py` — complete rewrite of OUTPUT COMPLIANCE GATE section
+
+**Why:** Lookbehind approach was fragile — couldn't catch negations further than one word away. Clause-level guard handles all denial patterns regardless of distance between negation and write verb.
+
+---
+
+## 2026-02-22 — Output Compliance Gate (Phase 3 Refinement — initial)
 
 **Changes:**
 - Added `apply_output_compliance_gate(text, writes_suppressed)` in `cos_context.py` — regex-based post-processing that rewrites write-implying language to counterfactual wording when execution_mode suppresses writes (Learning Mode)

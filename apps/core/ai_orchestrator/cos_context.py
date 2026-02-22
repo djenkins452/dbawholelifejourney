@@ -1624,50 +1624,138 @@ def _format_trajectory_injection(signals):
 # OUTPUT COMPLIANCE GATE
 # =========================================================================
 
-# Write-implying verb patterns: matches phrases where the LLM claims a
-# write-side effect occurred or will occur. Each pattern captures a
-# "verb + object" fragment so the replacement preserves the object.
-#
-# Negation-aware: negative lookbehind prevents rewriting denials like
-# "Nothing has been logged", "not marked as", "hasn't been recorded".
-# The negation window covers common forms: not/no/never/nothing/don't/
-# didn't/isn't/hasn't/wasn't/cannot/won't + optional whitespace.
-#
-# Anchored to word boundary (\b) to avoid partial matches inside words.
-# Case-insensitive to catch "Logged", "LOGGED", "logged".
+# Negation tokens — if ANY of these appear in the same clause as a
+# write-verb match, the match is treated as a denial and skipped.
+_NEGATION_TOKENS = frozenset({
+    'not', 'no', 'never', 'nothing', 'none',
+    "can't", 'cannot', "won't", "wouldn't",
+    "isn't", "doesn't", "don't", "didn't",
+    "hasn't", "wasn't", "weren't", "shouldn't",
+    'without', 'unable',
+})
 
-# Negation lookbehind — matches negation words followed by optional space.
-# Used as prefix on every pattern to skip denial/negative contexts.
-_NEG = r'(?<!\bnot )(?<!\bno )(?<!\bnever )(?<!\bnothing )(?<!\bhasn.t )(?<!\bwasn.t )(?<!\bisn.t )(?<!\bdon.t )(?<!\bdidn.t )(?<!\bwon.t )(?<!\bcannot )(?<!\bwithout )'
-
-_WRITE_VERBS = r'(logged|recorded|tracked|flagged|noted|persisted|saved|stored)'
-
-_WRITE_VERB_PATTERNS = [
-    # "This will be logged as X" / "This has been logged as X"
-    # Skip: "has not been logged", "wasn't logged", "nothing was logged"
-    (re.compile(
-        _NEG + r'\b(will be|has been|is being|is|was)\s+' + _WRITE_VERBS,
+# Write-verb patterns: each entry is (compiled_regex, replacement_builder).
+# replacement_builder is a callable(match) -> str that produces the
+# counterfactual wording from the match groups.
+_WRITE_CLAIM_PATTERNS = [
+    # "This will be logged as X" / "has been recorded" / "is saved" / "was stored"
+    re.compile(
+        r'\b(will be|has been|is being|is now|is|was)\s+'
+        r'(logged|recorded|tracked|flagged|noted|persisted|saved|stored)\b',
         re.IGNORECASE,
-    ), r'would be \2'),
-    # "Marked as X" / "This is marked as X"
-    # Skip: "not marked as", "isn't marked as"
-    (re.compile(
-        _NEG + r'\b(marked|marking)\s+as\b',
+    ),
+    # "Marked as X" / "Marking this as X"
+    re.compile(
+        r'\b(marked|marking)\s+(?:this\s+)?as\b',
         re.IGNORECASE,
-    ), r'would be marked as'),
-    # "Logging this as X" / "Recording this as X"
-    # Skip: "not logging", "without tracking"
-    (re.compile(
-        _NEG + r'\b(logging|recording|tracking|flagging|noting|persisting|saving|updating)\s+this\b',
+    ),
+    # "Logging this as X" / "Recording this" / "Saving this"
+    re.compile(
+        r'\b(logging|recording|tracking|flagging|noting|persisting|saving|updating)'
+        r'\s+this\b',
         re.IGNORECASE,
-    ), r'would \1 this'),
-    # "I've logged X" / "I've recorded X" / "I logged X"
-    # Skip: "I haven't logged", "I didn't log"
-    (re.compile(
-        _NEG + r"\b(I've|I have|I)\s+" + _WRITE_VERBS,
+    ),
+    # "I've logged X" / "I recorded X" / "I have saved X"
+    re.compile(
+        r"\b(I've|I have|I)\s+"
+        r'(logged|recorded|tracked|flagged|noted|persisted|saved|stored|updated)\b',
         re.IGNORECASE,
-    ), r'\1 would have \2'),
+    ),
 ]
+
+
+def _extract_clause(text, start, end):
+    """
+    Extract the clause containing positions [start, end) from text.
+
+    Walks backward/forward to the nearest sentence boundary (. ! ? ;)
+    or up to 80 characters, whichever comes first.
+
+    Returns:
+        str — the clause text (lowercased for token matching).
+    """
+    # Walk backward to clause boundary
+    clause_start = start
+    limit = max(0, start - 80)
+    while clause_start > limit:
+        ch = text[clause_start - 1]
+        if ch in '.!?;:\n':
+            break
+        clause_start -= 1
+
+    # Walk forward to clause boundary
+    clause_end = end
+    limit = min(len(text), end + 80)
+    while clause_end < limit:
+        ch = text[clause_end]
+        if ch in '.!?;:\n':
+            clause_end += 1  # include the punctuation
+            break
+        clause_end += 1
+
+    return text[clause_start:clause_end].lower()
+
+
+def _clause_has_negation(text, start, end):
+    """
+    Check whether the clause surrounding a match contains a negation token.
+
+    Uses _extract_clause to find the local clause, then tokenizes and
+    checks for intersection with _NEGATION_TOKENS.
+
+    Args:
+        text: full response text.
+        start: match start position.
+        end: match end position.
+
+    Returns:
+        bool — True if negation found (match should be skipped).
+    """
+    clause = _extract_clause(text, start, end)
+    # Tokenize: split on whitespace and strip punctuation edges
+    tokens = set()
+    for raw in clause.split():
+        # Keep apostrophe-containing contractions intact
+        cleaned = raw.strip('.,;:!?"()[]{}')
+        if cleaned:
+            tokens.add(cleaned)
+    return bool(tokens & _NEGATION_TOKENS)
+
+
+def _build_replacement(match):
+    """
+    Build counterfactual replacement text for an affirmative write-claim match.
+
+    Dispatches based on which pattern matched, using captured groups.
+    Preserves original punctuation and surrounding whitespace.
+    """
+    full = match.group(0)
+    groups = match.groups()
+
+    # Pattern 1: "(will be|has been|is|was) (logged|recorded|...)"
+    if len(groups) == 2 and groups[0].lower() in (
+        'will be', 'has been', 'is being', 'is now', 'is', 'was',
+    ):
+        return f'would be {groups[1].lower()}'
+
+    # Pattern 2: "(marked|marking) [this] as"
+    if groups[0].lower() in ('marked', 'marking'):
+        return 'would be marked as'
+
+    # Pattern 3: "(logging|recording|...) this"
+    gerund_verbs = {
+        'logging', 'recording', 'tracking', 'flagging',
+        'noting', 'persisting', 'saving', 'updating',
+    }
+    if groups[0].lower() in gerund_verbs:
+        return f'would {groups[0].lower()} this'
+
+    # Pattern 4: "(I've|I have|I) (logged|recorded|...)"
+    if len(groups) == 2 and groups[0].lower() in ("i've", "i have", "i"):
+        return f'{groups[0]} would have {groups[1].lower()}'
+
+    # Fallback: return original (should not reach here)
+    return full
 
 
 def apply_output_compliance_gate(text, writes_suppressed):
@@ -1677,14 +1765,17 @@ def apply_output_compliance_gate(text, writes_suppressed):
 
     Language-level guarantee only. No logging, no persistence, no side effects.
 
-    Negation-aware: denials ("Nothing has been logged", "not marked as")
-    are preserved unchanged. Only affirmative write claims are rewritten.
+    Clause-level negation guard (Option A):
+    - For each write-verb match, extracts the surrounding clause
+      (to nearest sentence boundary or ±80 chars).
+    - If the clause contains a negation token, the match is a denial
+      and is left unchanged.
+    - Only affirmative write claims are rewritten to counterfactual.
 
     When writes are suppressed:
     - Affirmative write claims become counterfactual ("would be logged as X")
     - Denials/negations pass through unchanged
     - Authority posture preserved — no apologies, no explanations
-    - Deterministic regex replacement, not heuristic
 
     When writes are allowed:
     - Returns text unchanged.
@@ -1703,8 +1794,14 @@ def apply_output_compliance_gate(text, writes_suppressed):
         return text
 
     result = text
-    for pattern, replacement in _WRITE_VERB_PATTERNS:
-        result = pattern.sub(replacement, result)
+    for pattern in _WRITE_CLAIM_PATTERNS:
+        # Process matches right-to-left so replacements don't shift offsets
+        matches = list(pattern.finditer(result))
+        for match in reversed(matches):
+            if _clause_has_negation(result, match.start(), match.end()):
+                continue  # Denial — skip
+            replacement = _build_replacement(match)
+            result = result[:match.start()] + replacement + result[match.end():]
 
     return result
 

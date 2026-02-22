@@ -204,6 +204,141 @@ class SystemInjectionTest(TestCase):
         self.assertNotIn("LEARNED USER PROFILE", output)
 
 
+class WriteSuppressedContractTest(TestCase):
+    """Tests for the write-suppressed system prompt contract.
+
+    Validates that the COS_WRITE_SUPPRESSED_CONTRACT is correctly injected
+    into the system prompt when writes are suppressed (Learning Mode),
+    and that the normal template does NOT include the contract.
+    """
+
+    FORBIDDEN_TOKENS = {
+        'logged', 'logging', 'saved', 'saving', 'recorded', 'recording',
+        'marked', 'marking', 'flagged', 'flagging', 'updated', 'updating',
+        'scheduled', 'scheduling', 'noted', 'captured', 'tracked',
+        'persist', 'calendar', 'queued', 'will apply',
+        'when ready', 'after exit', 'execution resumes',
+        'Learning Mode', 'current configuration', 'write suppression',
+    }
+
+    def _make_learning_context(self):
+        """Minimal learning mode context dict."""
+        return {
+            'learning_mode': True,
+            'module_permissions': {'health': True, 'journal': True},
+            'blueprint_state': {'pillars_ranked': ['Health', 'Faith']},
+            'protected_tiers': ['Morning workout'],
+            'governance_profile': {},
+            'persona_profile': {'key': 'supportive'},
+            'capacity_snapshot': {},
+            'medication_adherence_state': {},
+            'active_fast_status': {},
+            'calendar_events_today': [],
+            'transformation_metrics': {},
+            'health_signals': {},
+            'user_priorities': [],
+        }
+
+    def _make_normal_context(self):
+        """Minimal normal (non-learning-mode) context dict."""
+        return {
+            'blueprint_state': {},
+            'executive_tone_mode': 'strategic_executive',
+            'active_insights': [],
+            'active_predictions': [],
+            'relationship_signals': [],
+            'mood_status': {},
+            'health_signals': {},
+            'open_loops': {},
+            'module_permissions': {'health': True},
+            'trajectory_signals': {},
+        }
+
+    def test_learning_mode_includes_contract(self):
+        """Learning mode injection includes the write-suppressed contract."""
+        from apps.core.ai_orchestrator.cos_context import format_cos_system_injection
+        ctx = self._make_learning_context()
+        output = format_cos_system_injection(ctx)
+        self.assertIn("WRITE-SUPPRESSED CONTRACT", output)
+        self.assertIn("Writes are suppressed.", output)
+
+    def test_normal_mode_excludes_contract(self):
+        """Normal mode injection does NOT include the write-suppressed contract."""
+        from apps.core.ai_orchestrator.cos_context import format_cos_system_injection
+        ctx = self._make_normal_context()
+        output = format_cos_system_injection(ctx)
+        self.assertNotIn("WRITE-SUPPRESSED CONTRACT", output)
+        self.assertNotIn("Writes are suppressed.", output)
+
+    def test_contract_forbids_write_verbs(self):
+        """The contract text itself lists all forbidden write verbs."""
+        from apps.core.ai_orchestrator.cos_context import COS_WRITE_SUPPRESSED_CONTRACT
+        contract = COS_WRITE_SUPPRESSED_CONTRACT
+        # Contract must instruct the LLM to avoid these
+        self.assertIn("log", contract)
+        self.assertIn("save", contract)
+        self.assertIn("record", contract)
+        self.assertIn("mark", contract)
+        self.assertIn("flag", contract)
+        self.assertIn("update", contract)
+        self.assertIn("schedule", contract)
+
+    def test_contract_forbids_future_promises(self):
+        """The contract text forbids future-promise phrasing."""
+        from apps.core.ai_orchestrator.cos_context import COS_WRITE_SUPPRESSED_CONTRACT
+        contract = COS_WRITE_SUPPRESSED_CONTRACT
+        self.assertIn("when", contract.lower())
+        self.assertIn("once", contract.lower())
+        self.assertIn("resumes", contract.lower())
+        self.assertIn("later", contract.lower())
+
+    def test_contract_forbids_mode_names(self):
+        """The contract text forbids mentioning internal mode names."""
+        from apps.core.ai_orchestrator.cos_context import COS_WRITE_SUPPRESSED_CONTRACT
+        contract = COS_WRITE_SUPPRESSED_CONTRACT
+        # Contract must tell LLM not to mention these
+        self.assertIn("Learning Mode", contract)
+
+    def test_contract_specifies_two_line_response(self):
+        """The contract specifies exactly two lines for write-demand responses."""
+        from apps.core.ai_orchestrator.cos_context import COS_WRITE_SUPPRESSED_CONTRACT
+        contract = COS_WRITE_SUPPRESSED_CONTRACT
+        self.assertIn("EXACTLY two lines", contract)
+        self.assertIn("Line 1", contract)
+        self.assertIn("Line 2", contract)
+
+    def test_learning_mode_no_old_rules_block(self):
+        """The old WRITE-SUPPRESSED BEHAVIORAL RULES block is gone."""
+        from apps.core.ai_orchestrator.cos_context import format_cos_system_injection
+        ctx = self._make_learning_context()
+        output = format_cos_system_injection(ctx)
+        self.assertNotIn("WRITE-SUPPRESSED BEHAVIORAL RULES", output)
+        self.assertNotIn("LEARNING MODE AWARENESS", output)
+
+    def test_learning_mode_still_has_priorities(self):
+        """Even with write suppression, priorities and non-negotiables are present."""
+        from apps.core.ai_orchestrator.cos_context import format_cos_system_injection
+        ctx = self._make_learning_context()
+        output = format_cos_system_injection(ctx)
+        self.assertIn("Morning workout", output)
+        self.assertIn("Health", output)
+
+    def test_normal_mode_has_cognitive_precision(self):
+        """Normal mode still includes Phase 2/3 cognitive frameworks."""
+        from apps.core.ai_orchestrator.cos_context import format_cos_system_injection
+        ctx = self._make_normal_context()
+        output = format_cos_system_injection(ctx)
+        self.assertIn("COGNITIVE PRECISION", output)
+        self.assertIn("TRAJECTORY PRECISION", output)
+
+    def test_compliance_gate_still_importable(self):
+        """The compliance gate function still exists for backward compatibility."""
+        from apps.core.ai_orchestrator.cos_context import apply_output_compliance_gate
+        # Should be callable, returns text unchanged when writes_suppressed=False
+        result = apply_output_compliance_gate("Test text", writes_suppressed=False)
+        self.assertEqual(result, "Test text")
+
+
 class DBEStrategicNarrativeTest(TestCase):
     """Tests for the Phase 4 DBE strategic narrative format."""
 

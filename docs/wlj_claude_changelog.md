@@ -9,6 +9,32 @@
 
 # WLJ Change History
 
+## 2026-02-22 — CoS Phase 3: Strategic Modeling Layer (Trajectory Precision)
+
+**Changes:**
+- Added TRAJECTORY_PRECISION_FRAMEWORK constant — 3-layer trajectory reasoning architecture:
+  - Layer 1 (Contextual Pattern Surfacing): detects repeated renegotiation (≥3x/10d), surfaces when commitment re-discussed
+  - Layer 2 (Drift Alert): detects Tier 1 skips (≥2x/7d or consecutive), rate-limited once per commitment per 7 days
+  - Layer 3 (Weekly Trajectory Framing): 3-item trajectory summary during planning/review interactions
+- Added `_build_trajectory_signals(user)` — gathers trajectory data from existing models (InterventionLog, ScenarioHistory, state engine)
+- Added Source-Integrity Gate (`_source_integrity_gate()`) — validates data source availability and minimum volume before computing signals; fails closed with compact placeholder
+- Added `_format_trajectory_injection()` — formats validated signals as compact prompt injection with insufficient-signal placeholders
+- Integrated trajectory signals into `build_cos_context()` and `format_cos_system_injection()`
+- Horizon modeling: 72-hour (concrete/behavioral) and 30-day (directional identity shift) projections
+- No new models, engines, DB modifications, or infrastructure changes
+
+**Minimum thresholds (Source-Integrity Gate):**
+- Renegotiations: ≥1 record to compute, ≥3 per behavior to trigger pattern surfacing
+- Tier 1 skips: ≥1 record to compute, ≥2 per behavior to trigger drift alert
+- Drift frequency: ≥5 events in 14 days for frequency-based inference
+
+**Files modified:**
+- `apps/core/ai_orchestrator/cos_context.py` — TRAJECTORY_PRECISION_FRAMEWORK, _source_integrity_gate(), _build_trajectory_signals(), _format_trajectory_injection(), build_cos_context(), format_cos_system_injection()
+
+**Why:** Elevate CoS from decision precision (Phase 2) to trajectory precision. Detect behavioral drift, surface repeated negotiation patterns, model 72-hour and 30-day directional impact, reinforce or correct identity trajectory. Reasoning enhancement only.
+
+---
+
 ## 2026-02-22 — CoS Phase 2: Micro-Compression & Identity Precision
 
 **Changes:**

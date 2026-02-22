@@ -598,6 +598,13 @@ def build_cos_context(user):
         logger.debug("CoS context: governance strategy unavailable: %s", e)
         context['governance_strategy_prompt'] = ''
 
+    # Phase 3: Trajectory signals (uses existing data only)
+    try:
+        context['trajectory_signals'] = _build_trajectory_signals(user)
+    except Exception as e:
+        logger.debug("CoS context: trajectory signals unavailable: %s", e)
+        context['trajectory_signals'] = {}
+
     # Approaching life events (next 14 days)
     try:
         from apps.life.models import SignificantEvent, LifeEvent
@@ -888,6 +895,19 @@ def format_cos_system_injection(context):
     lines.append("")
     lines.append(COGNITIVE_PRECISION_FRAMEWORK.strip())
 
+    # Phase 3: Trajectory Precision Layer
+    # Framework always injected; signals only when patterns exist.
+    lines.append("")
+    lines.append(TRAJECTORY_PRECISION_FRAMEWORK.strip())
+
+    # Trajectory signals (data-driven — only emitted when patterns detected)
+    trajectory = context.get('trajectory_signals', {})
+    if trajectory:
+        traj_block = _format_trajectory_injection(trajectory)
+        if traj_block:
+            lines.append("")
+            lines.append(traj_block)
+
     lines.append("")
     lines.append("=== END SITUATIONAL AWARENESS ===")
     lines.append("")
@@ -1049,6 +1069,83 @@ Avoid neutral abstraction phrases:
 Replace explanation of what you're doing with doing it.
 
 --- END COGNITIVE PRECISION ---
+"""
+
+
+# =========================================================================
+# PHASE 3 — STRATEGIC MODELING LAYER (Trajectory Precision)
+# =========================================================================
+
+TRAJECTORY_PRECISION_FRAMEWORK = """
+--- TRAJECTORY PRECISION ---
+
+## LAYER 1 — CONTEXTUAL PATTERN SURFACING
+
+When trajectory signals indicate a recurring pattern on a specific commitment:
+- Same commitment renegotiated ≥3 times within 10 days
+- OR corrective minimum compressed ≥3 times within 10 days
+- OR repeated identity downshift language detected ("just a workout", "only this once", etc.)
+
+Surface ONLY when that commitment is discussed again. Structure:
+
+1. Pattern statement (no soft language):
+   "You've renegotiated this three times in ten days."
+
+2. 72-hour trajectory projection (concrete, behavioral):
+   "At this rate, the next 72 hours continue erosion."
+
+3. 30-day directional framing (identity shift):
+   "Thirty days of this pattern shifts you from disciplined to intermittent."
+
+4. Directive. One sentence. No trailing question.
+
+No charts. No emotional commentary. No filler.
+
+## LAYER 2 — DRIFT ALERT
+
+When trajectory signals indicate Tier 1 drift:
+- Tier 1 commitment skipped ≥2 times in 7 days
+- OR 2 consecutive Tier 1 skips
+- OR corrective minimum downgraded repeatedly AND progress trend negative
+
+Surface immediately during that interaction. Rate limit: once per commitment per 7 days.
+
+Structure:
+1. "Tier 1 drift detected."
+2. Cost framing — identity erosion + momentum loss. Be specific.
+3. Short corrective directive.
+
+Do not repeat without new behavioral evidence.
+
+## LAYER 3 — WEEKLY TRAJECTORY FRAMING
+
+Surface ONLY during weekly planning, strategic review, or explicit reflection moments.
+
+Exactly 3 items:
+1. One strengthening pattern (what's working)
+2. One drift risk pattern (what's eroding)
+3. One identity reinforcement statement
+
+Keep under 8 sentences total. No motivational tone. No analytics summary.
+
+## HORIZON MODELING RULES
+
+For all trajectory surfacing:
+- 72-hour horizon: concrete and behavioral. What happens in the next 3 days if this continues.
+- 30-day horizon: directional identity shift. Who you become if this persists.
+- Do not forecast beyond 30 days.
+
+## TRAJECTORY TONE
+
+- High-density language.
+- No "I've noticed…"
+- No "It seems…"
+- No defensive framing.
+- No motivational energy.
+- No coaching tone.
+- Executive trajectory correction only.
+
+--- END TRAJECTORY PRECISION ---
 """
 
 
@@ -1253,6 +1350,273 @@ def _get_current_intervention_level(context):
     if drift >= 15:
         return 1  # nudge
     return 0  # silent
+
+
+# =========================================================================
+# PHASE 3 — TRAJECTORY SIGNAL BUILDER
+# =========================================================================
+
+
+def _source_integrity_gate(source_name, queryset_fn, min_records=1):
+    """
+    Source-Integrity Gate for trajectory signals.
+
+    Verifies a data source is importable and returns non-trivial volume
+    before allowing trajectory computation. Fails closed — returns None
+    on any failure rather than fabricating data.
+
+    Args:
+        source_name: str — identifier for logging/placeholder output.
+        queryset_fn: callable — returns (queryset_or_data, record_count).
+            Must handle its own imports internally.
+        min_records: int — minimum record count to consider source valid.
+
+    Returns:
+        (data, count) on success, or None if insufficient/unavailable.
+    """
+    try:
+        data, count = queryset_fn()
+        if count < min_records:
+            return None
+        return data, count
+    except Exception as e:
+        logger.debug("Source-Integrity Gate [%s]: %s", source_name, e)
+        return None
+
+
+def _build_trajectory_signals(user):
+    """
+    Build trajectory-relevant signals from existing data sources.
+
+    Source-Integrity Gate applied to every signal source:
+    - Each source verified importable and returns non-trivial volume
+    - Insufficient sources produce compact placeholder, not fabricated data
+    - Read-only — no writes, no side effects
+
+    Uses ONLY existing models — no new data structures:
+    - InterventionLog: renegotiation patterns, override frequency
+    - ScenarioHistory: drift frequency
+    - State engine: progress trend
+
+    Returns:
+        dict — trajectory signals for prompt injection.
+    """
+    signals = {
+        'renegotiation_patterns': [],
+        'tier1_skip_patterns': [],
+        'consecutive_tier1_skips': 0,
+        'override_count_10d': 0,
+        'drift_scenario_count_14d': 0,
+        'progress_trend_negative': False,
+        'insufficient': [],  # Compact placeholders for unavailable signals
+    }
+
+    ten_days_ago = timezone.now() - datetime.timedelta(days=10)
+    seven_days_ago = timezone.now() - datetime.timedelta(days=7)
+    fourteen_days_ago = timezone.now() - datetime.timedelta(days=14)
+
+    # --- Renegotiation patterns (Layer 1) ---
+    # Gate: require ≥1 record to compute, ≥3 per behavior to trigger pattern
+    def _renegotiation_source():
+        from apps.core.blueprint.models import InterventionLog
+        from django.db.models import Count
+
+        qs = InterventionLog.objects.filter(
+            user=user,
+            created_at__gte=ten_days_ago,
+            user_response__in=['proceeded', 'dismissed'],
+            behavior_key__gt='',
+        )
+        total = qs.count()
+        patterns = list(
+            qs.values('behavior_key')
+            .annotate(count=Count('id'))
+            .filter(count__gte=3)
+            .order_by('-count')[:5]
+        )
+        return patterns, total
+
+    result = _source_integrity_gate('renegotiation', _renegotiation_source, min_records=1)
+    if result is not None:
+        patterns, _ = result
+        for r in patterns:
+            signals['renegotiation_patterns'].append({
+                'behavior': r['behavior_key'],
+                'count': r['count'],
+                'window_days': 10,
+            })
+        # Override count (total proceeded in 10 days)
+        try:
+            from apps.core.blueprint.models import InterventionLog
+            signals['override_count_10d'] = InterventionLog.objects.filter(
+                user=user,
+                created_at__gte=ten_days_ago,
+                user_response='proceeded',
+            ).count()
+        except Exception:
+            pass
+    else:
+        signals['insufficient'].append('renegotiation')
+
+    # --- Tier 1 skip patterns (Layer 2) ---
+    # Gate: require ≥1 record to compute, ≥2 per behavior to trigger alert
+    def _tier1_skip_source():
+        from apps.core.blueprint.models import InterventionLog
+
+        qs = InterventionLog.objects.filter(
+            user=user,
+            created_at__gte=seven_days_ago,
+            trigger_type__in=['tier1_violation', 'non_negotiable_miss'],
+        ).order_by('-created_at')
+        records = list(qs.values('behavior_key', 'created_at'))
+        return records, len(records)
+
+    result = _source_integrity_gate('tier1_skips', _tier1_skip_source, min_records=1)
+    if result is not None:
+        records, _ = result
+        tier1_by_behavior = {}
+        tier1_dates = []
+        for rec in records:
+            key = rec['behavior_key'] or 'general'
+            tier1_by_behavior.setdefault(key, 0)
+            tier1_by_behavior[key] += 1
+            tier1_dates.append(rec['created_at'].date())
+
+        for bkey, count in tier1_by_behavior.items():
+            if count >= 2:
+                signals['tier1_skip_patterns'].append({
+                    'behavior': bkey,
+                    'count': count,
+                    'window_days': 7,
+                })
+
+        # Consecutive Tier 1 skips
+        if tier1_dates:
+            unique_dates = sorted(set(tier1_dates), reverse=True)
+            consecutive = 1
+            for i in range(1, len(unique_dates)):
+                if (unique_dates[i - 1] - unique_dates[i]).days <= 1:
+                    consecutive += 1
+                else:
+                    break
+            signals['consecutive_tier1_skips'] = consecutive
+    else:
+        signals['insufficient'].append('tier1_skips')
+
+    # --- Drift scenario frequency (supports Layer 2 + 3) ---
+    # Gate: require ≥5 events in 14 days for frequency-based inference
+    def _drift_frequency_source():
+        from apps.core.ai_arbitration.models import ScenarioHistory
+        from datetime import date
+
+        total_events = ScenarioHistory.objects.filter(
+            user=user,
+            date__gte=date.today() - datetime.timedelta(days=14),
+        ).count()
+        drift_count = ScenarioHistory.objects.filter(
+            user=user,
+            date__gte=date.today() - datetime.timedelta(days=14),
+            dominant_scenario='DRIFT_CRITICAL',
+        ).count()
+        return drift_count, total_events
+
+    result = _source_integrity_gate('drift_frequency', _drift_frequency_source, min_records=5)
+    if result is not None:
+        drift_count, _ = result
+        signals['drift_scenario_count_14d'] = drift_count
+    else:
+        signals['insufficient'].append('drift_frequency')
+
+    # --- Progress trend (supports Layer 2 corrective minimum detection) ---
+    def _progress_trend_source():
+        from apps.core.ai_state.state_engine import get_state_value
+        weight_trend = get_state_value(user, 'health.weight_trend', 'stable')
+        alignment_trend = get_state_value(user, 'alignment.trend', 'stable')
+        is_negative = (
+            weight_trend in ('increasing',)
+            or alignment_trend in ('declining', 'decreasing')
+        )
+        return is_negative, 1  # Always 1 record (state engine always available)
+
+    result = _source_integrity_gate('progress_trend', _progress_trend_source, min_records=1)
+    if result is not None:
+        is_negative, _ = result
+        signals['progress_trend_negative'] = is_negative
+    else:
+        signals['insufficient'].append('progress_trend')
+
+    return signals
+
+
+def _format_trajectory_injection(signals):
+    """
+    Format trajectory signals as a compact prompt injection block.
+
+    Source-Integrity Gate enforced:
+    - Only emits validated signals that cleared minimum thresholds
+    - Insufficient signals produce compact placeholders (no narrative)
+    - Deterministic, micro-compressed output
+
+    Args:
+        signals: dict from _build_trajectory_signals()
+
+    Returns:
+        str — formatted trajectory signal block, or empty string.
+    """
+    renegotiations = signals.get('renegotiation_patterns', [])
+    tier1_skips = signals.get('tier1_skip_patterns', [])
+    consecutive = signals.get('consecutive_tier1_skips', 0)
+    drift_14d = signals.get('drift_scenario_count_14d', 0)
+    overrides_10d = signals.get('override_count_10d', 0)
+    progress_negative = signals.get('progress_trend_negative', False)
+    insufficient = signals.get('insufficient', [])
+
+    # Check for any validated signals OR insufficient placeholders
+    has_validated = (
+        renegotiations
+        or tier1_skips
+        or consecutive >= 2
+        or drift_14d >= 2
+        or overrides_10d >= 3
+    )
+    if not has_validated and not insufficient:
+        return ''
+
+    lines = ["--- TRAJECTORY SIGNALS ---"]
+
+    # Validated signals
+    if renegotiations:
+        for r in renegotiations:
+            lines.append(
+                f"RENEGOTIATION: {r['behavior']} overridden {r['count']}x "
+                f"in {r['window_days']} days"
+            )
+
+    if tier1_skips:
+        for s in tier1_skips:
+            lines.append(
+                f"TIER1_SKIP: {s['behavior']} skipped {s['count']}x "
+                f"in {s['window_days']} days"
+            )
+
+    if consecutive >= 2:
+        lines.append(f"CONSECUTIVE_TIER1_SKIPS: {consecutive} consecutive days")
+
+    if drift_14d >= 2:
+        lines.append(f"DRIFT_FREQUENCY: {drift_14d} drift-critical days in 14 days")
+
+    if overrides_10d >= 3:
+        lines.append(f"OVERRIDE_RATE: {overrides_10d} overrides in 10 days")
+
+    if progress_negative:
+        lines.append("PROGRESS_TREND: negative")
+
+    # Insufficient signal placeholders (compact, no narrative)
+    for sig in insufficient:
+        lines.append(f"INSUFFICIENT SIGNAL: {sig}")
+
+    lines.append("--- END TRAJECTORY SIGNALS ---")
+    return '\n'.join(lines)
 
 
 # =========================================================================

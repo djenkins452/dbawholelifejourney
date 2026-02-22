@@ -2840,6 +2840,8 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                         build_cos_context,
                         build_learning_mode_context,
                         format_cos_system_injection,
+                        determine_activation_state,
+                        _build_trajectory_signals,
                     )
                     from apps.core.blueprint.learning_mode import is_learning_mode_active
 
@@ -2847,6 +2849,16 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                         cos_context = build_learning_mode_context(self.user)
                     else:
                         cos_context = build_cos_context(self.user)
+                        # Phase 3 Tiered Activation: compute activation
+                        # state from trajectory signals + user input.
+                        traj_signals = cos_context.get(
+                            'trajectory_signals',
+                            _build_trajectory_signals(self.user),
+                        )
+                        cos_context['trajectory_signals'] = traj_signals
+                        cos_context['trajectory_activation_state'] = (
+                            determine_activation_state(traj_signals, message)
+                        )
 
                     cos_injection = format_cos_system_injection(cos_context)
                     # Append operational context AFTER personality layers

@@ -324,9 +324,13 @@ class WriteSuppressedContractTest(TestCase):
         self.assertIn("Health", output)
 
     def test_normal_mode_has_cognitive_precision(self):
-        """Normal mode still includes Phase 2/3 cognitive frameworks."""
-        from apps.core.ai_orchestrator.cos_context import format_cos_system_injection
+        """Normal mode always includes Phase 2 cognitive framework.
+        Phase 3 trajectory framework only in STRUCTURAL_DRIFT state."""
+        from apps.core.ai_orchestrator.cos_context import (
+            format_cos_system_injection, ACTIVATION_STRUCTURAL_DRIFT,
+        )
         ctx = self._make_normal_context()
+        ctx['trajectory_activation_state'] = ACTIVATION_STRUCTURAL_DRIFT
         output = format_cos_system_injection(ctx)
         self.assertIn("COGNITIVE PRECISION", output)
         self.assertIn("TRAJECTORY PRECISION", output)
@@ -337,6 +341,270 @@ class WriteSuppressedContractTest(TestCase):
         # Should be callable, returns text unchanged when writes_suppressed=False
         result = apply_output_compliance_gate("Test text", writes_suppressed=False)
         self.assertEqual(result, "Test text")
+
+
+class TieredActivationTest(TestCase):
+    """Tests for Phase 3 Tiered Activation (CLEAN / EARLY_EROSION / STRUCTURAL_DRIFT)."""
+
+    def _make_normal_context(self, activation_state=None, trajectory_signals=None):
+        """Minimal normal context with optional activation state."""
+        from apps.core.ai_orchestrator.cos_context import ACTIVATION_CLEAN
+        ctx = {
+            'blueprint_state': {},
+            'executive_tone_mode': 'strategic_executive',
+            'active_insights': [],
+            'active_predictions': [],
+            'relationship_signals': [],
+            'mood_status': {},
+            'health_signals': {},
+            'open_loops': {},
+            'module_permissions': {'health': True},
+            'trajectory_signals': trajectory_signals or {},
+            'trajectory_activation_state': activation_state or ACTIVATION_CLEAN,
+        }
+        return ctx
+
+    # ------------------------------------------------------------------
+    # Erosion marker detection
+    # ------------------------------------------------------------------
+
+    def test_detect_erosion_markers_finds_markers(self):
+        """detect_erosion_markers returns matched phrases."""
+        from apps.core.ai_orchestrator.cos_context import detect_erosion_markers
+        result = detect_erosion_markers("I skipped the workout again. Not a big deal.")
+        self.assertIn('again', result)
+        self.assertIn('not a big deal', result)
+
+    def test_detect_erosion_markers_case_insensitive(self):
+        """Erosion detection is case-insensitive."""
+        from apps.core.ai_orchestrator.cos_context import detect_erosion_markers
+        result = detect_erosion_markers("It's Fine, I'll handle it Next Week.")
+        self.assertIn("it's fine", result)
+        self.assertIn('next week', result)
+
+    def test_detect_erosion_markers_no_match(self):
+        """Clean input returns empty list."""
+        from apps.core.ai_orchestrator.cos_context import detect_erosion_markers
+        result = detect_erosion_markers("What is my blood pressure?")
+        self.assertEqual(result, [])
+
+    def test_detect_erosion_markers_empty_input(self):
+        """Empty/None input returns empty list."""
+        from apps.core.ai_orchestrator.cos_context import detect_erosion_markers
+        self.assertEqual(detect_erosion_markers(''), [])
+        self.assertEqual(detect_erosion_markers(None), [])
+
+    # ------------------------------------------------------------------
+    # Activation state determination
+    # ------------------------------------------------------------------
+
+    def test_determine_clean_state(self):
+        """No thresholds, no erosion markers → CLEAN."""
+        from apps.core.ai_orchestrator.cos_context import (
+            determine_activation_state, ACTIVATION_CLEAN,
+        )
+        signals = {
+            'renegotiation_patterns': [],
+            'tier1_skip_patterns': [],
+            'consecutive_tier1_skips': 0,
+        }
+        result = determine_activation_state(signals, "What time is my next meeting?")
+        self.assertEqual(result, ACTIVATION_CLEAN)
+
+    def test_determine_early_erosion_state(self):
+        """No thresholds but erosion markers → EARLY_EROSION."""
+        from apps.core.ai_orchestrator.cos_context import (
+            determine_activation_state, ACTIVATION_EARLY_EROSION,
+        )
+        signals = {
+            'renegotiation_patterns': [],
+            'tier1_skip_patterns': [],
+            'consecutive_tier1_skips': 0,
+        }
+        result = determine_activation_state(
+            signals, "I skipped the workout again. Not a big deal."
+        )
+        self.assertEqual(result, ACTIVATION_EARLY_EROSION)
+
+    def test_determine_structural_drift_renegotiation(self):
+        """Renegotiation threshold met → STRUCTURAL_DRIFT."""
+        from apps.core.ai_orchestrator.cos_context import (
+            determine_activation_state, ACTIVATION_STRUCTURAL_DRIFT,
+        )
+        signals = {
+            'renegotiation_patterns': [
+                {'behavior': 'workout', 'count': 4, 'window_days': 10},
+            ],
+            'tier1_skip_patterns': [],
+            'consecutive_tier1_skips': 0,
+        }
+        result = determine_activation_state(signals, "I skipped again")
+        self.assertEqual(result, ACTIVATION_STRUCTURAL_DRIFT)
+
+    def test_determine_structural_drift_tier1_skips(self):
+        """Tier 1 skip threshold met → STRUCTURAL_DRIFT."""
+        from apps.core.ai_orchestrator.cos_context import (
+            determine_activation_state, ACTIVATION_STRUCTURAL_DRIFT,
+        )
+        signals = {
+            'renegotiation_patterns': [],
+            'tier1_skip_patterns': [
+                {'behavior': 'bible_reading', 'count': 3, 'window_days': 7},
+            ],
+            'consecutive_tier1_skips': 0,
+        }
+        result = determine_activation_state(signals, "whatever")
+        self.assertEqual(result, ACTIVATION_STRUCTURAL_DRIFT)
+
+    def test_determine_structural_drift_consecutive(self):
+        """Consecutive Tier 1 skips ≥2 → STRUCTURAL_DRIFT."""
+        from apps.core.ai_orchestrator.cos_context import (
+            determine_activation_state, ACTIVATION_STRUCTURAL_DRIFT,
+        )
+        signals = {
+            'renegotiation_patterns': [],
+            'tier1_skip_patterns': [],
+            'consecutive_tier1_skips': 3,
+        }
+        result = determine_activation_state(signals, "not a big deal")
+        self.assertEqual(result, ACTIVATION_STRUCTURAL_DRIFT)
+
+    def test_structural_drift_overrides_erosion(self):
+        """When thresholds met AND erosion markers present → STRUCTURAL_DRIFT."""
+        from apps.core.ai_orchestrator.cos_context import (
+            determine_activation_state, ACTIVATION_STRUCTURAL_DRIFT,
+        )
+        signals = {
+            'renegotiation_patterns': [
+                {'behavior': 'workout', 'count': 5, 'window_days': 10},
+            ],
+            'tier1_skip_patterns': [],
+            'consecutive_tier1_skips': 0,
+        }
+        # Input has erosion markers too — structural should still win
+        result = determine_activation_state(
+            signals, "I skipped again, it's fine"
+        )
+        self.assertEqual(result, ACTIVATION_STRUCTURAL_DRIFT)
+
+    # ------------------------------------------------------------------
+    # System injection output per state
+    # ------------------------------------------------------------------
+
+    def test_clean_state_no_trajectory_framework(self):
+        """CLEAN state: no trajectory framework injected."""
+        from apps.core.ai_orchestrator.cos_context import (
+            format_cos_system_injection, ACTIVATION_CLEAN,
+        )
+        ctx = self._make_normal_context(activation_state=ACTIVATION_CLEAN)
+        output = format_cos_system_injection(ctx)
+        self.assertIn("COGNITIVE PRECISION", output)
+        self.assertNotIn("TRAJECTORY PRECISION", output)
+        self.assertNotIn("EARLY EROSION", output)
+        self.assertNotIn("72-hour", output.lower())
+        self.assertNotIn("30-day", output.lower())
+
+    def test_early_erosion_injects_soft_probe(self):
+        """EARLY_EROSION state: soft probe framework, no full trajectory."""
+        from apps.core.ai_orchestrator.cos_context import (
+            format_cos_system_injection, ACTIVATION_EARLY_EROSION,
+        )
+        ctx = self._make_normal_context(activation_state=ACTIVATION_EARLY_EROSION)
+        output = format_cos_system_injection(ctx)
+        self.assertIn("COGNITIVE PRECISION", output)
+        self.assertIn("EARLY EROSION", output)
+        self.assertIn("observational", output.lower())
+        # Must NOT contain full trajectory framework
+        self.assertNotIn("TRAJECTORY PRECISION", output)
+        # Must NOT contain horizon modeling instructions
+        self.assertNotIn("LAYER 1", output)
+        self.assertNotIn("LAYER 2", output)
+
+    def test_early_erosion_no_projections(self):
+        """EARLY_EROSION explicitly forbids 72h and 30d projections."""
+        from apps.core.ai_orchestrator.cos_context import (
+            format_cos_system_injection, ACTIVATION_EARLY_EROSION,
+        )
+        ctx = self._make_normal_context(activation_state=ACTIVATION_EARLY_EROSION)
+        output = format_cos_system_injection(ctx)
+        # The framework text must contain "Do NOT produce" directives
+        self.assertIn("Do NOT produce 72-hour projections", output)
+        self.assertIn("Do NOT produce 30-day identity projections", output)
+
+    def test_structural_drift_injects_full_framework(self):
+        """STRUCTURAL_DRIFT state: full trajectory framework + signals."""
+        from apps.core.ai_orchestrator.cos_context import (
+            format_cos_system_injection, ACTIVATION_STRUCTURAL_DRIFT,
+        )
+        signals = {
+            'renegotiation_patterns': [
+                {'behavior': 'workout', 'count': 4, 'window_days': 10},
+            ],
+            'tier1_skip_patterns': [],
+            'consecutive_tier1_skips': 0,
+            'drift_scenario_count_14d': 0,
+            'override_count_10d': 0,
+            'progress_trend_negative': False,
+            'insufficient': [],
+        }
+        ctx = self._make_normal_context(
+            activation_state=ACTIVATION_STRUCTURAL_DRIFT,
+            trajectory_signals=signals,
+        )
+        output = format_cos_system_injection(ctx)
+        self.assertIn("COGNITIVE PRECISION", output)
+        self.assertIn("TRAJECTORY PRECISION", output)
+        self.assertIn("LAYER 1", output)
+        self.assertIn("LAYER 2", output)
+        self.assertIn("LAYER 3", output)
+        self.assertIn("HORIZON MODELING RULES", output)
+        # Trajectory signals block present
+        self.assertIn("RENEGOTIATION: workout overridden 4x", output)
+
+    def test_structural_drift_always_has_projections(self):
+        """STRUCTURAL_DRIFT includes 72h and 30d projection instructions."""
+        from apps.core.ai_orchestrator.cos_context import (
+            format_cos_system_injection, ACTIVATION_STRUCTURAL_DRIFT,
+        )
+        ctx = self._make_normal_context(activation_state=ACTIVATION_STRUCTURAL_DRIFT)
+        output = format_cos_system_injection(ctx)
+        self.assertIn("72-hour horizon", output)
+        self.assertIn("30-day horizon", output)
+
+    def test_weekly_review_not_affected(self):
+        """Layer 3 weekly trajectory framing still present in STRUCTURAL_DRIFT."""
+        from apps.core.ai_orchestrator.cos_context import (
+            format_cos_system_injection, ACTIVATION_STRUCTURAL_DRIFT,
+        )
+        ctx = self._make_normal_context(activation_state=ACTIVATION_STRUCTURAL_DRIFT)
+        output = format_cos_system_injection(ctx)
+        self.assertIn("WEEKLY TRAJECTORY FRAMING", output)
+
+    def test_write_suppressed_not_affected(self):
+        """Write-suppressed contract logic is unchanged by tiered activation."""
+        from apps.core.ai_orchestrator.cos_context import (
+            format_cos_system_injection, COS_WRITE_SUPPRESSED_CONTRACT,
+        )
+        ctx = {
+            'learning_mode': True,
+            'module_permissions': {'health': True},
+            'blueprint_state': {},
+            'protected_tiers': [],
+            'governance_profile': {},
+            'persona_profile': {},
+            'capacity_snapshot': {},
+            'medication_adherence_state': {},
+            'active_fast_status': {},
+            'calendar_events_today': [],
+            'transformation_metrics': {},
+            'health_signals': {},
+            'user_priorities': [],
+        }
+        output = format_cos_system_injection(ctx)
+        self.assertIn("WRITE-SUPPRESSED CONTRACT", output)
+        # No trajectory framework in learning mode
+        self.assertNotIn("TRAJECTORY PRECISION", output)
+        self.assertNotIn("EARLY EROSION", output)
 
 
 class DBEStrategicNarrativeTest(TestCase):

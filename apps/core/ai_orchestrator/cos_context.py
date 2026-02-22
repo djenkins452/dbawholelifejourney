@@ -896,18 +896,27 @@ def format_cos_system_injection(context):
     lines.append("")
     lines.append(COGNITIVE_PRECISION_FRAMEWORK.strip())
 
-    # Phase 3: Trajectory Precision Layer
-    # Framework always injected; signals only when patterns exist.
-    lines.append("")
-    lines.append(TRAJECTORY_PRECISION_FRAMEWORK.strip())
-
-    # Trajectory signals (data-driven — only emitted when patterns detected)
+    # Phase 3: Trajectory Precision Layer (Tiered Activation)
+    # Activation state determines which framework variant is injected:
+    # - CLEAN: Phase 2 only, no trajectory framework.
+    # - EARLY_EROSION: Soft observational probe, no horizon modeling.
+    # - STRUCTURAL_DRIFT: Full framework + trajectory signals.
+    activation_state = context.get('trajectory_activation_state', ACTIVATION_CLEAN)
     trajectory = context.get('trajectory_signals', {})
-    if trajectory:
-        traj_block = _format_trajectory_injection(trajectory)
-        if traj_block:
-            lines.append("")
-            lines.append(traj_block)
+
+    if activation_state == ACTIVATION_STRUCTURAL_DRIFT:
+        # Full trajectory framework + validated signal block
+        lines.append("")
+        lines.append(TRAJECTORY_PRECISION_FRAMEWORK.strip())
+        if trajectory:
+            traj_block = _format_trajectory_injection(trajectory)
+            if traj_block:
+                lines.append("")
+                lines.append(traj_block)
+    elif activation_state == ACTIVATION_EARLY_EROSION:
+        # Soft probe only — no full framework, no horizon modeling
+        lines.append("")
+        lines.append(EARLY_EROSION_FRAMEWORK.strip())
 
     lines.append("")
     lines.append("=== END SITUATIONAL AWARENESS ===")
@@ -1618,6 +1627,127 @@ def _format_trajectory_injection(signals):
 
     lines.append("--- END TRAJECTORY SIGNALS ---")
     return '\n'.join(lines)
+
+
+# =========================================================================
+# PHASE 3 — TIERED ACTIVATION
+# =========================================================================
+
+# Activation states
+ACTIVATION_CLEAN = 'CLEAN'
+ACTIVATION_EARLY_EROSION = 'EARLY_EROSION'
+ACTIVATION_STRUCTURAL_DRIFT = 'STRUCTURAL_DRIFT'
+
+# Semantic erosion markers — case-insensitive substring match.
+# Presence of ANY marker in user input triggers EARLY_EROSION (if no
+# threshold-based STRUCTURAL_DRIFT already active).
+_EROSION_MARKERS = (
+    'again',
+    'a few',
+    'most',
+    'not a big deal',
+    "i'll make it up",
+    'ill make it up',
+    'next week',
+    'looser system',
+    'just this once',
+    "it's fine",
+    'its fine',
+    'not that serious',
+)
+
+
+def detect_erosion_markers(user_input):
+    """
+    Detect semantic erosion markers in user input.
+
+    Simple case-insensitive substring matching — no NLP.
+
+    Args:
+        user_input: str — the user's message.
+
+    Returns:
+        list[str] — matched erosion marker phrases (empty if none).
+    """
+    if not user_input:
+        return []
+    lowered = user_input.lower()
+    return [m for m in _EROSION_MARKERS if m in lowered]
+
+
+def determine_activation_state(trajectory_signals, user_input=''):
+    """
+    Determine the Phase 3 tiered activation state.
+
+    Priority:
+    1. STRUCTURAL_DRIFT — numeric thresholds met (existing logic).
+    2. EARLY_EROSION — no thresholds met, but erosion markers present.
+    3. CLEAN — neither condition.
+
+    Threshold-based activation always overrides semantic detection.
+
+    Args:
+        trajectory_signals: dict from _build_trajectory_signals().
+        user_input: str — the user's current message.
+
+    Returns:
+        str — one of ACTIVATION_CLEAN, ACTIVATION_EARLY_EROSION,
+               ACTIVATION_STRUCTURAL_DRIFT.
+    """
+    # Check numeric thresholds (STRUCTURAL_DRIFT)
+    renegotiations = trajectory_signals.get('renegotiation_patterns', [])
+    tier1_skips = trajectory_signals.get('tier1_skip_patterns', [])
+    consecutive = trajectory_signals.get('consecutive_tier1_skips', 0)
+
+    has_structural = (
+        bool(renegotiations)       # ≥3 renegotiations on any behavior in 10d
+        or bool(tier1_skips)       # ≥2 Tier 1 skips on any behavior in 7d
+        or consecutive >= 2        # Consecutive Tier 1 skip days
+    )
+
+    if has_structural:
+        return ACTIVATION_STRUCTURAL_DRIFT
+
+    # Check semantic erosion markers (EARLY_EROSION)
+    if detect_erosion_markers(user_input):
+        return ACTIVATION_EARLY_EROSION
+
+    return ACTIVATION_CLEAN
+
+
+# Tiered framework injections — replaces the monolithic TRAJECTORY_PRECISION_FRAMEWORK
+# injection for CLEAN and EARLY_EROSION states. STRUCTURAL_DRIFT still gets the
+# full framework.
+
+EARLY_EROSION_FRAMEWORK = """
+--- TRAJECTORY AWARENESS (EARLY EROSION) ---
+
+Semantic erosion markers detected in user input. No numeric thresholds met.
+
+RESPONSE POSTURE:
+- Observational, proportional tone. No escalation.
+- Acknowledge the language pattern without fabricating data.
+- Do NOT produce 72-hour projections.
+- Do NOT produce 30-day identity projections.
+- Do NOT reference drift frequency, renegotiation counts, or skip patterns.
+- Do NOT invent numeric evidence.
+
+STRUCTURE (when erosion language is relevant to the topic):
+1. Name what the language suggests — one sentence.
+   Example: "The language suggests this may be trending."
+2. State the conditional escalation — one sentence.
+   Example: "If this repeats, it becomes structural."
+3. Directive — one sentence. Proportional. No trailing question.
+
+If the user's message is not about a commitment (e.g., general question,
+weekly review request), ignore erosion markers entirely. They only activate
+when the user is discussing a specific behavior or commitment.
+
+Keep under 4 sentences total. No horizon modeling. No pattern naming.
+No motivational tone. Compressed.
+
+--- END TRAJECTORY AWARENESS ---
+"""
 
 
 # =========================================================================

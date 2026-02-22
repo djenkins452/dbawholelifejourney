@@ -16,6 +16,7 @@ class Command(BaseCommand):
         )
 
         entries = [
+            # GPT-4o family
             {
                 'model_name': 'gpt-4o',
                 'effective_start': date(2024, 5, 1),
@@ -28,6 +29,39 @@ class Command(BaseCommand):
                 'input_cost_per_1m_tokens_usd': '0.15',
                 'output_cost_per_1m_tokens_usd': '0.60',
             },
+            # GPT-4.1 family
+            {
+                'model_name': 'gpt-4.1',
+                'effective_start': date(2025, 4, 1),
+                'input_cost_per_1m_tokens_usd': '2.00',
+                'output_cost_per_1m_tokens_usd': '8.00',
+            },
+            {
+                'model_name': 'gpt-4.1-mini',
+                'effective_start': date(2025, 4, 1),
+                'input_cost_per_1m_tokens_usd': '0.40',
+                'output_cost_per_1m_tokens_usd': '1.60',
+            },
+            {
+                'model_name': 'gpt-4.1-nano',
+                'effective_start': date(2025, 4, 1),
+                'input_cost_per_1m_tokens_usd': '0.10',
+                'output_cost_per_1m_tokens_usd': '0.40',
+            },
+            # Reasoning models
+            {
+                'model_name': 'o3-mini',
+                'effective_start': date(2025, 1, 1),
+                'input_cost_per_1m_tokens_usd': '1.10',
+                'output_cost_per_1m_tokens_usd': '4.40',
+            },
+            {
+                'model_name': 'o4-mini',
+                'effective_start': date(2025, 4, 1),
+                'input_cost_per_1m_tokens_usd': '1.10',
+                'output_cost_per_1m_tokens_usd': '4.40',
+            },
+            # Audio
             {
                 'model_name': 'whisper-1',
                 'effective_start': date(2024, 1, 1),

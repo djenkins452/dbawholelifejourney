@@ -9,6 +9,21 @@
 
 # WLJ Change History
 
+## 2026-02-22 — CoS Phase 2: Micro-Compression & Identity Precision
+
+**Changes:**
+- Added three cadence refinement directives to COGNITIVE_PRECISION_FRAMEWORK:
+  - MICRO-COMPRESSION: prefer high-density statements, cut restated sentences
+  - IDENTITY PRECISION: identity-based framing over consistency language ("who you are" not "your streak")
+  - LANGUAGE DENSITY: eliminate neutral abstraction phrases, replace explanation with direct assertion
+
+**Files modified:**
+- `apps/core/ai_orchestrator/cos_context.py` — added micro-compression, identity precision, language density sections
+
+**Why:** Increase authority density in CoS responses without altering structure or protocols. Cadence refinement only.
+
+---
+
 ## 2026-02-22 — CoS Phase 2: System Challenge Containment
 
 **Changes:**

@@ -9,6 +9,31 @@
 
 # WLJ Change History
 
+## 2026-02-22 — Phase 3 Tiered Activation: CLEAN / EARLY_EROSION / STRUCTURAL_DRIFT
+
+**Changes:**
+- Implemented three-state activation logic for Phase 3 Trajectory Precision:
+  - **CLEAN**: No erosion signals → Phase 2 only, no trajectory framework injected
+  - **EARLY_EROSION**: Semantic markers detected but no numeric thresholds → soft observational probe, no horizon modeling
+  - **STRUCTURAL_DRIFT**: Numeric thresholds met → full trajectory framework + signal block
+- Added `detect_erosion_markers()` — case-insensitive substring matching for 12 erosion phrases ("again", "not a big deal", "I'll make it up", etc.)
+- Added `determine_activation_state()` — threshold-based STRUCTURAL_DRIFT always overrides semantic EARLY_EROSION
+- Added `EARLY_EROSION_FRAMEWORK` constant — compressed behavioral contract for soft probe responses (no 72h/30d projections, no fabricated data)
+- Modified `format_cos_system_injection()` to inject framework variant based on activation state
+- Modified `_generate_response()` in personal_assistant.py to compute activation state from trajectory signals + user input
+- Added 18 TieredActivationTest cases covering: marker detection, state determination, injection output per state, projection prohibition, weekly review preservation, write-suppressed isolation
+- Updated existing test (test_normal_mode_has_cognitive_precision) for new tiered behavior
+- All 39 Phase 4 CoS tests pass, 365 AI tests pass
+
+**Files modified:**
+- `apps/core/ai_orchestrator/cos_context.py` — erosion detection, activation state logic, EARLY_EROSION_FRAMEWORK, tiered injection in format_cos_system_injection()
+- `apps/ai/personal_assistant.py` — activation state computation wired into Layer 6
+- `apps/core/tests/test_phase4_cos.py` — TieredActivationTest class (18 tests), updated existing test
+
+**Why:** Monolithic trajectory framework injection was disproportionate — full Layer 1/2/3 with horizon modeling fired even when no behavioral data existed. Tiered activation ensures proportional response: CLEAN users get zero trajectory noise, early erosion gets a calibrated soft probe, and structural drift gets the full enforcement framework.
+
+---
+
 ## 2026-02-22 — Dual Prompt Templates: Generation-Time Write Suppression
 
 **Changes:**

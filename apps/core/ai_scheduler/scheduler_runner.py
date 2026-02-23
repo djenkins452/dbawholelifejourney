@@ -915,6 +915,49 @@ def run_icqg_synthetic():
 # =========================================================================
 
 
+def run_deadline_snapshots():
+    """
+    Phase 2: Compute deadline snapshots for all active AI users.
+
+    ISE-driven, runs every 5 minutes. Only computes for users with
+    pending commitments, future goal deadlines, or scheduled blocks.
+
+    Returns:
+        dict — {computed: int, skipped: int, errors: int}
+    """
+    with trace_context(source="scheduler"):
+        try:
+            from apps.core.blueprint.deadline_engine import (
+                compute_deadline_snapshot,
+                should_compute_snapshot,
+            )
+        except ImportError:
+            logger.error("ISE: Deadline engine not available (import failed)")
+            return {"computed": 0, "skipped": 0, "errors": 0}
+
+        users = _get_active_ai_users()
+        computed = 0
+        skipped = 0
+        errors = 0
+
+        for user in users:
+            try:
+                if should_compute_snapshot(user):
+                    compute_deadline_snapshot(user)
+                    computed += 1
+                else:
+                    skipped += 1
+            except Exception as e:
+                errors += 1
+                logger.error(f"ISE: Deadline snapshot failed for user {user.id}: {e}")
+
+        logger.info(
+            f"ISE: Deadline snapshots — computed={computed}, "
+            f"skipped={skipped}, errors={errors}"
+        )
+        return {"computed": computed, "skipped": skipped, "errors": errors}
+
+
 def run_tomorrow_protection_pass():
     """
     Run tomorrow protection pass for all active AI users.

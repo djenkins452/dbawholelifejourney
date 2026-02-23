@@ -1,6 +1,22 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 91,
+        "fields": {
+            "title": "Smarter Time & Deadline Intelligence",
+            "description": "Your Chief of Staff now requires specific times for commitments — no more silent assumptions. When you say 'I'll finish this today', it will ask 'by when specifically?' to ensure accountability is precise. A new deadline surfacing engine proactively tracks everything due in the next 24 hours, 3 days, and 7 days, with collision detection when deadlines bunch up. Protected blocks (like morning prayer) now have graduated resistance — the system will explain the conflict and suggest alternatives before allowing an override. Timezone changes automatically preserve your intended times.",
+            "entry_type": "enhancement",
+            "version": "",
+            "release_date": "2026-02-23",
+            "is_published": true,
+            "is_major": true,
+            "learn_more_url": "",
+            "created_at": "2026-02-23T14:30:00Z",
+            "updated_at": "2026-02-23T14:30:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 90,
         "fields": {
             "title": "Learning Mode & Priority System",

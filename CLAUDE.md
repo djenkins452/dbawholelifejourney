@@ -105,7 +105,7 @@ AdminTask `description` fields must be JSON: `{"objective": "...", "inputs": [..
 
 ## On Task Completion
 
-After ANY code changes, do ALL of the following **automatically without asking**:
+After ANY changes (code, docs, or config), do ALL of the following **automatically without asking**:
 
 1. **Changelog:** Append to `docs/wlj_claude_changelog.md` (date, changes, files, why)
 2. **User-facing docs (MANDATORY for features/enhancements):** Update ALL of the following. See `docs/CLAUDE_DOC_UPDATES.md` for full checklist.

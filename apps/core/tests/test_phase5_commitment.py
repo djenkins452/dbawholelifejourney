@@ -311,7 +311,7 @@ class CommitmentNormalizationTest(TestCase):
     def test_do_type(self):
         draft = CommitmentDraft(
             action='finish the report',
-            time_boundary_raw='today',
+            time_boundary_raw='by 5pm today',
             done_definition='Report submitted.',
         )
         ref = datetime(2026, 2, 22, 10, 0)
@@ -322,7 +322,7 @@ class CommitmentNormalizationTest(TestCase):
     def test_decide_type(self):
         draft = CommitmentDraft(
             action='decide on the vendor',
-            time_boundary_raw='today',
+            time_boundary_raw='by 5pm today',
             done_definition='Vendor chosen.',
         )
         ref = datetime(2026, 2, 22, 10, 0)
@@ -332,7 +332,7 @@ class CommitmentNormalizationTest(TestCase):
     def test_schedule_type(self):
         draft = CommitmentDraft(
             action='schedule the dentist appointment',
-            time_boundary_raw='tomorrow',
+            time_boundary_raw='tomorrow by 10am',
             done_definition='Appointment booked.',
         )
         ref = datetime(2026, 2, 22, 10, 0)
@@ -342,7 +342,7 @@ class CommitmentNormalizationTest(TestCase):
     def test_stop_type(self):
         draft = CommitmentDraft(
             action='stop eating junk food',
-            time_boundary_raw='today',
+            time_boundary_raw='by 5pm today',
             done_definition='No junk food consumed.',
         )
         ref = datetime(2026, 2, 22, 10, 0)
@@ -450,7 +450,7 @@ class ExactConfirmationFormatTest(TestCase):
     def test_capitalization_preserved(self):
         """First letter capitalized, rest preserves original case."""
         result = process_ecc_detection(
-            "I'll finish the Excel model today. "
+            "I'll finish the Excel model by 5pm today. "
             "Done means the spreadsheet is exported.",
             'CLEAN',
         )
@@ -462,7 +462,7 @@ class ExactConfirmationFormatTest(TestCase):
     def test_no_double_period(self):
         """Done-definition ending with period should not produce '..'"""
         result = process_ecc_detection(
-            "I will finish the report today. "
+            "I will finish the report by 5pm today. "
             "Done means the report is submitted.",
             'CLEAN',
         )
@@ -727,7 +727,7 @@ class RenegotiationReturnDisciplineTest(TestCase):
     def test_clean_tier_allows_renegotiation_with_time(self):
         """CLEAN tier with new time → Commitment returned, NOT blocked."""
         result = process_ecc_detection(
-            "Move it to tomorrow instead.",
+            "Move it to tomorrow by 10am instead.",
             'CLEAN',
             active_commitments=[self.existing],
         )

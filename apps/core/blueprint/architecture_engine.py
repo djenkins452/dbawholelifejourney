@@ -479,3 +479,191 @@ def _compute_risk_warnings(blueprint, blocks, target_date):
         warnings.append(f"No sleep block scheduled. Target: {sleep_target // 60}h.")
 
     return warnings
+
+
+# =============================================================================
+# PHASE 2 — TIER 1 CONFLICT ENFORCEMENT (GRADUATED RESISTANCE)
+# =============================================================================
+
+# Deterministic override phrase — must be an exact match
+TIER1_OVERRIDE_PHRASE = "Override Tier 1 protection"
+
+
+def check_tier1_conflict(user, proposed_start, proposed_end, proposed_description=''):
+    """
+    Phase 2: Check if a proposed block overlaps any Tier 1 protected block.
+
+    Graduated resistance model:
+    - Tier 1: hard block + explanation + alternatives + require override phrase
+    - Tier 2-3: warn but allow without override
+
+    Args:
+        user: User instance.
+        proposed_start: datetime.time — start of proposed block.
+        proposed_end: datetime.time — end of proposed block.
+        proposed_description: str — description of proposed block.
+
+    Returns:
+        dict with:
+            'conflict': bool — whether a Tier 1 conflict exists.
+            'tier1_block': dict or None — the conflicting Tier 1 block details.
+            'message': str — human-readable conflict explanation.
+            'alternatives': list — suggested alternative time slots.
+            'override_required': bool — whether explicit override is needed.
+        or None if no conflict.
+    """
+    today = timezone.localdate()
+    plan = ArchitecturePlan.get_active_for_date(user, today)
+    if not plan:
+        return None
+
+    # Find overlapping Tier 1 blocks
+    tier1_blocks = plan.blocks.filter(tier=1)
+    for block in tier1_blocks:
+        if _times_overlap(block.start_time, block.end_time, proposed_start, proposed_end):
+            return {
+                'conflict': True,
+                'tier1_block': {
+                    'id': block.pk,
+                    'title': block.title,
+                    'start': block.start_time.strftime('%H:%M'),
+                    'end': block.end_time.strftime('%H:%M'),
+                    'behavior_key': block.behavior_key,
+                },
+                'message': (
+                    f"This conflicts with your Tier 1 protected block "
+                    f"'{block.title}' ({block.start_time.strftime('%H:%M')}-"
+                    f"{block.end_time.strftime('%H:%M')}). "
+                    f"You designated this as identity-protected."
+                ),
+                'alternatives': _find_alternative_slots(plan, proposed_start, proposed_end),
+                'override_required': True,
+            }
+
+    # Check Tier 2-3 overlaps (warn but allow)
+    tier23_blocks = plan.blocks.filter(tier__in=[2, 3])
+    for block in tier23_blocks:
+        if _times_overlap(block.start_time, block.end_time, proposed_start, proposed_end):
+            return {
+                'conflict': True,
+                'tier1_block': None,
+                'message': (
+                    f"This overlaps with '{block.title}' "
+                    f"({block.start_time.strftime('%H:%M')}-"
+                    f"{block.end_time.strftime('%H:%M')}), "
+                    f"a Tier {block.tier} block. Proceeding."
+                ),
+                'alternatives': [],
+                'override_required': False,
+            }
+
+    return None
+
+
+def process_tier1_override(user, override_text, original_block_id, conflicting_description,
+                           escalation_level='', density_score=0.0):
+    """
+    Phase 2: Process a Tier 1 override request.
+
+    Only allows if user states exact phrase: "Override Tier 1 protection"
+
+    Args:
+        user: User instance.
+        override_text: str — user's override message.
+        original_block_id: int — PK of the Tier 1 block being overridden.
+        conflicting_description: str — description of conflicting block.
+        escalation_level: str — current escalation level.
+        density_score: float — current calendar density.
+
+    Returns:
+        dict with:
+            'allowed': bool
+            'message': str
+    """
+    if TIER1_OVERRIDE_PHRASE not in override_text:
+        return {
+            'allowed': False,
+            'message': (
+                f"To override Tier 1 protection, you must explicitly state: "
+                f'"{TIER1_OVERRIDE_PHRASE}"'
+            ),
+        }
+
+    # Log the override event
+    try:
+        from apps.core.blueprint.models import Tier1OverrideEvent
+        Tier1OverrideEvent.objects.create(
+            user=user,
+            original_block_id=original_block_id,
+            conflicting_block_description=conflicting_description,
+            escalation_level_at_time=escalation_level,
+            density_score_at_time=density_score,
+        )
+        logger.info(
+            "Phase 2: Tier 1 override logged for user %s, block %s",
+            user.pk, original_block_id,
+        )
+    except Exception as e:
+        logger.error("Failed to log Tier 1 override: %s", e)
+
+    return {
+        'allowed': True,
+        'message': "Tier 1 protection overridden. This has been logged.",
+    }
+
+
+def _times_overlap(start1, end1, start2, end2):
+    """Check if two time ranges overlap."""
+    return start1 < end2 and start2 < end1
+
+
+def _find_alternative_slots(plan, proposed_start, proposed_end):
+    """
+    Find alternative time slots that don't conflict with existing blocks.
+
+    Returns up to 3 alternative slots.
+    """
+    import datetime as dt_module
+
+    all_blocks = list(plan.blocks.all().order_by('start_time'))
+    proposed_duration = (
+        dt_module.datetime.combine(dt_module.date.today(), proposed_end)
+        - dt_module.datetime.combine(dt_module.date.today(), proposed_start)
+    )
+    duration_minutes = int(proposed_duration.total_seconds() / 60)
+
+    # Find gaps between blocks (within 7AM-10PM)
+    alternatives = []
+    waking_start = dt_module.time(7, 0)
+    waking_end = dt_module.time(22, 0)
+
+    boundaries = [waking_start]
+    for block in all_blocks:
+        if block.start_time and block.end_time:
+            boundaries.append(block.start_time)
+            boundaries.append(block.end_time)
+    boundaries.append(waking_end)
+    boundaries.sort()
+
+    for i in range(0, len(boundaries) - 1, 2):
+        gap_start = boundaries[i]
+        gap_end = boundaries[i + 1] if i + 1 < len(boundaries) else waking_end
+
+        gap_minutes = (
+            dt_module.datetime.combine(dt_module.date.today(), gap_end)
+            - dt_module.datetime.combine(dt_module.date.today(), gap_start)
+        ).total_seconds() / 60
+
+        if gap_minutes >= duration_minutes and gap_start >= waking_start:
+            slot_end = (
+                dt_module.datetime.combine(dt_module.date.today(), gap_start)
+                + dt_module.timedelta(minutes=duration_minutes)
+            ).time()
+            alternatives.append({
+                'start': gap_start.strftime('%H:%M'),
+                'end': slot_end.strftime('%H:%M'),
+            })
+            if len(alternatives) >= 3:
+                break
+
+    return alternatives

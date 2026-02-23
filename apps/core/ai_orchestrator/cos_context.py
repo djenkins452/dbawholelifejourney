@@ -75,6 +75,7 @@ def build_cos_context(user):
         'risk_warnings': [],
         'today_blocks_summary': [],
         'calendar_events_today': [],
+        'deadline_snapshot': {},  # Phase 2: ISE-driven deadline surfacing
     }
 
     prefs = user.preferences
@@ -214,6 +215,27 @@ def build_cos_context(user):
             'opportunity_windows': pressure_data.get('opportunity_windows', [])[:3],
             'summary': translate_weekly_pressure(pressure_data),
         }
+    except Exception:
+        pass
+
+    # Phase 2: Deadline snapshot (ISE-driven — read latest, no computation here)
+    try:
+        from apps.core.blueprint.models import DeadlineSnapshot
+        snapshot = DeadlineSnapshot.latest_for_user(user)
+        if snapshot and not snapshot.is_stale():
+            context['deadline_snapshot'] = {
+                'due_24h': snapshot.due_24h,
+                'due_72h': snapshot.due_72h,
+                'due_7d': snapshot.due_7d,
+                'collision_flags': snapshot.collision_flags,
+                'computed_at': snapshot.computed_at.isoformat(),
+            }
+        elif snapshot and snapshot.is_stale():
+            context['deadline_snapshot'] = {
+                'stale': True,
+                'computed_at': snapshot.computed_at.isoformat(),
+            }
+            # SAME anomaly will be raised by ISE check, not here
     except Exception:
         pass
 

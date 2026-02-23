@@ -16,6 +16,7 @@ from unittest.mock import patch, MagicMock, PropertyMock
 from django.test import TestCase
 from django.utils import timezone
 
+from apps.ai.models import AssistantMessage
 from apps.users.models import User
 
 
@@ -816,3 +817,243 @@ class ECCClosurePrecedenceTest(_PipelineTestMixin, TestCase):
             ecc,
             "Non-closure input must not remove commitment from metadata",
         )
+
+
+class ECCClosureHardShortCircuitTest(_PipelineTestMixin, TestCase):
+    """
+    Phase 5C Hard Short-Circuit Enforcement.
+
+    Closure must be a HARD RETURN: exactly one AssistantMessage,
+    no intent recognition, no calibration recording, no rolling
+    summary generation.
+    """
+
+    @patch('apps.core.ai_orchestrator.cos_context.determine_activation_state',
+           return_value='CLEAN')
+    @patch('apps.ai.personal_assistant.AIService')
+    @patch('apps.ai.personal_assistant.ai_service')
+    def test_closure_creates_exactly_one_assistant_message(
+        self, mock_ai, mock_ai_cls, mock_determine_tier
+    ):
+        """Closure must create exactly ONE AssistantMessage with exact text."""
+        mock_ai.is_available = True
+        mock_ai_cls.check_user_consent = MagicMock(return_value=True)
+
+        pa1 = self._build_pa()
+        conversation = pa1.get_or_create_conversation()
+        pa1.send_message(
+            "I'll finish the report by 5pm today. "
+            "Done means the report is submitted.",
+            conversation=conversation,
+        )
+
+        # Count assistant messages before closure
+        msgs_before = AssistantMessage.objects.filter(
+            conversation=conversation, role='assistant',
+        ).count()
+
+        pa2 = self._build_pa()
+        result = pa2.send_message(
+            "It's done.",
+            conversation=conversation,
+        )
+
+        # Exactly ONE new assistant-role AssistantMessage
+        msgs_after = AssistantMessage.objects.filter(
+            conversation=conversation, role='assistant',
+        ).count()
+        self.assertEqual(
+            msgs_after - msgs_before, 1,
+            "Closure must create exactly one assistant AssistantMessage",
+        )
+
+        # Content must be exact positive lock-in
+        last_msg = AssistantMessage.objects.filter(
+            conversation=conversation, role='assistant',
+        ).order_by('-created_at').first()
+        self.assertEqual(
+            last_msg.content,
+            "Time boundary honored. Repeat this structure.",
+        )
+
+    @patch('apps.core.ai_orchestrator.cos_context.determine_activation_state',
+           return_value='CLEAN')
+    @patch('apps.ai.personal_assistant.AIService')
+    @patch('apps.ai.personal_assistant.ai_service')
+    def test_closure_skips_calibration_recording(
+        self, mock_ai, mock_ai_cls, mock_determine_tier
+    ):
+        """Closure must NOT trigger calibration answer recording."""
+        mock_ai.is_available = True
+        mock_ai_cls.check_user_consent = MagicMock(return_value=True)
+
+        pa1 = self._build_pa()
+        conversation = pa1.get_or_create_conversation()
+        pa1.send_message(
+            "I'll finish the report by 5pm today. "
+            "Done means the report is submitted.",
+            conversation=conversation,
+        )
+
+        pa2 = self._build_pa()
+
+        with patch(
+            'apps.core.blueprint.cos_governance.record_calibration_answer'
+        ) as mock_cal:
+            pa2.send_message(
+                "It's done.",
+                conversation=conversation,
+            )
+
+        mock_cal.assert_not_called()
+
+    @patch('apps.core.ai_orchestrator.cos_context.determine_activation_state',
+           return_value='CLEAN')
+    @patch('apps.ai.personal_assistant.AIService')
+    @patch('apps.ai.personal_assistant.ai_service')
+    def test_closure_skips_rolling_summary(
+        self, mock_ai, mock_ai_cls, mock_determine_tier
+    ):
+        """Closure must NOT trigger rolling summary generation."""
+        mock_ai.is_available = True
+        mock_ai_cls.check_user_consent = MagicMock(return_value=True)
+
+        pa1 = self._build_pa()
+        conversation = pa1.get_or_create_conversation()
+        pa1.send_message(
+            "I'll finish the report by 5pm today. "
+            "Done means the report is submitted.",
+            conversation=conversation,
+        )
+
+        pa2 = self._build_pa()
+
+        with patch(
+            'apps.ai.executive_briefing.maybe_generate_rolling_summary'
+        ) as mock_summary:
+            pa2.send_message(
+                "It's done.",
+                conversation=conversation,
+            )
+
+        mock_summary.assert_not_called()
+
+    @patch('apps.core.ai_orchestrator.cos_context.determine_activation_state',
+           return_value='CLEAN')
+    @patch('apps.ai.personal_assistant.AIService')
+    @patch('apps.ai.personal_assistant.ai_service')
+    def test_closure_resilient_to_db_exception(
+        self, mock_ai, mock_ai_cls, mock_determine_tier
+    ):
+        """
+        If conversation.save() throws AFTER closure is detected,
+        the sentinel ensures closure response is still returned
+        and intent recognition does NOT run.
+        """
+        mock_ai.is_available = True
+        mock_ai_cls.check_user_consent = MagicMock(return_value=True)
+
+        pa1 = self._build_pa()
+        conversation = pa1.get_or_create_conversation()
+        pa1.send_message(
+            "I'll finish the report by 5pm today. "
+            "Done means the report is submitted.",
+            conversation=conversation,
+        )
+
+        pa2 = self._build_pa()
+
+        from apps.ai import intent_service as intent_mod
+        recognize_called = {'called': False}
+
+        def track_recognize(*args, **kwargs):
+            recognize_called['called'] = True
+            return []
+
+        # Patch conversation.save to throw INSIDE the ECC try block
+        original_save = conversation.save
+        call_count = {'n': 0}
+
+        def flaky_save(*args, **kwargs):
+            call_count['n'] += 1
+            # Let first saves (user message, etc.) through.
+            # Throw on the metadata save inside ECC closure.
+            if call_count['n'] >= 4:
+                raise RuntimeError("simulated DB failure")
+            return original_save(*args, **kwargs)
+
+        with patch.object(
+            intent_mod.intent_service, 'recognize_intents',
+            side_effect=track_recognize,
+        ), patch.object(
+            type(conversation), 'save', flaky_save,
+        ):
+            result = pa2.send_message(
+                "It's done.",
+                conversation=conversation,
+            )
+
+        # Closure response must still be returned
+        self.assertIn('response', result)
+
+        # Intent recognition must NOT have been called
+        self.assertFalse(
+            recognize_called['called'],
+            "Intent recognition must not run after closure sentinel is set",
+        )
+
+    @patch('apps.core.ai_orchestrator.cos_context.determine_activation_state',
+           return_value='CLEAN')
+    @patch('apps.ai.personal_assistant.AIService')
+    @patch('apps.ai.personal_assistant.ai_service')
+    def test_generate_response_closure_skips_llm(
+        self, mock_ai, mock_ai_cls, mock_determine_tier
+    ):
+        """
+        _generate_response() closure must return immediately and
+        never call the LLM API.
+        """
+        mock_ai.is_available = True
+        mock_ai._call_api = MagicMock(
+            return_value="LLM should not run",
+        )
+        mock_ai_cls.check_user_consent = MagicMock(return_value=True)
+
+        pa1 = self._build_pa()
+        conversation = pa1.get_or_create_conversation()
+        pa1.send_message(
+            "I'll finish the report by 5pm today. "
+            "Done means the report is submitted.",
+            conversation=conversation,
+        )
+
+        pa2 = self._build_pa()
+
+        # Call _generate_response directly to test the inner path
+        from apps.core.ai_orchestrator.cos_context import (
+            build_cos_context,
+            _build_trajectory_signals,
+        )
+        with patch(
+            'apps.core.ai_orchestrator.cos_context.build_cos_context',
+            return_value=self._mock_cos_context(),
+        ), patch(
+            'apps.core.ai_orchestrator.cos_context._build_trajectory_signals',
+            return_value={
+                'renegotiation_patterns': [],
+                'tier1_skip_patterns': [],
+                'consecutive_tier1_skips': 0,
+            },
+        ), patch(
+            'apps.core.blueprint.learning_mode.is_learning_mode_active',
+            return_value=False,
+        ):
+            response = pa2._generate_response(
+                "Done", conversation,
+            )
+
+        self.assertEqual(
+            response,
+            "Time boundary honored. Repeat this structure.",
+        )
+        mock_ai._call_api.assert_not_called()

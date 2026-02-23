@@ -9,6 +9,23 @@
 
 # WLJ Change History
 
+## 2026-02-22 — Phase 5C: Closure Hard Short-Circuit Enforcement
+
+**Changes:**
+- Added `_ecc_closure_handled` sentinel flag in both `send_message()` and `_generate_response()` — set BEFORE any DB operation when closure is detected
+- After the ECC try/except block: if sentinel is set, hard return bypasses ALL downstream subsystems (intent recognition, calibration recording, rolling summary, LLM generation)
+- `send_message()` hard short-circuit: best-effort AssistantMessage creation with duplicate check, then immediate return
+- `_generate_response()` hard short-circuit: immediate return of closure response, bypasses Decision Branch Gate and LLM API call
+- Added 5 integration tests in `ECCClosureHardShortCircuitTest`: exactly-one-message, calibration skip, rolling-summary skip, DB-exception resilience, LLM-skip
+
+**Root cause:** The ECC closure path was inside a broad try/except that caught ALL exceptions. If `conversation.save()` or `AssistantMessage.objects.create()` threw after closure was detected, the exception was swallowed and execution fell through to intent recognition, calibration, or LLM generation — producing duplicate or conflicting responses.
+
+**Files modified:**
+- `apps/ai/personal_assistant.py` — sentinel flag + hard short-circuit in send_message() and _generate_response()
+- `apps/core/tests/test_phase5_commitment_pipeline.py` — 5 new hard short-circuit integration tests
+
+**Verification:** 94 tests pass (68 Phase 5 unit + 26 Phase 5 pipeline integration)
+
 ## 2026-02-22 — Phase 5C: Closure Precedence Correction
 
 **Changes:**

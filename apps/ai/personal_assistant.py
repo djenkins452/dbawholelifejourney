@@ -1985,6 +1985,11 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             # recognition, task creation, and LLM generation.
             # Active commitment persisted in conversation.metadata for
             # cross-message continuity.
+            #
+            # Phase 5C hard short-circuit sentinel: set BEFORE any DB
+            # operation so the except handler cannot swallow closure.
+            _ecc_closure_handled = False
+            _ecc_closure_response = ''
             try:
                 from apps.core.ai_orchestrator.commitment_contract import (
                     Commitment as EccCommitment,
@@ -2022,6 +2027,11 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                 if _ecc_restored and _ecc_restored.status == 'pending':
                     closure = process_ecc_closure(message, _ecc_restored)
                     if closure is not None:
+                        # Phase 5C: Set sentinel BEFORE any DB operation
+                        # so except handler cannot swallow closure.
+                        ecc_response = closure.get('response', '')
+                        _ecc_closure_handled = True
+                        _ecc_closure_response = ecc_response
                         conversation.metadata = conversation.metadata or {}
                         if closure.get('closed'):
                             # Remove commitment from metadata
@@ -2029,7 +2039,6 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                                 'ecc_active_commitment', None
                             )
                         conversation.save(update_fields=['metadata'])
-                        ecc_response = closure.get('response', '')
                         if ecc_response:
                             AssistantMessage.objects.create(
                                 conversation=conversation,
@@ -2074,6 +2083,31 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                         return {'response': ecc_response}
             except Exception as ecc_err:
                 logger.debug("ECC pre-check skipped: %s", ecc_err)
+
+            # ── Phase 5C HARD SHORT-CIRCUIT ──────────────────────
+            # If closure was detected (sentinel set) but a DB operation
+            # inside the try block threw, we MUST NOT fall through to
+            # intent recognition.  Return the closure response and
+            # bypass every downstream subsystem.
+            if _ecc_closure_handled:
+                if _ecc_closure_response:
+                    # Best-effort: ensure exactly one AssistantMessage
+                    try:
+                        if not AssistantMessage.objects.filter(
+                            conversation=conversation,
+                            content=_ecc_closure_response,
+                            role='assistant',
+                        ).exists():
+                            AssistantMessage.objects.create(
+                                conversation=conversation,
+                                role='assistant',
+                                content=_ecc_closure_response,
+                                message_type='text',
+                            )
+                    except Exception:
+                        pass  # response still returned to caller
+                return {'response': _ecc_closure_response or ''}
+            # ── End hard short-circuit ────────────────────────────
 
             # First, check for proactive check-in responses (e.g., "yes" to "Did you take your medicine?")
             proactive_result = handle_proactive_confirmation(self.user, message)
@@ -2962,6 +2996,10 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                         # intent detected but required fields missing.
                         # Active commitment loaded from conversation.metadata
                         # for cross-message continuity.
+                        #
+                        # Phase 5C hard short-circuit sentinel.
+                        _ecc_closure_handled = False
+                        _ecc_closure_response = ''
                         try:
                             from apps.core.ai_orchestrator.commitment_contract import (
                                 Commitment as EccCommitment,
@@ -2993,6 +3031,11 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                                     message, _ecc_restored
                                 )
                                 if _closure is not None:
+                                    # Phase 5C: Set sentinel BEFORE DB ops
+                                    _ecc_closure_response = (
+                                        _closure.get('response', '')
+                                    )
+                                    _ecc_closure_handled = True
                                     conversation.metadata = (
                                         conversation.metadata or {}
                                     )
@@ -3003,9 +3046,8 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                                     conversation.save(
                                         update_fields=['metadata']
                                     )
-                                    _cr = _closure.get('response', '')
-                                    if _cr:
-                                        return _cr
+                                    if _ecc_closure_response:
+                                        return _ecc_closure_response
 
                             ecc_result = process_ecc_detection(
                                 user_input=message,
@@ -3034,6 +3076,13 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                                     return ecc_result['response']
                         except Exception as ecc_err:
                             logger.debug("ECC detection skipped: %s", ecc_err)
+
+                        # ── Phase 5C HARD SHORT-CIRCUIT ──────────
+                        # If closure was detected but a DB operation
+                        # threw, bypass LLM generation entirely.
+                        if _ecc_closure_handled and _ecc_closure_response:
+                            return _ecc_closure_response
+                        # ── End hard short-circuit ────────────────
 
                         # Phase 4 R1: Decision Branch Gate evaluation
                         cos_context['decision_branch_gate'] = (

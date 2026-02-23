@@ -9,6 +9,20 @@
 
 # WLJ Change History
 
+## 2026-02-22 — CoS Full System Picture Report
+
+**Changes:**
+- Created comprehensive audit-grade documentation of the entire Chief of Staff (CoS) intelligence system
+- Covers all 17 engines (15 production + 2 observability), three-phase pipeline, Phase 3/4/5 deterministic controls, ECC commitment lifecycle, time/timezone handling, memory/state persistence, LLM orchestration, admin console, scheduling, and identified risks
+- Every claim references file paths, class/function names, and key line ranges
+
+**Files created:**
+- `docs/cos_full_picture_report.md` — Complete CoS system documentation (~1500 lines)
+
+**Purpose:** Zero-omission reference document for understanding the CoS system's actual production behavior, including silent defaults, short-circuit points, swallowed exceptions, and concurrency risks.
+
+---
+
 ## 2026-02-22 — Calendar Reliability Hardening (Date Authority + Parameter Inheritance)
 
 **Changes:**

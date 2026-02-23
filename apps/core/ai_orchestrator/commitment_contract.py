@@ -59,6 +59,7 @@ class Commitment:
     time_boundary: datetime
     done_definition: str
     status: Literal['pending', 'closed_success', 'closed_missed'] = 'pending'
+    time_boundary_display: Optional[str] = None
 
 
 @dataclass
@@ -67,6 +68,7 @@ class CommitmentDraft:
     action: str
     time_boundary_raw: Optional[str] = None
     done_definition: Optional[str] = None
+    time_boundary_display: Optional[str] = None
 
 
 @dataclass
@@ -188,6 +190,81 @@ def _extract_action_text(normalized, trigger):
     return after
 
 
+# Regex patterns for finding triggers in ORIGINAL text (preserving case).
+# Order must mirror _COMMITMENT_TRIGGERS for correct precedence.
+_TRIGGER_ORIGINAL_PATTERNS = (
+    re.compile(r"I\s+am\s+going\s+to\s+", re.IGNORECASE),
+    re.compile(r"I['\u2019]m\s+going\s+to\s+", re.IGNORECASE),
+    re.compile(r"I\s+plan\s+to\s+", re.IGNORECASE),
+    re.compile(r"I\s+will\s+", re.IGNORECASE),
+    re.compile(r"I['\u2019]ll\s+", re.IGNORECASE),
+    re.compile(r"Let['\u2019]?s\s+", re.IGNORECASE),
+    re.compile(r"Let\s+us\s+", re.IGNORECASE),
+)
+
+
+def _extract_after_trigger_original(text):
+    """
+    Find the commitment trigger in original text and return everything after it.
+
+    Preserves original case.
+
+    Args:
+        text: str — original text (may include time but NOT done-definition).
+
+    Returns:
+        str or None — text after the trigger, preserving case.
+    """
+    for pattern in _TRIGGER_ORIGINAL_PATTERNS:
+        match = pattern.search(text)
+        if match:
+            return text[match.end():]
+    return None
+
+
+def _split_action_and_time(text):
+    """
+    Split text (after trigger) into action and time display phrase.
+
+    Finds the earliest time-related pattern match and looks backwards for
+    an introducing preposition (by, at, before, on, in).
+
+    Args:
+        text: str — text after trigger, preserving original case.
+
+    Returns:
+        (action, time_display) — both preserving original case.
+        time_display may be None if no time expression found.
+    """
+    if not text:
+        return text, None
+
+    text_lower = text.lower()
+
+    # Find the earliest time pattern match position
+    earliest_pos = len(text)
+    for pattern in _TIME_PATTERNS:
+        match = pattern.search(text_lower)
+        if match:
+            pos = match.start()
+            if pos < earliest_pos:
+                earliest_pos = pos
+
+    if earliest_pos >= len(text):
+        return text.strip(), None
+
+    # Look backwards for a preposition that introduces the time phrase
+    before = text[:earliest_pos]
+    prep_match = re.search(r'\b(by|at|before|on|in)\s*$', before, re.IGNORECASE)
+    if prep_match:
+        earliest_pos = prep_match.start()
+
+    action = text[:earliest_pos].strip()
+    time_display = text[earliest_pos:].strip().rstrip('.')
+
+    return action, time_display
+
+
 # =========================================================================
 # PUBLIC API
 # =========================================================================
@@ -221,10 +298,12 @@ def extract_commitment_fields(text):
     """
     Extract commitment fields from user text.
 
-    Extracts:
-    - Action
-    - Time boundary (explicit only)
-    - Done-definition phrase (if present)
+    Extraction order:
+    1. Done-definition extracted from ORIGINAL text first
+    2. Done-definition clause stripped from text
+    3. Action extracted from ORIGINAL text (preserving case)
+    4. Time display extracted from ORIGINAL text
+    5. First letter of action and done-definition capitalized
 
     Returns MissingField for the FIRST missing required field (one at a time):
     - time_boundary checked first
@@ -240,9 +319,21 @@ def extract_commitment_fields(text):
     if not text:
         return MissingField('time_boundary')
 
-    normalized = _normalize_for_matching(text)
+    # Step 1: Extract done-definition from ORIGINAL text first
+    done_def = None
+    done_clause_start = len(text)
+    for pattern in _DONE_PATTERNS:
+        match = pattern.search(text)
+        if match:
+            done_def = match.group(1).strip()
+            done_clause_start = match.start()
+            break
 
-    # Find the commitment trigger
+    # Step 2: Get text before done-definition clause
+    pre_done_text = text[:done_clause_start].strip().rstrip('.')
+
+    # Step 3: Check for commitment trigger using normalized form
+    normalized = _normalize_for_matching(pre_done_text)
     matched_trigger = None
     for trigger in _COMMITMENT_TRIGGERS:
         if trigger in normalized:
@@ -252,12 +343,21 @@ def extract_commitment_fields(text):
     if not matched_trigger:
         return MissingField('time_boundary')
 
-    # Extract action
-    action = _extract_action_text(normalized, matched_trigger)
-    if not action:
-        action = normalized  # Fallback: use full text
+    # Step 4: Find trigger in ORIGINAL text and extract after it
+    after_trigger = _extract_after_trigger_original(pre_done_text)
+    if not after_trigger:
+        after_trigger = pre_done_text  # Fallback
 
-    # Extract time boundary
+    # Step 5: Split action from time phrase (preserving case)
+    action, time_display = _split_action_and_time(after_trigger)
+    if not action:
+        action = after_trigger
+
+    # Capitalize first letter of action
+    if action:
+        action = action[0].upper() + action[1:]
+
+    # Step 6: Extract time_raw for datetime parsing
     time_raw = None
     for pattern in _TIME_PATTERNS:
         match = pattern.search(text.lower())
@@ -265,13 +365,12 @@ def extract_commitment_fields(text):
             time_raw = match.group(0).strip()
             break
 
-    # Extract done-definition
-    done_def = None
-    for pattern in _DONE_PATTERNS:
-        match = pattern.search(text)
-        if match:
-            done_def = match.group(1).strip()
-            break
+    # Step 7: Clean done-definition
+    if done_def:
+        # Capitalize first letter
+        done_def = done_def[0].upper() + done_def[1:]
+        # Strip trailing period (render_commitment_confirmation adds one)
+        done_def = done_def.rstrip('.')
 
     # Request ONE missing field at a time (time first, then done-def)
     if not time_raw:
@@ -284,6 +383,7 @@ def extract_commitment_fields(text):
         action=action,
         time_boundary_raw=time_raw,
         done_definition=done_def,
+        time_boundary_display=time_display,
     )
 
 
@@ -331,13 +431,13 @@ def normalize_commitment(draft, reference_time=None):
     if reference_time is None:
         reference_time = datetime.now()
 
-    # Normalize the action text
-    normalized_text = _normalize_for_matching(draft.action)
+    # Use action text as-is (already case-corrected by extract_commitment_fields)
+    normalized_text = draft.action
 
     # Parse time boundary to concrete datetime
     time_boundary = _parse_time_boundary(draft.time_boundary_raw, reference_time)
 
-    # Classify commitment type
+    # Classify commitment type (lowercase internally)
     commitment_type = _classify_commitment_type(normalized_text)
 
     return Commitment(
@@ -346,6 +446,7 @@ def normalize_commitment(draft, reference_time=None):
         time_boundary=time_boundary,
         done_definition=draft.done_definition or '',
         status='pending',
+        time_boundary_display=draft.time_boundary_display,
     )
 
 
@@ -443,7 +544,10 @@ def render_commitment_confirmation(commitment):
     Render the commitment confirmation message.
 
     Output exactly:
-    "Commitment set: [normalized_text] by [time]. Done means: [definition]."
+    "Commitment set: [action] [time]. Done means: [definition]."
+
+    Uses time_boundary_display (human-readable phrase) when available,
+    falls back to formatted datetime.
 
     Args:
         commitment: Commitment instance.
@@ -451,10 +555,24 @@ def render_commitment_confirmation(commitment):
     Returns:
         str — confirmation message.
     """
-    time_str = commitment.time_boundary.strftime('%Y-%m-%d %I:%M %p').lstrip('0')
+    # Use human-readable time phrase if available
+    if commitment.time_boundary_display:
+        time_part = commitment.time_boundary_display
+    else:
+        time_part = (
+            f"by {commitment.time_boundary.strftime('%Y-%m-%d %I:%M %p').lstrip('0')}"
+        )
+
+    # Ensure time clause has a preposition
+    if not time_part.lower().startswith(('by ', 'at ', 'before ', 'on ', 'in ')):
+        time_part = f"by {time_part}"
+
+    # Strip trailing period from done-definition to avoid double period
+    done_def = commitment.done_definition.rstrip('.')
+
     return (
-        f"Commitment set: {commitment.normalized_text} by {time_str}. "
-        f"Done means: {commitment.done_definition}."
+        f"Commitment set: {commitment.normalized_text} {time_part}. "
+        f"Done means: {done_def}."
     )
 
 
@@ -579,10 +697,19 @@ def format_ecc_injection(active_commitments):
 
     lines = ['--- ACTIVE COMMITMENTS (ECC) ---']
     for c in pending:
-        time_str = c.time_boundary.strftime('%Y-%m-%d %I:%M %p')
+        # Use human-readable time phrase if available
+        if c.time_boundary_display:
+            time_part = c.time_boundary_display
+            if not time_part.lower().startswith(
+                ('by ', 'at ', 'before ', 'on ', 'in ')
+            ):
+                time_part = f"by {time_part}"
+        else:
+            time_part = f"by {c.time_boundary.strftime('%Y-%m-%d %I:%M %p')}"
+        done_def = c.done_definition.rstrip('.')
         lines.append(
             f"COMMITMENT [{c.commitment_type}]: {c.normalized_text} "
-            f"by {time_str}. Done means: {c.done_definition}."
+            f"{time_part}. Done means: {done_def}."
         )
     lines.append(
         "ENFORCEMENT: Commitments require explicit closure (done or missed). "
@@ -727,17 +854,20 @@ def _classify_commitment_type(normalized_text):
         contains "stop" → STOP
         else → DO
 
+    Lowercases internally so callers can pass case-preserved text.
+
     Args:
-        normalized_text: str — normalized commitment text.
+        normalized_text: str — commitment text.
 
     Returns:
         str — DO / DECIDE / SCHEDULE / STOP.
     """
-    if 'decide' in normalized_text:
+    text = normalized_text.lower()
+    if 'decide' in text:
         return 'DECIDE'
-    if 'schedule' in normalized_text:
+    if 'schedule' in text:
         return 'SCHEDULE'
-    if 'stop' in normalized_text:
+    if 'stop' in text:
         return 'STOP'
     return 'DO'
 

@@ -396,6 +396,91 @@ class ECCInjectionTest(TestCase):
         self.assertIn('ENFORCEMENT:', result)
 
 
+class ExactConfirmationFormatTest(TestCase):
+    """Test exact confirmation output format — no contamination, proper case."""
+
+    def test_exact_confirmation_full_input(self):
+        """
+        Input:  "I'll finish the compensation model by Friday at 3 PM.
+                 Done means the revised ranges are finalized and exported
+                 to Excel."
+        Output: "Commitment set: Finish the compensation model by Friday
+                 at 3 PM. Done means: The revised ranges are finalized and
+                 exported to Excel."
+        """
+        result = process_ecc_detection(
+            "I'll finish the compensation model by Friday at 3 PM. "
+            "Done means the revised ranges are finalized and exported "
+            "to Excel.",
+            'CLEAN',
+        )
+        self.assertIsNotNone(result)
+        self.assertTrue(result['detected'])
+        self.assertIsNotNone(result['commitment'])
+        self.assertEqual(
+            result['response'],
+            "Commitment set: Finish the compensation model by Friday "
+            "at 3 PM. Done means: The revised ranges are finalized and "
+            "exported to Excel."
+        )
+
+    def test_action_not_contaminated_with_done_def(self):
+        """Action text must not contain done-definition content."""
+        result = process_ecc_detection(
+            "I will finish the report by 5pm today. "
+            "Done means the report is submitted to my manager.",
+            'CLEAN',
+        )
+        self.assertIsNotNone(result['commitment'])
+        # Action should NOT contain done-def text
+        self.assertNotIn(
+            'submitted',
+            result['commitment'].normalized_text,
+        )
+        self.assertEqual(
+            result['commitment'].normalized_text,
+            'Finish the report',
+        )
+
+    def test_capitalization_preserved(self):
+        """First letter capitalized, rest preserves original case."""
+        result = process_ecc_detection(
+            "I'll finish the Excel model today. "
+            "Done means the spreadsheet is exported.",
+            'CLEAN',
+        )
+        self.assertIsNotNone(result['commitment'])
+        # 'Excel' keeps its capital, first letter capitalized
+        self.assertIn('Excel', result['commitment'].normalized_text)
+        self.assertTrue(result['commitment'].normalized_text[0].isupper())
+
+    def test_no_double_period(self):
+        """Done-definition ending with period should not produce '..'"""
+        result = process_ecc_detection(
+            "I will finish the report today. "
+            "Done means the report is submitted.",
+            'CLEAN',
+        )
+        self.assertNotIn('..', result['response'])
+
+    def test_time_display_human_readable(self):
+        """Time display uses original phrase, not datetime format."""
+        result = process_ecc_detection(
+            "I'll finish the compensation model by Friday at 3 PM. "
+            "Done means the model is complete.",
+            'CLEAN',
+        )
+        self.assertIsNotNone(result['commitment'])
+        self.assertEqual(
+            result['commitment'].time_boundary_display,
+            'by Friday at 3 PM',
+        )
+        # Confirmation should contain the original phrase
+        self.assertIn('by Friday at 3 PM', result['response'])
+        # Should NOT contain datetime format
+        self.assertNotIn('2026-', result['response'])
+
+
 class PipelineIntegrationTest(TestCase):
     """Test process_ecc_detection pipeline entry point."""
 

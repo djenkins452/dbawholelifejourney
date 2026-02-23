@@ -9,6 +9,30 @@
 
 # WLJ Change History
 
+## 2026-02-22 — Phase 5A Extraction & Rendering Fix: Clean Confirmation Output
+
+**Changes:**
+- Fixed action text contamination: done-definition is now extracted and stripped from text BEFORE action extraction
+- Fixed case destruction: action and done-definition preserve original capitalization (first letter capitalized)
+- Fixed time display: uses human-readable original phrase ("by Friday at 3 PM") instead of datetime format ("2026-02-28 03:00 PM")
+- Fixed double-period: trailing period stripped from done-definition before template appends one
+- Added `time_boundary_display` field to Commitment and CommitmentDraft dataclasses
+- Added `_extract_after_trigger_original()` helper for case-preserving trigger extraction
+- Added `_split_action_and_time()` helper for separating action from time phrase
+- Updated `_classify_commitment_type()` to lowercase internally (defensive)
+- Updated `format_ecc_injection()` for consistent rendering
+- Added 5 new tests including exact-match format verification
+
+**Root cause:** `extract_commitment_fields` worked on fully normalized (lowercased, punctuation-stripped) text and didn't remove the done-definition clause before extracting the action. `render_commitment_confirmation` used `datetime.strftime()` instead of the original human-readable time phrase.
+
+**Files modified:**
+- `apps/core/ai_orchestrator/commitment_contract.py` — extraction, normalization, rendering fixes
+- `apps/core/tests/test_phase5_commitment.py` — 5 new exact-format tests
+
+**Verification:** 204 tests pass (55 ECC unit+format + 149 Phase 4)
+
+---
+
 ## 2026-02-22 — Phase 5A Precedence Correction: ECC Before Task Creation
 
 **Changes:**

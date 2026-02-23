@@ -9,6 +9,29 @@
 
 # WLJ Change History
 
+## 2026-02-22 — Phase 5A Hotfix: ECC Pipeline Wiring
+
+**Changes:**
+- Wired `process_ecc_detection()` into `personal_assistant.py` `_generate_response()` after tier evaluation, before R5 escalation
+- ECC now runs on every user message in the normal (non-learning-mode) CoS pipeline
+- Tightening questions short-circuit the response: no LLM call, deterministic output only
+- Full commitments also short-circuit with exact confirmation format
+- Renegotiation blocks return deterministic choice pairs (A/B)
+- Active commitments stored on PA instance (`_ecc_active_commitments`) and injected into `cos_context`
+- Added 5 pipeline integration tests verifying end-to-end ECC invocation
+
+**Root cause:** `process_ecc_detection()` and `cos_context['ecc_active_commitments']` were never populated by any caller. The ECC module had correct functions but no invocation point in the request pipeline.
+
+**Files modified:**
+- `apps/ai/personal_assistant.py` — ECC wiring in `_generate_response()` (lines ~2865–2908)
+
+**Files created:**
+- `apps/core/tests/test_phase5_commitment_pipeline.py` — 5 pipeline integration tests
+
+**Verification:** 197 tests pass (43 ECC unit + 5 pipeline + 149 Phase 4)
+
+---
+
 ## 2026-02-22 — Phase 5A: Executive Commitment Contract (ECC) Runtime Layer
 
 **Changes:**

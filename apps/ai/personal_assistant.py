@@ -2857,9 +2857,57 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                             _build_trajectory_signals(self.user),
                         )
                         cos_context['trajectory_signals'] = traj_signals
-                        cos_context['trajectory_activation_state'] = (
-                            determine_activation_state(traj_signals, message)
+                        activation_state = determine_activation_state(
+                            traj_signals, message
                         )
+                        cos_context['trajectory_activation_state'] = activation_state
+
+                        # Phase 5A: ECC detection — after tier eval, before R5.
+                        # Short-circuits with tightening question if commitment
+                        # intent detected but required fields missing.
+                        try:
+                            from apps.core.ai_orchestrator.commitment_contract import (
+                                process_ecc_detection,
+                            )
+                            ecc_result = process_ecc_detection(
+                                user_input=message,
+                                tier=activation_state,
+                                active_commitments=getattr(
+                                    self, '_ecc_active_commitments', None
+                                ),
+                            )
+                            if ecc_result and ecc_result.get('detected'):
+                                # Tightening question → short-circuit
+                                if (ecc_result.get('response')
+                                        and not ecc_result.get('commitment')
+                                        and not ecc_result.get('renegotiation')):
+                                    return ecc_result['response']
+                                # Renegotiation blocked → return choices
+                                reneg = ecc_result.get('renegotiation')
+                                if reneg and reneg.get('blocked'):
+                                    choices = reneg.get('choices', [])
+                                    parts = []
+                                    for c in choices:
+                                        parts.append(
+                                            f"{c['option']}) {c['description']}"
+                                        )
+                                    return '\n'.join(parts)
+                                # Active commitment → store, inject, confirm
+                                if ecc_result.get('commitment'):
+                                    if not hasattr(self, '_ecc_active_commitments'):
+                                        self._ecc_active_commitments = []
+                                    self._ecc_active_commitments.append(
+                                        ecc_result['commitment']
+                                    )
+                                    cos_context['ecc_active_commitments'] = (
+                                        self._ecc_active_commitments
+                                    )
+                                    # Return deterministic confirmation
+                                    if ecc_result.get('response'):
+                                        return ecc_result['response']
+                        except Exception as ecc_err:
+                            logger.debug("ECC detection skipped: %s", ecc_err)
+
                         # Phase 4 R1: Decision Branch Gate evaluation
                         cos_context['decision_branch_gate'] = (
                             evaluate_decision_branch_gate(cos_context, message)

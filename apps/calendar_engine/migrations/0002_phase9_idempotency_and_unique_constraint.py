@@ -36,6 +36,10 @@ def deduplicate_calendar_events(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
+    # Non-atomic: PostgreSQL cannot ALTER TABLE (AddConstraint) in the
+    # same transaction as a DELETE (RunPython dedup) because of pending
+    # trigger events.  Each operation gets its own transaction.
+    atomic = False
 
     dependencies = [
         ('calendar_engine', '0001_initial'),

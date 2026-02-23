@@ -766,6 +766,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for CoS Phase 2 Time & Deadline Authority (PK 91)
         self._reset_cos_phase2_time_authority_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for CoS Phase 3 Escalation Continuity (PK 92)
+        self._reset_cos_phase3_escalation_fixtures(DataLoadConfig, force, verbosity)
+
         # One-time: Seed LLMPriceBook and backfill event costs
         self._seed_pricebook_and_backfill(DataLoadConfig, force, verbosity)
 
@@ -3465,6 +3468,34 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset CoS Phase 2 fixtures FAILED: {e}'))
+
+    def _reset_cos_phase3_escalation_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes for CoS Phase 3 Escalation Continuity.
+        - release_notes PK 92 (Persistent Accountability & Recovery Tracking)
+        """
+        reset_tracker_name = 'reset_cos_phase3_escalation_2026_02_23'
+        try:
+            if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
+                return
+
+            config = DataLoadConfig.objects.get(loader_name='release_notes')
+            if config.is_loaded:
+                config.is_loaded = False
+                config.save()
+                if verbosity >= 1:
+                    self.stdout.write(f'  Reset release_notes loader for CoS Phase 3 Escalation Continuity')
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for CoS Phase 3 Escalation Continuity (Feb 2026)',
+                'command',
+                'One-time reset to reload release_notes PK 92'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset CoS Phase 3 fixtures FAILED: {e}'))
 
     def _seed_pricebook_and_backfill(self, DataLoadConfig, force=False, verbosity=1):
         """

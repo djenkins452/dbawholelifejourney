@@ -4,10 +4,34 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-23 (Phase 2: Time & Deadline Authority)
+# Last Updated: 2026-02-23 (Phase 3: Drift & Escalation Continuity)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-02-23 — Phase 3: Drift & Escalation Continuity (CoS Upgrade)
+
+**Changes:**
+- **Models:** Created `EscalationState` (per-user persistent escalation floor), `EscalationEvent` (immutable audit trail), `BehavioralTrend` (per-behavior-key trend tracking) in `apps/core/blueprint/models.py`.
+- **Recovery Gate:** Implemented Hybrid Recovery Rule in `compute_recovery_eligibility()` — all 5 criteria must be met for one-level de-escalation: 7 consecutive clean days, ≥3 honored commitments, 0 Tier 1 misses, 0 blocked renegotiations, 0 drift events in window.
+- **Activation Integration:** Created `resolve_activation_state()` in `escalation_engine.py` — fetches EscalationState as floor, applies threshold override supremacy (immediate escalation up), enforces Hybrid Recovery Rule for de-escalation (drop by 1 only), records EscalationEvents and DecisionRecords.
+- **Context Wiring:** Wired `resolve_activation_state()` into `build_cos_context()` in `cos_context.py` — `trajectory_activation_state` now actually set in production (was previously always defaulting to CLEAN).
+- **BehavioralTrend:** Deterministic daily computation comparing current 7-day vs prior 7-day drift event counts per behavior_key. Improving/stable/declining classification with confidence = min(1.0, data_points/20).
+- **ISE Scheduler:** Added `update_escalation_states` daily task to scheduler registry + runner.
+- **Tests:** 24 Phase 3 tests + 321 regression tests = 345 total, all passing.
+
+**Files Modified:**
+- `apps/core/blueprint/models.py` — EscalationState, EscalationEvent, BehavioralTrend models
+- `apps/core/blueprint/escalation_engine.py` — NEW: recovery gate, activation resolver, trend computation
+- `apps/core/ai_orchestrator/cos_context.py` — Wired resolve_activation_state into build_cos_context
+- `apps/core/ai_scheduler/scheduler_registry.py` — Added update_escalation_states task
+- `apps/core/ai_scheduler/scheduler_runner.py` — Added run_escalation_updates runner
+- `apps/core/tests/test_escalation_continuity.py` — NEW: 24 Phase 3 tests
+- `apps/core/migrations/0090_phase3_escalation_continuity.py` — Migration
+
+**Why:** CoS Executive Upgrade Project Phase 3 — make drift escalation persistent, evidence-based, and auditable.
+
+---
 
 ## 2026-02-23 — Phase 2: Time & Deadline Authority Reinforcement (CoS Upgrade)
 

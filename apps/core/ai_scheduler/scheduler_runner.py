@@ -974,3 +974,47 @@ def run_tomorrow_protection_pass():
         except ImportError:
             logger.error("ISE: Tomorrow protection pass not available (import failed)")
             return {"processed": 0, "protected": 0, "errors": 0}
+
+
+def run_escalation_updates():
+    """
+    Phase 3: Daily update of escalation states and behavioral trends.
+
+    For each active AI user:
+    1. Update consecutive_clean_days and peak_level_7d
+    2. Compute behavioral trends per behavior_key
+
+    Returns:
+        dict — {updated: int, errors: int}
+    """
+    with trace_context(source="scheduler"):
+        try:
+            from apps.core.blueprint.escalation_engine import (
+                compute_behavioral_trends,
+                update_daily_escalation_state,
+            )
+        except ImportError:
+            logger.error("ISE: Escalation engine not available (import failed)")
+            return {"updated": 0, "errors": 0}
+
+        users = _get_active_ai_users()
+        updated = 0
+        errors = 0
+
+        for user in users:
+            try:
+                update_daily_escalation_state(user)
+                compute_behavioral_trends(user)
+                updated += 1
+            except Exception as e:
+                errors += 1
+                logger.error(
+                    "ISE: Escalation update failed for user %s: %s",
+                    user.id, e,
+                )
+
+        logger.info(
+            "ISE: Escalation updates complete — updated=%d, errors=%d",
+            updated, errors,
+        )
+        return {"updated": updated, "errors": errors}

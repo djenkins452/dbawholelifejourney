@@ -8,7 +8,7 @@
 
 ## Current Phase
 
-**Phase 2 — Time & Deadline Authority Reinforcement** ✅ COMPLETE (2026-02-23)
+**Phase 3 — Drift & Escalation Continuity** ✅ COMPLETE (2026-02-23)
 
 ---
 
@@ -18,7 +18,7 @@
 |-------|-------|------|--------|---------|-----------|-------|
 | 1 | Commitment System Hardening | T1 — Critical Structural Integrity | ✅ Complete | 2026-02-23 | 2026-02-23 | Persistent model, history, concurrency, false-positive mitigation |
 | 2 | Time & Deadline Authority Reinforcement | T2 — Executive-Quality Reliability | ✅ Complete | 2026-02-23 | 2026-02-23 | Explicit boundaries, DST, deadline surfacing, conflict detection |
-| 3 | Drift & Escalation Continuity | T2 — Executive-Quality Reliability | Not Started | — | — | Persistent escalation, decay model, downgrade prevention |
+| 3 | Drift & Escalation Continuity | T2 — Executive-Quality Reliability | ✅ Complete | 2026-02-23 | 2026-02-23 | Persistent escalation, decay model, downgrade prevention |
 | 4 | Forecasting & Pressure Modeling | T3 — Forward-Looking Intelligence | Not Started | — | — | Calendar density, pressure index, deadline collision |
 | 5 | Protective Action Engine | T4 — Proactive Protection | Not Started | — | — | Auto-recommendations, capacity warnings, pre-deadline alerts |
 | 6 | Observability & Concurrency Hardening | T5 — Observability & Concurrency | Not Started | — | — | Locks, atomicity, degraded-mode tests |
@@ -602,6 +602,7 @@ Tests are purely additive. Remove test files to roll back. No production impact.
 | 2026-02-23 | Locked structural policies for Phase 1–4 before implementation | Architectural precision before code execution | Phase 1–4 |
 | 2026-02-23 | Locked Phase 2 authority policies (timezone intent, ISE snapshots, graduated Tier 1 override, single time authority) | Deterministic time handling before execution | Phase 2 |
 | 2026-02-23 | Phase 2 complete — all 7 atomic tasks implemented, 186 tests passing | Explicit time boundaries, zoneinfo DST, local-intent TZ recalculation, ISE-driven DeadlineSnapshot, Tier 1 graduated resistance | Phase 2 |
+| 2026-02-23 | Phase 3 complete — persistent escalation, recovery gate, behavioral trends, 345 tests passing | DB-backed EscalationState floor, Hybrid Recovery Rule (5 criteria), BehavioralTrend daily rollup, ISE scheduler integration | Phase 3 |
 
 ---
 
@@ -619,7 +620,10 @@ Tests are purely additive. Remove test files to roll back. No production impact.
 - Deadline surfacing is ISE-driven via `DeadlineSnapshot`.
 - Tier 1 conflicts use graduated resistance with explicit override and logging.
 - Single authoritative time source enforced across codebase.
+- Hybrid Recovery Rule: de-escalation requires 7 clean days + 3 honored commitments + 0 Tier 1 misses + 0 blocked renegotiations + 0 drift events.
+- Escalation state persists across sessions (DB-backed EscalationState as floor).
+- Escalation increases immediately; de-escalation drops by 1 level only.
 
 ---
 
-*Last updated: 2026-02-23*
+*Last updated: 2026-02-23 (Phase 3 complete)*

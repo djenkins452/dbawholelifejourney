@@ -9,6 +9,33 @@
 
 # WLJ Change History
 
+## 2026-02-23 — Phase 9: Calendar Determinism & Trust Repair
+
+**Root Cause:** Weekday resolution (e.g. "schedule on Wednesday") was performed inside OpenAI, and the backend trusted the LLM-provided date blindly. No duplicate event prevention existed at the DB level. Calendar mutations (create, update, delete) lacked atomic boundaries and post-write verification.
+
+**Changes:**
+- **Deterministic date resolution** — new `apps/calendar_engine/utils/date_resolution.py` with `resolve_weekday_to_date()`. Handles ISO dates, "today"/"tomorrow", and weekday names with deterministic same-week/next-week logic. `handle_create_event()` now always routes through this function instead of trusting LLM dates.
+- **UniqueConstraint** — `unique_user_title_start` on (user, title, start_dt) prevents duplicate events at DB level.
+- **Idempotency key** — new `idempotency_key` field (SHA-256 of user_id + title + start_dt) on CalendarEvent. Assistant-path `handle_create_event()` checks for existing key before creating, returning existing event if found.
+- **Atomic boundaries** — `handle_create_event()` wrapped in `transaction.atomic()` covering idempotency lookup + create + verification. PATCH in `EventDetailView` also wrapped in `transaction.atomic()`.
+- **Post-write verification** — After create, re-fetches event by PK inside same transaction and verifies title + start_dt match. After PATCH, re-fetches and confirms changes persisted. Mismatches raise RuntimeError (create) or return 409 (PATCH).
+- **Delete row-count verification** — `EventDetailView.delete()` uses queryset `.delete()` and verifies `count == 1`, returning 409 on mismatch.
+- **23 new tests** — Date resolution (13 tests including time-freeze with freezegun), idempotency (2), unique constraint (3), concurrency with threading (1), update/delete verification (4).
+- **Migration** — `0002_phase9_idempotency_and_unique_constraint.py` (adds `idempotency_key` field + `unique_user_title_start` constraint)
+
+**Files Modified:**
+- `apps/calendar_engine/utils/__init__.py` (new)
+- `apps/calendar_engine/utils/date_resolution.py` (new)
+- `apps/calendar_engine/models.py` (idempotency_key field, UniqueConstraint)
+- `apps/calendar_engine/views.py` (atomic PATCH, verified delete)
+- `apps/ai/action_handlers.py` (deterministic date resolution, idempotency, atomic boundary, post-write verification)
+- `apps/calendar_engine/test_phase9_calendar_determinism.py` (new, 23 tests)
+- `apps/calendar_engine/migrations/0002_phase9_idempotency_and_unique_constraint.py` (new)
+
+**Verification:** 31 existing calendar tests pass. 387 AI tests pass. 23 new Phase 9 tests pass. 54 total calendar tests pass. No regressions.
+
+---
+
 ## 2026-02-23 — Phase 8 Hotfix: No-Action Guardrail (Unverifiable Action Claim Blocker)
 
 **Root Cause:** When the AI assistant received requests it couldn't execute (delete, update, reschedule calendar events), the intent service returned `no_action`, the system fell through to free-form LLM response generation, and the LLM fabricated confirmations like "✓ Removed" or "I've rescheduled" without any database operation occurring. This was a write-path integrity failure discovered during manual testing.

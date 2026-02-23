@@ -106,6 +106,14 @@ class CalendarEvent(models.Model):
         default=STATUS_SCHEDULED,
     )
 
+    idempotency_key = models.CharField(
+        max_length=64,
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text='SHA-256 hash for assistant-path duplicate prevention',
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -115,6 +123,12 @@ class CalendarEvent(models.Model):
             models.Index(fields=['user', 'start_dt']),
             models.Index(fields=['user', 'source_type', 'source_id']),
             models.Index(fields=['user', 'status']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'title', 'start_dt'],
+                name='unique_user_title_start',
+            ),
         ]
 
     def __str__(self):

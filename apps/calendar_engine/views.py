@@ -8,6 +8,7 @@ import datetime as dt
 import json
 
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db import transaction
 from django.http import JsonResponse
 from django.utils import timezone
 from django.views import View
@@ -332,28 +333,61 @@ class EventDetailView(LoginRequiredMixin, View):
         if not data:
             return JsonResponse({'error': 'Invalid JSON'}, status=400)
 
-        # Update allowed fields
-        for field in ['title', 'description', 'is_all_day', 'is_protected', 'status']:
-            if field in data:
-                setattr(event, field, data[field])
+        with transaction.atomic():
+            # Capture original values for verification
+            original_title = event.title
+            original_start_dt = event.start_dt
 
-        if 'start_dt' in data:
-            event.start_dt = dt.datetime.fromisoformat(data['start_dt'])
-            if not timezone.is_aware(event.start_dt):
-                event.start_dt = timezone.make_aware(event.start_dt, timezone.get_current_timezone())
-        if 'end_dt' in data:
-            event.end_dt = dt.datetime.fromisoformat(data['end_dt'])
-            if not timezone.is_aware(event.end_dt):
-                event.end_dt = timezone.make_aware(event.end_dt, timezone.get_current_timezone())
+            # Update allowed fields
+            for field in ['title', 'description', 'is_all_day', 'is_protected', 'status']:
+                if field in data:
+                    setattr(event, field, data[field])
 
-        event.save()
-        return JsonResponse({'event': _event_to_dict(event)})
+            if 'start_dt' in data:
+                event.start_dt = dt.datetime.fromisoformat(data['start_dt'])
+                if not timezone.is_aware(event.start_dt):
+                    event.start_dt = timezone.make_aware(event.start_dt, timezone.get_current_timezone())
+            if 'end_dt' in data:
+                event.end_dt = dt.datetime.fromisoformat(data['end_dt'])
+                if not timezone.is_aware(event.end_dt):
+                    event.end_dt = timezone.make_aware(event.end_dt, timezone.get_current_timezone())
+
+            event.save()
+
+            # Post-write verification: re-fetch and confirm changes applied
+            verified = CalendarEvent.objects.get(pk=pk, user=request.user)
+            changes_applied = False
+            for field in ['title', 'description', 'is_all_day', 'is_protected', 'status']:
+                if field in data and getattr(verified, field) != data[field]:
+                    return JsonResponse(
+                        {'error': 'Update verification failed — changes not persisted'},
+                        status=409,
+                    )
+                if field in data:
+                    changes_applied = True
+            if 'start_dt' in data or 'end_dt' in data:
+                changes_applied = True
+
+            if not changes_applied:
+                return JsonResponse(
+                    {'error': 'No changes detected in request'},
+                    status=409,
+                )
+
+        return JsonResponse({'event': _event_to_dict(verified)})
 
     def delete(self, request, pk):
         event = self._get_event(request, pk)
         if not event:
             return JsonResponse({'error': 'Not found'}, status=404)
-        event.delete()
+        count, _ = CalendarEvent.objects.filter(
+            pk=pk, user=request.user
+        ).delete()
+        if count != 1:
+            return JsonResponse(
+                {'error': 'Delete verification failed — unexpected row count'},
+                status=409,
+            )
         return JsonResponse({'status': 'deleted'})
 
 

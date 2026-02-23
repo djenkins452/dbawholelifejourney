@@ -12,6 +12,7 @@ Each handler creates the appropriate model instance based on extracted parameter
 Handlers validate data and return ActionResult with success status and created object.
 """
 
+import hashlib
 import logging
 import re
 from datetime import timedelta
@@ -19,6 +20,7 @@ from decimal import Decimal
 
 import requests
 from django.conf import settings
+from django.db import transaction
 from django.db.models import Q
 
 from .intent_service import ActionResult
@@ -2011,27 +2013,27 @@ class ActionHandler:
                         "context found for user %s", self.user.id,
                     )
 
-            # Parse date — check orchestrator resolved time first
-            resolved_at = kwargs.get('recorded_at')
-            if resolved_at and hasattr(resolved_at, 'date'):
-                event_date = resolved_at.date()
-                logger.debug("[SCHED] Date from orchestrator: %s", event_date)
-            elif start_date.lower() in ('today', 'now'):
+            # --- Deterministic date resolution (Phase 9) ---
+            # All weekday/relative-date resolution is server-side;
+            # never trust LLM-provided date computations.
+            from apps.calendar_engine.utils.date_resolution import (
+                resolve_weekday_to_date,
+            )
+            try:
+                event_date = resolve_weekday_to_date(
+                    self.user, start_date, reference_dt=user_now,
+                )
+                logger.debug(
+                    "[SCHED] Resolved '%s' → %s (deterministic)",
+                    start_date, event_date,
+                )
+            except ValueError as date_err:
+                logger.warning(
+                    "[SCHED] Date resolution failed for '%s': %s — "
+                    "falling back to today %s",
+                    start_date, date_err, today,
+                )
                 event_date = today
-                logger.debug("[SCHED] Resolved 'today' → %s", event_date)
-            elif start_date.lower() == 'tomorrow':
-                event_date = today + timedelta(days=1)
-                logger.debug("[SCHED] Resolved 'tomorrow' → %s", event_date)
-            else:
-                try:
-                    event_date = dt.strptime(start_date, '%Y-%m-%d').date()
-                    logger.debug("[SCHED] Parsed date literal: %s", event_date)
-                except ValueError:
-                    event_date = today
-                    logger.warning(
-                        "[SCHED] Could not parse start_date '%s', "
-                        "defaulting to today %s", start_date, event_date,
-                    )
 
             # Parse times
             parsed_start_time = None
@@ -2128,17 +2130,57 @@ class ActionHandler:
             except Exception:
                 pass
 
-            event = CalendarEvent.objects.create(
-                user=self.user,
-                title=title,
-                description=description or "",
-                start_dt=start_dt,
-                end_dt=end_dt,
-                is_all_day=actual_all_day,
-                event_kind=CalendarEvent.KIND_MANUAL,
-                source_type=CalendarEvent.SOURCE_NONE,
-                domain=domain,
+            # --- Idempotency key (Phase 9, Section 3) ---
+            idem_key = hashlib.sha256(
+                f"{self.user.id}:{title}:{start_dt.isoformat()}".encode()
+            ).hexdigest()
+
+            logger.debug(
+                "[SCHED] Idempotency key: %s (user=%s, title=%s, start=%s)",
+                idem_key[:12], self.user.id, title, start_dt.isoformat(),
             )
+
+            # --- Atomic boundary (Phase 9, Section 4) ---
+            reused = False
+            with transaction.atomic():
+                # Check idempotency — return existing event if duplicate
+                existing = CalendarEvent.objects.filter(
+                    idempotency_key=idem_key,
+                ).first()
+                if existing:
+                    logger.info(
+                        "[SCHED] Idempotent hit: returning existing event pk=%s",
+                        existing.pk,
+                    )
+                    event = existing
+                    reused = True
+                else:
+                    event = CalendarEvent.objects.create(
+                        user=self.user,
+                        title=title,
+                        description=description or "",
+                        start_dt=start_dt,
+                        end_dt=end_dt,
+                        is_all_day=actual_all_day,
+                        event_kind=CalendarEvent.KIND_MANUAL,
+                        source_type=CalendarEvent.SOURCE_NONE,
+                        domain=domain,
+                        idempotency_key=idem_key,
+                    )
+
+                    # --- Post-write verification (Phase 9, Section 5) ---
+                    verified = CalendarEvent.objects.get(pk=event.pk)
+                    if verified.start_dt != start_dt or verified.title != title:
+                        raise RuntimeError(
+                            f"Post-write verification failed: "
+                            f"expected title={title!r}, start_dt={start_dt}, "
+                            f"got title={verified.title!r}, "
+                            f"start_dt={verified.start_dt}"
+                        )
+                    logger.debug(
+                        "[SCHED] Post-write verification passed for pk=%s",
+                        event.pk,
+                    )
 
             date_str = event_date.strftime("%b %d")
             time_str = (
@@ -2180,6 +2222,7 @@ class ActionHandler:
                     'title': event.title,
                     'start_dt': event.start_dt.isoformat(),
                     'event_kind': event.event_kind,
+                    'reused': reused,
                 },
                 action_type='create_event',
                 confirmation_detail=self._build_confirmation(

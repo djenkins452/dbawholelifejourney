@@ -1018,7 +1018,7 @@ class CostOfInactionModelingTest(TestCase):
     # ------------------------------------------------------------------
 
     def test_severity_low_no_factors(self):
-        """No severity factors → CIM suppressed."""
+        """No behavior factors → CIM suppressed (R4: deadline alone not enough)."""
         from apps.core.ai_orchestrator.cos_context import (
             _evaluate_cim_severity, ACTIVATION_CLEAN,
         )
@@ -1030,13 +1030,11 @@ class CostOfInactionModelingTest(TestCase):
             },
         }
         severity = _evaluate_cim_severity(gate, ACTIVATION_CLEAN)
-        # days_remaining=20 is outside ≤14d window
-        # No deferrals, no protected, no threshold, CLEAN tier
         self.assertFalse(severity['moderate'])
         self.assertEqual(severity['factors'], [])
 
-    def test_severity_moderate_goal_14d(self):
-        """Goal deadline ≤14d → severity Moderate."""
+    def test_severity_low_goal_14d_alone(self):
+        """R4: Goal deadline ≤14d alone does NOT trigger CIM."""
         from apps.core.ai_orchestrator.cos_context import (
             _evaluate_cim_severity, ACTIVATION_CLEAN,
         )
@@ -1046,10 +1044,13 @@ class CostOfInactionModelingTest(TestCase):
             'signals': {
                 'goals': [{'title': 'Goal A', 'days_remaining': 9}],
             },
+            'deferrals_7d': 0,
+            'user_input': 'I want to push the deadline.',
         }
         severity = _evaluate_cim_severity(gate, ACTIVATION_CLEAN)
-        self.assertTrue(severity['moderate'])
-        self.assertIn('goal_deadline_14d', severity['factors'])
+        # Deadline proximity alone is NOT a behavior factor (R4)
+        self.assertFalse(severity['moderate'])
+        self.assertNotIn('goal_deadline_14d', severity['factors'])
 
     def test_severity_moderate_overdue(self):
         """Overdue goal → severity Moderate."""
@@ -1099,23 +1100,40 @@ class CostOfInactionModelingTest(TestCase):
         self.assertTrue(severity['moderate'])
         self.assertIn('protected_block_impact', severity['factors'])
 
-    def test_severity_moderate_threshold_risk(self):
-        """Threshold risk adjacency → severity Moderate."""
+    def test_severity_moderate_abandonment_language(self):
+        """R4: Abandonment language in user input → severity Moderate."""
         from apps.core.ai_orchestrator.cos_context import (
             _evaluate_cim_severity, ACTIVATION_CLEAN,
         )
         gate = {
             'active': True,
-            'reason': 'decision_during_threshold_risk',
+            'reason': 'decision_impacts_goal_deadline',
             'signals': {
-                'renegotiations': 3,
-                'tier1_skips': 0,
-                'consecutive_skips': 0,
+                'goals': [{'title': 'Goal A', 'days_remaining': 9}],
             },
+            'user_input': 'I want to stop tracking this goal for a while.',
         }
         severity = _evaluate_cim_severity(gate, ACTIVATION_CLEAN)
         self.assertTrue(severity['moderate'])
-        self.assertIn('threshold_risk', severity['factors'])
+        self.assertIn('abandonment_language', severity['factors'])
+
+    def test_severity_low_no_abandonment_no_compounding(self):
+        """R4: Single deferral without abandonment → CIM suppressed."""
+        from apps.core.ai_orchestrator.cos_context import (
+            _evaluate_cim_severity, ACTIVATION_CLEAN,
+        )
+        gate = {
+            'active': True,
+            'reason': 'decision_impacts_goal_deadline',
+            'signals': {
+                'goals': [{'title': 'Goal A', 'days_remaining': 9}],
+            },
+            'deferrals_7d': 0,
+            'user_input': 'I want to push it to the weekend.',
+        }
+        severity = _evaluate_cim_severity(gate, ACTIVATION_CLEAN)
+        self.assertFalse(severity['moderate'])
+        self.assertEqual(severity['factors'], [])
 
     def test_severity_moderate_erosion_tier(self):
         """EARLY_EROSION tier → severity Moderate."""
@@ -1166,8 +1184,8 @@ class CostOfInactionModelingTest(TestCase):
         result = _build_cim_injection(gate, ACTIVATION_CLEAN)
         self.assertEqual(result, '')
 
-    def test_cim_active_clean_with_deadline(self):
-        """CLEAN + goal ≤14d → CIM renders with 72h block."""
+    def test_cim_active_clean_with_abandonment(self):
+        """R4: CLEAN + abandonment language → CIM renders with 72h block."""
         from apps.core.ai_orchestrator.cos_context import (
             _build_cim_injection, ACTIVATION_CLEAN,
         )
@@ -1177,6 +1195,7 @@ class CostOfInactionModelingTest(TestCase):
             'signals': {
                 'goals': [{'title': 'Goal A', 'days_remaining': 9}],
             },
+            'user_input': 'I want to drop the goal entirely.',
         }
         result = _build_cim_injection(gate, ACTIVATION_CLEAN)
         self.assertIn("Cost of Inaction", result)
@@ -1184,14 +1203,14 @@ class CostOfInactionModelingTest(TestCase):
         self.assertIn("What compresses", result)
         self.assertIn("What compounds", result)
         self.assertIn("What becomes harder", result)
-        # 14-30d window also renders for deadline ≤14d
+        # 14-30d window renders for abandonment language
         self.assertIn("14–30 Day Window", result)
         # No speculative language
         self.assertNotIn("likely", result.lower())
         self.assertNotIn("probably", result.lower())
 
     def test_cim_active_erosion(self):
-        """EARLY_EROSION → CIM with erosion-specific language."""
+        """EARLY_EROSION tier → CIM with erosion-specific language."""
         from apps.core.ai_orchestrator.cos_context import (
             _build_cim_injection, ACTIVATION_EARLY_EROSION,
         )
@@ -1200,9 +1219,9 @@ class CostOfInactionModelingTest(TestCase):
             'reason': 'decision_impacts_goal_deadline',
             'signals': {
                 'goals': [{'title': 'Goal A', 'days_remaining': 5}],
-                'deferrals_7d': 3,
             },
         }
+        # EARLY_EROSION tier alone qualifies as severity Moderate
         result = _build_cim_injection(gate, ACTIVATION_EARLY_EROSION)
         self.assertIn("Cost of Inaction", result)
         self.assertIn("72h Window", result)
@@ -1257,6 +1276,8 @@ class CostOfInactionModelingTest(TestCase):
             'signals': {
                 'goals': [{'title': 'Finish project', 'days_remaining': 7}],
             },
+            'deferrals_7d': 3,  # R4: behavior factor needed for CIM
+            'user_input': 'I want to drop the goal.',
         }
         output = _format_decision_branch_injection(gate, ACTIVATION_CLEAN)
         self.assertIn("DECISION BRANCH MODELING", output)

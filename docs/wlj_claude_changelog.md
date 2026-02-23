@@ -9,6 +9,26 @@
 
 # WLJ Change History
 
+## 2026-02-22 — Phase 4 R4: CIM Severity Recalibration (Behavior-Driven)
+
+**Changes:**
+- Removed `goal_deadline_14d` as standalone CIM severity factor — deadline proximity alone no longer triggers CIM
+- Removed `threshold_risk` as standalone factor (replaced by explicit tier checks)
+- Added abandonment language detection: `_detect_abandonment_language()` with `_CIM_ABANDONMENT_PHRASES` tuple (25 phrases including drop/dropping/stop tracking/restart/give up/walk away variants)
+- Enriched gate_result with `user_input` and `deferrals_7d` passthrough fields for CIM access (gate activation logic unchanged)
+- CIM now activates ONLY on behavior-driven factors: overdue goal, deferrals>=2/7d, protected block cancellation, abandonment language, EARLY_EROSION tier, STRUCTURAL_DRIFT tier
+- Updated 14-30d window inclusion to use `has_abandonment` instead of removed `has_deadline_14d`/`has_threshold_risk`
+- 115 Phase 4 CoS tests pass (updated 5 existing tests, added 2 new tests for R4)
+- Validated 10 stress prompts: all gate + CIM results match expected behavior
+
+**Files modified:**
+- `apps/core/ai_orchestrator/cos_context.py` — CIM severity rewrite, abandonment detection, gate passthrough enrichment
+- `apps/core/tests/test_phase4_cos.py` — Updated CIM tests for behavior-driven activation
+
+**Why:** CIM was deadline-proximity driven — a goal ≤14d alone qualified as Moderate severity. This caused CIM to fire on clean single-push deferrals where no compounding or erosion was present. R4 shifts to behavior-pattern activation: CIM now only fires when the user demonstrates repeated deferral, explicit abandonment, protected block impact, or is in an escalated tier.
+
+---
+
 ## 2026-02-22 — Phase 4 R3: Lexical Hardening
 
 **Changes:**

@@ -1886,6 +1886,13 @@ def evaluate_decision_branch_gate(context, user_input=''):
 
     has_decision_language = bool(_detect_decision_language(user_input))
 
+    # R4: Common passthrough fields for CIM severity evaluation.
+    # These are data fields — they do NOT affect gate activation logic.
+    _passthrough = {
+        'user_input': user_input,
+        'deferrals_7d': db_signals.get('deferrals_7d', 0),
+    }
+
     # Condition A: Decision language + alignment-impacting target
     if has_decision_language:
         # Check: goal with deadline ≤14 days
@@ -1898,6 +1905,7 @@ def evaluate_decision_branch_gate(context, user_input=''):
                     'goals': goals_14d,
                     'decision_language': True,
                 },
+                **_passthrough,
             }
 
         # Check: protected time block today
@@ -1910,6 +1918,7 @@ def evaluate_decision_branch_gate(context, user_input=''):
                     'protected_blocks': protected,
                     'decision_language': True,
                 },
+                **_passthrough,
             }
 
         # Check: threshold risk pattern active
@@ -1926,6 +1935,7 @@ def evaluate_decision_branch_gate(context, user_input=''):
                     'consecutive_skips': consecutive,
                     'decision_language': True,
                 },
+                **_passthrough,
             }
 
     # Condition B: Decision deferred ≥2 times in 7 days
@@ -1938,9 +1948,10 @@ def evaluate_decision_branch_gate(context, user_input=''):
                 'deferrals_7d': deferrals,
                 'decision_language': True,
             },
+            **_passthrough,
         }
 
-    return {'active': False, 'reason': '', 'signals': {}}
+    return {'active': False, 'reason': '', 'signals': {}, **_passthrough}
 
 
 DECISION_BRANCH_FRAMEWORK_CLEAN = """
@@ -2148,17 +2159,71 @@ def _format_decision_branch_injection(gate_result, activation_state):
 # =========================================================================
 
 
+# R4: Abandonment phrases — checked against normalized user input.
+# Subset of commitment-withdrawal and time-based-abandonment patterns
+# that signal intent to disengage from a goal or plan entirely.
+_CIM_ABANDONMENT_PHRASES = (
+    'stop tracking',
+    'stop working on',
+    'drop it',
+    'drop this',
+    'drop the goal',
+    'dropping the goal',
+    'dropping this',
+    'dropping it',
+    'dropping the',
+    'pause this',
+    'pause the goal',
+    'shelve this',
+    'scrap it',
+    'scrap this',
+    'restart next month',
+    'restart later',
+    'restart next week',
+    'start over next month',
+    'start over later',
+    'give up',
+    'giving up',
+    'not ready to face',
+    'walking away',
+    'walk away',
+)
+
+
+def _detect_abandonment_language(user_input):
+    """
+    Detect abandonment language in user input for CIM severity.
+
+    Deterministic substring matching against normalized input.
+    Used by CIM severity evaluation — NOT by the decision branch gate.
+
+    Args:
+        user_input: str — the user's current message.
+
+    Returns:
+        list[str] — matched abandonment phrases (empty if none).
+    """
+    if not user_input:
+        return []
+    normalized = _normalize_input(user_input)
+    return [p for p in _CIM_ABANDONMENT_PHRASES if p in normalized]
+
+
 def _evaluate_cim_severity(gate_result, activation_state):
     """
     Evaluate whether Cost-of-Inaction severity reaches Moderate threshold.
 
+    R4: Behavior-driven activation — deadline proximity alone does NOT
+    qualify. CIM activates only when compounding or erosion is present.
+
     Severity is Moderate or Higher if ANY are true:
-    - Goal deadline ≤14 days
     - Goal already overdue
     - ≥2 deferrals within 7 days
     - Protected block cancellation involved
-    - Threshold risk adjacency present (renegotiations, tier1 skips, consecutive)
+    - Abandonment language detected in user input
     - EARLY_EROSION or STRUCTURAL_DRIFT tier active
+
+    Deadline proximity (goal ≤14d) is NOT a standalone severity factor.
 
     Args:
         gate_result: dict from evaluate_decision_branch_gate().
@@ -2166,25 +2231,16 @@ def _evaluate_cim_severity(gate_result, activation_state):
 
     Returns:
         dict — {'moderate': bool, 'factors': list[str],
-                 'has_overdue': bool, 'has_deadline_14d': bool,
-                 'has_deferrals': bool, 'has_protected': bool,
-                 'has_threshold_risk': bool, 'has_erosion_or_drift': bool}
+                 'has_overdue': bool, 'has_deferrals': bool,
+                 'has_protected': bool, 'has_abandonment': bool,
+                 'has_erosion_or_drift': bool}
     """
     signals = gate_result.get('signals', {})
     factors = []
 
-    # Goal deadline ≤14 days
-    has_deadline_14d = False
-    goals = signals.get('goals', [])
-    for g in goals:
-        if 0 <= g.get('days_remaining', 999) <= 14:
-            has_deadline_14d = True
-            break
-    if has_deadline_14d:
-        factors.append('goal_deadline_14d')
-
-    # Goal already overdue
+    # 1. Goal already overdue
     has_overdue = False
+    goals = signals.get('goals', [])
     for g in goals:
         if g.get('days_remaining', 0) < 0:
             has_overdue = True
@@ -2192,26 +2248,29 @@ def _evaluate_cim_severity(gate_result, activation_state):
     if has_overdue:
         factors.append('goal_overdue')
 
-    # ≥2 deferrals within 7 days
-    has_deferrals = signals.get('deferrals_7d', 0) >= 2
+    # 2. ≥2 deferrals within 7 days (from gate passthrough or signals)
+    deferrals_7d = gate_result.get(
+        'deferrals_7d', signals.get('deferrals_7d', 0)
+    )
+    has_deferrals = deferrals_7d >= 2
     if has_deferrals:
         factors.append('repeated_deferrals')
 
-    # Protected block cancellation
-    has_protected = bool(signals.get('protected_blocks'))
+    # 3. Protected block cancellation
+    has_protected = (
+        gate_result.get('reason') == 'decision_impacts_protected_block'
+        or bool(signals.get('protected_blocks'))
+    )
     if has_protected:
         factors.append('protected_block_impact')
 
-    # Threshold risk adjacency
-    has_threshold_risk = (
-        bool(signals.get('renegotiations'))
-        or bool(signals.get('tier1_skips'))
-        or signals.get('consecutive_skips', 0) >= 2
-    )
-    if has_threshold_risk:
-        factors.append('threshold_risk')
+    # 4. Abandonment language in user input (R4)
+    user_input = gate_result.get('user_input', '')
+    has_abandonment = bool(_detect_abandonment_language(user_input))
+    if has_abandonment:
+        factors.append('abandonment_language')
 
-    # Erosion or drift tier
+    # 5 & 6. Erosion or drift tier
     has_erosion_or_drift = activation_state in (
         ACTIVATION_EARLY_EROSION, ACTIVATION_STRUCTURAL_DRIFT,
     )
@@ -2222,10 +2281,9 @@ def _evaluate_cim_severity(gate_result, activation_state):
         'moderate': bool(factors),
         'factors': factors,
         'has_overdue': has_overdue,
-        'has_deadline_14d': has_deadline_14d,
         'has_deferrals': has_deferrals,
         'has_protected': has_protected,
-        'has_threshold_risk': has_threshold_risk,
+        'has_abandonment': has_abandonment,
         'has_erosion_or_drift': has_erosion_or_drift,
     }
 
@@ -2304,13 +2362,12 @@ def _build_cim_injection(gate_result, activation_state):
         return ''
 
     # Determine whether 14–30 day window applies:
-    # Include if overdue, deadline ≤14d, repeated deferrals, threshold risk,
+    # Include if overdue, repeated deferrals, abandonment language,
     # or erosion/drift tier active.
     include_14_30d = (
         severity['has_overdue']
-        or severity['has_deadline_14d']
         or severity['has_deferrals']
-        or severity['has_threshold_risk']
+        or severity['has_abandonment']
         or severity['has_erosion_or_drift']
     )
 

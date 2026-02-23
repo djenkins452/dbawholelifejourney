@@ -236,6 +236,13 @@ def build_cos_context(user):
     except Exception:
         pass
 
+    # Phase 5: Protective briefing (advisory recommendations + alerts)
+    try:
+        from apps.core.blueprint.protective_engine import get_protective_briefing
+        context['protective_briefing'] = get_protective_briefing(user)
+    except Exception:
+        pass
+
     # Phase 2: Deadline snapshot (ISE-driven — read latest, no computation here)
     try:
         from apps.core.blueprint.models import DeadlineSnapshot
@@ -933,6 +940,27 @@ def format_cos_system_injection(context):
                 "Stay aware of your energy levels and watch for compression "
                 "around your key commitments."
             )
+
+    # Phase 5: Protective Briefing (advisory, human language only)
+    protective = context.get('protective_briefing', {})
+    if protective:
+        load_status = protective.get('load_status', 'Normal')
+        recs = protective.get('recommendations', [])
+        upcoming = protective.get('upcoming_alerts', [])
+
+        if load_status != 'Normal' or recs or upcoming:
+            lines.append("")
+            lines.append(f"Load Status: {load_status}")
+
+            if recs:
+                lines.append("Active Advisories:")
+                for r in recs[:3]:
+                    lines.append(f"  - {r['title']}: {r['message']}")
+
+            if upcoming:
+                lines.append("Upcoming Reminders:")
+                for a in upcoming[:3]:
+                    lines.append(f"  - {a['message']}")
 
     # Module permissions (what NOT to reference)
     mods = context.get('module_permissions', {})

@@ -138,6 +138,17 @@ SCHEDULED_TASKS = {
         "interval_seconds": 86400,  # 24 hours (daily sweep)
         "description": "Compute pressure snapshots for all active users (Phase 4 Pressure Modeling).",
     },
+    # --- Phase 5: Protective Action Engine ---
+    "run_protective_sweep": {
+        "function_path": "apps.core.ai_scheduler.scheduler_runner.run_protective_sweep",
+        "interval_seconds": 86400,  # 24 hours (daily)
+        "description": "Recompute protective recommendations and schedule alerts for all active users (Phase 5).",
+    },
+    "deliver_protective_alerts": {
+        "function_path": "apps.core.ai_scheduler.scheduler_runner.run_protective_alert_delivery",
+        "interval_seconds": 300,  # 5 minutes
+        "description": "Deliver due protective alerts via DNE with throttle respect (Phase 5).",
+    },
 }
 
 

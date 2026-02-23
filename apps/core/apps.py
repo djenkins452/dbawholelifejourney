@@ -26,3 +26,5 @@ class CoreConfig(AppConfig):
     def ready(self):
         # Register Phase 4 pressure signals
         import apps.core.blueprint.pressure_signals  # noqa: F401
+        # Register Phase 5 protective action signals
+        import apps.core.blueprint.protective_signals  # noqa: F401

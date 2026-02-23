@@ -1060,3 +1060,56 @@ def run_pressure_snapshots():
             computed, errors,
         )
         return {"computed": computed, "errors": errors}
+
+
+# =========================================================================
+# Phase 5: Protective Action Engine
+# =========================================================================
+
+def run_protective_sweep():
+    """
+    Phase 5: Daily protective sweep — recompute recommendations and
+    schedule alerts for all active users.
+
+    Returns:
+        dict — {users_processed: int, recommendations: int, alerts: int, errors: int}
+    """
+    with trace_context(source="scheduler"):
+        try:
+            from apps.core.blueprint.protective_engine import run_protective_sweep as sweep
+        except ImportError:
+            logger.error("ISE: Protective engine not available (import failed)")
+            return {"users_processed": 0, "recommendations": 0, "alerts": 0, "errors": 0}
+
+        result = sweep()
+        logger.info(
+            "ISE: Protective sweep complete — users=%d, recs=%d, alerts=%d, errors=%d",
+            result['users_processed'], result['recommendations'],
+            result['alerts'], result['errors'],
+        )
+        return result
+
+
+def run_protective_alert_delivery():
+    """
+    Phase 5: Deliver due protective alerts via DNE with throttle respect.
+
+    Runs every 5 minutes. Fetches pending alerts that are due and delivers
+    them, respecting per-user throttle limits.
+
+    Returns:
+        dict — {delivered: int, suppressed: int, errors: int}
+    """
+    with trace_context(source="scheduler"):
+        try:
+            from apps.core.blueprint.protective_engine import deliver_due_alerts
+        except ImportError:
+            logger.error("ISE: Protective engine not available (import failed)")
+            return {"delivered": 0, "suppressed": 0, "errors": 0}
+
+        result = deliver_due_alerts()
+        logger.info(
+            "ISE: Protective alert delivery complete — delivered=%d, suppressed=%d, errors=%d",
+            result['delivered'], result['suppressed'], result['errors'],
+        )
+        return result

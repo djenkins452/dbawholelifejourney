@@ -20,7 +20,7 @@
 | 2 | Time & Deadline Authority Reinforcement | T2 — Executive-Quality Reliability | ✅ Complete | 2026-02-23 | 2026-02-23 | Explicit boundaries, DST, deadline surfacing, conflict detection |
 | 3 | Drift & Escalation Continuity | T2 — Executive-Quality Reliability | ✅ Complete | 2026-02-23 | 2026-02-23 | Persistent escalation, decay model, downgrade prevention |
 | 4 | Forecasting & Pressure Modeling | T3 — Forward-Looking Intelligence | ✅ Complete | 2026-02-23 | 2026-02-23 | Calendar density, pressure index, deadline collision, CPI 0–100, event-driven triggers |
-| 5 | Protective Action Engine | T4 — Proactive Protection | Not Started | — | — | Auto-recommendations, capacity warnings, pre-deadline alerts |
+| 5 | Protective Action Engine | T4 — Proactive Protection | ✅ Complete | 2026-02-23 | 2026-02-23 | Advisory-only recs, capacity warnings, pre-deadline alerts, overload triggers, DNE delivery, audit trail |
 | 6 | Observability & Concurrency Hardening | T5 — Observability & Concurrency | Not Started | — | — | Locks, atomicity, degraded-mode tests |
 | 7 | Test Expansion | T6 — Testing & Verification | Not Started | — | — | DST, concurrency, stacking, forecasting, cache failure tests |
 
@@ -391,6 +391,18 @@ Forecasting (Phase 4) identifies risk. This phase converts risk into protective 
 
 Entirely additive. Remove engine file and integration points. Existing systems unaffected.
 
+#### Implementation Decisions (Phase 5 Complete — 2026-02-23)
+
+1. **Advisory only v1** — No auto-modification of schedule or commitments. Recommendations require user action.
+2. **Human language only** — All user-facing fields use plain language. Raw metrics stored in `metadata` for audit only.
+3. **Transparent when input required** — System notifies user when input is needed or when an automatic change occurs (e.g., alert suppressed by throttle).
+4. **Supersede/expire rules** — New recommendation of same type for same object within 12h expires the older one (no deletion). User can dismiss with reason.
+5. **Pressure alone never escalates** — CPI > 80/90 creates InterventionLog entries but never alters EscalationState.
+6. **DNE throttle respected** — 3/hour, 10/day per user. Suppressed alerts are logged with next eligible time.
+7. **Models:** ProtectiveRecommendation, ProtectiveAlert, ProtectiveActionLog — all append-only with audit trail.
+8. **Event-driven + daily sweep** — Signals fire on PressureSnapshot, DeadlineSnapshot, Commitment changes. Daily ISE sweep catches idle users.
+9. **Open Questions resolved:** Pressure index is admin-only (not shown to user). Pre-deadline alerts enabled by default for all users with active commitments.
+
 ---
 
 ### Phase 6 — Observability & Concurrency Hardening
@@ -587,8 +599,8 @@ Tests are purely additive. Remove test files to roll back. No production impact.
 | # | Question | Impact | Decision Needed By |
 |---|----------|--------|--------------------|
 | 1 | ~~Should multi-commitment limit be enforced?~~ | Phase 1 | **RESOLVED** — Yes, hard limit of 5. |
-| 2 | Should the pressure index be visible to the user or admin-only initially? | Phase 4-5 | Before Phase 5 execution |
-| 3 | Should pre-deadline alerts be enabled by default or opt-in? | Phase 5 | Before Phase 5 execution |
+| 2 | ~~Should the pressure index be visible to the user or admin-only initially?~~ | Phase 4-5 | **RESOLVED** — Admin-only. Users see human-language Load Status (Normal/Elevated/High/Critical). |
+| 3 | ~~Should pre-deadline alerts be enabled by default or opt-in?~~ | Phase 5 | **RESOLVED** — Enabled by default for all users with active commitments. |
 | 4 | ~~Should timezone-change recomputation be automatic or prompt the user?~~ | Phase 2 | **RESOLVED** — Automatic. Local-intent preservation, no user prompt. |
 | 5 | ~~What should the commitment false-positive exclusion list contain initially?~~ | Phase 1 | **RESOLVED** — Vague verb list defined; atomic verbs exempt from done-definition. |
 

@@ -1,6 +1,22 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 93,
+        "fields": {
+            "title": "Proactive Schedule Protection & Deadline Alerts",
+            "description": "Your Chief of Staff now watches your schedule and commitments proactively. When your load gets heavy, you'll receive specific recommendations — like blocking time for what matters most, adjusting deadlines before they become emergencies, or focusing on the most urgent items when deadlines converge. You'll also get timely reminders at 24 hours, 4 hours, and 1 hour before commitment deadlines, with easy options to confirm your plan, adjust, or close. Everything is advisory — your schedule is never changed without your say-so.",
+            "entry_type": "feature",
+            "version": "",
+            "release_date": "2026-02-23",
+            "is_published": true,
+            "is_major": true,
+            "learn_more_url": "",
+            "created_at": "2026-02-23T17:00:00Z",
+            "updated_at": "2026-02-23T17:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 92,
         "fields": {
             "title": "Persistent Accountability & Recovery Tracking",

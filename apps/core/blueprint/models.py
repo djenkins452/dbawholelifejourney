@@ -2007,3 +2007,12 @@ from apps.core.blueprint.pressure_models import (  # noqa: E402, F401
     PressureSnapshot,
     PressureWeightConfig,
 )
+
+# =============================================================================
+# PHASE 5 — PROTECTIVE ACTION ENGINE MODELS (imported for Django model discovery)
+# =============================================================================
+from apps.core.blueprint.protective_models import (  # noqa: E402, F401
+    ProtectiveActionLog,
+    ProtectiveAlert,
+    ProtectiveRecommendation,
+)

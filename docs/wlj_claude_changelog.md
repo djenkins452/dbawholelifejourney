@@ -4,10 +4,43 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-23 (Phase 4: Forecasting & Pressure Modeling)
+# Last Updated: 2026-02-23 (Phase 5: Protective Action Engine)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-02-23 — Phase 5: Protective Action Engine (CoS Upgrade)
+
+### What Changed
+- **New models:** ProtectiveRecommendation, ProtectiveAlert, ProtectiveActionLog (migration 0093)
+- **New engine:** `apps/core/blueprint/protective_engine.py` — deterministic, advisory-only
+  - 4 recommendation types: TIME_BLOCK_SUGGESTION, EARLY_RENEGOTIATION_PROMPT, CAPACITY_WARNING, DEADLINE_FOCUS_PLAN
+  - Pre-deadline alerts at 24h/4h/1h with user CTA options
+  - Overload triggers: CPI > 80 → Level 2, CPI > 90 → Level 3 (does NOT change EscalationState)
+  - DNE delivery with throttle (3/hour, 10/day), suppression logged
+  - Supersede/expire: new rec within 12h expires old (no deletion)
+  - Full audit trail via ProtectiveActionLog
+- **New signals:** `apps/core/blueprint/protective_signals.py` — event-driven on PressureSnapshot, DeadlineSnapshot, Commitment, Tier1OverrideEvent
+- **ISE scheduler:** 2 new tasks — `run_protective_sweep` (daily), `deliver_protective_alerts` (5 min)
+- **CoS context injection:** Protective briefing section with Load Status + active recommendations + upcoming alerts
+- **Human language compliance:** No CPI/density/probability in user-facing fields
+
+### Files Changed
+- `apps/core/blueprint/protective_models.py` — NEW (models)
+- `apps/core/blueprint/protective_engine.py` — NEW (engine)
+- `apps/core/blueprint/protective_signals.py` — NEW (signals)
+- `apps/core/blueprint/models.py` — import Phase 5 models
+- `apps/core/apps.py` — register Phase 5 signals
+- `apps/core/ai_scheduler/scheduler_registry.py` — 2 new ISE tasks
+- `apps/core/ai_scheduler/scheduler_runner.py` — 2 new runner functions
+- `apps/core/ai_orchestrator/cos_context.py` — protective briefing injection
+- `apps/core/migrations/0093_phase5_protective_engine.py` — NEW
+- `apps/core/tests/test_protective_engine.py` — NEW (41 tests)
+- `apps/core/fixtures/release_notes.json` — PK 93
+- `docs/CoS_Project.md` — Phase 5 complete, decisions, resolved open questions
+
+### Why
+Phase 5 of CoS Executive Upgrade: convert pressure/deadline signals into actionable user-facing recommendations and alerts. Advisory-only v1 — no auto-schedule modifications.
 
 ## 2026-02-23 — Phase 4: Forecasting & Pressure Modeling (CoS Upgrade)
 

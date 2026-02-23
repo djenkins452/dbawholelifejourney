@@ -510,3 +510,141 @@ class PipelineIntegrationTest(TestCase):
         self.assertTrue(result['detected'])
         self.assertIsNotNone(result['renegotiation'])
         self.assertTrue(result['renegotiation']['blocked'])
+
+
+class RenegotiationPrecedenceTest(TestCase):
+    """Renegotiation must take precedence over new commitment formation."""
+
+    def setUp(self):
+        self.existing = Commitment(
+            normalized_text='Finish the compensation model',
+            commitment_type='DO',
+            time_boundary=datetime(2026, 2, 28, 15, 0),
+            done_definition='Revised ranges finalized and exported to Excel',
+            status='pending',
+        )
+
+    def test_move_triggers_renegotiation_not_new_commitment(self):
+        """
+        'I'm going to move it to next week instead.' must route to
+        renegotiation, NOT new commitment formation.
+        """
+        result = process_ecc_detection(
+            "I'm going to move it to next week instead.",
+            'CLEAN',
+            active_commitments=[self.existing],
+        )
+        self.assertIsNotNone(result)
+        self.assertTrue(result['detected'])
+        # Renegotiation path produced a result (updated commitment, not new)
+        # No new MissingField tightening question
+        self.assertNotEqual(
+            result.get('response'),
+            "When specifically will this be completed?",
+        )
+        self.assertNotEqual(
+            result.get('response'),
+            "What does 'done' mean in one sentence?",
+        )
+
+    def test_move_without_commitment_trigger_still_renegotiates(self):
+        """
+        'Move it to next week instead.' (no I'll/I will) must still
+        route to renegotiation when active commitment exists.
+        """
+        result = process_ecc_detection(
+            "Move it to next week instead.",
+            'CLEAN',
+            active_commitments=[self.existing],
+        )
+        self.assertIsNotNone(result, "Renegotiation must fire without 'I will'")
+        self.assertTrue(result['detected'])
+
+    def test_push_triggers_renegotiation(self):
+        """'Push' is a renegotiation trigger."""
+        result = process_ecc_detection(
+            "Push this to Friday.",
+            'CLEAN',
+            active_commitments=[self.existing],
+        )
+        self.assertIsNotNone(result)
+        self.assertTrue(result['detected'])
+
+    def test_delay_triggers_renegotiation(self):
+        """'Delay' is a renegotiation trigger."""
+        result = process_ecc_detection(
+            "I need to delay this.",
+            'CLEAN',
+            active_commitments=[self.existing],
+        )
+        self.assertIsNotNone(result)
+        self.assertTrue(result['detected'])
+
+    def test_reschedule_triggers_renegotiation(self):
+        """'Reschedule' is a renegotiation trigger."""
+        result = process_ecc_detection(
+            "Reschedule for tomorrow.",
+            'CLEAN',
+            active_commitments=[self.existing],
+        )
+        self.assertIsNotNone(result)
+        self.assertTrue(result['detected'])
+
+    def test_later_triggers_renegotiation(self):
+        """'Later' is a renegotiation trigger."""
+        result = process_ecc_detection(
+            "Can we do this later?",
+            'CLEAN',
+            active_commitments=[self.existing],
+        )
+        self.assertIsNotNone(result)
+        self.assertTrue(result['detected'])
+
+    def test_early_erosion_blocks_renegotiation(self):
+        """
+        EARLY_EROSION tier: renegotiation blocked with A/B choices.
+        """
+        result = process_ecc_detection(
+            "I'm going to move it to next week instead.",
+            'EARLY_EROSION',
+            active_commitments=[self.existing],
+        )
+        self.assertIsNotNone(result)
+        self.assertTrue(result['detected'])
+        self.assertIsNotNone(result['renegotiation'])
+        self.assertTrue(result['renegotiation']['blocked'])
+        choices = result['renegotiation']['choices']
+        self.assertEqual(len(choices), 2)
+        self.assertEqual(choices[0]['option'], 'A')
+        self.assertEqual(choices[1]['option'], 'B')
+
+    def test_no_renegotiation_without_active_commitment(self):
+        """
+        Renegotiation triggers without active commitment must NOT
+        fire renegotiation — fall through to normal detection.
+        """
+        result = process_ecc_detection(
+            "Move it to next week instead.",
+            'CLEAN',
+            active_commitments=[],
+        )
+        # No commitment trigger (no I'll/I will) and no active commitment
+        # → should return None
+        self.assertIsNone(result)
+
+    def test_commitment_formation_skipped_on_renegotiation(self):
+        """
+        Verify extract_commitment_fields is NOT called when
+        renegotiation path executes.
+        """
+        from unittest.mock import patch
+        with patch(
+            'apps.core.ai_orchestrator.commitment_contract'
+            '.extract_commitment_fields'
+        ) as mock_extract:
+            process_ecc_detection(
+                "I'm going to move it to next week instead.",
+                'CLEAN',
+                active_commitments=[self.existing],
+            )
+            mock_extract.assert_not_called()

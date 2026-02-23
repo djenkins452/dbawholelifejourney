@@ -602,6 +602,41 @@ def render_positive_lock_in(commitment):
 
 
 # =========================================================================
+# RENEGOTIATION TRIGGERS
+# =========================================================================
+
+# Lexical triggers indicating renegotiation of an existing commitment.
+# Checked BEFORE commitment intent detection to ensure precedence.
+_RENEGOTIATION_TRIGGERS = (
+    'move',
+    'push',
+    'delay',
+    'reschedule',
+    'next week',
+    'later',
+    'instead',
+)
+
+
+def _detect_renegotiation_intent(text):
+    """
+    Detect renegotiation intent via lexical matching.
+
+    Deterministic only. No LLM.
+
+    Args:
+        text: str — user input.
+
+    Returns:
+        bool — True if renegotiation language detected.
+    """
+    if not text:
+        return False
+    normalized = _normalize_for_matching(text)
+    return any(trigger in normalized for trigger in _RENEGOTIATION_TRIGGERS)
+
+
+# =========================================================================
 # PIPELINE INTEGRATION
 # =========================================================================
 
@@ -613,6 +648,10 @@ def process_ecc_detection(user_input, tier, active_commitments=None):
     Called between tier evaluation and R5 escalation.
     Processes user input for commitment intent and returns
     appropriate ECC response or None if no commitment detected.
+
+    Precedence order:
+    1. Renegotiation of active commitment (checked FIRST)
+    2. New commitment detection
 
     Args:
         user_input: str — user's message.
@@ -630,11 +669,12 @@ def process_ecc_detection(user_input, tier, active_commitments=None):
     if active_commitments is None:
         active_commitments = []
 
-    if not detect_commitment_intent(user_input):
-        return None
-
-    # Check if this is a renegotiation of an existing commitment
-    if active_commitments:
+    # --- RENEGOTIATION PRECEDENCE ---
+    # Check renegotiation BEFORE commitment intent detection.
+    # Renegotiation triggers (move, push, delay, reschedule, instead, later,
+    # next week) must route directly to apply_renegotiation_rules without
+    # requiring a commitment trigger (I will, I'll, etc.).
+    if active_commitments and _detect_renegotiation_intent(user_input):
         pending = [c for c in active_commitments if c.status == 'pending']
         if pending:
             latest = pending[-1]
@@ -653,6 +693,19 @@ def process_ecc_detection(user_input, tier, active_commitments=None):
                     'commitment': reneg_result,
                     'renegotiation': None,
                 }
+            elif isinstance(reneg_result, MissingField):
+                # Scope changed during renegotiation — need new done-def
+                question = generate_tightening_question(reneg_result)
+                return {
+                    'detected': True,
+                    'response': question,
+                    'commitment': None,
+                    'renegotiation': None,
+                }
+
+    # --- NEW COMMITMENT DETECTION ---
+    if not detect_commitment_intent(user_input):
+        return None
 
     # New commitment — extract fields
     result = extract_commitment_fields(user_input)

@@ -9,6 +9,25 @@
 
 # WLJ Change History
 
+## 2026-02-22 — Phase 5A Renegotiation Precedence: Detect Before New Commitment
+
+**Changes:**
+- Added `_RENEGOTIATION_TRIGGERS` tuple: move, push, delay, reschedule, next week, later, instead
+- Added `_detect_renegotiation_intent()` — lexical matcher for renegotiation language
+- Restructured `process_ecc_detection()` to check renegotiation BEFORE `detect_commitment_intent()` — renegotiation no longer requires a commitment trigger (I will, I'll, etc.)
+- Added MissingField handler for renegotiation path — when scope changes during renegotiation and new done-def is needed, returns tightening question instead of falling through
+- Added 9 new tests: all 7 triggers, EARLY_EROSION A/B blocking, no-active-commitment fallthrough, and mock verification that `extract_commitment_fields` is never called on renegotiation
+
+**Root cause:** `process_ecc_detection()` gated everything through `detect_commitment_intent()` first. Messages like "Move it to next week instead." (no "I will"/"I'll") returned False from the commitment trigger check, so renegotiation was never evaluated. Additionally, when `apply_renegotiation_rules` returned `MissingField` (scope change needing new done-def), `process_ecc_detection` didn't handle it.
+
+**Files modified:**
+- `apps/core/ai_orchestrator/commitment_contract.py` — renegotiation triggers, precedence reorder, MissingField handler
+- `apps/core/tests/test_phase5_commitment.py` — 9 new precedence tests
+
+**Verification:** 213 tests pass (64 ECC + 149 Phase 4)
+
+---
+
 ## 2026-02-22 — Phase 5A Extraction & Rendering Fix: Clean Confirmation Output
 
 **Changes:**

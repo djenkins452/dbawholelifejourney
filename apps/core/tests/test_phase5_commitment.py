@@ -153,12 +153,13 @@ class CleanRenegotiationTest(TestCase):
         self.assertEqual(len(result.choices), 2)
 
     def test_clean_renegotiation_scope_change_needs_done(self):
+        # Use a vague verb ("work on") so done-definition is required
         result = apply_renegotiation_rules(
             self.commitment,
-            "I'll write the presentation slides instead by tomorrow",
+            "I need to work on the presentation slides instead by tomorrow",
             'CLEAN',
         )
-        # Scope changed, no new done-definition → MissingField
+        # Scope changed with vague verb, no new done-definition → MissingField
         self.assertIsInstance(result, MissingField)
         self.assertEqual(result.field_name, 'done_definition')
 
@@ -765,7 +766,7 @@ class ClosurePrecedenceTest(TestCase):
 
     def test_its_done_closes_commitment(self):
         """'It's done.' triggers closure with positive lock-in."""
-        result = process_ecc_closure("It's done.", self.commitment)
+        result = process_ecc_closure("It's done.", [self.commitment])
         self.assertIsNotNone(result)
         self.assertTrue(result['closed'])
         self.assertEqual(
@@ -778,45 +779,45 @@ class ClosurePrecedenceTest(TestCase):
 
     def test_done_closes_commitment(self):
         """'Done' triggers closure."""
-        result = process_ecc_closure("Done", self.commitment)
+        result = process_ecc_closure("Done", [self.commitment])
         self.assertIsNotNone(result)
         self.assertTrue(result['closed'])
         self.assertEqual(result['commitment'].status, 'closed_success')
 
     def test_finished_closes_commitment(self):
         """'Finished' triggers closure."""
-        result = process_ecc_closure("Finished", self.commitment)
+        result = process_ecc_closure("Finished", [self.commitment])
         self.assertIsNotNone(result)
         self.assertTrue(result['closed'])
 
     def test_completed_closes_commitment(self):
         """'Completed' triggers closure."""
-        result = process_ecc_closure("Completed!", self.commitment)
+        result = process_ecc_closure("Completed!", [self.commitment])
         self.assertIsNotNone(result)
         self.assertTrue(result['closed'])
 
     def test_yes_closes_commitment(self):
         """'Yes' triggers closure."""
-        result = process_ecc_closure("Yes", self.commitment)
+        result = process_ecc_closure("Yes", [self.commitment])
         self.assertIsNotNone(result)
         self.assertTrue(result['closed'])
 
     def test_i_finished_it_closes_commitment(self):
         """'I finished it' triggers closure."""
-        result = process_ecc_closure("I finished it", self.commitment)
+        result = process_ecc_closure("I finished it", [self.commitment])
         self.assertIsNotNone(result)
         self.assertTrue(result['closed'])
 
     def test_yeah_its_done_closes_commitment(self):
         """'Yeah it's done' triggers closure."""
-        result = process_ecc_closure("Yeah it's done", self.commitment)
+        result = process_ecc_closure("Yeah it's done", [self.commitment])
         self.assertIsNotNone(result)
         self.assertTrue(result['closed'])
 
     def test_non_closure_returns_none(self):
         """Non-closure input returns None."""
         result = process_ecc_closure(
-            "What's the weather today?", self.commitment
+            "What's the weather today?", [self.commitment]
         )
         self.assertIsNone(result)
 
@@ -828,5 +829,5 @@ class ClosurePrecedenceTest(TestCase):
     def test_already_closed_returns_none(self):
         """Already-closed commitment returns None."""
         self.commitment.status = 'closed_success'
-        result = process_ecc_closure("Done", self.commitment)
+        result = process_ecc_closure("Done", [self.commitment])
         self.assertIsNone(result)

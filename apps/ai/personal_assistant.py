@@ -1995,11 +1995,17 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                     Commitment as EccCommitment,
                     process_ecc_detection,
                     process_ecc_closure,
+                    get_pending_commitments,
+                    create_db_commitment,
+                    close_db_commitment,
                 )
                 from apps.core.ai_orchestrator.cos_context import (
                     build_cos_context as _ecc_build_cos,
                     determine_activation_state as _ecc_determine_tier,
                     _build_trajectory_signals as _ecc_build_traj,
+                )
+                from apps.core.blueprint.models import (
+                    Commitment as CommitmentModel,
                 )
 
                 # Compute real tier — same logic as _generate_response()
@@ -2010,31 +2016,50 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                 )
                 _ecc_tier = _ecc_determine_tier(_ecc_traj, message)
 
-                # Load active commitment from conversation metadata
-                _ecc_metadata = (conversation.metadata or {}).get(
-                    'ecc_active_commitment'
-                )
-                _ecc_active = []
-                _ecc_restored = None
-                if _ecc_metadata:
-                    _ecc_restored = EccCommitment.from_dict(_ecc_metadata)
-                    if _ecc_restored and _ecc_restored.status == 'pending':
-                        _ecc_active = [_ecc_restored]
+                # Load pending commitments from DB (cross-session)
+                _ecc_db_pending = get_pending_commitments(self.user)
+
+                # Fallback: also check conversation metadata for
+                # backward compatibility with pre-DB commitments
+                _ecc_active = list(_ecc_db_pending)
+                if not _ecc_active:
+                    _ecc_metadata = (conversation.metadata or {}).get(
+                        'ecc_active_commitment'
+                    )
+                    if _ecc_metadata:
+                        _ecc_restored = EccCommitment.from_dict(_ecc_metadata)
+                        if _ecc_restored and _ecc_restored.status == 'pending':
+                            _ecc_active = [_ecc_restored]
 
                 # Phase 5C: Closure precedence — check BEFORE renegotiation
                 # and new commitment detection. "It's done." must close the
                 # active commitment, not route to intent recognition.
-                if _ecc_restored and _ecc_restored.status == 'pending':
-                    closure = process_ecc_closure(message, _ecc_restored)
+                if _ecc_active:
+                    closure = process_ecc_closure(message, _ecc_active)
                     if closure is not None:
                         # Phase 5C: Set sentinel BEFORE any DB operation
                         # so except handler cannot swallow closure.
                         ecc_response = closure.get('response', '')
                         _ecc_closure_handled = True
                         _ecc_closure_response = ecc_response
+                        # Close in DB if available
+                        if closure.get('closed') and closure.get('db_id'):
+                            closed_c = closure['commitment']
+                            if closed_c and closed_c.status == 'closed_success':
+                                close_db_commitment(
+                                    closure['db_id'],
+                                    CommitmentModel.STATUS_CLOSED_SUCCESS,
+                                    CommitmentModel.CLOSURE_USER_CONFIRMED,
+                                )
+                            elif closed_c and closed_c.status == 'closed_missed':
+                                close_db_commitment(
+                                    closure['db_id'],
+                                    CommitmentModel.STATUS_CLOSED_MISSED,
+                                    CommitmentModel.CLOSURE_USER_MISSED,
+                                )
+                        # Also clear metadata
                         conversation.metadata = conversation.metadata or {}
                         if closure.get('closed'):
-                            # Remove commitment from metadata
                             conversation.metadata.pop(
                                 'ecc_active_commitment', None
                             )
@@ -2054,12 +2079,21 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                     user_input=message,
                     tier=_ecc_tier,
                     active_commitments=_ecc_active or None,
+                    user=self.user,
                 )
                 if ecc_result and ecc_result.get('detected'):
                     ecc_response = None
-                    # Commitment formed → persist to metadata
+                    # Commitment formed → persist to DB and metadata
                     if ecc_result.get('commitment'):
                         commitment = ecc_result['commitment']
+                        # Persist to DB
+                        create_db_commitment(
+                            user=self.user,
+                            commitment_data=commitment,
+                            conversation=conversation,
+                            tier=_ecc_tier,
+                        )
+                        # Also persist to metadata for backward compat
                         conversation.metadata = conversation.metadata or {}
                         conversation.metadata['ecc_active_commitment'] = (
                             commitment.to_dict()
@@ -2992,43 +3026,32 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                         cos_context['trajectory_activation_state'] = activation_state
 
                         # Phase 5A/5B: ECC detection — after tier eval, before R5.
-                        # Short-circuits with tightening question if commitment
-                        # intent detected but required fields missing.
-                        # Active commitment loaded from conversation.metadata
-                        # for cross-message continuity.
+                        # DB-backed commitments with cross-session continuity.
+                        # Commitments are user-global, loaded from DB (not metadata).
                         #
                         # Phase 5C hard short-circuit sentinel.
                         _ecc_closure_handled = False
                         _ecc_closure_response = ''
                         try:
                             from apps.core.ai_orchestrator.commitment_contract import (
-                                Commitment as EccCommitment,
+                                CommitmentData as EccCommitmentData,
                                 process_ecc_detection,
                                 process_ecc_closure,
+                                get_pending_commitments,
+                                create_db_commitment,
+                                close_db_commitment,
+                                format_ecc_injection,
                             )
-                            # Load active commitment from conversation metadata
-                            _ecc_meta = (conversation.metadata or {}).get(
-                                'ecc_active_commitment'
+                            from apps.core.blueprint.models import (
+                                Commitment as CommitmentModel,
                             )
-                            _ecc_list = []
-                            _ecc_restored = None
-                            if _ecc_meta:
-                                _ecc_restored = EccCommitment.from_dict(
-                                    _ecc_meta
-                                )
-                                if (
-                                    _ecc_restored
-                                    and _ecc_restored.status == 'pending'
-                                ):
-                                    _ecc_list = [_ecc_restored]
+                            # Load pending commitments from DB (cross-session)
+                            _ecc_pending = get_pending_commitments(self.user)
 
                             # Phase 5C: Closure precedence
-                            if (
-                                _ecc_restored
-                                and _ecc_restored.status == 'pending'
-                            ):
+                            if _ecc_pending:
                                 _closure = process_ecc_closure(
-                                    message, _ecc_restored
+                                    message, _ecc_pending
                                 )
                                 if _closure is not None:
                                     # Phase 5C: Set sentinel BEFORE DB ops
@@ -3036,44 +3059,50 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                                         _closure.get('response', '')
                                     )
                                     _ecc_closure_handled = True
-                                    conversation.metadata = (
-                                        conversation.metadata or {}
-                                    )
-                                    if _closure.get('closed'):
-                                        conversation.metadata.pop(
-                                            'ecc_active_commitment', None
-                                        )
-                                    conversation.save(
-                                        update_fields=['metadata']
-                                    )
+                                    if _closure.get('closed') and _closure.get('db_id'):
+                                        closed_commitment = _closure['commitment']
+                                        if closed_commitment and closed_commitment.status == 'closed_success':
+                                            close_db_commitment(
+                                                _closure['db_id'],
+                                                CommitmentModel.STATUS_CLOSED_SUCCESS,
+                                                CommitmentModel.CLOSURE_USER_CONFIRMED,
+                                            )
+                                        elif closed_commitment and closed_commitment.status == 'closed_missed':
+                                            close_db_commitment(
+                                                _closure['db_id'],
+                                                CommitmentModel.STATUS_CLOSED_MISSED,
+                                                CommitmentModel.CLOSURE_USER_MISSED,
+                                            )
                                     if _ecc_closure_response:
                                         return _ecc_closure_response
 
                             ecc_result = process_ecc_detection(
                                 user_input=message,
                                 tier=activation_state,
-                                active_commitments=_ecc_list or None,
+                                active_commitments=_ecc_pending or None,
+                                user=self.user,
                             )
                             if ecc_result and ecc_result.get('detected'):
-                                # Commitment formed → persist and inject
+                                # Commitment formed → persist to DB
                                 if ecc_result.get('commitment'):
-                                    commitment = ecc_result['commitment']
-                                    conversation.metadata = (
-                                        conversation.metadata or {}
+                                    commitment_data = ecc_result['commitment']
+                                    db_commit = create_db_commitment(
+                                        user=self.user,
+                                        commitment_data=commitment_data,
+                                        conversation=conversation,
+                                        tier=activation_state,
                                     )
-                                    conversation.metadata[
-                                        'ecc_active_commitment'
-                                    ] = commitment.to_dict()
-                                    conversation.save(
-                                        update_fields=['metadata']
-                                    )
-                                    cos_context['ecc_active_commitments'] = [
-                                        commitment
-                                    ]
+                                    # Refresh pending list for context injection
+                                    _ecc_pending = get_pending_commitments(self.user)
+                                    cos_context['ecc_active_commitments'] = _ecc_pending
                                 # Response covers all cases: tightening,
-                                # blocked renegotiation, or confirmation
+                                # blocked renegotiation, confirmation, or limit
                                 if ecc_result.get('response'):
                                     return ecc_result['response']
+
+                            # Inject pending commitments into context
+                            if _ecc_pending:
+                                cos_context['ecc_active_commitments'] = _ecc_pending
                         except Exception as ecc_err:
                             logger.debug("ECC detection skipped: %s", ecc_err)
 

@@ -1257,3 +1257,312 @@ class UserPriorityProfile(models.Model):
             user=user,
             declared_priority_level=cls.PRIORITY_NON_NEGOTIABLE,
         )
+
+
+# =============================================================================
+# EXECUTIVE COMMITMENT CONTRACT (ECC) — PERSISTENT MODELS
+# =============================================================================
+
+
+class Commitment(models.Model):
+    """
+    Persistent commitment record for the Executive Commitment Contract (ECC).
+
+    Commitments are user-global — they belong to a user, not a conversation.
+    The conversation FK is optional traceability for where the commitment
+    was created. Closure allowed from any conversation.
+
+    Hard limit: MAX 5 active pending commitments per user.
+    """
+
+    # Commitment types
+    TYPE_DO = 'DO'
+    TYPE_DECIDE = 'DECIDE'
+    TYPE_SCHEDULE = 'SCHEDULE'
+    TYPE_STOP = 'STOP'
+
+    COMMITMENT_TYPE_CHOICES = [
+        (TYPE_DO, 'Do'),
+        (TYPE_DECIDE, 'Decide'),
+        (TYPE_SCHEDULE, 'Schedule'),
+        (TYPE_STOP, 'Stop'),
+    ]
+
+    # Status lifecycle
+    STATUS_PENDING = 'pending'
+    STATUS_CLOSED_SUCCESS = 'closed_success'
+    STATUS_CLOSED_MISSED = 'closed_missed'
+    STATUS_CANCELLED = 'cancelled'
+    STATUS_RENEGOTIATED = 'renegotiated'
+
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_CLOSED_SUCCESS, 'Closed — Honored'),
+        (STATUS_CLOSED_MISSED, 'Closed — Missed'),
+        (STATUS_CANCELLED, 'Cancelled'),
+        (STATUS_RENEGOTIATED, 'Renegotiated'),
+    ]
+
+    # Closure types
+    CLOSURE_USER_CONFIRMED = 'user_confirmed'
+    CLOSURE_USER_MISSED = 'user_missed'
+    CLOSURE_CANCELLED = 'cancelled'
+    CLOSURE_RENEGOTIATED = 'renegotiated'
+    CLOSURE_EXPIRED = 'expired'
+
+    CLOSURE_TYPE_CHOICES = [
+        (CLOSURE_USER_CONFIRMED, 'User Confirmed Done'),
+        (CLOSURE_USER_MISSED, 'User Confirmed Missed'),
+        (CLOSURE_CANCELLED, 'Cancelled'),
+        (CLOSURE_RENEGOTIATED, 'Replaced by Renegotiation'),
+        (CLOSURE_EXPIRED, 'Expired Past Deadline'),
+    ]
+
+    MAX_PENDING_PER_USER = 5
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='commitments',
+    )
+
+    # Optional traceability — NOT ownership
+    conversation = models.ForeignKey(
+        'ai.AssistantConversation',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='commitments',
+        help_text="Conversation where this commitment was created (traceability only)",
+    )
+
+    normalized_text = models.TextField(
+        help_text="The commitment action text (case-preserved)",
+    )
+
+    commitment_type = models.CharField(
+        max_length=10,
+        choices=COMMITMENT_TYPE_CHOICES,
+        default=TYPE_DO,
+    )
+
+    time_boundary = models.DateTimeField(
+        help_text="Concrete deadline for this commitment",
+    )
+
+    time_boundary_display = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Human-readable time phrase (e.g., 'by tomorrow at 5pm')",
+    )
+
+    done_definition = models.TextField(
+        blank=True,
+        help_text="One-sentence definition of done. Required only for vague actions.",
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_PENDING,
+        db_index=True,
+    )
+
+    closure_type = models.CharField(
+        max_length=20,
+        choices=CLOSURE_TYPE_CHOICES,
+        blank=True,
+    )
+
+    closed_at = models.DateTimeField(null=True, blank=True)
+
+    # Tier at creation — for historical analysis
+    tier_at_creation = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="CLEAN / EARLY_EROSION / STRUCTURAL_DRIFT at commitment time",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Commitment"
+        verbose_name_plural = "Commitments"
+        indexes = [
+            models.Index(fields=['user', 'status']),
+            models.Index(fields=['user', 'time_boundary']),
+            models.Index(fields=['user', 'status', 'created_at']),
+        ]
+
+    def __str__(self):
+        return f"[{self.commitment_type}] {self.normalized_text} ({self.status})"
+
+    @classmethod
+    def pending_for_user(cls, user):
+        """Get all pending commitments for a user."""
+        return cls.objects.filter(user=user, status=cls.STATUS_PENDING)
+
+    @classmethod
+    def can_create(cls, user):
+        """Check if user can create another commitment (hard limit: 5)."""
+        return cls.pending_for_user(user).count() < cls.MAX_PENDING_PER_USER
+
+    def close(self, status, closure_type):
+        """Close this commitment with given status and closure type."""
+        self.status = status
+        self.closure_type = closure_type
+        self.closed_at = timezone.now()
+        self.save(update_fields=['status', 'closure_type', 'closed_at', 'updated_at'])
+
+
+class CommitmentRenegotiation(models.Model):
+    """
+    Historical record of a renegotiation attempt on a commitment.
+
+    Tracks both successful (CLEAN tier) and blocked (EROSION/DRIFT tier)
+    renegotiations for accountability audit trails.
+    """
+
+    CHOICE_A = 'A'  # Keep with minimum version
+    CHOICE_B = 'B'  # Cancel and accept consequence
+
+    BLOCKED_CHOICE_CHOICES = [
+        (CHOICE_A, 'Keep original with minimum version'),
+        (CHOICE_B, 'Cancel and accept consequence'),
+    ]
+
+    commitment = models.ForeignKey(
+        Commitment,
+        on_delete=models.CASCADE,
+        related_name='renegotiations',
+    )
+
+    original_time_boundary = models.DateTimeField(
+        help_text="Time boundary before renegotiation attempt",
+    )
+
+    requested_time_boundary = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="New time boundary requested (null if no new time provided)",
+    )
+
+    tier_at_time = models.CharField(
+        max_length=20,
+        help_text="CLEAN / EARLY_EROSION / STRUCTURAL_DRIFT at renegotiation time",
+    )
+
+    was_blocked = models.BooleanField(
+        default=False,
+        help_text="True if renegotiation was blocked due to tier",
+    )
+
+    blocked_choice_selected = models.CharField(
+        max_length=1,
+        choices=BLOCKED_CHOICE_CHOICES,
+        blank=True,
+        help_text="Which choice user selected when blocked (A or B)",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Commitment Renegotiation"
+        verbose_name_plural = "Commitment Renegotiations"
+        indexes = [
+            models.Index(fields=['commitment', 'created_at']),
+        ]
+
+    def __str__(self):
+        status = "blocked" if self.was_blocked else "allowed"
+        return f"Renegotiation ({status}) on {self.commitment}"
+
+
+class CommitmentAnalytics(models.Model):
+    """
+    Daily rollup of commitment metrics per user.
+
+    Computed by a daily management command or signal-driven update.
+    Foundation for accountability dashboards and trend analysis.
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='commitment_analytics',
+    )
+
+    date = models.DateField()
+
+    commitments_made = models.PositiveIntegerField(default=0)
+    commitments_honored = models.PositiveIntegerField(default=0)
+    commitments_missed = models.PositiveIntegerField(default=0)
+    commitments_renegotiated = models.PositiveIntegerField(default=0)
+    commitments_cancelled = models.PositiveIntegerField(default=0)
+
+    honor_rate = models.FloatField(
+        default=0.0,
+        help_text="Ratio of honored / (honored + missed), 0-1",
+    )
+
+    avg_time_to_closure_minutes = models.FloatField(
+        default=0.0,
+        help_text="Average minutes from creation to closure",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-date']
+        unique_together = ['user', 'date']
+        verbose_name = "Commitment Analytics"
+        verbose_name_plural = "Commitment Analytics"
+
+    def __str__(self):
+        return f"Commitments for {self.user.email} on {self.date}: {self.honor_rate:.0%}"
+
+    @classmethod
+    def compute_for_date(cls, user, date):
+        """Compute analytics for a specific date from Commitment records."""
+        from django.db.models import Avg, F
+
+        day_commitments = Commitment.objects.filter(
+            user=user,
+            created_at__date=date,
+        )
+
+        made = day_commitments.count()
+        honored = day_commitments.filter(status=Commitment.STATUS_CLOSED_SUCCESS).count()
+        missed = day_commitments.filter(status=Commitment.STATUS_CLOSED_MISSED).count()
+        renegotiated = day_commitments.filter(status=Commitment.STATUS_RENEGOTIATED).count()
+        cancelled = day_commitments.filter(status=Commitment.STATUS_CANCELLED).count()
+
+        closed = honored + missed
+        rate = honored / closed if closed > 0 else 0.0
+
+        # Average time to closure in minutes
+        closed_qs = day_commitments.filter(closed_at__isnull=False)
+        avg_result = closed_qs.annotate(
+            duration=F('closed_at') - F('created_at')
+        ).aggregate(avg_duration=Avg('duration'))
+        avg_duration = avg_result.get('avg_duration')
+        avg_minutes = avg_duration.total_seconds() / 60.0 if avg_duration else 0.0
+
+        analytics, _ = cls.objects.update_or_create(
+            user=user,
+            date=date,
+            defaults={
+                'commitments_made': made,
+                'commitments_honored': honored,
+                'commitments_missed': missed,
+                'commitments_renegotiated': renegotiated,
+                'commitments_cancelled': cancelled,
+                'honor_rate': rate,
+                'avg_time_to_closure_minutes': avg_minutes,
+            },
+        )
+        return analytics

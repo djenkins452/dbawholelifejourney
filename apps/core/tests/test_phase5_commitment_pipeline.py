@@ -122,8 +122,10 @@ class ECCTighteningShortCircuitTest(_PipelineTestMixin, TestCase):
 
 class ECCMissingDoneDefinitionTest(_PipelineTestMixin, TestCase):
     """
-    Test 2: Input with explicit time but missing done-definition.
+    Test 2: Input with explicit time but missing done-definition (vague verb).
     Expected: "What does 'done' mean in one sentence?"
+    Note: Only vague verbs (work on, review, start, etc.) require
+    done-definition. Atomic verbs (finish, send, call) do not.
     """
 
     @patch('apps.ai.personal_assistant.ai_service')
@@ -148,8 +150,9 @@ class ECCMissingDoneDefinitionTest(_PipelineTestMixin, TestCase):
         pa = self._build_pa()
         conversation = pa.get_or_create_conversation()
 
+        # Use vague verb "work on" which requires done-definition
         response = pa._generate_response(
-            "I'll finish the compensation model by 5pm today",
+            "I'll work on the compensation model by 5pm today",
             conversation,
         )
 
@@ -316,12 +319,13 @@ class ECCPrecedenceOverTaskCreationTest(_PipelineTestMixin, TestCase):
             recognize_called['called'] = True
             return original_recognize(*args, **kwargs)
 
+        # Use vague verb "work on" which requires done-definition
         with patch.object(
             intent_mod.intent_service, 'recognize_intents',
             side_effect=track_recognize
         ):
             result = pa.send_message(
-                "I'll finish the compensation model by Friday at 3 PM.",
+                "I'll work on the compensation model by Friday at 3 PM.",
                 conversation=conversation,
             )
 

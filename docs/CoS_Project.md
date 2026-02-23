@@ -8,7 +8,7 @@
 
 ## Current Phase
 
-**Phase 0 — Project Planning** (this document)
+**Phase 1 — Commitment System Hardening** ✅ COMPLETE (2026-02-23)
 
 ---
 
@@ -16,7 +16,7 @@
 
 | Phase | Title | Tier | Status | Started | Completed | Notes |
 |-------|-------|------|--------|---------|-----------|-------|
-| 1 | Commitment System Hardening | T1 — Critical Structural Integrity | Not Started | — | — | Persistent model, history, concurrency, false-positive mitigation |
+| 1 | Commitment System Hardening | T1 — Critical Structural Integrity | ✅ Complete | 2026-02-23 | 2026-02-23 | Persistent model, history, concurrency, false-positive mitigation |
 | 2 | Time & Deadline Authority Reinforcement | T2 — Executive-Quality Reliability | Not Started | — | — | Explicit boundaries, DST, deadline surfacing, conflict detection |
 | 3 | Drift & Escalation Continuity | T2 — Executive-Quality Reliability | Not Started | — | — | Persistent escalation, decay model, downgrade prevention |
 | 4 | Forecasting & Pressure Modeling | T3 — Forward-Looking Intelligence | Not Started | — | — | Calendar density, pressure index, deadline collision |
@@ -78,7 +78,7 @@ An executive-grade system must have durable, auditable commitment records with c
 
 | File | Change Type |
 |------|-------------|
-| `apps/core/ai_orchestrator/models.py` | New file — Commitment, CommitmentRenegotiation, CommitmentAnalytics models |
+| `apps/core/blueprint/models.py` | Added Commitment, CommitmentRenegotiation, CommitmentAnalytics models (core app, not ai_orchestrator) |
 | `apps/core/ai_orchestrator/commitment_contract.py` | Major refactor — DB-backed operations, false-positive filtering, multi-commitment |
 | `apps/ai/personal_assistant.py` | Moderate — DB reads/writes instead of metadata, multi-commitment closure |
 | `apps/ai/models.py` | Minor — metadata now stores commitment PK pointer only |

@@ -9,6 +9,35 @@
 
 # WLJ Change History
 
+## 2026-02-23 — Phase 1: Commitment System Hardening (CoS Upgrade)
+
+**Changes:**
+- Created 3 new DB models: `Commitment`, `CommitmentRenegotiation`, `CommitmentAnalytics` in `apps/core/blueprint/models.py`
+- Migrated ECC from runtime-only metadata to persistent DB-backed model with `select_for_update()` concurrency safety
+- Added false-positive filtering: casual phrases ("I'll have pizza", "I'll think about it") no longer trigger commitment detection
+- Added vague verb gating: done-definition only required for vague verbs (work on, review, start, etc.), atomic verbs (finish, call, send) skip it
+- Added multi-commitment stacking: users can have up to 5 concurrent pending commitments with numbered closure selection
+- Added hard limit enforcement: max 5 pending commitments per user with deterministic blocking message
+- Added cross-session continuity: commitments persist across conversations via DB, surfaced in any session
+- Added backend idempotency protection: 3-second SHA256 window prevents double-submit duplicates
+- Updated both `send_message()` and `_generate_response()` pipelines to use DB-backed commitments
+- Added renegotiation history tracking in `CommitmentRenegotiation` model
+- Added analytics foundation with `CommitmentAnalytics.compute_for_date()` daily rollup
+- Created migration `0088_commitment_system_models`
+- 164 commitment-specific tests (72 unit + 22 pipeline + 70 new hardening), all passing
+
+**Files Modified:**
+- `apps/core/blueprint/models.py` — Added Commitment, CommitmentRenegotiation, CommitmentAnalytics models
+- `apps/core/ai_orchestrator/commitment_contract.py` — Major refactor: DB operations, false-positive filtering, multi-commitment, idempotency
+- `apps/ai/personal_assistant.py` — Updated both send_message and _generate_response ECC pipelines for DB persistence
+- `apps/core/migrations/0088_commitment_system_models.py` — New migration
+- `apps/core/tests/test_phase5_commitment.py` — Updated for new API (list-based closure)
+- `apps/core/tests/test_phase5_commitment_pipeline.py` — Updated for vague verb rules
+- `apps/core/tests/test_phase1_commitment_hardening.py` — New test file (70 tests)
+- `docs/CoS_Project.md` — Phase 1 marked complete
+
+**Why:** Phase 1 of the CoS Executive Upgrade Project. Converts commitment system from ephemeral runtime state to persistent, auditable, concurrency-safe infrastructure that supports multi-commitment stacking, false-positive mitigation, and cross-session continuity.
+
 ## 2026-02-22 — CoS Full System Picture Report
 
 **Changes:**

@@ -2009,30 +2009,18 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                 )
                 if ecc_result and ecc_result.get('detected'):
                     ecc_response = None
-                    # Tightening question → short-circuit
-                    if (ecc_result.get('response')
-                            and not ecc_result.get('commitment')
-                            and not ecc_result.get('renegotiation')):
-                        ecc_response = ecc_result['response']
-                    # Renegotiation blocked → return choices
-                    elif (ecc_result.get('renegotiation')
-                          and ecc_result['renegotiation'].get('blocked')):
-                        choices = ecc_result['renegotiation'].get(
-                            'choices', [])
-                        parts = [
-                            f"{c['option']}) {c['description']}"
-                            for c in choices
-                        ]
-                        ecc_response = '\n'.join(parts)
-                    # Full commitment → persist and confirm
-                    elif ecc_result.get('commitment'):
+                    # Commitment formed → persist to metadata
+                    if ecc_result.get('commitment'):
                         commitment = ecc_result['commitment']
                         conversation.metadata = conversation.metadata or {}
                         conversation.metadata['ecc_active_commitment'] = (
                             commitment.to_dict()
                         )
                         conversation.save(update_fields=['metadata'])
-                        ecc_response = ecc_result.get('response', '')
+                    # Response covers all cases: tightening question,
+                    # blocked renegotiation choices, or confirmation
+                    if ecc_result.get('response'):
+                        ecc_response = ecc_result['response']
 
                     if ecc_response:
                         # Save assistant message and return immediately
@@ -2956,25 +2944,9 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                                 active_commitments=_ecc_list or None,
                             )
                             if ecc_result and ecc_result.get('detected'):
-                                # Tightening question → short-circuit
-                                if (ecc_result.get('response')
-                                        and not ecc_result.get('commitment')
-                                        and not ecc_result.get('renegotiation')):
-                                    return ecc_result['response']
-                                # Renegotiation blocked → return choices
-                                reneg = ecc_result.get('renegotiation')
-                                if reneg and reneg.get('blocked'):
-                                    choices = reneg.get('choices', [])
-                                    parts = []
-                                    for c in choices:
-                                        parts.append(
-                                            f"{c['option']}) {c['description']}"
-                                        )
-                                    return '\n'.join(parts)
-                                # Active commitment → persist, inject, confirm
+                                # Commitment formed → persist and inject
                                 if ecc_result.get('commitment'):
                                     commitment = ecc_result['commitment']
-                                    # Persist to conversation metadata
                                     conversation.metadata = (
                                         conversation.metadata or {}
                                     )
@@ -2984,13 +2956,13 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                                     conversation.save(
                                         update_fields=['metadata']
                                     )
-                                    # Inject into CoS context for prompt
                                     cos_context['ecc_active_commitments'] = [
                                         commitment
                                     ]
-                                    # Return deterministic confirmation
-                                    if ecc_result.get('response'):
-                                        return ecc_result['response']
+                                # Response covers all cases: tightening,
+                                # blocked renegotiation, or confirmation
+                                if ecc_result.get('response'):
+                                    return ecc_result['response']
                         except Exception as ecc_err:
                             logger.debug("ECC detection skipped: %s", ecc_err)
 

@@ -31,7 +31,7 @@ Public API:
     - extract_commitment_fields(text) -> CommitmentDraft | MissingField
     - generate_tightening_question(missing_field) -> str
     - normalize_commitment(draft) -> Commitment
-    - apply_renegotiation_rules(commitment, user_text, tier) -> Commitment | dict
+    - apply_renegotiation_rules(commitment, user_text, tier) -> Commitment | RenegotiationBlocked | MissingField
     - close_commitment(commitment, user_response, tier) -> Commitment | str
     - render_commitment_confirmation(commitment) -> str
     - render_positive_lock_in(commitment) -> str | None
@@ -103,6 +103,12 @@ class CommitmentDraft:
 class MissingField:
     """Returned when a required field is missing from the commitment."""
     field_name: str
+
+
+@dataclass
+class RenegotiationBlocked:
+    """Returned when renegotiation is blocked (non-CLEAN tier or missing time)."""
+    choices: list
 
 
 # =========================================================================
@@ -502,28 +508,17 @@ def apply_renegotiation_rules(commitment, user_text, tier):
 
     Returns:
         Updated Commitment (if CLEAN renegotiation allowed), or
-        dict with 'choices' key (if renegotiation blocked).
+        RenegotiationBlocked (if renegotiation blocked), or
+        MissingField (if scope changed and new done-def needed).
     """
     if tier == 'CLEAN':
         return _handle_clean_renegotiation(commitment, user_text)
 
     # EARLY_EROSION or STRUCTURAL_DRIFT — block renegotiation deferral
-    return {
-        'blocked': True,
-        'choices': [
-            {
-                'option': 'A',
-                'description': (
-                    f"Keep original commitment with 30-minute timebox: "
-                    f"{commitment.normalized_text}"
-                ),
-            },
-            {
-                'option': 'B',
-                'description': "Formally cancel this commitment.",
-            },
-        ],
-    }
+    return RenegotiationBlocked(choices=[
+        "A) Keep original commitment with a 15\u201330 minute minimum version now",
+        "B) Formally cancel and accept consequence",
+    ])
 
 
 def close_commitment(commitment, user_response, tier=None):
@@ -689,9 +684,10 @@ def process_ecc_detection(user_input, tier, active_commitments=None):
     Returns:
         dict with:
             'detected': bool — whether commitment intent was found.
-            'response': str | None — tightening question or confirmation.
+            'response': str | None — tightening question, confirmation,
+                        or formatted blocking choices.
             'commitment': Commitment | None — if fully formed.
-            'renegotiation': dict | None — if renegotiation attempt on existing.
+            'renegotiation': RenegotiationBlocked | None — if blocked.
         Or None if no commitment intent detected.
     """
     if active_commitments is None:
@@ -707,19 +703,14 @@ def process_ecc_detection(user_input, tier, active_commitments=None):
         if pending:
             latest = pending[-1]
             reneg_result = apply_renegotiation_rules(latest, user_input, tier)
-            if isinstance(reneg_result, dict) and reneg_result.get('blocked'):
+            # Strict type dispatch — order matters
+            if isinstance(reneg_result, RenegotiationBlocked):
+                # Blocked renegotiation → return choices as response
                 return {
                     'detected': True,
-                    'response': None,
+                    'response': '\n'.join(reneg_result.choices),
                     'commitment': None,
                     'renegotiation': reneg_result,
-                }
-            elif isinstance(reneg_result, Commitment):
-                return {
-                    'detected': True,
-                    'response': render_commitment_confirmation(reneg_result),
-                    'commitment': reneg_result,
-                    'renegotiation': None,
                 }
             elif isinstance(reneg_result, MissingField):
                 # Scope changed during renegotiation — need new done-def
@@ -728,6 +719,14 @@ def process_ecc_detection(user_input, tier, active_commitments=None):
                     'detected': True,
                     'response': question,
                     'commitment': None,
+                    'renegotiation': None,
+                }
+            elif isinstance(reneg_result, Commitment):
+                # Successful renegotiation — render confirmation
+                return {
+                    'detected': True,
+                    'response': render_commitment_confirmation(reneg_result),
+                    'commitment': reneg_result,
                     'renegotiation': None,
                 }
 
@@ -983,22 +982,10 @@ def _handle_clean_renegotiation(commitment, user_text):
 
     if not new_time_raw:
         # No new time boundary — renegotiation not allowed
-        return {
-            'blocked': True,
-            'reason': 'Renegotiation requires a new explicit time boundary.',
-            'choices': [
-                {
-                    'option': 'A',
-                    'description': (
-                        f"Keep original commitment: {commitment.normalized_text}"
-                    ),
-                },
-                {
-                    'option': 'B',
-                    'description': "Provide a new specific time boundary.",
-                },
-            ],
-        }
+        return RenegotiationBlocked(choices=[
+            "A) Keep original commitment with a 15\u201330 minute minimum version now",
+            "B) Formally cancel and accept consequence",
+        ])
 
     # Check if scope changed (action text differs significantly)
     new_normalized = _normalize_for_matching(user_text)

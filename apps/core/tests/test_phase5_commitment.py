@@ -19,6 +19,7 @@ from apps.core.ai_orchestrator.commitment_contract import (
     Commitment,
     CommitmentDraft,
     MissingField,
+    RenegotiationBlocked,
     apply_renegotiation_rules,
     close_commitment,
     detect_commitment_intent,
@@ -146,9 +147,9 @@ class CleanRenegotiationTest(TestCase):
             "Can I do this later?",
             'CLEAN',
         )
-        # Without explicit time → blocked
-        self.assertIsInstance(result, dict)
-        self.assertTrue(result.get('blocked'))
+        # Without explicit time → RenegotiationBlocked
+        self.assertIsInstance(result, RenegotiationBlocked)
+        self.assertEqual(len(result.choices), 2)
 
     def test_clean_renegotiation_scope_change_needs_done(self):
         result = apply_renegotiation_rules(
@@ -179,11 +180,10 @@ class ErosionRenegotiationBlockedTest(TestCase):
             "I'll push it to tomorrow by 5pm",
             'EARLY_EROSION',
         )
-        self.assertIsInstance(result, dict)
-        self.assertTrue(result.get('blocked'))
-        self.assertEqual(len(result['choices']), 2)
-        self.assertEqual(result['choices'][0]['option'], 'A')
-        self.assertEqual(result['choices'][1]['option'], 'B')
+        self.assertIsInstance(result, RenegotiationBlocked)
+        self.assertEqual(len(result.choices), 2)
+        self.assertTrue(result.choices[0].startswith('A)'))
+        self.assertTrue(result.choices[1].startswith('B)'))
 
     def test_structural_drift_blocks_renegotiation(self):
         result = apply_renegotiation_rules(
@@ -191,9 +191,8 @@ class ErosionRenegotiationBlockedTest(TestCase):
             "Let me reschedule to next week",
             'STRUCTURAL_DRIFT',
         )
-        self.assertIsInstance(result, dict)
-        self.assertTrue(result.get('blocked'))
-        self.assertEqual(len(result['choices']), 2)
+        self.assertIsInstance(result, RenegotiationBlocked)
+        self.assertEqual(len(result.choices), 2)
 
     def test_blocked_choices_are_deterministic(self):
         result = apply_renegotiation_rules(
@@ -201,10 +200,14 @@ class ErosionRenegotiationBlockedTest(TestCase):
             "I need more time",
             'EARLY_EROSION',
         )
-        # Choice A: keep with smaller timebox
-        self.assertIn('Keep original commitment', result['choices'][0]['description'])
-        # Choice B: formally cancel
-        self.assertIn('cancel', result['choices'][1]['description'].lower())
+        self.assertEqual(
+            result.choices[0],
+            "A) Keep original commitment with a 15\u201330 minute minimum version now",
+        )
+        self.assertEqual(
+            result.choices[1],
+            "B) Formally cancel and accept consequence",
+        )
 
 
 class BinaryClosureTest(TestCase):
@@ -508,8 +511,10 @@ class PipelineIntegrationTest(TestCase):
         )
         self.assertIsNotNone(result)
         self.assertTrue(result['detected'])
-        self.assertIsNotNone(result['renegotiation'])
-        self.assertTrue(result['renegotiation']['blocked'])
+        self.assertIsInstance(result['renegotiation'], RenegotiationBlocked)
+        # Response contains the formatted choices
+        self.assertIn('A)', result['response'])
+        self.assertIn('B)', result['response'])
 
 
 class RenegotiationPrecedenceTest(TestCase):
@@ -611,12 +616,11 @@ class RenegotiationPrecedenceTest(TestCase):
         )
         self.assertIsNotNone(result)
         self.assertTrue(result['detected'])
-        self.assertIsNotNone(result['renegotiation'])
-        self.assertTrue(result['renegotiation']['blocked'])
-        choices = result['renegotiation']['choices']
-        self.assertEqual(len(choices), 2)
-        self.assertEqual(choices[0]['option'], 'A')
-        self.assertEqual(choices[1]['option'], 'B')
+        self.assertIsInstance(result['renegotiation'], RenegotiationBlocked)
+        self.assertEqual(len(result['renegotiation'].choices), 2)
+        # Response contains formatted choices
+        self.assertIn('A)', result['response'])
+        self.assertIn('B)', result['response'])
 
     def test_no_renegotiation_without_active_commitment(self):
         """
@@ -648,3 +652,96 @@ class RenegotiationPrecedenceTest(TestCase):
                 active_commitments=[self.existing],
             )
             mock_extract.assert_not_called()
+
+
+class RenegotiationReturnDisciplineTest(TestCase):
+    """
+    Phase 5B: Blocked renegotiation must return RenegotiationBlocked,
+    never render a commitment confirmation.
+    """
+
+    def setUp(self):
+        self.existing = Commitment(
+            normalized_text='Finish the compensation model',
+            commitment_type='DO',
+            time_boundary=datetime(2026, 2, 28, 15, 0),
+            done_definition='Revised ranges finalized and exported to Excel',
+            status='pending',
+        )
+
+    def test_blocked_renegotiation_returns_exact_choices(self):
+        """
+        EARLY_EROSION + renegotiation trigger → exact A/B deterministic output.
+        """
+        result = process_ecc_detection(
+            "I'm going to move it to next week instead.",
+            'EARLY_EROSION',
+            active_commitments=[self.existing],
+        )
+        self.assertIsNotNone(result)
+        self.assertTrue(result['detected'])
+        # Must be RenegotiationBlocked, NOT Commitment
+        self.assertIsInstance(result['renegotiation'], RenegotiationBlocked)
+        self.assertIsNone(result['commitment'])
+        # Response equals exactly two deterministic A/B lines
+        expected = (
+            "A) Keep original commitment with a 15\u201330 minute "
+            "minimum version now\n"
+            "B) Formally cancel and accept consequence"
+        )
+        self.assertEqual(result['response'], expected)
+
+    def test_blocked_renegotiation_never_renders_confirmation(self):
+        """
+        Confirmation renderer must NOT be called on blocked renegotiation.
+        """
+        from unittest.mock import patch
+        with patch(
+            'apps.core.ai_orchestrator.commitment_contract'
+            '.render_commitment_confirmation'
+        ) as mock_render:
+            result = process_ecc_detection(
+                "Push it to Friday.",
+                'EARLY_EROSION',
+                active_commitments=[self.existing],
+            )
+            mock_render.assert_not_called()
+        # Verify it's blocked
+        self.assertIsInstance(result['renegotiation'], RenegotiationBlocked)
+        self.assertIsNone(result['commitment'])
+
+    def test_structural_drift_also_blocked(self):
+        """STRUCTURAL_DRIFT tier produces same blocking behavior."""
+        result = process_ecc_detection(
+            "Delay this to next week.",
+            'STRUCTURAL_DRIFT',
+            active_commitments=[self.existing],
+        )
+        self.assertIsInstance(result['renegotiation'], RenegotiationBlocked)
+        self.assertIsNone(result['commitment'])
+        self.assertIn('A)', result['response'])
+        self.assertIn('B)', result['response'])
+
+    def test_clean_tier_allows_renegotiation_with_time(self):
+        """CLEAN tier with new time → Commitment returned, NOT blocked."""
+        result = process_ecc_detection(
+            "Move it to tomorrow instead.",
+            'CLEAN',
+            active_commitments=[self.existing],
+        )
+        self.assertIsNotNone(result)
+        # Should return updated commitment (not blocked)
+        self.assertIsNotNone(result.get('commitment'))
+        self.assertIsNone(result.get('renegotiation'))
+        self.assertIn('Commitment set:', result['response'])
+
+    def test_clean_tier_blocks_without_time(self):
+        """CLEAN tier without explicit time → RenegotiationBlocked."""
+        result = process_ecc_detection(
+            "Can we do this later?",
+            'CLEAN',
+            active_commitments=[self.existing],
+        )
+        self.assertIsNotNone(result)
+        self.assertIsInstance(result['renegotiation'], RenegotiationBlocked)
+        self.assertIsNone(result['commitment'])

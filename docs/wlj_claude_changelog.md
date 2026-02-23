@@ -9,6 +9,29 @@
 
 # WLJ Change History
 
+## 2026-02-22 — Phase 5B: Renegotiation Return Discipline Correction
+
+**Changes:**
+- Added `RenegotiationBlocked` dataclass with `choices: list` field for type-safe blocked renegotiation returns
+- Replaced dict-based blocking returns in `apply_renegotiation_rules()` and `_handle_clean_renegotiation()` with `RenegotiationBlocked` instances
+- Exact deterministic text: "A) Keep original commitment with a 15–30 minute minimum version now" and "B) Formally cancel and accept consequence"
+- Updated `process_ecc_detection()` with strict type dispatch: `RenegotiationBlocked` → choices, `MissingField` → tightening, `Commitment` → confirmation
+- `process_ecc_detection` now formats blocked choices into `response` field directly — callers no longer need to format
+- Simplified both caller sites in `send_message()` and `_generate_response()` — removed renegotiation-specific formatting branches
+- Updated 5 existing tests to check `RenegotiationBlocked` type instead of dict structure
+- Added 5 new tests in `RenegotiationReturnDisciplineTest`: exact choice text, confirmation renderer NOT called on block, STRUCTURAL_DRIFT blocking, CLEAN tier allows with time, CLEAN tier blocks without time
+
+**Root cause:** `apply_renegotiation_rules()` returned the original `Commitment` object on blocked paths (CLEAN without time returned dict, but the type check in `process_ecc_detection` for `isinstance(reneg_result, Commitment)` would render a confirmation for any valid renegotiation). The loose dict-based protocol made it impossible to distinguish blocked from allowed at the type level.
+
+**Files modified:**
+- `apps/core/ai_orchestrator/commitment_contract.py` — RenegotiationBlocked class, strict type dispatch
+- `apps/ai/personal_assistant.py` — simplified ECC caller code in both send_message() and _generate_response()
+- `apps/core/tests/test_phase5_commitment.py` — 5 updated tests + 5 new tests
+
+**Verification:** 73 tests pass (58 Phase 5A unit + 15 Phase 5B pipeline integration)
+
+---
+
 ## 2026-02-22 — Phase 5B: Lightweight Commitment Continuity (Cross-Message Persistence)
 
 **Changes:**

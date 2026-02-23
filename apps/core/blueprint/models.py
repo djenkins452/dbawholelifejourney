@@ -626,15 +626,14 @@ class ArchitecturePlan(models.Model):
         return f"Plan for {self.user.email} on {self.date} ({self.status})"
 
     def activate(self):
-        """Activate this plan and supersede any previous active plan for this date."""
-        ArchitecturePlan.objects.filter(
-            user=self.user,
-            date=self.date,
-            status=self.STATUS_ACTIVE,
-        ).exclude(pk=self.pk).update(status=self.STATUS_SUPERSEDED)
+        """
+        Activate this plan and supersede any previous active plan for this date.
 
-        self.status = self.STATUS_ACTIVE
-        self.save(update_fields=['status', 'updated_at'])
+        Phase 6: Uses transaction.atomic() + select_for_update() to ensure
+        that under concurrent calls, exactly one plan ends up active.
+        """
+        from apps.core.blueprint.concurrency import activate_plan_atomic
+        activate_plan_atomic(self)
 
     @classmethod
     def get_active_for_date(cls, user, date=None):

@@ -9,6 +9,32 @@
 
 # WLJ Change History
 
+## 2026-02-23 — Phase 6: Observability & Concurrency Hardening (CoS Upgrade)
+
+**Changes:**
+- Added `EngineRunToken` model for DB-backed scheduler overlap protection (acquire/release/cleanup with lease expiry)
+- Added conversation metadata locking with `select_for_update()`, retry with jitter, and graceful degradation
+- Made `ArchitecturePlan.activate()` atomic — supersede-old + activate-new wrapped in `transaction.atomic()`
+- Added escalation transition observability — `EngineRun` + `DecisionRecord` logged on every level change (fire-and-forget)
+- Added `COMMITMENT_RACE_CONDITION` anomaly type to SAME — detects sub-second double-writes
+- Added degraded-mode handlers: `safe_llm_call()`, `safe_db_write()`, `safe_cache_read()` — all return plain-language fallbacks
+- Created `apps/core/blueprint/concurrency.py` as central Phase 6 utilities module
+- 46 new tests (28 concurrency + 18 degraded-mode) — all passing
+- 181 Phase 1-5 regression tests pass
+
+**Files Modified:**
+- `apps/core/ai_scheduler/scheduler_models.py` — added EngineRunToken model
+- `apps/core/ai_observability/models.py` — added COMMITMENT_RACE_CONDITION anomaly type
+- `apps/core/blueprint/models.py` — ArchitecturePlan.activate() delegates to atomic version
+- `apps/core/blueprint/escalation_engine.py` — escalation observability logging
+- New: `apps/core/blueprint/concurrency.py` — all Phase 6 concurrency/degraded-mode utilities
+- New: `apps/core/migrations/0094_phase6_observability_concurrency.py` — migration
+- New: `apps/core/tests/test_concurrency.py` — 28 concurrency tests
+- New: `apps/core/tests/test_degraded_mode.py` — 18 degraded-mode tests
+- `docs/CoS_Project.md` — Phase 6 marked complete
+
+**Why:** Audit identified concurrency gaps (no row-level locking on metadata, non-atomic plan activation, no escalation observability, no degraded-mode testing). Phase 6 hardens the system against concurrent writes, adds traceability for escalation transitions, and ensures graceful degradation when dependencies fail.
+
 ## 2026-02-23 — Phase 5: Protective Action Engine (CoS Upgrade)
 
 ### What Changed

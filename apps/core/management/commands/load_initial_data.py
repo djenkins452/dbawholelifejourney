@@ -772,6 +772,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for CoS Phase 5 Protective Action Engine (PK 93)
         self._reset_cos_phase5_protective_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for CoS Phase 6 Observability & Concurrency (PK 94)
+        self._reset_cos_phase6_observability_fixtures(DataLoadConfig, force, verbosity)
+
         # One-time: Seed LLMPriceBook and backfill event costs
         self._seed_pricebook_and_backfill(DataLoadConfig, force, verbosity)
 
@@ -3527,6 +3530,34 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset CoS Phase 5 fixtures FAILED: {e}'))
+
+    def _reset_cos_phase6_observability_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes for CoS Phase 6 Observability & Concurrency.
+        - release_notes PK 94 (Improved Reliability & Graceful Recovery)
+        """
+        reset_tracker_name = 'reset_cos_phase6_observability_2026_02_23'
+        try:
+            if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
+                return
+
+            config = DataLoadConfig.objects.get(loader_name='release_notes')
+            if config.is_loaded:
+                config.is_loaded = False
+                config.save()
+                if verbosity >= 1:
+                    self.stdout.write(f'  Reset release_notes loader for CoS Phase 6 Observability & Concurrency')
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for CoS Phase 6 Observability & Concurrency (Feb 2026)',
+                'command',
+                'One-time reset to reload release_notes PK 94'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset CoS Phase 6 fixtures FAILED: {e}'))
 
     def _seed_pricebook_and_backfill(self, DataLoadConfig, force=False, verbosity=1):
         """

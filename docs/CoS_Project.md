@@ -8,7 +8,7 @@
 
 ## Current Phase
 
-**Phase 4 — Forecasting & Pressure Modeling** ✅ COMPLETE (2026-02-23)
+**Phase 6 — Observability & Concurrency Hardening** ✅ COMPLETE (2026-02-23)
 
 ---
 
@@ -21,7 +21,7 @@
 | 3 | Drift & Escalation Continuity | T2 — Executive-Quality Reliability | ✅ Complete | 2026-02-23 | 2026-02-23 | Persistent escalation, decay model, downgrade prevention |
 | 4 | Forecasting & Pressure Modeling | T3 — Forward-Looking Intelligence | ✅ Complete | 2026-02-23 | 2026-02-23 | Calendar density, pressure index, deadline collision, CPI 0–100, event-driven triggers |
 | 5 | Protective Action Engine | T4 — Proactive Protection | ✅ Complete | 2026-02-23 | 2026-02-23 | Advisory-only recs, capacity warnings, pre-deadline alerts, overload triggers, DNE delivery, audit trail |
-| 6 | Observability & Concurrency Hardening | T5 — Observability & Concurrency | Not Started | — | — | Locks, atomicity, degraded-mode tests |
+| 6 | Observability & Concurrency Hardening | T5 — Observability & Concurrency | ✅ Complete | 2026-02-23 | 2026-02-23 | Metadata locking, plan atomicity, DB run tokens, escalation observability, race condition anomaly, degraded-mode handlers, 46 tests |
 | 7 | Test Expansion | T6 — Testing & Verification | Not Started | — | — | DST, concurrency, stacking, forecasting, cache failure tests |
 
 ---

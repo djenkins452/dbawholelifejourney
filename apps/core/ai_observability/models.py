@@ -568,6 +568,7 @@ class OpsAnomaly(models.Model):
         ("LOOPING_REMINDER", "Looping Reminder"),
         ("ENGINE_STARVATION", "Engine Starvation"),
         ("DELIVERY_RETRY_SPIKE", "Delivery Retry Spike"),
+        ("COMMITMENT_RACE_CONDITION", "Commitment Race Condition"),
     ]
 
     created_at = models.DateTimeField(auto_now_add=True)

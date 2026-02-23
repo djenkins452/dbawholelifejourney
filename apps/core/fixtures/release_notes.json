@@ -1,6 +1,22 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 94,
+        "fields": {
+            "title": "Improved Reliability & Graceful Recovery",
+            "description": "Behind the scenes, your Chief of Staff is now more resilient. If something hiccups — a slow connection, a brief service interruption — the system handles it gracefully and keeps your data safe. You'll see a friendly status message instead of an error, and everything catches up automatically. Your commitments and schedule are always protected, even when things aren't running at full speed.",
+            "entry_type": "enhancement",
+            "version": "",
+            "release_date": "2026-02-23",
+            "is_published": true,
+            "is_major": false,
+            "learn_more_url": "",
+            "created_at": "2026-02-23T18:00:00Z",
+            "updated_at": "2026-02-23T18:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 93,
         "fields": {
             "title": "Proactive Schedule Protection & Deadline Alerts",

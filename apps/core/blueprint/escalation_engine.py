@@ -232,6 +232,10 @@ def resolve_activation_state(user, trajectory_signals, user_input=''):
                 recovery_reasons={},
                 floor_applied=False,
             )
+            # Phase 6: observability — EngineRun + DecisionRecord for transition
+            _log_escalation_observability(
+                user, previous_level, computed_level, 'THRESHOLD_OVERRIDE',
+            )
             return LEVEL_TO_STATE[computed_level]
 
         # D+E) Floor rule + de-escalation gate
@@ -259,6 +263,11 @@ def resolve_activation_state(user, trajectory_signals, user_input=''):
                     recovery_eligible=True,
                     recovery_reasons=reasons,
                     floor_applied=False,
+                )
+                # Phase 6: observability — EngineRun + DecisionRecord for transition
+                _log_escalation_observability(
+                    user, previous_level, new_level, 'RECOVERY_DECAY',
+                    recovery_reasons=reasons,
                 )
                 return LEVEL_TO_STATE[new_level]
             else:
@@ -552,6 +561,21 @@ def _write_decision_record(
 # =========================================================================
 # HELPERS — time authority
 # =========================================================================
+
+
+def _log_escalation_observability(user, from_level, to_level, trigger,
+                                  recovery_reasons=None):
+    """
+    Phase 6: Fire-and-forget observability for escalation level changes.
+    Delegates to concurrency module.
+    """
+    try:
+        from apps.core.blueprint.concurrency import log_escalation_transition
+        log_escalation_transition(
+            user, from_level, to_level, trigger, recovery_reasons,
+        )
+    except Exception as e:
+        logger.warning("Phase 6: Escalation observability failed: %s", e)
 
 
 def _get_reference_time(user=None):

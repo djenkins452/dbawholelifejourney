@@ -1912,6 +1912,22 @@ class ActionHandler:
                 error=str(e)
             )
 
+    # =========================================================================
+    # SCHEDULING CONTEXT — for "same" / clone parameter inheritance
+    # =========================================================================
+
+    @staticmethod
+    def _get_scheduling_context(user):
+        """Retrieve the last scheduling context from cache."""
+        from django.core.cache import cache
+        return cache.get(f'scheduling_context_{user.id}')
+
+    @staticmethod
+    def _store_scheduling_context(user, context):
+        """Store scheduling context in cache (30-min TTL — session scope)."""
+        from django.core.cache import cache
+        cache.set(f'scheduling_context_{user.id}', context, timeout=1800)
+
     def handle_create_event(self, title: str, start_date: str,
                              description: str = "", start_time: str = None,
                              end_time: str = None, is_all_day: bool = False,
@@ -1928,6 +1944,12 @@ class ActionHandler:
         2. Drift/pressure recomputation
         3. Google Calendar sync (if connected)
 
+        Scheduling reliability contract:
+        - Dates anchored to get_current_local_datetime(user), never server UTC
+        - clone_from_last=True inherits all params from prior scheduling action
+        - No default time fallback allowed during cloning
+        - Debug logging at every decision point
+
         Args:
             title: Event title
             start_date: Event date (YYYY-MM-DD, 'today', 'tomorrow')
@@ -1938,32 +1960,77 @@ class ActionHandler:
             location: Event location
             event_type: Type of event (personal, work, health, etc.)
             reminder_minutes: Minutes before for reminder
+            **kwargs: clone_from_last (bool), recorded_at (datetime)
         """
         from apps.calendar_engine.models import CalendarEvent
         from datetime import datetime as dt
         from django.utils import timezone as tz
 
         try:
-            today = self._get_user_today()
-            user_now = self._get_user_now()
+            # --- Authoritative local date/time (Part 1) ---
+            from apps.core.utils import get_current_local_datetime
+            user_now = get_current_local_datetime(self.user)
+            today = user_now.date()
             user_tz = user_now.tzinfo
+
+            logger.debug(
+                "[SCHED] Base local datetime: %s (tz=%s, user=%s)",
+                user_now.isoformat(), user_tz, self.user.id,
+            )
+
+            # --- Clone inheritance (Part 2) ---
+            clone_from_last = kwargs.get('clone_from_last', False)
+            prior_ctx = None
+            if clone_from_last:
+                prior_ctx = self._get_scheduling_context(self.user)
+                if prior_ctx:
+                    logger.debug(
+                        "[SCHED] Clone mode: inheriting from prior context %r",
+                        prior_ctx,
+                    )
+                    # Inherit missing parameters from prior context
+                    if not start_time and prior_ctx.get('start_time'):
+                        start_time = prior_ctx['start_time']
+                        logger.debug(
+                            "[SCHED] Inherited start_time=%s from prior event",
+                            start_time,
+                        )
+                    if not end_time and prior_ctx.get('end_time'):
+                        end_time = prior_ctx['end_time']
+                    if not description and prior_ctx.get('description'):
+                        description = prior_ctx['description']
+                    if not location and prior_ctx.get('location'):
+                        location = prior_ctx['location']
+                    if event_type == 'personal' and prior_ctx.get('event_type'):
+                        event_type = prior_ctx['event_type']
+                    if is_all_day is False and prior_ctx.get('is_all_day'):
+                        is_all_day = prior_ctx['is_all_day']
+                else:
+                    logger.warning(
+                        "[SCHED] clone_from_last=True but no prior scheduling "
+                        "context found for user %s", self.user.id,
+                    )
 
             # Parse date — check orchestrator resolved time first
             resolved_at = kwargs.get('recorded_at')
             if resolved_at and hasattr(resolved_at, 'date'):
                 event_date = resolved_at.date()
+                logger.debug("[SCHED] Date from orchestrator: %s", event_date)
             elif start_date.lower() in ('today', 'now'):
                 event_date = today
+                logger.debug("[SCHED] Resolved 'today' → %s", event_date)
             elif start_date.lower() == 'tomorrow':
                 event_date = today + timedelta(days=1)
+                logger.debug("[SCHED] Resolved 'tomorrow' → %s", event_date)
             else:
                 try:
                     event_date = dt.strptime(start_date, '%Y-%m-%d').date()
+                    logger.debug("[SCHED] Parsed date literal: %s", event_date)
                 except ValueError:
                     event_date = today
                     logger.warning(
-                        "Could not parse start_date '%s', defaulting to today",
-                        start_date
+                        "[SCHED] Could not parse start_date '%s', "
+                        "defaulting to today %s", start_date, event_date,
                     )
 
             # Parse times
@@ -1982,8 +2049,24 @@ class ActionHandler:
                 except ValueError:
                     pass
 
-            # Build timezone-aware start_dt / end_dt for CalendarEvent
+            # --- Safety invariant (Part 3): no default-time during clone ---
             actual_all_day = is_all_day or (parsed_start_time is None)
+
+            if actual_all_day and not is_all_day:
+                # Time was defaulted automatically (no start_time provided)
+                logger.warning(
+                    "[SCHED] Time defaulted to all-day — no start_time "
+                    "provided for '%s' on %s (clone=%s)",
+                    title, event_date, clone_from_last,
+                )
+                if clone_from_last and prior_ctx and prior_ctx.get('start_time'):
+                    # This should never happen: clone was requested, prior
+                    # context had a time, but inheritance didn't work.
+                    logger.error(
+                        "[SCHED] INVARIANT VIOLATION: clone requested with "
+                        "prior time=%s but parsed_start_time is None",
+                        prior_ctx['start_time'],
+                    )
 
             if actual_all_day:
                 # All-day: midnight to midnight
@@ -2001,6 +2084,30 @@ class ActionHandler:
             # Make timezone-aware using user's timezone
             start_dt = tz.make_aware(naive_start, user_tz)
             end_dt = tz.make_aware(naive_end, user_tz)
+
+            logger.debug(
+                "[SCHED] Final event: title=%s, start_dt=%s, end_dt=%s, "
+                "all_day=%s, tz=%s",
+                title, start_dt.isoformat(), end_dt.isoformat(),
+                actual_all_day, user_tz,
+            )
+
+            # --- Clone assertion (Part 3) ---
+            if clone_from_last and prior_ctx and prior_ctx.get('start_time'):
+                if not actual_all_day:
+                    prior_time_str = prior_ctx['start_time']
+                    try:
+                        prior_time = dt.strptime(prior_time_str, '%H:%M').time()
+                        assert parsed_start_time == prior_time, (
+                            f"Clone time mismatch: cloned={parsed_start_time}, "
+                            f"original={prior_time}"
+                        )
+                        logger.debug(
+                            "[SCHED] Clone assertion passed: time=%s",
+                            parsed_start_time,
+                        )
+                    except (ValueError, AssertionError) as e:
+                        logger.warning("[SCHED] Clone assertion: %s", e)
 
             # Resolve domain from event_type if possible
             domain = None
@@ -2038,6 +2145,18 @@ class ActionHandler:
                 f" at {parsed_start_time.strftime('%I:%M %p')}"
                 if parsed_start_time else ""
             )
+
+            # --- Store scheduling context for future "same" references ---
+            self._store_scheduling_context(self.user, {
+                'title': title,
+                'start_time': start_time,
+                'end_time': end_time,
+                'description': description,
+                'location': location,
+                'event_type': event_type,
+                'is_all_day': is_all_day,
+                'reminder_minutes': reminder_minutes,
+            })
 
             # Run CoS post-scheduling chain
             cos_context = self._run_cos_post_scheduling(event)

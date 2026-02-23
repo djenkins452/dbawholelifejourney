@@ -9,6 +9,25 @@
 
 # WLJ Change History
 
+## 2026-02-22 — Calendar Reliability Hardening (Date Authority + Parameter Inheritance)
+
+**Changes:**
+- **Part 1 — Date Authority Fix:** Intent service system prompt (`_build_intent_system_prompt`) now accepts `user` parameter and computes "today" using `get_current_local_datetime(user)` instead of `timezone.now().date()` (UTC). This fixes the root cause where "tomorrow" was misinterpreted when UTC date differed from user's local date (e.g., 10:24 PM Eastern = next day UTC). Added `get_current_local_datetime` as canonical alias in `apps/core/utils.py`.
+- **Part 2 — Parameter Inheritance:** Added `clone_from_last` parameter to `create_event` intent tool definition. When user says "same workout", OpenAI emits `clone_from_last=true`, and `handle_create_event` inherits title, time, duration, location, and event_type from prior scheduling context stored in Django cache (30-min TTL). No default time fallback during cloning.
+- **Part 3 — Safety Invariants:** Warning logged whenever time defaults to all-day automatically. Clone assertion verifies `cloned_event.time == original_event.time`. Error logged if clone inheritance fails despite prior context existing.
+- **Part 4 — Debug Logging:** Structured `[SCHED]` logs at every scheduling decision point: base local datetime, resolved date, timezone used, clone parameters, final event details.
+
+**Root cause:** Two scheduling reliability failures: (1) `timezone.now().date()` in intent prompt returned UTC date, causing off-by-one errors for users in negative UTC offsets at night. (2) No "same" / clone mechanism existed — system required re-specifying all parameters, defaulting to all-day when time was omitted.
+
+**Files modified:**
+- `apps/core/utils.py` — Added `get_current_local_datetime` alias
+- `apps/ai/intent_service.py` — Fixed UTC bug in `_build_intent_system_prompt`, added clone instructions to prompt
+- `apps/ai/intents/life_intents.py` — Added `clone_from_last` parameter to `create_event` tool definition
+- `apps/ai/action_handlers.py` — Clone inheritance logic, scheduling context cache, safety invariants, debug logging
+- `apps/ai/tests/test_scheduling_reliability.py` — 22 new tests covering all four parts
+
+**Verification:** 22 new scheduling reliability tests pass. 122 existing HTIE + intent tests pass. 31 calendar_engine tests pass. Zero regressions.
+
 ## 2026-02-22 — Phase 5C: Closure Hard Short-Circuit Enforcement
 
 **Changes:**

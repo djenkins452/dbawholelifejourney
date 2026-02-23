@@ -128,7 +128,9 @@ class IntentService:
 
         try:
             # Build the system prompt for intent recognition
-            system_prompt = self._build_intent_system_prompt()
+            # Pass user so today's date is computed in user's local timezone,
+            # not server UTC (scheduling reliability contract — Part 1).
+            system_prompt = self._build_intent_system_prompt(user=user)
 
             # Call OpenAI with function tools - parallel_tool_calls enabled by default
             response = self.client.chat.completions.create(
@@ -199,9 +201,30 @@ class IntentService:
             logger.error(f"Intent recognition error: {e}", exc_info=True)
             return [IntentResult(intent_type='no_action')]
 
-    def _build_intent_system_prompt(self) -> str:
-        """Build the system prompt for intent recognition."""
-        today = timezone.now().date()
+    def _build_intent_system_prompt(self, user=None) -> str:
+        """Build the system prompt for intent recognition.
+
+        Args:
+            user: Optional User instance. When provided, today's date is
+                  computed in the user's local timezone (via
+                  get_current_local_datetime) instead of server UTC.
+                  This is REQUIRED for correct relative-date resolution.
+        """
+        if user is not None:
+            from apps.core.utils import get_current_local_datetime
+            user_now = get_current_local_datetime(user)
+            today = user_now.date()
+            logger.debug(
+                "Intent prompt: using user-local date %s (tz=%s)",
+                today.isoformat(), user_now.tzinfo,
+            )
+        else:
+            today = timezone.now().date()
+            logger.warning(
+                "Intent prompt: no user supplied — falling back to UTC date %s. "
+                "This may cause incorrect relative-date resolution.",
+                today.isoformat(),
+            )
         today_str = today.strftime('%Y-%m-%d')
         weekday = today.strftime('%A')
 
@@ -338,6 +361,17 @@ Examples of messages that should NOT trigger functions:
 - "my daily schedule is..." (sharing context, NOT creating events — unless they explicitly say "add to calendar")
 - "how have my workouts been?" (asking about data, NOT logging a workout)
 - "what are my goals?" (asking about goals, NOT creating one)
+
+CLONING / "SAME" EVENTS (scheduling reliability):
+When the user references a previous event with "same", "the same", "same workout", "same event", etc. and wants to schedule it on new dates, set clone_from_last=true.
+This tells the system to inherit ALL parameters (title, time, duration, location, type) from the most recent scheduling action.
+
+CRITICAL: When cloning, you MUST still provide every date via start_date. But do NOT invent a start_time — leave it omitted so the system can inherit the original time. Only include start_time if the user explicitly states a NEW time.
+
+Examples:
+- "Schedule the same workout on Feb 24, 25, 26" → multiple create_event calls, each with clone_from_last=true and the respective start_date, but NO start_time (inherited)
+- "Put the same thing on my calendar for next Monday" → create_event(clone_from_last=true, start_date="<next Monday YYYY-MM-DD>")
+- "Same workout but at 7am on Friday" → create_event(clone_from_last=true, start_date="<Friday>", start_time="07:00") — user explicitly overrode time
 """
 
     def _check_validation(self, intent_type: str, parameters: dict, user) -> tuple:

@@ -73,6 +73,11 @@ def get_user_now(user):
     return timezone.now().astimezone(user_tz)
 
 
+# Canonical alias required by scheduling reliability contract.
+# All scheduling code MUST call this to obtain the authoritative local datetime.
+get_current_local_datetime = get_user_now
+
+
 def is_safe_redirect_url(url, request):
     """
     Check if a URL is safe for redirecting.

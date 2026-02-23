@@ -120,6 +120,10 @@ LIFE_INTENT_TOOLS = [
                     "reminder_minutes": {
                         "type": "integer",
                         "description": "Minutes before event to send reminder (e.g., 15, 30, 60)"
+                    },
+                    "clone_from_last": {
+                        "type": "boolean",
+                        "description": "Set to true when user says 'same workout', 'same event', etc. Inherits title, time, duration, location, and type from the most recent scheduling action. Do NOT provide start_time when cloning unless the user explicitly states a new time."
                     }
                 },
                 "required": ["title", "start_date"]

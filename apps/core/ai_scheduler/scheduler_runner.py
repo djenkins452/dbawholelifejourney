@@ -1018,3 +1018,45 @@ def run_escalation_updates():
             updated, errors,
         )
         return {"updated": updated, "errors": errors}
+
+
+def run_pressure_snapshots():
+    """
+    Phase 4: Compute pressure snapshots for all active AI users.
+
+    Daily ISE sweep. Creates a PressureSnapshot for each user with
+    an active blueprint. Idempotent — creates new records, never overwrites.
+
+    Returns:
+        dict — {computed: int, errors: int}
+    """
+    with trace_context(source="scheduler"):
+        try:
+            from apps.core.blueprint.pressure_engine import update_pressure_snapshot
+        except ImportError:
+            logger.error("ISE: Pressure engine not available (import failed)")
+            return {"computed": 0, "errors": 0}
+
+        users = _get_active_ai_users().filter(
+            preferences__personal_assistant_enabled=True,
+        )
+        computed = 0
+        errors = 0
+
+        for user in users:
+            try:
+                result = update_pressure_snapshot(user)
+                if result is not None:
+                    computed += 1
+            except Exception as e:
+                errors += 1
+                logger.warning(
+                    "ISE: Pressure snapshot failed for user %s: %s",
+                    user.id, e,
+                )
+
+        logger.info(
+            "ISE: Pressure snapshots complete — computed=%d, errors=%d",
+            computed, errors,
+        )
+        return {"computed": computed, "errors": errors}

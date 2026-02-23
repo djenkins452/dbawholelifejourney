@@ -218,6 +218,24 @@ def build_cos_context(user):
     except Exception:
         pass
 
+    # Phase 4: Composite Pressure Index (read latest snapshot)
+    try:
+        from apps.core.blueprint.pressure_models import PressureSnapshot
+        pressure_snapshot = PressureSnapshot.latest_for_user(user)
+        if pressure_snapshot:
+            context['pressure_snapshot'] = {
+                'pressure_index': pressure_snapshot.pressure_index,
+                'density_score': pressure_snapshot.density_score,
+                'compression_score': pressure_snapshot.compression_score,
+                'breach_risk_score': pressure_snapshot.breach_risk_score,
+                'erosion_score': pressure_snapshot.erosion_score,
+                'collision_score': pressure_snapshot.collision_score,
+                'horizon_days': pressure_snapshot.horizon_days,
+                'computed_at': pressure_snapshot.computed_at.isoformat(),
+            }
+    except Exception:
+        pass
+
     # Phase 2: Deadline snapshot (ISE-driven — read latest, no computation here)
     try:
         from apps.core.blueprint.models import DeadlineSnapshot
@@ -890,6 +908,32 @@ def format_cos_system_injection(context):
     if loops.get('overdue_goals'):
         lines.append(f"Overdue Goals: {loops['overdue_goals']}")
 
+    # Phase 4: Composite Pressure Index — only highlight when notable
+    pressure_snap = context.get('pressure_snapshot', {})
+    if pressure_snap:
+        cpi = pressure_snap.get('pressure_index', 0)
+        if cpi > 90:
+            lines.append("")
+            lines.append(
+                "LOAD STATUS: Critical. Your schedule is at maximum capacity "
+                "with multiple converging demands. Protect what matters most — "
+                "everything else can wait."
+            )
+        elif cpi > 80:
+            lines.append("")
+            lines.append(
+                "LOAD STATUS: High. You're carrying a heavy load this week. "
+                "Consider deferring non-essential commitments and protecting "
+                "recovery time."
+            )
+        elif cpi > 60:
+            lines.append("")
+            lines.append(
+                "LOAD STATUS: Elevated. Your week is busier than usual. "
+                "Stay aware of your energy levels and watch for compression "
+                "around your key commitments."
+            )
+
     # Module permissions (what NOT to reference)
     mods = context.get('module_permissions', {})
     disabled = [k for k, v in mods.items() if not v]
@@ -1290,12 +1334,15 @@ def _build_strategic_summary(context):
     """One-sentence strategic state summary."""
     alignment = context.get('alignment_score', 100)
     drift = context.get('drift_score', 0)
-    pressure = context.get('weekly_pressure', {}).get('avg_load', 0)
+
+    # Phase 4: Use Composite Pressure Index when available, fall back to weekly load
+    cpi = context.get('pressure_snapshot', {}).get('pressure_index', 0)
+    pressure = cpi if cpi > 0 else context.get('weekly_pressure', {}).get('avg_load', 0)
 
     if drift >= 50:
         return f"Significant drift ({drift}/100). Realignment needed."
     if pressure >= 80:
-        return f"High pressure week ({pressure}%). Protect priorities."
+        return f"High pressure week (index {pressure}). Protect priorities."
     if alignment >= 85:
         return f"Strong alignment ({alignment}%). Maintain momentum."
     return f"Alignment at {alignment}%, drift at {drift}/100. Steady course."
@@ -1333,8 +1380,20 @@ def _build_momentum_indicators(context):
 
 
 def _build_pressure_indicators(context):
-    """Pressure and load signals."""
+    """Pressure and load signals, including Phase 4 Composite Pressure Index."""
     indicators = []
+
+    # Phase 4: CPI-based pressure indicator (preferred source)
+    pressure_snap = context.get('pressure_snapshot', {})
+    cpi = pressure_snap.get('pressure_index', 0)
+    if cpi > 90:
+        indicators.append(f"Composite Pressure: Critical ({cpi}/100)")
+    elif cpi > 80:
+        indicators.append(f"Composite Pressure: High ({cpi}/100)")
+    elif cpi > 60:
+        indicators.append(f"Composite Pressure: Elevated ({cpi}/100)")
+
+    # Weekly load indicators (complementary)
     weekly = context.get('weekly_pressure', {})
     if weekly.get('avg_load', 0) >= 70:
         indicators.append(f"Weekly load: {weekly['avg_load']}%")

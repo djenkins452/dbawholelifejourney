@@ -4,10 +4,46 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-23 (Phase 3: Drift & Escalation Continuity)
+# Last Updated: 2026-02-23 (Phase 4: Forecasting & Pressure Modeling)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-02-23 — Phase 4: Forecasting & Pressure Modeling (CoS Upgrade)
+
+**Changes:**
+- **Models:** Created `PressureSnapshot` (immutable point-in-time pressure record with composite index + 5 component scores) and `PressureWeightConfig` (active weight profile, sum=100 validation) in `apps/core/blueprint/pressure_models.py`.
+- **Pressure Engine:** Created `apps/core/blueprint/pressure_engine.py` with 5 deterministic compute functions:
+  - `compute_calendar_density()` — scheduled vs available (7:00–22:00), per-day overload flagging at >0.8
+  - `compute_compression()` — flexible blocks vs free time, threshold at 1.2×
+  - `compute_breach_probability()` — Tier 1 override history + density around protected blocks + recent Tier 1 drift
+  - `compute_goal_erosion()` — required_rate vs actual_rate for active goals with deadlines, Stage 1 (slowing) / Stage 2 (off-track)
+  - `compute_deadline_collisions()` — <2h gap detection, >3/day overload detection from DeadlineSnapshot or live commitments
+- **Composite Pressure Index:** `compute_pressure_index()` → weighted sum (density×30 + compression×20 + breach×20 + erosion×15 + collision×15) → integer 0–100.
+- **Horizon Attenuation:** 0–7 days = ×1.0, 8–14 = ×0.6, 15–30 = ×0.3.
+- **Snapshot Persistence:** `update_pressure_snapshot()` creates immutable PressureSnapshot records with baseline variance metadata.
+- **Event-Driven Triggers:** Django signals on Commitment, ScheduledBlock, ArchitecturePlan, Tier1OverrideEvent, LifeGoal, GoalMilestone saves/deletes.
+- **ISE Integration:** Added `compute_pressure_snapshots` daily task to scheduler registry + runner.
+- **CoS Context Injection:** Pressure snapshot data in `build_cos_context()`, human-readable LOAD STATUS narratives in `format_cos_system_injection()` (Elevated >60, High >80, Critical >90), CPI in `_build_pressure_indicators()` and `_build_strategic_summary()`.
+- **Tests:** 44 Phase 4 tests + 419 regression tests = 463 total, all passing.
+
+**Files Modified:**
+- `apps/core/blueprint/pressure_models.py` — NEW: PressureSnapshot, PressureWeightConfig models
+- `apps/core/blueprint/pressure_engine.py` — NEW: 5 compute functions + composite index + snapshot persistence
+- `apps/core/blueprint/pressure_signals.py` — NEW: event-driven recompute triggers
+- `apps/core/blueprint/models.py` — Import pressure models for Django discovery
+- `apps/core/apps.py` — Register pressure signals in CoreConfig.ready()
+- `apps/core/ai_orchestrator/cos_context.py` — Pressure snapshot injection + narratives
+- `apps/core/ai_scheduler/scheduler_registry.py` — Added compute_pressure_snapshots task
+- `apps/core/ai_scheduler/scheduler_runner.py` — Added run_pressure_snapshots runner
+- `apps/core/tests/test_pressure_engine.py` — NEW: 44 Phase 4 tests
+- `apps/core/migrations/0091_phase4_pressure_models.py` — Schema migration
+- `apps/core/migrations/0092_phase4_default_pressure_weights.py` — Default weights data migration
+- `docs/CoS_Project.md` — Phase 4 status, decisions log, architectural policies
+
+**Why:** Phase 4 of CoS Executive Upgrade — introduces deterministic forward-looking pressure modeling to enable the system to proactively identify overload, compression, breach risk, goal erosion, and deadline collisions before they become problems.
+
+---
 
 ## 2026-02-23 — Phase 3: Drift & Escalation Continuity (CoS Upgrade)
 

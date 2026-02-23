@@ -132,6 +132,12 @@ SCHEDULED_TASKS = {
         "interval_seconds": 3600,  # 1 hour
         "description": "Run PRIE predictions for all active users (synthetic batch).",
     },
+    # --- Phase 4: Pressure modeling ---
+    "compute_pressure_snapshots": {
+        "function_path": "apps.core.ai_scheduler.scheduler_runner.run_pressure_snapshots",
+        "interval_seconds": 86400,  # 24 hours (daily sweep)
+        "description": "Compute pressure snapshots for all active users (Phase 4 Pressure Modeling).",
+    },
 }
 
 

@@ -8,7 +8,7 @@
 
 ## Current Phase
 
-**Phase 3 — Drift & Escalation Continuity** ✅ COMPLETE (2026-02-23)
+**Phase 4 — Forecasting & Pressure Modeling** ✅ COMPLETE (2026-02-23)
 
 ---
 
@@ -19,7 +19,7 @@
 | 1 | Commitment System Hardening | T1 — Critical Structural Integrity | ✅ Complete | 2026-02-23 | 2026-02-23 | Persistent model, history, concurrency, false-positive mitigation |
 | 2 | Time & Deadline Authority Reinforcement | T2 — Executive-Quality Reliability | ✅ Complete | 2026-02-23 | 2026-02-23 | Explicit boundaries, DST, deadline surfacing, conflict detection |
 | 3 | Drift & Escalation Continuity | T2 — Executive-Quality Reliability | ✅ Complete | 2026-02-23 | 2026-02-23 | Persistent escalation, decay model, downgrade prevention |
-| 4 | Forecasting & Pressure Modeling | T3 — Forward-Looking Intelligence | Not Started | — | — | Calendar density, pressure index, deadline collision |
+| 4 | Forecasting & Pressure Modeling | T3 — Forward-Looking Intelligence | ✅ Complete | 2026-02-23 | 2026-02-23 | Calendar density, pressure index, deadline collision, CPI 0–100, event-driven triggers |
 | 5 | Protective Action Engine | T4 — Proactive Protection | Not Started | — | — | Auto-recommendations, capacity warnings, pre-deadline alerts |
 | 6 | Observability & Concurrency Hardening | T5 — Observability & Concurrency | Not Started | — | — | Locks, atomicity, degraded-mode tests |
 | 7 | Test Expansion | T6 — Testing & Verification | Not Started | — | — | DST, concurrency, stacking, forecasting, cache failure tests |
@@ -603,6 +603,7 @@ Tests are purely additive. Remove test files to roll back. No production impact.
 | 2026-02-23 | Locked Phase 2 authority policies (timezone intent, ISE snapshots, graduated Tier 1 override, single time authority) | Deterministic time handling before execution | Phase 2 |
 | 2026-02-23 | Phase 2 complete — all 7 atomic tasks implemented, 186 tests passing | Explicit time boundaries, zoneinfo DST, local-intent TZ recalculation, ISE-driven DeadlineSnapshot, Tier 1 graduated resistance | Phase 2 |
 | 2026-02-23 | Phase 3 complete — persistent escalation, recovery gate, behavioral trends, 345 tests passing | DB-backed EscalationState floor, Hybrid Recovery Rule (5 criteria), BehavioralTrend daily rollup, ISE scheduler integration | Phase 3 |
+| 2026-02-23 | Phase 4 complete — deterministic pressure modeling, CPI 0–100, event-driven triggers, 44 new tests + 419 regression tests passing | PressureSnapshot + PressureWeightConfig models, 5-component pressure engine (density/compression/breach/erosion/collision), horizon attenuation (7/14/30d), signal-based triggers, ISE daily sweep, CoS context injection with human-readable narratives | Phase 4 |
 
 ---
 
@@ -623,7 +624,14 @@ Tests are purely additive. Remove test files to roll back. No production impact.
 - Hybrid Recovery Rule: de-escalation requires 7 clean days + 3 honored commitments + 0 Tier 1 misses + 0 blocked renegotiations + 0 drift events.
 - Escalation state persists across sessions (DB-backed EscalationState as floor).
 - Escalation increases immediately; de-escalation drops by 1 level only.
+- Pressure is predictive, not punitive — pressure alone NEVER raises escalation level.
+- Composite Pressure Index (CPI) 0–100 with fixed thresholds: >60 elevated, >80 high, >90 critical.
+- CPI weights: density 30, compression 20, breach 20, erosion 15, collision 15 (sum=100).
+- Horizon attenuation: 0–7 days full precision (×1.0), 8–14 moderate (×0.6), 15–30 early warning (×0.3).
+- Pressure recompute is event-driven (commitment/block/goal/override changes) + daily ISE sweep.
+- PressureSnapshot records are immutable — never overwritten, always appended.
+- Baseline variance stored in metadata for future adaptive thresholds (not used in Phase 4).
 
 ---
 
-*Last updated: 2026-02-23 (Phase 3 complete)*
+*Last updated: 2026-02-23 (Phase 4 complete)*

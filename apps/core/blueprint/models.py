@@ -1998,3 +1998,12 @@ class BehavioralTrend(models.Model):
             f"BehavioralTrend user={self.user_id} "
             f"{self.behavior_key}={self.trend_direction}"
         )
+
+
+# =============================================================================
+# PHASE 4 — PRESSURE MODELS (imported for Django model discovery)
+# =============================================================================
+from apps.core.blueprint.pressure_models import (  # noqa: E402, F401
+    PressureSnapshot,
+    PressureWeightConfig,
+)

@@ -60,17 +60,19 @@ An executive-grade system must have durable, auditable commitment records with c
 
 | # | Task | Description |
 |---|------|-------------|
-| 1.1 | Create `Commitment` database model | New model in `apps/core/ai_orchestrator/models.py` with fields: `user` (FK), `conversation` (FK), `normalized_text`, `commitment_type` (DO/DECIDE/SCHEDULE/STOP), `time_boundary` (DateTimeField), `time_boundary_display`, `done_definition`, `status` (pending/closed_success/closed_missed/cancelled/renegotiated), `created_at`, `closed_at`, `closure_type`, `session_id` (for cross-session tracking). Add `select_for_update()` pattern for mutation. |
+| 1.1 | Create `Commitment` database model | New model in `apps/core/ai_orchestrator/models.py` with fields: `user` (FK, required — commitments are user-global), `conversation` (FK, nullable — optional traceability only, not ownership), `normalized_text`, `commitment_type` (DO/DECIDE/SCHEDULE/STOP), `time_boundary` (DateTimeField), `time_boundary_display`, `done_definition` (nullable — only required for vague actions), `status` (pending/closed_success/closed_missed/cancelled/renegotiated), `created_at`, `closed_at`, `closure_type`, `session_id` (for cross-session tracking). Commitments belong to the user, not to a conversation. Closure allowed from any conversation. Add `select_for_update()` pattern for mutation. |
 | 1.2 | Create `CommitmentRenegotiation` model | Track renegotiation history: `commitment` (FK), `original_time_boundary`, `requested_time_boundary`, `tier_at_time`, `was_blocked`, `blocked_choice_selected` (A/B), `created_at`. Replaces ephemeral renegotiation handling. |
 | 1.3 | Create `CommitmentAnalytics` materialized view/model | Daily rollup: `user`, `date`, `commitments_made`, `commitments_honored`, `commitments_missed`, `commitments_renegotiated`, `honor_rate`, `avg_time_to_closure`. Foundation for future dashboards. |
 | 1.4 | Migrate ECC runtime to persistent model | Update `commitment_contract.py` to write/read from DB model instead of `conversation.metadata`. Maintain backward compatibility: if metadata commitment exists, migrate it to DB on first access. Keep `conversation.metadata` as a cache/pointer only (stores commitment PK, not full dict). |
 | 1.5 | Add concurrency-safe locking | Wrap commitment mutation (create, renegotiate, close) in `transaction.atomic()` with `select_for_update()` on the commitment row. Prevent stale-read on rapid double-submit. |
 | 1.6 | Add cross-session commitment continuity | On conversation start, query `Commitment.objects.filter(user=user, status='pending')` to surface unclosed commitments. Inject into system prompt via `format_ecc_injection()`. User can close commitments from any conversation. |
-| 1.7 | False-positive mitigation | Add context-aware filtering to `detect_commitment_intent()`: skip trigger if followed by food/casual words (configurable exclusion list). E.g., "I'll have pizza" → no commitment. "I'll have the report done" → commitment. Pattern: trigger + exclusion check before extraction. |
-| 1.8 | Multi-commitment stacking | Allow multiple pending commitments per user (currently max 1 via metadata). ECC detection creates new commitment without closing existing ones. Tightening questions apply per-commitment. Closure requires specifying which commitment (or "all done"). |
+| 1.7 | False-positive mitigation | Add context-aware filtering to `detect_commitment_intent()`: skip trigger if followed by food/casual words (configurable exclusion list). E.g., "I'll have pizza" → no commitment. "I'll have the report done" → commitment. Pattern: trigger + exclusion check before extraction. **Commitment activation rules:** Time boundary is ALWAYS required. Done-definition required ONLY when action contains vague verbs. Initial vague verb list: `["work on", "review", "start", "progress", "handle", "deal with", "improve", "figure out"]`. Simple atomic verbs (call, send, submit, pay, schedule, log) do NOT require done-definition. |
+| 1.8 | Multi-commitment stacking | Allow multiple pending commitments per user (currently max 1 via metadata). ECC detection creates new commitment without closing existing ones. Tightening questions apply per-commitment. Closure rules: if exactly 1 pending → "Done." closes it automatically. If >1 pending → system must list commitments numerically and require explicit numeric selection. No heuristic selection allowed. No auto-closure of most recent. |
 | 1.9 | Update pipeline integration | Update `personal_assistant.py` `send_message()` to use DB-backed commitments. Update `format_ecc_injection()` to handle multiple commitments. Update closure logic to handle commitment selection. Preserve hard short-circuit sentinel pattern. |
 | 1.10 | Write migration | `makemigrations` for new models. Test migration forward and backward. |
-| 1.11 | Write tests | Unit tests: model creation, renegotiation logging, analytics rollup, concurrency locking, false-positive filtering, multi-commitment stacking. Integration tests: pipeline with DB-backed commitments, cross-session continuity, migration from metadata. |
+| 1.11 | Write tests | Unit tests: model creation, renegotiation logging, analytics rollup, concurrency locking, false-positive filtering, multi-commitment stacking, hard limit enforcement, idempotency protection. Integration tests: pipeline with DB-backed commitments, cross-session continuity, migration from metadata. |
+| 1.12 | Enforce hard commitment limit | Limit active pending commitments to MAX 5 per user. If user attempts to create a 6th, deterministically block with message: "You have 5 active commitments. Close or cancel one before creating another." No override allowed. No admin bypass. Checked in `process_ecc_detection()` before field extraction. |
+| 1.13 | Add backend idempotency protection | Implement 3-second idempotency window using SHA256 hash of `(user_id + normalized_message + timestamp_rounded_to_second)`. If duplicate detected within window, bypass pipeline and return original response. Log `DecisionRecord` type `IDEMPOTENT_REPLAY`. Prevents double-submit from creating duplicate commitments or actions. |
 
 #### Files Touched
 
@@ -214,8 +216,8 @@ The audit identified:
 | 3.1 | Create `EscalationState` model | Persistent per-user escalation tracking: `user` (FK), `current_level` (0-4), `peak_level_7d`, `last_escalation_at`, `last_de_escalation_at`, `consecutive_clean_days`, `metadata` (JSON). Updated on every `determine_activation_state()` call. |
 | 3.2 | Persist escalation history | Create `EscalationEvent` model: `user`, `from_level`, `to_level`, `trigger`, `timestamp`, `behavior_key`. Records every level change for audit trail. |
 | 3.3 | Cross-session enforcement memory | `determine_activation_state()` now reads `EscalationState` as a floor. If `peak_level_7d >= 2`, minimum activation is `EARLY_EROSION` regardless of current threshold computation. Decays over time (see 3.4). |
-| 3.4 | Drift recovery decay model | Introduce `recovery_score` (0.0-1.0) on `EscalationState`. Increases by 0.1 per clean day (no drift events). Decreases by 0.3 per drift event. Tier downgrade requires `recovery_score >= 0.7` (sustained 7-day clean minimum). Prevents single positive message from dropping STRUCTURAL_DRIFT → CLEAN. |
-| 3.5 | Prevent CLEAN downgrade from single positive input | In `determine_activation_state()`: if current computed state is CLEAN but `EscalationState.current_level > 0` and `recovery_score < 0.7`, maintain at EARLY_EROSION minimum. Only downgrade to CLEAN after sustained recovery. |
+| 3.4 | Drift recovery decay model (Hybrid Recovery Rule) | To downgrade one escalation level, ALL of the following must be met: (1) 7 consecutive clean days, (2) ≥3 honored commitments in that window, (3) 0 Tier 1 misses, (4) 0 blocked renegotiations, (5) no new drift threshold events. Escalation can increase immediately. Downgrade requires sustained proof. Evaluated daily via `EscalationState` model. |
+| 3.5 | Prevent CLEAN downgrade from single positive input | In `determine_activation_state()`: if current computed state is CLEAN but `EscalationState.current_level > 0` and Hybrid Recovery Rule criteria not met, maintain at EARLY_EROSION minimum. Only downgrade to CLEAN after all 5 recovery criteria are satisfied. |
 | 3.6 | Trend persistence tracking | Create `BehavioralTrend` model: `user`, `behavior_key`, `trend_direction` (improving/stable/declining), `confidence`, `data_points`, `window_start`, `window_end`, `updated_at`. Computed daily from drift events and completion patterns. Injected into trajectory signals. |
 | 3.7 | Update `determine_activation_state()` | Integrate `EscalationState` floor, recovery score check, and `BehavioralTrend` into activation computation. Maintain threshold-based override semantic (thresholds still trump everything). |
 | 3.8 | Write tests | Escalation persistence across sessions, decay model progression, downgrade prevention, trend computation, threshold override still works. |
@@ -241,10 +243,10 @@ The audit identified:
 #### Test Requirements
 
 - Escalation from Level 0 → 3 persists across new conversation
-- Recovery score increments correctly over clean days
-- Recovery score decrements on drift events
-- STRUCTURAL_DRIFT → CLEAN requires recovery_score >= 0.7
-- Single positive message does NOT downgrade if recovery_score < 0.7
+- Hybrid Recovery Rule: all 5 criteria met → downgrade allowed
+- Hybrid Recovery Rule: any 1 criterion unmet → downgrade blocked
+- STRUCTURAL_DRIFT → CLEAN requires 7 clean days + 3 honored commitments + 0 T1 misses + 0 blocked renegotiations + 0 new drift events
+- Single positive message does NOT downgrade if recovery criteria unmet
 - Threshold override still triggers STRUCTURAL_DRIFT regardless of recovery
 - Behavioral trend computation accuracy
 
@@ -289,7 +291,7 @@ An executive-grade system must model future pressure and surface it proactively.
 | 4.3 | Habit protection breach prediction | For each protected habit block (non-negotiables), compute probability of breach based on: surrounding density, historical breach rate for similar density, day-of-week pattern. Output: per-block breach probability (0.0–1.0). |
 | 4.4 | Goal trajectory erosion detection | For each active goal with a deadline, compute: days_remaining, progress_rate_needed vs actual_rate, gap_percentage. If gap > 20%, flag as "eroding". If gap > 50%, flag as "critical". |
 | 4.5 | Deadline collision modeling | Scan all deadlines (commitments, goals, calendar events) within 72h window. Flag pairs with < 2h gap between them. Flag days with > 3 hard deadlines as "collision risk". |
-| 4.6 | Composite pressure index | `compute_pressure_index(user)` → single score 0–100. Formula: `density_score × 30 + compression_score × 20 + breach_risk × 20 + erosion_score × 15 + collision_score × 15`. Store daily in `PressureSnapshot`. |
+| 4.6 | Composite pressure index | `compute_pressure_index(user)` → single score 0–100. Weights loaded from `PressureWeightConfig` model (admin-configurable, not hardcoded). Default weights: `density_weight=30, compression_weight=20, breach_weight=20, erosion_weight=15, collision_weight=15`. Validation: sum must equal 100. No adaptive ML behavior. Formula: `density_score × density_weight + compression_score × compression_weight + breach_risk × breach_weight + erosion_score × erosion_weight + collision_score × collision_weight`, all divided by 100. Store daily in `PressureSnapshot`. |
 | 4.7 | Integrate into CoS context | Inject pressure index and sub-scores into `build_cos_context()`. Surface in executive briefing format. |
 | 4.8 | Write tests | Density computation, compression detection, breach prediction, erosion thresholds, collision detection, composite score math. |
 
@@ -298,7 +300,7 @@ An executive-grade system must model future pressure and surface it proactively.
 | File | Change Type |
 |------|-------------|
 | New: `apps/core/blueprint/pressure_engine.py` | New — all forecasting logic |
-| New: `apps/core/blueprint/pressure_models.py` | New — PressureSnapshot model |
+| New: `apps/core/blueprint/pressure_models.py` | New — PressureSnapshot, PressureWeightConfig models |
 | `apps/core/ai_orchestrator/cos_context.py` | Minor — inject pressure data |
 | `apps/core/blueprint/weekly_pressure.py` | Minor — integrate with new engine |
 | New: `apps/core/tests/test_pressure_engine.py` | New — comprehensive forecasting tests |
@@ -582,11 +584,11 @@ Tests are purely additive. Remove test files to roll back. No production impact.
 
 | # | Question | Impact | Decision Needed By |
 |---|----------|--------|--------------------|
-| 1 | Should multi-commitment limit be enforced (e.g., max 5 pending)? | Phase 1 | Before Phase 1 execution |
+| 1 | ~~Should multi-commitment limit be enforced?~~ | Phase 1 | **RESOLVED** — Yes, hard limit of 5. |
 | 2 | Should the pressure index be visible to the user or admin-only initially? | Phase 4-5 | Before Phase 5 execution |
 | 3 | Should pre-deadline alerts be enabled by default or opt-in? | Phase 5 | Before Phase 5 execution |
 | 4 | Should timezone-change recomputation be automatic or prompt the user? | Phase 2 | Before Phase 2 execution |
-| 5 | What should the commitment false-positive exclusion list contain initially? | Phase 1 | Before Phase 1 execution |
+| 5 | ~~What should the commitment false-positive exclusion list contain initially?~~ | Phase 1 | **RESOLVED** — Vague verb list defined; atomic verbs exempt from done-definition. |
 
 ---
 
@@ -595,7 +597,20 @@ Tests are purely additive. Remove test files to roll back. No production impact.
 | Date | Decision | Rationale | Phase |
 |------|----------|-----------|-------|
 | 2026-02-23 | Project created | External audit identified 30+ upgrade opportunities | All |
-| — | — | — | — |
+| 2026-02-23 | Locked structural policies for Phase 1–4 before implementation | Architectural precision before code execution | Phase 1–4 |
+
+---
+
+## Locked Architectural Policy Decisions
+
+- Maximum 5 active pending commitments per user (hard limit).
+- Commitments are user-global (conversation optional for traceability).
+- Explicit numeric selection required when closing multiple commitments.
+- Time boundary always required for commitments.
+- Done-definition required only for vague actions (deterministic verb list).
+- Hybrid drift recovery model (7 clean days + behavioral proof).
+- Pressure weights configurable via `PressureWeightConfig`.
+- Backend idempotency protection (3-second duplicate window).
 
 ---
 

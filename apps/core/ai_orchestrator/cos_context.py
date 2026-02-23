@@ -925,6 +925,20 @@ def format_cos_system_injection(context):
         lines.append("")
         lines.append(EARLY_EROSION_FRAMEWORK.strip())
 
+    # Phase 5A: Executive Commitment Contract (ECC) injection
+    # Sits between tier evaluation and R5 escalation.
+    # Only injects if there are active (pending) commitments in session.
+    ecc_commitments = context.get('ecc_active_commitments', [])
+    if ecc_commitments:
+        try:
+            from apps.core.ai_orchestrator.commitment_contract import format_ecc_injection
+            ecc_block = format_ecc_injection(ecc_commitments)
+            if ecc_block:
+                lines.append("")
+                lines.append(ecc_block)
+        except Exception:
+            pass
+
     # Phase 4 R1: Decision Branch Modeling (conditional injection)
     # Evaluates AFTER Phase 3 tier determination, BEFORE final render.
     # Only activates when decision branch gate conditions are met.

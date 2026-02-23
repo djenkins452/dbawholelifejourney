@@ -9,6 +9,33 @@
 
 # WLJ Change History
 
+## 2026-02-22 — Phase 5A: Executive Commitment Contract (ECC) Runtime Layer
+
+**Changes:**
+- Created `apps/core/ai_orchestrator/commitment_contract.py` — deterministic ECC runtime layer
+- Implements 8 public functions: detect_commitment_intent, extract_commitment_fields, generate_tightening_question, normalize_commitment, apply_renegotiation_rules, close_commitment, render_commitment_confirmation, render_positive_lock_in
+- Plus 2 pipeline integration functions: process_ecc_detection, format_ecc_injection
+- Commitment detection via lexical matching: "I will", "I'll", "I am going to", "I'm going to", "Let's", "I plan to"
+- Enforces explicit time boundaries and one-sentence definition of done
+- Tier-aware renegotiation: CLEAN allows with new time boundary, EARLY_EROSION/STRUCTURAL_DRIFT blocks with binary choices
+- Binary closure enforcement: yes/no only, no ambiguous completion claims
+- Minimal positive lock-in on success: "Time boundary honored. Repeat this structure."
+- Integrated into CoS system injection (cos_context.py) between tier evaluation and R5 escalation
+- Runtime-scoped only — no DB changes, no engine changes, no LLM calls
+- Commitment types: DO, DECIDE, SCHEDULE, STOP (classified via lexical matching)
+- 43 Phase 5A tests pass, 149 Phase 4 tests pass (no regressions)
+
+**Files created:**
+- `apps/core/ai_orchestrator/commitment_contract.py` — ECC runtime layer
+- `apps/core/tests/test_phase5_commitment.py` — 43 test cases
+
+**Files modified:**
+- `apps/core/ai_orchestrator/cos_context.py` — ECC injection point in format_cos_system_injection
+
+**Why:** Phase 5A introduces deterministic commitment enforcement. Users who express commitment intent must provide explicit time boundaries and definitions of done. Renegotiation is tier-gated. Closure is binary. No motivational framing.
+
+---
+
 ## 2026-02-22 — Phase 4 R5B: Enforcement Render Correction
 
 **Changes:**

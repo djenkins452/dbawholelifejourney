@@ -167,6 +167,35 @@ class DateResolutionTests(TestCase):
             result = resolve_weekday_to_date(self.user, name, reference_dt=ref)
             self.assertEqual(result, expected_date, f"Failed for {name}")
 
+    # --- Phase 9.1: Same-day weekday + time tests ---
+
+    @freeze_time("2026-02-25 14:00:00")  # Wednesday UTC → Wednesday 08:00 CT
+    def test_same_day_time_passed_schedules_next_week(self):
+        """
+        Wednesday 08:00 local. User says '6:15am Wednesday'.
+        6:15 < 8:00 → time already passed → schedule NEXT Wednesday.
+        """
+        ref = dt.datetime(2026, 2, 25, 8, 0, tzinfo=ZoneInfo('America/Chicago'))
+        event_time = dt.time(6, 15)
+        result = resolve_weekday_to_date(
+            self.user, 'wednesday', reference_dt=ref, start_time=event_time,
+        )
+        # Next Wednesday = today + 7
+        self.assertEqual(result, dt.date(2026, 3, 4))
+
+    @freeze_time("2026-02-25 11:00:00")  # Wednesday UTC → Wednesday 05:00 CT
+    def test_same_day_time_future_schedules_today(self):
+        """
+        Wednesday 05:00 local. User says '6:15am Wednesday'.
+        6:15 > 5:00 → time still in future → schedule TODAY.
+        """
+        ref = dt.datetime(2026, 2, 25, 5, 0, tzinfo=ZoneInfo('America/Chicago'))
+        event_time = dt.time(6, 15)
+        result = resolve_weekday_to_date(
+            self.user, 'wednesday', reference_dt=ref, start_time=event_time,
+        )
+        self.assertEqual(result, dt.date(2026, 2, 25))
+
 
 # ──────────────────────────────────────────────────────────
 # Section 7 — Idempotency & Concurrency Tests
@@ -230,6 +259,42 @@ class IdempotencyTests(TestCase):
             start_dt=start, end_dt=end, idempotency_key=key2,
         )
         self.assertEqual(CalendarEvent.objects.filter(user=self.user).count(), 2)
+
+    def test_title_normalization_idempotency(self):
+        """
+        Phase 9.1: 'Workout' and ' workout ' produce the same
+        normalized idempotency key → only one DB row created.
+        """
+        start = timezone.make_aware(dt.datetime(2026, 3, 1, 10, 0), self.tz)
+        end = start + dt.timedelta(hours=1)
+
+        # Both titles normalize to "workout"
+        normalized1 = " ".join("Workout".strip().split()).lower()
+        normalized2 = " ".join(" workout ".strip().split()).lower()
+        self.assertEqual(normalized1, normalized2)
+
+        key = hashlib.sha256(
+            f"{self.user.id}:{normalized1}:{start.isoformat()}".encode()
+        ).hexdigest()
+
+        # First create with "Workout"
+        CalendarEvent.objects.create(
+            user=self.user, title='Workout',
+            start_dt=start, end_dt=end, idempotency_key=key,
+        )
+
+        # Second create with " workout " — lookup by same key
+        existing = CalendarEvent.objects.filter(
+            idempotency_key=key,
+        ).first()
+        self.assertIsNotNone(existing)
+        self.assertEqual(existing.title, 'Workout')
+
+        # Only one row
+        count = CalendarEvent.objects.filter(
+            user=self.user, idempotency_key=key,
+        ).count()
+        self.assertEqual(count, 1)
 
 
 class UniqueConstraintTests(TestCase):
@@ -304,6 +369,8 @@ class ConcurrencyTests(TransactionTestCase):
 
     def test_concurrent_create_only_one_persists(self):
         """Two threads attempt same creation — only one row persists."""
+        from django.db import transaction as db_transaction
+
         start = timezone.make_aware(dt.datetime(2026, 3, 1, 10, 0), self.tz)
         end = start + dt.timedelta(hours=1)
         idem_key = hashlib.sha256(
@@ -316,27 +383,30 @@ class ConcurrencyTests(TransactionTestCase):
         def attempt_create():
             from django.db import connection, IntegrityError as DBIntegrityError
             try:
-                # Check idempotency key first
-                existing = CalendarEvent.objects.filter(
-                    idempotency_key=idem_key
-                ).first()
-                if existing:
-                    with lock:
-                        results['duplicate'] += 1
-                    return
+                with db_transaction.atomic():
+                    # Check idempotency key first
+                    existing = CalendarEvent.objects.filter(
+                        idempotency_key=idem_key
+                    ).first()
+                    if existing:
+                        with lock:
+                            results['duplicate'] += 1
+                        return
 
-                CalendarEvent.objects.create(
-                    user=self.user,
-                    title='Concurrent Meeting',
-                    start_dt=start,
-                    end_dt=end,
-                    idempotency_key=idem_key,
-                )
-                with lock:
-                    results['success'] += 1
-            except (IntegrityError, DBIntegrityError):
-                with lock:
-                    results['duplicate'] += 1
+                    try:
+                        CalendarEvent.objects.create(
+                            user=self.user,
+                            title='Concurrent Meeting',
+                            start_dt=start,
+                            end_dt=end,
+                            idempotency_key=idem_key,
+                        )
+                        with lock:
+                            results['success'] += 1
+                    except (IntegrityError, DBIntegrityError):
+                        # Race: other thread created first
+                        with lock:
+                            results['duplicate'] += 1
             except Exception:
                 with lock:
                     results['error'] += 1
@@ -355,6 +425,78 @@ class ConcurrencyTests(TransactionTestCase):
         ).count()
         self.assertEqual(count, 1, f"Expected 1 row, got {count}. Results: {results}")
         self.assertEqual(results['error'], 0, f"Unexpected errors: {results}")
+
+    def test_integrityerror_race_returns_existing(self):
+        """
+        Phase 9.1: Two threads race past idempotency check.
+        Both should succeed (one creates, one catches IntegrityError
+        and re-queries). Only one DB row should exist.
+        """
+        from django.db import transaction as db_transaction
+
+        start = timezone.make_aware(dt.datetime(2026, 3, 2, 10, 0), self.tz)
+        end = start + dt.timedelta(hours=1)
+        normalized_title = "race meeting"
+        idem_key = hashlib.sha256(
+            f"{self.user.id}:{normalized_title}:{start.isoformat()}".encode()
+        ).hexdigest()
+
+        results = {'created': 0, 'reused': 0, 'error': 0}
+        lock = threading.Lock()
+
+        def attempt_with_race_handling():
+            from django.db import connection, IntegrityError as DBIntegrityError
+            try:
+                with db_transaction.atomic():
+                    existing = CalendarEvent.objects.filter(
+                        idempotency_key=idem_key
+                    ).first()
+                    if existing:
+                        with lock:
+                            results['reused'] += 1
+                        return
+
+                    try:
+                        CalendarEvent.objects.create(
+                            user=self.user,
+                            title='Race Meeting',
+                            start_dt=start,
+                            end_dt=end,
+                            idempotency_key=idem_key,
+                        )
+                        with lock:
+                            results['created'] += 1
+                    except (IntegrityError, DBIntegrityError):
+                        # Race: re-query
+                        event = CalendarEvent.objects.get(
+                            idempotency_key=idem_key
+                        )
+                        with lock:
+                            results['reused'] += 1
+            except Exception as e:
+                with lock:
+                    results['error'] += 1
+            finally:
+                connection.close()
+
+        threads = [threading.Thread(target=attempt_with_race_handling) for _ in range(2)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=5)
+
+        # Both calls should succeed (no errors)
+        self.assertEqual(results['error'], 0, f"Unexpected errors: {results}")
+        # Exactly one DB row
+        count = CalendarEvent.objects.filter(
+            user=self.user, title='Race Meeting'
+        ).count()
+        self.assertEqual(count, 1, f"Expected 1 row, got {count}. Results: {results}")
+        # Total calls = 2 (one created + one reused, or both reused if sequential)
+        self.assertEqual(
+            results['created'] + results['reused'], 2,
+            f"Expected 2 total outcomes, got {results}",
+        )
 
 
 # ──────────────────────────────────────────────────────────

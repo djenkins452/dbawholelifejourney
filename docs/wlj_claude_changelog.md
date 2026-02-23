@@ -9,6 +9,37 @@
 
 # WLJ Change History
 
+## 2026-02-23 — Phase 7: Test Expansion (CoS Executive Audit Coverage)
+
+**Changes:**
+- Added 178 new tests across 9 test files covering all CoS Executive blind spots
+- DST & Time Authority: 19 tests (spring-forward gap, fall-back fold, timezone change, wall-clock preservation)
+- Concurrency & Idempotency: 15 tests (metadata locking, rapid mutations, duplicate prevention)
+- Commitment Stacking: 18 tests (max 5 limit, close/create lifecycle, user isolation)
+- Escalation Continuity: 14 tests (persistent floor, Hybrid Recovery Rule, one-step de-escalation)
+- Forecast & Pressure: 21 tests (density, compression, breach, erosion, collision, CPI formula, attenuation)
+- Protective Engine: 18 tests (signal-driven overload triggers, pre-deadline alerts, DNE throttle, dedup)
+- Validator + Governance: 22 tests (structural block, numeric observe-only, crash path, SRI, auto-escalation)
+- Degraded Mode: 18 tests (LLM timeout, DB failure, cache unavailable, plain language messages)
+- Cross-Phase Integration: 8 tests (full pipeline commitment→pressure→protective→escalation→validator)
+- Discovered post_save signal interaction pattern: PressureSnapshot and Commitment signals auto-trigger protective actions
+- No production code modified (test-only mode)
+
+**Files Created:**
+- `apps/core/tests/test_phase7_dst_time_authority.py` — 19 tests
+- `apps/core/tests/test_phase7_concurrency_idempotency.py` — 15 tests
+- `apps/core/tests/test_phase7_commitment_stacking.py` — 18 tests
+- `apps/core/tests/test_phase7_escalation_continuity.py` — 14 tests
+- `apps/core/tests/test_phase7_forecast_pressure.py` — 21 tests
+- `apps/core/tests/test_phase7_protective_engine.py` — 18 tests
+- `apps/core/tests/test_phase7_validator_governance.py` — 22 tests
+- `apps/core/tests/test_phase7_degraded_mode.py` — 18 tests
+- `apps/core/tests/test_phase7_cross_phase_integration.py` — 8 tests (+ 5 additional lifecycle tests)
+
+**Why:** Executive Audit identified blind spots in DST handling, concurrency, commitment stacking boundaries, escalation continuity, pressure modeling edge cases, protective engine thresholds, validator governance, and degraded mode behavior. Phase 7 closes all coverage gaps with explicit automated tests.
+
+---
+
 ## 2026-02-23 — Phase 8: Cognitive Precision & Self-Governance Layer (CoS Upgrade)
 
 **Changes:**

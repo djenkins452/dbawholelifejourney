@@ -1,13 +1,19 @@
 """
-Phase 5 — Governance Onboarding Models.
+Governance Models.
 
-Per-user, per-module commitment classifications that drive strategy
+Phase 5: Per-user, per-module commitment classifications that drive strategy
 selection, consistency monitoring, and recalibration.
+
+Phase 8: SelfError — append-only audit log of system self-detected errors
+(banned-term leaks, numeric exposures, validator crashes).
 
 Models:
     - GovernanceProfile: Per-module commitment classification
     - GovernanceAlignmentSession: Tracks onboarding conversation state
+    - SelfError: Append-only system self-error log (Phase 8)
 """
+
+import uuid
 
 from django.conf import settings
 from django.db import models
@@ -262,3 +268,129 @@ class GovernanceAlignmentSession(models.Model):
             }
         self.responses = responses
         self.save(update_fields=['responses', 'updated_at'])
+
+
+# =========================================================================
+# Phase 8 — Self-Error Audit Log
+# =========================================================================
+
+
+class SelfError(models.Model):
+    """
+    Append-only audit log of system self-detected errors.
+
+    Logged when the pre-release validator gate detects a banned term,
+    numeric leakage, or crashes. Never updated after creation.
+
+    Levels:
+        1 — Minor (numeric observe-only)
+        2 — Moderate (structural violation, blocked)
+        3 — Critical (validator crash, repeated escalation)
+
+    Categories:
+        STRUCTURAL — banned term leaked in response
+        NUMERIC    — internal numeric/threshold exposed
+        GOVERNANCE — validator crash or system-level failure
+    """
+
+    LEVEL_MINOR = 1
+    LEVEL_MODERATE = 2
+    LEVEL_CRITICAL = 3
+
+    LEVEL_CHOICES = [
+        (LEVEL_MINOR, 'Minor'),
+        (LEVEL_MODERATE, 'Moderate'),
+        (LEVEL_CRITICAL, 'Critical'),
+    ]
+
+    CATEGORY_STRUCTURAL = 'STRUCTURAL'
+    CATEGORY_NUMERIC = 'NUMERIC'
+    CATEGORY_GOVERNANCE = 'GOVERNANCE'
+
+    CATEGORY_CHOICES = [
+        (CATEGORY_STRUCTURAL, 'Structural'),
+        (CATEGORY_NUMERIC, 'Numeric'),
+        (CATEGORY_GOVERNANCE, 'Governance'),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='self_errors',
+        help_text="User context when error occurred (null for system-level).",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    level = models.IntegerField(
+        choices=LEVEL_CHOICES,
+        help_text="1=Minor, 2=Moderate, 3=Critical.",
+    )
+
+    category = models.CharField(
+        max_length=15,
+        choices=CATEGORY_CHOICES,
+        help_text="STRUCTURAL, NUMERIC, or GOVERNANCE.",
+    )
+
+    trigger_code = models.CharField(
+        max_length=50,
+        db_index=True,
+        help_text=(
+            "Machine-readable trigger: BANNED_TERM_LEAKED, "
+            "THRESHOLD_EXPOSED, VALIDATOR_CRASH, NUMERIC_DEVIATION."
+        ),
+    )
+
+    trigger_detail = models.TextField(
+        blank=True,
+        help_text="What was detected (the specific term, pattern, or error).",
+    )
+
+    original_response_hash = models.CharField(
+        max_length=64,
+        blank=True,
+        help_text="SHA-256 of original response for correlation (not the response itself).",
+    )
+
+    was_blocked = models.BooleanField(
+        default=False,
+        help_text="True = response was replaced; False = observe-only.",
+    )
+
+    engine_run_trace_id = models.UUIDField(
+        null=True,
+        blank=True,
+        help_text="Links to EngineRun trace_id for full tracing.",
+    )
+
+    metadata = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Additional context (flexible).",
+    )
+
+    class Meta:
+        app_label = 'core'
+        db_table = 'core_selferror'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(
+                fields=['trigger_code', 'created_at'],
+                name='idx_selferror_trigger_time',
+            ),
+            models.Index(
+                fields=['level', 'created_at'],
+                name='idx_selferror_level_time',
+            ),
+        ]
+        verbose_name = "Self-Error"
+        verbose_name_plural = "Self-Errors"
+
+    def __str__(self):
+        return (
+            f"SelfError L{self.level} {self.category}/{self.trigger_code} "
+            f"at {self.created_at}"
+        )

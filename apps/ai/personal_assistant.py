@@ -2306,6 +2306,22 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                             feature_request_service=feature_request_service
                         )
 
+                # ── Phase 8: Pre-release validator gate ──────────────
+                # Inspect LLM response before persistence. Structural
+                # violations are blocked (replaced); numeric deviations
+                # are observe-only. Validator crash returns safe response.
+                try:
+                    from apps.core.ai_governance.validator_gate import (
+                        validate_response,
+                    )
+                    validation = validate_response(
+                        response, self.user, conversation,
+                    )
+                    response = validation['response']
+                except Exception:
+                    pass  # defense-in-depth; validate_response never raises
+                # ── End Phase 8 validator gate ────────────────────────
+
         # Record calibration answer if active (advance stage for next question)
         # Skip if:
         # - Welcome was just shown this cycle (user acknowledging, not answering)

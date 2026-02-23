@@ -1,6 +1,22 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 95,
+        "fields": {
+            "title": "Sharper, More Precise Guidance",
+            "description": "Your Chief of Staff now double-checks every response before you see it, ensuring you always get clear, natural guidance without any technical jargon slipping through. If something doesn't meet quality standards, it's automatically corrected before delivery. The system also tracks its own accuracy over time and alerts the team if anything needs attention.",
+            "entry_type": "enhancement",
+            "version": "",
+            "release_date": "2026-02-23",
+            "is_published": true,
+            "is_major": false,
+            "learn_more_url": "",
+            "created_at": "2026-02-23T19:30:00Z",
+            "updated_at": "2026-02-23T19:30:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 94,
         "fields": {
             "title": "Improved Reliability & Graceful Recovery",

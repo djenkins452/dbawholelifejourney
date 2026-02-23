@@ -8,7 +8,7 @@
 
 ## Current Phase
 
-**Phase 6 — Observability & Concurrency Hardening** ✅ COMPLETE (2026-02-23)
+**Phase 8 — Cognitive Precision & Self-Governance Layer** ✅ COMPLETE (2026-02-23)
 
 ---
 
@@ -23,6 +23,7 @@
 | 5 | Protective Action Engine | T4 — Proactive Protection | ✅ Complete | 2026-02-23 | 2026-02-23 | Advisory-only recs, capacity warnings, pre-deadline alerts, overload triggers, DNE delivery, audit trail |
 | 6 | Observability & Concurrency Hardening | T5 — Observability & Concurrency | ✅ Complete | 2026-02-23 | 2026-02-23 | Metadata locking, plan atomicity, DB run tokens, escalation observability, race condition anomaly, degraded-mode handlers, 46 tests |
 | 7 | Test Expansion | T6 — Testing & Verification | Not Started | — | — | DST, concurrency, stacking, forecasting, cache failure tests |
+| 8 | Cognitive Precision & Self-Governance Layer | T7 — Self-Governance | ✅ Complete | 2026-02-23 | 2026-02-23 | Validator gate, SelfError model, SRI on-demand, hybrid blocking, auto-escalation, governance emails, 28 tests |
 
 ---
 
@@ -474,6 +475,82 @@ The audit identified:
 #### Rollback Plan
 
 Locking changes are in the data access layer. Revert by removing `select_for_update()` calls and `transaction.atomic()` wrappers. Observability additions are purely additive.
+
+---
+
+### Phase 8 — Cognitive Precision & Self-Governance Layer
+
+**Tier:** T7 — Self-Governance
+
+#### Objective
+
+Add a deterministic pre-release validator gate that inspects every LLM response before it reaches the user, an append-only self-error audit log, an on-demand Self-Reliability Index, hybrid blocking policy, and governance email alerting.
+
+#### Why It Matters
+
+The audit identified:
+- **No pre-release validation** — LLM responses can leak internal terms (banned system vocabulary, internal scores/thresholds)
+- **No self-error tracking** — system has no way to detect or count its own mistakes
+- **No governance alerting** — critical system failures have no admin notification path
+- **No reliability metric** — no way to measure system self-governance quality over time
+
+An executive-grade system must catch its own mistakes before the user sees them.
+
+#### Scope Boundaries
+
+- **IN SCOPE:** Validator gate, SelfError model, SRI computation, hybrid blocking, auto-escalation, governance emails
+- **OUT OF SCOPE:** LLM prompt rewriting (that's a separate improvement), user-facing SRI display, real-time dashboard
+
+#### Atomic Tasks
+
+| # | Task | Description |
+|---|------|-------------|
+| 8.1 | SelfError model | Append-only audit log in `ai_governance/models.py`. Levels 1–3, categories STRUCTURAL/NUMERIC/GOVERNANCE. |
+| 8.2 | Validator gate module | Deterministic pre-release validator inspecting LLM responses for banned terms (structural → block) and internal numeric leakage (numeric → observe-only). |
+| 8.3 | Validator crash handling | On crash: Level 3 SelfError + OpsAnomaly + safe constrained response. No silent bypass. |
+| 8.4 | SRI computation | On-demand rolling 30-day Self-Reliability Index. No snapshot model. Admin-only visibility. |
+| 8.5 | Hybrid blocking policy | Structural-Critical = BLOCK + replace with deterministic template. Numeric-Dependent = OBSERVE-ONLY (log, do not block). |
+| 8.6 | Level 2 auto-escalation | If identical Level 2 trigger repeats ≥5 times in 7 days → auto-escalate to Level 3. |
+| 8.7 | Governance email triggers | Level 3 events send email to settings.ADMINS. No jargon in emails. |
+| 8.8 | Observability integration | New anomaly types (STRUCTURAL_VIOLATION, NUMERIC_DEVIATION, VALIDATOR_CRASH) + DecisionRecord type "validation". |
+| 8.9 | Insert validator in send_message() | Single insertion point between LLM response and DB save. |
+| 8.10 | Tests | 28 tests: validator gate (15), SRI (6), escalation (3), email (3), integration (1). |
+
+#### Files Touched
+
+| File | Change Type |
+|------|-------------|
+| `apps/core/ai_governance/models.py` | Minor — add SelfError model |
+| New: `apps/core/ai_governance/validator_gate.py` | New — deterministic pre-release validator |
+| New: `apps/core/ai_governance/self_governance.py` | New — SRI + escalation + email |
+| `apps/core/ai_observability/models.py` | Minor — 3 anomaly types + 1 decision type |
+| `apps/ai/personal_assistant.py` | Minor — 8-line validator insertion in send_message() |
+| New: `apps/core/tests/test_validator_gate.py` | New — 15 tests |
+| New: `apps/core/tests/test_self_governance.py` | New — 13 tests |
+
+#### Safety Invariants
+
+1. **Validator never blocks user flow** — crash returns safe constrained response
+2. **No arbitration changes** — UAL ordering untouched
+3. **No concurrency changes** — Phase 6 primitives unchanged
+4. **No escalation engine changes** — Phase 3 floor guarantee preserved
+5. **SelfError is append-only** — no updates, no deletes
+6. **SRI is never user-facing** — admin-only metric
+7. **Fire-and-forget logging** — all observability via safe_db_write pattern
+
+#### Test Requirements
+
+- Banned term detected → response blocked + replaced
+- Numeric pattern detected → observe-only (log, pass through)
+- Validator crash → Level 3 SelfError + OpsAnomaly + safe response
+- SRI 100 with no errors, correct penalties, floor at 0, 30-day window
+- Level 2 auto-escalation at 5 repeats in 7 days
+- Level 3 → governance email; Level 2 → no email
+- End-to-end: repeated L2 → L3 escalation → email + anomaly
+
+#### Rollback Plan
+
+Validator gate is a single insertion call in `send_message()`. Remove the 8-line block to revert. SelfError model and new modules are purely additive.
 
 ---
 

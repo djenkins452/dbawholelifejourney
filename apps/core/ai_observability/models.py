@@ -279,6 +279,7 @@ class DecisionRecord(models.Model):
         ("insight_filter", "Insight Filtering"),
         ("noise_budget", "Noise Budget"),
         ("prediction_store", "Prediction Storage"),
+        ("validation", "Pre-Release Validation"),
         ("other", "Other"),
     ]
 
@@ -569,6 +570,9 @@ class OpsAnomaly(models.Model):
         ("ENGINE_STARVATION", "Engine Starvation"),
         ("DELIVERY_RETRY_SPIKE", "Delivery Retry Spike"),
         ("COMMITMENT_RACE_CONDITION", "Commitment Race Condition"),
+        ("STRUCTURAL_VIOLATION", "Structural Violation"),
+        ("NUMERIC_DEVIATION", "Numeric Deviation"),
+        ("VALIDATOR_CRASH", "Validator Crash"),
     ]
 
     created_at = models.DateTimeField(auto_now_add=True)

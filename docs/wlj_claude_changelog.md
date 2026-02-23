@@ -9,6 +9,34 @@
 
 # WLJ Change History
 
+## 2026-02-23 — Phase 8: Cognitive Precision & Self-Governance Layer (CoS Upgrade)
+
+**Changes:**
+- Added `SelfError` model (append-only audit log) to `apps/core/ai_governance/models.py`
+- Created `validator_gate.py` — deterministic pre-release validator inspecting all LLM responses before user delivery
+- Created `self_governance.py` — SRI on-demand computation, Level 2 auto-escalation, governance email triggers
+- Inserted validator gate call in `send_message()` between response generation and DB save
+- Hybrid blocking policy: structural violations blocked (replaced with safe template), numeric deviations observe-only
+- Validator crash handling: Level 3 SelfError + OpsAnomaly + safe constrained response (no silent bypass)
+- Level 2 auto-escalation: ≥5 identical triggers in 7 days → auto-escalate to Level 3 + admin email
+- Added 3 new OpsAnomaly types: STRUCTURAL_VIOLATION, NUMERIC_DEVIATION, VALIDATOR_CRASH
+- Added DecisionRecord type: "validation" for pre-release validation decisions
+- 28 new tests (15 validator gate + 13 self-governance), all passing
+- 227 Phase 1-6 regression tests passing
+
+**Files Modified:**
+- `apps/core/ai_governance/models.py` — added SelfError model
+- `apps/core/ai_observability/models.py` — added anomaly types + decision type
+- `apps/ai/personal_assistant.py` — 8-line validator gate insertion in send_message()
+- New: `apps/core/ai_governance/validator_gate.py` — pre-release validator
+- New: `apps/core/ai_governance/self_governance.py` — SRI + escalation + email
+- New: `apps/core/migrations/0095_phase8_self_governance.py` — migration
+- New: `apps/core/tests/test_validator_gate.py` — 15 tests
+- New: `apps/core/tests/test_self_governance.py` — 13 tests
+- `docs/CoS_Project.md` — Phase 8 added and marked complete
+
+**Why:** Audit identified that LLM responses could leak internal system terms and numeric thresholds to users. Phase 8 adds a deterministic validation gate, self-error tracking, reliability scoring, and admin alerting for the intelligence pipeline.
+
 ## 2026-02-23 — Phase 6: Observability & Concurrency Hardening (CoS Upgrade)
 
 **Changes:**

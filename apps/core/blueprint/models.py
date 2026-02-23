@@ -1383,6 +1383,19 @@ class Commitment(models.Model):
         help_text="CLEAN / EARLY_EROSION / STRUCTURAL_DRIFT at commitment time",
     )
 
+    # Phase 2: Timezone tracking for local-intent preservation
+    timezone_at_creation = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="IANA timezone at commitment creation (e.g., 'America/New_York')",
+    )
+
+    timezone_at_last_recalculation = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="IANA timezone when time_boundary was last recalculated due to timezone change",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -1415,6 +1428,42 @@ class Commitment(models.Model):
         self.closure_type = closure_type
         self.closed_at = timezone.now()
         self.save(update_fields=['status', 'closure_type', 'closed_at', 'updated_at'])
+
+    def recalculate_timezone(self, new_timezone_iana):
+        """
+        Phase 2: Local-intent preservation on timezone change.
+
+        Preserves the original wall-clock time and recalculates the UTC
+        value using the new timezone. Only affects pending commitments.
+
+        Args:
+            new_timezone_iana: str — new IANA timezone (e.g., 'America/Los_Angeles').
+
+        Returns:
+            bool — True if recalculated, False if skipped.
+        """
+        from zoneinfo import ZoneInfo
+
+        if self.status != self.STATUS_PENDING:
+            return False
+
+        old_tz_name = self.timezone_at_creation or 'UTC'
+        old_tz = ZoneInfo(old_tz_name)
+        new_tz = ZoneInfo(new_timezone_iana)
+
+        # Extract wall-clock time in the original timezone
+        wall_clock = self.time_boundary.astimezone(old_tz)
+        naive_wall = wall_clock.replace(tzinfo=None)
+
+        # Reattach with new timezone (preserving wall-clock, fold=0)
+        new_aware = naive_wall.replace(tzinfo=new_tz, fold=0)
+
+        self.time_boundary = new_aware
+        self.timezone_at_last_recalculation = new_timezone_iana
+        self.save(update_fields=[
+            'time_boundary', 'timezone_at_last_recalculation', 'updated_at',
+        ])
+        return True
 
 
 class CommitmentRenegotiation(models.Model):
@@ -1566,3 +1615,144 @@ class CommitmentAnalytics(models.Model):
             },
         )
         return analytics
+
+
+# =============================================================================
+# PHASE 2 — TIME & DEADLINE AUTHORITY MODELS
+# =============================================================================
+
+
+def recalculate_pending_commitments_for_timezone_change(user, new_timezone_iana):
+    """
+    Phase 2: Recalculate all pending commitment time boundaries when user
+    changes timezone. Preserves local wall-clock intent.
+
+    Args:
+        user: User instance.
+        new_timezone_iana: str — new IANA timezone.
+
+    Returns:
+        int — number of commitments recalculated.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    pending = Commitment.pending_for_user(user)
+    recalculated = 0
+    for commitment in pending:
+        if commitment.recalculate_timezone(new_timezone_iana):
+            recalculated += 1
+            logger.info(
+                "Phase 2: Recalculated commitment %d timezone %s → %s",
+                commitment.pk,
+                commitment.timezone_at_creation,
+                new_timezone_iana,
+            )
+
+    return recalculated
+
+
+class DeadlineSnapshot(models.Model):
+    """
+    Phase 2: ISE-driven deadline surfacing snapshot.
+
+    Computed every 5 minutes by ISE. Read by build_cos_context().
+    No deadline computation inside send_message().
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='deadline_snapshots',
+    )
+
+    due_24h = models.JSONField(
+        default=list,
+        help_text="Commitments/goals/blocks due within 24 hours",
+    )
+
+    due_72h = models.JSONField(
+        default=list,
+        help_text="Commitments/goals/blocks due within 72 hours (excluding 24h)",
+    )
+
+    due_7d = models.JSONField(
+        default=list,
+        help_text="Commitments/goals/blocks due within 7 days (excluding 72h)",
+    )
+
+    collision_flags = models.JSONField(
+        default=list,
+        help_text="Pairs of deadlines with <2h gap, or days with >3 hard deadlines",
+    )
+
+    computed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-computed_at']
+        indexes = [
+            models.Index(fields=['user', 'computed_at']),
+        ]
+
+    def __str__(self):
+        total = len(self.due_24h) + len(self.due_72h) + len(self.due_7d)
+        return f"DeadlineSnapshot for {self.user_id}: {total} items at {self.computed_at}"
+
+    @classmethod
+    def latest_for_user(cls, user):
+        """Get the most recent snapshot for a user, or None."""
+        return cls.objects.filter(user=user).order_by('-computed_at').first()
+
+    def is_stale(self, max_age_minutes=10):
+        """Check if this snapshot is older than max_age_minutes."""
+        age = (timezone.now() - self.computed_at).total_seconds() / 60
+        return age > max_age_minutes
+
+
+class Tier1OverrideEvent(models.Model):
+    """
+    Phase 2: Audit log for Tier 1 protected block overrides.
+
+    Created when a user explicitly states "Override Tier 1 protection"
+    to schedule over a Tier 1 block. Feeds into drift and pressure modeling.
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='tier1_overrides',
+    )
+
+    original_block = models.ForeignKey(
+        'ScheduledBlock',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='override_events_original',
+        help_text="The Tier 1 block that was overridden",
+    )
+
+    conflicting_block_description = models.TextField(
+        help_text="Description of the block that was scheduled over Tier 1",
+    )
+
+    escalation_level_at_time = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="CLEAN / EARLY_EROSION / STRUCTURAL_DRIFT at override time",
+    )
+
+    density_score_at_time = models.FloatField(
+        default=0.0,
+        help_text="Calendar density score (0.0-1.0) at override time",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', 'created_at']),
+        ]
+
+    def __str__(self):
+        return f"Tier1Override by {self.user_id} at {self.created_at}"

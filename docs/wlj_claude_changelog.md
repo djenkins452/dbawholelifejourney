@@ -4,10 +4,41 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-15 (Admin Guide feature)
+# Last Updated: 2026-02-23 (Phase 2: Time & Deadline Authority)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-02-23 — Phase 2: Time & Deadline Authority Reinforcement (CoS Upgrade)
+
+**Changes:**
+- **2.1 Explicit time boundary:** Removed all silent 23:59 defaults from `_parse_time_boundary()`. Bare "today", "tomorrow", day-of-week, "end of" expressions now return `MissingField('time_boundary')` to trigger tightening questions. Concrete times ("by 5pm", "in 30 minutes", "tomorrow by 10am") still resolve.
+- **2.2 Time authority audit:** Replaced all `datetime.now()` calls with `_get_reference_time(user)` helper using `get_current_local_datetime(user)`. Single time authority enforced across ECC.
+- **2.3 DST determinism:** Migrated from `pytz` to `zoneinfo` in `apps/core/utils.py`. Added `make_dst_safe(dt, user)` — spring-forward gaps move to next valid time, fall-back folds select first occurrence (`fold=0`).
+- **2.4 Timezone change recalculation:** Added `timezone_at_creation` and `timezone_at_last_recalculation` fields to `Commitment` model. `recalculate_timezone()` preserves wall-clock time, recalculates UTC. Batch utility for timezone changes.
+- **2.5 Deadline surfacing engine:** Created `DeadlineSnapshot` model and `deadline_engine.py`. ISE-driven computation every 5 minutes. Categorizes deadlines into 24h/72h/7d buckets. Collision detection (<2h gaps, >3 deadlines/day). Stale snapshot raises SAME anomaly.
+- **2.6 Tier 1 conflict enforcement:** Added `check_tier1_conflict()` graduated resistance — hard block on first attempt, explicit override phrase "Override Tier 1 protection" required. `Tier1OverrideEvent` model logs all overrides. Alternative slot suggestions.
+- **2.7 Tests:** 44 Phase 2 tests + 142 Phase 1 regression tests = 186 total, all passing.
+- Updated Phase 1 tests to use concrete time boundaries (Phase 2 compliance).
+- Renegotiation with ambiguous time now returns `RenegotiationBlocked` with choices (not `MissingField`).
+
+**Files Modified:**
+- `apps/core/ai_orchestrator/commitment_contract.py` — Time boundary enforcement, time authority, renegotiation
+- `apps/core/ai_orchestrator/cos_context.py` — Deadline snapshot injection into CoS context
+- `apps/core/utils.py` — zoneinfo migration, `make_dst_safe()`, `_get_user_tz()`
+- `apps/core/blueprint/models.py` — `DeadlineSnapshot`, `Tier1OverrideEvent` models, Commitment timezone fields
+- `apps/core/blueprint/deadline_engine.py` — NEW: deadline snapshot computation and staleness check
+- `apps/core/blueprint/architecture_engine.py` — Tier 1 conflict detection and override processing
+- `apps/core/ai_scheduler/scheduler_registry.py` — Added `compute_deadline_snapshots` task
+- `apps/core/ai_scheduler/scheduler_runner.py` — Added `run_deadline_snapshots()` runner
+- `apps/core/tests/test_phase2_time_authority.py` — NEW: 44 Phase 2 tests
+- `apps/core/tests/test_phase5_commitment.py` — Updated for Phase 2 explicit time compliance
+- `apps/core/migrations/0089_commitment_timezone_at_creation_and_more.py` — Migration
+- `docs/CoS_Project.md` — Phase 2 marked complete
+
+**Why:** CoS Executive Upgrade Project Phase 2 — establish authoritative, deterministic time handling and proactive deadline surfacing.
+
+---
 
 ## 2026-02-23 — Phase 1: Commitment System Hardening (CoS Upgrade)
 

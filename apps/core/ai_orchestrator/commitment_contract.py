@@ -57,6 +57,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Literal, Optional
 
+from django.utils import timezone
+
 logger = logging.getLogger(__name__)
 
 
@@ -569,7 +571,7 @@ def generate_tightening_question(missing_field):
     return ''
 
 
-def normalize_commitment(draft, reference_time=None):
+def normalize_commitment(draft, reference_time=None, user=None):
     """
     Normalize a CommitmentDraft into a full CommitmentData.
 
@@ -578,22 +580,30 @@ def normalize_commitment(draft, reference_time=None):
     - Classifies type: DECIDE / SCHEDULE / STOP / DO
     - Sets status = pending
 
+    Phase 2: Uses get_current_local_datetime(user) when user is available.
+    Falls back to timezone.now() if user not provided. Never uses naive datetime.
+
     Args:
         draft: CommitmentDraft with all fields present.
         reference_time: Optional datetime to use as reference for relative
-                       time calculations. Defaults to now.
+                       time calculations. Defaults to user-local now.
+        user: Optional User instance for timezone-aware time.
 
     Returns:
-        CommitmentData instance.
+        CommitmentData instance, or MissingField if time boundary is ambiguous.
     """
     if reference_time is None:
-        reference_time = datetime.now()
+        reference_time = _get_reference_time(user)
 
     # Use action text as-is (already case-corrected by extract_commitment_fields)
     normalized_text = draft.action
 
     # Parse time boundary to concrete datetime
     time_boundary = _parse_time_boundary(draft.time_boundary_raw, reference_time)
+
+    # Phase 2: _parse_time_boundary may return MissingField — propagate it
+    if isinstance(time_boundary, MissingField):
+        return time_boundary
 
     # Classify commitment type (lowercase internally)
     commitment_type = _classify_commitment_type(normalized_text)
@@ -1126,7 +1136,19 @@ def process_ecc_detection(user_input, tier, active_commitments=None, user=None):
         }
 
     # All fields present — normalize and confirm
-    commitment_data = normalize_commitment(result)
+    commitment_data = normalize_commitment(result, user=user)
+
+    # Phase 2: normalize_commitment may return MissingField if time is ambiguous
+    if isinstance(commitment_data, MissingField):
+        question = generate_tightening_question(commitment_data)
+        return {
+            'detected': True,
+            'response': question,
+            'commitment': None,
+            'renegotiation': None,
+            'limit_reached': False,
+        }
+
     confirmation = render_commitment_confirmation(commitment_data)
 
     return {
@@ -1232,6 +1254,14 @@ def create_db_commitment(user, commitment_data, conversation=None, tier=''):
                 )
                 return None
 
+            # Phase 2: Store timezone at creation for local-intent preservation
+            tz_at_creation = ''
+            if user:
+                try:
+                    tz_at_creation = user.preferences.timezone_iana
+                except Exception:
+                    pass
+
             db_commitment = CommitmentModel.objects.create(
                 user=user,
                 conversation=conversation,
@@ -1242,6 +1272,7 @@ def create_db_commitment(user, commitment_data, conversation=None, tier=''):
                 done_definition=commitment_data.done_definition or '',
                 status=CommitmentModel.STATUS_PENDING,
                 tier_at_creation=tier,
+                timezone_at_creation=tz_at_creation,
             )
             commitment_data.db_id = db_commitment.pk
             return db_commitment
@@ -1319,6 +1350,34 @@ def get_pending_commitments(user):
 
 
 # =========================================================================
+# INTERNAL — TIME AUTHORITY (Phase 2)
+# =========================================================================
+
+
+def _get_reference_time(user=None):
+    """
+    Get the authoritative reference time for time boundary parsing.
+
+    Phase 2: Single time authority. Uses get_current_local_datetime(user)
+    when user is available, falls back to timezone.now(). Never uses
+    naive datetime.now().
+
+    Args:
+        user: Optional User instance with preferences.timezone_iana.
+
+    Returns:
+        datetime — timezone-aware reference time.
+    """
+    if user:
+        try:
+            from apps.core.utils import get_current_local_datetime
+            return get_current_local_datetime(user)
+        except Exception:
+            pass
+    return timezone.now()
+
+
+# =========================================================================
 # INTERNAL — TIME BOUNDARY PARSING
 # =========================================================================
 
@@ -1329,59 +1388,92 @@ def _parse_time_boundary(raw, reference_time):
 
     Deterministic parsing only — no LLM inference.
 
+    Phase 2: ALLOW_END_OF_DAY_DEFAULT = False. Silent 23:59 defaults removed.
+    Expressions without explicit time return MissingField('time_boundary')
+    so the tightening question fires. Only expressions with concrete time
+    (specific hours, "in X minutes/hours", "this morning", "tomorrow evening")
+    resolve to a datetime.
+
     Args:
         raw: str — raw time expression (e.g., "today", "by 5pm", "tomorrow").
         reference_time: datetime — reference for relative calculations.
 
     Returns:
-        datetime — concrete time boundary.
+        datetime — concrete time boundary, or MissingField if time is ambiguous.
     """
     from datetime import timedelta
 
     if not raw:
-        return reference_time
+        return MissingField('time_boundary')
 
     raw_lower = raw.lower().strip()
 
-    # "today" / "tonight" / "this evening" → end of day
-    if raw_lower in ('today', 'tonight', 'this evening', 'this afternoon'):
-        return reference_time.replace(hour=23, minute=59, second=0, microsecond=0)
+    # Phase 2: "today" / "tonight" / "this afternoon" / "this evening" without
+    # explicit time → require tightening question. No silent 23:59 default.
+    # But "today by 5pm" / "today at 3pm" resolve to concrete time.
+    if raw_lower.startswith('today') or raw_lower in (
+        'tonight', 'this evening', 'this afternoon',
+    ):
+        today_time = re.search(
+            r'(?:by|at|before)\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)',
+            raw_lower,
+        )
+        if today_time:
+            hour = int(today_time.group(1))
+            minute = int(today_time.group(2) or 0)
+            ampm = today_time.group(3)
+            if ampm == 'pm' and hour != 12:
+                hour += 12
+            elif ampm == 'am' and hour == 12:
+                hour = 0
+            return reference_time.replace(
+                hour=hour, minute=minute, second=0, microsecond=0,
+            )
+        return MissingField('time_boundary')
 
-    # "this morning" → noon
+    # "this morning" → noon (concrete enough — morning has a known end)
     if raw_lower == 'this morning':
         return reference_time.replace(hour=12, minute=0, second=0, microsecond=0)
 
-    # "tomorrow" variants
+    # "tomorrow" variants — only resolve if time-of-day specified
     if raw_lower.startswith('tomorrow'):
         tomorrow = reference_time + timedelta(days=1)
         if 'morning' in raw_lower:
             return tomorrow.replace(hour=12, minute=0, second=0, microsecond=0)
         if 'evening' in raw_lower or 'night' in raw_lower:
             return tomorrow.replace(hour=21, minute=0, second=0, microsecond=0)
-        return tomorrow.replace(hour=23, minute=59, second=0, microsecond=0)
+        # "tomorrow by/at Xam/pm" — explicit time on tomorrow
+        tomorrow_time = re.search(
+            r'(?:by|at|before)\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)',
+            raw_lower,
+        )
+        if tomorrow_time:
+            hour = int(tomorrow_time.group(1))
+            minute = int(tomorrow_time.group(2) or 0)
+            ampm = tomorrow_time.group(3)
+            if ampm == 'pm' and hour != 12:
+                hour += 12
+            elif ampm == 'am' and hour == 12:
+                hour = 0
+            return tomorrow.replace(
+                hour=hour, minute=minute, second=0, microsecond=0,
+            )
+        # Bare "tomorrow" without time → tightening question
+        return MissingField('time_boundary')
 
-    # "end of today" / "end of the day"
+    # "end of today" / "end of the day" → ambiguous, require specific time
     if 'end of' in raw_lower and ('today' in raw_lower or 'the day' in raw_lower):
-        return reference_time.replace(hour=23, minute=59, second=0, microsecond=0)
+        return MissingField('time_boundary')
 
-    # "end of the week" / "end of this week"
+    # "end of the week" / "end of this week" → ambiguous, require specific time
     if 'end of' in raw_lower and 'week' in raw_lower:
-        days_until_sunday = 6 - reference_time.weekday()
-        if days_until_sunday <= 0:
-            days_until_sunday = 7
-        end_of_week = reference_time + timedelta(days=days_until_sunday)
-        return end_of_week.replace(hour=23, minute=59, second=0, microsecond=0)
+        return MissingField('time_boundary')
 
-    # "end of the month" / "end of this month"
+    # "end of the month" / "end of this month" → ambiguous, require specific time
     if 'end of' in raw_lower and 'month' in raw_lower:
-        if reference_time.month == 12:
-            eom = reference_time.replace(year=reference_time.year + 1, month=1, day=1)
-        else:
-            eom = reference_time.replace(month=reference_time.month + 1, day=1)
-        eom = eom - timedelta(days=1)
-        return eom.replace(hour=23, minute=59, second=0, microsecond=0)
+        return MissingField('time_boundary')
 
-    # "in X minutes/hours/days/weeks"
+    # "in X minutes/hours" — concrete delta from now
     in_match = re.match(r'in (\d+) (minutes?|hours?|days?|weeks?)', raw_lower)
     if in_match:
         amount = int(in_match.group(1))
@@ -1390,31 +1482,18 @@ def _parse_time_boundary(raw, reference_time):
             return reference_time + timedelta(minutes=amount)
         if 'hour' in unit:
             return reference_time + timedelta(hours=amount)
-        if 'day' in unit:
-            delta = timedelta(days=amount)
-            target = reference_time + delta
-            return target.replace(hour=23, minute=59, second=0, microsecond=0)
-        if 'week' in unit:
-            delta = timedelta(weeks=amount)
-            target = reference_time + delta
-            return target.replace(hour=23, minute=59, second=0, microsecond=0)
+        # "in X days/weeks" — date without time → tightening question
+        if 'day' in unit or 'week' in unit:
+            return MissingField('time_boundary')
 
-    # Day-of-week
+    # Day-of-week — date without time → tightening question
     days_map = {
         'monday': 0, 'tuesday': 1, 'wednesday': 2, 'thursday': 3,
         'friday': 4, 'saturday': 5, 'sunday': 6,
     }
-    # Check "next <day>" or bare day name
     for day_name, day_num in days_map.items():
         if day_name in raw_lower:
-            current_day = reference_time.weekday()
-            days_ahead = day_num - current_day
-            if days_ahead <= 0:
-                days_ahead += 7
-            if 'next' in raw_lower:
-                days_ahead += 7  # "next Monday" = the one after this coming
-            target = reference_time + timedelta(days=days_ahead)
-            return target.replace(hour=23, minute=59, second=0, microsecond=0)
+            return MissingField('time_boundary')
 
     # Specific time: "by 5pm", "at 3:30 pm", "before 10am"
     time_match = re.match(
@@ -1433,8 +1512,9 @@ def _parse_time_boundary(raw, reference_time):
             hour=hour, minute=minute, second=0, microsecond=0
         )
 
-    # Fallback: end of current day
-    return reference_time.replace(hour=23, minute=59, second=0, microsecond=0)
+    # Fallback: no recognizable concrete time → tightening question
+    # Phase 2: ALLOW_END_OF_DAY_DEFAULT = False — no silent 23:59
+    return MissingField('time_boundary')
 
 
 # =========================================================================
@@ -1526,14 +1606,18 @@ def _handle_clean_renegotiation(commitment_data, user_text):
 
             commitment_data.done_definition = new_done
 
-    # Update time boundary — use system clock when available
-    try:
-        from apps.core.utils import get_user_now
-        # We don't have user here, so fall back to datetime.now()
-        # Phase 2 will fix this to use get_current_local_datetime(user)
-        new_time = _parse_time_boundary(new_time_raw, datetime.now())
-    except ImportError:
-        new_time = _parse_time_boundary(new_time_raw, datetime.now())
+    # Phase 2: Use timezone-aware reference time (single time authority)
+    new_time = _parse_time_boundary(new_time_raw, _get_reference_time())
+
+    # Phase 2: _parse_time_boundary may return MissingField — for renegotiation,
+    # return RenegotiationBlocked asking for a specific time (not a MissingField,
+    # which would be treated as a new commitment tightening question).
+    if isinstance(new_time, MissingField):
+        return RenegotiationBlocked(choices=[
+            "A) Specify an exact time (e.g. 'by 3pm next Wednesday')",
+            "B) Keep original commitment with a 15\u201330 minute minimum version now",
+        ])
+
     commitment_data.time_boundary = new_time
 
     return commitment_data

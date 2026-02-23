@@ -22,7 +22,7 @@ Security Notes:
     protects against attackers using our site to redirect to malicious sites.
 
 Dependencies:
-    - pytz: Timezone handling
+    - zoneinfo: Timezone handling (Phase 2 — deterministic DST)
     - django.utils.http.url_has_allowed_host_and_scheme: URL validation
 
 Copyright:
@@ -32,10 +32,34 @@ Copyright:
 """
 
 import hashlib
+from zoneinfo import ZoneInfo
 
-import pytz
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
+
+# Phase 2: Backward compatibility — pytz still importable for third-party code,
+# but all WLJ time authority uses zoneinfo.
+try:
+    import pytz  # noqa: F401 — retained for backward compatibility
+except ImportError:
+    pytz = None
+
+
+def _get_user_tz(user):
+    """
+    Get the user's timezone as a zoneinfo.ZoneInfo instance.
+
+    Phase 2: Uses zoneinfo (not pytz) for deterministic DST handling.
+    - Spring-forward gap: zoneinfo moves to next valid time automatically.
+    - Fall-back fold: always selects first occurrence (fold=0).
+
+    Args:
+        user: User instance with preferences.timezone_iana.
+
+    Returns:
+        ZoneInfo instance.
+    """
+    return ZoneInfo(user.preferences.timezone_iana)
 
 
 def get_user_today(user):
@@ -52,8 +76,7 @@ def get_user_today(user):
     Returns:
         date: Today's date in the user's timezone
     """
-    # Use timezone_iana to handle legacy US/Eastern format
-    user_tz = pytz.timezone(user.preferences.timezone_iana)
+    user_tz = _get_user_tz(user)
     user_now = timezone.now().astimezone(user_tz)
     return user_now.date()
 
@@ -62,20 +85,51 @@ def get_user_now(user):
     """
     Get the current datetime in the user's configured timezone.
 
+    Phase 2: Uses zoneinfo for deterministic DST handling.
+
     Args:
         user: The User object (must have preferences.timezone_iana)
 
     Returns:
         datetime: Current datetime in the user's timezone (timezone-aware)
     """
-    # Use timezone_iana to handle legacy US/Eastern format
-    user_tz = pytz.timezone(user.preferences.timezone_iana)
+    user_tz = _get_user_tz(user)
     return timezone.now().astimezone(user_tz)
 
 
 # Canonical alias required by scheduling reliability contract.
 # All scheduling code MUST call this to obtain the authoritative local datetime.
 get_current_local_datetime = get_user_now
+
+
+def make_dst_safe(dt, user):
+    """
+    Ensure a datetime is DST-safe in the user's timezone.
+
+    Phase 2 DST handling determinism:
+    - Spring-forward gap: move to next valid time.
+    - Fall-back fold: always select first occurrence (fold=0).
+
+    Args:
+        dt: datetime — possibly ambiguous or in DST gap.
+        user: User instance for timezone lookup.
+
+    Returns:
+        datetime — DST-safe, timezone-aware datetime.
+    """
+    user_tz = _get_user_tz(user)
+
+    if dt.tzinfo is None:
+        # Naive datetime — localize with fold=0 (first occurrence)
+        dt = dt.replace(tzinfo=user_tz, fold=0)
+    else:
+        dt = dt.astimezone(user_tz)
+
+    # Ensure fold=0 (first occurrence for fall-back ambiguity)
+    if dt.fold != 0:
+        dt = dt.replace(fold=0)
+
+    return dt
 
 
 def is_safe_redirect_url(url, request):

@@ -97,6 +97,12 @@ SCHEDULED_TASKS = {
         "interval_seconds": 86400,  # 24 hours (7 PM run)
         "description": "Lock non-negotiables, detect overload, move flexible items in tomorrow's plan (Phase 5 Governance).",
     },
+    # --- Phase 2: Deadline surfacing ---
+    "compute_deadline_snapshots": {
+        "function_path": "apps.core.ai_scheduler.scheduler_runner.run_deadline_snapshots",
+        "interval_seconds": 300,  # 5 minutes
+        "description": "Compute deadline snapshots for all active users (Phase 2 ECC).",
+    },
     # --- Synthetic batch runners for context-dependent engines ---
     # These engines also fire per-request during chat, but scheduled
     # execution ensures cadence is maintained during idle periods.

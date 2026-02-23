@@ -20,7 +20,7 @@ from decimal import Decimal
 
 import requests
 from django.conf import settings
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Q
 
 from .intent_service import ActionResult
@@ -2013,29 +2013,8 @@ class ActionHandler:
                         "context found for user %s", self.user.id,
                     )
 
-            # --- Deterministic date resolution (Phase 9) ---
-            # All weekday/relative-date resolution is server-side;
-            # never trust LLM-provided date computations.
-            from apps.calendar_engine.utils.date_resolution import (
-                resolve_weekday_to_date,
-            )
-            try:
-                event_date = resolve_weekday_to_date(
-                    self.user, start_date, reference_dt=user_now,
-                )
-                logger.debug(
-                    "[SCHED] Resolved '%s' → %s (deterministic)",
-                    start_date, event_date,
-                )
-            except ValueError as date_err:
-                logger.warning(
-                    "[SCHED] Date resolution failed for '%s': %s — "
-                    "falling back to today %s",
-                    start_date, date_err, today,
-                )
-                event_date = today
-
-            # Parse times
+            # Parse times BEFORE date resolution (Phase 9.1)
+            # so start_time can inform same-day weekday logic.
             parsed_start_time = None
             parsed_end_time = None
 
@@ -2050,6 +2029,29 @@ class ActionHandler:
                     parsed_end_time = dt.strptime(end_time, '%H:%M').time()
                 except ValueError:
                     pass
+
+            # --- Deterministic date resolution (Phase 9) ---
+            # All weekday/relative-date resolution is server-side;
+            # never trust LLM-provided date computations.
+            from apps.calendar_engine.utils.date_resolution import (
+                resolve_weekday_to_date,
+            )
+            try:
+                event_date = resolve_weekday_to_date(
+                    self.user, start_date, reference_dt=user_now,
+                    start_time=parsed_start_time,
+                )
+                logger.debug(
+                    "[SCHED] Resolved '%s' → %s (deterministic)",
+                    start_date, event_date,
+                )
+            except ValueError as date_err:
+                logger.warning(
+                    "[SCHED] Date resolution failed for '%s': %s — "
+                    "falling back to today %s",
+                    start_date, date_err, today,
+                )
+                event_date = today
 
             # --- Safety invariant (Part 3): no default-time during clone ---
             actual_all_day = is_all_day or (parsed_start_time is None)
@@ -2130,14 +2132,17 @@ class ActionHandler:
             except Exception:
                 pass
 
-            # --- Idempotency key (Phase 9, Section 3) ---
+            # --- Idempotency key (Phase 9, Section 3 + Phase 9.1 normalization) ---
+            normalized_title = " ".join(title.strip().split()).lower()
             idem_key = hashlib.sha256(
-                f"{self.user.id}:{title}:{start_dt.isoformat()}".encode()
+                f"{self.user.id}:{normalized_title}:{start_dt.isoformat()}".encode()
             ).hexdigest()
 
             logger.debug(
-                "[SCHED] Idempotency key: %s (user=%s, title=%s, start=%s)",
-                idem_key[:12], self.user.id, title, start_dt.isoformat(),
+                "[SCHED] Idempotency key: %s (user=%s, title=%r, "
+                "normalized=%r, start=%s)",
+                idem_key[:12], self.user.id, title,
+                normalized_title, start_dt.isoformat(),
             )
 
             # --- Atomic boundary (Phase 9, Section 4) ---
@@ -2155,32 +2160,45 @@ class ActionHandler:
                     event = existing
                     reused = True
                 else:
-                    event = CalendarEvent.objects.create(
-                        user=self.user,
-                        title=title,
-                        description=description or "",
-                        start_dt=start_dt,
-                        end_dt=end_dt,
-                        is_all_day=actual_all_day,
-                        event_kind=CalendarEvent.KIND_MANUAL,
-                        source_type=CalendarEvent.SOURCE_NONE,
-                        domain=domain,
-                        idempotency_key=idem_key,
-                    )
-
-                    # --- Post-write verification (Phase 9, Section 5) ---
-                    verified = CalendarEvent.objects.get(pk=event.pk)
-                    if verified.start_dt != start_dt or verified.title != title:
-                        raise RuntimeError(
-                            f"Post-write verification failed: "
-                            f"expected title={title!r}, start_dt={start_dt}, "
-                            f"got title={verified.title!r}, "
-                            f"start_dt={verified.start_dt}"
+                    try:
+                        event = CalendarEvent.objects.create(
+                            user=self.user,
+                            title=title,
+                            description=description or "",
+                            start_dt=start_dt,
+                            end_dt=end_dt,
+                            is_all_day=actual_all_day,
+                            event_kind=CalendarEvent.KIND_MANUAL,
+                            source_type=CalendarEvent.SOURCE_NONE,
+                            domain=domain,
+                            idempotency_key=idem_key,
                         )
-                    logger.debug(
-                        "[SCHED] Post-write verification passed for pk=%s",
-                        event.pk,
-                    )
+                    except IntegrityError:
+                        # Race window: concurrent create beat us —
+                        # re-query by idempotency_key and return existing.
+                        logger.info(
+                            "[SCHED] IntegrityError race: re-querying "
+                            "idempotency_key=%s", idem_key[:12],
+                        )
+                        event = CalendarEvent.objects.get(
+                            idempotency_key=idem_key,
+                        )
+                        reused = True
+
+                    if not reused:
+                        # --- Post-write verification (Phase 9, Section 5) ---
+                        verified = CalendarEvent.objects.get(pk=event.pk)
+                        if verified.start_dt != start_dt or verified.title != title:
+                            raise RuntimeError(
+                                f"Post-write verification failed: "
+                                f"expected title={title!r}, start_dt={start_dt}, "
+                                f"got title={verified.title!r}, "
+                                f"start_dt={verified.start_dt}"
+                            )
+                        logger.debug(
+                            "[SCHED] Post-write verification passed for pk=%s",
+                            event.pk,
+                        )
 
             date_str = event_date.strftime("%b %d")
             time_str = (

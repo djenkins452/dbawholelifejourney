@@ -3,10 +3,14 @@ Deterministic date resolution for calendar events.
 
 Phase 9: All weekday/relative-date resolution happens server-side,
 never trusting LLM-provided date computations.
+
+Phase 9.1: Same-day weekday + time logic — if the requested time has
+already passed today, schedule next week instead.
 """
 
 import datetime as dt
 import re
+from typing import Optional
 
 from apps.core.utils import get_user_now, get_user_today
 
@@ -25,7 +29,8 @@ _ISO_DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 
 
 def resolve_weekday_to_date(user, start_date_str: str,
-                            reference_dt: dt.datetime = None) -> dt.date:
+                            reference_dt: dt.datetime = None,
+                            start_time: Optional[dt.time] = None) -> dt.date:
     """
     Deterministically resolve a date string to a concrete date.
 
@@ -34,14 +39,21 @@ def resolve_weekday_to_date(user, start_date_str: str,
     - "today"     → user's local today
     - "tomorrow"  → user's local today + 1
     - Weekday name (e.g. "wednesday", "fri") → next occurrence
-      including same-day if the reference time hasn't passed the
-      end of the user's business day
+
+    Same-day weekday logic (Phase 9.1):
+    - If target weekday == today AND start_time is provided:
+        - If start_time > reference_dt.time() → schedule TODAY
+        - If start_time <= reference_dt.time() → schedule NEXT WEEK (+7 days)
+    - If target weekday == today AND start_time is None:
+        - Schedule TODAY (preserve original behavior)
 
     Args:
         user: Django user with preferences.timezone_iana
         start_date_str: The date string to resolve
         reference_dt: Override for the "now" reference (for testing).
                       If None, uses get_user_now(user).
+        start_time: The event's start time, used for same-day weekday
+                    disambiguation. If None, same-day defaults to today.
 
     Returns:
         A concrete datetime.date
@@ -76,7 +88,7 @@ def resolve_weekday_to_date(user, start_date_str: str,
     # --- Weekday name ---
     iso_weekday = WEEKDAY_NAMES.get(cleaned)
     if iso_weekday is not None:
-        return _next_weekday(user_today, iso_weekday, reference_dt)
+        return _next_weekday(user_today, iso_weekday, reference_dt, start_time)
 
     raise ValueError(
         f"Cannot resolve date from: {start_date_str!r}. "
@@ -85,19 +97,25 @@ def resolve_weekday_to_date(user, start_date_str: str,
 
 
 def _next_weekday(today: dt.date, target_iso_weekday: int,
-                  reference_dt: dt.datetime) -> dt.date:
+                  reference_dt: dt.datetime,
+                  start_time: Optional[dt.time] = None) -> dt.date:
     """
     Compute the next occurrence of target_iso_weekday (1=Mon..7=Sun).
 
-    Same-day is included if reference_dt is before end-of-day.
-    If today IS the target weekday, return today (events are in the future
-    of the calendar day, not the clock).
+    Same-day logic:
+    - If start_time is provided and has already passed → next week (+7)
+    - If start_time is provided and is still in the future → today
+    - If start_time is None → today (default)
     """
     current_iso_weekday = today.isoweekday()  # 1=Mon..7=Sun
     days_ahead = (target_iso_weekday - current_iso_weekday) % 7
 
     if days_ahead == 0:
-        # Same weekday as today — return today (user means "this <day>")
+        # Same weekday as today — check if time has passed
+        if start_time is not None and start_time <= reference_dt.time():
+            # Requested time already passed today → next week
+            return today + dt.timedelta(days=7)
+        # Time is still in the future (or no time given) → today
         return today
 
     return today + dt.timedelta(days=days_ahead)

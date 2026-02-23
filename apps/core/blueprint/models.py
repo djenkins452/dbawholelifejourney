@@ -1756,3 +1756,245 @@ class Tier1OverrideEvent(models.Model):
 
     def __str__(self):
         return f"Tier1Override by {self.user_id} at {self.created_at}"
+
+
+# =========================================================================
+# PHASE 3 — ESCALATION CONTINUITY MODELS
+# =========================================================================
+
+
+class EscalationState(models.Model):
+    """
+    Phase 3: Persistent per-user escalation state.
+
+    Provides cross-session enforcement memory. The current_level acts as
+    a FLOOR — activation can only decrease through the Hybrid Recovery Rule.
+    """
+
+    LEVEL_CLEAN = 0
+    LEVEL_EARLY_EROSION = 1
+    LEVEL_STRUCTURAL_DRIFT = 2
+
+    LEVEL_CHOICES = [
+        (LEVEL_CLEAN, 'CLEAN'),
+        (LEVEL_EARLY_EROSION, 'EARLY_EROSION'),
+        (LEVEL_STRUCTURAL_DRIFT, 'STRUCTURAL_DRIFT'),
+    ]
+
+    LEVEL_TO_STATE = {
+        LEVEL_CLEAN: 'CLEAN',
+        LEVEL_EARLY_EROSION: 'EARLY_EROSION',
+        LEVEL_STRUCTURAL_DRIFT: 'STRUCTURAL_DRIFT',
+    }
+
+    STATE_TO_LEVEL = {v: k for k, v in LEVEL_TO_STATE.items()}
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='escalation_state',
+    )
+
+    current_level = models.PositiveSmallIntegerField(
+        default=LEVEL_CLEAN,
+        choices=LEVEL_CHOICES,
+        help_text="Current escalation level (0=CLEAN, 1=EARLY_EROSION, 2=STRUCTURAL_DRIFT)",
+    )
+
+    peak_level_7d = models.PositiveSmallIntegerField(
+        default=LEVEL_CLEAN,
+        choices=LEVEL_CHOICES,
+        help_text="Peak escalation level in last 7 days",
+    )
+
+    consecutive_clean_days = models.PositiveIntegerField(
+        default=0,
+        help_text="Number of consecutive clean days for recovery gate",
+    )
+
+    last_escalation_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When escalation last increased",
+    )
+
+    last_de_escalation_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When escalation last decreased (recovery gate passed)",
+    )
+
+    window_start = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Start of current recovery evaluation window",
+    )
+
+    metadata = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Extra state metadata (recovery reasons, etc.)",
+    )
+
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "escalation state"
+        verbose_name_plural = "escalation states"
+        indexes = [
+            models.Index(fields=['user']),
+        ]
+
+    def __str__(self):
+        return (
+            f"EscalationState user={self.user_id} "
+            f"level={self.get_current_level_display()}"
+        )
+
+    @property
+    def current_state_label(self):
+        """Return string label for current_level."""
+        return self.LEVEL_TO_STATE.get(self.current_level, 'CLEAN')
+
+    @classmethod
+    def get_or_create_for_user(cls, user):
+        """Get or create EscalationState, returning (instance, created)."""
+        return cls.objects.get_or_create(user=user)
+
+
+class EscalationEvent(models.Model):
+    """
+    Phase 3: Immutable audit trail of escalation transitions.
+
+    Every level change (up or down) is logged with trigger and rationale.
+    """
+
+    TRIGGER_THRESHOLD_OVERRIDE = 'THRESHOLD_OVERRIDE'
+    TRIGGER_RECOVERY_DECAY = 'RECOVERY_DECAY'
+    TRIGGER_EROSION_DETECTED = 'EROSION_DETECTED'
+    TRIGGER_FLOOR_APPLIED = 'FLOOR_APPLIED'
+    TRIGGER_DAILY_UPDATE = 'DAILY_UPDATE'
+
+    TRIGGER_CHOICES = [
+        (TRIGGER_THRESHOLD_OVERRIDE, 'Threshold Override'),
+        (TRIGGER_RECOVERY_DECAY, 'Recovery Decay'),
+        (TRIGGER_EROSION_DETECTED, 'Erosion Detected'),
+        (TRIGGER_FLOOR_APPLIED, 'Floor Applied'),
+        (TRIGGER_DAILY_UPDATE, 'Daily Update'),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='escalation_events',
+    )
+
+    from_level = models.PositiveSmallIntegerField(
+        help_text="Level before transition",
+    )
+
+    to_level = models.PositiveSmallIntegerField(
+        help_text="Level after transition",
+    )
+
+    trigger = models.CharField(
+        max_length=30,
+        choices=TRIGGER_CHOICES,
+        help_text="What caused this transition",
+    )
+
+    behavior_key = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Behavior key that triggered the event (if applicable)",
+    )
+
+    rationale = models.JSONField(
+        default=dict,
+        help_text="Detailed rationale for transition (recovery reasons, thresholds, etc.)",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', 'created_at']),
+            models.Index(fields=['user', 'to_level']),
+        ]
+
+    def __str__(self):
+        return (
+            f"EscalationEvent user={self.user_id} "
+            f"{self.from_level}→{self.to_level} ({self.trigger})"
+        )
+
+
+class BehavioralTrend(models.Model):
+    """
+    Phase 3: Per-behavior-key trend tracking.
+
+    Computed daily (deterministic). Stores latest trend per behavior_key
+    per user, overwritten on each computation.
+    """
+
+    TREND_IMPROVING = 'improving'
+    TREND_STABLE = 'stable'
+    TREND_DECLINING = 'declining'
+
+    TREND_CHOICES = [
+        (TREND_IMPROVING, 'Improving'),
+        (TREND_STABLE, 'Stable'),
+        (TREND_DECLINING, 'Declining'),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='behavioral_trends',
+    )
+
+    behavior_key = models.CharField(
+        max_length=100,
+        help_text="Behavior key being tracked (e.g., PRAYER, WORKOUT)",
+    )
+
+    trend_direction = models.CharField(
+        max_length=10,
+        choices=TREND_CHOICES,
+        default=TREND_STABLE,
+    )
+
+    confidence = models.FloatField(
+        default=0.0,
+        help_text="Confidence in trend assessment (0.0-1.0)",
+    )
+
+    data_points = models.PositiveIntegerField(
+        default=0,
+        help_text="Number of events considered in computation",
+    )
+
+    window_start = models.DateField(
+        help_text="Start of evaluation window",
+    )
+
+    window_end = models.DateField(
+        help_text="End of evaluation window",
+    )
+
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "behavioral trend"
+        verbose_name_plural = "behavioral trends"
+        unique_together = [('user', 'behavior_key')]
+        indexes = [
+            models.Index(fields=['user', 'behavior_key']),
+        ]
+
+    def __str__(self):
+        return (
+            f"BehavioralTrend user={self.user_id} "
+            f"{self.behavior_key}={self.trend_direction}"
+        )

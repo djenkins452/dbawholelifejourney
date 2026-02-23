@@ -628,6 +628,18 @@ def build_cos_context(user):
         logger.debug("CoS context: trajectory signals unavailable: %s", e)
         context['trajectory_signals'] = {}
 
+    # Phase 3: Persistent escalation state — resolve activation with floor + recovery gate
+    try:
+        from apps.core.blueprint.escalation_engine import resolve_activation_state
+        context['trajectory_activation_state'] = resolve_activation_state(
+            user,
+            context.get('trajectory_signals', {}),
+            user_input='',  # user_input applied at format time if needed
+        )
+    except Exception as e:
+        logger.debug("CoS context: escalation state unavailable: %s", e)
+        context['trajectory_activation_state'] = ACTIVATION_CLEAN
+
     # Phase 4 R1: Decision branch signals (goals, deadlines, deferrals)
     try:
         context['decision_branch_signals'] = _build_decision_branch_signals(user)

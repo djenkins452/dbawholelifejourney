@@ -97,6 +97,12 @@ SCHEDULED_TASKS = {
         "interval_seconds": 86400,  # 24 hours (7 PM run)
         "description": "Lock non-negotiables, detect overload, move flexible items in tomorrow's plan (Phase 5 Governance).",
     },
+    # --- Phase 3: Escalation continuity + behavioral trends ---
+    "update_escalation_states": {
+        "function_path": "apps.core.ai_scheduler.scheduler_runner.run_escalation_updates",
+        "interval_seconds": 86400,  # 24 hours (daily)
+        "description": "Update escalation states and behavioral trends for all active users (Phase 3).",
+    },
     # --- Phase 2: Deadline surfacing ---
     "compute_deadline_snapshots": {
         "function_path": "apps.core.ai_scheduler.scheduler_runner.run_deadline_snapshots",

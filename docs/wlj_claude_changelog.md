@@ -9,6 +9,18 @@
 
 # WLJ Change History
 
+## 2026-02-23 — Hotfix: Calendar Migration Deduplication
+
+**Root Cause:** Migration `0002_phase9_idempotency_and_unique_constraint` failed in production because existing duplicate `(user_id, title, start_dt)` rows violated the new `unique_user_title_start` constraint. The migration tried to create the unique index on data that already had duplicates.
+
+**Changes:**
+- Added `RunPython` deduplication step to the migration that removes duplicate calendar events (keeping the most recent by ID) before the `UniqueConstraint` is applied.
+
+**Files Modified:**
+- `apps/calendar_engine/migrations/0002_phase9_idempotency_and_unique_constraint.py`
+
+---
+
 ## 2026-02-23 — Phase 9: Calendar Determinism & Trust Repair
 
 **Root Cause:** Weekday resolution (e.g. "schedule on Wednesday") was performed inside OpenAI, and the backend trusted the LLM-provided date blindly. No duplicate event prevention existed at the DB level. Calendar mutations (create, update, delete) lacked atomic boundaries and post-write verification.

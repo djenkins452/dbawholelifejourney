@@ -3,6 +3,38 @@
 from django.db import migrations, models
 
 
+def deduplicate_calendar_events(apps, schema_editor):
+    """
+    Remove duplicate (user_id, title, start_dt) rows before adding
+    the unique constraint. Keeps the most recently updated row.
+    """
+    CalendarEvent = apps.get_model('calendar_engine', 'CalendarEvent')
+    db_alias = schema_editor.connection.alias
+
+    # Find groups with duplicates
+    from django.db.models import Count, Max
+    dupes = (
+        CalendarEvent.objects.using(db_alias)
+        .values('user_id', 'title', 'start_dt')
+        .annotate(cnt=Count('id'), max_id=Max('id'))
+        .filter(cnt__gt=1)
+    )
+
+    deleted = 0
+    for group in dupes:
+        # Delete all but the row with the highest id (most recent)
+        qs = CalendarEvent.objects.using(db_alias).filter(
+            user_id=group['user_id'],
+            title=group['title'],
+            start_dt=group['start_dt'],
+        ).exclude(id=group['max_id'])
+        deleted += qs.count()
+        qs.delete()
+
+    if deleted:
+        print(f"\n  Deduplicated {deleted} calendar event(s) before adding unique constraint.")
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -14,6 +46,11 @@ class Migration(migrations.Migration):
             model_name='calendarevent',
             name='idempotency_key',
             field=models.CharField(blank=True, db_index=True, help_text='SHA-256 hash for assistant-path duplicate prevention', max_length=64, null=True),
+        ),
+        migrations.RunPython(
+            deduplicate_calendar_events,
+            migrations.RunPython.noop,
+            elidable=True,
         ),
         migrations.AddConstraint(
             model_name='calendarevent',

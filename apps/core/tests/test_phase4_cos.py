@@ -1777,32 +1777,110 @@ class EnforcementEscalationLadderTest(TestCase):
         self.assertLess(level, 3)
 
     # ------------------------------------------------------------------
-    # Framing injection
+    # Directive generation (R5B)
     # ------------------------------------------------------------------
 
-    def test_framing_level_0_in_output(self):
-        """Level 0: neutral execution directive in framework output."""
+    def test_directive_level_0_deliberation(self):
+        """Level 0 + deliberation → 'Execute {subject} as scheduled.'"""
+        from apps.core.ai_orchestrator.cos_context import _generate_enforcement_directive
+        gate = self._make_gate(user_input='Should I do this tonight?')
+        d = _generate_enforcement_directive(0, gate)
+        self.assertIn('as scheduled', d)
+        self.assertNotIn('e.g.', d)
+        self.assertLessEqual(len(d.split()), 18)
+
+    def test_directive_level_1_deferral(self):
+        """Level 1 + deferral → firm boundary with subject."""
+        from apps.core.ai_orchestrator.cos_context import _generate_enforcement_directive
+        gate = self._make_gate(user_input='I want to push the deadline.')
+        d = _generate_enforcement_directive(1, gate)
+        self.assertIn('Do not reschedule', d)
+        self.assertIn('goal a', d.lower())
+        self.assertNotIn('e.g.', d)
+        self.assertLessEqual(len(d.split()), 18)
+
+    def test_directive_level_2_abandonment(self):
+        """Level 2 + abandonment → containment with subject."""
+        from apps.core.ai_orchestrator.cos_context import _generate_enforcement_directive
+        gate = self._make_gate(user_input='I want to drop the goal.')
+        d = _generate_enforcement_directive(2, gate)
+        self.assertIn('abandon', d.lower())
+        self.assertIn('goal a', d.lower())
+        self.assertNotIn('e.g.', d)
+        self.assertLessEqual(len(d.split()), 18)
+
+    def test_directive_level_3_abandonment(self):
+        """Level 3 + abandonment → shortest command with subject."""
+        from apps.core.ai_orchestrator.cos_context import _generate_enforcement_directive
+        gate = self._make_gate(user_input='I\u2019m giving up on this.')
+        d = _generate_enforcement_directive(3, gate)
+        self.assertIn('pattern ends', d.lower())
+        self.assertIn('goal a', d.lower())
+        self.assertNotIn('e.g.', d)
+        self.assertLessEqual(len(d.split()), 18)
+
+    def test_directive_no_meta_language(self):
+        """No directive contains meta-language words."""
+        from apps.core.ai_orchestrator.cos_context import _generate_enforcement_directive
+        forbidden = ['e.g.', 'for example', 'such as', 'directive', 'statement']
+        for level in range(4):
+            gate = self._make_gate(user_input='I want to push the deadline.')
+            d = _generate_enforcement_directive(level, gate)
+            for word in forbidden:
+                self.assertNotIn(word, d.lower(), f"Meta-language '{word}' in L{level}: {d}")
+
+    def test_directive_no_exclamation_or_question(self):
+        """No directive contains exclamation marks or question marks."""
+        from apps.core.ai_orchestrator.cos_context import _generate_enforcement_directive
+        for level in range(4):
+            gate = self._make_gate(user_input='I want to drop the goal entirely.')
+            d = _generate_enforcement_directive(level, gate)
+            self.assertNotIn('!', d, f"Exclamation in L{level}: {d}")
+            self.assertNotIn('?', d, f"Question in L{level}: {d}")
+
+    def test_directive_protected_block_subject(self):
+        """Protected block gate → directive references block title."""
+        from apps.core.ai_orchestrator.cos_context import _generate_enforcement_directive
+        gate = {
+            'active': True,
+            'reason': 'decision_impacts_protected_block',
+            'signals': {'protected_blocks': [{'title': 'Morning Workout', 'start': '06:00'}]},
+            'user_input': 'I want to cancel my workout block.',
+            'deferrals_7d': 0,
+        }
+        d = _generate_enforcement_directive(2, gate)
+        self.assertIn('morning workout', d.lower())
+
+    # ------------------------------------------------------------------
+    # Framing in injection output (R5B)
+    # ------------------------------------------------------------------
+
+    def test_framing_rendered_in_output(self):
+        """Framework output contains rendered directive, not meta-text."""
         from apps.core.ai_orchestrator.cos_context import (
             _format_decision_branch_injection, ACTIVATION_CLEAN,
         )
         gate = self._make_gate(user_input='Should I do this tonight?')
         output = _format_decision_branch_injection(gate, ACTIVATION_CLEAN)
-        self.assertIn('neutral execution directive', output)
+        # Must contain rendered directive
+        self.assertIn('execute goal a as scheduled', output.lower())
+        # Must NOT contain meta-text
+        self.assertNotIn('e.g.', output)
+        self.assertNotIn('One-line', output)
+        self.assertNotIn('directive', output.lower())
 
-    def test_framing_level_2_in_output(self):
-        """Level 2: containment language in framework output."""
+    def test_framing_level_2_rendered(self):
+        """Level 2 output contains containment directive, not instructions."""
         from apps.core.ai_orchestrator.cos_context import (
             _format_decision_branch_injection, ACTIVATION_CLEAN,
         )
-        gate = self._make_gate(
-            user_input='I want to drop the goal.',
-        )
+        gate = self._make_gate(user_input='I want to drop the goal.')
         output = _format_decision_branch_injection(gate, ACTIVATION_CLEAN)
-        self.assertIn('boundary-setting directive', output.lower())
-        self.assertIn('Containment language', output)
+        self.assertIn('Do not abandon', output)
+        self.assertNotIn('boundary-setting', output.lower())
 
-    def test_framing_level_3_in_output(self):
-        """Level 3: shortest possible command in framework output."""
+    def test_framing_level_3_rendered(self):
+        """Level 3 output contains control assertion, not instructions."""
         from apps.core.ai_orchestrator.cos_context import (
             _format_decision_branch_injection, ACTIVATION_CLEAN,
         )
@@ -1810,5 +1888,5 @@ class EnforcementEscalationLadderTest(TestCase):
             user_input='I\u2019m giving up. It\u2019s not a big deal.',
         )
         output = _format_decision_branch_injection(gate, ACTIVATION_CLEAN)
-        self.assertIn('Shortest possible command', output)
-        self.assertIn('Pattern-terminating', output)
+        self.assertIn('This pattern ends now', output)
+        self.assertNotIn('Shortest possible', output)

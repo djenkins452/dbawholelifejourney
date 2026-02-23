@@ -2074,35 +2074,123 @@ Structural drift escalation tone intact.
 # PHASE 4 R5 — ENFORCEMENT ESCALATION LADDER
 # =========================================================================
 
-# Enforcement Level 0–3 framing instructions.
-# Each level replaces the Executive Framing section in the framework.
-# Higher levels use fewer words and firmer tone.
+# R5B: Resistance type categories for directive generation.
+_RESISTANCE_DEFERRAL = 'deferral'
+_RESISTANCE_CANCELLATION = 'cancellation'
+_RESISTANCE_ABANDONMENT = 'abandonment'
+_RESISTANCE_DELIBERATION = 'deliberation'
 
-_ENFORCEMENT_FRAMING = {
-    0: (
-        "Executive Framing\n"
-        "One-line neutral execution directive. State the recommended action.\n"
-        "No permission language. No motivational phrasing. No open-ended question."
-    ),
-    1: (
-        "Executive Framing\n"
-        "One-line firm directive. Include a boundary statement "
-        "(e.g. 'No reschedule.' or 'Maintain commitment.').\n"
-        "No permission language. No motivational phrasing. No explanation."
-    ),
-    2: (
-        "Executive Framing\n"
-        "One-line boundary-setting directive. Short. Direct. "
-        "Containment language (e.g. 'Stop renegotiating.' or 'Execute as committed.').\n"
-        "No permission language. No explanation. No softening."
-    ),
-    3: (
-        "Executive Framing\n"
-        "Shortest possible command. Pattern-terminating language "
-        "(e.g. 'This ends here. Execute.').\n"
-        "No explanation. No softening. No additional words."
-    ),
-}
+# Deferral-action terms for resistance detection.
+_DEFERRAL_TERMS = (
+    'push', 'move', 'moved', 'defer', 'postpone', 'shift',
+    'reschedule', 'rescheduling', 'later',
+)
+
+
+def _extract_directive_subject(gate_result):
+    """
+    Extract a brief subject reference for the enforcement directive.
+
+    Uses goal title or protected block title from gate signals.
+    Titles over 4 words are replaced with a contextual fallback.
+
+    Returns:
+        str — lowercase subject reference (e.g. 'test goal', 'the block').
+    """
+    signals = gate_result.get('signals', {})
+    reason = gate_result.get('reason', '')
+
+    if reason == 'decision_impacts_protected_block':
+        blocks = signals.get('protected_blocks', [])
+        if blocks:
+            title = blocks[0].get('title', '').strip()
+            if title and len(title.split()) <= 4:
+                return title.lower()
+        return 'the protected block'
+
+    goals = signals.get('goals', [])
+    if goals:
+        title = goals[0].get('title', '').strip()
+        if title and len(title.split()) <= 4:
+            return title.lower()
+
+    return 'the commitment'
+
+
+def _detect_resistance_type(user_input):
+    """
+    Detect user's resistance type from input for directive generation.
+
+    Categories: deferral, cancellation, abandonment, deliberation.
+
+    Returns:
+        str — resistance type constant.
+    """
+    if not user_input:
+        return _RESISTANCE_DELIBERATION
+    normalized = _normalize_input(user_input)
+
+    # Abandonment (most severe)
+    if _detect_abandonment_language(user_input):
+        return _RESISTANCE_ABANDONMENT
+
+    # Deferral
+    if any(t in normalized for t in _DEFERRAL_TERMS):
+        return _RESISTANCE_DEFERRAL
+
+    # Cancellation
+    if 'cancel' in normalized:
+        return _RESISTANCE_CANCELLATION
+
+    return _RESISTANCE_DELIBERATION
+
+
+def _generate_enforcement_directive(level, gate_result):
+    """
+    Generate a context-aware Executive Framing directive sentence.
+
+    R5B: Returns a production-ready sentence — no meta-text, no examples,
+    no instructional language. Exactly one sentence, ≤12 words target,
+    ≤18 words max. Declarative command tone.
+
+    Args:
+        level: int 0–3 from _evaluate_enforcement_level().
+        gate_result: dict from evaluate_decision_branch_gate().
+
+    Returns:
+        str — rendered directive sentence.
+    """
+    subject = _extract_directive_subject(gate_result)
+    resistance = _detect_resistance_type(gate_result.get('user_input', ''))
+
+    # Level 0 — Clarification: neutral execution
+    if level == 0:
+        if resistance == _RESISTANCE_DELIBERATION:
+            return f"Execute {subject} as scheduled."
+        return f"Complete {subject} as planned."
+
+    # Level 1 — Reinforcement: firm, boundary introduced
+    if level == 1:
+        if resistance == _RESISTANCE_DEFERRAL:
+            return f"Do not reschedule. Complete {subject} tonight."
+        if resistance == _RESISTANCE_CANCELLATION:
+            return f"Maintain {subject}. No cancellation."
+        return f"No delay. Proceed with {subject}."
+
+    # Level 2 — Containment: boundary-setting
+    if level == 2:
+        if resistance == _RESISTANCE_DEFERRAL:
+            return f"Stop deferring. Execute {subject} today."
+        if resistance == _RESISTANCE_CANCELLATION:
+            return f"Do not cancel {subject}. Execute as planned."
+        if resistance == _RESISTANCE_ABANDONMENT:
+            return f"Do not abandon {subject}. Execute today."
+        return f"Stop renegotiating. Complete {subject} now."
+
+    # Level 3 — Control Assertion: shortest possible
+    if resistance == _RESISTANCE_ABANDONMENT:
+        return f"This pattern ends now. Execute {subject}."
+    return f"No further delay. Execute {subject}."
 
 
 def _evaluate_enforcement_level(gate_result, activation_state):
@@ -2199,17 +2287,18 @@ def _format_decision_branch_injection(gate_result, activation_state):
     else:
         framework = DECISION_BRANCH_FRAMEWORK_CLEAN
 
-    # R5: Replace static Executive Framing with enforcement-level framing
+    # R5/R5B: Generate enforcement-level directive and inject into framework
     enforcement_level = _evaluate_enforcement_level(gate_result, activation_state)
-    enforcement_framing = _ENFORCEMENT_FRAMING.get(enforcement_level, _ENFORCEMENT_FRAMING[0])
+    directive = _generate_enforcement_directive(enforcement_level, gate_result)
 
     # Replace the Executive Framing block in the framework template.
     # Match the static block that starts with "Executive Framing\n"
-    # and ends before "TONE:".
+    # and ends before "\nTONE:". Replace with the rendered directive.
     framework_text = framework.strip()
+    framing_block = f"Executive Framing\n{directive}"
     framework_text = re.sub(
         r'Executive Framing\n.*?(?=\nTONE:)',
-        enforcement_framing,
+        framing_block,
         framework_text,
         flags=re.DOTALL,
     )

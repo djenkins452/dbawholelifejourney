@@ -9,6 +9,28 @@
 
 # WLJ Change History
 
+## 2026-02-22 — Phase 4 R5B: Enforcement Render Correction
+
+**Changes:**
+- Removed `_ENFORCEMENT_FRAMING` meta-text dict — was producing instructional text ("One-line directive e.g. …") instead of actual directives
+- Added `_extract_directive_subject(gate_result)` — extracts goal/block title (≤4 words) for directive context
+- Added `_detect_resistance_type(user_input)` — categorizes input as deferral/cancellation/abandonment/deliberation
+- Added `_generate_enforcement_directive(level, gate_result)` — produces production-ready directive sentences (≤12 words, declarative command tone)
+- Updated `_format_decision_branch_injection` to use rendered directives via regex replacement
+- Directives are context-aware: reference actual goal/block names, adapt to resistance type
+- Example outputs: "Execute morning routine as scheduled." (L0), "Stop deferring. Execute fitness goal today." (L2)
+- Updated tests: assertions check for rendered directives, no meta-text
+- 135 Phase 4 CoS tests pass
+- 10/10 stress prompts validate with correct enforcement level + rendered directive
+
+**Files modified:**
+- `apps/core/ai_orchestrator/cos_context.py` — Directive generator, subject extractor, resistance detector, injection update
+- `apps/core/tests/test_phase4_cos.py` — Updated enforcement framing tests for rendered directives
+
+**Why:** R5 enforcement framing used meta-instruction text ("One-line directive, e.g. …") that would appear verbatim in LLM system prompt. The LLM would see instructional language instead of an actual directive. R5B replaces all meta-text with concrete, context-aware sentences that read as production-ready commands.
+
+---
+
 ## 2026-02-22 — Phase 4 R5: Controlled Enforcement Escalation Ladder
 
 **Changes:**

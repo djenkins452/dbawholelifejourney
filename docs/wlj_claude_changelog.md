@@ -9,6 +9,32 @@
 
 # WLJ Change History
 
+## 2026-02-23 — Phase 8 Hotfix: No-Action Guardrail (Unverifiable Action Claim Blocker)
+
+**Root Cause:** When the AI assistant received requests it couldn't execute (delete, update, reschedule calendar events), the intent service returned `no_action`, the system fell through to free-form LLM response generation, and the LLM fabricated confirmations like "✓ Removed" or "I've rescheduled" without any database operation occurring. This was a write-path integrity failure discovered during manual testing.
+
+**Changes:**
+- Added deterministic action-confirmation language detector to Phase 8 validator gate
+  - Detects checkmark confirmations (✓/✔/☑ + action verb)
+  - Detects "I've scheduled/removed/deleted/etc." patterns
+  - Detects "I verb it/that/the/your" patterns
+  - Detects "It's set/been scheduled" patterns
+  - Detects "I took care of that/it" patterns
+  - Case-insensitive, robust to punctuation variations
+- Added `action_executed` boolean parameter to `validate_response()`
+- Wired `action_executed=bool(actions_taken)` in `PersonalAssistant.send_message()`
+- When `action_executed=False` and action-claim language detected: BLOCK response, replace with truthful template
+- Governance logging: SelfError Level 2 (STRUCTURAL, UNVERIFIABLE_ACTION_CLAIM), DecisionRecord, OpsAnomaly
+- Backward-compatible: `action_executed=None` (legacy callers) skips the check
+- 38 new tests covering blocking, pass-through, false positives, governance artifacts, and no-regression
+
+**Files Modified:**
+- `apps/core/ai_governance/validator_gate.py` — action-claim detector, blocking logic, logging helper
+- `apps/ai/personal_assistant.py` — pass `action_executed` to validator gate
+- `apps/core/tests/test_validator_gate_action_claims.py` — 38 new tests (NEW)
+
+**Why:** Executive trust patch. The CoS must never claim it performed an action that didn't execute. This guardrail is a hard block — no LLM-generated false confirmation can bypass it.
+
 ## 2026-02-23 — Phase 7: Test Expansion (CoS Executive Audit Coverage)
 
 **Changes:**

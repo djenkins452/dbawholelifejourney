@@ -2,10 +2,14 @@
 Phase 8 — Pre-Release Validator Gate.
 
 Deterministic validator that inspects every LLM-generated response BEFORE
-it is persisted or returned to the user. Enforces two policies:
+it is persisted or returned to the user. Enforces three policies:
 
     Structural-Critical: Banned internal terms in response text.
         → BLOCK: replace response with safe template, log SelfError Level 2.
+
+    Unverifiable-Action-Claim: LLM claims an action was performed (scheduled,
+        removed, confirmed, etc.) when no backend tool actually executed.
+        → BLOCK: replace with truthful template, log SelfError Level 2.
 
     Numeric-Dependent: Internal numeric thresholds/scores exposed.
         → OBSERVE-ONLY: log SelfError Level 1, return original response.
@@ -15,7 +19,7 @@ If the validator itself crashes:
     → Return safe constrained response (never the original, never silent bypass).
 
 Public API:
-    validate_response(response, user, conversation=None) -> dict
+    validate_response(response, user, conversation=None, action_executed=None) -> dict
 """
 
 import hashlib
@@ -44,6 +48,13 @@ VALIDATOR_CRASH_RESPONSE = (
     "Let me take a step back.\n\n"
     "What's the most important thing on your mind right now? "
     "I'll focus there."
+)
+
+UNVERIFIABLE_ACTION_CLAIM_RESPONSE = (
+    "I can't confirm that change was made because no calendar update was "
+    "executed. I can create new events, but updates or removals aren't "
+    "available through chat yet. If you want, I can create a new event "
+    "for the correct date and time."
 )
 
 
@@ -120,6 +131,43 @@ _NUMERIC_SAFE_PATTERNS = [
 ]
 
 
+# =========================================================================
+# Action-Claim Detection — Unverifiable Action Confirmations
+# =========================================================================
+
+# Patterns that indicate the LLM is claiming it performed a backend action.
+# These ONLY trigger when action_executed=False (no tool actually ran).
+_ACTION_CLAIM_PATTERNS = [
+    # Checkmark confirmations: "✓ Scheduled", "✓ Removed", "✓ Confirmed"
+    re.compile(r'[✓✔☑]\s*(?:scheduled|removed|confirmed|deleted|updated|rescheduled|added|created|cancelled|canceled)', re.IGNORECASE),
+    # "I've <past-tense action>"
+    re.compile(r"\bI'?ve\s+(?:scheduled|removed|deleted|added|rescheduled|updated|confirmed|created|cancelled|canceled|set\s+that|taken\s+care)", re.IGNORECASE),
+    # "I <past-tense action> it/that/the/your"
+    re.compile(r'\bI\s+(?:scheduled|removed|deleted|added|rescheduled|updated|confirmed|created|cancelled|canceled)\s+(?:it|that|the|your|those|both|all|them)\b', re.IGNORECASE),
+    # "It's set" / "It's been scheduled/removed"
+    re.compile(r"\bit'?s\s+(?:set|been\s+(?:scheduled|removed|deleted|updated|rescheduled|added|confirmed|created))\b", re.IGNORECASE),
+    # "I took care of that" / "I took care of it"
+    re.compile(r'\bI\s+took\s+care\s+of\s+(?:that|it|those)\b', re.IGNORECASE),
+    # Standalone "Done" as action completion (must be near start of sentence or alone)
+    re.compile(r'(?:^|[.!]\s*)Done[.!]?\s*(?:$|[A-Z])', re.MULTILINE),
+]
+
+
+def _check_action_claims(response_text):
+    """
+    Check response for action-confirmation language.
+
+    Returns:
+        list[str] — matched claim phrases (empty if clean).
+    """
+    found = []
+    for pattern in _ACTION_CLAIM_PATTERNS:
+        matches = pattern.findall(response_text)
+        for match in matches:
+            found.append(match.strip())
+    return found
+
+
 def _check_numeric_deviations(response_text):
     """
     Check response for internal numeric/threshold leakage.
@@ -161,13 +209,14 @@ def _response_hash(response_text):
     return hashlib.sha256(response_text.encode('utf-8')).hexdigest()
 
 
-def validate_response(response, user=None, conversation=None):
+def validate_response(response, user=None, conversation=None, action_executed=None):
     """
     Pre-release validation gate for LLM-generated responses.
 
     Checks:
         1. Structural violations (banned terms) → BLOCK + replace
-        2. Numeric deviations (internal scores) → OBSERVE-ONLY
+        2. Unverifiable action claims (when no action executed) → BLOCK + replace
+        3. Numeric deviations (internal scores) → OBSERVE-ONLY
 
     On validator crash:
         → Level 3 SelfError + OpsAnomaly + safe constrained response.
@@ -176,6 +225,9 @@ def validate_response(response, user=None, conversation=None):
         response: str — the LLM response text to validate.
         user: User instance (nullable).
         conversation: AssistantConversation (nullable, for context).
+        action_executed: bool or None — whether a backend action was
+            executed in this request. When False, action-confirmation
+            language in the response triggers a BLOCK.
 
     Returns:
         dict:
@@ -184,7 +236,7 @@ def validate_response(response, user=None, conversation=None):
             'violations': list — detected violations (for logging).
     """
     try:
-        return _validate_response_inner(response, user, conversation)
+        return _validate_response_inner(response, user, conversation, action_executed)
     except Exception as exc:
         # ── VALIDATOR CRASH — never silent bypass ──
         logger.error("Phase 8: Validator gate CRASHED: %s", exc)
@@ -203,7 +255,7 @@ def validate_response(response, user=None, conversation=None):
         }
 
 
-def _validate_response_inner(response, user, conversation):
+def _validate_response_inner(response, user, conversation, action_executed=None):
     """Inner validation logic — may raise on unexpected errors."""
     if not response or not isinstance(response, str):
         return {'response': response or '', 'blocked': False, 'violations': []}
@@ -228,7 +280,26 @@ def _validate_response_inner(response, user, conversation):
             'violations': violations,
         }
 
-    # ── 2. Numeric check (OBSERVE-ONLY) ──
+    # ── 2. Unverifiable action-claim check (BLOCKING) ──
+    # Only fires when we KNOW no backend action executed (action_executed=False).
+    # When action_executed is None (legacy callers), this check is skipped.
+    if action_executed is False:
+        action_claims = _check_action_claims(response)
+        if action_claims:
+            violations.extend([f'ACTION_CLAIM:{c}' for c in action_claims])
+            _log_unverifiable_action_claim(
+                user=user,
+                claims_found=action_claims,
+                resp_hash=resp_hash,
+                trace_id=trace_id,
+            )
+            return {
+                'response': UNVERIFIABLE_ACTION_CLAIM_RESPONSE,
+                'blocked': True,
+                'violations': violations,
+            }
+
+    # ── 3. Numeric check (OBSERVE-ONLY) ──
     numeric = _check_numeric_deviations(response)
     if numeric:
         violations.extend([f'NUMERIC:{m}' for m in numeric])
@@ -337,6 +408,61 @@ def _log_numeric_deviation(user, matches, resp_hash, trace_id):
         )
     except Exception as e:
         logger.warning("Phase 8: Failed to log decision record: %s", e)
+
+
+def _log_unverifiable_action_claim(user, claims_found, resp_hash, trace_id):
+    """Log SelfError + DecisionRecord + OpsAnomaly for unverifiable action claim."""
+    claims_str = ', '.join(claims_found[:5])
+
+    # SelfError Level 2
+    try:
+        from apps.core.ai_governance.self_governance import record_self_error
+        record_self_error(
+            user=user,
+            level=2,
+            category='STRUCTURAL',
+            trigger_code='UNVERIFIABLE_ACTION_CLAIM',
+            trigger_detail=f"Action-claim language with no backend execution: {claims_str}",
+            original_response_hash=resp_hash,
+            was_blocked=True,
+            trace_id=trace_id,
+        )
+    except Exception as e:
+        logger.warning("Phase 8: Failed to log unverifiable action claim: %s", e)
+
+    # DecisionRecord
+    try:
+        from apps.core.ai_observability.models import DecisionRecord
+        DecisionRecord.objects.create(
+            trace_id=trace_id,
+            decision_type='validation',
+            engine_name='VGE',
+            decision='BLOCK_UNVERIFIABLE_ACTION_CLAIM',
+            rationale=f"LLM claimed action without backend execution: {claims_str}",
+            inputs_summary=f"response_hash={resp_hash[:16]}...",
+            affected_items=claims_found[:5],
+            user_id=user.id if user else None,
+            confidence=1.0,
+        )
+    except Exception as e:
+        logger.warning("Phase 8: Failed to log action-claim decision record: %s", e)
+
+    # OpsAnomaly
+    try:
+        from apps.core.ai_observability.models import OpsAnomaly
+        OpsAnomaly.objects.create(
+            severity='P2',
+            engine_name='VGE',
+            anomaly_type='STRUCTURAL_VIOLATION',
+            summary=f"LLM fabricated action confirmation: {claims_str}",
+            evidence={'claims': claims_found, 'response_hash': resp_hash},
+            suggested_actions=[
+                "Review LLM system prompt to discourage false confirmations.",
+                "Implement delete/update event tools to handle these requests.",
+            ],
+        )
+    except Exception as e:
+        logger.warning("Phase 8: Failed to log action-claim ops anomaly: %s", e)
 
 
 def _handle_validator_crash(original_response, user, exc):

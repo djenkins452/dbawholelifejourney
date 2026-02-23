@@ -2308,14 +2308,16 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
 
                 # ── Phase 8: Pre-release validator gate ──────────────
                 # Inspect LLM response before persistence. Structural
-                # violations are blocked (replaced); numeric deviations
-                # are observe-only. Validator crash returns safe response.
+                # violations are blocked (replaced); unverifiable action
+                # claims are blocked; numeric deviations are observe-only.
+                # Validator crash returns safe response.
                 try:
                     from apps.core.ai_governance.validator_gate import (
                         validate_response,
                     )
                     validation = validate_response(
                         response, self.user, conversation,
+                        action_executed=bool(actions_taken),
                     )
                     response = validation['response']
                 except Exception:

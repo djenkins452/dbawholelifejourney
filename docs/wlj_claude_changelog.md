@@ -9,6 +9,24 @@
 
 # WLJ Change History
 
+## 2026-02-22 — Phase 5A Precedence Correction: ECC Before Task Creation
+
+**Changes:**
+- Moved ECC detection to the top of `send_message()` — immediately after AI availability check, before ALL other handlers (proactive confirmation, calibration, data visibility, learning mode, intent recognition)
+- Removed redundant ECC block from the `else` clause before intent recognition
+- ECC now has absolute precedence: commitment tightening short-circuits the entire pipeline before any task creation, scheduling, or LLM call can fire
+- Added 2 precedence tests verifying intent recognition is never called when ECC tightening is active
+
+**Root cause:** ECC was inside the `else` block at the bottom of `send_message()`'s handler chain. When calibration was active (common for users), the `elif self._is_calibration_active()` branch fired first and bypassed the `else` block entirely. Task creation via intent recognition also lived above ECC. The fix moves ECC to the top of the handler chain.
+
+**Files modified:**
+- `apps/ai/personal_assistant.py` — ECC moved to top of `send_message()` handler chain
+- `apps/core/tests/test_phase5_commitment_pipeline.py` — 2 new precedence tests
+
+**Verification:** 199 tests pass (43 ECC unit + 7 pipeline + 149 Phase 4)
+
+---
+
 ## 2026-02-22 — Phase 5A Hotfix: ECC Pipeline Wiring
 
 **Changes:**

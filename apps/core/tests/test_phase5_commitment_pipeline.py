@@ -283,3 +283,92 @@ class ECCProcessECCDetectionCalledTest(_PipelineTestMixin, TestCase):
             "I'll finish the compensation model.",
             str(call_kwargs),
         )
+
+
+class ECCPrecedenceOverTaskCreationTest(_PipelineTestMixin, TestCase):
+    """
+    ECC must block task creation when tightening is needed.
+
+    Input: "I'll finish the compensation model by Friday at 3 PM."
+    Expected: "What does 'done' mean in one sentence?"
+    Must NOT call intent_service.recognize_intents or any task creation.
+    """
+
+    @patch('apps.ai.personal_assistant.AIService')
+    @patch('apps.ai.personal_assistant.ai_service')
+    def test_ecc_blocks_task_creation_with_tightening(
+        self, mock_ai, mock_ai_cls
+    ):
+        mock_ai.is_available = True
+        mock_ai_cls.check_user_consent = MagicMock(return_value=True)
+
+        pa = self._build_pa()
+        conversation = pa.get_or_create_conversation()
+
+        # Mock intent_service to track if it's called
+        from apps.ai import intent_service as intent_mod
+        original_recognize = intent_mod.intent_service.recognize_intents
+
+        recognize_called = {'called': False}
+
+        def track_recognize(*args, **kwargs):
+            recognize_called['called'] = True
+            return original_recognize(*args, **kwargs)
+
+        with patch.object(
+            intent_mod.intent_service, 'recognize_intents',
+            side_effect=track_recognize
+        ):
+            result = pa.send_message(
+                "I'll finish the compensation model by Friday at 3 PM.",
+                conversation=conversation,
+            )
+
+        # ECC should short-circuit with done-definition question
+        self.assertEqual(
+            result['response'],
+            "What does 'done' mean in one sentence?"
+        )
+
+        # Intent recognition should NOT have been called
+        self.assertFalse(
+            recognize_called['called'],
+            "Intent recognition should not run when ECC tightening is active"
+        )
+
+    @patch('apps.ai.personal_assistant.AIService')
+    @patch('apps.ai.personal_assistant.ai_service')
+    def test_ecc_blocks_task_creation_missing_time(
+        self, mock_ai, mock_ai_cls
+    ):
+        """Commitment without time → tightening before any task logic."""
+        mock_ai.is_available = True
+        mock_ai_cls.check_user_consent = MagicMock(return_value=True)
+
+        pa = self._build_pa()
+        conversation = pa.get_or_create_conversation()
+
+        from apps.ai import intent_service as intent_mod
+        recognize_called = {'called': False}
+
+        def track_recognize(*args, **kwargs):
+            recognize_called['called'] = True
+            return []
+
+        with patch.object(
+            intent_mod.intent_service, 'recognize_intents',
+            side_effect=track_recognize
+        ):
+            result = pa.send_message(
+                "I'll finish the compensation model.",
+                conversation=conversation,
+            )
+
+        self.assertEqual(
+            result['response'],
+            "When specifically will this be completed?"
+        )
+        self.assertFalse(
+            recognize_called['called'],
+            "Intent recognition should not run when ECC tightening is active"
+        )

@@ -1980,6 +1980,61 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         if not ai_service.is_available or not AIService.check_user_consent(self.user):
             response = self._get_fallback_response(message)
         else:
+            # Phase 5A: ECC has absolute precedence over ALL other checks.
+            # Must run before proactive confirmation, calibration, intent
+            # recognition, task creation, and LLM generation.
+            try:
+                from apps.core.ai_orchestrator.commitment_contract import (
+                    process_ecc_detection,
+                )
+                _ecc_tier = getattr(self, '_ecc_last_tier', 'CLEAN')
+                ecc_result = process_ecc_detection(
+                    user_input=message,
+                    tier=_ecc_tier,
+                    active_commitments=getattr(
+                        self, '_ecc_active_commitments', None
+                    ),
+                )
+                if ecc_result and ecc_result.get('detected'):
+                    ecc_response = None
+                    # Tightening question → short-circuit
+                    if (ecc_result.get('response')
+                            and not ecc_result.get('commitment')
+                            and not ecc_result.get('renegotiation')):
+                        ecc_response = ecc_result['response']
+                    # Renegotiation blocked → return choices
+                    elif (ecc_result.get('renegotiation')
+                          and ecc_result['renegotiation'].get('blocked')):
+                        choices = ecc_result['renegotiation'].get(
+                            'choices', [])
+                        parts = [
+                            f"{c['option']}) {c['description']}"
+                            for c in choices
+                        ]
+                        ecc_response = '\n'.join(parts)
+                    # Full commitment → store and confirm
+                    elif ecc_result.get('commitment'):
+                        if not hasattr(self, '_ecc_active_commitments'):
+                            self._ecc_active_commitments = []
+                        self._ecc_active_commitments.append(
+                            ecc_result['commitment']
+                        )
+                        ecc_response = ecc_result.get('response', '')
+
+                    if ecc_response:
+                        # Save assistant message and return immediately
+                        AssistantMessage.objects.create(
+                            conversation=conversation,
+                            role='assistant',
+                            content=ecc_response,
+                            message_type='text'
+                        )
+                        conversation.updated_at = timezone.now()
+                        conversation.save(update_fields=['updated_at'])
+                        return {'response': ecc_response}
+            except Exception as ecc_err:
+                logger.debug("ECC pre-check skipped: %s", ecc_err)
+
             # First, check for proactive check-in responses (e.g., "yes" to "Did you take your medicine?")
             proactive_result = handle_proactive_confirmation(self.user, message)
             if proactive_result and proactive_result.get('handled'):

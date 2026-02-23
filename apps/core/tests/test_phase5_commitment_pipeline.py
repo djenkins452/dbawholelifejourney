@@ -372,3 +372,152 @@ class ECCPrecedenceOverTaskCreationTest(_PipelineTestMixin, TestCase):
             recognize_called['called'],
             "Intent recognition should not run when ECC tightening is active"
         )
+
+
+class ECCCrossMessageContinuityTest(_PipelineTestMixin, TestCase):
+    """
+    Phase 5B: Active commitments must persist across messages via
+    conversation.metadata, not ephemeral instance attributes.
+    """
+
+    @patch('apps.ai.personal_assistant.AIService')
+    @patch('apps.ai.personal_assistant.ai_service')
+    def test_commitment_persists_across_messages(
+        self, mock_ai, mock_ai_cls
+    ):
+        """
+        Message 1: Create full commitment → stored in metadata.
+        Message 2: Renegotiation → commitment loaded from metadata.
+        """
+        mock_ai.is_available = True
+        mock_ai_cls.check_user_consent = MagicMock(return_value=True)
+
+        # --- Message 1: Full commitment ---
+        pa1 = self._build_pa()
+        conversation = pa1.get_or_create_conversation()
+        result1 = pa1.send_message(
+            "I'll finish the compensation model by 5pm today. "
+            "Done means the model spreadsheet is submitted to my manager.",
+            conversation=conversation,
+        )
+        self.assertIn('Commitment set:', result1['response'])
+
+        # Verify commitment stored in metadata
+        conversation.refresh_from_db()
+        ecc_data = conversation.metadata.get('ecc_active_commitment')
+        self.assertIsNotNone(
+            ecc_data, "Commitment must be stored in conversation.metadata"
+        )
+        self.assertEqual(ecc_data['status'], 'pending')
+
+        # --- Message 2: Renegotiation (new PA instance = new request) ---
+        pa2 = self._build_pa()
+        result2 = pa2.send_message(
+            "Move it to next week instead.",
+            conversation=conversation,
+        )
+        # Renegotiation should fire, not "no commitment detected"
+        self.assertIsNotNone(result2)
+        # Should NOT get a tightening question for new commitment
+        self.assertNotEqual(
+            result2['response'],
+            "When specifically will this be completed?",
+        )
+
+    @patch('apps.ai.personal_assistant.AIService')
+    @patch('apps.ai.personal_assistant.ai_service')
+    def test_renegotiation_early_erosion_blocks_across_messages(
+        self, mock_ai, mock_ai_cls
+    ):
+        """
+        EARLY_EROSION tier: renegotiation on persisted commitment
+        produces A/B blocking choices.
+        """
+        mock_ai.is_available = True
+        mock_ai_cls.check_user_consent = MagicMock(return_value=True)
+
+        # --- Message 1: Create commitment ---
+        pa1 = self._build_pa()
+        conversation = pa1.get_or_create_conversation()
+        result1 = pa1.send_message(
+            "I'll finish the report by 5pm today. "
+            "Done means the report is reviewed and submitted.",
+            conversation=conversation,
+        )
+        self.assertIn('Commitment set:', result1['response'])
+
+        # --- Message 2: Renegotiation with EARLY_EROSION tier ---
+        pa2 = self._build_pa()
+        # Set tier to EARLY_EROSION so blocking fires
+        pa2._ecc_last_tier = 'EARLY_EROSION'
+        result2 = pa2.send_message(
+            "I'm going to move it to next week instead.",
+            conversation=conversation,
+        )
+        # Should get A/B blocking choices
+        self.assertIn('A)', result2['response'])
+        self.assertIn('B)', result2['response'])
+
+    @patch('apps.ai.personal_assistant.AIService')
+    @patch('apps.ai.personal_assistant.ai_service')
+    def test_commitment_serialization_roundtrip(
+        self, mock_ai, mock_ai_cls
+    ):
+        """Commitment survives JSON serialization in metadata."""
+        from apps.core.ai_orchestrator.commitment_contract import Commitment
+
+        mock_ai.is_available = True
+        mock_ai_cls.check_user_consent = MagicMock(return_value=True)
+
+        # Create commitment via pipeline
+        pa = self._build_pa()
+        conversation = pa.get_or_create_conversation()
+        pa.send_message(
+            "I will decide on the vendor by tomorrow. "
+            "Done means the contract is signed.",
+            conversation=conversation,
+        )
+
+        # Reload from DB and deserialize
+        conversation.refresh_from_db()
+        ecc_data = conversation.metadata.get('ecc_active_commitment')
+        self.assertIsNotNone(ecc_data)
+
+        restored = Commitment.from_dict(ecc_data)
+        self.assertIsNotNone(restored)
+        self.assertEqual(restored.status, 'pending')
+        self.assertEqual(restored.commitment_type, 'DECIDE')
+        self.assertIn('vendor', restored.normalized_text.lower())
+
+    @patch('apps.ai.personal_assistant.AIService')
+    @patch('apps.ai.personal_assistant.ai_service')
+    def test_extract_commitment_fields_not_called_on_renegotiation(
+        self, mock_ai, mock_ai_cls
+    ):
+        """
+        When renegotiating a persisted commitment,
+        extract_commitment_fields must NOT be called.
+        """
+        mock_ai.is_available = True
+        mock_ai_cls.check_user_consent = MagicMock(return_value=True)
+
+        # Create commitment
+        pa1 = self._build_pa()
+        conversation = pa1.get_or_create_conversation()
+        pa1.send_message(
+            "I'll finish the report by 5pm today. "
+            "Done means the report is submitted.",
+            conversation=conversation,
+        )
+
+        # Renegotiate with mock on extract
+        pa2 = self._build_pa()
+        with patch(
+            'apps.core.ai_orchestrator.commitment_contract'
+            '.extract_commitment_fields'
+        ) as mock_extract:
+            pa2.send_message(
+                "Push it to tomorrow instead.",
+                conversation=conversation,
+            )
+            mock_extract.assert_not_called()

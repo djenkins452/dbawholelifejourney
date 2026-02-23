@@ -61,6 +61,34 @@ class Commitment:
     status: Literal['pending', 'closed_success', 'closed_missed'] = 'pending'
     time_boundary_display: Optional[str] = None
 
+    def to_dict(self):
+        """Serialize to JSON-safe dict for conversation.metadata storage."""
+        return {
+            'normalized_text': self.normalized_text,
+            'commitment_type': self.commitment_type,
+            'time_boundary': self.time_boundary.isoformat(),
+            'done_definition': self.done_definition,
+            'status': self.status,
+            'time_boundary_display': self.time_boundary_display,
+        }
+
+    @classmethod
+    def from_dict(cls, data):
+        """Deserialize from dict stored in conversation.metadata."""
+        if not data or not isinstance(data, dict):
+            return None
+        try:
+            return cls(
+                normalized_text=data['normalized_text'],
+                commitment_type=data['commitment_type'],
+                time_boundary=datetime.fromisoformat(data['time_boundary']),
+                done_definition=data['done_definition'],
+                status=data.get('status', 'pending'),
+                time_boundary_display=data.get('time_boundary_display'),
+            )
+        except (KeyError, ValueError, TypeError):
+            return None
+
 
 @dataclass
 class CommitmentDraft:

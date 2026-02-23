@@ -9,6 +9,27 @@
 
 # WLJ Change History
 
+## 2026-02-22 — Phase 5B: Lightweight Commitment Continuity (Cross-Message Persistence)
+
+**Changes:**
+- Added `to_dict()` and `from_dict()` methods to `Commitment` dataclass for JSON serialization/deserialization
+- Rewired `send_message()` ECC block to load active commitment from `conversation.metadata['ecc_active_commitment']` instead of ephemeral `self._ecc_active_commitments`
+- Rewired `_generate_response()` ECC block with same metadata-based persistence
+- On commitment creation → serialized to `conversation.metadata` and saved to DB
+- On message receive → deserialized from `conversation.metadata` and passed to `process_ecc_detection()`
+- Added 4 integration tests: cross-message persistence, EARLY_EROSION blocking across messages, serialization roundtrip, and mock verification that `extract_commitment_fields` is not called on renegotiation
+
+**Root cause:** `PersonalAssistant` is instantiated per-request. `self._ecc_active_commitments` (a plain Python list) was lost between HTTP requests. Renegotiation and closure could never work in production because the active commitment vanished after each response.
+
+**Files modified:**
+- `apps/core/ai_orchestrator/commitment_contract.py` — Commitment.to_dict(), Commitment.from_dict()
+- `apps/ai/personal_assistant.py` — metadata-based ECC persistence in send_message() and _generate_response()
+- `apps/core/tests/test_phase5_commitment_pipeline.py` — 4 new cross-message continuity tests
+
+**Verification:** 217 tests pass (68 Phase 5 + 149 Phase 4)
+
+---
+
 ## 2026-02-22 — Phase 5A Renegotiation Precedence: Detect Before New Commitment
 
 **Changes:**

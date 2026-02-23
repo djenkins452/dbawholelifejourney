@@ -1980,20 +1980,32 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         if not ai_service.is_available or not AIService.check_user_consent(self.user):
             response = self._get_fallback_response(message)
         else:
-            # Phase 5A: ECC has absolute precedence over ALL other checks.
+            # Phase 5A/5B: ECC has absolute precedence over ALL other checks.
             # Must run before proactive confirmation, calibration, intent
             # recognition, task creation, and LLM generation.
+            # Active commitment persisted in conversation.metadata for
+            # cross-message continuity.
             try:
                 from apps.core.ai_orchestrator.commitment_contract import (
+                    Commitment as EccCommitment,
                     process_ecc_detection,
                 )
                 _ecc_tier = getattr(self, '_ecc_last_tier', 'CLEAN')
+
+                # Load active commitment from conversation metadata
+                _ecc_metadata = (conversation.metadata or {}).get(
+                    'ecc_active_commitment'
+                )
+                _ecc_active = []
+                if _ecc_metadata:
+                    restored = EccCommitment.from_dict(_ecc_metadata)
+                    if restored and restored.status == 'pending':
+                        _ecc_active = [restored]
+
                 ecc_result = process_ecc_detection(
                     user_input=message,
                     tier=_ecc_tier,
-                    active_commitments=getattr(
-                        self, '_ecc_active_commitments', None
-                    ),
+                    active_commitments=_ecc_active or None,
                 )
                 if ecc_result and ecc_result.get('detected'):
                     ecc_response = None
@@ -2012,13 +2024,14 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                             for c in choices
                         ]
                         ecc_response = '\n'.join(parts)
-                    # Full commitment → store and confirm
+                    # Full commitment → persist and confirm
                     elif ecc_result.get('commitment'):
-                        if not hasattr(self, '_ecc_active_commitments'):
-                            self._ecc_active_commitments = []
-                        self._ecc_active_commitments.append(
-                            ecc_result['commitment']
+                        commitment = ecc_result['commitment']
+                        conversation.metadata = conversation.metadata or {}
+                        conversation.metadata['ecc_active_commitment'] = (
+                            commitment.to_dict()
                         )
+                        conversation.save(update_fields=['metadata'])
                         ecc_response = ecc_result.get('response', '')
 
                     if ecc_response:
@@ -2917,19 +2930,30 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                         )
                         cos_context['trajectory_activation_state'] = activation_state
 
-                        # Phase 5A: ECC detection — after tier eval, before R5.
+                        # Phase 5A/5B: ECC detection — after tier eval, before R5.
                         # Short-circuits with tightening question if commitment
                         # intent detected but required fields missing.
+                        # Active commitment loaded from conversation.metadata
+                        # for cross-message continuity.
                         try:
                             from apps.core.ai_orchestrator.commitment_contract import (
+                                Commitment as EccCommitment,
                                 process_ecc_detection,
                             )
+                            # Load active commitment from conversation metadata
+                            _ecc_meta = (conversation.metadata or {}).get(
+                                'ecc_active_commitment'
+                            )
+                            _ecc_list = []
+                            if _ecc_meta:
+                                _restored = EccCommitment.from_dict(_ecc_meta)
+                                if _restored and _restored.status == 'pending':
+                                    _ecc_list = [_restored]
+
                             ecc_result = process_ecc_detection(
                                 user_input=message,
                                 tier=activation_state,
-                                active_commitments=getattr(
-                                    self, '_ecc_active_commitments', None
-                                ),
+                                active_commitments=_ecc_list or None,
                             )
                             if ecc_result and ecc_result.get('detected'):
                                 # Tightening question → short-circuit
@@ -2947,16 +2971,23 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                                             f"{c['option']}) {c['description']}"
                                         )
                                     return '\n'.join(parts)
-                                # Active commitment → store, inject, confirm
+                                # Active commitment → persist, inject, confirm
                                 if ecc_result.get('commitment'):
-                                    if not hasattr(self, '_ecc_active_commitments'):
-                                        self._ecc_active_commitments = []
-                                    self._ecc_active_commitments.append(
-                                        ecc_result['commitment']
+                                    commitment = ecc_result['commitment']
+                                    # Persist to conversation metadata
+                                    conversation.metadata = (
+                                        conversation.metadata or {}
                                     )
-                                    cos_context['ecc_active_commitments'] = (
-                                        self._ecc_active_commitments
+                                    conversation.metadata[
+                                        'ecc_active_commitment'
+                                    ] = commitment.to_dict()
+                                    conversation.save(
+                                        update_fields=['metadata']
                                     )
+                                    # Inject into CoS context for prompt
+                                    cos_context['ecc_active_commitments'] = [
+                                        commitment
+                                    ]
                                     # Return deterministic confirmation
                                     if ecc_result.get('response'):
                                         return ecc_result['response']

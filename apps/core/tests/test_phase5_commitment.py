@@ -27,6 +27,7 @@ from apps.core.ai_orchestrator.commitment_contract import (
     format_ecc_injection,
     generate_tightening_question,
     normalize_commitment,
+    process_ecc_closure,
     process_ecc_detection,
     render_commitment_confirmation,
     render_positive_lock_in,
@@ -745,3 +746,87 @@ class RenegotiationReturnDisciplineTest(TestCase):
         self.assertIsNotNone(result)
         self.assertIsInstance(result['renegotiation'], RenegotiationBlocked)
         self.assertIsNone(result['commitment'])
+
+
+class ClosurePrecedenceTest(TestCase):
+    """
+    Phase 5C: Closure detection must execute before renegotiation
+    and new commitment detection.
+    """
+
+    def setUp(self):
+        self.commitment = Commitment(
+            normalized_text='Finish the compensation model',
+            commitment_type='DO',
+            time_boundary=datetime(2026, 2, 28, 15, 0),
+            done_definition='Revised ranges finalized and exported to Excel',
+            status='pending',
+        )
+
+    def test_its_done_closes_commitment(self):
+        """'It's done.' triggers closure with positive lock-in."""
+        result = process_ecc_closure("It's done.", self.commitment)
+        self.assertIsNotNone(result)
+        self.assertTrue(result['closed'])
+        self.assertEqual(
+            result['commitment'].status, 'closed_success'
+        )
+        self.assertEqual(
+            result['response'],
+            "Time boundary honored. Repeat this structure.",
+        )
+
+    def test_done_closes_commitment(self):
+        """'Done' triggers closure."""
+        result = process_ecc_closure("Done", self.commitment)
+        self.assertIsNotNone(result)
+        self.assertTrue(result['closed'])
+        self.assertEqual(result['commitment'].status, 'closed_success')
+
+    def test_finished_closes_commitment(self):
+        """'Finished' triggers closure."""
+        result = process_ecc_closure("Finished", self.commitment)
+        self.assertIsNotNone(result)
+        self.assertTrue(result['closed'])
+
+    def test_completed_closes_commitment(self):
+        """'Completed' triggers closure."""
+        result = process_ecc_closure("Completed!", self.commitment)
+        self.assertIsNotNone(result)
+        self.assertTrue(result['closed'])
+
+    def test_yes_closes_commitment(self):
+        """'Yes' triggers closure."""
+        result = process_ecc_closure("Yes", self.commitment)
+        self.assertIsNotNone(result)
+        self.assertTrue(result['closed'])
+
+    def test_i_finished_it_closes_commitment(self):
+        """'I finished it' triggers closure."""
+        result = process_ecc_closure("I finished it", self.commitment)
+        self.assertIsNotNone(result)
+        self.assertTrue(result['closed'])
+
+    def test_yeah_its_done_closes_commitment(self):
+        """'Yeah it's done' triggers closure."""
+        result = process_ecc_closure("Yeah it's done", self.commitment)
+        self.assertIsNotNone(result)
+        self.assertTrue(result['closed'])
+
+    def test_non_closure_returns_none(self):
+        """Non-closure input returns None."""
+        result = process_ecc_closure(
+            "What's the weather today?", self.commitment
+        )
+        self.assertIsNone(result)
+
+    def test_no_commitment_returns_none(self):
+        """No active commitment returns None."""
+        result = process_ecc_closure("Done", None)
+        self.assertIsNone(result)
+
+    def test_already_closed_returns_none(self):
+        """Already-closed commitment returns None."""
+        self.commitment.status = 'closed_success'
+        result = process_ecc_closure("Done", self.commitment)
+        self.assertIsNone(result)

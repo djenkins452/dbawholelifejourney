@@ -9,6 +9,28 @@
 
 # WLJ Change History
 
+## 2026-02-22 — Phase 5C: Closure Precedence Correction
+
+**Changes:**
+- Added `_CLOSURE_TRIGGERS` tuple and `_detect_closure_intent()` for deterministic closure detection
+- Added `process_ecc_closure()` public API function — detects closure intent, calls `close_commitment()`, returns structured result
+- Wired closure precedence into `send_message()` and `_generate_response()` — runs BEFORE renegotiation and `process_ecc_detection()`
+- On successful closure: commitment removed from `conversation.metadata`, positive lock-in returned, intent recognition never reached
+- Closure triggers: "it's done", "its done", "done", "finished", "completed", "i finished it", "yes", "yeah", "yep", "yea"
+- Added 10 unit tests in `ClosurePrecedenceTest` and 3 integration tests in `ECCClosurePrecedenceTest`
+
+**Root cause:** "It's done." was routed to workout logging intent recognition instead of closing the active ECC commitment. No closure precedence check existed before intent recognition in the ECC pipeline.
+
+**Files modified:**
+- `apps/core/ai_orchestrator/commitment_contract.py` — _CLOSURE_TRIGGERS, _detect_closure_intent(), process_ecc_closure()
+- `apps/ai/personal_assistant.py` — closure precedence in send_message() and _generate_response()
+- `apps/core/tests/test_phase5_commitment.py` — 10 new closure unit tests
+- `apps/core/tests/test_phase5_commitment_pipeline.py` — 3 new closure integration tests
+
+**Verification:** 89 tests pass (68 Phase 5 unit + 21 Phase 5 pipeline integration)
+
+---
+
 ## 2026-02-22 — Phase 5B: Tier Unification Correction
 
 **Changes:**

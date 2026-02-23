@@ -1989,6 +1989,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                 from apps.core.ai_orchestrator.commitment_contract import (
                     Commitment as EccCommitment,
                     process_ecc_detection,
+                    process_ecc_closure,
                 )
                 from apps.core.ai_orchestrator.cos_context import (
                     build_cos_context as _ecc_build_cos,
@@ -2009,10 +2010,36 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                     'ecc_active_commitment'
                 )
                 _ecc_active = []
+                _ecc_restored = None
                 if _ecc_metadata:
-                    restored = EccCommitment.from_dict(_ecc_metadata)
-                    if restored and restored.status == 'pending':
-                        _ecc_active = [restored]
+                    _ecc_restored = EccCommitment.from_dict(_ecc_metadata)
+                    if _ecc_restored and _ecc_restored.status == 'pending':
+                        _ecc_active = [_ecc_restored]
+
+                # Phase 5C: Closure precedence — check BEFORE renegotiation
+                # and new commitment detection. "It's done." must close the
+                # active commitment, not route to intent recognition.
+                if _ecc_restored and _ecc_restored.status == 'pending':
+                    closure = process_ecc_closure(message, _ecc_restored)
+                    if closure is not None:
+                        conversation.metadata = conversation.metadata or {}
+                        if closure.get('closed'):
+                            # Remove commitment from metadata
+                            conversation.metadata.pop(
+                                'ecc_active_commitment', None
+                            )
+                        conversation.save(update_fields=['metadata'])
+                        ecc_response = closure.get('response', '')
+                        if ecc_response:
+                            AssistantMessage.objects.create(
+                                conversation=conversation,
+                                role='assistant',
+                                content=ecc_response,
+                                message_type='text'
+                            )
+                            conversation.updated_at = timezone.now()
+                            conversation.save(update_fields=['updated_at'])
+                            return {'response': ecc_response}
 
                 ecc_result = process_ecc_detection(
                     user_input=message,
@@ -2939,16 +2966,46 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                             from apps.core.ai_orchestrator.commitment_contract import (
                                 Commitment as EccCommitment,
                                 process_ecc_detection,
+                                process_ecc_closure,
                             )
                             # Load active commitment from conversation metadata
                             _ecc_meta = (conversation.metadata or {}).get(
                                 'ecc_active_commitment'
                             )
                             _ecc_list = []
+                            _ecc_restored = None
                             if _ecc_meta:
-                                _restored = EccCommitment.from_dict(_ecc_meta)
-                                if _restored and _restored.status == 'pending':
-                                    _ecc_list = [_restored]
+                                _ecc_restored = EccCommitment.from_dict(
+                                    _ecc_meta
+                                )
+                                if (
+                                    _ecc_restored
+                                    and _ecc_restored.status == 'pending'
+                                ):
+                                    _ecc_list = [_ecc_restored]
+
+                            # Phase 5C: Closure precedence
+                            if (
+                                _ecc_restored
+                                and _ecc_restored.status == 'pending'
+                            ):
+                                _closure = process_ecc_closure(
+                                    message, _ecc_restored
+                                )
+                                if _closure is not None:
+                                    conversation.metadata = (
+                                        conversation.metadata or {}
+                                    )
+                                    if _closure.get('closed'):
+                                        conversation.metadata.pop(
+                                            'ecc_active_commitment', None
+                                        )
+                                    conversation.save(
+                                        update_fields=['metadata']
+                                    )
+                                    _cr = _closure.get('response', '')
+                                    if _cr:
+                                        return _cr
 
                             ecc_result = process_ecc_detection(
                                 user_input=message,

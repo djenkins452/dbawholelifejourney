@@ -625,6 +625,92 @@ def render_positive_lock_in(commitment):
 
 
 # =========================================================================
+# CLOSURE TRIGGERS
+# =========================================================================
+
+# Lexical triggers indicating commitment closure intent.
+# Checked BEFORE renegotiation and new commitment detection.
+# Matched against normalized input (lowercase, apostrophes stripped).
+_CLOSURE_TRIGGERS = (
+    'its done',
+    'done',
+    'finished',
+    'completed',
+    'i finished it',
+    'yes',
+    'yeah',
+    'yep',
+    'yea',
+)
+
+
+def _detect_closure_intent(text):
+    """
+    Detect closure intent via lexical matching.
+
+    Deterministic only. No LLM.
+
+    Args:
+        text: str — user input.
+
+    Returns:
+        bool — True if closure language detected.
+    """
+    if not text:
+        return False
+    normalized = _normalize_for_matching(text)
+    return any(trigger in normalized for trigger in _CLOSURE_TRIGGERS)
+
+
+def process_ecc_closure(user_input, commitment):
+    """
+    Attempt to close an active commitment based on user input.
+
+    Precedence: closure runs BEFORE renegotiation and new commitment detection.
+    If user input contains closure triggers, calls close_commitment().
+
+    Args:
+        user_input: str — user's message.
+        commitment: Commitment — active pending commitment.
+
+    Returns:
+        dict with:
+            'closed': bool — whether closure was processed.
+            'commitment': Commitment | None — updated commitment if closed.
+            'response': str — closure response or clarification question.
+        Or None if no closure intent detected.
+    """
+    if not commitment or commitment.status != 'pending':
+        return None
+
+    if not _detect_closure_intent(user_input):
+        return None
+
+    result = close_commitment(commitment, user_input)
+
+    if isinstance(result, Commitment):
+        # Closed (success or missed)
+        response = ''
+        if result.status == 'closed_success':
+            lock_in = render_positive_lock_in(result)
+            response = lock_in or ''
+        elif result.status == 'closed_missed':
+            response = "Commitment missed. What blocked completion?"
+        return {
+            'closed': True,
+            'commitment': result,
+            'response': response,
+        }
+
+    # Ambiguous — return clarification question
+    return {
+        'closed': False,
+        'commitment': None,
+        'response': result,  # "Is it done — yes or no?"
+    }
+
+
+# =========================================================================
 # RENEGOTIATION TRIGGERS
 # =========================================================================
 

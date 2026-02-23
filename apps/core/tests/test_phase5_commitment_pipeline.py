@@ -673,3 +673,146 @@ class ECCTierUnificationTest(_PipelineTestMixin, TestCase):
         self.assertIn('B)', result_sm['response'])
         self.assertIn('A)', result_gr)
         self.assertIn('B)', result_gr)
+
+
+class ECCClosurePrecedenceTest(_PipelineTestMixin, TestCase):
+    """
+    Phase 5C: 'It's done.' must close the active commitment
+    before any intent recognition or task creation runs.
+    """
+
+    @patch('apps.core.ai_orchestrator.cos_context.determine_activation_state',
+           return_value='CLEAN')
+    @patch('apps.ai.personal_assistant.AIService')
+    @patch('apps.ai.personal_assistant.ai_service')
+    def test_closure_before_intent_recognition(
+        self, mock_ai, mock_ai_cls, mock_determine_tier
+    ):
+        """
+        1) Create commitment
+        2) Separate request: 'It's done.'
+        3) Verify: closure executed, metadata cleared, lock-in returned,
+           intent recognition NOT called.
+        """
+        mock_ai.is_available = True
+        mock_ai_cls.check_user_consent = MagicMock(return_value=True)
+
+        # --- Message 1: Create commitment ---
+        pa1 = self._build_pa()
+        conversation = pa1.get_or_create_conversation()
+        result1 = pa1.send_message(
+            "I'll finish the report by 5pm today. "
+            "Done means the report is reviewed and submitted.",
+            conversation=conversation,
+        )
+        self.assertIn('Commitment set:', result1['response'])
+
+        # Verify commitment stored
+        conversation.refresh_from_db()
+        self.assertIsNotNone(
+            conversation.metadata.get('ecc_active_commitment')
+        )
+
+        # --- Message 2: Close commitment (new PA instance = new request) ---
+        pa2 = self._build_pa()
+
+        from apps.ai import intent_service as intent_mod
+        recognize_called = {'called': False}
+
+        def track_recognize(*args, **kwargs):
+            recognize_called['called'] = True
+            return []
+
+        with patch.object(
+            intent_mod.intent_service, 'recognize_intents',
+            side_effect=track_recognize
+        ):
+            result2 = pa2.send_message(
+                "It's done.",
+                conversation=conversation,
+            )
+
+        # Positive lock-in response
+        self.assertEqual(
+            result2['response'],
+            "Time boundary honored. Repeat this structure.",
+        )
+
+        # Commitment cleared from metadata
+        conversation.refresh_from_db()
+        self.assertIsNone(
+            conversation.metadata.get('ecc_active_commitment'),
+            "Commitment must be removed from metadata after closure",
+        )
+
+        # Intent recognition must NOT have been called
+        self.assertFalse(
+            recognize_called['called'],
+            "Intent recognition should not run when ECC closure fires",
+        )
+
+    @patch('apps.core.ai_orchestrator.cos_context.determine_activation_state',
+           return_value='CLEAN')
+    @patch('apps.ai.personal_assistant.AIService')
+    @patch('apps.ai.personal_assistant.ai_service')
+    def test_done_closes_commitment(
+        self, mock_ai, mock_ai_cls, mock_determine_tier
+    ):
+        """'Done' (bare word) triggers closure."""
+        mock_ai.is_available = True
+        mock_ai_cls.check_user_consent = MagicMock(return_value=True)
+
+        pa1 = self._build_pa()
+        conversation = pa1.get_or_create_conversation()
+        pa1.send_message(
+            "I'll finish the report by 5pm today. "
+            "Done means the report is submitted.",
+            conversation=conversation,
+        )
+
+        pa2 = self._build_pa()
+        result = pa2.send_message(
+            "Done",
+            conversation=conversation,
+        )
+        self.assertEqual(
+            result['response'],
+            "Time boundary honored. Repeat this structure.",
+        )
+        conversation.refresh_from_db()
+        self.assertIsNone(
+            conversation.metadata.get('ecc_active_commitment'),
+        )
+
+    @patch('apps.core.ai_orchestrator.cos_context.determine_activation_state',
+           return_value='CLEAN')
+    @patch('apps.ai.personal_assistant.AIService')
+    @patch('apps.ai.personal_assistant.ai_service')
+    def test_non_closure_does_not_close(
+        self, mock_ai, mock_ai_cls, mock_determine_tier
+    ):
+        """Non-closure input does not close the commitment."""
+        mock_ai.is_available = True
+        mock_ai_cls.check_user_consent = MagicMock(return_value=True)
+
+        pa1 = self._build_pa()
+        conversation = pa1.get_or_create_conversation()
+        pa1.send_message(
+            "I'll finish the report by 5pm today. "
+            "Done means the report is submitted.",
+            conversation=conversation,
+        )
+
+        # Renegotiation message should NOT close
+        pa2 = self._build_pa()
+        pa2.send_message(
+            "Move it to tomorrow instead.",
+            conversation=conversation,
+        )
+        conversation.refresh_from_db()
+        # Commitment should still exist (renegotiated, not closed)
+        ecc = conversation.metadata.get('ecc_active_commitment')
+        self.assertIsNotNone(
+            ecc,
+            "Non-closure input must not remove commitment from metadata",
+        )

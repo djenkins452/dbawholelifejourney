@@ -17,7 +17,7 @@
 | Phase | Title | Tier | Status | Started | Completed | Notes |
 |-------|-------|------|--------|---------|-----------|-------|
 | 1 | Commitment System Hardening | T1 — Critical Structural Integrity | ✅ Complete | 2026-02-23 | 2026-02-23 | Persistent model, history, concurrency, false-positive mitigation |
-| 2 | Time & Deadline Authority Reinforcement | T2 — Executive-Quality Reliability | Not Started | — | — | Explicit boundaries, DST, deadline surfacing, conflict detection |
+| 2 | Time & Deadline Authority Reinforcement | T2 — Executive-Quality Reliability | Ready for Execution (Policies Locked) | — | — | Explicit boundaries, DST, deadline surfacing, conflict detection |
 | 3 | Drift & Escalation Continuity | T2 — Executive-Quality Reliability | Not Started | — | — | Persistent escalation, decay model, downgrade prevention |
 | 4 | Forecasting & Pressure Modeling | T3 — Forward-Looking Intelligence | Not Started | — | — | Calendar density, pressure index, deadline collision |
 | 5 | Protective Action Engine | T4 — Proactive Protection | Not Started | — | — | Auto-recommendations, capacity warnings, pre-deadline alerts |
@@ -124,7 +124,7 @@ Models are additive. If Phase 1 fails:
 
 #### Objective
 
-Eliminate silent time defaults, add DST transition safety, enforce explicit time boundaries on all commitments, and build a deadline surfacing engine that proactively alerts on upcoming deadlines.
+Establish authoritative, deterministic time handling and proactive deadline surfacing by eliminating silent defaults, enforcing explicit time boundaries, adding DST safety, implementing local-intent timezone recalculation, and introducing ISE-driven deadline snapshots.
 
 #### Why It Matters
 
@@ -144,14 +144,13 @@ The audit identified:
 
 | # | Task | Description |
 |---|------|-------------|
-| 2.1 | Enforce explicit time boundary | When `_parse_time_boundary()` would default to end-of-day (23:59), return a `MissingField('time_boundary')` instead. User must specify a concrete time. Add config option `ALLOW_END_OF_DAY_DEFAULT = False`. |
-| 2.2 | Fix `datetime.now()` usage | Replace `datetime.now()` in `_handle_clean_renegotiation()` with `get_current_local_datetime(user)` or `system_clock.get_current_time()`. Audit all CoS files for other `datetime.now()` or `timezone.now()` usages. |
-| 2.3 | Add DST transition handling | Add `pytz` / `zoneinfo` aware transitions in `_parse_time_boundary()`. When a parsed time falls in DST gap (spring forward) or fold (fall back), disambiguate deterministically: always use the first occurrence (fold) or next valid time (gap). |
-| 2.4 | DST transition tests | Test suite: commitment set for 2:30 AM on spring-forward day (time doesn't exist), commitment set for 1:30 AM on fall-back day (time exists twice), deadline crossing DST boundary, scheduling across DST transition. |
-| 2.5 | Timezone-change safety | If user changes timezone mid-session (or between sessions), recalculate all pending commitment time boundaries in new timezone. Add `timezone_at_creation` field to Commitment model (Phase 1). Log timezone changes. |
-| 2.6 | Build deadline surfacing engine | New function `surface_upcoming_deadlines(user)` in `cos_context.py`: query all pending commitments + calendar events + goal deadlines. Return categorized: `due_24h`, `due_72h`, `due_7d`. Inject into CoS context for proactive briefing. |
-| 2.7 | Protected-block conflict detection hardening | Enhance `ScheduledBlock` overlap detection in `architecture_engine.py`. When a new block would overlap an existing `is_locked=True` block, raise a conflict instead of silently scheduling. Surface conflicts in CoS context. |
-| 2.8 | Write tests | DST transitions (spring/fall), timezone changes, explicit time enforcement, deadline surfacing accuracy, conflict detection. |
+| 2.1 | Enforce explicit time boundary | Silent end-of-day (23:59) default is removed. `_parse_time_boundary()` must return `MissingField("time_boundary")` when time is not explicitly specified. `ALLOW_END_OF_DAY_DEFAULT = False` hardcoded. No fallback to 23:59. Tightening question required. |
+| 2.2 | Time authority audit | Audit entire CoS codebase for: `datetime.now()`, `timezone.now()`, naive datetime creation. Replace all time access with `get_current_local_datetime(user)` or `system_clock.get_current_time()`. Confirm single time authority invariant. |
+| 2.3 | DST handling determinism | Use `zoneinfo` (not `pytz`). Spring-forward gap: move to next valid time. Fall-back fold: always select first occurrence (`fold=0`). Deterministic behavior only. No prompting user for DST ambiguity. |
+| 2.4 | Timezone change behavior (local-intent preservation) | Timezone Change Model = Local-Intent Preservation. When user timezone changes, for all `Commitment` where `status='pending'`: preserve original wall-clock time, recalculate UTC value using new timezone, use stored `timezone_at_creation`, add field `timezone_at_last_recalculation`, log timezone recalculation event. Do NOT prompt user. Do NOT preserve absolute UTC. Completed commitments unaffected. |
+| 2.5 | Deadline surfacing engine (ISE-driven) | Deadline surfacing is ISE-driven only. Create `DeadlineSnapshot` model: `user`, `due_24h`, `due_72h`, `due_7d`, `collision_flags`, `computed_at`. ISE runs every 5 minutes. Only executes if: pending commitments OR future goal deadlines OR scheduled blocks in next 7 days. `build_cos_context()` reads latest snapshot. If snapshot >10 minutes old: raise SAME anomaly `STALE_DEADLINE_SNAPSHOT`. No deadline computation inside `send_message()`. |
+| 2.6 | Protected block conflict enforcement (graduated resistance) | Tier 1 Conflict Model = Graduated Resistance. When scheduling overlaps Tier 1 block: (1) First attempt — hard block, explain conflict, reference user's Tier 1 designation, offer alternatives. (2) Explicit override required — only allow if user states deterministic override phrase "Override Tier 1 protection". (3) On override — create `Tier1OverrideEvent`, log: `user`, `original_block_id`, `conflicting_block_id`, `timestamp`, `escalation_level_at_time`, `density_score_at_time`. Feed into drift and pressure modeling. Tier 2 & Tier 3: warn but allow without override phrase. |
+| 2.7 | Write tests | Spring-forward gap handling. Fall-back fold handling. Timezone change recalculation accuracy. Deadline snapshot accuracy. Snapshot staleness anomaly. Tier 1 graduated override logic. Override logging correctness. |
 
 #### Files Touched
 
@@ -168,23 +167,26 @@ The audit identified:
 
 #### Safety Invariants
 
-1. **Single time authority preserved** — All paths use `get_current_local_datetime(user)`
+1. **Single time authority preserved** — All paths use `get_current_local_datetime(user)` or `system_clock.get_current_time()`
 2. **No silent defaults for critical time parameters**
-3. **Existing commitments unaffected** — timezone-change recomputation is additive
-4. **Protected block locks unchanged** — conflict detection is advisory, not blocking
+3. **Timezone changes preserve local wall-clock intent** — completed commitments unaffected
+4. **Deadline computation never inside `send_message()`** — ISE-driven only via `DeadlineSnapshot`
+5. **Tier 1 protected blocks require explicit override phrase** — graduated resistance, not silent override
 
 #### Test Requirements
 
-- Spring-forward: commitment at 2:30 AM EST → resolves to 3:00 AM EDT
-- Fall-back: commitment at 1:30 AM EDT → resolves to first occurrence
-- Deadline surfacing: correct categorization into 24h/72h/7d buckets
-- Timezone change: pending commitment times recalculated
+- Spring-forward gap handling
+- Fall-back fold handling
+- Timezone change recalculation accuracy
+- Deadline snapshot accuracy
+- Snapshot staleness anomaly (`STALE_DEADLINE_SNAPSHOT`)
+- Tier 1 graduated override logic
+- Override logging correctness
 - Explicit time enforcement: "today" without time → tightening question
-- Conflict detection: locked block overlap raises warning
 
 #### Rollback Plan
 
-All changes are backward-compatible. DST handling and deadline surfacing are additive. The explicit time boundary enforcement can be toggled via `ALLOW_END_OF_DAY_DEFAULT`.
+All changes are backward-compatible. DST handling and deadline surfacing are additive. The explicit time boundary enforcement is hardcoded (`ALLOW_END_OF_DAY_DEFAULT = False`) but can be reverted. `DeadlineSnapshot` model is additive. `Tier1OverrideEvent` model is additive.
 
 ---
 
@@ -587,7 +589,7 @@ Tests are purely additive. Remove test files to roll back. No production impact.
 | 1 | ~~Should multi-commitment limit be enforced?~~ | Phase 1 | **RESOLVED** — Yes, hard limit of 5. |
 | 2 | Should the pressure index be visible to the user or admin-only initially? | Phase 4-5 | Before Phase 5 execution |
 | 3 | Should pre-deadline alerts be enabled by default or opt-in? | Phase 5 | Before Phase 5 execution |
-| 4 | Should timezone-change recomputation be automatic or prompt the user? | Phase 2 | Before Phase 2 execution |
+| 4 | ~~Should timezone-change recomputation be automatic or prompt the user?~~ | Phase 2 | **RESOLVED** — Automatic. Local-intent preservation, no user prompt. |
 | 5 | ~~What should the commitment false-positive exclusion list contain initially?~~ | Phase 1 | **RESOLVED** — Vague verb list defined; atomic verbs exempt from done-definition. |
 
 ---
@@ -598,6 +600,7 @@ Tests are purely additive. Remove test files to roll back. No production impact.
 |------|----------|-----------|-------|
 | 2026-02-23 | Project created | External audit identified 30+ upgrade opportunities | All |
 | 2026-02-23 | Locked structural policies for Phase 1–4 before implementation | Architectural precision before code execution | Phase 1–4 |
+| 2026-02-23 | Locked Phase 2 authority policies (timezone intent, ISE snapshots, graduated Tier 1 override, single time authority) | Deterministic time handling before execution | Phase 2 |
 
 ---
 
@@ -611,6 +614,10 @@ Tests are purely additive. Remove test files to roll back. No production impact.
 - Hybrid drift recovery model (7 clean days + behavioral proof).
 - Pressure weights configurable via `PressureWeightConfig`.
 - Backend idempotency protection (3-second duplicate window).
+- Timezone changes preserve local wall-clock intent.
+- Deadline surfacing is ISE-driven via `DeadlineSnapshot`.
+- Tier 1 conflicts use graduated resistance with explicit override and logging.
+- Single authoritative time source enforced across codebase.
 
 ---
 

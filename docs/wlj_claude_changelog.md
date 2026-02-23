@@ -9,6 +9,26 @@
 
 # WLJ Change History
 
+## 2026-02-22 — Phase 4 R3: Lexical Hardening
+
+**Changes:**
+- Expanded `_DECISION_INDICATORS` from 19 to ~60 phrases across 9 categories: deliberation, skip/cancel, deferral-by-action, explicit delay, time-based abandonment, repeated-deferral acknowledgement, commitment withdrawal, renegotiation acknowledgement, flat refusal
+- New indicator categories added: "supposed to start", "was supposed to", "it never happens", "keep saying", "keep pushing", "keep putting it off", "never actually"
+- Expanded `_EROSION_MARKERS` from 12 to 20 phrases: added "next month", "not happening", "when things calm down", "not ready yet", "someday", "eventually", "for now", and apostrophe-normalized variants
+- Added `_normalize_input()` — lowercases, normalizes curly quotes/apostrophes, strips all apostrophes (contractions match without), removes punctuation, collapses whitespace
+- Updated `_detect_decision_language()` and `detect_erosion_markers()` to use normalization layer
+- Removed apostrophe-containing duplicate erosion markers (normalization handles all contraction forms)
+- Re-ran 10 stress prompts: all 5 previously-failing prompts (#1, #2, #4, #6, #9) now activate correctly; #10 correctly suppressed without alignment target; #3, #7, #8 correctly suppressed (no decision language)
+- 114 Phase 4 CoS tests pass (5 new tests for R3 round-2 indicators)
+
+**Files modified:**
+- `apps/core/ai_orchestrator/cos_context.py` — Normalization layer, expanded indicators/markers
+- `apps/core/tests/test_phase4_cos.py` — LexicalHardeningTest class (35 tests), updated existing test assertions
+
+**Why:** R1+R2 validation identified 5 false negatives due to narrow decision indicator vocabulary. Input normalization ensures punctuation, contractions, and curly quotes never block pattern matching. Expanded indicator set covers deferral-acknowledgement, missed-commitment, and repeated-postponement language patterns found in real user stress prompts.
+
+---
+
 ## 2026-02-22 — Phase 4 R2: Cost-of-Inaction Modeling (CIM)
 
 **Changes:**

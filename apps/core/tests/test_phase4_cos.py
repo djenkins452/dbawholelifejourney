@@ -376,10 +376,10 @@ class TieredActivationTest(TestCase):
         self.assertIn('not a big deal', result)
 
     def test_detect_erosion_markers_case_insensitive(self):
-        """Erosion detection is case-insensitive."""
+        """Erosion detection is case-insensitive and normalizes apostrophes."""
         from apps.core.ai_orchestrator.cos_context import detect_erosion_markers
         result = detect_erosion_markers("It's Fine, I'll handle it Next Week.")
-        self.assertIn("it's fine", result)
+        self.assertIn('its fine', result)
         self.assertIn('next week', result)
 
     def test_detect_erosion_markers_no_match(self):
@@ -1325,3 +1325,320 @@ class CostOfInactionModelingTest(TestCase):
         result = _build_cim_injection(gate, ACTIVATION_STRUCTURAL_DRIFT)
         self.assertIn("No intensification beyond", result)
         self.assertIn("Phase 3", result)
+
+
+class LexicalHardeningTest(TestCase):
+    """Tests for Phase 4 R3 — Lexical Hardening."""
+
+    # ------------------------------------------------------------------
+    # Normalization
+    # ------------------------------------------------------------------
+
+    def test_normalize_strips_punctuation(self):
+        """Normalization strips punctuation, preserves words."""
+        from apps.core.ai_orchestrator.cos_context import _normalize_input
+        self.assertEqual(
+            _normalize_input("push the deadline."),
+            "push the deadline"
+        )
+        self.assertEqual(
+            _normalize_input("push the deadline,"),
+            "push the deadline"
+        )
+        self.assertEqual(
+            _normalize_input("push the deadline?"),
+            "push the deadline"
+        )
+
+    def test_normalize_collapses_spaces(self):
+        """Normalization collapses repeated spaces."""
+        from apps.core.ai_orchestrator.cos_context import _normalize_input
+        self.assertEqual(
+            _normalize_input("push   the    deadline"),
+            "push the deadline"
+        )
+
+    def test_normalize_apostrophes(self):
+        """Normalization strips apostrophes for contraction matching."""
+        from apps.core.ai_orchestrator.cos_context import _normalize_input
+        self.assertEqual(_normalize_input("I'll"), "ill")
+        self.assertEqual(_normalize_input("it's"), "its")
+        self.assertEqual(_normalize_input("I'm"), "im")
+
+    def test_normalize_curly_quotes(self):
+        """Normalization handles curly apostrophes/quotes."""
+        from apps.core.ai_orchestrator.cos_context import _normalize_input
+        self.assertEqual(_normalize_input("I\u2019ll"), "ill")
+        self.assertEqual(_normalize_input("it\u2019s"), "its")
+
+    def test_normalize_empty(self):
+        """Empty/None input returns empty string."""
+        from apps.core.ai_orchestrator.cos_context import _normalize_input
+        self.assertEqual(_normalize_input(''), '')
+        self.assertEqual(_normalize_input(None), '')
+
+    # ------------------------------------------------------------------
+    # Expanded decision indicators
+    # ------------------------------------------------------------------
+
+    def test_deferral_by_action_push_the(self):
+        """'push the deadline' matches via 'push the' indicator."""
+        from apps.core.ai_orchestrator.cos_context import _detect_decision_language
+        result = _detect_decision_language("I'm going to push the deadline again.")
+        self.assertIn('push the', result)
+
+    def test_deferral_by_action_moved_this(self):
+        """'moved this' matches."""
+        from apps.core.ai_orchestrator.cos_context import _detect_decision_language
+        result = _detect_decision_language("I moved this twice already.")
+        self.assertIn('moved this', result)
+
+    def test_deferral_by_action_move_it(self):
+        """'move it' matches."""
+        from apps.core.ai_orchestrator.cos_context import _detect_decision_language
+        result = _detect_decision_language("I'm about to move it a third time.")
+        self.assertIn('move it', result)
+
+    def test_explicit_delay_decide_later(self):
+        """'decide later' matches."""
+        from apps.core.ai_orchestrator.cos_context import _detect_decision_language
+        result = _detect_decision_language("I'll decide later.")
+        self.assertIn('decide later', result)
+
+    def test_explicit_delay_not_happening(self):
+        """'not happening this' matches."""
+        from apps.core.ai_orchestrator.cos_context import _detect_decision_language
+        result = _detect_decision_language("It's just not happening this week.")
+        self.assertIn('not happening this', result)
+
+    def test_time_abandonment_restart_next_month(self):
+        """'restart next month' matches."""
+        from apps.core.ai_orchestrator.cos_context import _detect_decision_language
+        result = _detect_decision_language("I'll restart next month.")
+        self.assertIn('restart next month', result)
+
+    def test_commitment_withdrawal_stop_tracking(self):
+        """'stop tracking' matches."""
+        from apps.core.ai_orchestrator.cos_context import _detect_decision_language
+        result = _detect_decision_language("I want to stop tracking it for a while.")
+        self.assertIn('stop tracking', result)
+
+    def test_renegotiation_acknowledgement(self):
+        """'renegotiating this' matches."""
+        from apps.core.ai_orchestrator.cos_context import _detect_decision_language
+        result = _detect_decision_language("I'm tired of renegotiating this.")
+        self.assertIn('renegotiating this', result)
+
+    def test_flat_refusal_not_doing_it(self):
+        """'im not doing it' matches (apostrophe normalized)."""
+        from apps.core.ai_orchestrator.cos_context import _detect_decision_language
+        result = _detect_decision_language("I'm not doing it tonight. Period.")
+        self.assertIn('im not doing it', result)
+        self.assertIn('not doing it tonight', result)
+
+    def test_punctuation_does_not_block_match(self):
+        """Punctuation after phrases doesn't prevent matching."""
+        from apps.core.ai_orchestrator.cos_context import _detect_decision_language
+        # "push the" should match even with comma/period/question mark
+        for text in [
+            "I'll push the deadline.",
+            "I'll push the deadline,",
+            "Push the deadline?",
+        ]:
+            result = _detect_decision_language(text)
+            self.assertIn('push the', result, f"Failed for: {text}")
+
+    def test_no_false_positive_generic_conversation(self):
+        """Generic conversation without decision intent → no match."""
+        from apps.core.ai_orchestrator.cos_context import _detect_decision_language
+        benign = [
+            "What is my blood pressure?",
+            "Show me my schedule for today.",
+            "How did I sleep last night?",
+            "Tell me about my goals.",
+            "Good morning.",
+        ]
+        for text in benign:
+            result = _detect_decision_language(text)
+            self.assertEqual(result, [], f"False positive for: {text}")
+
+    # ------------------------------------------------------------------
+    # Expanded erosion markers
+    # ------------------------------------------------------------------
+
+    def test_erosion_next_month(self):
+        """'next month' now detected as erosion marker."""
+        from apps.core.ai_orchestrator.cos_context import detect_erosion_markers
+        result = detect_erosion_markers("I'll restart next month.")
+        self.assertIn('next month', result)
+
+    def test_erosion_not_happening(self):
+        """'not happening' detected as erosion marker."""
+        from apps.core.ai_orchestrator.cos_context import detect_erosion_markers
+        result = detect_erosion_markers("It's not happening this week.")
+        self.assertIn('not happening', result)
+
+    def test_erosion_not_ready(self):
+        """'not ready yet' and 'not ready to face' detected."""
+        from apps.core.ai_orchestrator.cos_context import detect_erosion_markers
+        result1 = detect_erosion_markers("I'm not ready yet.")
+        self.assertIn('not ready yet', result1)
+        result2 = detect_erosion_markers("I'm not ready to face it.")
+        self.assertIn('not ready to face', result2)
+
+    def test_erosion_when_things_calm_down(self):
+        """'when things calm down' detected."""
+        from apps.core.ai_orchestrator.cos_context import detect_erosion_markers
+        result = detect_erosion_markers("I'll get back to it when things calm down.")
+        self.assertIn('when things calm down', result)
+
+    def test_erosion_eventually_someday(self):
+        """'eventually' and 'someday' detected."""
+        from apps.core.ai_orchestrator.cos_context import detect_erosion_markers
+        result = detect_erosion_markers("I'll get to it eventually. Someday.")
+        self.assertIn('eventually', result)
+        self.assertIn('someday', result)
+
+    def test_erosion_for_now(self):
+        """'for now' detected."""
+        from apps.core.ai_orchestrator.cos_context import detect_erosion_markers
+        result = detect_erosion_markers("I'm done for now.")
+        self.assertIn('for now', result)
+
+    def test_erosion_ill_try_variants(self):
+        """'ill try next week/month' detected (apostrophe normalized)."""
+        from apps.core.ai_orchestrator.cos_context import detect_erosion_markers
+        result = detect_erosion_markers("I'll try next week.")
+        self.assertIn('ill try next week', result)
+
+    # ------------------------------------------------------------------
+    # Gate integration with expanded indicators
+    # ------------------------------------------------------------------
+
+    def _make_context(self, db_signals=None, traj_signals=None):
+        """Minimal context for gate tests."""
+        return {
+            'trajectory_signals': traj_signals or {
+                'renegotiation_patterns': [],
+                'tier1_skip_patterns': [],
+                'consecutive_tier1_skips': 0,
+            },
+            'decision_branch_signals': db_signals or {
+                'goals_within_14d': [
+                    {'title': 'Complete compensation model', 'days_remaining': 9},
+                ],
+                'protected_blocks_today': [
+                    {'title': 'Morning workout', 'start': '06:00'},
+                ],
+                'deferrals_7d': 3,
+            },
+        }
+
+    def test_stress_prompt_1_now_triggers(self):
+        """#1: 'push the deadline' now activates gate."""
+        from apps.core.ai_orchestrator.cos_context import evaluate_decision_branch_gate
+        ctx = self._make_context()
+        result = evaluate_decision_branch_gate(
+            ctx, "I'm going to push the deadline item again. I'm wiped out and it can wait."
+        )
+        self.assertTrue(result['active'])
+
+    def test_stress_prompt_2_now_triggers(self):
+        """#2: 'moved this' / 'move it' / 'not happening this' now activates gate."""
+        from apps.core.ai_orchestrator.cos_context import evaluate_decision_branch_gate
+        ctx = self._make_context()
+        result = evaluate_decision_branch_gate(
+            ctx, "I moved this twice already, and I'm about to move it a third time. "
+                 "It's just not happening this week."
+        )
+        self.assertTrue(result['active'])
+
+    def test_stress_prompt_4_now_triggers(self):
+        """#4: 'decide later' now activates gate."""
+        from apps.core.ai_orchestrator.cos_context import evaluate_decision_branch_gate
+        ctx = self._make_context()
+        result = evaluate_decision_branch_gate(
+            ctx, "I'll decide later. I know it's due soon, but I don't have the bandwidth tonight."
+        )
+        self.assertTrue(result['active'])
+
+    def test_stress_prompt_6_now_triggers(self):
+        """#6: 'restart next month' now activates gate."""
+        from apps.core.ai_orchestrator.cos_context import evaluate_decision_branch_gate
+        ctx = self._make_context()
+        result = evaluate_decision_branch_gate(
+            ctx, "This goal is overdue, but I'm not ready to face it. I'll restart next month."
+        )
+        self.assertTrue(result['active'])
+
+    def test_stress_prompt_6_original_now_triggers(self):
+        """#6 (original): 'supposed to start' / 'it never happens' activates."""
+        from apps.core.ai_orchestrator.cos_context import evaluate_decision_branch_gate
+        ctx = self._make_context()
+        result = evaluate_decision_branch_gate(
+            ctx, "I was supposed to start this project last Monday. I keep saying "
+                 "\u201cnext week\u201d and it never happens."
+        )
+        self.assertTrue(result['active'])
+
+    def test_supposed_to_start_detected(self):
+        """'supposed to start' detected as decision indicator."""
+        from apps.core.ai_orchestrator.cos_context import _detect_decision_language
+        result = _detect_decision_language("I was supposed to start this last week.")
+        self.assertIn('supposed to start', result)
+
+    def test_it_never_happens_detected(self):
+        """'it never happens' detected as decision indicator."""
+        from apps.core.ai_orchestrator.cos_context import _detect_decision_language
+        result = _detect_decision_language("I keep saying next week and it never happens.")
+        self.assertIn('it never happens', result)
+
+    def test_keep_saying_detected(self):
+        """'keep saying' detected as decision indicator."""
+        from apps.core.ai_orchestrator.cos_context import _detect_decision_language
+        result = _detect_decision_language("I keep saying I'll do it tomorrow.")
+        self.assertIn('keep saying', result)
+
+    def test_keep_pushing_detected(self):
+        """'keep pushing' detected as decision indicator."""
+        from apps.core.ai_orchestrator.cos_context import _detect_decision_language
+        result = _detect_decision_language("I keep pushing this to next week.")
+        self.assertIn('keep pushing', result)
+
+    def test_stress_prompt_9_now_triggers(self):
+        """#9: 'renegotiating this' + 'stop tracking' now activates gate."""
+        from apps.core.ai_orchestrator.cos_context import evaluate_decision_branch_gate
+        ctx = self._make_context()
+        result = evaluate_decision_branch_gate(
+            ctx, "I'm tired of renegotiating this. I want to stop tracking it for a while."
+        )
+        self.assertTrue(result['active'])
+
+    def test_stress_prompt_10_suppressed_without_target(self):
+        """#10: flat refusal without alignment target → suppressed."""
+        from apps.core.ai_orchestrator.cos_context import evaluate_decision_branch_gate
+        ctx_empty = {
+            'trajectory_signals': {
+                'renegotiation_patterns': [],
+                'tier1_skip_patterns': [],
+                'consecutive_tier1_skips': 0,
+            },
+            'decision_branch_signals': {
+                'goals_within_14d': [],
+                'protected_blocks_today': [],
+                'deferrals_7d': 0,
+            },
+        }
+        result = evaluate_decision_branch_gate(
+            ctx_empty, "I'm not doing it tonight. Period."
+        )
+        self.assertFalse(result['active'])
+
+    def test_stress_prompt_10_activates_with_target(self):
+        """#10: flat refusal WITH alignment target → activates."""
+        from apps.core.ai_orchestrator.cos_context import evaluate_decision_branch_gate
+        ctx = self._make_context()
+        result = evaluate_decision_branch_gate(
+            ctx, "I'm not doing it tonight. Period."
+        )
+        self.assertTrue(result['active'])

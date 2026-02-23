@@ -1652,7 +1652,9 @@ def _format_trajectory_injection(signals):
 
 # Decision-indicating keywords — user expresses a pending decision.
 # Must co-occur with alignment-impacting context to activate.
+# Organized by detection category for maintainability.
 _DECISION_INDICATORS = (
+    # Deliberation
     'should i',
     'thinking about',
     'considering',
@@ -1661,17 +1663,68 @@ _DECISION_INDICATORS = (
     'torn between',
     'trying to decide',
     'would it be better',
+    # Skip / cancel
     'skip today',
     'skip this',
-    'push it',
-    'push this',
-    'move it to',
-    'reschedule',
-    'defer',
-    'postpone',
-    'drop it',
     'cancel',
     'swap',
+    # Deferral-by-action
+    'push it',
+    'push this',
+    'push the',
+    'move it to',
+    'move it',
+    'moved it',
+    'move this',
+    'moved this',
+    'reschedule',
+    'rescheduling',
+    'shift this',
+    'shift it',
+    'defer',
+    'postpone',
+    # Explicit delay
+    'decide later',
+    'later tonight',
+    'later this week',
+    'later this month',
+    'not happening this',
+    'ill deal with it later',
+    'ill handle it later',
+    'ill get to it later',
+    # Time-based abandonment
+    'restart next month',
+    'restart later',
+    'restart next week',
+    'start over next month',
+    'start over later',
+    'supposed to start',
+    'was supposed to',
+    # Repeated-deferral acknowledgement
+    'it never happens',
+    'never actually',
+    'keep saying',
+    'keep pushing',
+    'keep putting it off',
+    # Commitment withdrawal
+    'stop tracking',
+    'stop working on',
+    'drop it',
+    'drop this',
+    'drop the goal',
+    'pause this',
+    'pause the goal',
+    'shelve this',
+    'scrap it',
+    # Renegotiation acknowledgement
+    'renegotiating this',
+    'renegotiated this',
+    'moved it again',
+    'again and again',
+    # Flat refusal (gate still requires alignment target)
+    'not doing it tonight',
+    'not doing this',
+    'im not doing it',
 )
 
 
@@ -1764,19 +1817,47 @@ def _build_decision_branch_signals(user):
     return signals
 
 
+def _normalize_input(text):
+    """
+    Normalize user input for pattern matching.
+
+    - Lowercase
+    - Normalize apostrophes (curly → straight, then strip)
+    - Strip punctuation (preserve spaces and apostrophes for contractions)
+    - Collapse repeated spaces
+
+    Returns:
+        str — normalized text for substring matching.
+    """
+    if not text:
+        return ''
+    result = text.lower()
+    # Normalize curly apostrophes/quotes to straight
+    result = result.replace('\u2019', "'").replace('\u2018', "'")
+    result = result.replace('\u201c', '"').replace('\u201d', '"')
+    # Normalize contractions: "i'll" → "ill", "it's" → "its", "i'm" → "im"
+    # This ensures patterns without apostrophes match contracted forms.
+    result = result.replace("'", '')
+    # Strip remaining punctuation (keep letters, digits, spaces)
+    result = re.sub(r'[^\w\s]', ' ', result)
+    # Collapse repeated spaces
+    result = re.sub(r'\s+', ' ', result).strip()
+    return result
+
+
 def _detect_decision_language(user_input):
     """
     Detect decision-indicating language in user input.
 
-    Simple case-insensitive substring matching — no NLP.
+    Normalizes input before matching. Deterministic substring matching — no NLP.
 
     Returns:
         list[str] — matched decision indicator phrases (empty if none).
     """
     if not user_input:
         return []
-    lowered = user_input.lower()
-    return [d for d in _DECISION_INDICATORS if d in lowered]
+    normalized = _normalize_input(user_input)
+    return [d for d in _DECISION_INDICATORS if d in normalized]
 
 
 def evaluate_decision_branch_gate(context, user_input=''):
@@ -2258,19 +2339,29 @@ ACTIVATION_STRUCTURAL_DRIFT = 'STRUCTURAL_DRIFT'
 # Semantic erosion markers — case-insensitive substring match.
 # Presence of ANY marker in user input triggers EARLY_EROSION (if no
 # threshold-based STRUCTURAL_DRIFT already active).
+# All markers stored in normalized form (no apostrophes) since
+# _normalize_input() strips apostrophes before matching.
 _EROSION_MARKERS = (
     'again',
     'a few',
     'most',
     'not a big deal',
-    "i'll make it up",
     'ill make it up',
     'next week',
+    'next month',
     'looser system',
     'just this once',
-    "it's fine",
     'its fine',
     'not that serious',
+    'not happening',
+    'ill try next week',
+    'ill try next month',
+    'when things calm down',
+    'not ready yet',
+    'not ready to face',
+    'someday',
+    'eventually',
+    'for now',
 )
 
 
@@ -2278,7 +2369,7 @@ def detect_erosion_markers(user_input):
     """
     Detect semantic erosion markers in user input.
 
-    Simple case-insensitive substring matching — no NLP.
+    Normalizes input before matching. Deterministic substring matching — no NLP.
 
     Args:
         user_input: str — the user's message.
@@ -2288,8 +2379,8 @@ def detect_erosion_markers(user_input):
     """
     if not user_input:
         return []
-    lowered = user_input.lower()
-    return [m for m in _EROSION_MARKERS if m in lowered]
+    normalized = _normalize_input(user_input)
+    return [m for m in _EROSION_MARKERS if m in normalized]
 
 
 def determine_activation_state(trajectory_signals, user_input=''):

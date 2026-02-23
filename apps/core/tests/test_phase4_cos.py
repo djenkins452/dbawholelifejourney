@@ -1663,3 +1663,152 @@ class LexicalHardeningTest(TestCase):
             ctx, "I'm not doing it tonight. Period."
         )
         self.assertTrue(result['active'])
+
+
+class EnforcementEscalationLadderTest(TestCase):
+    """Tests for Phase 4 R5 — Enforcement Escalation Ladder."""
+
+    def _make_gate(self, user_input='', deferrals_7d=0):
+        """Build minimal gate_result for enforcement tests."""
+        return {
+            'active': True,
+            'reason': 'decision_impacts_goal_deadline',
+            'signals': {
+                'goals': [{'title': 'Goal A', 'days_remaining': 9}],
+            },
+            'user_input': user_input,
+            'deferrals_7d': deferrals_7d,
+        }
+
+    # ------------------------------------------------------------------
+    # Level evaluation
+    # ------------------------------------------------------------------
+
+    def test_level_0_clean_deliberation(self):
+        """Clean deliberation with no deferral → Level 0."""
+        from apps.core.ai_orchestrator.cos_context import (
+            _evaluate_enforcement_level, ACTIVATION_CLEAN,
+        )
+        gate = self._make_gate(user_input='Should I do this tonight or tomorrow?')
+        self.assertEqual(_evaluate_enforcement_level(gate, ACTIVATION_CLEAN), 0)
+
+    def test_level_1_single_deferral(self):
+        """Single push/defer action → Level 1."""
+        from apps.core.ai_orchestrator.cos_context import (
+            _evaluate_enforcement_level, ACTIVATION_CLEAN,
+        )
+        gate = self._make_gate(user_input='I want to push the deadline.')
+        self.assertEqual(_evaluate_enforcement_level(gate, ACTIVATION_CLEAN), 1)
+
+    def test_level_1_erosion_markers(self):
+        """Erosion markers without deferrals → Level 1."""
+        from apps.core.ai_orchestrator.cos_context import (
+            _evaluate_enforcement_level, ACTIVATION_CLEAN,
+        )
+        gate = self._make_gate(user_input='It\u2019s not a big deal, just this once.')
+        self.assertEqual(_evaluate_enforcement_level(gate, ACTIVATION_CLEAN), 1)
+
+    def test_level_2_repeated_deferrals(self):
+        """deferrals_7d >= 2 → Level 2."""
+        from apps.core.ai_orchestrator.cos_context import (
+            _evaluate_enforcement_level, ACTIVATION_CLEAN,
+        )
+        gate = self._make_gate(
+            user_input='I moved this again.',
+            deferrals_7d=3,
+        )
+        self.assertEqual(_evaluate_enforcement_level(gate, ACTIVATION_CLEAN), 2)
+
+    def test_level_2_abandonment_language(self):
+        """Abandonment language → Level 2."""
+        from apps.core.ai_orchestrator.cos_context import (
+            _evaluate_enforcement_level, ACTIVATION_CLEAN,
+        )
+        gate = self._make_gate(user_input='I want to drop the goal entirely.')
+        self.assertEqual(_evaluate_enforcement_level(gate, ACTIVATION_CLEAN), 2)
+
+    def test_level_2_erosion_tier(self):
+        """EARLY_EROSION tier → Level 2."""
+        from apps.core.ai_orchestrator.cos_context import (
+            _evaluate_enforcement_level, ACTIVATION_EARLY_EROSION,
+        )
+        gate = self._make_gate(user_input='Thinking about this goal.')
+        self.assertEqual(_evaluate_enforcement_level(gate, ACTIVATION_EARLY_EROSION), 2)
+
+    def test_level_3_deferrals_plus_abandonment(self):
+        """Repeated deferrals + abandonment → Level 3."""
+        from apps.core.ai_orchestrator.cos_context import (
+            _evaluate_enforcement_level, ACTIVATION_CLEAN,
+        )
+        gate = self._make_gate(
+            user_input='I want to stop tracking this.',
+            deferrals_7d=3,
+        )
+        self.assertEqual(_evaluate_enforcement_level(gate, ACTIVATION_CLEAN), 3)
+
+    def test_level_3_erosion_tier_plus_deferrals(self):
+        """EARLY_EROSION + repeated deferrals → Level 3."""
+        from apps.core.ai_orchestrator.cos_context import (
+            _evaluate_enforcement_level, ACTIVATION_EARLY_EROSION,
+        )
+        gate = self._make_gate(
+            user_input='I\u2019ll push it again.',
+            deferrals_7d=2,
+        )
+        self.assertEqual(_evaluate_enforcement_level(gate, ACTIVATION_EARLY_EROSION), 3)
+
+    def test_level_3_abandonment_plus_erosion_markers(self):
+        """Abandonment + erosion markers → Level 3."""
+        from apps.core.ai_orchestrator.cos_context import (
+            _evaluate_enforcement_level, ACTIVATION_CLEAN,
+        )
+        gate = self._make_gate(
+            user_input='I\u2019m giving up. It\u2019s not a big deal anyway.',
+        )
+        self.assertEqual(_evaluate_enforcement_level(gate, ACTIVATION_CLEAN), 3)
+
+    def test_drift_does_not_force_level_3(self):
+        """STRUCTURAL_DRIFT alone does NOT force Level 3."""
+        from apps.core.ai_orchestrator.cos_context import (
+            _evaluate_enforcement_level, ACTIVATION_STRUCTURAL_DRIFT,
+        )
+        gate = self._make_gate(user_input='Should I do this tonight?')
+        level = _evaluate_enforcement_level(gate, ACTIVATION_STRUCTURAL_DRIFT)
+        self.assertLess(level, 3)
+
+    # ------------------------------------------------------------------
+    # Framing injection
+    # ------------------------------------------------------------------
+
+    def test_framing_level_0_in_output(self):
+        """Level 0: neutral execution directive in framework output."""
+        from apps.core.ai_orchestrator.cos_context import (
+            _format_decision_branch_injection, ACTIVATION_CLEAN,
+        )
+        gate = self._make_gate(user_input='Should I do this tonight?')
+        output = _format_decision_branch_injection(gate, ACTIVATION_CLEAN)
+        self.assertIn('neutral execution directive', output)
+
+    def test_framing_level_2_in_output(self):
+        """Level 2: containment language in framework output."""
+        from apps.core.ai_orchestrator.cos_context import (
+            _format_decision_branch_injection, ACTIVATION_CLEAN,
+        )
+        gate = self._make_gate(
+            user_input='I want to drop the goal.',
+        )
+        output = _format_decision_branch_injection(gate, ACTIVATION_CLEAN)
+        self.assertIn('boundary-setting directive', output.lower())
+        self.assertIn('Containment language', output)
+
+    def test_framing_level_3_in_output(self):
+        """Level 3: shortest possible command in framework output."""
+        from apps.core.ai_orchestrator.cos_context import (
+            _format_decision_branch_injection, ACTIVATION_CLEAN,
+        )
+        gate = self._make_gate(
+            user_input='I\u2019m giving up. It\u2019s not a big deal.',
+        )
+        output = _format_decision_branch_injection(gate, ACTIVATION_CLEAN)
+        self.assertIn('Shortest possible command', output)
+        self.assertIn('Pattern-terminating', output)

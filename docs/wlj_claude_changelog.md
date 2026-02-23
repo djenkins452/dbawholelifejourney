@@ -9,6 +9,29 @@
 
 # WLJ Change History
 
+## 2026-02-22 — Phase 4 R5: Controlled Enforcement Escalation Ladder
+
+**Changes:**
+- Added `_evaluate_enforcement_level(gate_result, activation_state)` — returns Level 0–3 based on resistance patterns
+- Level 0 (Clarification): Clean deliberation, no deferral action
+- Level 1 (Reinforcement): Single deferral action or mild erosion markers
+- Level 2 (Containment): Repeated deferrals (≥2/7d), abandonment language, EARLY_EROSION tier, or protected block cancellation
+- Level 3 (Control Assertion): Compound patterns — deferrals+abandonment, EARLY_EROSION+deferrals, or abandonment+erosion markers
+- Added `_ENFORCEMENT_FRAMING` dict (4 level templates) replacing static Executive Framing section
+- Framework text dynamically updated via regex substitution in `_format_decision_branch_injection`
+- STRUCTURAL_DRIFT does NOT automatically force Level 3
+- Higher levels use fewer words and firmer tone — no emotional/motivational language
+- 128 Phase 4 CoS tests pass (13 new enforcement tests)
+- All 10 stress prompts validate with correct enforcement distribution
+
+**Files modified:**
+- `apps/core/ai_orchestrator/cos_context.py` — Enforcement evaluator, framing templates, injection wiring
+- `apps/core/tests/test_phase4_cos.py` — EnforcementEscalationLadderTest class (13 tests)
+
+**Why:** Executive Framing was static regardless of resistance pattern. Single-push deferrals and compound abandonment patterns received the same neutral directive. R5 adds intra-tier enforcement proportional to resistance: clarification → reinforcement → containment → control assertion, increasing density not length.
+
+---
+
 ## 2026-02-22 — Phase 4 R4: CIM Severity Recalibration (Behavior-Driven)
 
 **Changes:**

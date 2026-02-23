@@ -2070,6 +2070,109 @@ Structural drift escalation tone intact.
 """
 
 
+# =========================================================================
+# PHASE 4 R5 — ENFORCEMENT ESCALATION LADDER
+# =========================================================================
+
+# Enforcement Level 0–3 framing instructions.
+# Each level replaces the Executive Framing section in the framework.
+# Higher levels use fewer words and firmer tone.
+
+_ENFORCEMENT_FRAMING = {
+    0: (
+        "Executive Framing\n"
+        "One-line neutral execution directive. State the recommended action.\n"
+        "No permission language. No motivational phrasing. No open-ended question."
+    ),
+    1: (
+        "Executive Framing\n"
+        "One-line firm directive. Include a boundary statement "
+        "(e.g. 'No reschedule.' or 'Maintain commitment.').\n"
+        "No permission language. No motivational phrasing. No explanation."
+    ),
+    2: (
+        "Executive Framing\n"
+        "One-line boundary-setting directive. Short. Direct. "
+        "Containment language (e.g. 'Stop renegotiating.' or 'Execute as committed.').\n"
+        "No permission language. No explanation. No softening."
+    ),
+    3: (
+        "Executive Framing\n"
+        "Shortest possible command. Pattern-terminating language "
+        "(e.g. 'This ends here. Execute.').\n"
+        "No explanation. No softening. No additional words."
+    ),
+}
+
+
+def _evaluate_enforcement_level(gate_result, activation_state):
+    """
+    Determine enforcement level (0–3) for Executive Framing.
+
+    R5: Intra-tier enforcement ladder. Increases directive firmness
+    proportional to resistance patterns without changing tiers or
+    adding verbosity.
+
+    Level 0 — Clarification: First deferral, no compounding.
+    Level 1 — Reinforcement: Single deferral or mild erosion.
+    Level 2 — Containment: Repeated deferrals, abandonment, or EARLY_EROSION.
+    Level 3 — Control Assertion: Repeated deferrals + abandonment,
+              or EARLY_EROSION + repeated deferral.
+
+    STRUCTURAL_DRIFT does NOT automatically force Level 3.
+
+    Args:
+        gate_result: dict from evaluate_decision_branch_gate().
+        activation_state: str — CLEAN / EARLY_EROSION / STRUCTURAL_DRIFT.
+
+    Returns:
+        int — enforcement level 0–3.
+    """
+    user_input = gate_result.get('user_input', '')
+    deferrals_7d = gate_result.get(
+        'deferrals_7d', gate_result.get('signals', {}).get('deferrals_7d', 0)
+    )
+    has_abandonment = bool(_detect_abandonment_language(user_input))
+    has_erosion_markers = bool(detect_erosion_markers(user_input))
+    is_erosion_tier = activation_state == ACTIVATION_EARLY_EROSION
+
+    # Level 3: Compound resistance patterns
+    if deferrals_7d >= 2 and has_abandonment:
+        return 3
+    if is_erosion_tier and deferrals_7d >= 2:
+        return 3
+    if has_abandonment and has_erosion_markers:
+        return 3
+
+    # Level 2: Containment triggers
+    if deferrals_7d >= 2:
+        return 2
+    if has_abandonment:
+        return 2
+    if is_erosion_tier:
+        return 2
+    if gate_result.get('reason') == 'decision_impacts_protected_block':
+        return 2
+
+    # Level 1: Mild resistance
+    if has_erosion_markers:
+        return 1
+    # Single deferral-action indicators (push/move/shift/defer/postpone/etc.)
+    indicators = _detect_decision_language(user_input)
+    _deferral_actions = (
+        'push it', 'push this', 'push the', 'move it', 'moved it',
+        'move this', 'moved this', 'move it to', 'reschedule',
+        'rescheduling', 'shift this', 'shift it', 'defer', 'postpone',
+        'decide later', 'later tonight', 'later this week',
+        'later this month',
+    )
+    if any(i in _deferral_actions for i in indicators):
+        return 1
+
+    # Level 0: Clean deliberation
+    return 0
+
+
 def _format_decision_branch_injection(gate_result, activation_state):
     """
     Format the decision branch modeling block for prompt injection.
@@ -2096,7 +2199,22 @@ def _format_decision_branch_injection(gate_result, activation_state):
     else:
         framework = DECISION_BRANCH_FRAMEWORK_CLEAN
 
-    lines = [framework.strip()]
+    # R5: Replace static Executive Framing with enforcement-level framing
+    enforcement_level = _evaluate_enforcement_level(gate_result, activation_state)
+    enforcement_framing = _ENFORCEMENT_FRAMING.get(enforcement_level, _ENFORCEMENT_FRAMING[0])
+
+    # Replace the Executive Framing block in the framework template.
+    # Match the static block that starts with "Executive Framing\n"
+    # and ends before "TONE:".
+    framework_text = framework.strip()
+    framework_text = re.sub(
+        r'Executive Framing\n.*?(?=\nTONE:)',
+        enforcement_framing,
+        framework_text,
+        flags=re.DOTALL,
+    )
+
+    lines = [framework_text]
 
     # R2: Cost-of-Inaction Modeling (conditional)
     cim_block = _build_cim_injection(gate_result, activation_state)

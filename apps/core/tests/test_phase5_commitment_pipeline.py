@@ -424,19 +424,21 @@ class ECCCrossMessageContinuityTest(_PipelineTestMixin, TestCase):
             "When specifically will this be completed?",
         )
 
+    @patch('apps.core.ai_orchestrator.cos_context.determine_activation_state')
     @patch('apps.ai.personal_assistant.AIService')
     @patch('apps.ai.personal_assistant.ai_service')
     def test_renegotiation_early_erosion_blocks_across_messages(
-        self, mock_ai, mock_ai_cls
+        self, mock_ai, mock_ai_cls, mock_determine_tier
     ):
         """
         EARLY_EROSION tier: renegotiation on persisted commitment
-        produces A/B blocking choices.
+        produces A/B blocking choices via real tier computation.
         """
         mock_ai.is_available = True
         mock_ai_cls.check_user_consent = MagicMock(return_value=True)
 
-        # --- Message 1: Create commitment ---
+        # --- Message 1: Create commitment (CLEAN tier) ---
+        mock_determine_tier.return_value = 'CLEAN'
         pa1 = self._build_pa()
         conversation = pa1.get_or_create_conversation()
         result1 = pa1.send_message(
@@ -447,9 +449,8 @@ class ECCCrossMessageContinuityTest(_PipelineTestMixin, TestCase):
         self.assertIn('Commitment set:', result1['response'])
 
         # --- Message 2: Renegotiation with EARLY_EROSION tier ---
+        mock_determine_tier.return_value = 'EARLY_EROSION'
         pa2 = self._build_pa()
-        # Set tier to EARLY_EROSION so blocking fires
-        pa2._ecc_last_tier = 'EARLY_EROSION'
         result2 = pa2.send_message(
             "I'm going to move it to next week instead.",
             conversation=conversation,
@@ -521,3 +522,154 @@ class ECCCrossMessageContinuityTest(_PipelineTestMixin, TestCase):
                 conversation=conversation,
             )
             mock_extract.assert_not_called()
+
+
+class ECCTierUnificationTest(_PipelineTestMixin, TestCase):
+    """
+    Phase 5B: send_message() must compute tier via
+    determine_activation_state(), not default to CLEAN.
+    """
+
+    @patch('apps.core.ai_orchestrator.cos_context.determine_activation_state')
+    @patch('apps.ai.personal_assistant.AIService')
+    @patch('apps.ai.personal_assistant.ai_service')
+    def test_send_message_uses_real_tier_for_blocking(
+        self, mock_ai, mock_ai_cls, mock_determine_tier
+    ):
+        """
+        Force EARLY_EROSION via mock → send commitment → renegotiate
+        → verify blocked A/B output via send_message() path.
+        """
+        mock_ai.is_available = True
+        mock_ai_cls.check_user_consent = MagicMock(return_value=True)
+
+        # Message 1: Create commitment (CLEAN tier allows it)
+        mock_determine_tier.return_value = 'CLEAN'
+        pa1 = self._build_pa()
+        conversation = pa1.get_or_create_conversation()
+        result1 = pa1.send_message(
+            "I'll finish the report by 5pm today. "
+            "Done means the report is reviewed and submitted.",
+            conversation=conversation,
+        )
+        self.assertIn('Commitment set:', result1['response'])
+
+        # Message 2: Renegotiation under EARLY_EROSION
+        mock_determine_tier.return_value = 'EARLY_EROSION'
+        pa2 = self._build_pa()
+        result2 = pa2.send_message(
+            "I'm going to move it to next week instead.",
+            conversation=conversation,
+        )
+        # Must get blocked A/B choices, not CLEAN renegotiation
+        self.assertIn('A)', result2['response'])
+        self.assertIn('B)', result2['response'])
+        self.assertIn(
+            'Keep original commitment',
+            result2['response'],
+        )
+        self.assertIn(
+            'Formally cancel and accept consequence',
+            result2['response'],
+        )
+
+    @patch('apps.core.ai_orchestrator.cos_context.determine_activation_state')
+    @patch('apps.ai.personal_assistant.AIService')
+    @patch('apps.ai.personal_assistant.ai_service')
+    def test_send_message_does_not_default_to_clean(
+        self, mock_ai, mock_ai_cls, mock_determine_tier
+    ):
+        """
+        Verify send_message() calls determine_activation_state(),
+        not getattr(self, '_ecc_last_tier', 'CLEAN').
+        """
+        mock_ai.is_available = True
+        mock_ai_cls.check_user_consent = MagicMock(return_value=True)
+        mock_determine_tier.return_value = 'STRUCTURAL_DRIFT'
+
+        pa = self._build_pa()
+        conversation = pa.get_or_create_conversation()
+
+        # Create commitment first (needs CLEAN to form)
+        mock_determine_tier.return_value = 'CLEAN'
+        pa.send_message(
+            "I'll finish the report by 5pm today. "
+            "Done means the report is submitted.",
+            conversation=conversation,
+        )
+
+        # Now try renegotiation under STRUCTURAL_DRIFT
+        mock_determine_tier.return_value = 'STRUCTURAL_DRIFT'
+        pa2 = self._build_pa()
+        result = pa2.send_message(
+            "Push it to next week.",
+            conversation=conversation,
+        )
+        # STRUCTURAL_DRIFT must block renegotiation
+        self.assertIn('A)', result['response'])
+        self.assertIn('B)', result['response'])
+        # determine_activation_state must have been called
+        self.assertTrue(mock_determine_tier.called)
+
+    @patch('apps.core.ai_orchestrator.cos_context.determine_activation_state')
+    @patch('apps.core.ai_orchestrator.cos_context.build_cos_context')
+    @patch('apps.core.ai_orchestrator.cos_context._build_trajectory_signals')
+    @patch('apps.ai.personal_assistant.AIService')
+    @patch('apps.ai.personal_assistant.ai_service')
+    @patch('apps.core.blueprint.learning_mode.is_learning_mode_active',
+           return_value=False)
+    def test_send_message_and_generate_response_same_tier(
+        self, mock_lm, mock_ai, mock_ai_cls,
+        mock_traj, mock_build_cos, mock_determine_tier
+    ):
+        """
+        Both paths must produce identical tier for the same input.
+        """
+        mock_ai.is_available = True
+        mock_ai_cls.check_user_consent = MagicMock(return_value=True)
+        mock_determine_tier.return_value = 'EARLY_EROSION'
+        mock_build_cos.return_value = self._mock_cos_context()
+        mock_traj.return_value = {
+            'renegotiation_patterns': [],
+            'tier1_skip_patterns': [],
+            'consecutive_tier1_skips': 0,
+        }
+
+        pa = self._build_pa()
+        conversation = pa.get_or_create_conversation()
+
+        # Create commitment via send_message (CLEAN for creation)
+        mock_determine_tier.return_value = 'CLEAN'
+        pa.send_message(
+            "I'll finish the report by 5pm today. "
+            "Done means the report is submitted.",
+            conversation=conversation,
+        )
+
+        # Renegotiate — both paths should see EARLY_EROSION
+        mock_determine_tier.return_value = 'EARLY_EROSION'
+
+        # Test via send_message()
+        pa2 = self._build_pa()
+        result_sm = pa2.send_message(
+            "Move it to next week.",
+            conversation=conversation,
+        )
+
+        # Reset commitment for second test
+        conversation.refresh_from_db()
+        conversation.metadata['ecc_active_commitment']['status'] = 'pending'
+        conversation.save(update_fields=['metadata'])
+
+        # Test via _generate_response()
+        pa3 = self._build_pa()
+        result_gr = pa3._generate_response(
+            "Move it to next week.",
+            conversation,
+        )
+
+        # Both must produce blocking response
+        self.assertIn('A)', result_sm['response'])
+        self.assertIn('B)', result_sm['response'])
+        self.assertIn('A)', result_gr)
+        self.assertIn('B)', result_gr)

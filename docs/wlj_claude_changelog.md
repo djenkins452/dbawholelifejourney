@@ -9,6 +9,25 @@
 
 # WLJ Change History
 
+## 2026-02-22 — Phase 5B: Tier Unification Correction
+
+**Changes:**
+- Replaced `getattr(self, '_ecc_last_tier', 'CLEAN')` in `send_message()` with real tier computation via `build_cos_context()` → `_build_trajectory_signals()` → `determine_activation_state()`
+- `send_message()` now computes tier identically to `_generate_response()` — both call `determine_activation_state(traj_signals, message)`
+- Removed all references to `_ecc_last_tier` from production code
+- Updated existing pipeline test `test_renegotiation_early_erosion_blocks_across_messages` to mock `determine_activation_state` instead of setting `_ecc_last_tier`
+- Added 3 new integration tests in `ECCTierUnificationTest`: real tier blocking via send_message, no default-to-CLEAN verification, and send_message/generate_response tier parity
+
+**Root cause:** `send_message()` always passed `'CLEAN'` to `process_ecc_detection()` because `_ecc_last_tier` was never assigned to the PA instance. This meant EARLY_EROSION and STRUCTURAL_DRIFT renegotiation blocking could never fire on the `send_message()` short-circuit path — only via `_generate_response()` which computed the real tier.
+
+**Files modified:**
+- `apps/ai/personal_assistant.py` — real tier computation in send_message() ECC block
+- `apps/core/tests/test_phase5_commitment_pipeline.py` — updated 1 test, added 3 new tests
+
+**Verification:** 76 tests pass (58 Phase 5 unit + 18 Phase 5 pipeline integration)
+
+---
+
 ## 2026-02-22 — Phase 5B: Renegotiation Return Discipline Correction
 
 **Changes:**

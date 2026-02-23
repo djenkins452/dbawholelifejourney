@@ -1990,7 +1990,19 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                     Commitment as EccCommitment,
                     process_ecc_detection,
                 )
-                _ecc_tier = getattr(self, '_ecc_last_tier', 'CLEAN')
+                from apps.core.ai_orchestrator.cos_context import (
+                    build_cos_context as _ecc_build_cos,
+                    determine_activation_state as _ecc_determine_tier,
+                    _build_trajectory_signals as _ecc_build_traj,
+                )
+
+                # Compute real tier — same logic as _generate_response()
+                _ecc_cos = _ecc_build_cos(self.user)
+                _ecc_traj = _ecc_cos.get(
+                    'trajectory_signals',
+                    _ecc_build_traj(self.user),
+                )
+                _ecc_tier = _ecc_determine_tier(_ecc_traj, message)
 
                 # Load active commitment from conversation metadata
                 _ecc_metadata = (conversation.metadata or {}).get(

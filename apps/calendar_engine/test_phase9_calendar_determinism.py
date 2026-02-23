@@ -9,14 +9,17 @@ import datetime as dt
 import hashlib
 import json
 import threading
+import unittest
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.db import IntegrityError
+from django.db import IntegrityError, connection
 from django.test import TestCase, TransactionTestCase
 from django.utils import timezone
 from freezegun import freeze_time
 from zoneinfo import ZoneInfo
+
+_is_sqlite = connection.vendor == 'sqlite'
 
 from apps.calendar_engine.models import CalendarEvent
 from apps.calendar_engine.utils.date_resolution import resolve_weekday_to_date
@@ -357,10 +360,15 @@ class UniqueConstraintTests(TestCase):
         self.assertEqual(CalendarEvent.objects.filter(title='Meeting').count(), 2)
 
 
+@unittest.skipIf(_is_sqlite, "Threading concurrency tests require PostgreSQL")
 class ConcurrencyTests(TransactionTestCase):
     """
     Test concurrent creation with threading.
     Uses TransactionTestCase for real DB commits needed by threading.
+
+    These tests require a database that supports true concurrent writes
+    (PostgreSQL). SQLite in-memory with shared cache has threading
+    limitations that cause spurious failures.
     """
 
     def setUp(self):

@@ -1,7 +1,7 @@
 # CoS (Chief of Staff) v2 — Master Project Tracker
 
 **Created:** 2026-02-24
-**Status:** Phase 5 Complete — Ready for Phase 6
+**Status:** Phase 6 Complete — Ready for Phase 7
 **Owner:** Claude Code (lead engineer)
 
 ---
@@ -251,25 +251,37 @@ Journal append logic lives in a new `JournalCosActions` service that checks for 
 
 ---
 
-### Phase 6: Pattern Detection + Solution Suggestions
+### Phase 6: Pattern Detection + Solution Suggestions ✅
 **Goal:** Cross-domain pattern detection with evidence-based solution suggestions
+**Completed:** 2026-02-24 | **Tests:** 25 new (255 total CoS)
 
 **Tasks:**
-- [ ] Create new PIE rules for cross-domain patterns (fatigue, missed tasks, consistent conflicts)
-- [ ] Create PGE guidance rules for CoS solution suggestions
-- [ ] Implement suggestion deduplication and frequency control
-- [ ] Add evidence chain from reflections to suggestions
-- [ ] Add tests for pattern detection, suggestion generation, spam prevention
-- [ ] Update CoS_Project_v2.md
+- [x] Create CosPatternService with 5 pattern detectors
+- [x] Negative streak detection (3+ consecutive negative/mixed days)
+- [x] Fatigue pattern (60%+ negative reflections in window)
+- [x] Positive momentum (improving trend + 5-day streak — reinforcement)
+- [x] Consistency drop (50%+ drop in activity vs prior period)
+- [x] Activity gap (active type goes silent)
+- [x] Evidence-based solution suggestions with evidence chains
+- [x] Suggestion deduplication (dedupe_key per pattern+type+window)
+- [x] Frequency control (30-day cooldown, opt-out via CosGoalSuggestion)
+- [x] Optional PIE integration (fire_patterns_to_pie)
+- [x] Add tests for all detectors, suggestions, frequency control, dedup
+- [x] Update CoS_Project_v2.md
 
-**Files to Touch:**
-- `apps/core/ai_insights/rules/` (new cross-domain rules)
-- `apps/core/ai_guidance/rules/` (new CoS suggestion rules)
-- `apps/cos/services/pattern_service.py`
-- `apps/cos/tests/test_pattern_detection.py`
+**Files Created:**
+- `apps/cos/services/pattern_service.py` — CosPatternService (5 detectors + suggestion engine)
+- `apps/cos/tests/test_pattern_service.py` — 25 tests across 9 test classes
 
-**Tests:** Pattern detection triggers, solution suggestion output, frequency limits
-**Risk:** False positives — require high confidence threshold (0.8+)
+**Architecture:**
+- 5 detectors run per active activity type: negative_streak, fatigue, positive_momentum, consistency_drop, activity_gap
+- Each detector returns pattern results with evidence + suggestions
+- `generate_suggestions()` applies CosGoalSuggestion throttling (cooldown + opt-out)
+- `detect_and_suggest()` convenience method for full pipeline
+- Configurable thresholds: MIN_REFLECTIONS=3, NEGATIVE_STREAK=3d, POSITIVE_STREAK=5d, FATIGUE_RATIO=60%, DROP=50%
+- Optional PIE integration: `fire_patterns_to_pie()` for cross-domain analysis
+
+**Risk mitigated:** High confidence thresholds (0.7-0.85), dedup, and suggestion cooldown prevent false positives and spam
 
 ---
 

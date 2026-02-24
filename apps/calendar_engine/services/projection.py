@@ -2,14 +2,29 @@
 Projection Service — Projects Tasks, Goals, Habits onto CalendarEvents.
 
 Source items remain the source of truth. CalendarEvent is the time interface.
+All time changes are logged to the unified ExecutionLog via DriftEngine.
 """
 
 import datetime as dt
+import logging
 
 from django.utils import timezone
 
 from apps.calendar_engine.models import CalendarEvent, RecurrenceRule
 from apps.calendar_engine.utils.idempotency import compute_idempotency_key
+
+logger = logging.getLogger(__name__)
+
+
+def _log_schedule_change(user, event, old_start, new_start):
+    """Log a schedule time change to the unified ExecutionLog."""
+    if old_start == new_start:
+        return
+    try:
+        from apps.core.drift.engine import DriftEngine
+        DriftEngine.record_schedule_change(user, event, old_start, new_start)
+    except Exception as e:
+        logger.debug("Drift logging skipped for event %s: %s", event.pk, e)
 
 
 def _get_default_domain(slug='work'):
@@ -88,6 +103,7 @@ def upsert_from_task(task):
     domain = _resolve_domain_for_task(task)
 
     if existing:
+        old_start = existing.start_dt
         existing.title = f"Due: {task.title}"
         existing.start_dt = start_dt
         existing.end_dt = end_dt
@@ -98,6 +114,7 @@ def upsert_from_task(task):
         else:
             existing.status = CalendarEvent.STATUS_SCHEDULED
         existing.save()
+        _log_schedule_change(task.user, existing, old_start, start_dt)
         return existing
 
     task_title = f"Due: {task.title}"
@@ -180,6 +197,7 @@ def upsert_from_goal(goal):
         is_completed = goal.status == 'completed'
 
         if existing:
+            old_start = existing.start_dt
             existing.title = f"Goal Due: {goal.title}"
             existing.start_dt = start_dt
             existing.end_dt = end_dt
@@ -187,6 +205,7 @@ def upsert_from_goal(goal):
             existing.is_all_day = True
             existing.status = CalendarEvent.STATUS_COMPLETED if is_completed else CalendarEvent.STATUS_SCHEDULED
             existing.save()
+            _log_schedule_change(goal.user, existing, old_start, start_dt)
             events.append(existing)
         else:
             goal_title = f"Goal Due: {goal.title}"
@@ -231,6 +250,7 @@ def _upsert_milestone_marker(goal, milestone):
     domain = _resolve_domain_for_goal(goal)
 
     if existing:
+        old_start = existing.start_dt
         existing.title = f"Milestone: {milestone.title}"
         existing.start_dt = start_dt
         existing.end_dt = end_dt
@@ -238,6 +258,7 @@ def _upsert_milestone_marker(goal, milestone):
         existing.is_all_day = True
         existing.status = CalendarEvent.STATUS_COMPLETED if milestone.completed else CalendarEvent.STATUS_SCHEDULED
         existing.save()
+        _log_schedule_change(goal.user, existing, old_start, start_dt)
         return existing
 
     ms_title = f"Milestone: {milestone.title}"
@@ -315,6 +336,7 @@ def upsert_from_habit(habit):
     end_dt = start_dt + dt.timedelta(minutes=duration)
 
     if existing:
+        old_start = existing.start_dt
         existing.title = habit.name
         existing.start_dt = start_dt
         existing.end_dt = end_dt
@@ -322,6 +344,7 @@ def upsert_from_habit(habit):
         existing.is_protected = True
         existing.status = CalendarEvent.STATUS_SCHEDULED
         existing.save()
+        _log_schedule_change(habit.user, existing, old_start, start_dt)
         event = existing
     else:
         event = CalendarEvent.objects.create(

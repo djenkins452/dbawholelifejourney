@@ -9,26 +9,29 @@
 
 # WLJ Change History
 
-## 2026-02-24 — Phase 10 Consolidation: ExecutionLog Rename & Integration Move
+## 2026-02-24 — Phase 10 Consolidation: Unified ExecutionLog Across All Paths
 
-**What:** Structural consolidation — renamed `ScheduleExecutionLog` → `ExecutionLog` as the sole behavioral log table. Moved DriftEngine integration from REST API views into the CoS post-scheduling chain (inside `handle_create_event` flow).
+**What:** Structural consolidation — renamed `ScheduleExecutionLog` → `ExecutionLog` as the sole behavioral log table. All event update paths (manual + provider) now log to unified ExecutionLog.
 
 **Changes:**
 1. **Model rename:** `ScheduleExecutionLog` → `ExecutionLog` with new table name `core_execution_log`, updated related names and constraints.
 2. **DriftEngine update:** All references updated to `ExecutionLog`.
-3. **Integration moved:** Removed DriftEngine calls from `EventDetailView.patch()` and `EventMoveView.post()` in views.py. Added `DriftEngine.evaluate_schedule_instability()` to `_run_cos_post_scheduling()` in action_handlers.py.
-4. **Migration:** Proper `RenameModel` migration (0097) that preserves data, renames table, and updates constraints/indexes.
+3. **Unified logging — manual paths:** `EventDetailView.patch()` and `EventMoveView.post()` log to ExecutionLog via `DriftEngine.record_schedule_change()`.
+4. **Unified logging — provider paths:** All projection upserts (`upsert_from_task`, `upsert_from_goal`, `_upsert_milestone_marker`, `upsert_from_habit`) log time changes to ExecutionLog via `_log_schedule_change()` helper.
+5. **CoS integration:** `DriftEngine.evaluate_schedule_instability()` added to `_run_cos_post_scheduling()` in action_handlers.py.
+6. **Migration:** Proper `RenameModel` migration (0097) that preserves data, renames table, and updates constraints/indexes.
 
 **Files:**
 - `apps/core/drift/models.py` (model rename)
 - `apps/core/drift/engine.py` (references updated)
 - `apps/core/models.py` (model registry updated)
-- `apps/calendar_engine/views.py` (DriftEngine calls removed)
-- `apps/ai/action_handlers.py` (DriftEngine evaluation added)
+- `apps/calendar_engine/views.py` (DriftEngine calls for manual PATCH/move)
+- `apps/calendar_engine/services/projection.py` (DriftEngine calls for provider upserts)
+- `apps/ai/action_handlers.py` (DriftEngine evaluation in CoS chain)
 - `apps/core/drift/tests/test_drift_engine.py` (references updated)
 - `apps/core/migrations/0097_*` (rename migration)
 
-**Tests:** 14/14 drift tests pass. 24/24 calendar integrity tests pass.
+**Tests:** 38/38 pass (14 drift + 24 calendar integrity).
 
 ---
 

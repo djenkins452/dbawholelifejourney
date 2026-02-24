@@ -339,8 +339,9 @@ class EventDetailView(LoginRequiredMixin, View):
             return JsonResponse({'error': 'Invalid JSON'}, status=400)
 
         with transaction.atomic():
-            # Capture original values for verification
+            # Capture original values for verification and drift tracking
             original_title = event.title
+            original_start_dt = event.start_dt
 
             # Update allowed fields
             for field in ['title', 'description', 'is_all_day', 'is_protected', 'status']:
@@ -357,6 +358,13 @@ class EventDetailView(LoginRequiredMixin, View):
                     event.end_dt = timezone.make_aware(event.end_dt, timezone.get_current_timezone())
 
             event.save()
+
+            # Log schedule change to unified ExecutionLog
+            if 'start_dt' in data and original_start_dt != event.start_dt:
+                from apps.core.drift.engine import DriftEngine
+                DriftEngine.record_schedule_change(
+                    request.user, event, original_start_dt, event.start_dt,
+                )
 
             # Post-write verification: re-fetch and confirm changes applied
             verified = CalendarEvent.objects.get(pk=pk, user=request.user)
@@ -455,10 +463,20 @@ class EventMoveView(LoginRequiredMixin, View):
                     reason=data.get('override_reason', 'User confirmed override')
                 )
 
+        # Capture original start for drift tracking
+        original_start_dt = event.start_dt
+
         # Perform the move
         event.start_dt = new_start
         event.end_dt = new_end
         event.save()
+
+        # Log schedule change to unified ExecutionLog
+        if original_start_dt != new_start:
+            from apps.core.drift.engine import DriftEngine
+            DriftEngine.record_schedule_change(
+                request.user, event, original_start_dt, new_start,
+            )
 
         # Writeback to source
         writeback_result = self._writeback(event, new_start, new_end)

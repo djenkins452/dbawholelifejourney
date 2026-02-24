@@ -38,6 +38,13 @@ PRE_EVENT_TEMPLATES = {
         "Your journaling time \"{title}\" starts in {lead_minutes} minutes. "
         "What's on your mind today?"
     ),
+    "meditation": (
+        "Your meditation \"{title}\" starts in {lead_minutes} minutes. "
+        "Find a quiet space and settle in."
+    ),
+    "fasting": (
+        "Your fasting period \"{title}\" starts in {lead_minutes} minutes."
+    ),
     "appointment": (
         "Your appointment \"{title}\" starts in {lead_minutes} minutes. "
         "Don't forget to prepare anything you need."
@@ -77,6 +84,14 @@ POST_EVENT_TEMPLATES = {
     "journaling": (
         "How was your journaling session \"{title}\"?"
     ),
+    "meditation": (
+        "How was your meditation \"{title}\"? "
+        "Feel centered?"
+    ),
+    "fasting": (
+        "How is your fasting \"{title}\" going? "
+        "Any reflections?"
+    ),
     "appointment": (
         "Your appointment \"{title}\" should be done. "
         "How did it go? Any follow-ups?"
@@ -101,6 +116,8 @@ DEFAULT_LEAD_MINUTES = {
     "prayer": 5,
     "devotional": 5,
     "journaling": 5,
+    "meditation": 5,
+    "fasting": 10,
     "appointment": 15,
     "task": 10,
     "default": 15,
@@ -113,6 +130,8 @@ DEFAULT_POST_DELAY_MINUTES = {
     "prayer": 5,
     "devotional": 5,
     "journaling": 5,
+    "meditation": 5,
+    "fasting": 5,
     "appointment": 10,
     "task": 5,
     "default": 5,
@@ -142,6 +161,13 @@ ACTIVITY_TYPE_PATTERNS = {
     "meeting": [
         "meeting", "standup", "sync", "1:1", "one-on-one",
         "call", "conference", "interview",
+    ],
+    "meditation": [
+        "meditation", "meditate", "mindfulness", "breathwork",
+        "breathing exercise", "centering",
+    ],
+    "fasting": [
+        "fasting", "fast day", "intermittent fast",
     ],
     "appointment": [
         "appointment", "doctor", "dentist", "therapy",

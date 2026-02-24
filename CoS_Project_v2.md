@@ -1,7 +1,7 @@
 # CoS (Chief of Staff) v2 — Master Project Tracker
 
 **Created:** 2026-02-24
-**Status:** Phase 7 Complete — Ready for Phase 8
+**Status:** Phase 8 Complete — Ready for Phase 9
 **Owner:** Claude Code (lead engineer)
 
 ---
@@ -319,12 +319,18 @@ Journal append logic lives in a new `JournalCosActions` service that checks for 
 **Goal:** Low-priority auto-shift with human-realism constraints
 
 **Tasks:**
-- [ ] Define time-of-day suitability rules per activity type
-- [ ] Implement auto-shift service for low-priority items
-- [ ] Add "ask before moving" gate for important/high-priority items
-- [ ] Implement audit logging for all auto-shifts
-- [ ] Add tests for shift constraints, priority gates, audit trail
-- [ ] Update CoS_Project_v2.md
+- [x] Define time-of-day suitability rules per activity type
+- [x] Implement auto-shift service for low-priority items
+- [x] Add "ask before moving" gate for important/high-priority items
+- [x] Implement audit logging for all auto-shifts
+- [x] Add tests for shift constraints, priority gates, audit trail
+- [x] Update CoS_Project_v2.md
+
+**Completion Notes:**
+- Created `CosAutoShiftService` with full priority determination, time-of-day suitability, slot finding, and shift execution
+- Added "meditation" and "fasting" activity type patterns to `prompt_templates.py` for complete detection
+- 31 tests across 7 test classes: PriorityDetermination, TimeSuitability, TimeClamping, ShiftProposal, ShiftExecution, ShiftHistory, MaxShiftDistance
+- Total CoS tests: **313** (all passing)
 
 **Files to Touch:**
 - `apps/cos/services/auto_shift_service.py`

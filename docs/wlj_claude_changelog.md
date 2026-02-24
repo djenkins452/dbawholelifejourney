@@ -9,6 +9,18 @@
 
 # WLJ Change History
 
+## 2026-02-24 — CoS v2 Phase 8: Priority + Time-of-Day Auto-Shifting
+
+**What:** Created CosAutoShiftService for intelligent event rescheduling with human-realism constraints. Events are classified by priority (high/medium/low) based on protected status and activity type. Only low-priority events auto-shift; medium/high require user confirmation. Time-of-day suitability rules prevent nonsensical shifts (no late-night workouts, therapy only during daytime). Full audit trail via CosAutoShiftLog.
+
+**Key changes:**
+- `apps/cos/services/auto_shift_service.py` — New CosAutoShiftService with priority determination, time suitability windows, slot finding with conflict avoidance, shift execution via CalendarMutationService, and audit logging
+- `apps/cos/services/prompt_templates.py` — Added "meditation" and "fasting" activity type patterns, templates, and timing defaults
+- `apps/cos/tests/test_auto_shift.py` — 31 tests across 7 test classes (priority, suitability, clamping, proposal, execution, history, max distance)
+- `CoS_Project_v2.md` — Phase 8 marked complete, total 313 CoS tests passing
+
+---
+
 ## 2026-02-24 — Fix recurring event duplicate creation + outdated validator gate message
 
 **What:** Two bugs: (1) "add Workout next Thursday at 6:15am" created a duplicate event when a weekly recurring Workout already covered that date/time. The semantic duplicate check only matched the base row's exact `start_dt`, not expanded recurrence occurrences. (2) The validator gate's canned response falsely claimed "updates or removals aren't available through chat yet" — this was outdated after shipping update/delete support.

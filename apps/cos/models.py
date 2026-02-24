@@ -363,9 +363,13 @@ class CosGoalSuggestion(TimeStampedModel):
 
     @classmethod
     def last_suggestion_date(cls, user, theme: str):
-        """Return the date of the last suggestion for this theme, or None."""
+        """Return the date of the last suggestion for this theme, or None.
+
+        Excludes opted-out placeholder records from throttle consideration.
+        """
         latest = (
             cls.objects.filter(user=user, theme=theme)
+            .exclude(status=cls.STATUS_OPTED_OUT)
             .order_by("-created_at")
             .values_list("created_at", flat=True)
             .first()

@@ -9,6 +9,19 @@
 
 # WLJ Change History
 
+## 2026-02-24 — CoS v2 Phase 11: Final Regression + Scenario Tests (PROJECT COMPLETE)
+
+**What:** 32 end-to-end scenario tests covering all 8 core scenarios. Fixed throttle logic to exclude opted-out records from throttle consideration. CoS v2 project complete with 399 tests passing.
+
+**Files:**
+- `apps/cos/tests/test_scenarios.py` — NEW: 32 scenario tests (8 test classes)
+- `apps/cos/models.py` — Fixed `last_suggestion_date()` to exclude STATUS_OPTED_OUT records
+- `CoS_Project_v2.md` — Marked PROJECT COMPLETE
+
+**Why:** Final validation phase ensuring all CoS v2 features work correctly in realistic multi-step scenarios. Bug fix: opted-out placeholder records were incorrectly counting toward throttle, blocking suggestions after undo-opt-out.
+
+---
+
 ## 2026-02-24 — CoS v2 Phase 10: Rollout + Backfill + Hardening
 
 **What:** Production readiness for CoS v2. Management commands for backfill and feature flag control. Performance indexes and hardened error handling.

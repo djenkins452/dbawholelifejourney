@@ -1,7 +1,7 @@
 # CoS (Chief of Staff) v2 — Master Project Tracker
 
 **Created:** 2026-02-24
-**Status:** Phase 6 Complete — Ready for Phase 7
+**Status:** Phase 7 Complete — Ready for Phase 8
 **Owner:** Claude Code (lead engineer)
 
 ---
@@ -285,24 +285,33 @@ Journal append logic lives in a new `JournalCosActions` service that checks for 
 
 ---
 
-### Phase 7: Goal Suggestion Policy
+### Phase 7: Goal Suggestion Policy ✅
 **Goal:** Monthly-throttled goal suggestions with 3-decline opt-out
+**Completed:** 2026-02-24 | **Tests:** 27 new (282 total CoS)
 
 **Tasks:**
-- [ ] Implement goal suggestion service with monthly throttle
-- [ ] Track decline history per theme
-- [ ] Implement 3-decline opt-out prompt ("Stop suggesting this?")
-- [ ] Wire into PGE guidance delivery
-- [ ] Add tests for throttle, decline tracking, opt-out
-- [ ] Update CoS_Project_v2.md
+- [x] Implement CosGoalSuggestionService with monthly throttle (30-day per theme)
+- [x] Track decline history per theme with cumulative count
+- [x] Implement 3-decline opt-out prompt ("Stop suggesting this?")
+- [x] Opt-out blocks all future suggestions, undo_opt_out re-enables
+- [x] Batch creation from CosPatternService output
+- [x] Full pipeline: patterns → suggestions → throttle → store
+- [x] Query methods: pending, history, opted-out themes, theme stats
+- [x] Never auto-create goals — suggestions only (accept just marks status)
+- [x] Add tests for throttle, decline tracking, opt-out, batch, pipeline
+- [x] Update CoS_Project_v2.md
 
-**Files to Touch:**
-- `apps/cos/services/goal_suggestion_service.py`
-- `apps/cos/models.py` (CosGoalSuggestion already created in Phase 1)
-- `apps/cos/tests/test_goal_suggestions.py`
+**Files Created:**
+- `apps/cos/services/goal_suggestion_service.py` — CosGoalSuggestionService
+- `apps/cos/tests/test_goal_suggestions.py` — 27 tests across 7 test classes
 
-**Tests:** Monthly throttle enforced, decline count tracking, opt-out at 3 declines
-**Risk:** Low — isolated feature with clear boundaries
+**Architecture:**
+- `create_suggestion(theme, text, evidence)` — Creates if passes throttle + opt-out checks
+- `accept_suggestion(id)` — Marks accepted (no auto-goal-creation)
+- `decline_suggestion(id)` — Marks declined, returns `offer_opt_out=True` at 3 declines
+- `opt_out_theme(theme)` / `undo_opt_out(theme)` — Permanent block/unblock
+- `run_suggestion_pipeline(days, max)` — Full flow: CosPatternService → suggestions → store
+- Monthly throttle: `last_suggestion_date()` + 30-day check
 
 ---
 

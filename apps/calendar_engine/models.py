@@ -128,6 +128,10 @@ class CalendarEvent(models.Model):
             models.Index(fields=['user', 'source_type', 'source_id']),
             models.Index(fields=['user', 'status']),
             models.Index(fields=['user', 'deleted_at']),
+            models.Index(
+                fields=['user', 'title', 'start_dt', 'end_dt'],
+                name='idx_cal_event_semantic_dup',
+            ),
         ]
         constraints = [
             models.UniqueConstraint(

@@ -110,6 +110,31 @@ class CalendarMutationService:
                         success=True, event=existing, reused=True,
                     )
 
+                # --- Semantic duplicate check ---
+                # Exact match on user + title + start_dt + end_dt, non-canceled
+                semantic_dup = (
+                    CalendarEvent.objects
+                    .select_for_update()
+                    .filter(
+                        user=self.user,
+                        title__iexact=title.strip(),
+                        start_dt=start_dt,
+                        end_dt=end_dt,
+                        deleted_at__isnull=True,
+                    )
+                    .exclude(status=CalendarEvent.STATUS_CANCELED)
+                    .first()
+                )
+                if semantic_dup:
+                    logger.info(
+                        "Semantic duplicate blocked: user=%s title=%r "
+                        "start_dt=%s — returning existing pk=%s",
+                        self.user.id, title, start_dt, semantic_dup.pk,
+                    )
+                    return MutationResult(
+                        success=True, event=semantic_dup, reused=True,
+                    )
+
                 try:
                     with transaction.atomic():  # Nested savepoint
                         event = CalendarEvent.objects.create(

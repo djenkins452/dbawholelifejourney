@@ -3393,7 +3393,9 @@ class ActionHandler:
             duration = current_end - current_start
 
             if start_date:
-                new_date = self._resolve_date_string(start_date, user_tz)
+                new_date = self._resolve_date_string(
+                    start_date, user_tz, start_time_str=start_time,
+                )
                 if not new_date:
                     return ActionResult(
                         success=False,
@@ -3511,49 +3513,50 @@ class ActionHandler:
             action_type='mutate_calendar_event',
         )
 
-    def _resolve_date_string(self, date_str, user_tz):
+    def _resolve_date_string(self, date_str, user_tz, start_time_str=None):
         """
         Resolve a date string to a date object.
-        Handles 'today', 'tomorrow', weekday names, and YYYY-MM-DD.
+        Delegates to the canonical resolve_weekday_to_date() for weekday and
+        relative-date resolution. Also handles Month Day formats as fallback.
+
+        Args:
+            date_str: The date string (e.g. 'today', 'wednesday', 'next friday',
+                      '2026-03-15', 'March 15').
+            user_tz: The user's pytz timezone.
+            start_time_str: Optional HH:MM string for same-day disambiguation.
         """
         import datetime as dt
 
+        from apps.calendar_engine.utils.date_resolution import resolve_weekday_to_date
         from apps.core.time.system_clock import get_current_time
 
         now_utc = get_current_time()
         now_local = now_utc.astimezone(user_tz)
         today = now_local.date()
 
-        date_str_lower = date_str.strip().lower()
+        # Parse start_time for same-day weekday disambiguation
+        parsed_time = None
+        if start_time_str:
+            try:
+                parsed_time = dt.datetime.strptime(start_time_str, "%H:%M").time()
+            except (ValueError, TypeError):
+                pass
 
-        if date_str_lower == 'today':
-            return today
-        elif date_str_lower == 'tomorrow':
-            return today + dt.timedelta(days=1)
-
-        # Weekday names
-        weekday_map = {
-            'monday': 0, 'tuesday': 1, 'wednesday': 2,
-            'thursday': 3, 'friday': 4, 'saturday': 5, 'sunday': 6,
-        }
-        if date_str_lower in weekday_map:
-            target_weekday = weekday_map[date_str_lower]
-            current_weekday = today.weekday()
-            days_ahead = target_weekday - current_weekday
-            if days_ahead <= 0:
-                days_ahead += 7
-            return today + dt.timedelta(days=days_ahead)
-
-        # ISO format
+        # Delegate to canonical resolver (handles today, tomorrow, weekday,
+        # next <weekday>, ISO dates)
         try:
-            return dt.date.fromisoformat(date_str)
+            return resolve_weekday_to_date(
+                self.user, date_str, reference_dt=now_local,
+                start_time=parsed_time,
+            )
         except ValueError:
             pass
 
-        # Month Day format (e.g., "March 15")
+        # Fallback: Month Day format (e.g., "March 15")
+        date_str_stripped = date_str.strip()
         for fmt in ('%B %d', '%b %d', '%B %d, %Y', '%b %d, %Y'):
             try:
-                parsed = dt.datetime.strptime(date_str, fmt)
+                parsed = dt.datetime.strptime(date_str_stripped, fmt)
                 if parsed.year == 1900:
                     parsed = parsed.replace(year=today.year)
                 return parsed.date()

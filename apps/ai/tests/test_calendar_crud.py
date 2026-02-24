@@ -561,3 +561,134 @@ class DriftHookTests(CalendarCRUDTestMixin, TestCase):
             user=self.user, calendar_event=ev,
         ).exclude(event_type=ExecutionLog.EVENT_TYPE_CANCELED)
         self.assertEqual(logs.count(), 1)
+
+
+# ──────────────────────────────────────────────────────────
+# Semantic Duplicate Protection
+# ──────────────────────────────────────────────────────────
+
+class SemanticDuplicateTests(CalendarCRUDTestMixin, TestCase):
+    """Tests that exact duplicate events are blocked."""
+
+    def setUp(self):
+        self.user = self._create_user('semdup@example.com')
+
+    def test_identical_event_blocked(self):
+        """Creating an identical event (same title+start+end) returns existing."""
+        from apps.calendar_engine.services.calendar_mutation_service import (
+            CalendarMutationService,
+        )
+        tz = pytz.timezone('America/New_York')
+        start = tz.localize(dt.datetime(2026, 3, 4, 6, 15))
+        end = tz.localize(dt.datetime(2026, 3, 4, 7, 15))
+
+        service = CalendarMutationService(self.user)
+
+        r1 = service.create(title='Workout', start_dt=start, end_dt=end,
+                            idempotency_key=uuid4().hex)
+        self.assertTrue(r1.success)
+        self.assertFalse(r1.reused)
+
+        r2 = service.create(title='Workout', start_dt=start, end_dt=end,
+                            idempotency_key=uuid4().hex)  # different key!
+        self.assertTrue(r2.success)
+        self.assertTrue(r2.reused)
+        self.assertEqual(r2.event.pk, r1.event.pk)
+
+        # Only one row in DB
+        count = CalendarEvent.objects.filter(
+            user=self.user, title='Workout',
+        ).count()
+        self.assertEqual(count, 1)
+
+    def test_different_title_same_time_allowed(self):
+        """Different title at same time is NOT a duplicate."""
+        from apps.calendar_engine.services.calendar_mutation_service import (
+            CalendarMutationService,
+        )
+        tz = pytz.timezone('America/New_York')
+        start = tz.localize(dt.datetime(2026, 3, 4, 6, 15))
+        end = tz.localize(dt.datetime(2026, 3, 4, 7, 15))
+
+        service = CalendarMutationService(self.user)
+
+        r1 = service.create(title='Workout', start_dt=start, end_dt=end,
+                            idempotency_key=uuid4().hex)
+        r2 = service.create(title='Meeting', start_dt=start, end_dt=end,
+                            idempotency_key=uuid4().hex)
+
+        self.assertTrue(r1.success)
+        self.assertTrue(r2.success)
+        self.assertFalse(r2.reused)
+        self.assertNotEqual(r1.event.pk, r2.event.pk)
+
+    def test_same_title_different_time_allowed(self):
+        """Same title at different time is NOT a duplicate."""
+        from apps.calendar_engine.services.calendar_mutation_service import (
+            CalendarMutationService,
+        )
+        tz = pytz.timezone('America/New_York')
+        start1 = tz.localize(dt.datetime(2026, 3, 4, 6, 15))
+        end1 = tz.localize(dt.datetime(2026, 3, 4, 7, 15))
+        start2 = tz.localize(dt.datetime(2026, 3, 11, 6, 15))
+        end2 = tz.localize(dt.datetime(2026, 3, 11, 7, 15))
+
+        service = CalendarMutationService(self.user)
+
+        r1 = service.create(title='Workout', start_dt=start1, end_dt=end1,
+                            idempotency_key=uuid4().hex)
+        r2 = service.create(title='Workout', start_dt=start2, end_dt=end2,
+                            idempotency_key=uuid4().hex)
+
+        self.assertTrue(r1.success)
+        self.assertTrue(r2.success)
+        self.assertFalse(r2.reused)
+        self.assertNotEqual(r1.event.pk, r2.event.pk)
+
+    def test_canceled_event_allows_new_creation(self):
+        """If an event with same title+time is canceled, a new one is allowed."""
+        from apps.calendar_engine.services.calendar_mutation_service import (
+            CalendarMutationService,
+        )
+        tz = pytz.timezone('America/New_York')
+        start = tz.localize(dt.datetime(2026, 3, 4, 6, 15))
+        end = tz.localize(dt.datetime(2026, 3, 4, 7, 15))
+
+        service = CalendarMutationService(self.user)
+
+        r1 = service.create(title='Workout', start_dt=start, end_dt=end,
+                            idempotency_key=uuid4().hex)
+        self.assertTrue(r1.success)
+
+        # Cancel it
+        service.delete(r1.event.pk)
+
+        # Create again — should succeed since original is canceled
+        r2 = service.create(title='Workout', start_dt=start, end_dt=end,
+                            idempotency_key=uuid4().hex)
+        self.assertTrue(r2.success)
+        self.assertFalse(r2.reused)
+        self.assertNotEqual(r2.event.pk, r1.event.pk)
+
+    def test_case_insensitive_title_match(self):
+        """Duplicate check is case-insensitive on title."""
+        from apps.calendar_engine.services.calendar_mutation_service import (
+            CalendarMutationService,
+        )
+        tz = pytz.timezone('America/New_York')
+        start = tz.localize(dt.datetime(2026, 3, 4, 6, 15))
+        end = tz.localize(dt.datetime(2026, 3, 4, 7, 15))
+
+        service = CalendarMutationService(self.user)
+
+        r1 = service.create(title='Workout', start_dt=start, end_dt=end,
+                            idempotency_key=uuid4().hex)
+        r2 = service.create(title='workout', start_dt=start, end_dt=end,
+                            idempotency_key=uuid4().hex)
+        r3 = service.create(title='WORKOUT', start_dt=start, end_dt=end,
+                            idempotency_key=uuid4().hex)
+
+        self.assertTrue(r2.reused)
+        self.assertTrue(r3.reused)
+        self.assertEqual(r2.event.pk, r1.event.pk)
+        self.assertEqual(r3.event.pk, r1.event.pk)

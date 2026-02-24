@@ -333,8 +333,10 @@ class TestDeleteRowCountValidation(_UserMixin, TestCase):
         data = response.json()
         self.assertEqual(data['status'], 'deleted')
 
-        # Verify row is gone
-        self.assertFalse(CalendarEvent.objects.filter(pk=pk).exists())
+        # Verify event is soft-deleted (status=canceled, deleted_at set)
+        event = CalendarEvent.objects.get(pk=pk)
+        self.assertEqual(event.status, CalendarEvent.STATUS_CANCELED)
+        self.assertIsNotNone(event.deleted_at)
 
     def test_delete_nonexistent_returns_404(self):
         response = self.client.delete('/calendar/api/events/99999/')

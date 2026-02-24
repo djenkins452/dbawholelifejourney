@@ -9,6 +9,30 @@
 
 # WLJ Change History
 
+## 2026-02-24 — Enhanced date resolution + semantic duplicate protection
+
+**What:**
+1. **"next <weekday>" vs bare "<weekday>"** — "Wednesday" resolves to this week, "next Wednesday" always resolves to the following week. Previously both resolved to the same date.
+2. **Extended natural language dates** — Added support for "last/previous <weekday>", "yesterday", "in N days/weeks", "N days/weeks ago", "N weeks from now", "<weekday> N weeks from now". Number words ("three", "four") also work.
+3. **Semantic duplicate protection** — CalendarMutationService.create() now checks for exact-match duplicates (same user + title case-insensitive + start_dt + end_dt, non-canceled) before creating. Returns existing event if duplicate found. Uses select_for_update() for race safety.
+4. **Soft delete test fix** — Updated test_phase9_calendar_integrity test that expected hard delete to verify soft delete instead.
+
+**Files Modified:**
+- `apps/calendar_engine/utils/date_resolution.py` (Phase 9.2 + 9.3: "next/last <weekday>", numeric offsets, yesterday)
+- `apps/ai/action_handlers.py` (`_resolve_date_string` delegates to canonical resolver with time-aware support)
+- `apps/calendar_engine/services/calendar_mutation_service.py` (semantic duplicate check in create())
+- `apps/calendar_engine/models.py` (added `idx_cal_event_semantic_dup` composite index)
+- `apps/calendar_engine/test_phase9_calendar_determinism.py` (31 new tests for Phase 9.2 + 9.3)
+- `apps/ai/tests/test_calendar_crud.py` (5 new semantic duplicate tests)
+- `apps/calendar_engine/tests/test_phase9_calendar_integrity.py` (fix soft delete assertion)
+
+**Files Created:**
+- `apps/calendar_engine/migrations/0006_add_semantic_duplicate_index.py`
+
+**Tests:** 108/108 pass (47 date resolution + 27 calendar CRUD + 24 integrity + 10 intent registration).
+
+---
+
 ## 2026-02-24 — Calendar Full CRUD via CoS (read, update, delete)
 
 **What:** CoS can now read, update, and delete calendar events — not just create them. Two new LLM tools (`read_calendar_events`, `mutate_calendar_event`) give the AI full calendar CRUD. A new `CalendarMutationService` provides a single mutation path shared by both the AI pipeline and the web view layer.

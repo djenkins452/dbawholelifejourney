@@ -206,6 +206,333 @@ class DateResolutionTests(TestCase):
         )
         self.assertEqual(result, dt.date(2026, 2, 25))
 
+    # --- Phase 9.2: "next <weekday>" tests ---
+    # Note: Feb 23, 2026 = Monday; Feb 25 = Wednesday; Feb 26 = Thursday; Feb 28 = Saturday
+
+    def test_next_wednesday_on_monday_resolves_to_following_week(self):
+        """
+        Today Monday Feb 23.
+        'next wednesday' → FOLLOWING week Wed = March 4 (not this week's Feb 25).
+        """
+        ref = dt.datetime(2026, 2, 23, 10, 0, tzinfo=ZoneInfo('America/Chicago'))
+        result = resolve_weekday_to_date(self.user, 'next wednesday', reference_dt=ref)
+        self.assertEqual(result, dt.date(2026, 3, 4))
+
+    def test_bare_wednesday_on_monday_resolves_to_this_week(self):
+        """
+        Today Monday Feb 23.
+        'wednesday' → THIS week Wed = Feb 25.
+        """
+        ref = dt.datetime(2026, 2, 23, 10, 0, tzinfo=ZoneInfo('America/Chicago'))
+        result = resolve_weekday_to_date(self.user, 'wednesday', reference_dt=ref)
+        self.assertEqual(result, dt.date(2026, 2, 25))
+
+    def test_next_monday_on_monday_skips_today(self):
+        """
+        Today Monday Feb 23.
+        'next monday' → FOLLOWING week Mon = March 2 (not today).
+        """
+        ref = dt.datetime(2026, 2, 23, 10, 0, tzinfo=ZoneInfo('America/Chicago'))
+        result = resolve_weekday_to_date(self.user, 'next monday', reference_dt=ref)
+        self.assertEqual(result, dt.date(2026, 3, 2))
+
+    def test_next_friday_on_monday(self):
+        """
+        Today Monday Feb 23.
+        'next friday' → FOLLOWING week Fri = March 6 (not this week's Feb 27).
+        """
+        ref = dt.datetime(2026, 2, 23, 10, 0, tzinfo=ZoneInfo('America/Chicago'))
+        result = resolve_weekday_to_date(self.user, 'next friday', reference_dt=ref)
+        self.assertEqual(result, dt.date(2026, 3, 6))
+
+    def test_next_wednesday_on_thursday(self):
+        """
+        Today Thursday Feb 26.
+        'next wednesday' → following week Wed = March 4.
+        Bare 'wednesday' would also be March 4 since Wed already passed this week.
+        But 'next' explicitly means following week.
+        """
+        ref = dt.datetime(2026, 2, 26, 10, 0, tzinfo=ZoneInfo('America/Chicago'))
+        result = resolve_weekday_to_date(self.user, 'next wednesday', reference_dt=ref)
+        # days_ahead for Wed from Thu = (3-4)%7 = 6 days. +7 = 13 days.
+        # Feb 26 + 13 = March 11.
+        self.assertEqual(result, dt.date(2026, 3, 11))
+
+    def test_next_weekday_abbreviated(self):
+        """
+        'next wed' works the same as 'next wednesday'.
+        """
+        ref = dt.datetime(2026, 2, 23, 10, 0, tzinfo=ZoneInfo('America/Chicago'))
+        result = resolve_weekday_to_date(self.user, 'next wed', reference_dt=ref)
+        self.assertEqual(result, dt.date(2026, 3, 4))
+
+    def test_next_weekday_case_insensitive(self):
+        """
+        'Next Wednesday', 'NEXT WEDNESDAY', 'next wednesday' all work.
+        """
+        ref = dt.datetime(2026, 2, 23, 10, 0, tzinfo=ZoneInfo('America/Chicago'))
+        self.assertEqual(
+            resolve_weekday_to_date(self.user, 'Next Wednesday', reference_dt=ref),
+            dt.date(2026, 3, 4),
+        )
+        self.assertEqual(
+            resolve_weekday_to_date(self.user, 'NEXT WEDNESDAY', reference_dt=ref),
+            dt.date(2026, 3, 4),
+        )
+
+    def test_next_invalid_weekday_raises(self):
+        """
+        'next blah' raises ValueError.
+        """
+        ref = dt.datetime(2026, 2, 23, 10, 0, tzinfo=ZoneInfo('America/Chicago'))
+        with self.assertRaises(ValueError):
+            resolve_weekday_to_date(self.user, 'next blah', reference_dt=ref)
+
+    def test_next_sunday_on_saturday(self):
+        """
+        Today Saturday Feb 28.
+        Bare 'sunday' → tomorrow March 1.
+        'next sunday' → following week March 8.
+        """
+        ref = dt.datetime(2026, 2, 28, 10, 0, tzinfo=ZoneInfo('America/Chicago'))
+        bare = resolve_weekday_to_date(self.user, 'sunday', reference_dt=ref)
+        self.assertEqual(bare, dt.date(2026, 3, 1))  # tomorrow
+
+        next_sun = resolve_weekday_to_date(self.user, 'next sunday', reference_dt=ref)
+        self.assertEqual(next_sun, dt.date(2026, 3, 8))  # following week
+
+    def test_next_wednesday_with_time_still_follows_next_week(self):
+        """
+        'next wednesday' with start_time should STILL resolve to following week.
+        The start_time param should not override the 'next' directive.
+        Today Monday Feb 23.
+        """
+        ref = dt.datetime(2026, 2, 23, 5, 0, tzinfo=ZoneInfo('America/Chicago'))
+        event_time = dt.time(6, 15)
+        result = resolve_weekday_to_date(
+            self.user, 'next wednesday', reference_dt=ref, start_time=event_time,
+        )
+        self.assertEqual(result, dt.date(2026, 3, 4))
+
+    def test_bare_wednesday_same_day_time_passed_goes_next_week(self):
+        """
+        Today Wednesday Feb 25, 8am. User says 'wednesday 6:15am'.
+        6:15 < 8:00 → time passed → next week's Wednesday = March 4.
+        """
+        ref = dt.datetime(2026, 2, 25, 8, 0, tzinfo=ZoneInfo('America/Chicago'))
+        event_time = dt.time(6, 15)
+        result = resolve_weekday_to_date(
+            self.user, 'wednesday', reference_dt=ref, start_time=event_time,
+        )
+        self.assertEqual(result, dt.date(2026, 3, 4))
+
+    def test_bare_wednesday_same_day_time_future_stays_today(self):
+        """
+        Today Wednesday Feb 25, 5am. User says 'wednesday 6:15am'.
+        6:15 > 5:00 → time still in future → today.
+        """
+        ref = dt.datetime(2026, 2, 25, 5, 0, tzinfo=ZoneInfo('America/Chicago'))
+        event_time = dt.time(6, 15)
+        result = resolve_weekday_to_date(
+            self.user, 'wednesday', reference_dt=ref, start_time=event_time,
+        )
+        self.assertEqual(result, dt.date(2026, 2, 25))
+
+    def test_timezone_correctness_eastern_vs_central(self):
+        """
+        Timezone difference: same UTC moment, different local weekday.
+        2026-03-01 05:30 UTC = Feb 28 (Sat) 11:30pm CST = March 1 (Sun) 12:30am EST.
+        """
+        user_east = _create_test_user('tz_east@example.com', 'America/New_York')
+        user_central = _create_test_user('tz_central@example.com', 'America/Chicago')
+
+        ref_east = dt.datetime(2026, 3, 1, 0, 30, tzinfo=ZoneInfo('America/New_York'))
+        ref_central = dt.datetime(2026, 2, 28, 23, 30, tzinfo=ZoneInfo('America/Chicago'))
+
+        # Eastern user: it's Sunday March 1 → 'wednesday' = March 4
+        east_result = resolve_weekday_to_date(user_east, 'wednesday', reference_dt=ref_east)
+        self.assertEqual(east_result, dt.date(2026, 3, 4))
+
+        # Central user: it's Saturday Feb 28 → 'wednesday' = March 4
+        central_result = resolve_weekday_to_date(user_central, 'wednesday', reference_dt=ref_central)
+        self.assertEqual(central_result, dt.date(2026, 3, 4))
+
+        # Eastern: 'next wednesday' from Sunday March 1 = March 11
+        east_next = resolve_weekday_to_date(user_east, 'next wednesday', reference_dt=ref_east)
+        self.assertEqual(east_next, dt.date(2026, 3, 11))
+
+        # Central: 'next wednesday' from Saturday Feb 28 = March 11
+        central_next = resolve_weekday_to_date(user_central, 'next wednesday', reference_dt=ref_central)
+        self.assertEqual(central_next, dt.date(2026, 3, 11))
+
+    # --- Phase 9.3: Enhanced relative date resolution tests ---
+
+    def test_yesterday(self):
+        """'yesterday' → today - 1."""
+        ref = dt.datetime(2026, 2, 25, 10, 0, tzinfo=ZoneInfo('America/Chicago'))
+        result = resolve_weekday_to_date(self.user, 'yesterday', reference_dt=ref)
+        self.assertEqual(result, dt.date(2026, 2, 24))
+
+    def test_last_wednesday_on_monday(self):
+        """
+        Today Monday Feb 23.
+        'last wednesday' → the most recent past Wednesday = Feb 18.
+        """
+        ref = dt.datetime(2026, 2, 23, 10, 0, tzinfo=ZoneInfo('America/Chicago'))
+        result = resolve_weekday_to_date(self.user, 'last wednesday', reference_dt=ref)
+        self.assertEqual(result, dt.date(2026, 2, 18))
+
+    def test_last_monday_on_monday(self):
+        """
+        Today Monday Feb 23.
+        'last monday' → last week's Monday = Feb 16 (not today).
+        """
+        ref = dt.datetime(2026, 2, 23, 10, 0, tzinfo=ZoneInfo('America/Chicago'))
+        result = resolve_weekday_to_date(self.user, 'last monday', reference_dt=ref)
+        self.assertEqual(result, dt.date(2026, 2, 16))
+
+    def test_previous_wednesday_on_thursday(self):
+        """
+        Today Thursday Feb 26.
+        'previous wednesday' → yesterday Feb 25.
+        """
+        ref = dt.datetime(2026, 2, 26, 10, 0, tzinfo=ZoneInfo('America/Chicago'))
+        result = resolve_weekday_to_date(self.user, 'previous wednesday', reference_dt=ref)
+        self.assertEqual(result, dt.date(2026, 2, 25))
+
+    def test_the_previous_friday_on_monday(self):
+        """
+        Today Monday Feb 23.
+        'the previous friday' → Feb 20.
+        """
+        ref = dt.datetime(2026, 2, 23, 10, 0, tzinfo=ZoneInfo('America/Chicago'))
+        result = resolve_weekday_to_date(self.user, 'the previous friday', reference_dt=ref)
+        self.assertEqual(result, dt.date(2026, 2, 20))
+
+    def test_last_abbreviated_weekday(self):
+        """'last wed' works same as 'last wednesday'."""
+        ref = dt.datetime(2026, 2, 23, 10, 0, tzinfo=ZoneInfo('America/Chicago'))
+        result = resolve_weekday_to_date(self.user, 'last wed', reference_dt=ref)
+        self.assertEqual(result, dt.date(2026, 2, 18))
+
+    def test_in_4_days(self):
+        """'in 4 days' from Feb 23 → Feb 27."""
+        ref = dt.datetime(2026, 2, 23, 10, 0, tzinfo=ZoneInfo('America/Chicago'))
+        result = resolve_weekday_to_date(self.user, 'in 4 days', reference_dt=ref)
+        self.assertEqual(result, dt.date(2026, 2, 27))
+
+    def test_in_four_days_word(self):
+        """'in four days' from Feb 23 → Feb 27 (number word)."""
+        ref = dt.datetime(2026, 2, 23, 10, 0, tzinfo=ZoneInfo('America/Chicago'))
+        result = resolve_weekday_to_date(self.user, 'in four days', reference_dt=ref)
+        self.assertEqual(result, dt.date(2026, 2, 27))
+
+    def test_in_2_weeks(self):
+        """'in 2 weeks' from Feb 23 → March 9."""
+        ref = dt.datetime(2026, 2, 23, 10, 0, tzinfo=ZoneInfo('America/Chicago'))
+        result = resolve_weekday_to_date(self.user, 'in 2 weeks', reference_dt=ref)
+        self.assertEqual(result, dt.date(2026, 3, 9))
+
+    def test_3_days_ago(self):
+        """'3 days ago' from Feb 25 → Feb 22."""
+        ref = dt.datetime(2026, 2, 25, 10, 0, tzinfo=ZoneInfo('America/Chicago'))
+        result = resolve_weekday_to_date(self.user, '3 days ago', reference_dt=ref)
+        self.assertEqual(result, dt.date(2026, 2, 22))
+
+    def test_two_weeks_ago(self):
+        """'two weeks ago' from Feb 23 → Feb 9."""
+        ref = dt.datetime(2026, 2, 23, 10, 0, tzinfo=ZoneInfo('America/Chicago'))
+        result = resolve_weekday_to_date(self.user, 'two weeks ago', reference_dt=ref)
+        self.assertEqual(result, dt.date(2026, 2, 9))
+
+    def test_3_weeks_from_now(self):
+        """'3 weeks from now' from Feb 23 → March 16."""
+        ref = dt.datetime(2026, 2, 23, 10, 0, tzinfo=ZoneInfo('America/Chicago'))
+        result = resolve_weekday_to_date(self.user, '3 weeks from now', reference_dt=ref)
+        self.assertEqual(result, dt.date(2026, 3, 16))
+
+    def test_wednesday_three_weeks_from_now(self):
+        """
+        Today Monday Feb 23.
+        'wednesday three weeks from now' → the Wednesday 3 weeks out.
+        This week's Wed = Feb 25. +2 weeks = March 11.
+        """
+        ref = dt.datetime(2026, 2, 23, 10, 0, tzinfo=ZoneInfo('America/Chicago'))
+        result = resolve_weekday_to_date(
+            self.user, 'wednesday three weeks from now', reference_dt=ref,
+        )
+        self.assertEqual(result, dt.date(2026, 3, 11))
+
+    def test_a_wednesday_three_weeks_from_now(self):
+        """
+        'a wednesday three weeks from now' — same as without 'a'.
+        """
+        ref = dt.datetime(2026, 2, 23, 10, 0, tzinfo=ZoneInfo('America/Chicago'))
+        result = resolve_weekday_to_date(
+            self.user, 'a wednesday three weeks from now', reference_dt=ref,
+        )
+        self.assertEqual(result, dt.date(2026, 3, 11))
+
+    def test_friday_2_weeks_from_now_on_monday(self):
+        """
+        Today Monday Feb 23.
+        'friday 2 weeks from now' → this week's Fri = Feb 27. +1 week = March 6.
+        """
+        ref = dt.datetime(2026, 2, 23, 10, 0, tzinfo=ZoneInfo('America/Chicago'))
+        result = resolve_weekday_to_date(
+            self.user, 'friday 2 weeks from now', reference_dt=ref,
+        )
+        self.assertEqual(result, dt.date(2026, 3, 6))
+
+    def test_monday_2_weeks_from_now_on_monday(self):
+        """
+        Today Monday Feb 23.
+        'monday 2 weeks from now' → today is Monday, so +2 weeks = March 9.
+        """
+        ref = dt.datetime(2026, 2, 23, 10, 0, tzinfo=ZoneInfo('America/Chicago'))
+        result = resolve_weekday_to_date(
+            self.user, 'monday 2 weeks from now', reference_dt=ref,
+        )
+        self.assertEqual(result, dt.date(2026, 3, 9))
+
+    def test_in_1_day(self):
+        """'in 1 day' = tomorrow."""
+        ref = dt.datetime(2026, 2, 23, 10, 0, tzinfo=ZoneInfo('America/Chicago'))
+        result = resolve_weekday_to_date(self.user, 'in 1 day', reference_dt=ref)
+        self.assertEqual(result, dt.date(2026, 2, 24))
+
+    def test_last_invalid_weekday_raises(self):
+        """'last blah' raises ValueError."""
+        ref = dt.datetime(2026, 2, 23, 10, 0, tzinfo=ZoneInfo('America/Chicago'))
+        with self.assertRaises(ValueError):
+            resolve_weekday_to_date(self.user, 'last blah', reference_dt=ref)
+
+    def test_timezone_aware_last_weekday(self):
+        """
+        Eastern user at midnight Sunday March 1 says 'last wednesday'.
+        Sunday isoweekday=7, Wed isoweekday=3. days_back=(7-3)%7=4.
+        March 1 - 4 = Feb 25 (Wednesday).
+
+        Central user at 11pm Saturday Feb 28 says 'last wednesday'.
+        Saturday isoweekday=6, Wed isoweekday=3. days_back=(6-3)%7=3.
+        Feb 28 - 3 = Feb 25 (Wednesday).
+
+        Both resolve to Feb 25 (same result, different paths).
+        """
+        user_east = _create_test_user('tz_last_e@example.com', 'America/New_York')
+        user_central = _create_test_user('tz_last_c@example.com', 'America/Chicago')
+
+        ref_east = dt.datetime(2026, 3, 1, 0, 30, tzinfo=ZoneInfo('America/New_York'))
+        ref_central = dt.datetime(2026, 2, 28, 23, 30, tzinfo=ZoneInfo('America/Chicago'))
+
+        # Eastern: Sunday March 1 → last Wednesday = Feb 25
+        east_result = resolve_weekday_to_date(user_east, 'last wednesday', reference_dt=ref_east)
+        self.assertEqual(east_result, dt.date(2026, 2, 25))
+
+        # Central: Saturday Feb 28 → last Wednesday = Feb 25
+        central_result = resolve_weekday_to_date(user_central, 'last wednesday', reference_dt=ref_central)
+        self.assertEqual(central_result, dt.date(2026, 2, 25))
+
 
 # ──────────────────────────────────────────────────────────
 # Section 7 — Idempotency & Concurrency Tests

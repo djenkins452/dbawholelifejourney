@@ -124,6 +124,10 @@ LIFE_INTENT_TOOLS = [
                     "clone_from_last": {
                         "type": "boolean",
                         "description": "Set to true when user says 'same workout', 'same event', etc. Inherits title, time, duration, location, and type from the most recent scheduling action. Do NOT provide start_time when cloning unless the user explicitly states a new time."
+                    },
+                    "force_override": {
+                        "type": "boolean",
+                        "description": "Set to true ONLY when the user explicitly confirms they want to override a calendar conflict. Never set this on the first attempt — only after the system reports a conflict and the user says 'override', 'proceed anyway', or 'book it anyway'."
                     }
                 },
                 "required": ["title", "start_date"]

@@ -602,7 +602,7 @@ class SemanticDuplicateTests(CalendarCRUDTestMixin, TestCase):
         self.assertEqual(count, 1)
 
     def test_different_title_same_time_allowed(self):
-        """Different title at same time is NOT a duplicate."""
+        """Different title at same time is NOT a duplicate (when force=True to bypass conflict)."""
         from apps.calendar_engine.services.calendar_mutation_service import (
             CalendarMutationService,
         )
@@ -614,8 +614,9 @@ class SemanticDuplicateTests(CalendarCRUDTestMixin, TestCase):
 
         r1 = service.create(title='Workout', start_dt=start, end_dt=end,
                             idempotency_key=uuid4().hex)
+        # force=True to bypass conflict policy (testing semantic dedup, not conflicts)
         r2 = service.create(title='Meeting', start_dt=start, end_dt=end,
-                            idempotency_key=uuid4().hex)
+                            idempotency_key=uuid4().hex, force=True)
 
         self.assertTrue(r1.success)
         self.assertTrue(r2.success)

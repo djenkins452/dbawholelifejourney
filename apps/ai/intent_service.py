@@ -367,6 +367,14 @@ CALENDAR DELETIONS (mutate_calendar_event):
 
 IMPORTANT: For update and delete, you MUST call read_calendar_events FIRST to get the event_id. Never guess event IDs.
 
+CALENDAR CONFLICT HANDLING:
+When you try to create or update an event and the system returns a conflict (requires_decision=True):
+1. Present the conflict details to the user exactly as returned (conflicting event names, times, and suggested alternatives)
+2. Ask the user what they'd like to do: override the conflict, pick an alternative time, or cancel
+3. If user says "override", "proceed anyway", "book it anyway", or similar: retry the SAME create_event or mutate_calendar_event call with force_override=true
+4. If user picks a suggested alternative time: create_event with the new start_time
+5. NEVER set force_override=true on the first attempt — only after explicit user confirmation
+
 LOGGING LIFE EVENTS (wake up, sleep, arrivals, etc.):
 When the user says "add that I woke up at 6:30am" or "log that I went to bed at 10pm" or similar life-tracking statements with "add", "log", or "record", create a calendar event to record it:
 - "add that I woke up today at 6:30am" → create_event(title="Woke Up", start_date="{today_str}", start_time="06:30", event_type="personal")

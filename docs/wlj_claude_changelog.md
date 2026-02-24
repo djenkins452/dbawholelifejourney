@@ -9,6 +9,23 @@
 
 # WLJ Change History
 
+## 2026-02-24 — Calendar Conflict Policy: No Silent Double-Booking (Phase 10)
+
+**What:** Pre-commit conflict detection prevents silent double-booking. Every time overlap now requires a user decision before the event is created or updated. Three conflict cases (A: protected vs unprotected, B: both protected, C: neither protected). Auto-protect for Workout/Bible Study/Prayer/Journaling/Health events. Suggested alternative time slots via gap detection. `force_override` parameter for user-confirmed overrides. Protected events cannot be moved to a different day.
+
+**Key changes:**
+- `conflicts.py` — Added `detect_all_conflicts()`, `classify_conflict_case()`, `build_conflict_message()`
+- `calendar_mutation_service.py` — Added `requires_decision`, `conflict_details`, `suggested_alternatives` to MutationResult. Pre-commit conflict check in create() and update(). Auto-protect logic. `force` parameter. Idempotency+semantic dedup checks moved before conflict detection.
+- `action_handlers.py` — Refactored `handle_create_event()` to route through CalendarMutationService (centralized conflict detection). Added `requires_decision` handling in mutate update path. `force_override` parameter threaded through all create/update paths.
+- `life_intents.py` / `calendar_intents.py` — Added `force_override` boolean parameter to tool schemas
+- `intent_service.py` — Added conflict handling instructions to system prompt
+- `test_calendar_conflict_policy.py` — 25 new tests covering all conflict cases, auto-protect, force override, protected day-change guard
+- `test_calendar_crud.py` — Updated semantic dedup test to use `force=True` for overlap scenario
+
+**Tests:** 86/86 pass (25 conflict policy + 37 CRUD + 24 calendar engine).
+
+---
+
 ## 2026-02-24 — Fix: Progress bar stuck animating after CoS chat messages
 
 **Root Cause:** The page progress bar in `main.js` hooks into all form `submit` events to show a loading indicator. The CoS chat form (`ap-chat-form`) is a regular `<form>` that calls `e.preventDefault()` and uses `fetch()` — not HTMX or page navigation. Every chat message triggered `showProgress()`, but since `fetch()` doesn't fire `htmx:afterRequest` and the page doesn't navigate, `hideProgress()` was never called. The gold bar animated indefinitely.

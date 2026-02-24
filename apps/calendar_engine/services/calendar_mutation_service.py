@@ -50,6 +50,10 @@ class MutationResult:
     gcal_synced: bool = False
     conflict_warning: Optional[str] = None
     pressure_note: Optional[str] = None
+    # Phase 10: Conflict policy — pre-commit pause
+    requires_decision: bool = False
+    conflict_details: Optional[Dict[str, Any]] = None
+    suggested_alternatives: Optional[List[Dict[str, Any]]] = None
 
 
 class CalendarMutationService:
@@ -63,8 +67,33 @@ class CalendarMutationService:
         result = service.delete(event_id=42)
     """
 
+    # Auto-protect patterns: events matching these title substrings
+    # get is_protected=True on creation (case-insensitive).
+    AUTO_PROTECT_PATTERNS = [
+        'workout', 'exercise', 'gym', 'training',
+        'bible study', 'bible reading', 'devotional', 'scripture',
+        'prayer', 'prayer time', 'quiet time',
+        'journaling', 'journal', 'reflection',
+        'health check', 'doctor', 'medical', 'therapy', 'appointment',
+    ]
+
     def __init__(self, user):
         self.user = user
+
+    # ------------------------------------------------------------------ #
+    # Auto-protect logic
+    # ------------------------------------------------------------------ #
+
+    @classmethod
+    def should_auto_protect(cls, title: str) -> bool:
+        """
+        Determine if an event title matches auto-protect patterns.
+
+        Events for Workout, Bible Study, Prayer, Journaling, and Health
+        are automatically marked as protected.
+        """
+        title_lower = title.strip().lower()
+        return any(pattern in title_lower for pattern in cls.AUTO_PROTECT_PATTERNS)
 
     # ------------------------------------------------------------------ #
     # CREATE
@@ -84,12 +113,19 @@ class CalendarMutationService:
         source_id: str = "",
         is_protected: bool = False,
         status: str = CalendarEvent.STATUS_SCHEDULED,
+        force: bool = False,
     ) -> MutationResult:
         """
-        Create a CalendarEvent with idempotency enforcement.
+        Create a CalendarEvent with idempotency enforcement and conflict policy.
 
-        Uses the existing UniqueConstraint(user, idempotency_key) with
-        nested transaction savepoints for race-condition recovery.
+        Phase 10 conflict policy: before creating, checks ALL scheduled events
+        for time overlap. If a conflict exists and force=False, returns
+        requires_decision=True with conflict details and suggested alternatives.
+        The event is NOT created until the user confirms (force=True).
+
+        Args:
+            force: If True, skip conflict detection and create anyway.
+                   Used when user explicitly confirms override.
         """
         if not idempotency_key:
             idempotency_key = compute_idempotency_key(
@@ -97,10 +133,60 @@ class CalendarMutationService:
                 source_type=source_type, source_id=source_id,
             )
 
+        # --- Auto-protect ---
+        if not is_protected and self.should_auto_protect(title):
+            is_protected = True
+            logger.debug(
+                "Auto-protect enabled for title=%r (user=%s)",
+                title, self.user.id,
+            )
+
+        # --- Idempotency check (before conflict detection) ---
+        # Must check BEFORE conflict detection: replaying the same create
+        # should return the existing event, not trigger a conflict.
+        existing = CalendarEvent.objects.filter(
+            user=self.user, idempotency_key=idempotency_key,
+        ).first()
+        if existing:
+            return MutationResult(
+                success=True, event=existing, reused=True,
+            )
+
+        # --- Semantic duplicate check (before conflict detection) ---
+        semantic_dup = (
+            CalendarEvent.objects
+            .filter(
+                user=self.user,
+                title__iexact=title.strip(),
+                start_dt=start_dt,
+                end_dt=end_dt,
+                deleted_at__isnull=True,
+            )
+            .exclude(status=CalendarEvent.STATUS_CANCELED)
+            .first()
+        )
+        if semantic_dup:
+            logger.info(
+                "Semantic duplicate blocked: user=%s title=%r "
+                "start_dt=%s — returning existing pk=%s",
+                self.user.id, title, start_dt, semantic_dup.pk,
+            )
+            return MutationResult(
+                success=True, event=semantic_dup, reused=True,
+            )
+
+        # --- Phase 10: Pre-commit conflict detection ---
+        if not force and not is_all_day:
+            conflict_result = self._check_pre_commit_conflicts(
+                start_dt, end_dt, new_is_protected=is_protected,
+            )
+            if conflict_result is not None:
+                return conflict_result
+
         reused = False
         try:
             with transaction.atomic():
-                # Check for existing event with same idempotency key
+                # Re-check idempotency inside transaction for race safety
                 existing = CalendarEvent.objects.filter(
                     user=self.user, idempotency_key=idempotency_key,
                 ).first()
@@ -110,8 +196,7 @@ class CalendarMutationService:
                         success=True, event=existing, reused=True,
                     )
 
-                # --- Semantic duplicate check ---
-                # Exact match on user + title + start_dt + end_dt, non-canceled
+                # Re-check semantic dup with lock inside transaction
                 semantic_dup = (
                     CalendarEvent.objects
                     .select_for_update()
@@ -126,11 +211,6 @@ class CalendarMutationService:
                     .first()
                 )
                 if semantic_dup:
-                    logger.info(
-                        "Semantic duplicate blocked: user=%s title=%r "
-                        "start_dt=%s — returning existing pk=%s",
-                        self.user.id, title, start_dt, semantic_dup.pk,
-                    )
                     return MutationResult(
                         success=True, event=semantic_dup, reused=True,
                     )
@@ -200,12 +280,20 @@ class CalendarMutationService:
     # UPDATE
     # ------------------------------------------------------------------ #
 
-    def update(self, event_id: int, **fields) -> MutationResult:
+    def update(self, event_id: int, force: bool = False, **fields) -> MutationResult:
         """
-        Update a CalendarEvent with row locking and drift logging.
+        Update a CalendarEvent with row locking, drift logging, and conflict policy.
 
         Only updates fields that are explicitly provided.
         Uses select_for_update() for concurrency safety.
+
+        Phase 10 conflict policy:
+        - Protected events CANNOT be moved to a different day (error).
+        - Protected events CAN be moved within the same day.
+        - If time overlap detected and force=False, returns requires_decision=True.
+
+        Args:
+            force: If True, skip conflict detection. Used after user confirms override.
         """
         ALLOWED_FIELDS = {
             'title', 'description', 'start_dt', 'end_dt',
@@ -225,6 +313,29 @@ class CalendarMutationService:
                     return MutationResult(
                         success=False, error="Event not found",
                     )
+
+                # --- Phase 10: Protected event day-change guard ---
+                new_start_dt = update_fields.get('start_dt')
+                if (not force and event.is_protected and new_start_dt
+                        and new_start_dt.date() != event.start_dt.date()):
+                    return MutationResult(
+                        success=False,
+                        error=(
+                            "Protected events cannot be moved to a different day. "
+                            "You can adjust the time within the same day."
+                        ),
+                    )
+
+                # --- Phase 10: Pre-commit conflict detection ---
+                if not force and new_start_dt:
+                    new_end_dt = update_fields.get('end_dt', event.end_dt)
+                    conflict_result = self._check_pre_commit_conflicts(
+                        new_start_dt, new_end_dt,
+                        new_is_protected=event.is_protected,
+                        exclude_event_id=event.pk,
+                    )
+                    if conflict_result is not None:
+                        return conflict_result
 
                 # Capture old values for diff
                 old_values = {}
@@ -349,6 +460,72 @@ class CalendarMutationService:
             event=event,
             fields_changed={'status': {'old': original_status, 'new': 'canceled'}},
             gcal_synced=gcal_synced,
+        )
+
+    # ------------------------------------------------------------------ #
+    # Phase 10: Pre-commit conflict detection
+    # ------------------------------------------------------------------ #
+
+    def _check_pre_commit_conflicts(
+        self, start_dt, end_dt, new_is_protected=False,
+        exclude_event_id=None,
+    ) -> Optional[MutationResult]:
+        """
+        Check for time overlap with existing events BEFORE committing.
+
+        Returns a MutationResult with requires_decision=True if conflict found,
+        or None if no conflict.
+        """
+        from apps.calendar_engine.services.conflicts import (
+            detect_all_conflicts, classify_conflict_case,
+            build_conflict_message,
+        )
+
+        conflict_result = detect_all_conflicts(
+            self.user, start_dt, end_dt,
+            exclude_event_id=exclude_event_id,
+        )
+
+        if not conflict_result['has_conflict']:
+            return None
+
+        case = classify_conflict_case(
+            conflict_result['conflicts'], new_is_protected,
+        )
+
+        # Find suggested alternative time slots
+        suggested_gaps = []
+        try:
+            from apps.calendar_engine.services.suggestions import find_gaps_for_day
+            gaps = find_gaps_for_day(self.user, date=start_dt.date())
+            suggested_gaps = [
+                {
+                    'start_dt': g['start_dt'].isoformat(),
+                    'end_dt': g['end_dt'].isoformat(),
+                    'duration_minutes': g['duration_minutes'],
+                }
+                for g in gaps
+            ]
+        except Exception as e:
+            logger.debug("Gap suggestion failed (non-fatal): %s", e)
+
+        message = build_conflict_message(
+            case, conflict_result['conflicts'], suggested_gaps,
+        )
+
+        return MutationResult(
+            success=False,
+            requires_decision=True,
+            error=message,
+            conflict_details={
+                'case': case,
+                'conflicts': conflict_result['conflicts'],
+                'proposed_event': {
+                    'start_dt': start_dt.isoformat(),
+                    'end_dt': end_dt.isoformat(),
+                },
+            },
+            suggested_alternatives=suggested_gaps or None,
         )
 
     # ------------------------------------------------------------------ #

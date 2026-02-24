@@ -1,7 +1,7 @@
 # CoS (Chief of Staff) v2 — Master Project Tracker
 
 **Created:** 2026-02-24
-**Status:** Phase 0 — In Progress
+**Status:** Phase 4 Complete — Ready for Phase 5
 **Owner:** Claude Code (lead engineer)
 
 ---
@@ -181,28 +181,37 @@ Journal append logic lives in a new `JournalCosActions` service that checks for 
 
 ---
 
-### Phase 4: Proactive Prompting Engine
+### Phase 4: Proactive Prompting Engine ✅
 **Goal:** Pre/post event prompts for ALL activity types
+**Completed:** 2026-02-24 | **Tests:** 41 new (177 total CoS)
 
 **Tasks:**
-- [ ] Create `CosPromptService` for scheduling pre/post prompts
-- [ ] Register prompt scheduler with ISE
-- [ ] Implement pre-event prompts (configurable lead time per activity type)
-- [ ] Implement post-event check-in flow (Yes/No → optional follow-up → stop)
-- [ ] Wire delivery through DNE
-- [ ] Implement activity-type-specific prompt templates
-- [ ] Add tests for prompt scheduling, delivery, yes/no flow
-- [ ] Update CoS_Project_v2.md
+- [x] Create `CosPromptService` for scheduling pre/post prompts
+- [x] Implement activity-type-specific prompt templates (8 types + default)
+- [x] Implement pre-event prompts (configurable lead time per activity type)
+- [x] Implement post-event check-in flow (Yes/No → optional follow-up → stop)
+- [x] Wire delivery through DNE (graceful fallback if unavailable)
+- [x] Implement prompt expiration and cleanup logic (stale prompts expired after 4h)
+- [x] Implement dedup (no duplicate prompts for same event/timing)
+- [x] Implement batch delivery with feature flag gating (`deliver_all_due_for_all_users`)
+- [x] Add tests for prompt scheduling, delivery, yes/no flow, batch, expiration
+- [x] Update CoS_Project_v2.md
 
-**Files to Touch:**
-- `apps/cos/services/prompt_service.py`
-- `apps/cos/services/prompt_templates.py`
-- `apps/core/ai_scheduler/tasks.py` (register new tasks)
-- `apps/core/ai_delivery/` (new delivery types if needed)
-- `apps/cos/tests/test_prompt_service.py`
+**Files Created:**
+- `apps/cos/services/prompt_service.py` — CosPromptService (schedule, deliver, respond, batch)
+- `apps/cos/services/prompt_templates.py` — Activity type detection + templates for 8 types
+- `apps/cos/tests/test_prompt_service.py` — 41 tests across 8 test classes
 
-**Tests:** Pre-event timing, post-event flow (Yes→follow-up, No→stop), activity type coverage
-**Risk:** Prompt spam — mitigate with throttling and quiet hours via DNE
+**Architecture:**
+- `detect_activity_type(title)` — Pattern-based title→type detection (workout, meeting, prayer, etc.)
+- Pre-event prompt: scheduled `lead_minutes` before start_dt (configurable per activity type)
+- Post-event prompt: scheduled `post_delay_minutes` after end_dt
+- Response flow: Yes → capture reflection + return follow-up question → No → stop (no nagging)
+- DNE integration: Routes through `deliver_single()` with graceful fallback
+- Feature flag: `cos_v2_enabled` checked in batch delivery
+- ISE integration: Ready for scheduler registration (Phase 10)
+
+**Risk mitigated:** Prompt spam prevented by dedup, expiration, feature flag, and DNE throttling
 
 ---
 

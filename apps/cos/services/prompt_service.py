@@ -1,0 +1,448 @@
+"""
+CosPromptService — Proactive Prompting Engine for CoS v2.
+
+Schedules and delivers pre/post activity prompts across ALL activity types.
+Handles the Yes/No response flow and routes reflections to the correct module.
+
+Integration points:
+- ISE: Scheduler scans for due prompts every N minutes
+- DNE: Delivery via multi-channel notification engine
+- CosActionRegistry: Routes reflections to module-specific contracts
+- CosPromptSchedule: Persists prompt state and response tracking
+"""
+
+import datetime as dt
+import logging
+from typing import Dict, List, Optional
+
+from django.contrib.contenttypes.models import ContentType
+from django.utils import timezone as dj_timezone
+
+from apps.cos.models import CosPromptSchedule, CosReflection
+from apps.cos.services.prompt_templates import (
+    detect_activity_type,
+    get_lead_minutes,
+    get_post_delay_minutes,
+    get_post_event_template,
+    get_pre_event_template,
+    render_template,
+)
+
+logger = logging.getLogger(__name__)
+
+
+class CosPromptService:
+    """
+    Manages the lifecycle of proactive prompts:
+    schedule → deliver → respond → (optional) reflect
+    """
+
+    def __init__(self, user):
+        self.user = user
+
+    # ── Scheduling ────────────────────────────────────────
+
+    def schedule_prompts_for_event(
+        self,
+        source_object,
+        activity_type: Optional[str] = None,
+        pre_lead_minutes: Optional[int] = None,
+        post_delay_minutes: Optional[int] = None,
+        skip_pre: bool = False,
+        skip_post: bool = False,
+    ) -> List[CosPromptSchedule]:
+        """
+        Schedule both pre- and post-event prompts for a source object.
+
+        The source object must have start_dt and end_dt (or equivalent).
+
+        Args:
+            source_object: The entity to attach prompts to (CalendarEvent, etc.)
+            activity_type: Override detected type. If None, auto-detected from title.
+            pre_lead_minutes: Minutes before event start. If None, uses default.
+            post_delay_minutes: Minutes after event end. If None, uses default.
+            skip_pre: Don't schedule pre-event prompt.
+            skip_post: Don't schedule post-event prompt.
+
+        Returns:
+            List of created CosPromptSchedule instances.
+        """
+        # Auto-detect activity type from title if not provided
+        title = getattr(source_object, "title", "Activity")
+        if not activity_type:
+            activity_type = detect_activity_type(title)
+
+        start_dt = getattr(source_object, "start_dt", None)
+        end_dt = getattr(source_object, "end_dt", None)
+
+        if not start_dt:
+            logger.warning(
+                "Cannot schedule prompts: source_object has no start_dt "
+                "(user=%s, type=%s)",
+                self.user.id, type(source_object).__name__,
+            )
+            return []
+
+        ct = ContentType.objects.get_for_model(source_object)
+        created = []
+
+        # ── Pre-event prompt ──────────────────────────────
+        if not skip_pre and start_dt > dj_timezone.now():
+            lead = pre_lead_minutes or get_lead_minutes(activity_type)
+            scheduled_for = start_dt - dt.timedelta(minutes=lead)
+
+            # Don't schedule in the past
+            if scheduled_for > dj_timezone.now():
+                # Dedup: don't create if one already exists
+                existing_pre = CosPromptSchedule.objects.filter(
+                    user=self.user,
+                    content_type=ct,
+                    object_id=source_object.pk,
+                    timing=CosPromptSchedule.TIMING_PRE,
+                    status=CosPromptSchedule.STATUS_PENDING,
+                ).exists()
+
+                if not existing_pre:
+                    template = get_pre_event_template(activity_type)
+                    prompt_text = render_template(
+                        template,
+                        title=title,
+                        lead_minutes=lead,
+                    )
+                    pre_prompt = CosPromptSchedule.objects.create(
+                        user=self.user,
+                        content_type=ct,
+                        object_id=source_object.pk,
+                        timing=CosPromptSchedule.TIMING_PRE,
+                        scheduled_for=scheduled_for,
+                        lead_minutes=lead,
+                        activity_type=activity_type,
+                        prompt_text=prompt_text,
+                    )
+                    created.append(pre_prompt)
+                    logger.debug(
+                        "Scheduled pre-event prompt: user=%s activity=%s at=%s",
+                        self.user.id, activity_type, scheduled_for,
+                    )
+
+        # ── Post-event prompt ─────────────────────────────
+        if not skip_post and end_dt:
+            delay = post_delay_minutes or get_post_delay_minutes(activity_type)
+            scheduled_for = end_dt + dt.timedelta(minutes=delay)
+
+            # Dedup
+            existing_post = CosPromptSchedule.objects.filter(
+                user=self.user,
+                content_type=ct,
+                object_id=source_object.pk,
+                timing=CosPromptSchedule.TIMING_POST,
+                status=CosPromptSchedule.STATUS_PENDING,
+            ).exists()
+
+            if not existing_post:
+                template = get_post_event_template(activity_type)
+                prompt_text = render_template(template, title=title)
+                post_prompt = CosPromptSchedule.objects.create(
+                    user=self.user,
+                    content_type=ct,
+                    object_id=source_object.pk,
+                    timing=CosPromptSchedule.TIMING_POST,
+                    scheduled_for=scheduled_for,
+                    lead_minutes=0,
+                    activity_type=activity_type,
+                    prompt_text=prompt_text,
+                )
+                created.append(post_prompt)
+                logger.debug(
+                    "Scheduled post-event prompt: user=%s activity=%s at=%s",
+                    self.user.id, activity_type, scheduled_for,
+                )
+
+        return created
+
+    def cancel_prompts_for_event(self, source_object) -> int:
+        """
+        Cancel all pending prompts for a source object.
+
+        Used when an event is deleted or canceled.
+        Returns the number of prompts canceled.
+        """
+        ct = ContentType.objects.get_for_model(source_object)
+        prompts = CosPromptSchedule.objects.filter(
+            user=self.user,
+            content_type=ct,
+            object_id=source_object.pk,
+            status=CosPromptSchedule.STATUS_PENDING,
+        )
+        count = prompts.count()
+        for prompt in prompts:
+            prompt.cancel()
+        return count
+
+    # ── Delivery ──────────────────────────────────────────
+
+    def get_due_prompts(self) -> List[CosPromptSchedule]:
+        """
+        Get all pending prompts that are due for delivery.
+
+        Called by the scheduler task to find prompts ready to deliver.
+        """
+        now = dj_timezone.now()
+        return list(
+            CosPromptSchedule.objects.filter(
+                user=self.user,
+                status=CosPromptSchedule.STATUS_PENDING,
+                scheduled_for__lte=now,
+            ).select_related("content_type").order_by("scheduled_for")
+        )
+
+    def deliver_prompt(self, prompt: CosPromptSchedule) -> bool:
+        """
+        Deliver a single prompt.
+
+        Marks it as delivered and optionally routes through DNE.
+        Returns True if delivered successfully.
+        """
+        if prompt.status != CosPromptSchedule.STATUS_PENDING:
+            return False
+
+        try:
+            prompt.mark_delivered()
+
+            # Route through DNE if available
+            self._deliver_via_dne(prompt)
+
+            return True
+        except Exception as e:
+            logger.error(
+                "Failed to deliver prompt %s for user %s: %s",
+                prompt.pk, self.user.id, e,
+            )
+            return False
+
+    def deliver_all_due(self) -> Dict[str, int]:
+        """
+        Deliver all due prompts for this user.
+
+        Returns: {"delivered": N, "skipped": N, "failed": N}
+        """
+        result = {"delivered": 0, "skipped": 0, "failed": 0}
+        due = self.get_due_prompts()
+
+        for prompt in due:
+            if self.deliver_prompt(prompt):
+                result["delivered"] += 1
+            else:
+                result["failed"] += 1
+
+        return result
+
+    def expire_stale_prompts(self, max_age_hours: int = 4) -> int:
+        """
+        Expire pending prompts that are older than max_age_hours.
+
+        Prevents prompts from firing long after the event ended.
+        Returns number of prompts expired.
+        """
+        cutoff = dj_timezone.now() - dt.timedelta(hours=max_age_hours)
+        stale = CosPromptSchedule.objects.filter(
+            user=self.user,
+            status=CosPromptSchedule.STATUS_PENDING,
+            scheduled_for__lt=cutoff,
+        )
+        count = stale.count()
+        for prompt in stale:
+            prompt.mark_expired()
+        return count
+
+    # ── Response Handling ─────────────────────────────────
+
+    def handle_response(
+        self,
+        prompt_id: int,
+        positive: bool,
+        response_text: str = "",
+    ) -> Dict:
+        """
+        Handle a user's response to a prompt.
+
+        Flow:
+        - Yes (positive=True) → optionally capture reflection, return follow-up
+        - No (positive=False) → mark responded, stop (no nagging)
+
+        Returns dict with response status and optional follow-up.
+        """
+        try:
+            prompt = CosPromptSchedule.objects.get(
+                pk=prompt_id, user=self.user,
+            )
+        except CosPromptSchedule.DoesNotExist:
+            return {"success": False, "error": "Prompt not found"}
+
+        prompt.mark_responded(positive=positive, text=response_text)
+
+        result = {
+            "success": True,
+            "prompt_id": prompt.pk,
+            "positive": positive,
+            "follow_up": None,
+        }
+
+        if positive and prompt.timing == CosPromptSchedule.TIMING_POST:
+            # Capture reflection if text provided
+            if response_text:
+                self._capture_reflection_from_response(prompt, response_text)
+
+            # Offer follow-up for "How did it go?" responses
+            result["follow_up"] = {
+                "type": "reflection_prompt",
+                "text": "Anything else you want to note about this?",
+                "capture_as_reflection": True,
+            }
+
+        # No follow-up for negative responses — respect "No"
+        return result
+
+    def handle_follow_up(
+        self,
+        prompt_id: int,
+        follow_up_text: str,
+    ) -> Dict:
+        """
+        Handle the optional follow-up after a positive response.
+
+        Captures the follow-up text as a reflection.
+        """
+        try:
+            prompt = CosPromptSchedule.objects.get(
+                pk=prompt_id, user=self.user,
+            )
+        except CosPromptSchedule.DoesNotExist:
+            return {"success": False, "error": "Prompt not found"}
+
+        if follow_up_text:
+            self._capture_reflection_from_response(prompt, follow_up_text)
+
+        return {"success": True, "captured": bool(follow_up_text)}
+
+    # ── Static delivery runner ────────────────────────────
+
+    @staticmethod
+    def deliver_all_due_for_all_users() -> Dict[str, int]:
+        """
+        Batch delivery for all users with due prompts.
+
+        Called by ISE scheduler task. Finds all users with pending
+        due prompts and delivers them.
+        """
+        from django.contrib.auth import get_user_model
+
+        User = get_user_model()
+        now = dj_timezone.now()
+
+        # Find distinct users with due prompts
+        user_ids = set(
+            CosPromptSchedule.objects.filter(
+                status=CosPromptSchedule.STATUS_PENDING,
+                scheduled_for__lte=now,
+            )
+            .values_list("user_id", flat=True)
+        )
+
+        totals = {"delivered": 0, "skipped": 0, "failed": 0, "users": 0}
+
+        for user_id in user_ids:
+            try:
+                user = User.objects.get(pk=user_id)
+                # Check CoS v2 feature flag
+                if not getattr(user.preferences, "cos_v2_enabled", False):
+                    continue
+
+                svc = CosPromptService(user)
+                result = svc.deliver_all_due()
+                totals["delivered"] += result["delivered"]
+                totals["failed"] += result["failed"]
+                totals["users"] += 1
+
+                # Also expire stale prompts
+                svc.expire_stale_prompts()
+            except Exception as e:
+                logger.error(
+                    "Prompt delivery failed for user %s: %s",
+                    user_id, e,
+                )
+                totals["failed"] += 1
+
+        return totals
+
+    # ── Private helpers ───────────────────────────────────
+
+    def _deliver_via_dne(self, prompt: CosPromptSchedule):
+        """
+        Route prompt delivery through the DNE (Delivery & Notification Engine).
+
+        Gracefully degrades if DNE is not available.
+        """
+        try:
+            from apps.core.ai_delivery.delivery_engine import deliver_single
+
+            payload = {
+                "title": f"CoS: {prompt.activity_type.replace('_', ' ').title()}",
+                "message": prompt.prompt_text[:300],
+                "action_url": "/assistant/",
+                "icon": self._get_activity_icon(prompt.activity_type),
+                "priority": 3,  # Normal priority
+            }
+
+            deliver_single(
+                user=self.user,
+                source_engine="COS",
+                source_object=prompt,
+                payload=payload,
+            )
+        except ImportError:
+            logger.debug("DNE not available, prompt delivered in-model only")
+        except Exception as e:
+            logger.debug("DNE delivery failed (non-fatal): %s", e)
+
+    def _capture_reflection_from_response(
+        self, prompt: CosPromptSchedule, text: str
+    ):
+        """Create a CosReflection from a prompt response."""
+        try:
+            # Determine activity date from the source entity
+            activity_date = prompt.scheduled_for.date()
+            source_entity = prompt.source_entity
+            if source_entity and hasattr(source_entity, "start_dt"):
+                activity_date = source_entity.start_dt.date()
+
+            CosReflection.objects.create(
+                user=self.user,
+                content_type=prompt.content_type,
+                object_id=prompt.object_id,
+                text=text,
+                activity_date=activity_date,
+                activity_type=prompt.activity_type,
+                prompt_text=prompt.prompt_text,
+            )
+        except Exception as e:
+            logger.error(
+                "Failed to capture reflection from prompt %s: %s",
+                prompt.pk, e,
+            )
+
+    @staticmethod
+    def _get_activity_icon(activity_type: str) -> str:
+        """Get emoji icon for activity type."""
+        icons = {
+            "meeting": "📅",
+            "workout": "💪",
+            "bible_study": "📖",
+            "prayer": "🙏",
+            "devotional": "✝️",
+            "journaling": "📝",
+            "appointment": "🏥",
+            "task": "✅",
+            "default": "📌",
+        }
+        return icons.get(activity_type, "📌")

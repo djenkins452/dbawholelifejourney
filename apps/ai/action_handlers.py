@@ -2159,69 +2159,59 @@ class ActionHandler:
                 source_type, source_id,
             )
 
-            # --- Atomic boundary (Phase 9) ---
-            # Outer atomic: idempotency check + verification.
-            # Inner atomic (nested savepoint): wraps only create() so that
-            # IntegrityError rolls back the savepoint but keeps the outer
-            # transaction valid for the recovery query (PostgreSQL requirement).
-            reused = False
-            with transaction.atomic():
-                # Check idempotency — user-scoped
-                existing = CalendarEvent.objects.filter(
-                    user=self.user,
-                    idempotency_key=idem_key,
-                ).first()
-                if existing:
-                    logger.info(
-                        "[SCHED] Idempotent hit: returning existing event pk=%s",
-                        existing.pk,
-                    )
-                    event = existing
-                    reused = True
-                else:
-                    try:
-                        # Nested savepoint: IntegrityError only rolls back
-                        # inner savepoint — outer transaction stays valid.
-                        with transaction.atomic():
-                            event = CalendarEvent.objects.create(
-                                user=self.user,
-                                title=title,
-                                description=description or "",
-                                start_dt=start_dt,
-                                end_dt=end_dt,
-                                is_all_day=actual_all_day,
-                                event_kind=event_kind,
-                                source_type=source_type,
-                                source_id=source_id,
-                                domain=domain,
-                                idempotency_key=idem_key,
-                            )
-                    except IntegrityError:
-                        # Race: concurrent create beat us — user-scoped recovery
-                        logger.info(
-                            "[SCHED] IntegrityError race: re-querying "
-                            "idempotency_key=%s", idem_key[:12],
-                        )
-                        event = CalendarEvent.objects.get(
-                            user=self.user,
-                            idempotency_key=idem_key,
-                        )
-                        reused = True
+            # --- Phase 10: Route through CalendarMutationService ---
+            # All creates go through CMS for centralized conflict detection,
+            # idempotency, semantic dedup, and post-scheduling hooks.
+            from apps.calendar_engine.services.calendar_mutation_service import (
+                CalendarMutationService,
+            )
 
-                    if not reused:
-                        # --- Post-write verification ---
-                        verified = CalendarEvent.objects.get(pk=event.pk)
-                        if verified.start_dt != start_dt or verified.title != title:
-                            raise RuntimeError(
-                                f"Post-write verification failed: "
-                                f"expected title={title!r}, start_dt={start_dt}, "
-                                f"got title={verified.title!r}, "
-                                f"start_dt={verified.start_dt}"
-                            )
-                        logger.debug(
-                            "[SCHED] Post-write verification passed for pk=%s",
-                            event.pk,
-                        )
+            force_override = kwargs.get('force_override', False)
+            cms = CalendarMutationService(self.user)
+            result = cms.create(
+                title=title,
+                start_dt=start_dt,
+                end_dt=end_dt,
+                idempotency_key=idem_key,
+                description=description or "",
+                is_all_day=actual_all_day,
+                domain=domain,
+                event_kind=event_kind,
+                source_type=source_type,
+                source_id=source_id,
+                force=force_override,
+            )
+
+            # --- Phase 10: Conflict requires user decision ---
+            if result.requires_decision:
+                logger.info(
+                    "[SCHED] Conflict detected for '%s' — pausing for user decision",
+                    title,
+                )
+                return ActionResult(
+                    success=False,
+                    message=result.error,
+                    action_type='create_event',
+                    confirmation_detail={
+                        'type': 'calendar_conflict',
+                        'case': result.conflict_details.get('case'),
+                        'conflicts': result.conflict_details.get('conflicts', []),
+                        'proposed_event': result.conflict_details.get('proposed_event', {}),
+                        'suggested_alternatives': result.suggested_alternatives,
+                        'requires_decision': True,
+                    },
+                )
+
+            if not result.success:
+                return ActionResult(
+                    success=False,
+                    message=f"Could not create event: {result.error}",
+                    error=result.error,
+                    action_type='create_event',
+                )
+
+            event = result.event
+            reused = result.reused
 
             date_str = event_date.strftime("%b %d")
             time_str = (
@@ -2241,17 +2231,14 @@ class ActionHandler:
                 'reminder_minutes': reminder_minutes,
             })
 
-            # Run CoS post-scheduling chain
-            cos_context = self._run_cos_post_scheduling(event)
-
             # Build response with CoS awareness
             response_parts = [f"✓ Scheduled: {title} on {date_str}{time_str}"]
 
-            if cos_context.get('conflict_warning'):
-                response_parts.append(cos_context['conflict_warning'])
-            if cos_context.get('pressure_note'):
-                response_parts.append(cos_context['pressure_note'])
-            if cos_context.get('gcal_synced'):
+            if result.conflict_warning:
+                response_parts.append(result.conflict_warning)
+            if result.pressure_note:
+                response_parts.append(result.pressure_note)
+            if result.gcal_synced:
                 response_parts.append("Synced to Google Calendar.")
 
             return ActionResult(
@@ -3292,6 +3279,7 @@ class ActionHandler:
         end_time: str = None,
         description: str = None,
         event_type: str = None,
+        force_override: bool = False,
         **kwargs,
     ) -> ActionResult:
         """
@@ -3312,6 +3300,7 @@ class ActionHandler:
                 title=title, start_date=start_date,
                 start_time=start_time, end_time=end_time,
                 description=description, event_type=event_type,
+                force_override=force_override,
                 **kwargs,
             )
         elif action == 'update':
@@ -3327,6 +3316,7 @@ class ActionHandler:
                 title=title, start_date=start_date,
                 start_time=start_time, end_time=end_time,
                 description=description,
+                force_override=force_override,
                 **kwargs,
             )
         elif action == 'delete':
@@ -3352,12 +3342,15 @@ class ActionHandler:
         """Delegate create to existing handle_create_event."""
         # Strip None values so handle_create_event uses its defaults
         create_kwargs = {k: v for k, v in kwargs.items() if v is not None}
+        # Ensure force_override passes through
+        if 'force_override' in kwargs:
+            create_kwargs['force_override'] = kwargs['force_override']
         return self.handle_create_event(**create_kwargs)
 
     def _mutate_update(
         self, service, event_id, idempotency_key, timezone,
         title=None, start_date=None, start_time=None, end_time=None,
-        description=None, **kwargs,
+        description=None, force_override=False, **kwargs,
     ) -> ActionResult:
         """Update an existing calendar event via CalendarMutationService."""
         import datetime as dt
@@ -3445,7 +3438,23 @@ class ActionHandler:
                 action_type='mutate_calendar_event',
             )
 
-        result = service.update(event_id, **update_fields)
+        result = service.update(event_id, force=force_override, **update_fields)
+
+        # --- Phase 10: Conflict requires user decision ---
+        if result.requires_decision:
+            return ActionResult(
+                success=False,
+                message=result.error,
+                action_type='mutate_calendar_event',
+                confirmation_detail={
+                    'type': 'calendar_conflict',
+                    'case': result.conflict_details.get('case'),
+                    'conflicts': result.conflict_details.get('conflicts', []),
+                    'proposed_event': result.conflict_details.get('proposed_event', {}),
+                    'suggested_alternatives': result.suggested_alternatives,
+                    'requires_decision': True,
+                },
+            )
 
         if not result.success:
             return ActionResult(

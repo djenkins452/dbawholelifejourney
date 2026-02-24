@@ -155,6 +155,16 @@ CALENDAR_INTENT_TOOLS = [
                         ],
                         "description": "Type of event.",
                     },
+                    "force_override": {
+                        "type": "boolean",
+                        "description": (
+                            "Set to true ONLY when the user explicitly confirms "
+                            "they want to override a calendar conflict. Never set "
+                            "this on the first attempt — only after the system "
+                            "reports a conflict and the user says 'override', "
+                            "'proceed anyway', or 'book it anyway'."
+                        ),
+                    },
                 },
                 "required": ["action", "idempotency_key", "timezone"],
             },

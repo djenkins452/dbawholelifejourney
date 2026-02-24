@@ -781,6 +781,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for Calendar CRUD via CoS (PK 96)
         self._reset_calendar_crud_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for Calendar Conflict Policy (PK 97)
+        self._reset_conflict_policy_fixtures(DataLoadConfig, force, verbosity)
+
         # One-time: Seed LLMPriceBook and backfill event costs
         self._seed_pricebook_and_backfill(DataLoadConfig, force, verbosity)
 
@@ -3620,6 +3623,34 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset Calendar CRUD fixtures FAILED: {e}'))
+
+    def _reset_conflict_policy_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes for Calendar Conflict Policy.
+        - release_notes PK 97 (Smart Conflict Detection)
+        """
+        reset_tracker_name = 'reset_conflict_policy_2026_02_24'
+        try:
+            if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
+                return
+
+            config = DataLoadConfig.objects.get(loader_name='release_notes')
+            if config.is_loaded:
+                config.is_loaded = False
+                config.save()
+                if verbosity >= 1:
+                    self.stdout.write(f'  Reset release_notes loader for Calendar Conflict Policy')
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for Calendar Conflict Policy (Feb 2026)',
+                'command',
+                'One-time reset to reload release_notes PK 97'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset Conflict Policy fixtures FAILED: {e}'))
 
     def _seed_pricebook_and_backfill(self, DataLoadConfig, force=False, verbosity=1):
         """

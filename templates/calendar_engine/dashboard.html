@@ -38,8 +38,8 @@
 .cal-hour-group { border-bottom: 1px solid var(--color-border); padding: 0.5rem 0; }
 .cal-hour-group:last-child { border-bottom: none; }
 .cal-hour-label { font-size: 0.75rem; color: var(--color-text-muted); min-width: 60px; display: inline-block; }
-.cal-event-item { display: flex; align-items: flex-start; gap: 0.5rem; padding: 0.5rem; margin: 0.25rem 0 0.25rem 60px; border-radius: var(--radius-lg); border-left: 3px solid var(--color-accent); background: var(--color-background); cursor: grab; transition: box-shadow 0.15s; }
-.cal-event-item:hover { box-shadow: var(--shadow-md); }
+.cal-event-item { display: flex; align-items: flex-start; gap: 0.5rem; padding: 0.5rem; margin: 0.25rem 0 0.25rem 60px; border-radius: var(--radius-lg); border-left: 3px solid var(--color-accent); background: var(--color-background); cursor: pointer; transition: box-shadow 0.15s; }
+.cal-event-item:hover { box-shadow: var(--shadow-md); background: var(--color-surface); }
 .cal-event-item.protected { border-left-color: #ef4444; }
 .cal-event-item.deadline { border-left-color: #f59e0b; }
 .cal-event-item.execution { border-left-color: #3b82f6; }
@@ -85,6 +85,23 @@
 .cal-modal-btn.primary { background: var(--color-accent); color: #fff; border-color: var(--color-accent); }
 .cal-modal-btn.danger { background: #ef4444; color: #fff; border-color: #ef4444; }
 .cal-modal-btn:hover { opacity: 0.9; }
+
+/* Event edit modal form */
+.cal-form-group { margin-bottom: 0.75rem; }
+.cal-form-label { display: block; font-size: 0.75rem; font-weight: 600; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem; }
+.cal-form-input { width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--color-border); border-radius: var(--radius-lg); font-size: 16px; background: var(--color-background); color: var(--color-text); box-sizing: border-box; }
+.cal-form-row { display: flex; gap: 0.75rem; }
+.cal-form-row .cal-form-group { flex: 1; }
+.cal-edit-source-link { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.75rem; color: var(--color-accent); margin-top: 0.5rem; text-decoration: none; }
+.cal-edit-source-link:hover { text-decoration: underline; }
+
+/* Source indicator on event cards */
+.cal-event-source-icon { font-size: 0.625rem; color: var(--color-text-muted); margin-left: 0.25rem; }
+
+/* Status toast */
+.cal-status-toast { position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%); padding: 0.75rem 1.5rem; border-radius: var(--radius-lg); font-size: 0.875rem; z-index: 1100; box-shadow: var(--shadow-md); transition: opacity 0.3s; }
+.cal-status-toast.success { background: #d1fae5; color: #065f46; }
+.cal-status-toast.error { background: #fee2e2; color: #991b1b; }
 </style>
 {% endblock %}
 
@@ -183,6 +200,55 @@
         </div>
     </div>
 </div>
+
+<!-- Event Edit Modal -->
+<div class="cal-modal-overlay" id="cal-event-edit-modal">
+    <div class="cal-modal" style="max-width:440px">
+        <h3 id="cal-event-edit-title">Edit Event</h3>
+        <input type="hidden" id="cal-event-edit-id" />
+
+        <div class="cal-form-group">
+            <label class="cal-form-label" for="cal-event-edit-name">Title</label>
+            <input type="text" class="cal-form-input" id="cal-event-edit-name" />
+        </div>
+
+        <div class="cal-form-group">
+            <label class="cal-form-label" for="cal-event-edit-desc">Description</label>
+            <input type="text" class="cal-form-input" id="cal-event-edit-desc" />
+        </div>
+
+        <div class="cal-form-row">
+            <div class="cal-form-group">
+                <label class="cal-form-label" for="cal-event-edit-start">Start</label>
+                <input type="datetime-local" class="cal-form-input" id="cal-event-edit-start" />
+            </div>
+            <div class="cal-form-group">
+                <label class="cal-form-label" for="cal-event-edit-end">End</label>
+                <input type="datetime-local" class="cal-form-input" id="cal-event-edit-end" />
+            </div>
+        </div>
+
+        <div id="cal-event-edit-source-info"></div>
+
+        <div class="cal-modal-actions">
+            <button class="cal-modal-btn" id="cal-event-edit-cancel">Cancel</button>
+            <button class="cal-modal-btn danger" id="cal-event-edit-delete">Delete</button>
+            <button class="cal-modal-btn primary" id="cal-event-edit-save">Update</button>
+        </div>
+    </div>
+</div>
+
+<!-- Event Delete Confirm Modal -->
+<div class="cal-modal-overlay" id="cal-event-delete-modal">
+    <div class="cal-modal">
+        <h3>Delete Event?</h3>
+        <p id="cal-event-delete-message">Are you sure you want to delete this event?</p>
+        <div class="cal-modal-actions">
+            <button class="cal-modal-btn" id="cal-event-delete-cancel">Cancel</button>
+            <button class="cal-modal-btn danger" id="cal-event-delete-confirm">Delete</button>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -196,6 +262,8 @@
     // State
     let currentView = 'today';
     let pendingMove = null;
+    let eventsCache = [];
+    let deleteTargetId = null;
 
     // ── Helpers ──
 
@@ -255,9 +323,27 @@
 
     // ── Render Timeline ──
 
+    function escHtml(s) {
+        var d = document.createElement('div');
+        d.textContent = s || '';
+        return d.innerHTML;
+    }
+
+    function toLocalInput(isoStr) {
+        if (!isoStr) return '';
+        var d = new Date(isoStr);
+        var y = d.getFullYear();
+        var mo = String(d.getMonth()+1).padStart(2,'0');
+        var dy = String(d.getDate()).padStart(2,'0');
+        var h = String(d.getHours()).padStart(2,'0');
+        var mi = String(d.getMinutes()).padStart(2,'0');
+        return y + '-' + mo + '-' + dy + 'T' + h + ':' + mi;
+    }
+
     function renderEvents(events, label) {
         var container = document.getElementById('cal-events-container');
         document.getElementById('cal-date-label').textContent = label || 'Today';
+        eventsCache = events || [];
 
         if (!events || events.length === 0) {
             container.innerHTML = '<div class="cal-empty-state">No events scheduled. Use Quick Add to create one!</div>';
@@ -284,10 +370,12 @@
                 if (evt.is_protected) { kindClass = ' protected'; badgeHtml += '<span class="cal-event-badge protected">Protected</span>'; }
 
                 var borderColor = evt.domain_color || 'var(--color-accent)';
-                html += '<div class="cal-event-item' + kindClass + '" data-event-id="' + evt.id + '" style="border-left-color:' + borderColor + '">';
-                html += '<div style="flex:1"><div class="cal-event-title">' + evt.title + ' ' + badgeHtml + '</div>';
+                var sourceType = escHtml(evt.source_type || 'none');
+                var sourceId = escHtml(evt.source_id || '');
+                html += '<div class="cal-event-item' + kindClass + '" data-event-id="' + evt.id + '" data-source-type="' + sourceType + '" data-source-id="' + sourceId + '" style="border-left-color:' + borderColor + '">';
+                html += '<div style="flex:1"><div class="cal-event-title">' + escHtml(evt.title) + ' ' + badgeHtml + '</div>';
                 html += '<div class="cal-event-time">' + formatTime(evt.start_dt) + ' — ' + formatTime(evt.end_dt);
-                if (evt.domain) html += ' &middot; ' + evt.domain;
+                if (evt.domain) html += ' &middot; ' + escHtml(evt.domain);
                 html += '</div></div></div>';
             });
             html += '</div>';
@@ -409,6 +497,146 @@
                 loadView(currentView);
             }
         });
+    });
+
+    // ── Source URL Map ──
+
+    var SOURCE_URLS = {
+        'task': '/life/tasks/{id}/edit/',
+        'goal': '/purpose/goals/{id}/',
+        'goal_milestone': '/purpose/goals/{id}/',
+        'habit': '/purpose/habits/{id}/',
+    };
+
+    // ── Event Click Handler ──
+
+    document.getElementById('cal-events-container').addEventListener('click', function(e) {
+        var item = e.target.closest('.cal-event-item');
+        if (!item) return;
+
+        var sourceType = item.dataset.sourceType;
+        var sourceId = item.dataset.sourceId;
+        var eventId = Number(item.dataset.eventId);
+
+        // Source-linked events → navigate to source page
+        if (sourceType && sourceType !== 'none' && sourceId && SOURCE_URLS[sourceType]) {
+            window.location.href = SOURCE_URLS[sourceType].replace('{id}', sourceId);
+            return;
+        }
+
+        // Manual/CoS events → open edit modal
+        openEventEdit(eventId);
+    });
+
+    // ── Event Edit Modal ──
+
+    function showToast(msg, type) {
+        var existing = document.querySelector('.cal-status-toast');
+        if (existing) existing.remove();
+        var el = document.createElement('div');
+        el.className = 'cal-status-toast ' + (type || 'success');
+        el.textContent = msg;
+        document.body.appendChild(el);
+        setTimeout(function() { el.style.opacity = '0'; }, 2500);
+        setTimeout(function() { el.remove(); }, 3000);
+    }
+
+    function openEventEdit(eventId) {
+        var evt = eventsCache.find(function(e) { return e.id === eventId; });
+        if (!evt) return;
+
+        document.getElementById('cal-event-edit-id').value = evt.id;
+        document.getElementById('cal-event-edit-name').value = evt.title;
+        document.getElementById('cal-event-edit-desc').value = evt.description || '';
+        document.getElementById('cal-event-edit-start').value = toLocalInput(evt.start_dt);
+        document.getElementById('cal-event-edit-end').value = toLocalInput(evt.end_dt);
+        document.getElementById('cal-event-edit-title').textContent = 'Edit: ' + evt.title;
+
+        // Show source link if linked
+        var sourceEl = document.getElementById('cal-event-edit-source-info');
+        if (evt.source_type && evt.source_type !== 'none' && evt.source_id && SOURCE_URLS[evt.source_type]) {
+            var url = SOURCE_URLS[evt.source_type].replace('{id}', evt.source_id);
+            sourceEl.innerHTML = '<a href="' + url + '" class="cal-edit-source-link">View ' + escHtml(evt.source_type) + ' &#8599;</a>';
+        } else {
+            sourceEl.innerHTML = '';
+        }
+
+        document.getElementById('cal-event-edit-modal').classList.add('active');
+    }
+
+    function closeEventEdit() {
+        document.getElementById('cal-event-edit-modal').classList.remove('active');
+    }
+
+    function saveEventEdit() {
+        var id = document.getElementById('cal-event-edit-id').value;
+        var body = {
+            title: document.getElementById('cal-event-edit-name').value,
+            description: document.getElementById('cal-event-edit-desc').value,
+            start_dt: document.getElementById('cal-event-edit-start').value,
+            end_dt: document.getElementById('cal-event-edit-end').value,
+        };
+
+        api('/calendar/api/events/' + id + '/', {
+            method: 'PATCH',
+            body: JSON.stringify(body),
+        }).then(function(resp) {
+            if (resp.ok) {
+                closeEventEdit();
+                showToast('Event updated.');
+                loadView(currentView);
+            } else {
+                showToast('Update failed: ' + (resp.data.error || 'Unknown error'), 'error');
+            }
+        });
+    }
+
+    function openEventDelete(eventId, title) {
+        deleteTargetId = eventId;
+        document.getElementById('cal-event-delete-message').textContent = 'Delete "' + title + '"? This cannot be undone.';
+        document.getElementById('cal-event-delete-modal').classList.add('active');
+    }
+
+    function closeEventDelete() {
+        document.getElementById('cal-event-delete-modal').classList.remove('active');
+        deleteTargetId = null;
+    }
+
+    function confirmEventDelete() {
+        if (!deleteTargetId) return;
+        api('/calendar/api/events/' + deleteTargetId + '/', {
+            method: 'DELETE',
+        }).then(function(resp) {
+            closeEventDelete();
+            closeEventEdit();
+            if (resp.ok) {
+                showToast('Event deleted.');
+                loadView(currentView);
+            } else {
+                showToast('Delete failed.', 'error');
+            }
+        });
+    }
+
+    // Edit modal button listeners
+    document.getElementById('cal-event-edit-cancel').addEventListener('click', closeEventEdit);
+    document.getElementById('cal-event-edit-save').addEventListener('click', saveEventEdit);
+    document.getElementById('cal-event-edit-delete').addEventListener('click', function() {
+        var id = document.getElementById('cal-event-edit-id').value;
+        var title = document.getElementById('cal-event-edit-name').value;
+        openEventDelete(Number(id), title);
+    });
+
+    // Delete modal button listeners
+    document.getElementById('cal-event-delete-cancel').addEventListener('click', closeEventDelete);
+    document.getElementById('cal-event-delete-confirm').addEventListener('click', confirmEventDelete);
+
+    // Close modals on overlay click
+    document.getElementById('cal-event-edit-modal').addEventListener('click', function(e) {
+        if (e.target === this) closeEventEdit();
+    });
+    document.getElementById('cal-event-delete-modal').addEventListener('click', function(e) {
+        if (e.target === this) closeEventDelete();
     });
 
     // ── Conflict Modal ──

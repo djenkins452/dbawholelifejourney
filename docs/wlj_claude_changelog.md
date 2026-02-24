@@ -9,6 +9,13 @@
 
 # WLJ Change History
 
+## 2026-02-24 — Feature: Clickable calendar events with source-aware navigation
+
+**What:** Calendar event cards in the Time Command Center dashboard are now clickable. Task-sourced events navigate to the task edit page, goal-sourced events go to the goal detail page, habit-sourced events go to the habit detail page, and manual/CoS events open an inline edit modal with Update and Delete buttons. Added data attributes (source_type, source_id) to event cards, an edit/delete modal with PATCH/DELETE API integration, and a toast notification system.
+
+**Files:**
+- `templates/calendar_engine/dashboard.html` — Added: cursor pointer, form CSS, edit/delete modal HTML, source data attributes on event cards, click handler with source URL routing, edit/save/delete JS, toast notifications
+
 ## 2026-02-24 — Fix: "mark Quiet Time as Faith" created new event instead of updating domain
 
 **What:** "mark X as Y" was not recognized as a mutation verb, so it fell through to create instead of update. Additionally, `_mutate_update()` had no path for changing event_type/domain, and `domain` was not in the mutation service's ALLOWED_FIELDS. Fixed by: (1) adding "mark", "label", "tag", "categorize", "set" to CALENDAR_MUTATION_VERBS, (2) wiring event_type→domain resolution through the update path, (3) adding `domain` to the service's ALLOWED_FIELDS, (4) updating the tool description to tell the LLM about event_type updates for color coding.

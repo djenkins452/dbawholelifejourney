@@ -2213,9 +2213,12 @@ class ActionHandler:
             event = result.event
             reused = result.reused
 
-            date_str = event_date.strftime("%b %d")
+            from apps.calendar_engine.utils.formatting import (
+                friendly_date, friendly_time,
+            )
+            date_str = friendly_date(event_date)
             time_str = (
-                f" at {parsed_start_time.strftime('%I:%M %p')}"
+                f" at {friendly_time(parsed_start_time)}"
                 if parsed_start_time else ""
             )
 
@@ -3474,7 +3477,8 @@ class ActionHandler:
         if result.fields_changed:
             for field_name, diff in result.fields_changed.items():
                 if field_name == 'start_dt':
-                    msg_parts.append(f"moved to {event.start_dt.strftime('%b %d at %I:%M %p')}")
+                    from apps.calendar_engine.utils.formatting import friendly_datetime
+                    msg_parts.append(f"moved to {friendly_datetime(event.start_dt)}")
                 elif field_name == 'title':
                     msg_parts.append(f"renamed to \"{diff['new']}\"")
 

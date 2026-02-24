@@ -9,6 +9,20 @@
 
 # WLJ Change History
 
+## 2026-02-24 — Friendly Date Formatting + Semantic Dedup Fix
+
+**What:** Calendar event messages now use natural date/time formatting ("March 4th at 6:15am" instead of "Mar 04 at 06:15 AM"). Also fixed semantic duplicate detection that allowed duplicate Bible Study events by removing `end_dt` from the dedup check — same title + same start time = duplicate regardless of end time.
+
+**Key changes:**
+- `calendar_engine/utils/formatting.py` — New module with `friendly_date()`, `friendly_time()`, `friendly_datetime()`, `friendly_time_range()`. Ordinal suffixes (1st, 2nd, 3rd, 4th...), full month names, lowercase am/pm, no leading zeros.
+- `action_handlers.py` — Replaced strftime formatting with friendly_date/friendly_time in create and update messages
+- `conflicts.py` — Replaced strftime formatting with friendly_time_range in conflict and suggestion messages
+- `calendar_mutation_service.py` — Removed `end_dt` from semantic duplicate check (both pre-check and in-transaction check)
+
+**Tests:** 86/86 pass.
+
+---
+
 ## 2026-02-24 — Calendar Conflict Policy: No Silent Double-Booking (Phase 10)
 
 **What:** Pre-commit conflict detection prevents silent double-booking. Every time overlap now requires a user decision before the event is created or updated. Three conflict cases (A: protected vs unprotected, B: both protected, C: neither protected). Auto-protect for Workout/Bible Study/Prayer/Journaling/Health events. Suggested alternative time slots via gap detection. `force_override` parameter for user-confirmed overrides. Protected events cannot be moved to a different day.

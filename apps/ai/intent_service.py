@@ -326,10 +326,10 @@ LIFE/TASKS:
 - "remember my wife's birthday is March 15" → add_reminder(title="Wife's Birthday", event_type="birthday", event_date="03-15")
 
 CALENDAR EVENTS:
-- "add to my calendar 5am Wake Up for tomorrow" → create_event(title="Wake Up", start_date="<tomorrow's YYYY-MM-DD>", start_time="05:00")
-- "schedule a meeting at 2pm today" → create_event(title="Meeting", start_date="{today_str}", start_time="14:00")
-- "add Bible Study Wednesday 6pm-8pm" → create_event(title="Bible Study", start_date="<next Wednesday YYYY-MM-DD>", start_time="18:00", end_time="20:00", event_type="faith")
-- "put Pickleball on my calendar for Friday 6pm" → create_event(title="Pickleball", start_date="<next Friday YYYY-MM-DD>", start_time="18:00", event_type="health")
+- "add to my calendar 5am Wake Up for tomorrow" → create_event(title="Wake Up", start_date="tomorrow", start_time="05:00")
+- "schedule a meeting at 2pm today" → create_event(title="Meeting", start_date="today", start_time="14:00")
+- "add Bible Study Wednesday 6pm-8pm" → create_event(title="Bible Study", start_date="wednesday", start_time="18:00", end_time="20:00", event_type="faith")
+- "put Pickleball on my calendar for Friday 6pm" → create_event(title="Pickleball", start_date="friday", start_time="18:00", event_type="health")
 
 FITNESS:
 - "just finished my workout" → log_workout(name="Workout")
@@ -341,7 +341,7 @@ FITNESS:
 - "walked for 45 minutes" → log_cardio(activity="walking", duration_minutes=45)
 - "biked 10 miles" → log_cardio(activity="cycling", duration_minutes=60, distance=10.0, distance_unit="miles")
 
-IMPORTANT: For create_event, ALWAYS resolve relative dates to YYYY-MM-DD format using today's date ({today_str}).
+IMPORTANT: For create_event, pass weekday names directly (e.g. start_date="wednesday", start_date="friday"). NEVER compute YYYY-MM-DD from weekday names — the server does that. Use "today", "tomorrow", or weekday names. Only use YYYY-MM-DD when the user specifies an exact date like "March 15" or "2026-03-15".
 
 LOGGING LIFE EVENTS (wake up, sleep, arrivals, etc.):
 When the user says "add that I woke up at 6:30am" or "log that I went to bed at 10pm" or similar life-tracking statements with "add", "log", or "record", create a calendar event to record it:
@@ -370,8 +370,8 @@ CRITICAL: When cloning, you MUST still provide every date via start_date. But do
 
 Examples:
 - "Schedule the same workout on Feb 24, 25, 26" → multiple create_event calls, each with clone_from_last=true and the respective start_date, but NO start_time (inherited)
-- "Put the same thing on my calendar for next Monday" → create_event(clone_from_last=true, start_date="<next Monday YYYY-MM-DD>")
-- "Same workout but at 7am on Friday" → create_event(clone_from_last=true, start_date="<Friday>", start_time="07:00") — user explicitly overrode time
+- "Put the same thing on my calendar for next Monday" → create_event(clone_from_last=true, start_date="monday")
+- "Same workout but at 7am on Friday" → create_event(clone_from_last=true, start_date="friday", start_time="07:00") — user explicitly overrode time
 """
 
     def _check_validation(self, intent_type: str, parameters: dict, user) -> tuple:

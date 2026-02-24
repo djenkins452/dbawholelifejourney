@@ -1954,7 +1954,7 @@ class ActionHandler:
 
         Args:
             title: Event title
-            start_date: Event date (YYYY-MM-DD, 'today', 'tomorrow')
+            start_date: Event date ('today', 'tomorrow', weekday name, or YYYY-MM-DD)
             description: Event description
             start_time: Start time (HH:MM)
             end_time: End time (HH:MM)

@@ -9,6 +9,23 @@
 
 # WLJ Change History
 
+## 2026-02-24 — Fix: Weekday date resolution — LLM no longer computes dates
+
+**Root Cause:** The LLM prompt and tool schema instructed the LLM to compute YYYY-MM-DD from weekday names (e.g. "Wednesday" → "2026-03-02"). LLMs are bad at date math — the server-side `resolve_weekday_to_date()` already handles weekday names correctly but the LLM was never told to use it.
+
+**Symptom:** "add a 6:15am Workout on Wednesday" (Feb 25) → scheduled for March 2 (wrong week, wrong day).
+
+**Fix:** Updated tool schema and prompt examples to pass weekday names directly (`start_date="wednesday"`) instead of computed dates. Server resolves to the correct next occurrence.
+
+**Files:**
+- `apps/ai/intents/life_intents.py` (tool schema description updated)
+- `apps/ai/intent_service.py` (prompt examples + instruction updated)
+- `apps/ai/action_handlers.py` (docstring updated)
+
+**Tests:** 22/22 scheduling reliability, 38/38 drift + calendar integrity.
+
+---
+
 ## 2026-02-24 — Phase 10 Consolidation: Unified ExecutionLog Across All Paths
 
 **What:** Structural consolidation — renamed `ScheduleExecutionLog` → `ExecutionLog` as the sole behavioral log table. All event update paths (manual + provider) now log to unified ExecutionLog.

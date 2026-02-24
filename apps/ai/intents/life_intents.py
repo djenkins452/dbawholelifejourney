@@ -94,7 +94,7 @@ LIFE_INTENT_TOOLS = [
                     },
                     "start_date": {
                         "type": "string",
-                        "description": "Event date in YYYY-MM-DD format. You can also pass 'today' or 'tomorrow' as literal strings if you cannot resolve the exact date."
+                        "description": "Event date. Pass weekday names directly (e.g. 'monday', 'wednesday', 'friday') — the server resolves them. Also accepts 'today', 'tomorrow', or YYYY-MM-DD. NEVER compute dates from weekday names yourself — just pass the weekday name."
                     },
                     "start_time": {
                         "type": "string",

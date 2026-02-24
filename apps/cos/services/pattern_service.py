@@ -274,7 +274,9 @@ class CosPatternService:
 
         for d in sorted_dates:
             day_refs = date_groups[d]
-            day_sentiments = [r.sentiment for r in day_refs]
+            day_sentiments = [r.sentiment for r in day_refs if r.sentiment]
+            if not day_sentiments:
+                continue
             dominant = Counter(day_sentiments).most_common(1)[0][0]
 
             if dominant in ("negative", "mixed"):

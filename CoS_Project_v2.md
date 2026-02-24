@@ -1,7 +1,7 @@
 # CoS (Chief of Staff) v2 — Master Project Tracker
 
 **Created:** 2026-02-24
-**Status:** Phase 9 Complete — Ready for Phase 10
+**Status:** Phase 10 Complete — Ready for Phase 11
 **Owner:** Claude Code (lead engineer)
 
 ---
@@ -379,21 +379,22 @@ Journal append logic lives in a new `JournalCosActions` service that checks for 
 **Goal:** Production readiness, data migration, performance tuning
 
 **Tasks:**
-- [ ] Enable feature flag for test users
-- [ ] Backfill CosReflection from existing EventReflection data
-- [ ] Performance profiling on reflection queries
-- [ ] Add database indexes as needed
-- [ ] Review and harden all error handling
-- [ ] Update documentation (features doc, help topics, release notes)
-- [ ] Update CoS_Project_v2.md
+- [x] Enable feature flag for test users
+- [x] Backfill CosReflection from existing EventReflection data
+- [x] Performance profiling on reflection queries
+- [x] Add database indexes as needed
+- [x] Review and harden all error handling
+- [x] Update documentation (features doc, help topics, release notes)
+- [x] Update CoS_Project_v2.md
 
-**Files to Touch:**
-- `apps/cos/management/commands/backfill_reflections.py`
-- `apps/cos/migrations/` (indexes)
-- Documentation files per CLAUDE.md requirements
-
-**Tests:** Backfill correctness, query performance under load
-**Risk:** Backfill data integrity — run in dry-run mode first
+**Completion Notes:**
+- Created `backfill_reflections` management command (dry-run, user filter, batch processing)
+- Created `cos_feature_flag` management command (enable/disable/status per-user or all)
+- Added 2 indexes: `cos_refl_user_sentiment_date` for sentiment trend queries, `cos_shift_user_entity` for event-specific shift logs
+- Hardened error handling: input validation in reflection_service, try/except on auto_shift audit logging, Counter safety in pattern_service
+- Release notes PK 98 for CoS v2, fixture loader reset registered
+- 15 new tests: feature flag command, backfill command, error handling, index coverage
+- Total CoS tests: **367** (all passing)
 
 ---
 

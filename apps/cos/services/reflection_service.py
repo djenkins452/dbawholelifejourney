@@ -114,6 +114,9 @@ class CosReflectionService:
         Returns:
             CosReflection instance
         """
+        if not source_entity:
+            raise ValueError("source_entity is required for create_reflection")
+
         ct = ContentType.objects.get_for_model(source_entity)
         if not activity_date:
             if hasattr(source_entity, "start_dt") and source_entity.start_dt:

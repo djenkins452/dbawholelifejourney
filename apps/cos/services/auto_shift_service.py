@@ -351,22 +351,29 @@ class CosAutoShiftService:
                 "error": "Shift failed: {}".format(str(e)),
             }
 
-        # Log the shift
-        ct = ContentType.objects.get_for_model(event)
-        log_entry = CosAutoShiftLog.objects.create(
-            user=self.user,
-            content_type=ct,
-            object_id=event.pk,
-            original_start=original_start,
-            original_end=original_end,
-            new_start=new_start,
-            new_end=new_end,
-            reason=reason,
-            shift_type=shift_type,
-            priority_level=priority,
-            user_confirmed=user_confirmed,
-            auto_shifted=not user_confirmed,
-        )
+        # Log the shift — wrapped in try/except to not lose the shift itself
+        log_entry = None
+        try:
+            ct = ContentType.objects.get_for_model(event)
+            log_entry = CosAutoShiftLog.objects.create(
+                user=self.user,
+                content_type=ct,
+                object_id=event.pk,
+                original_start=original_start,
+                original_end=original_end,
+                new_start=new_start,
+                new_end=new_end,
+                reason=reason,
+                shift_type=shift_type,
+                priority_level=priority,
+                user_confirmed=user_confirmed,
+                auto_shifted=not user_confirmed,
+            )
+        except Exception as e:
+            logger.error(
+                "Shift succeeded but audit log failed for event %s: %s",
+                event.pk, e,
+            )
 
         logger.debug(
             "Event shifted: user=%s event=%s %s→%s (%s)",
@@ -411,19 +418,12 @@ class CosAutoShiftService:
         """
         from apps.calendar_engine.models import CalendarEvent
 
-        start_of_day = dj_timezone.make_aware(
-            dt.datetime.combine(date, dt.time.min)
-        ) if dj_timezone.is_naive(
-            dt.datetime.combine(date, dt.time.min)
-        ) else dt.datetime.combine(date, dt.time.min)
-
-        # Handle timezone
+        # Build timezone-aware start/end of day
+        naive = dt.datetime.combine(date, dt.time.min)
         try:
-            start_of_day = dj_timezone.make_aware(
-                dt.datetime.combine(date, dt.time.min)
-            )
+            start_of_day = dj_timezone.make_aware(naive)
         except ValueError:
-            start_of_day = dt.datetime.combine(date, dt.time.min)
+            start_of_day = naive
 
         end_of_day = start_of_day + dt.timedelta(days=1)
 

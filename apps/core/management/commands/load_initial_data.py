@@ -787,6 +787,9 @@ class Command(BaseCommand):
         # One-time: Seed LLMPriceBook and backfill event costs
         self._seed_pricebook_and_backfill(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for CoS v2 (PK 98)
+        self._reset_cos_v2_release_notes(DataLoadConfig, force, verbosity)
+
         # Auto-sync CoS documentation to admin guide (runs if checksum changed)
         self._sync_cos_documentation(DataLoadConfig, force, verbosity)
 
@@ -3790,3 +3793,30 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'PriceBook seed/backfill FAILED: {e}'))
+
+    def _reset_cos_v2_release_notes(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes for CoS v2 (PK 98).
+        """
+        reset_tracker_name = 'reset_cos_v2_release_notes_2026_02_24'
+        try:
+            if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
+                return
+
+            config = DataLoadConfig.objects.get(loader_name='release_notes')
+            if config.is_loaded:
+                config.is_loaded = False
+                config.save()
+                if verbosity >= 1:
+                    self.stdout.write(f'  Reset release_notes loader for CoS v2')
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for CoS v2 release notes (Feb 2026)',
+                'command',
+                'One-time reset to reload release_notes PK 98'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset CoS v2 release notes FAILED: {e}'))

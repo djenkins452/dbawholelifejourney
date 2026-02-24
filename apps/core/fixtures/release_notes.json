@@ -1,6 +1,22 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 98,
+        "fields": {
+            "title": "Chief of Staff v2: Your Intelligent Daily Partner",
+            "description": "A major upgrade to your Chief of Staff. It now proactively checks in before and after your activities, learns from your reflections over time, detects patterns in your well-being (like workout fatigue or consistency drops), and suggests goals when the evidence supports them. Events are intelligently prioritized — low-priority items auto-shift around conflicts while important ones stay put. The tone adapts to your day: encouraging when you're on a streak, empathetic when things are tough, and energized before workouts. All of this runs behind the scenes with a feature flag — opt in when you're ready.",
+            "entry_type": "feature",
+            "version": "",
+            "release_date": "2026-02-24",
+            "is_published": true,
+            "is_major": true,
+            "learn_more_url": "",
+            "created_at": "2026-02-24T16:30:00Z",
+            "updated_at": "2026-02-24T16:30:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 97,
         "fields": {
             "title": "Smart Conflict Detection for Your Calendar",

@@ -99,6 +99,10 @@ class CosReflection(TimeStampedModel):
                 fields=["user", "activity_type", "activity_date"],
                 name="cos_refl_user_type_date",
             ),
+            models.Index(
+                fields=["user", "sentiment", "activity_date"],
+                name="cos_refl_user_sentiment_date",
+            ),
         ]
 
     def __str__(self):
@@ -452,6 +456,10 @@ class CosAutoShiftLog(TimeStampedModel):
             models.Index(
                 fields=["user", "created_at"],
                 name="cos_shift_user_date",
+            ),
+            models.Index(
+                fields=["user", "content_type", "object_id"],
+                name="cos_shift_user_entity",
             ),
         ]
 

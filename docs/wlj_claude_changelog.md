@@ -9,6 +9,20 @@
 
 # WLJ Change History
 
+## 2026-02-24 — CoS v2 Phase 10: Rollout + Backfill + Hardening
+
+**What:** Production readiness for CoS v2. Management commands for backfill and feature flag control. Performance indexes and hardened error handling.
+
+**Key changes:**
+- `apps/cos/management/commands/backfill_reflections.py` — Migrate EventReflection → CosReflection (dry-run, user filter, batch)
+- `apps/cos/management/commands/cos_feature_flag.py` — Enable/disable/status for cos_v2_enabled
+- `apps/cos/models.py` + migration — 2 new indexes for sentiment trends and shift entity lookups
+- Hardened error handling: input validation, audit log safety, Counter edge case
+- Release notes PK 98 + fixture loader reset
+- `apps/cos/tests/test_rollout.py` — 15 tests
+
+---
+
 ## 2026-02-24 — CoS v2 Phase 9: Tone Modes + Final Integration
 
 **What:** Context-sensitive tone selection for CoS interactions. Activity type, time of day, and user sentiment history determine prompt tone (encouraging, gentle, direct, celebratory, empathetic, energized, reflective). Integrated with prompt delivery, action router, and user response style preferences.

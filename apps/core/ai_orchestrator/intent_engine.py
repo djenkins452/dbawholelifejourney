@@ -54,6 +54,8 @@ LIFE_INTENTS = {
     "complete_task",
     "create_event",
     "add_reminder",
+    "read_calendar_events",
+    "mutate_calendar_event",
 }
 
 FITNESS_INTENTS = {

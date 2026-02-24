@@ -1,6 +1,22 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 96,
+        "fields": {
+            "title": "Full Calendar Control via Your Chief of Staff",
+            "description": "Your Chief of Staff can now manage your entire calendar through conversation. Ask things like 'move my Wednesday meeting to Thursday', 'cancel my 2pm appointment', or 'what's on my calendar this week?' — and it handles the rest. Updates, reschedules, and cancellations are all tracked in your schedule history so nothing is ever lost.",
+            "entry_type": "feature",
+            "version": "",
+            "release_date": "2026-02-24",
+            "is_published": true,
+            "is_major": true,
+            "learn_more_url": "",
+            "created_at": "2026-02-24T04:00:00Z",
+            "updated_at": "2026-02-24T04:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 95,
         "fields": {
             "title": "Sharper, More Precise Guidance",

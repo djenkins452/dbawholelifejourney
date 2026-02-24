@@ -112,6 +112,12 @@ class CalendarEvent(models.Model):
         help_text='SHA-256 hash for deterministic duplicate prevention',
     )
 
+    deleted_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='Soft-delete timestamp. Set when status transitions to canceled.',
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -121,6 +127,7 @@ class CalendarEvent(models.Model):
             models.Index(fields=['user', 'start_dt']),
             models.Index(fields=['user', 'source_type', 'source_id']),
             models.Index(fields=['user', 'status']),
+            models.Index(fields=['user', 'deleted_at']),
         ]
         constraints = [
             models.UniqueConstraint(
@@ -140,6 +147,13 @@ class CalendarEvent(models.Model):
 
     def __str__(self):
         return f"{self.title} ({self.get_event_kind_display()}) - {self.start_dt:%Y-%m-%d}"
+
+    def soft_delete(self):
+        """Soft-delete by setting status to canceled and recording timestamp."""
+        from apps.core.time.system_clock import get_current_time
+        self.status = self.STATUS_CANCELED
+        self.deleted_at = get_current_time()
+        self.save(update_fields=['status', 'deleted_at', 'updated_at'])
 
     @property
     def is_projected(self):

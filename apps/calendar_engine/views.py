@@ -338,68 +338,61 @@ class EventDetailView(LoginRequiredMixin, View):
         if not data:
             return JsonResponse({'error': 'Invalid JSON'}, status=400)
 
-        with transaction.atomic():
-            # Capture original values for verification and drift tracking
-            original_title = event.title
-            original_start_dt = event.start_dt
+        # Build update fields dict — parse datetimes where needed
+        update_fields = {}
+        for field in ['title', 'description', 'is_all_day', 'is_protected', 'status']:
+            if field in data:
+                update_fields[field] = data[field]
 
-            # Update allowed fields
-            for field in ['title', 'description', 'is_all_day', 'is_protected', 'status']:
-                if field in data:
-                    setattr(event, field, data[field])
+        if 'start_dt' in data:
+            parsed = dt.datetime.fromisoformat(data['start_dt'])
+            if not timezone.is_aware(parsed):
+                parsed = timezone.make_aware(parsed, timezone.get_current_timezone())
+            update_fields['start_dt'] = parsed
 
-            if 'start_dt' in data:
-                event.start_dt = dt.datetime.fromisoformat(data['start_dt'])
-                if not timezone.is_aware(event.start_dt):
-                    event.start_dt = timezone.make_aware(event.start_dt, timezone.get_current_timezone())
-            if 'end_dt' in data:
-                event.end_dt = dt.datetime.fromisoformat(data['end_dt'])
-                if not timezone.is_aware(event.end_dt):
-                    event.end_dt = timezone.make_aware(event.end_dt, timezone.get_current_timezone())
+        if 'end_dt' in data:
+            parsed = dt.datetime.fromisoformat(data['end_dt'])
+            if not timezone.is_aware(parsed):
+                parsed = timezone.make_aware(parsed, timezone.get_current_timezone())
+            update_fields['end_dt'] = parsed
 
-            event.save()
+        if not update_fields:
+            return JsonResponse(
+                {'error': 'No changes detected in request'},
+                status=409,
+            )
 
-            # Log schedule change to unified ExecutionLog
-            if 'start_dt' in data and original_start_dt != event.start_dt:
-                from apps.core.drift.engine import DriftEngine
-                DriftEngine.record_schedule_change(
-                    request.user, event, original_start_dt, event.start_dt,
-                )
+        # Delegate to CalendarMutationService — single mutation path
+        from apps.calendar_engine.services.calendar_mutation_service import (
+            CalendarMutationService,
+        )
+        service = CalendarMutationService(request.user)
+        result = service.update(pk, **update_fields)
 
-            # Post-write verification: re-fetch and confirm changes applied
-            verified = CalendarEvent.objects.get(pk=pk, user=request.user)
-            changes_applied = False
-            for field in ['title', 'description', 'is_all_day', 'is_protected', 'status']:
-                if field in data and getattr(verified, field) != data[field]:
-                    return JsonResponse(
-                        {'error': 'Update verification failed — changes not persisted'},
-                        status=409,
-                    )
-                if field in data:
-                    changes_applied = True
-            if 'start_dt' in data or 'end_dt' in data:
-                changes_applied = True
+        if not result.success:
+            return JsonResponse({'error': result.error}, status=409)
 
-            if not changes_applied:
-                return JsonResponse(
-                    {'error': 'No changes detected in request'},
-                    status=409,
-                )
-
+        # Re-fetch for serialization with select_related
+        verified = CalendarEvent.objects.select_related('domain').get(
+            pk=pk, user=request.user,
+        )
         return JsonResponse({'event': _event_to_dict(verified)})
 
     def delete(self, request, pk):
         event = self._get_event(request, pk)
         if not event:
             return JsonResponse({'error': 'Not found'}, status=404)
-        count, _ = CalendarEvent.objects.filter(
-            pk=pk, user=request.user
-        ).delete()
-        if count != 1:
-            return JsonResponse(
-                {'error': 'Delete verification failed — unexpected row count'},
-                status=409,
-            )
+
+        # Delegate to CalendarMutationService — soft delete
+        from apps.calendar_engine.services.calendar_mutation_service import (
+            CalendarMutationService,
+        )
+        service = CalendarMutationService(request.user)
+        result = service.delete(pk)
+
+        if not result.success:
+            return JsonResponse({'error': result.error}, status=409)
+
         return JsonResponse({'status': 'deleted'})
 
 

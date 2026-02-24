@@ -9,6 +9,41 @@
 
 # WLJ Change History
 
+## 2026-02-24 — Calendar Full CRUD via CoS (read, update, delete)
+
+**What:** CoS can now read, update, and delete calendar events — not just create them. Two new LLM tools (`read_calendar_events`, `mutate_calendar_event`) give the AI full calendar CRUD. A new `CalendarMutationService` provides a single mutation path shared by both the AI pipeline and the web view layer.
+
+**Changes:**
+1. **CalendarMutationService** (`apps/calendar_engine/services/calendar_mutation_service.py`) — Single source of truth for all CalendarEvent mutations (create/update/delete). Uses `select_for_update()` row locking, idempotency with nested savepoints, ExecutionLog writes for time changes and cancellations, and post-commit hooks (conflict detection, drift recompute, schedule instability, Google Calendar sync).
+2. **CalendarEvent model** — Added `deleted_at` field + `(user, deleted_at)` index + `soft_delete()` method. Migration `0005_add_deleted_at_and_index`.
+3. **New intent schemas** (`apps/ai/intents/calendar_intents.py`) — `read_calendar_events` (query by text, date range, timezone) and `mutate_calendar_event` (create/update/delete with idempotency key).
+4. **Intent registry updates** — `__init__.py`, `intent_engine.py`, `safety_engine.py`, `execution_engine.py` all updated with new intents.
+5. **AI handlers** (`apps/ai/action_handlers.py`) — `handle_read_calendar_events()` for DB queries, `handle_mutate_calendar_event()` routing to create/update/delete.
+6. **Intent dispatch + prompt** (`apps/ai/intent_service.py`) — Added dispatch branches and calendar CRUD examples to system prompt.
+7. **View layer refactor** (`apps/calendar_engine/views.py`) — `EventDetailView.patch/delete` now use CalendarMutationService. Delete is soft delete (was hard delete).
+8. **Intent registration test** — Added `read_calendar_events` and `mutate_calendar_event` to `NON_TIME_INTENTS`.
+
+**Files Created:**
+- `apps/calendar_engine/services/calendar_mutation_service.py`
+- `apps/ai/intents/calendar_intents.py`
+- `apps/calendar_engine/migrations/0005_add_deleted_at_and_index.py`
+- `apps/ai/tests/test_calendar_crud.py` (22 tests)
+
+**Files Modified:**
+- `apps/calendar_engine/models.py`
+- `apps/calendar_engine/views.py`
+- `apps/ai/intents/__init__.py`
+- `apps/ai/action_handlers.py`
+- `apps/ai/intent_service.py`
+- `apps/core/ai_orchestrator/intent_engine.py`
+- `apps/core/ai_orchestrator/safety_engine.py`
+- `apps/core/ai_orchestrator/execution_engine.py`
+- `apps/ai/tests/test_intent_registration.py`
+
+**Tests:** 22/22 calendar CRUD, 10/10 intent registration. All pass.
+
+---
+
 ## 2026-02-24 — Fix: Weekday date resolution — LLM no longer computes dates
 
 **Root Cause:** The LLM prompt and tool schema instructed the LLM to compute YYYY-MM-DD from weekday names (e.g. "Wednesday" → "2026-03-02"). LLMs are bad at date math — the server-side `resolve_weekday_to_date()` already handles weekday names correctly but the LLM was never told to use it.

@@ -3163,3 +3163,401 @@ class ActionHandler:
                 error=str(e),
                 action_type='enter_learning_mode',
             )
+
+    # ================================================================== #
+    # Calendar CRUD handlers
+    # ================================================================== #
+
+    def handle_read_calendar_events(
+        self,
+        timezone: str = 'America/Chicago',
+        query_text: str = None,
+        date_range_start: str = None,
+        date_range_end: str = None,
+        include_deleted: bool = False,
+        limit: int = 20,
+        **kwargs,
+    ) -> ActionResult:
+        """
+        Read calendar events from local DB. Pure query — no mutation.
+
+        Supports:
+        - Title keyword search (case-insensitive contains)
+        - Date range filtering with weekday/relative date resolution
+        - Optional inclusion of canceled (soft-deleted) events
+        """
+        import datetime as dt
+        import pytz
+
+        from apps.calendar_engine.models import CalendarEvent
+
+        try:
+            user_tz = pytz.timezone(timezone)
+        except pytz.exceptions.UnknownTimeZoneError:
+            user_tz = pytz.timezone('America/Chicago')
+
+        try:
+            qs = CalendarEvent.objects.filter(user=self.user)
+
+            # Exclude canceled unless requested
+            if not include_deleted:
+                qs = qs.exclude(status=CalendarEvent.STATUS_CANCELED)
+
+            # Title search
+            if query_text:
+                qs = qs.filter(title__icontains=query_text)
+
+            # Date range filtering
+            if date_range_start:
+                start_date = self._resolve_date_string(date_range_start, user_tz)
+                if start_date:
+                    start_dt = user_tz.localize(
+                        dt.datetime.combine(start_date, dt.time.min)
+                    )
+                    qs = qs.filter(start_dt__gte=start_dt)
+
+            if date_range_end:
+                end_date = self._resolve_date_string(date_range_end, user_tz)
+                if end_date:
+                    end_dt = user_tz.localize(
+                        dt.datetime.combine(end_date, dt.time.max)
+                    )
+                    qs = qs.filter(start_dt__lte=end_dt)
+            elif date_range_start:
+                # If only start provided, default end to same day
+                if start_date:
+                    end_dt = user_tz.localize(
+                        dt.datetime.combine(start_date, dt.time.max)
+                    )
+                    qs = qs.filter(start_dt__lte=end_dt)
+
+            # Limit results
+            limit = min(max(limit, 1), 50)
+            events = list(qs.order_by('start_dt')[:limit])
+
+            # Serialize
+            event_list = []
+            for ev in events:
+                local_start = ev.start_dt.astimezone(user_tz)
+                local_end = ev.end_dt.astimezone(user_tz)
+                event_list.append({
+                    'id': ev.pk,
+                    'title': ev.title,
+                    'description': ev.description,
+                    'start_dt': local_start.isoformat(),
+                    'end_dt': local_end.isoformat(),
+                    'is_all_day': ev.is_all_day,
+                    'status': ev.status,
+                    'event_kind': ev.event_kind,
+                    'is_protected': ev.is_protected,
+                })
+
+            count = len(event_list)
+            if count == 0:
+                msg = "No events found matching your criteria."
+            elif count == 1:
+                ev = event_list[0]
+                msg = f"Found 1 event: {ev['title']} on {ev['start_dt'][:10]}"
+            else:
+                msg = f"Found {count} events."
+
+            return ActionResult(
+                success=True,
+                message=msg,
+                created_object={'events': event_list, 'count': count},
+                action_type='read_calendar_events',
+            )
+
+        except Exception as e:
+            logger.error(
+                "handle_read_calendar_events failed for user=%s: %s",
+                self.user.id, e, exc_info=True,
+            )
+            return ActionResult(
+                success=False,
+                message="Sorry, I couldn't read your calendar right now.",
+                error=str(e),
+                action_type='read_calendar_events',
+            )
+
+    def handle_mutate_calendar_event(
+        self,
+        action: str,
+        idempotency_key: str,
+        timezone: str = 'America/Chicago',
+        event_id: int = None,
+        title: str = None,
+        start_date: str = None,
+        start_time: str = None,
+        end_time: str = None,
+        description: str = None,
+        event_type: str = None,
+        **kwargs,
+    ) -> ActionResult:
+        """
+        Unified calendar mutation: create, update, or delete.
+
+        All mutations go through CalendarMutationService — the same
+        service used by the view-layer endpoints.
+        """
+        from apps.calendar_engine.services.calendar_mutation_service import (
+            CalendarMutationService,
+        )
+
+        service = CalendarMutationService(self.user)
+
+        if action == 'create':
+            return self._mutate_create(
+                service, idempotency_key, timezone,
+                title=title, start_date=start_date,
+                start_time=start_time, end_time=end_time,
+                description=description, event_type=event_type,
+                **kwargs,
+            )
+        elif action == 'update':
+            if not event_id:
+                return ActionResult(
+                    success=False,
+                    message="event_id is required for update. Use read_calendar_events first.",
+                    error='missing_event_id',
+                    action_type='mutate_calendar_event',
+                )
+            return self._mutate_update(
+                service, event_id, idempotency_key, timezone,
+                title=title, start_date=start_date,
+                start_time=start_time, end_time=end_time,
+                description=description,
+                **kwargs,
+            )
+        elif action == 'delete':
+            if not event_id:
+                return ActionResult(
+                    success=False,
+                    message="event_id is required for delete. Use read_calendar_events first.",
+                    error='missing_event_id',
+                    action_type='mutate_calendar_event',
+                )
+            return self._mutate_delete(service, event_id)
+        else:
+            return ActionResult(
+                success=False,
+                message=f"Unknown action: {action}. Use 'create', 'update', or 'delete'.",
+                error='invalid_action',
+                action_type='mutate_calendar_event',
+            )
+
+    def _mutate_create(
+        self, service, idempotency_key, timezone, **kwargs,
+    ) -> ActionResult:
+        """Delegate create to existing handle_create_event."""
+        # Strip None values so handle_create_event uses its defaults
+        create_kwargs = {k: v for k, v in kwargs.items() if v is not None}
+        return self.handle_create_event(**create_kwargs)
+
+    def _mutate_update(
+        self, service, event_id, idempotency_key, timezone,
+        title=None, start_date=None, start_time=None, end_time=None,
+        description=None, **kwargs,
+    ) -> ActionResult:
+        """Update an existing calendar event via CalendarMutationService."""
+        import datetime as dt
+        import pytz
+
+        try:
+            user_tz = pytz.timezone(timezone)
+        except pytz.exceptions.UnknownTimeZoneError:
+            user_tz = pytz.timezone('America/Chicago')
+
+        update_fields = {}
+
+        if title is not None:
+            update_fields['title'] = title
+        if description is not None:
+            update_fields['description'] = description
+
+        # Resolve date/time if provided
+        if start_date or start_time:
+            from apps.calendar_engine.models import CalendarEvent
+            try:
+                existing = CalendarEvent.objects.get(pk=event_id, user=self.user)
+            except CalendarEvent.DoesNotExist:
+                return ActionResult(
+                    success=False,
+                    message="Event not found.",
+                    error='event_not_found',
+                    action_type='mutate_calendar_event',
+                )
+
+            current_start = existing.start_dt.astimezone(user_tz)
+            current_end = existing.end_dt.astimezone(user_tz)
+            duration = current_end - current_start
+
+            if start_date:
+                new_date = self._resolve_date_string(start_date, user_tz)
+                if not new_date:
+                    return ActionResult(
+                        success=False,
+                        message=f"Could not resolve date: {start_date}",
+                        error='invalid_date',
+                        action_type='mutate_calendar_event',
+                    )
+            else:
+                new_date = current_start.date()
+
+            if start_time:
+                try:
+                    parsed_time = dt.datetime.strptime(start_time, "%H:%M").time()
+                except ValueError:
+                    return ActionResult(
+                        success=False,
+                        message=f"Invalid time format: {start_time}. Use HH:MM.",
+                        error='invalid_time',
+                        action_type='mutate_calendar_event',
+                    )
+            else:
+                parsed_time = current_start.time()
+
+            new_start_dt = user_tz.localize(
+                dt.datetime.combine(new_date, parsed_time)
+            )
+            update_fields['start_dt'] = new_start_dt
+
+            if end_time:
+                try:
+                    parsed_end = dt.datetime.strptime(end_time, "%H:%M").time()
+                    new_end_dt = user_tz.localize(
+                        dt.datetime.combine(new_date, parsed_end)
+                    )
+                except ValueError:
+                    new_end_dt = new_start_dt + duration
+            else:
+                new_end_dt = new_start_dt + duration
+
+            update_fields['end_dt'] = new_end_dt
+
+        if not update_fields:
+            return ActionResult(
+                success=False,
+                message="No fields to update.",
+                error='no_fields',
+                action_type='mutate_calendar_event',
+            )
+
+        result = service.update(event_id, **update_fields)
+
+        if not result.success:
+            return ActionResult(
+                success=False,
+                message=f"Update failed: {result.error}",
+                error=result.error,
+                action_type='mutate_calendar_event',
+            )
+
+        event = result.event
+        msg_parts = [f"✓ Updated: {event.title}"]
+        if result.fields_changed:
+            for field_name, diff in result.fields_changed.items():
+                if field_name == 'start_dt':
+                    msg_parts.append(f"moved to {event.start_dt.strftime('%b %d at %I:%M %p')}")
+                elif field_name == 'title':
+                    msg_parts.append(f"renamed to \"{diff['new']}\"")
+
+        if result.conflict_warning:
+            msg_parts.append(result.conflict_warning)
+        if result.pressure_note:
+            msg_parts.append(result.pressure_note)
+        if result.gcal_synced:
+            msg_parts.append("— Synced to Google Calendar.")
+
+        return ActionResult(
+            success=True,
+            message=" ".join(msg_parts),
+            created_object={
+                'model': 'CalendarEvent',
+                'id': event.pk,
+                'title': event.title,
+                'start_dt': event.start_dt.isoformat(),
+                'fields_changed': result.fields_changed,
+            },
+            action_type='mutate_calendar_event',
+        )
+
+    def _mutate_delete(self, service, event_id) -> ActionResult:
+        """Soft-delete a calendar event via CalendarMutationService."""
+        result = service.delete(event_id)
+
+        if not result.success:
+            return ActionResult(
+                success=False,
+                message=f"Delete failed: {result.error}",
+                error=result.error,
+                action_type='mutate_calendar_event',
+            )
+
+        event = result.event
+        msg = f"✓ Removed from calendar: {event.title}"
+        if result.gcal_synced:
+            msg += " — Also removed from Google Calendar."
+
+        return ActionResult(
+            success=True,
+            message=msg,
+            created_object={
+                'model': 'CalendarEvent',
+                'id': event.pk,
+                'title': event.title,
+                'status': 'canceled',
+            },
+            action_type='mutate_calendar_event',
+        )
+
+    def _resolve_date_string(self, date_str, user_tz):
+        """
+        Resolve a date string to a date object.
+        Handles 'today', 'tomorrow', weekday names, and YYYY-MM-DD.
+        """
+        import datetime as dt
+
+        from apps.core.time.system_clock import get_current_time
+
+        now_utc = get_current_time()
+        now_local = now_utc.astimezone(user_tz)
+        today = now_local.date()
+
+        date_str_lower = date_str.strip().lower()
+
+        if date_str_lower == 'today':
+            return today
+        elif date_str_lower == 'tomorrow':
+            return today + dt.timedelta(days=1)
+
+        # Weekday names
+        weekday_map = {
+            'monday': 0, 'tuesday': 1, 'wednesday': 2,
+            'thursday': 3, 'friday': 4, 'saturday': 5, 'sunday': 6,
+        }
+        if date_str_lower in weekday_map:
+            target_weekday = weekday_map[date_str_lower]
+            current_weekday = today.weekday()
+            days_ahead = target_weekday - current_weekday
+            if days_ahead <= 0:
+                days_ahead += 7
+            return today + dt.timedelta(days=days_ahead)
+
+        # ISO format
+        try:
+            return dt.date.fromisoformat(date_str)
+        except ValueError:
+            pass
+
+        # Month Day format (e.g., "March 15")
+        for fmt in ('%B %d', '%b %d', '%B %d, %Y', '%b %d, %Y'):
+            try:
+                parsed = dt.datetime.strptime(date_str, fmt)
+                if parsed.year == 1900:
+                    parsed = parsed.replace(year=today.year)
+                return parsed.date()
+            except ValueError:
+                continue
+
+        return None

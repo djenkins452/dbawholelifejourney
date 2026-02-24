@@ -343,6 +343,23 @@ FITNESS:
 
 IMPORTANT: For create_event, pass weekday names directly (e.g. start_date="wednesday", start_date="friday"). NEVER compute YYYY-MM-DD from weekday names — the server does that. Use "today", "tomorrow", or weekday names. Only use YYYY-MM-DD when the user specifies an exact date like "March 15" or "2026-03-15".
 
+CALENDAR QUERIES (read_calendar_events):
+- "what's on my calendar tomorrow?" → read_calendar_events(date_range_start="tomorrow", timezone="America/New_York")
+- "do I have anything Wednesday?" → read_calendar_events(date_range_start="wednesday", timezone="America/New_York")
+- "show me my meetings" → read_calendar_events(query_text="meeting", timezone="America/New_York")
+- "what's scheduled this week?" → read_calendar_events(date_range_start="today", date_range_end="sunday", timezone="America/New_York")
+
+CALENDAR UPDATES (mutate_calendar_event):
+- "move my Wednesday meeting to Thursday" → FIRST call read_calendar_events to find the event, THEN call mutate_calendar_event(action="update", event_id=<id>, start_date="thursday", idempotency_key="move-meeting-wed-thu", timezone="America/New_York")
+- "change my 2pm appointment to 3pm" → FIRST read_calendar_events, THEN mutate_calendar_event(action="update", event_id=<id>, start_time="15:00", idempotency_key="change-appt-2pm-3pm", timezone="America/New_York")
+- "rename my workout to Chest Day" → FIRST read_calendar_events, THEN mutate_calendar_event(action="update", event_id=<id>, title="Chest Day", idempotency_key="rename-workout-chestday", timezone="America/New_York")
+
+CALENDAR DELETIONS (mutate_calendar_event):
+- "cancel my Wednesday event" → FIRST read_calendar_events, THEN mutate_calendar_event(action="delete", event_id=<id>, idempotency_key="cancel-wed-event", timezone="America/New_York")
+- "remove the meeting from my calendar" → FIRST read_calendar_events, THEN mutate_calendar_event(action="delete", event_id=<id>, idempotency_key="remove-meeting", timezone="America/New_York")
+
+IMPORTANT: For update and delete, you MUST call read_calendar_events FIRST to get the event_id. Never guess event IDs.
+
 LOGGING LIFE EVENTS (wake up, sleep, arrivals, etc.):
 When the user says "add that I woke up at 6:30am" or "log that I went to bed at 10pm" or similar life-tracking statements with "add", "log", or "record", create a calendar event to record it:
 - "add that I woke up today at 6:30am" → create_event(title="Woke Up", start_date="{today_str}", start_time="06:30", event_type="personal")
@@ -634,6 +651,13 @@ Examples:
 
             elif intent_type == 'create_event':
                 return handler.handle_create_event(**parameters)
+
+            # Calendar CRUD handlers
+            elif intent_type == 'read_calendar_events':
+                return handler.handle_read_calendar_events(**parameters)
+
+            elif intent_type == 'mutate_calendar_event':
+                return handler.handle_mutate_calendar_event(**parameters)
 
             elif intent_type == 'add_reminder':
                 return handler.handle_add_reminder(**parameters)

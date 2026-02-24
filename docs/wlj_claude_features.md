@@ -3726,6 +3726,7 @@ This section provides the full technical reference for the Time Command Center (
 ### Services
 | Service | Purpose |
 |---------|---------|
+| `services/calendar_mutation_service.py` | **Single mutation path** for all CalendarEvent create/update/delete — used by both AI handlers and view layer. Uses `select_for_update()` row locking, idempotency with nested savepoints, ExecutionLog writes, and post-commit hooks (conflict detection, drift, instability, Google Calendar sync) |
 | `services/projection.py` | Syncs Tasks→deadline markers, Goals→milestone markers, Habits→recurring protected events |
 | `services/conflicts.py` | Protected event overlap detection, override logging (Habit Protection Layer) |
 | `services/metrics.py` | Domain balance computation (minutes and percentages per period) |
@@ -3733,23 +3734,24 @@ This section provides the full technical reference for the Time Command Center (
 | `services/nlp_parse.py` | Free-text parsing with day names, time ranges, temporal tokens, domain hints |
 
 ### Key Files
-- `apps/calendar_engine/models.py` — CalendarEvent, RecurrenceRule, RecurrenceException, CalendarOverrideLog
-- `apps/calendar_engine/views.py` — 15 views (3 template + 12 API)
-- `apps/calendar_engine/services/` — 5 service modules
+- `apps/calendar_engine/models.py` — CalendarEvent (with `deleted_at` soft-delete field), RecurrenceRule, RecurrenceException, CalendarOverrideLog
+- `apps/calendar_engine/views.py` — 15 views (3 template + 12 API), `EventDetailView.patch/delete` delegates to CalendarMutationService
+- `apps/calendar_engine/services/` — 6 service modules (including CalendarMutationService)
 - `templates/calendar_engine/dashboard.html` — TCC dashboard with view toggles
 - `templates/calendar_engine/month.html` — Full month grid view
 - `templates/calendar_engine/manage.html` — Event management page
 
 ### Tests
 - 31 tests in `apps/calendar_engine/tests.py`
-- Covers: task/goal/habit projections, conflict detection, gap suggestions, domain balance, NLP parsing, API CRUD, recurrence, event moves with writeback
+- 22 tests in `apps/ai/tests/test_calendar_crud.py` (Calendar CRUD via CoS)
+- Covers: task/goal/habit projections, conflict detection, gap suggestions, domain balance, NLP parsing, API CRUD, recurrence, event moves with writeback, AI read/update/delete, idempotency, execution logging, learning mode gate, view layer integration, drift hooks
 
 ### Integration Points
 - **CoS schedule awareness** — `apps/core/ai_orchestrator/cos_context.py` injects today's events into every CoS LLM prompt with time-relative tags ([past], [in_progress], [upcoming_soon], [upcoming])
 - **Morning greeting** — `apps/ai/personal_assistant.py` references schedule proactively
 - **Life app** — Tasks and LifeEvents sync to calendar via projection service
 - **Purpose app** — Goals and habits sync to calendar; habits get `is_protected=True` flag
-- **CoS action handlers** — `apps/ai/action_handlers.py` creates events and runs post-scheduling chain (conflict detection → drift recomputation → Google Calendar sync)
+- **CoS action handlers** — `apps/ai/action_handlers.py` creates, reads, updates, and deletes events via CalendarMutationService. Full CRUD via two LLM tools: `read_calendar_events` (query) and `mutate_calendar_event` (create/update/delete with idempotency). Post-scheduling chain: conflict detection → drift recomputation → schedule instability → Google Calendar sync.
 - **Google Calendar** — Life app's `GoogleCalendarService` pushes events to external calendar
 
 ---

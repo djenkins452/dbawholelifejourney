@@ -153,7 +153,7 @@ def _run_intelligence_chain(user, enriched_action, action_result):
     # ── Step 2: CoS Blueprint Awareness ─────────────────────────
     # For scheduling actions (create_event, create_task), recompute
     # the architecture plan so CoS context stays current.
-    if enriched_action.intent_type in ('create_event', 'create_task', 'add_reminder'):
+    if enriched_action.intent_type in ('create_event', 'create_task', 'add_reminder', 'mutate_calendar_event'):
         try:
             from apps.core.blueprint.architecture_engine import get_todays_plan
             # Touch today's plan to ensure it's aware of new events

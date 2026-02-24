@@ -34,6 +34,7 @@ from .fitness_intents import FITNESS_INTENT_TOOLS
 from .settings_intents import SETTINGS_INTENT_TOOLS
 from .calibration_intents import CALIBRATION_INTENT_TOOLS
 from .learning_mode_intents import LEARNING_MODE_INTENT_TOOLS
+from .calendar_intents import CALENDAR_INTENT_TOOLS
 
 # Combine all intent tools for the OpenAI API
 ALL_INTENT_TOOLS = (
@@ -47,7 +48,8 @@ ALL_INTENT_TOOLS = (
     FITNESS_INTENT_TOOLS +
     SETTINGS_INTENT_TOOLS +
     CALIBRATION_INTENT_TOOLS +
-    LEARNING_MODE_INTENT_TOOLS
+    LEARNING_MODE_INTENT_TOOLS +
+    CALENDAR_INTENT_TOOLS
 )
 
 # Intent type to handler mapping (for routing)
@@ -82,6 +84,9 @@ INTENT_HANDLERS = {
     'complete_task': 'life',
     'create_event': 'life',
     'add_reminder': 'life',
+    # Calendar CRUD
+    'read_calendar_events': 'life',
+    'mutate_calendar_event': 'life',
     # Fitness
     'log_workout': 'fitness',
     'log_exercise_set': 'fitness',
@@ -116,4 +121,5 @@ __all__ = [
     'SETTINGS_INTENT_TOOLS',
     'CALIBRATION_INTENT_TOOLS',
     'LEARNING_MODE_INTENT_TOOLS',
+    'CALENDAR_INTENT_TOOLS',
 ]

@@ -64,7 +64,7 @@ def validate_action(enriched_action):
             )
 
         # Check if too far in the future (for non-scheduling intents)
-        scheduling_intents = {"create_event", "add_reminder", "create_appointment"}
+        scheduling_intents = {"create_event", "add_reminder", "create_appointment", "mutate_calendar_event"}
         if enriched_action.intent_type not in scheduling_intents:
             if recorded_at > now + timedelta(hours=1):
                 return SafetyResult(

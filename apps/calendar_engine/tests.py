@@ -6,6 +6,7 @@ Covers: projections, conflicts, suggestions, metrics, NLP parser, API endpoints.
 
 import datetime as dt
 import json
+from uuid import uuid4
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -29,6 +30,12 @@ from apps.calendar_engine.services.projection import (
 )
 
 User = get_user_model()
+
+
+def _ce(**kwargs):
+    """Test helper: create CalendarEvent with auto-generated idempotency_key."""
+    kwargs.setdefault('idempotency_key', uuid4().hex)
+    return CalendarEvent.objects.create(**kwargs)
 
 
 def _create_test_user(email='caltest@example.com'):
@@ -215,7 +222,7 @@ class ConflictTests(TestCase):
         """Acceptance criterion #5: conflict prompt on protected time."""
         tz = timezone.get_current_timezone()
         # Create a protected event (e.g. workout)
-        protected = CalendarEvent.objects.create(
+        protected = _ce(
             user=self.user,
             title='Morning Workout',
             start_dt=timezone.make_aware(dt.datetime(2026, 3, 1, 6, 0), tz),
@@ -236,7 +243,7 @@ class ConflictTests(TestCase):
 
     def test_no_conflict_outside_protected(self):
         tz = timezone.get_current_timezone()
-        CalendarEvent.objects.create(
+        _ce(
             user=self.user,
             title='Morning Workout',
             start_dt=timezone.make_aware(dt.datetime(2026, 3, 1, 6, 0), tz),
@@ -254,7 +261,7 @@ class ConflictTests(TestCase):
 
     def test_override_logged(self):
         tz = timezone.get_current_timezone()
-        protected = CalendarEvent.objects.create(
+        protected = _ce(
             user=self.user,
             title='Workout',
             start_dt=timezone.make_aware(dt.datetime(2026, 3, 1, 6, 0), tz),
@@ -262,7 +269,7 @@ class ConflictTests(TestCase):
             event_kind=CalendarEvent.KIND_MANUAL,
             is_protected=True,
         )
-        moved = CalendarEvent.objects.create(
+        moved = _ce(
             user=self.user,
             title='Meeting',
             start_dt=timezone.make_aware(dt.datetime(2026, 3, 1, 6, 30), tz),
@@ -289,13 +296,13 @@ class GapDetectionTests(TestCase):
         target_date = dt.date(2026, 3, 2)
 
         # Create events leaving a gap from 10am-12pm
-        CalendarEvent.objects.create(
+        _ce(
             user=self.user,
             title='Morning Block',
             start_dt=timezone.make_aware(dt.datetime(2026, 3, 2, 6, 0), tz),
             end_dt=timezone.make_aware(dt.datetime(2026, 3, 2, 10, 0), tz),
         )
-        CalendarEvent.objects.create(
+        _ce(
             user=self.user,
             title='Afternoon Block',
             start_dt=timezone.make_aware(dt.datetime(2026, 3, 2, 12, 0), tz),
@@ -376,12 +383,12 @@ class DomainBalanceTests(TestCase):
         health = LifeDomain.objects.get(slug='health')
 
         # 2 hours work, 1 hour health
-        CalendarEvent.objects.create(
+        _ce(
             user=self.user, title='Work', domain=work,
             start_dt=timezone.make_aware(dt.datetime(2026, 3, 1, 9, 0), tz),
             end_dt=timezone.make_aware(dt.datetime(2026, 3, 1, 11, 0), tz),
         )
-        CalendarEvent.objects.create(
+        _ce(
             user=self.user, title='Gym', domain=health,
             start_dt=timezone.make_aware(dt.datetime(2026, 3, 1, 7, 0), tz),
             end_dt=timezone.make_aware(dt.datetime(2026, 3, 1, 8, 0), tz),
@@ -472,7 +479,7 @@ class RecurrenceTests(TestCase):
 
     def test_weekly_occurrences(self):
         tz = timezone.get_current_timezone()
-        event = CalendarEvent.objects.create(
+        event = _ce(
             user=self.user,
             title='Weekly Meeting',
             start_dt=timezone.make_aware(dt.datetime(2026, 3, 2, 10, 0), tz),  # Monday
@@ -535,7 +542,7 @@ class APITests(TestCase):
 
     def test_event_detail_get(self):
         tz = timezone.get_current_timezone()
-        event = CalendarEvent.objects.create(
+        event = _ce(
             user=self.user, title='Test',
             start_dt=timezone.make_aware(dt.datetime(2026, 3, 1, 10, 0), tz),
             end_dt=timezone.make_aware(dt.datetime(2026, 3, 1, 11, 0), tz),
@@ -545,7 +552,7 @@ class APITests(TestCase):
 
     def test_event_patch(self):
         tz = timezone.get_current_timezone()
-        event = CalendarEvent.objects.create(
+        event = _ce(
             user=self.user, title='Old Title',
             start_dt=timezone.make_aware(dt.datetime(2026, 3, 1, 10, 0), tz),
             end_dt=timezone.make_aware(dt.datetime(2026, 3, 1, 11, 0), tz),
@@ -561,7 +568,7 @@ class APITests(TestCase):
 
     def test_event_delete(self):
         tz = timezone.get_current_timezone()
-        event = CalendarEvent.objects.create(
+        event = _ce(
             user=self.user, title='Delete Me',
             start_dt=timezone.make_aware(dt.datetime(2026, 3, 1, 10, 0), tz),
             end_dt=timezone.make_aware(dt.datetime(2026, 3, 1, 11, 0), tz),
@@ -583,12 +590,12 @@ class APITests(TestCase):
 
     def test_all_events_api(self):
         tz = timezone.get_current_timezone()
-        CalendarEvent.objects.create(
+        _ce(
             user=self.user, title='Event A',
             start_dt=timezone.make_aware(dt.datetime(2026, 3, 1, 10, 0), tz),
             end_dt=timezone.make_aware(dt.datetime(2026, 3, 1, 11, 0), tz),
         )
-        CalendarEvent.objects.create(
+        _ce(
             user=self.user, title='Event B',
             start_dt=timezone.make_aware(dt.datetime(2026, 3, 2, 10, 0), tz),
             end_dt=timezone.make_aware(dt.datetime(2026, 3, 2, 11, 0), tz),
@@ -616,13 +623,13 @@ class APITests(TestCase):
         """Acceptance criterion #5: move into protected time returns 409 conflict."""
         tz = timezone.get_current_timezone()
         # Protected event
-        CalendarEvent.objects.create(
+        _ce(
             user=self.user, title='Workout', is_protected=True,
             start_dt=timezone.make_aware(dt.datetime(2026, 3, 1, 6, 0), tz),
             end_dt=timezone.make_aware(dt.datetime(2026, 3, 1, 7, 0), tz),
         )
         # Event to move
-        event = CalendarEvent.objects.create(
+        event = _ce(
             user=self.user, title='Meeting',
             start_dt=timezone.make_aware(dt.datetime(2026, 3, 1, 10, 0), tz),
             end_dt=timezone.make_aware(dt.datetime(2026, 3, 1, 11, 0), tz),
@@ -643,12 +650,12 @@ class APITests(TestCase):
     def test_move_with_override(self):
         """Acceptance criterion #5: override confirmed allows move."""
         tz = timezone.get_current_timezone()
-        CalendarEvent.objects.create(
+        _ce(
             user=self.user, title='Workout', is_protected=True,
             start_dt=timezone.make_aware(dt.datetime(2026, 3, 1, 6, 0), tz),
             end_dt=timezone.make_aware(dt.datetime(2026, 3, 1, 7, 0), tz),
         )
-        event = CalendarEvent.objects.create(
+        event = _ce(
             user=self.user, title='Meeting',
             start_dt=timezone.make_aware(dt.datetime(2026, 3, 1, 10, 0), tz),
             end_dt=timezone.make_aware(dt.datetime(2026, 3, 1, 11, 0), tz),

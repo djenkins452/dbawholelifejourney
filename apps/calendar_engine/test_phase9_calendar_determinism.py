@@ -10,6 +10,7 @@ import hashlib
 import json
 import threading
 import unittest
+from uuid import uuid4
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -23,6 +24,12 @@ _is_sqlite = connection.vendor == 'sqlite'
 
 from apps.calendar_engine.models import CalendarEvent
 from apps.calendar_engine.utils.date_resolution import resolve_weekday_to_date
+
+
+def _ce(**kwargs):
+    """Test helper: create CalendarEvent with auto-generated idempotency_key."""
+    kwargs.setdefault('idempotency_key', uuid4().hex)
+    return CalendarEvent.objects.create(**kwargs)
 
 User = get_user_model()
 
@@ -220,7 +227,7 @@ class IdempotencyTests(TestCase):
         ).hexdigest()
 
         # First create
-        event1 = CalendarEvent.objects.create(
+        event1 = _ce(
             user=self.user,
             title='Team Meeting',
             start_dt=start,
@@ -253,11 +260,11 @@ class IdempotencyTests(TestCase):
             f"{self.user.id}:Meeting B:{start.isoformat()}".encode()
         ).hexdigest()
 
-        CalendarEvent.objects.create(
+        _ce(
             user=self.user, title='Meeting A',
             start_dt=start, end_dt=end, idempotency_key=key1,
         )
-        CalendarEvent.objects.create(
+        _ce(
             user=self.user, title='Meeting B',
             start_dt=start, end_dt=end, idempotency_key=key2,
         )
@@ -281,7 +288,7 @@ class IdempotencyTests(TestCase):
         ).hexdigest()
 
         # First create with "Workout"
-        CalendarEvent.objects.create(
+        _ce(
             user=self.user, title='Workout',
             start_dt=start, end_dt=end, idempotency_key=key,
         )
@@ -301,61 +308,67 @@ class IdempotencyTests(TestCase):
 
 
 class UniqueConstraintTests(TestCase):
-    """Test the unique_user_title_start constraint."""
+    """Test the uq_calendar_event_user_idempotency constraint."""
 
     def setUp(self):
         self.user = _create_test_user('uniquetest@example.com')
         self.tz = timezone.get_current_timezone()
 
-    def test_duplicate_user_title_start_raises_integrity_error(self):
-        """Creating two events with same user+title+start_dt raises IntegrityError."""
+    def test_duplicate_idempotency_key_raises_integrity_error(self):
+        """Creating two events with same (user, idempotency_key) raises IntegrityError."""
         start = timezone.make_aware(dt.datetime(2026, 3, 1, 10, 0), self.tz)
         end = start + dt.timedelta(hours=1)
+        idem_key = 'fixed_key_for_constraint_test'
 
-        CalendarEvent.objects.create(
+        _ce(
             user=self.user,
             title='Duplicate Test',
             start_dt=start,
             end_dt=end,
+            idempotency_key=idem_key,
         )
 
         with self.assertRaises(IntegrityError):
-            CalendarEvent.objects.create(
+            _ce(
                 user=self.user,
                 title='Duplicate Test',
                 start_dt=start,
                 end_dt=end,
+                idempotency_key=idem_key,
             )
 
-    def test_same_title_different_time_allowed(self):
-        """Same title at different times is allowed."""
+    def test_same_title_different_key_allowed(self):
+        """Same title at different times with different keys is allowed."""
         start1 = timezone.make_aware(dt.datetime(2026, 3, 1, 10, 0), self.tz)
         start2 = timezone.make_aware(dt.datetime(2026, 3, 1, 14, 0), self.tz)
         end = start1 + dt.timedelta(hours=1)
 
-        CalendarEvent.objects.create(
+        _ce(
             user=self.user, title='Meeting',
             start_dt=start1, end_dt=end,
         )
-        CalendarEvent.objects.create(
+        _ce(
             user=self.user, title='Meeting',
             start_dt=start2, end_dt=end,
         )
         self.assertEqual(CalendarEvent.objects.filter(user=self.user).count(), 2)
 
-    def test_different_users_same_event_allowed(self):
-        """Different users can have identical title+start_dt."""
+    def test_different_users_same_key_allowed(self):
+        """Different users can have the same idempotency_key."""
         user2 = _create_test_user('uniquetest2@example.com')
         start = timezone.make_aware(dt.datetime(2026, 3, 1, 10, 0), self.tz)
         end = start + dt.timedelta(hours=1)
+        idem_key = 'shared_key_different_users'
 
-        CalendarEvent.objects.create(
+        _ce(
             user=self.user, title='Meeting',
             start_dt=start, end_dt=end,
+            idempotency_key=idem_key,
         )
-        CalendarEvent.objects.create(
+        _ce(
             user=user2, title='Meeting',
             start_dt=start, end_dt=end,
+            idempotency_key=idem_key,
         )
         self.assertEqual(CalendarEvent.objects.filter(title='Meeting').count(), 2)
 
@@ -402,7 +415,7 @@ class ConcurrencyTests(TransactionTestCase):
                         return
 
                     try:
-                        CalendarEvent.objects.create(
+                        _ce(
                             user=self.user,
                             title='Concurrent Meeting',
                             start_dt=start,
@@ -457,7 +470,8 @@ class ConcurrencyTests(TransactionTestCase):
             try:
                 with db_transaction.atomic():
                     existing = CalendarEvent.objects.filter(
-                        idempotency_key=idem_key
+                        user=self.user,
+                        idempotency_key=idem_key,
                     ).first()
                     if existing:
                         with lock:
@@ -465,19 +479,21 @@ class ConcurrencyTests(TransactionTestCase):
                         return
 
                     try:
-                        CalendarEvent.objects.create(
-                            user=self.user,
-                            title='Race Meeting',
-                            start_dt=start,
-                            end_dt=end,
-                            idempotency_key=idem_key,
-                        )
+                        with db_transaction.atomic():  # nested savepoint
+                            _ce(
+                                user=self.user,
+                                title='Race Meeting',
+                                start_dt=start,
+                                end_dt=end,
+                                idempotency_key=idem_key,
+                            )
                         with lock:
                             results['created'] += 1
                     except (IntegrityError, DBIntegrityError):
-                        # Race: re-query
+                        # Race: re-query (outer transaction still valid)
                         event = CalendarEvent.objects.get(
-                            idempotency_key=idem_key
+                            user=self.user,
+                            idempotency_key=idem_key,
                         )
                         with lock:
                             results['reused'] += 1
@@ -521,7 +537,7 @@ class UpdateVerificationTests(TestCase):
 
     def test_patch_verifies_changes_applied(self):
         """Successful PATCH returns updated data."""
-        event = CalendarEvent.objects.create(
+        event = _ce(
             user=self.user, title='Old Title',
             start_dt=timezone.make_aware(dt.datetime(2026, 3, 1, 10, 0), self.tz),
             end_dt=timezone.make_aware(dt.datetime(2026, 3, 1, 11, 0), self.tz),
@@ -537,7 +553,7 @@ class UpdateVerificationTests(TestCase):
 
     def test_patch_empty_body_returns_409(self):
         """PATCH with no recognized fields returns 409."""
-        event = CalendarEvent.objects.create(
+        event = _ce(
             user=self.user, title='Test',
             start_dt=timezone.make_aware(dt.datetime(2026, 3, 1, 10, 0), self.tz),
             end_dt=timezone.make_aware(dt.datetime(2026, 3, 1, 11, 0), self.tz),
@@ -560,7 +576,7 @@ class DeleteVerificationTests(TestCase):
 
     def test_delete_returns_200_on_success(self):
         """Successful delete returns 200."""
-        event = CalendarEvent.objects.create(
+        event = _ce(
             user=self.user, title='Delete Me',
             start_dt=timezone.make_aware(dt.datetime(2026, 3, 1, 10, 0), self.tz),
             end_dt=timezone.make_aware(dt.datetime(2026, 3, 1, 11, 0), self.tz),

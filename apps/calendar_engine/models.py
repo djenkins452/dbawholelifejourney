@@ -130,11 +130,11 @@ class CalendarEvent(models.Model):
         ]
 
     def save(self, *args, **kwargs):
-        """Compute idempotency_key deterministically if not already set."""
         if not self.idempotency_key:
-            from apps.calendar_engine.utils.idempotency import compute_idempotency_key
-            self.idempotency_key = compute_idempotency_key(
-                self.user_id, self.title, self.start_dt,
+            raise ValueError(
+                "CalendarEvent.idempotency_key must be set before save(). "
+                "Use compute_idempotency_key() from "
+                "apps.calendar_engine.utils.idempotency."
             )
         super().save(*args, **kwargs)
 

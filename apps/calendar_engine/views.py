@@ -288,7 +288,9 @@ class EventCreateView(LoginRequiredMixin, View):
             domain=domain,
             event_kind=data.get('event_kind', CalendarEvent.KIND_MANUAL),
             is_protected=data.get('is_protected', False),
-            idempotency_key=compute_idempotency_key(request.user.id, title, start_dt),
+            idempotency_key=compute_idempotency_key(
+                request.user.id, title, start_dt, end_dt=end_dt,
+            ),
         )
 
         # Create recurrence rule if provided
@@ -577,7 +579,10 @@ class AcceptSuggestionView(LoginRequiredMixin, View):
                 event_kind=CalendarEvent.KIND_EXECUTION_BLOCK,
                 source_type=CalendarEvent.SOURCE_GOAL,
                 source_id=str(source_id),
-                idempotency_key=compute_idempotency_key(request.user.id, title, start_dt),
+                idempotency_key=compute_idempotency_key(
+                    request.user.id, title, start_dt, end_dt=end_dt,
+                    source_type='goal', source_id=str(source_id),
+                ),
             )
             return JsonResponse({'event': _event_to_dict(event)}, status=201)
 
@@ -661,7 +666,9 @@ class NLPCreateView(LoginRequiredMixin, View):
             end_dt=end_dt,
             domain=domain,
             event_kind=CalendarEvent.KIND_MANUAL,
-            idempotency_key=compute_idempotency_key(request.user.id, parsed['title'], start_dt),
+            idempotency_key=compute_idempotency_key(
+                request.user.id, parsed['title'], start_dt, end_dt=end_dt,
+            ),
         )
 
         # Create recurrence if detected

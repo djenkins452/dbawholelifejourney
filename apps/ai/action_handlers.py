@@ -2132,25 +2132,27 @@ class ActionHandler:
             except Exception:
                 pass
 
-            # --- Idempotency key (Phase 9, Section 3 + Phase 9.1 normalization) ---
+            # --- Idempotency key (Phase 9) ---
             from apps.calendar_engine.utils.idempotency import compute_idempotency_key
-            idem_key = compute_idempotency_key(self.user.id, title, start_dt)
+            idem_key = compute_idempotency_key(
+                self.user.id, title, start_dt, end_dt=end_dt,
+            )
 
             logger.debug(
                 "[SCHED] Idempotency key: %s (user=%s, title=%r, start=%s)",
                 idem_key[:12], self.user.id, title, start_dt.isoformat(),
             )
 
-            # --- Atomic boundary (Phase 9, Section 4) ---
-            # Outer atomic: holds the full idempotency check + verification.
-            # Inner atomic (nested savepoint): wraps only the create() so that
-            # an IntegrityError rolls back the savepoint but keeps the outer
-            # transaction valid for the recovery query. This is required on
-            # PostgreSQL where any error aborts the current savepoint.
+            # --- Atomic boundary (Phase 9) ---
+            # Outer atomic: idempotency check + verification.
+            # Inner atomic (nested savepoint): wraps only create() so that
+            # IntegrityError rolls back the savepoint but keeps the outer
+            # transaction valid for the recovery query (PostgreSQL requirement).
             reused = False
             with transaction.atomic():
-                # Check idempotency — return existing event if duplicate
+                # Check idempotency — user-scoped
                 existing = CalendarEvent.objects.filter(
+                    user=self.user,
                     idempotency_key=idem_key,
                 ).first()
                 if existing:
@@ -2162,9 +2164,8 @@ class ActionHandler:
                     reused = True
                 else:
                     try:
-                        # Nested savepoint: if IntegrityError fires, only
-                        # this savepoint is rolled back — outer transaction
-                        # remains usable for the recovery query.
+                        # Nested savepoint: IntegrityError only rolls back
+                        # inner savepoint — outer transaction stays valid.
                         with transaction.atomic():
                             event = CalendarEvent.objects.create(
                                 user=self.user,
@@ -2179,20 +2180,19 @@ class ActionHandler:
                                 idempotency_key=idem_key,
                             )
                     except IntegrityError:
-                        # Race window: concurrent create beat us —
-                        # re-query by idempotency_key and return existing.
-                        # This query runs in the outer (still-valid) transaction.
+                        # Race: concurrent create beat us — user-scoped recovery
                         logger.info(
                             "[SCHED] IntegrityError race: re-querying "
                             "idempotency_key=%s", idem_key[:12],
                         )
                         event = CalendarEvent.objects.get(
+                            user=self.user,
                             idempotency_key=idem_key,
                         )
                         reused = True
 
                     if not reused:
-                        # --- Post-write verification (Phase 9, Section 5) ---
+                        # --- Post-write verification ---
                         verified = CalendarEvent.objects.get(pk=event.pk)
                         if verified.start_dt != start_dt or verified.title != title:
                             raise RuntimeError(

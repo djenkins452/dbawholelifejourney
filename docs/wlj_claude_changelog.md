@@ -9,6 +9,31 @@
 
 # WLJ Change History
 
+## 2026-02-23 — Phase 9: PostgreSQL Idempotency & Concurrency Hardening
+
+**Root Cause:** Idempotency lookups in `action_handlers.py` lacked `user=` scope (could match across users). `compute_idempotency_key()` didn't use source_id priority for projected events. Model `save()` auto-computed keys, masking missing-key bugs. Concurrency tests didn't force true IntegrityError paths.
+
+**Changes (5 sections):**
+1. **User-scoped lookups:** Added `user=self.user` to all `filter(idempotency_key=...)` and `get(idempotency_key=...)` in `action_handlers.py`.
+2. **Redesigned `compute_idempotency_key()`:** Two-priority design — PRIORITY 1: `hash(user_id, source_type, source_id, canonical_title)` when source_id exists; PRIORITY 2: `hash(user_id, start_utc_seconds, end_utc_seconds, source_type, canonical_title)` for manual events. Updated all callers (action_handlers, views 3 sites, projection 5 sites).
+3. **Removed save() auto-compute:** `CalendarEvent.save()` now raises `ValueError` if `idempotency_key` is not set. Forces all create paths to be explicit.
+4. **Forced concurrency collision test:** `TestForcedIntegrityErrorRecovery` — 5 threads with `threading.Barrier` placed AFTER filter but BEFORE create, proving IntegrityError fires (4/5 threads recover).
+5. **Transaction leakage proof:** Post-recovery ORM query inside outer `atomic()` block proves no transaction-aborted state.
+
+**Files modified:**
+- `apps/calendar_engine/utils/idempotency.py` — complete rewrite with priority design
+- `apps/ai/action_handlers.py` — user-scoped lookups + updated compute call
+- `apps/calendar_engine/views.py` — 3 create sites with end_dt + source params
+- `apps/calendar_engine/services/projection.py` — 5 create sites with source_type/source_id
+- `apps/calendar_engine/models.py` — save() ValueError guard
+- `apps/calendar_engine/tests/test_phase9_calendar_integrity.py` — new forced collision test
+- `apps/calendar_engine/tests.py` — `_ce()` helper, all creates updated
+- `apps/calendar_engine/test_phase9_calendar_determinism.py` — `_ce()` helper, nested savepoint fix
+
+**Test results:** 48/48 calendar engine tests pass. Concurrency proof: `Threads: 5, Created: 1, IntegrityError recovered: 4, DB rows: 1, Errors: 0`.
+
+---
+
 ## 2026-02-23 — Phase 9: Production-Grade Idempotency (NOT NULL + Utility + All Paths)
 
 **Root Cause:** `idempotency_key` was nullable (`null=True, blank=True`, max_length=64). Only the assistant path set it. Views, projection service, and tests created events without it. The field must be NOT NULL and deterministically computed for every event.

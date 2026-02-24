@@ -13,6 +13,7 @@ Tests:
 import datetime as dt
 import hashlib
 import sys
+from uuid import uuid4
 import threading
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
@@ -164,37 +165,33 @@ class TestDuplicateIdempotentRequest(_UserMixin, TestCase):
 
 
 # ──────────────────────────────────────────────────────────
-# 4) IntegrityError race returns existing event
+# 4) IntegrityError race returns existing event (SQLite path)
 # ──────────────────────────────────────────────────────────
 
 _is_sqlite = connection.vendor == 'sqlite'
 
 
 class TestIntegrityErrorRaceReturnsExisting(_UserMixin, TransactionTestCase):
-    """
-    Concurrent creates that hit the unique constraint must recover
-    and return the existing row.
-    """
+    """Duplicate insert with same (user, idempotency_key) must raise IntegrityError."""
 
     def setUp(self):
         self.user = self._create_user()
 
-    @staticmethod
-    def _skip_if_sqlite(test_func):
-        """SQLite doesn't support true concurrent threading."""
-        if _is_sqlite:
-            return None
-        return test_func
+    def test_integrityerror_on_duplicate_key(self):
+        chicago = ZoneInfo('America/Chicago')
+        start_dt = dt.datetime(2026, 3, 5, 10, 0, 0, tzinfo=chicago)
+        end_dt = dt.datetime(2026, 3, 5, 11, 0, 0, tzinfo=chicago)
+        idem_key = 'test_race_key_abc123'
 
-    def test_integrityerror_race_returns_existing(self):
-        if _is_sqlite:
-            # On SQLite, verify that duplicate insert raises IntegrityError
-            # (threading-based concurrency is not reliable on SQLite)
-            chicago = ZoneInfo('America/Chicago')
-            start_dt = dt.datetime(2026, 3, 5, 10, 0, 0, tzinfo=chicago)
-            end_dt = dt.datetime(2026, 3, 5, 11, 0, 0, tzinfo=chicago)
-            idem_key = 'test_sqlite_race_key_abc123'
+        CalendarEvent.objects.create(
+            user=self.user,
+            title="Race Event",
+            start_dt=start_dt,
+            end_dt=end_dt,
+            idempotency_key=idem_key,
+        )
 
+        with self.assertRaises(IntegrityError):
             CalendarEvent.objects.create(
                 user=self.user,
                 title="Race Event",
@@ -203,85 +200,10 @@ class TestIntegrityErrorRaceReturnsExisting(_UserMixin, TransactionTestCase):
                 idempotency_key=idem_key,
             )
 
-            # Second insert with same (user, idempotency_key) must fail
-            with self.assertRaises(IntegrityError):
-                CalendarEvent.objects.create(
-                    user=self.user,
-                    title="Race Event",
-                    start_dt=start_dt,
-                    end_dt=end_dt,
-                    idempotency_key=idem_key,
-                )
-
-            # Verify only one row
-            self.assertEqual(
-                CalendarEvent.objects.filter(
-                    user=self.user, title="Race Event",
-                ).count(),
-                1,
-            )
-            return
-
-        # PostgreSQL path: true concurrent threading test
-        chicago = ZoneInfo('America/Chicago')
-        start_dt = dt.datetime(2026, 3, 5, 10, 0, 0, tzinfo=chicago)
-        end_dt = dt.datetime(2026, 3, 5, 11, 0, 0, tzinfo=chicago)
-        title = "Race Event"
-        normalized_title = " ".join(title.strip().split()).lower()
-        idem_key = hashlib.sha256(
-            f"{self.user.id}:{normalized_title}:{start_dt.isoformat()}".encode()
-        ).hexdigest()
-
-        results = {}
-        barrier = threading.Barrier(2, timeout=5)
-
-        def create_event(thread_id):
-            from django.db import connection as conn, IntegrityError, transaction
-            try:
-                barrier.wait()
-                with transaction.atomic():
-                    existing = CalendarEvent.objects.filter(
-                        idempotency_key=idem_key,
-                    ).first()
-                    if existing:
-                        results[thread_id] = ('reused', existing.pk)
-                        return
-                    try:
-                        # Nested savepoint: IntegrityError only rolls
-                        # back the inner savepoint on PostgreSQL.
-                        with transaction.atomic():
-                            event = CalendarEvent.objects.create(
-                                user=self.user,
-                                title=title,
-                                start_dt=start_dt,
-                                end_dt=end_dt,
-                                idempotency_key=idem_key,
-                            )
-                        results[thread_id] = ('created', event.pk)
-                    except IntegrityError:
-                        # Recovery query in outer (still-valid) transaction
-                        recovered = CalendarEvent.objects.get(
-                            idempotency_key=idem_key,
-                        )
-                        results[thread_id] = ('recovered', recovered.pk)
-            except Exception as e:
-                results[thread_id] = ('error', str(e))
-            finally:
-                conn.close()
-
-        t1 = threading.Thread(target=create_event, args=(1,))
-        t2 = threading.Thread(target=create_event, args=(2,))
-        t1.start()
-        t2.start()
-        t1.join(timeout=10)
-        t2.join(timeout=10)
-
-        # At least one should have created, and any IntegrityError thread
-        # should be able to re-query successfully
-        total_rows = CalendarEvent.objects.filter(
-            user=self.user, title=title,
-        ).count()
-        self.assertEqual(total_rows, 1, f"Expected 1 row, got {total_rows}. Results: {results}")
+        self.assertEqual(
+            CalendarEvent.objects.filter(user=self.user, title="Race Event").count(),
+            1,
+        )
 
 
 # ──────────────────────────────────────────────────────────
@@ -301,9 +223,9 @@ class TestUniqueConstraintBlocksDuplicate(_UserMixin, TestCase):
         chicago = ZoneInfo('America/Chicago')
         start_dt = dt.datetime(2026, 3, 10, 9, 0, 0, tzinfo=chicago)
         end_dt = dt.datetime(2026, 3, 10, 10, 0, 0, tzinfo=chicago)
-        idem_key = hashlib.sha256(
-            f"{self.user.id}:yoga class:{start_dt.isoformat()}".encode()
-        ).hexdigest()
+        idem_key = compute_idempotency_key(
+            self.user.id, "Yoga Class", start_dt, end_dt=end_dt,
+        )
 
         CalendarEvent.objects.create(
             user=self.user,
@@ -339,13 +261,16 @@ class TestPatchVerifiesChange(_UserMixin, TestCase):
 
         chicago = ZoneInfo('America/Chicago')
         start_dt = dt.datetime(2026, 3, 15, 10, 0, 0, tzinfo=chicago)
+        end_dt = dt.datetime(2026, 3, 15, 11, 0, 0, tzinfo=chicago)
         self.event = CalendarEvent.objects.create(
             user=self.user,
             title="Original Title",
             description="Original description",
             start_dt=start_dt,
-            end_dt=dt.datetime(2026, 3, 15, 11, 0, 0, tzinfo=chicago),
-            idempotency_key=compute_idempotency_key(self.user.id, "Original Title", start_dt),
+            end_dt=end_dt,
+            idempotency_key=compute_idempotency_key(
+                self.user.id, "Original Title", start_dt, end_dt=end_dt,
+            ),
         )
 
     def test_patch_with_valid_change(self):
@@ -390,12 +315,15 @@ class TestDeleteRowCountValidation(_UserMixin, TestCase):
 
         chicago = ZoneInfo('America/Chicago')
         start_dt = dt.datetime(2026, 3, 20, 10, 0, 0, tzinfo=chicago)
+        end_dt = dt.datetime(2026, 3, 20, 11, 0, 0, tzinfo=chicago)
         self.event = CalendarEvent.objects.create(
             user=self.user,
             title="Delete Me",
             start_dt=start_dt,
-            end_dt=dt.datetime(2026, 3, 20, 11, 0, 0, tzinfo=chicago),
-            idempotency_key=compute_idempotency_key(self.user.id, "Delete Me", start_dt),
+            end_dt=end_dt,
+            idempotency_key=compute_idempotency_key(
+                self.user.id, "Delete Me", start_dt, end_dt=end_dt,
+            ),
         )
 
     def test_delete_succeeds_for_existing_event(self):
@@ -419,28 +347,13 @@ class TestDeleteRowCountValidation(_UserMixin, TestCase):
         """
         pk = self.event.pk
 
-        # Mock the queryset.delete() to return count=0, simulating a race
-        # where the row vanishes between _get_event and .delete()
         from apps.calendar_engine.views import EventDetailView
 
-        original_delete = EventDetailView.delete
-
-        def patched_delete(view_self, request, pk):
-            # Manually delete the row before the view's filter().delete() runs
-            CalendarEvent.objects.filter(pk=pk).delete()
-            # Now call original — _get_event will 404 since row is gone
-            # But we need to test the count!=1 path, so mock at queryset level
-            return original_delete(view_self, request, pk)
-
-        # Simpler approach: delete the row after _get_event but before
-        # filter().delete(). We patch _get_event to return the event
-        # but secretly delete it from DB.
         event_copy = self.event
 
         original_get_event = EventDetailView._get_event
 
         def mock_get_event(view_self, request, pk_arg):
-            # Return the event object (cached), but delete from DB
             CalendarEvent.objects.filter(pk=pk_arg).delete()
             return event_copy
 
@@ -478,14 +391,12 @@ class TestDateResolutionEdgeCases(_UserMixin, TestCase):
         self.assertEqual(result, dt.date(2026, 2, 26))
 
     def test_weekday_different_from_today(self):
-        # Wednesday ref, asking for Friday → 2 days ahead
-        ref = dt.datetime(2026, 2, 25, 10, 0, 0, tzinfo=self.chicago)  # Wednesday
+        ref = dt.datetime(2026, 2, 25, 10, 0, 0, tzinfo=self.chicago)
         result = resolve_weekday_to_date(self.user, 'friday', reference_dt=ref)
         self.assertEqual(result, dt.date(2026, 2, 27))
 
     def test_weekday_no_time_same_day_defaults_today(self):
-        # Wednesday ref, asking for Wednesday, no time → today
-        ref = dt.datetime(2026, 2, 25, 10, 0, 0, tzinfo=self.chicago)  # Wednesday
+        ref = dt.datetime(2026, 2, 25, 10, 0, 0, tzinfo=self.chicago)
         result = resolve_weekday_to_date(
             self.user, 'wednesday', reference_dt=ref, start_time=None,
         )
@@ -507,7 +418,7 @@ class TestDateResolutionEdgeCases(_UserMixin, TestCase):
         self.assertEqual(result, dt.date(2026, 2, 25))
 
     def test_abbreviations_work(self):
-        ref = dt.datetime(2026, 2, 25, 10, 0, 0, tzinfo=self.chicago)  # Wednesday
+        ref = dt.datetime(2026, 2, 25, 10, 0, 0, tzinfo=self.chicago)
         for abbr, expected_days_ahead in [
             ('mon', 5), ('tue', 6), ('wed', 0), ('thu', 1),
             ('fri', 2), ('sat', 3), ('sun', 4),
@@ -520,23 +431,189 @@ class TestDateResolutionEdgeCases(_UserMixin, TestCase):
 
 
 # ──────────────────────────────────────────────────────────
-# 8) PostgreSQL concurrency: 5 threads, same event, 1 row
+# 8) Forced IntegrityError concurrency — Section 4 + 5
+# ──────────────────────────────────────────────────────────
+
+class TestForcedIntegrityErrorRecovery(_UserMixin, TransactionTestCase):
+    """
+    5 threads attempt CalendarEvent.objects.create with identical
+    (user, idempotency_key). A barrier AFTER filter().first() but
+    BEFORE create() guarantees all threads enter the create path
+    simultaneously.
+
+    Acceptance criteria:
+    - At least 1 thread hits IntegrityError
+    - Recovery path executes (get by user + idempotency_key)
+    - No 'current transaction is aborted' leakage
+    - DB rows == 1
+    - All threads succeed
+    - Post-recovery ORM query executes inside outer atomic (Section 5)
+    """
+
+    def setUp(self):
+        self.user = self._create_user(email='forced_race@test.local')
+
+    def test_forced_integrity_error_recovery(self):
+        if _is_sqlite:
+            self.skipTest("SQLite single-writer lock prevents true concurrency")
+
+        chicago = ZoneInfo('America/Chicago')
+        start_dt = dt.datetime(2026, 4, 1, 9, 0, 0, tzinfo=chicago)
+        end_dt = dt.datetime(2026, 4, 1, 10, 0, 0, tzinfo=chicago)
+        idem_key = compute_idempotency_key(
+            self.user.id, "Forced Race Event", start_dt, end_dt=end_dt,
+        )
+
+        num_threads = 5
+        # Barrier placed AFTER idempotency check, BEFORE create
+        pre_create_barrier = threading.Barrier(num_threads, timeout=10)
+        results = {}
+
+        def worker(tid):
+            from django.db import connection as conn, IntegrityError, transaction
+            try:
+                with transaction.atomic():
+                    # Idempotency check — user-scoped
+                    existing = CalendarEvent.objects.filter(
+                        user=self.user,
+                        idempotency_key=idem_key,
+                    ).first()
+
+                    if existing:
+                        # Section 5: post-query inside outer atomic
+                        count = CalendarEvent.objects.filter(
+                            user=self.user,
+                        ).count()
+                        results[tid] = {
+                            'status': 'reused',
+                            'pk': existing.pk,
+                            'integrity_error': False,
+                            'post_query_ok': True,
+                            'post_query_count': count,
+                        }
+                        return
+
+                    # ── SYNC POINT: all threads pass check → NONE exists ──
+                    pre_create_barrier.wait()
+
+                    try:
+                        # Nested savepoint
+                        with transaction.atomic():
+                            event = CalendarEvent.objects.create(
+                                user=self.user,
+                                title="Forced Race Event",
+                                start_dt=start_dt,
+                                end_dt=end_dt,
+                                idempotency_key=idem_key,
+                            )
+                        # Section 5: post-create query inside outer atomic
+                        count = CalendarEvent.objects.filter(
+                            user=self.user,
+                        ).count()
+                        results[tid] = {
+                            'status': 'created',
+                            'pk': event.pk,
+                            'integrity_error': False,
+                            'post_query_ok': True,
+                            'post_query_count': count,
+                        }
+                    except IntegrityError:
+                        # Recovery — user-scoped, inside outer (still-valid) atomic
+                        recovered = CalendarEvent.objects.get(
+                            user=self.user,
+                            idempotency_key=idem_key,
+                        )
+                        # Section 5: post-recovery ORM query proves
+                        # no transaction-aborted leakage
+                        count = CalendarEvent.objects.filter(
+                            user=self.user,
+                        ).count()
+                        results[tid] = {
+                            'status': 'integrity_recovered',
+                            'pk': recovered.pk,
+                            'integrity_error': True,
+                            'post_query_ok': True,
+                            'post_query_count': count,
+                        }
+            except Exception as e:
+                results[tid] = {
+                    'status': 'error',
+                    'pk': None,
+                    'integrity_error': False,
+                    'post_query_ok': False,
+                    'error': f"{type(e).__name__}: {e}",
+                }
+            finally:
+                conn.close()
+
+        threads = [
+            threading.Thread(target=worker, args=(i,))
+            for i in range(num_threads)
+        ]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=15)
+
+        # All threads returned
+        self.assertEqual(len(results), num_threads)
+
+        # Zero errors
+        errors = [r for r in results.values() if r['status'] == 'error']
+        self.assertEqual(len(errors), 0, f"Errors: {errors}")
+
+        # At least 1 IntegrityError occurred
+        integrity_hits = [r for r in results.values() if r['integrity_error']]
+        self.assertGreaterEqual(
+            len(integrity_hits), 1,
+            f"Expected ≥1 IntegrityError, got 0. Results: {results}",
+        )
+
+        # Exactly 1 DB row
+        row_count = CalendarEvent.objects.filter(
+            user=self.user, idempotency_key=idem_key,
+        ).count()
+        self.assertEqual(row_count, 1)
+
+        # All threads report same PK
+        pks = {r['pk'] for r in results.values()}
+        self.assertEqual(len(pks), 1, f"Expected 1 PK, got {pks}")
+
+        # Section 5: all threads successfully ran post-recovery query
+        for tid, r in results.items():
+            self.assertTrue(
+                r['post_query_ok'],
+                f"Thread {tid} failed post-recovery query: {r}",
+            )
+
+        # Print proof for deliverable
+        created = sum(1 for r in results.values() if r['status'] == 'created')
+        recovered = sum(1 for r in results.values() if r['status'] == 'integrity_recovered')
+        reused = sum(1 for r in results.values() if r['status'] == 'reused')
+        sys.stdout.write(
+            f"\n  [PROOF] Threads: {num_threads}, Created: {created}, "
+            f"IntegrityError recovered: {recovered}, Reused: {reused}, "
+            f"DB rows: {row_count}, Errors: {len(errors)}\n"
+        )
+
+
+# ──────────────────────────────────────────────────────────
+# 9) ActionHandler integration concurrency (high-level)
 # ──────────────────────────────────────────────────────────
 
 class TestConcurrentCreateIdempotency(_UserMixin, TransactionTestCase):
     """
-    5 threads call handle_create_event() with identical input concurrently.
-    Exactly 1 DB row must exist and all threads must return the same event.
-    No exceptions, no user-facing failures.
-
-    Uses TransactionTestCase because threading requires real committed data
-    visible across connections.
+    5 threads call handle_create_event() with identical input.
+    All must succeed. 1 DB row.
     """
 
     def setUp(self):
         self.user = self._create_user(email='concurrency@test.local')
 
     def test_concurrent_create_returns_same_event(self):
+        if _is_sqlite:
+            self.skipTest("SQLite single-writer lock prevents true concurrency")
+
         from apps.ai.action_handlers import ActionHandler
 
         num_threads = 5
@@ -561,20 +638,12 @@ class TestConcurrentCreateIdempotency(_UserMixin, TransactionTestCase):
                         if hasattr(result, 'created_object') and result.created_object
                         else None
                     ),
-                    'reused': (
-                        result.created_object.get('reused')
-                        if hasattr(result, 'created_object') and result.created_object
-                        else None
-                    ),
-                    'error': getattr(result, 'error', None),
                 }
             except Exception as e:
                 results[thread_id] = {
                     'success': False,
                     'message': str(e),
                     'event_id': None,
-                    'reused': None,
-                    'error': f"{type(e).__name__}: {e}",
                 }
             finally:
                 conn.close()
@@ -588,35 +657,17 @@ class TestConcurrentCreateIdempotency(_UserMixin, TransactionTestCase):
         for t in threads:
             t.join(timeout=15)
 
-        # --- Assertions ---
-        # All threads must have returned a result
-        self.assertEqual(
-            len(results), num_threads,
-            f"Expected {num_threads} results, got {len(results)}",
-        )
+        self.assertEqual(len(results), num_threads)
 
-        # All threads must report success
         failures = [
             (tid, r) for tid, r in results.items() if not r['success']
         ]
-        self.assertEqual(
-            len(failures), 0,
-            f"Threads failed: {failures}",
-        )
+        self.assertEqual(len(failures), 0, f"Threads failed: {failures}")
 
-        # All threads must return the same event ID
         event_ids = {r['event_id'] for r in results.values()}
-        self.assertEqual(
-            len(event_ids), 1,
-            f"Expected 1 unique event ID, got {event_ids}",
-        )
+        self.assertEqual(len(event_ids), 1)
 
-        # Exactly 1 DB row
         row_count = CalendarEvent.objects.filter(
-            user=self.user,
-            title="Concurrent Test Event",
+            user=self.user, title="Concurrent Test Event",
         ).count()
-        self.assertEqual(
-            row_count, 1,
-            f"Expected 1 DB row, got {row_count}",
-        )
+        self.assertEqual(row_count, 1)

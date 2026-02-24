@@ -9,6 +9,25 @@
 
 # WLJ Change History
 
+## 2026-02-23 — Phase 9: Fix Idempotency Constraint to (user, idempotency_key)
+
+**Root Cause:** The UniqueConstraint was on `(user, title, start_dt)` instead of `(user, idempotency_key)`. This meant duplicate prevention depended on exact title+time match rather than the SHA-256 idempotency key. Events without an idempotency key (non-assistant path) could collide on title+time, while events with different titles but same idempotency key wouldn't be caught.
+
+**Changes:**
+- Changed `CalendarEvent.Meta.constraints` from `UniqueConstraint(fields=['user', 'title', 'start_dt'], name='unique_user_title_start')` to `UniqueConstraint(fields=['user', 'idempotency_key'], name='uq_calendar_event_user_idempotency')`.
+- Migration `0003_phase9_idempotency_constraint_fix` drops old constraint, adds new one.
+- Updated tests to assert against `(user, idempotency_key)` constraint.
+- Fixed threading test to use nested savepoint matching production code.
+
+**Files Modified:**
+- `apps/calendar_engine/models.py` — constraint definition
+- `apps/calendar_engine/migrations/0003_phase9_idempotency_constraint_fix.py` — new migration
+- `apps/calendar_engine/tests/test_phase9_calendar_integrity.py` — updated tests
+
+**Verification:** 20/20 tests pass on PostgreSQL. Constraint verified present via `pg_constraint` query.
+
+---
+
 ## 2026-02-23 — Phase 9: PostgreSQL Concurrency Fix (Nested Savepoint)
 
 **Root Cause:** When multiple concurrent requests tried to create the same calendar event, the `IntegrityError` from the unique constraint aborted the PostgreSQL savepoint. The recovery query (re-fetching by idempotency key) then failed with "current transaction is aborted, commands ignored until end of transaction block." This bug was invisible on SQLite due to its single-writer lock.

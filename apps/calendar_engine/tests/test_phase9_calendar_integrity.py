@@ -192,21 +192,24 @@ class TestIntegrityErrorRaceReturnsExisting(_UserMixin, TransactionTestCase):
             chicago = ZoneInfo('America/Chicago')
             start_dt = dt.datetime(2026, 3, 5, 10, 0, 0, tzinfo=chicago)
             end_dt = dt.datetime(2026, 3, 5, 11, 0, 0, tzinfo=chicago)
+            idem_key = 'test_sqlite_race_key_abc123'
 
             CalendarEvent.objects.create(
                 user=self.user,
                 title="Race Event",
                 start_dt=start_dt,
                 end_dt=end_dt,
+                idempotency_key=idem_key,
             )
 
-            # Second insert with same (user, title, start_dt) must fail
+            # Second insert with same (user, idempotency_key) must fail
             with self.assertRaises(IntegrityError):
                 CalendarEvent.objects.create(
                     user=self.user,
                     title="Race Event",
                     start_dt=start_dt,
                     end_dt=end_dt,
+                    idempotency_key=idem_key,
                 )
 
             # Verify only one row
@@ -243,16 +246,23 @@ class TestIntegrityErrorRaceReturnsExisting(_UserMixin, TransactionTestCase):
                         results[thread_id] = ('reused', existing.pk)
                         return
                     try:
-                        event = CalendarEvent.objects.create(
-                            user=self.user,
-                            title=title,
-                            start_dt=start_dt,
-                            end_dt=end_dt,
-                            idempotency_key=idem_key,
-                        )
+                        # Nested savepoint: IntegrityError only rolls
+                        # back the inner savepoint on PostgreSQL.
+                        with transaction.atomic():
+                            event = CalendarEvent.objects.create(
+                                user=self.user,
+                                title=title,
+                                start_dt=start_dt,
+                                end_dt=end_dt,
+                                idempotency_key=idem_key,
+                            )
                         results[thread_id] = ('created', event.pk)
                     except IntegrityError:
-                        results[thread_id] = ('integrity_error', None)
+                        # Recovery query in outer (still-valid) transaction
+                        recovered = CalendarEvent.objects.get(
+                            idempotency_key=idem_key,
+                        )
+                        results[thread_id] = ('recovered', recovered.pk)
             except Exception as e:
                 results[thread_id] = ('error', str(e))
             finally:
@@ -279,7 +289,7 @@ class TestIntegrityErrorRaceReturnsExisting(_UserMixin, TransactionTestCase):
 
 class TestUniqueConstraintBlocksDuplicate(_UserMixin, TestCase):
     """
-    DB-level unique constraint on (user, title, start_dt) must
+    DB-level unique constraint on (user, idempotency_key) must
     prevent duplicate rows.
     """
 
@@ -290,12 +300,16 @@ class TestUniqueConstraintBlocksDuplicate(_UserMixin, TestCase):
         chicago = ZoneInfo('America/Chicago')
         start_dt = dt.datetime(2026, 3, 10, 9, 0, 0, tzinfo=chicago)
         end_dt = dt.datetime(2026, 3, 10, 10, 0, 0, tzinfo=chicago)
+        idem_key = hashlib.sha256(
+            f"{self.user.id}:yoga class:{start_dt.isoformat()}".encode()
+        ).hexdigest()
 
         CalendarEvent.objects.create(
             user=self.user,
             title="Yoga Class",
             start_dt=start_dt,
             end_dt=end_dt,
+            idempotency_key=idem_key,
         )
 
         with self.assertRaises(IntegrityError):
@@ -304,6 +318,7 @@ class TestUniqueConstraintBlocksDuplicate(_UserMixin, TestCase):
                 title="Yoga Class",
                 start_dt=start_dt,
                 end_dt=end_dt,
+                idempotency_key=idem_key,
             )
 
 

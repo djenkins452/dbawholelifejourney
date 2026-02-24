@@ -126,8 +126,8 @@ class CalendarEvent(models.Model):
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=['user', 'title', 'start_dt'],
-                name='unique_user_title_start',
+                fields=['user', 'idempotency_key'],
+                name='uq_calendar_event_user_idempotency',
             ),
         ]
 

@@ -811,6 +811,14 @@ class UserPreferences(models.Model):
     )
 
     # ===================
+    # CoS v2 Feature Flag
+    # ===================
+    cos_v2_enabled = models.BooleanField(
+        default=False,
+        help_text="Enable CoS v2 features (action contracts, enhanced prompting, reflections, pattern detection)",
+    )
+
+    # ===================
     # SMS NOTIFICATIONS
     # ===================
     # Phone number and verification

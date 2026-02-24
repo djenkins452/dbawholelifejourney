@@ -144,6 +144,7 @@ INSTALLED_APPS = [
     'apps.brain_training',  # Premium brain training module
     'apps.medical',  # Medical lab ingestion & results
     'apps.calendar_engine',  # Unified calendar / CoS Time Command Center
+    'apps.cos',  # CoS v2 — Chief of Staff action framework
     'apps.core.ai_relationships',  # Relationship intelligence (CoS Phase III)
     'apps.owner_finance',  # Owner Financial Command Center (cost telemetry & dashboards)
     'assistant',

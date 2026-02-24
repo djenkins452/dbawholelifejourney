@@ -246,6 +246,8 @@ def _get_extension_from_content_type(content_type: str) -> str:
     Returns:
         str: File extension without dot
     """
+    # Strip codec parameters (e.g., "audio/webm;codecs=opus" → "audio/webm")
+    base_type = content_type.split(';')[0].strip()
     content_type_map = {
         'audio/webm': 'webm',
         'audio/ogg': 'ogg',
@@ -257,5 +259,9 @@ def _get_extension_from_content_type(content_type: str) -> str:
         'audio/x-wav': 'wav',
         'audio/flac': 'flac',
         'audio/aac': 'aac',
+        'audio/x-caf': 'caf',
+        'audio/3gpp': '3gp',
+        'audio/3gpp2': '3g2',
+        'video/mp4': 'm4a',
     }
-    return content_type_map.get(content_type, 'webm')
+    return content_type_map.get(base_type, 'webm')

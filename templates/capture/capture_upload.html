@@ -29,12 +29,12 @@
                 <p style="color: var(--color-text-secondary); margin-bottom: 1.5rem;">
                     or click to browse
                 </p>
-                <input type="file" id="file-input" accept=".mp3,.m4a,.wav,.webm,audio/mpeg,audio/mp4,audio/wav,audio/webm" style="display: none;">
+                <input type="file" id="file-input" accept=".mp3,.m4a,.mp4,.wav,.webm,.ogg,.caf,audio/mpeg,audio/mp4,audio/wav,audio/webm,audio/ogg,audio/aac,audio/x-caf,video/mp4" style="display: none;">
                 <button type="button" id="browse-btn" class="btn btn-primary">
                     Browse Files
                 </button>
                 <p style="color: var(--color-text-secondary); font-size: 0.875rem; margin-top: 1.5rem;">
-                    Accepted formats: MP3, M4A, WAV, WebM<br>
+                    Accepted formats: MP3, M4A, MP4, WAV, WebM, OGG, CAF<br>
                     Maximum size: 60MB
                 </p>
             </div>
@@ -198,8 +198,8 @@
     document.addEventListener('DOMContentLoaded', function() {
         // Constants
         const MAX_FILE_SIZE = 60 * 1024 * 1024; // 60MB
-        const ACCEPTED_TYPES = ['audio/mpeg', 'audio/mp4', 'audio/wav', 'audio/webm', 'audio/x-m4a'];
-        const ACCEPTED_EXTENSIONS = ['.mp3', '.m4a', '.wav', '.webm'];
+        const ACCEPTED_TYPES = ['audio/mpeg', 'audio/mp4', 'audio/wav', 'audio/webm', 'audio/x-m4a', 'audio/ogg', 'audio/aac', 'audio/x-caf', 'video/mp4'];
+        const ACCEPTED_EXTENSIONS = ['.mp3', '.m4a', '.mp4', '.wav', '.webm', '.ogg', '.caf'];
         const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks
         const POLLING_INTERVAL_MS = 2000; // Poll every 2 seconds
 
@@ -238,7 +238,7 @@
             const ext = '.' + file.name.split('.').pop().toLowerCase();
             const isValidType = ACCEPTED_TYPES.includes(file.type) || ACCEPTED_EXTENSIONS.includes(ext);
             if (!isValidType) {
-                return { valid: false, error: 'Invalid file type. Please upload MP3, M4A, WAV, or WebM files.' };
+                return { valid: false, error: 'Invalid file type. Please upload MP3, M4A, MP4, WAV, WebM, OGG, or CAF files.' };
             }
 
             // Check file size

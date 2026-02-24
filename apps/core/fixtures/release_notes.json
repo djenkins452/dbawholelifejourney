@@ -1,6 +1,22 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 100,
+        "fields": {
+            "title": "Capture: Broader Audio Format Support",
+            "description": "The Capture feature now accepts a wider range of audio formats including MP4, OGG, and CAF files. This fixes an issue where recordings saved from iOS devices (which use the MP4 format) couldn't be re-uploaded via the Upload Audio File option. Downloaded recordings now also save with the correct audio extension (.m4a instead of .mp4) so your device recognizes them as audio files.",
+            "entry_type": "fix",
+            "version": "",
+            "release_date": "2026-02-24",
+            "is_published": true,
+            "is_major": false,
+            "learn_more_url": "",
+            "created_at": "2026-02-24T23:00:00Z",
+            "updated_at": "2026-02-24T23:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 99,
         "fields": {
             "title": "Clickable Calendar Events",

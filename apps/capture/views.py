@@ -6,6 +6,7 @@ import os
 import tempfile
 import uuid
 
+from django.conf import settings
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Q
 from django.http import JsonResponse
@@ -51,13 +52,17 @@ class CaptureUploadView(LoginRequiredMixin, View):
     """
 
     MAX_FILE_SIZE = 60 * 1024 * 1024  # 60MB
-    ACCEPTED_EXTENSIONS = ['.mp3', '.m4a', '.wav', '.webm']
+    ACCEPTED_EXTENSIONS = ['.mp3', '.m4a', '.wav', '.webm', '.mp4', '.ogg', '.caf']
     ACCEPTED_MIME_TYPES = [
         'audio/mpeg',
         'audio/mp4',
         'audio/wav',
         'audio/webm',
         'audio/x-m4a',
+        'audio/ogg',
+        'audio/aac',
+        'audio/x-caf',
+        'video/mp4',  # Some browsers report audio as video/mp4
     ]
 
     # Store chunked upload sessions (in production, use Redis/cache)
@@ -107,13 +112,13 @@ class CaptureUploadView(LoginRequiredMixin, View):
         # Check file extension
         ext = os.path.splitext(file.name)[1].lower()
         if ext not in self.ACCEPTED_EXTENSIONS:
-            return False, 'Invalid file type. Accepted formats: MP3, M4A, WAV, WebM.'
+            return False, 'Invalid file type. Accepted formats: MP3, M4A, MP4, WAV, WebM, OGG, CAF.'
 
         # Check content type
         if file.content_type not in self.ACCEPTED_MIME_TYPES:
             # Some browsers may send different content types, so also check extension
             if ext not in self.ACCEPTED_EXTENSIONS:
-                return False, 'Invalid file type. Accepted formats: MP3, M4A, WAV, WebM.'
+                return False, 'Invalid file type. Accepted formats: MP3, M4A, MP4, WAV, WebM, OGG, CAF.'
 
         return True, None
 
@@ -161,7 +166,7 @@ class CaptureUploadView(LoginRequiredMixin, View):
         ext = os.path.splitext(filename)[1].lower()
         if ext not in self.ACCEPTED_EXTENSIONS:
             return JsonResponse({
-                'error': 'Invalid file type. Accepted formats: MP3, M4A, WAV, WebM.'
+                'error': 'Invalid file type. Accepted formats: MP3, M4A, MP4, WAV, WebM, OGG, CAF.'
             }, status=400)
 
         # Create session
@@ -1380,7 +1385,11 @@ class CaptureFileUploadView(LoginRequiredMixin, View):
         'audio/webm',
         'audio/x-m4a',
         'audio/ogg',
+        'audio/aac',
+        'audio/x-caf',
+        'video/mp4',  # Some browsers report audio as video/mp4
     ]
+    ACCEPTED_EXTENSIONS = ['.mp3', '.m4a', '.wav', '.webm', '.mp4', '.ogg', '.caf']
 
     def post(self, request):
         """Handle file upload."""
@@ -1395,11 +1404,12 @@ class CaptureFileUploadView(LoginRequiredMixin, View):
                 'error': f'File too large. Maximum size is {self.MAX_FILE_SIZE // (1024*1024)}MB'
             }, status=400)
 
-        # Validate MIME type
+        # Validate MIME type — also check extension as fallback
         content_type = audio_file.content_type
-        if content_type not in self.ACCEPTED_MIME_TYPES:
+        ext = os.path.splitext(audio_file.name)[1].lower() if audio_file.name else ''
+        if content_type not in self.ACCEPTED_MIME_TYPES and ext not in self.ACCEPTED_EXTENSIONS:
             return JsonResponse({
-                'error': 'Invalid file type. Accepted types: mp3, m4a, wav, webm, ogg'
+                'error': 'Invalid file type. Accepted types: mp3, m4a, mp4, wav, webm, ogg, caf'
             }, status=400)
 
         # Generate a client_id for tracking
@@ -1412,36 +1422,13 @@ class CaptureFileUploadView(LoginRequiredMixin, View):
             pending_client_id=client_id,
         )
 
-        # Check storage configuration
-        if is_storage_configured():
-            # Upload to S3
-            try:
-                from .storage import upload_audio_file
-                upload_result = upload_audio_file(
-                    audio_file,
-                    request.user.id,
-                    str(entry.id)
-                )
-                entry.audio_file_url = upload_result['url']
-                entry.audio_expires_at = upload_result.get('expires_at')
-                entry.status = CaptureEntry.STATUS_TRANSCRIBING
-                entry.save()
-
-                # Trigger processing
-                self._start_processing(entry)
-
-            except (CaptureStorageError, CaptureStorageNotConfiguredError) as e:
-                entry.status = CaptureEntry.STATUS_FAILED
-                entry.error_message = f"Upload failed: {str(e)}"
-                entry.save()
-                return JsonResponse({'error': str(e)}, status=500)
-
-        elif is_cloudinary_configured():
-            # Upload to Cloudinary
+        # Check storage configuration — prefer Cloudinary, then S3, then mock
+        if is_cloudinary_configured():
+            # Upload to Cloudinary (preferred)
             try:
                 result = cloudinary_upload_audio(
                     audio_file,
-                    request.user.id,
+                    str(request.user.id),
                     str(entry.id)
                 )
                 entry.audio_file_url = result['url']
@@ -1454,10 +1441,47 @@ class CaptureFileUploadView(LoginRequiredMixin, View):
                 self._start_processing(entry)
 
             except CloudinaryStorageError as e:
+                logger.error(f"Cloudinary upload failed for file upload entry {entry.id}: {e}")
                 entry.status = CaptureEntry.STATUS_FAILED
                 entry.error_message = f"Upload failed: {str(e)}"
                 entry.save()
-                return JsonResponse({'error': str(e)}, status=500)
+                return JsonResponse({'error': 'Failed to upload audio. Please try again.'}, status=500)
+
+        elif is_storage_configured():
+            # Upload to S3 via presigned URL
+            try:
+                from .storage import (
+                    generate_upload_presigned_url,
+                    _get_s3_client,
+                )
+                content_type = audio_file.content_type or 'audio/mpeg'
+                upload_data = generate_upload_presigned_url(
+                    user_id=str(request.user.id),
+                    content_type=content_type,
+                    filename=audio_file.name,
+                )
+                # Upload directly to S3 using boto3 (server-side)
+                s3_client = _get_s3_client()
+                s3_client.upload_fileobj(
+                    audio_file,
+                    settings.CAPTURE_AUDIO_BUCKET,
+                    upload_data['key'],
+                    ExtraArgs={'ContentType': content_type},
+                )
+                entry.audio_file_url = upload_data['key']
+                entry.audio_expires_at = upload_data['audio_expires_at']
+                entry.status = CaptureEntry.STATUS_TRANSCRIBING
+                entry.save()
+
+                # Trigger processing
+                self._start_processing(entry)
+
+            except (CaptureStorageError, CaptureStorageNotConfiguredError) as e:
+                logger.error(f"S3 upload failed for file upload entry {entry.id}: {e}")
+                entry.status = CaptureEntry.STATUS_FAILED
+                entry.error_message = f"Upload failed: {str(e)}"
+                entry.save()
+                return JsonResponse({'error': 'Failed to upload audio. Please try again.'}, status=500)
         else:
             # No storage configured - mock mode
             entry.status = CaptureEntry.STATUS_READY

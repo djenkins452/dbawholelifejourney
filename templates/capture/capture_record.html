@@ -60,7 +60,7 @@
             <button id="recovery-upload" class="btn btn-primary">
                 Upload Now
             </button>
-            <a id="recovery-download" href="#" download="recording.webm" class="btn btn-secondary">
+            <a id="recovery-download" href="#" download="WLJ-Recording.m4a" class="btn btn-secondary">
                 Download to Device
             </a>
             <button id="recovery-discard" class="btn btn-ghost">
@@ -149,7 +149,7 @@
 
             <!-- Download option in preview state -->
             <div style="margin-top: 1rem;">
-                <a id="preview-download-link" href="#" download="recording.webm" class="btn btn-secondary btn-sm" style="display: none;">
+                <a id="preview-download-link" href="#" download="WLJ-Recording.m4a" class="btn btn-secondary btn-sm" style="display: none;">
                     &#128190; <span id="preview-download-text">Download to Device</span>
                 </a>
                 <p id="preview-download-hint" style="font-size: 0.75rem; color: var(--color-text-muted); margin-top: 0.5rem;">
@@ -219,7 +219,7 @@
             <!-- Download button to save recording locally -->
             <div id="download-recording-container" style="display: none; margin-bottom: 1.5rem; padding: 1rem; background: #fef3c7; border-radius: 8px; border: 1px solid #fbbf24;">
                 <p style="margin-bottom: 0.75rem; font-weight: 500; color: #92400e;">Your recording is still available!</p>
-                <a id="download-recording-link" href="#" download="recording.webm" class="btn btn-primary" style="background: #059669;">
+                <a id="download-recording-link" href="#" download="WLJ-Recording.m4a" class="btn btn-primary" style="background: #059669;">
                     <span id="error-download-text">Download Recording to Device</span>
                 </a>
                 <p id="error-download-hint" style="font-size: 0.75rem; color: #92400e; margin-top: 0.5rem;">Save your recording to your device, then you can upload it later.</p>
@@ -699,11 +699,27 @@ document.addEventListener('DOMContentLoaded', function() {
         stateError.style.display = state === 'error' ? 'block' : 'none';
     }
 
+    function getAudioExtension(mimeType) {
+        // Map MIME types to proper audio file extensions
+        const extMap = {
+            'mp4': 'm4a',     // audio/mp4 → .m4a (mp4 implies video)
+            'x-m4a': 'm4a',
+            'mpeg': 'mp3',
+            'ogg': 'ogg',
+            'wav': 'wav',
+            'webm': 'webm',
+            'aac': 'aac',
+            'x-caf': 'caf',
+        };
+        const raw = mimeType.split('/')[1]?.split(';')[0] || 'webm';
+        return extMap[raw] || raw;
+    }
+
     function setupDownloadLink(blob, linkId, textId, hintId) {
         const downloadLink = document.getElementById(linkId);
         if (downloadLink && blob) {
             const downloadUrl = URL.createObjectURL(blob);
-            const extension = blob.type.split('/')[1]?.split(';')[0] || 'webm';
+            const extension = getAudioExtension(blob.type);
             const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
             downloadLink.href = downloadUrl;
             downloadLink.download = `WLJ-Recording-${timestamp}.${extension}`;
@@ -1275,7 +1291,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Set up download link
         const downloadLink = document.getElementById('recovery-download');
-        const extension = recording.blob.type.split('/')[1]?.split(';')[0] || 'webm';
+        const extension = getAudioExtension(recording.blob.type);
         const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
         downloadLink.href = audioUrl;
         downloadLink.download = `WLJ-Recording-${timestamp}.${extension}`;

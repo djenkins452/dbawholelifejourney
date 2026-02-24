@@ -299,11 +299,11 @@ class CaptureInvalidFileFormatTests(TestCase):
         self.assertIn('Invalid file type', response.json().get('error', ''))
 
     def test_upload_rejects_video_file(self):
-        """Test that upload rejects video files."""
+        """Test that upload rejects non-audio video files (e.g., AVI, MKV)."""
         fake_file = SimpleUploadedFile(
-            'video.mp4',
+            'video.avi',
             b'fake video content',
-            content_type='video/mp4'
+            content_type='video/x-msvideo'
         )
         response = self.client.post(
             reverse('capture:upload'),
@@ -311,6 +311,20 @@ class CaptureInvalidFileFormatTests(TestCase):
         )
         self.assertEqual(response.status_code, 400)
         self.assertIn('Invalid file type', response.json().get('error', ''))
+
+    def test_upload_accepts_mp4_audio(self):
+        """Test that upload accepts .mp4 files (iOS records audio as video/mp4)."""
+        fake_file = SimpleUploadedFile(
+            'recording.mp4',
+            b'fake audio content',
+            content_type='video/mp4'
+        )
+        response = self.client.post(
+            reverse('capture:upload'),
+            {'file': fake_file}
+        )
+        # Should be accepted (200), not rejected
+        self.assertEqual(response.status_code, 200)
 
     def test_upload_rejects_executable(self):
         """Test that upload rejects executable files."""

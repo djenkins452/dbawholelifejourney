@@ -9,6 +9,18 @@
 
 # WLJ Change History
 
+## 2026-02-24 — Fix: Capture audio upload format issues and broken file upload path
+
+**What:** Fixed multiple Capture audio upload issues: (1) iOS recordings saved as `.mp4` were rejected by the Upload Audio File page because `.mp4` wasn't in accepted extensions, (2) downloaded recordings from iOS had `.mp4` extension instead of `.m4a`, making them unrecognizable as audio, (3) `CaptureFileUploadView` crashed with ImportError due to missing `upload_audio_file` function — rewrote to use Cloudinary-first/S3-fallback like the main upload flow, (4) added broader format support (`.ogg`, `.caf`, `video/mp4` MIME type) for better iOS/Android compatibility.
+
+**Files:**
+- `apps/capture/views.py` — Added `.mp4`, `.ogg`, `.caf` to `CaptureUploadView.ACCEPTED_EXTENSIONS`; added `video/mp4`, `audio/ogg`, `audio/aac`, `audio/x-caf` to MIME type lists; fixed `CaptureFileUploadView` to use Cloudinary-first then S3 (with proper `upload_fileobj`) instead of nonexistent `upload_audio_file`; added extension-based validation fallback
+- `templates/capture/capture_upload.html` — Updated file input `accept` attribute and JS `ACCEPTED_TYPES`/`ACCEPTED_EXTENSIONS` to include `.mp4`, `.ogg`, `.caf`, `video/mp4`
+- `templates/capture/capture_record.html` — Added `getAudioExtension()` helper that maps `audio/mp4`→`.m4a`, `audio/mpeg`→`.mp3` etc; fixed `setupDownloadLink` and recovery download to use proper audio extensions; changed default download attributes from `recording.webm` to `WLJ-Recording.m4a`
+- `static/capture/js/uploader.js` — Added `.mp4`, `.ogg`, `.caf` to accepted extensions/types
+- `apps/capture/storage.py` — Added codec-parameter stripping in `_get_extension_from_content_type`; added `video/mp4`, `audio/x-caf`, `audio/3gpp` mappings
+- `apps/capture/tests/test_edge_cases.py` — Updated `test_upload_rejects_video_file` to use AVI instead of MP4 (MP4 now accepted); added `test_upload_accepts_mp4_audio`
+
 ## 2026-02-24 — Feature: Clickable calendar events with source-aware navigation
 
 **What:** Calendar event cards in the Time Command Center dashboard are now clickable. Task-sourced events navigate to the task edit page, goal-sourced events go to the goal detail page, habit-sourced events go to the habit detail page, and manual/CoS events open an inline edit modal with Update and Delete buttons. Added data attributes (source_type, source_id) to event cards, an edit/delete modal with PATCH/DELETE API integration, and a toast notification system.

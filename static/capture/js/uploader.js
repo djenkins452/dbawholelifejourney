@@ -13,10 +13,14 @@ class AudioUploader {
             'audio/mp4',
             'audio/wav',
             'audio/webm',
-            'audio/x-m4a'
+            'audio/x-m4a',
+            'audio/ogg',
+            'audio/aac',
+            'audio/x-caf',
+            'video/mp4',
         ];
         this.acceptedExtensions = options.acceptedExtensions || [
-            '.mp3', '.m4a', '.wav', '.webm'
+            '.mp3', '.m4a', '.mp4', '.wav', '.webm', '.ogg', '.caf'
         ];
         this.uploadUrl = options.uploadUrl || '/capture/upload/';
         this.csrfToken = options.csrfToken || '';
@@ -40,7 +44,7 @@ class AudioUploader {
         if (!isValidType) {
             return {
                 valid: false,
-                error: 'Invalid file type. Please upload MP3, M4A, WAV, or WebM files.'
+                error: 'Invalid file type. Please upload MP3, M4A, MP4, WAV, WebM, OGG, or CAF files.'
             };
         }
 

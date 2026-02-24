@@ -110,31 +110,31 @@ Journal append logic lives in a new `JournalCosActions` service that checks for 
 
 ---
 
-### Phase 1: CoS Action Contract + Shared Services
+### Phase 1: CoS Action Contract + Shared Services ✅
 **Goal:** Define the universal action interface and shared models (reflection, prompt scheduling)
 
 **Tasks:**
-- [ ] Define `CosActionContract` abstract base class
-- [ ] Create `CosReflection` model (generic FK, indefinite retention)
-- [ ] Create `CosPromptSchedule` model (pre/post event scheduling)
-- [ ] Create `CosGoalSuggestion` model (throttle + decline tracking)
-- [ ] Create `CosAutoShiftLog` model (audit trail for auto-shifts)
-- [ ] Implement `CosActionRegistry` (register/lookup module contracts)
-- [ ] Add migrations
-- [ ] Add unit tests for models and registry
-- [ ] Update CoS_Project_v2.md
+- [x] Define `CosActionContract` abstract base class
+- [x] Create `CosReflection` model (generic FK, indefinite retention)
+- [x] Create `CosPromptSchedule` model (pre/post event scheduling)
+- [x] Create `CosGoalSuggestion` model (throttle + decline tracking)
+- [x] Create `CosAutoShiftLog` model (audit trail for auto-shifts)
+- [x] Implement `CosActionRegistry` (register/lookup module contracts)
+- [x] Add migrations
+- [x] Add unit tests for models and registry
+- [x] Update CoS_Project_v2.md
 
-**Files to Touch:**
-- `apps/cos/models.py`
-- `apps/cos/contracts.py` (abstract base)
-- `apps/cos/registry.py`
-- `apps/cos/admin.py`
-- `apps/cos/migrations/`
-- `apps/cos/tests/test_contracts.py`
-- `apps/cos/tests/test_models.py`
+**Files Created/Modified:**
+- `apps/cos/contracts.py` — CosActionContract ABC + ActionResult, DuplicateCheck, ConflictCheck dataclasses
+- `apps/cos/registry.py` — CosActionRegistry singleton (register, get, list, clear)
+- `apps/cos/models.py` — CosReflection, CosPromptSchedule, CosGoalSuggestion, CosAutoShiftLog
+- `apps/cos/admin.py` — Admin registrations for all 4 models
+- `apps/cos/migrations/0001_phase1_models.py` — Migration for all Phase 1 models
+- `apps/cos/tests/test_contracts.py` — 15 tests (contract enforcement, defaults, dataclasses, registry)
+- `apps/cos/tests/test_models.py` — 19 tests (CRUD, lifecycle, querying, decline tracking)
 
-**Tests:** Model CRUD, registry lookup, contract enforcement
-**Risk:** Generic FK complexity — mitigate with explicit content_type constraints
+**Tests:** 68 total (17 baseline + 34 new) — all pass
+**Risk:** Generic FK complexity — mitigated with 3 indexes per model + explicit content_type fields
 
 ---
 
@@ -404,4 +404,4 @@ Journal append logic lives in a new `JournalCosActions` service that checks for 
 
 ---
 
-*Last updated: 2026-02-24 — Phase 0 complete*
+*Last updated: 2026-02-24 — Phase 1 complete*

@@ -3281,6 +3281,8 @@ class ActionHandler:
         idempotency_key: str,
         timezone: str = 'America/Chicago',
         event_id: int = None,
+        event_query: str = None,
+        event_date: str = None,
         title: str = None,
         start_date: str = None,
         start_time: str = None,
@@ -3295,12 +3297,36 @@ class ActionHandler:
 
         All mutations go through CalendarMutationService — the same
         service used by the view-layer endpoints.
+
+        For update/delete, the event can be identified by either:
+        - event_id: Direct ID (from a prior read_calendar_events call)
+        - event_query + event_date: Title search + date hint — resolved
+          internally to an event_id. This enables single-turn mutation
+          without a separate read call.
         """
         from apps.calendar_engine.services.calendar_mutation_service import (
             CalendarMutationService,
         )
 
         service = CalendarMutationService(self.user)
+
+        # --- Resolve event_query → event_id if needed ---
+        if not event_id and event_query and action in ('update', 'delete'):
+            resolved = self._resolve_event_query(
+                event_query, event_date, timezone,
+            )
+            if resolved is None:
+                return ActionResult(
+                    success=False,
+                    message=(
+                        f"Could not find an event matching '{event_query}'"
+                        + (f" on {event_date}" if event_date else "")
+                        + ". Please check the event name and date."
+                    ),
+                    error='event_not_found',
+                    action_type='mutate_calendar_event',
+                )
+            event_id = resolved
 
         if action == 'create':
             return self._mutate_create(
@@ -3315,7 +3341,10 @@ class ActionHandler:
             if not event_id:
                 return ActionResult(
                     success=False,
-                    message="event_id is required for update. Use read_calendar_events first.",
+                    message=(
+                        "event_id is required for update. Provide event_id directly "
+                        "or use event_query + event_date to find the event."
+                    ),
                     error='missing_event_id',
                     action_type='mutate_calendar_event',
                 )
@@ -3331,7 +3360,10 @@ class ActionHandler:
             if not event_id:
                 return ActionResult(
                     success=False,
-                    message="event_id is required for delete. Use read_calendar_events first.",
+                    message=(
+                        "event_id is required for delete. Provide event_id directly "
+                        "or use event_query + event_date to find the event."
+                    ),
                     error='missing_event_id',
                     action_type='mutate_calendar_event',
                 )
@@ -3343,6 +3375,61 @@ class ActionHandler:
                 error='invalid_action',
                 action_type='mutate_calendar_event',
             )
+
+    def _resolve_event_query(
+        self, query_text: str, event_date: str = None,
+        timezone_str: str = 'America/Chicago',
+    ):
+        """
+        Resolve an event title query + optional date to a single event_id.
+
+        Returns the event's pk, or None if no match found.
+        If multiple matches, returns the one closest to event_date (or the
+        next upcoming match if no date hint).
+        """
+        import datetime as _dt
+        import pytz
+
+        from apps.calendar_engine.models import CalendarEvent
+
+        try:
+            user_tz = pytz.timezone(timezone_str)
+        except pytz.exceptions.UnknownTimeZoneError:
+            user_tz = pytz.timezone('America/Chicago')
+
+        qs = CalendarEvent.objects.filter(
+            user=self.user,
+            title__icontains=query_text.strip(),
+            deleted_at__isnull=True,
+        ).exclude(status=CalendarEvent.STATUS_CANCELED)
+
+        # Apply date filter if provided
+        if event_date:
+            resolved_date = self._resolve_date_string(event_date, user_tz)
+            if resolved_date:
+                day_start = user_tz.localize(
+                    _dt.datetime.combine(resolved_date, _dt.time.min)
+                )
+                day_end = user_tz.localize(
+                    _dt.datetime.combine(resolved_date, _dt.time.max)
+                )
+                qs = qs.filter(start_dt__gte=day_start, start_dt__lte=day_end)
+
+        # Get the best match: nearest upcoming, or most recent if none upcoming
+        from django.utils import timezone as dj_tz
+        now = dj_tz.now()
+
+        # Prefer upcoming events
+        upcoming = qs.filter(start_dt__gte=now).order_by('start_dt').first()
+        if upcoming:
+            return upcoming.pk
+
+        # Fall back to most recent past event
+        past = qs.order_by('-start_dt').first()
+        if past:
+            return past.pk
+
+        return None
 
     def _mutate_create(
         self, service, idempotency_key, timezone, **kwargs,

@@ -173,6 +173,23 @@ class IntentService:
                     except json.JSONDecodeError:
                         parameters = {}
 
+                    # --- Mutation verb enforcement ---
+                    # If the LLM selected read_calendar_events but the user's
+                    # message contains a mutation verb, reroute to
+                    # mutate_calendar_event with event_query.
+                    if function_name == 'read_calendar_events':
+                        rerouted = self._enforce_mutation_routing(
+                            user_message, parameters,
+                        )
+                        if rerouted is not None:
+                            function_name = rerouted['intent_type']
+                            parameters = rerouted['parameters']
+                            logger.info(
+                                "Mutation verb enforcement: rerouted "
+                                "read_calendar_events → %s params=%s",
+                                function_name, parameters,
+                            )
+
                     logger.info(f"Intent recognized: {function_name} with params: {parameters}")
 
                     # Check if confirmation is needed based on validation
@@ -350,22 +367,26 @@ IMPORTANT: For create_event and mutate_calendar_event, pass the user's EXACT dat
 - User says "in 3 days" → start_date="in 3 days"
 NEVER compute YYYY-MM-DD from weekday names — the server resolves all of these. Only use YYYY-MM-DD when the user specifies an exact date like "March 15" or "2026-03-15".
 
-CALENDAR QUERIES (read_calendar_events):
+CALENDAR QUERIES (read_calendar_events) — use ONLY for pure read/lookup:
 - "what's on my calendar tomorrow?" → read_calendar_events(date_range_start="tomorrow", timezone="America/New_York")
 - "do I have anything Wednesday?" → read_calendar_events(date_range_start="wednesday", timezone="America/New_York")
 - "show me my meetings" → read_calendar_events(query_text="meeting", timezone="America/New_York")
 - "what's scheduled this week?" → read_calendar_events(date_range_start="today", date_range_end="sunday", timezone="America/New_York")
 
-CALENDAR UPDATES (mutate_calendar_event):
-- "move my Wednesday meeting to Thursday" → FIRST call read_calendar_events to find the event, THEN call mutate_calendar_event(action="update", event_id=<id>, start_date="thursday", idempotency_key="move-meeting-wed-thu", timezone="America/New_York")
-- "change my 2pm appointment to 3pm" → FIRST read_calendar_events, THEN mutate_calendar_event(action="update", event_id=<id>, start_time="15:00", idempotency_key="change-appt-2pm-3pm", timezone="America/New_York")
-- "rename my workout to Chest Day" → FIRST read_calendar_events, THEN mutate_calendar_event(action="update", event_id=<id>, title="Chest Day", idempotency_key="rename-workout-chestday", timezone="America/New_York")
+CALENDAR UPDATES (mutate_calendar_event) — use for ANY mutation verb:
+When the user says move, change, reschedule, shift, update, rename, or uses "from X to Y", call mutate_calendar_event DIRECTLY with event_query + event_date. Do NOT call read_calendar_events first.
+- "Change my Workout next Wednesday from 6:15am to 7:00am" → mutate_calendar_event(action="update", event_query="Workout", event_date="next wednesday", start_time="07:00", idempotency_key="change-workout-wed-7am", timezone="America/New_York")
+- "move my Wednesday meeting to Thursday" → mutate_calendar_event(action="update", event_query="meeting", event_date="wednesday", start_date="thursday", idempotency_key="move-meeting-wed-thu", timezone="America/New_York")
+- "reschedule Bible Study to 6pm starting March 11th" → mutate_calendar_event(action="update", event_query="Bible Study", start_date="2026-03-11", start_time="18:00", idempotency_key="resched-biblestudy-mar11", timezone="America/New_York")
+- "change my 2pm appointment to 3pm" → mutate_calendar_event(action="update", event_query="appointment", start_time="15:00", idempotency_key="change-appt-2pm-3pm", timezone="America/New_York")
+- "rename my workout to Chest Day" → mutate_calendar_event(action="update", event_query="workout", title="Chest Day", idempotency_key="rename-workout-chestday", timezone="America/New_York")
+- "shift my morning routine to 5am" → mutate_calendar_event(action="update", event_query="morning routine", start_time="05:00", idempotency_key="shift-routine-5am", timezone="America/New_York")
 
 CALENDAR DELETIONS (mutate_calendar_event):
-- "cancel my Wednesday event" → FIRST read_calendar_events, THEN mutate_calendar_event(action="delete", event_id=<id>, idempotency_key="cancel-wed-event", timezone="America/New_York")
-- "remove the meeting from my calendar" → FIRST read_calendar_events, THEN mutate_calendar_event(action="delete", event_id=<id>, idempotency_key="remove-meeting", timezone="America/New_York")
+- "cancel my Wednesday event" → mutate_calendar_event(action="delete", event_query="event", event_date="wednesday", idempotency_key="cancel-wed-event", timezone="America/New_York")
+- "remove the meeting from my calendar" → mutate_calendar_event(action="delete", event_query="meeting", idempotency_key="remove-meeting", timezone="America/New_York")
 
-IMPORTANT: For update and delete, you MUST call read_calendar_events FIRST to get the event_id. Never guess event IDs.
+CRITICAL ROUTING RULE: If the user's message contains a mutation verb (move, change, reschedule, shift, update, rename, cancel, delete, remove) referring to a calendar event, you MUST call mutate_calendar_event — NEVER call read_calendar_events for these. The system resolves the event internally from event_query.
 
 CALENDAR CONFLICT HANDLING:
 When you try to create or update an event and the system returns a conflict (requires_decision=True):
@@ -405,6 +426,61 @@ Examples:
 - "Put the same thing on my calendar for next Monday" → create_event(clone_from_last=true, start_date="monday")
 - "Same workout but at 7am on Friday" → create_event(clone_from_last=true, start_date="friday", start_time="07:00") — user explicitly overrode time
 """
+
+    # Mutation verbs that MUST route to mutate_calendar_event, not read.
+    CALENDAR_MUTATION_VERBS = {
+        'move', 'change', 'reschedule', 'shift', 'update',
+        'rename', 'cancel', 'delete', 'remove',
+    }
+
+    def _enforce_mutation_routing(
+        self, user_message: str, read_params: dict,
+    ) -> Optional[dict]:
+        """
+        Post-recognition safety net: if the LLM chose read_calendar_events
+        but the user's message contains a mutation verb, reroute to
+        mutate_calendar_event with the read params converted to event_query.
+
+        Returns a dict with 'intent_type' and 'parameters', or None if
+        no reroute needed.
+        """
+        msg_lower = user_message.lower()
+        tokens = set(msg_lower.split())
+
+        # Check if any mutation verb appears in the message
+        if not tokens.intersection(self.CALENDAR_MUTATION_VERBS):
+            # Also check multi-word patterns
+            mutation_phrases = ['from ', ' to ']
+            has_from_to = all(p in msg_lower for p in mutation_phrases)
+            if not has_from_to:
+                return None
+
+        # Determine action: delete-class verbs vs update-class verbs
+        delete_verbs = {'cancel', 'delete', 'remove'}
+        if tokens.intersection(delete_verbs):
+            action = 'delete'
+        else:
+            action = 'update'
+
+        # Build mutate params from read params
+        mutate_params = {
+            'action': action,
+            'idempotency_key': f"rerouted-{action}-{hash(user_message) % 100000}",
+            'timezone': read_params.get('timezone', 'America/Chicago'),
+        }
+
+        # Convert query_text → event_query
+        if read_params.get('query_text'):
+            mutate_params['event_query'] = read_params['query_text']
+
+        # Convert date_range_start → event_date
+        if read_params.get('date_range_start'):
+            mutate_params['event_date'] = read_params['date_range_start']
+
+        return {
+            'intent_type': 'mutate_calendar_event',
+            'parameters': mutate_params,
+        }
 
     def _check_validation(self, intent_type: str, parameters: dict, user) -> tuple:
         """

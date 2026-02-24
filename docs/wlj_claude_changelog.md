@@ -9,6 +9,27 @@
 
 # WLJ Change History
 
+## 2026-02-24 — Fix update intent not firing for calendar mutation verbs
+
+**What:** When a user said "Change my Workout next Wednesday from 6:15am to 7:00am", the system called `read_calendar_events` (returning "Found 1 event...") but never called `mutate_calendar_event(action="update")`. The update was silently dropped.
+
+**Root cause:** The system prompt instructed the LLM to do a two-step process: "FIRST call read_calendar_events to get event_id, THEN call mutate_calendar_event". But `recognize_intents` is a single API call — the LLM can't chain sequential tool calls. It selected `read_calendar_events` per instructions and stopped. The mutation never fired because `mutate_calendar_event` requires an `event_id` that only the read could provide.
+
+**Key changes:**
+- `apps/ai/intents/calendar_intents.py` — Added `event_query` and `event_date` parameters to `mutate_calendar_event` tool schema so the LLM can express update intent in a single tool call without needing a prior read. Updated `read_calendar_events` description to exclude mutation use cases. Expanded `action` description to list mutation verbs (move, change, reschedule, shift, update, rename).
+- `apps/ai/action_handlers.py` — Added `_resolve_event_query()` method that finds an event by title + date hint internally. `handle_mutate_calendar_event` now accepts `event_query`/`event_date` and resolves to `event_id` before dispatching.
+- `apps/ai/intent_service.py` — Rewrote calendar update/delete examples to use direct `mutate_calendar_event` calls with `event_query` (no two-step read→mutate). Added `_enforce_mutation_routing()` safety net that reroutes `read_calendar_events` to `mutate_calendar_event` when the user's message contains mutation verbs (move, change, reschedule, shift, update, cancel, delete, remove, "from X to Y").
+
+**Tests:** 16 new tests in `test_update_intent_routing.py` — mutation verb enforcement (change, move, reschedule, cancel, from-to phrase), pure read not rerouted, event_query resolution (finds event, no match, nearest upcoming, case-insensitive), tool schema structural validation.
+
+**Files changed:**
+- `apps/ai/intents/calendar_intents.py`
+- `apps/ai/action_handlers.py`
+- `apps/ai/intent_service.py`
+- `apps/ai/tests/test_update_intent_routing.py` (new)
+
+---
+
 ## 2026-02-24 — Fix timezone shift in conflict detection and gap calculation
 
 **What:** Critical fix — conflict detection and gap suggestions displayed event times in UTC instead of the user's local timezone. A user scheduling "6:15 AM" (EST, UTC-5) would see "11:15 AM" in conflict messages. The 5-hour shift was caused by `event.start_dt.isoformat()` serializing the UTC value from the database without converting to the user's timezone first.

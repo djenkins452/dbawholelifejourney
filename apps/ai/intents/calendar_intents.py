@@ -19,10 +19,11 @@ CALENDAR_INTENT_TOOLS = [
         "function": {
             "name": "read_calendar_events",
             "description": (
-                "Query the user's calendar to find events. Use BEFORE updating or "
-                "deleting to resolve event references like 'my Wednesday event' or "
-                "'the 2pm meeting' into specific event IDs. Also use when the user "
-                "asks 'what's on my calendar' or 'do I have anything scheduled'."
+                "Query the user's calendar to LIST or LOOK UP events. Use ONLY "
+                "when the user asks a pure read question: 'what's on my calendar', "
+                "'do I have anything scheduled', 'show me my events'. "
+                "Do NOT use this for mutation verbs (move, change, reschedule, "
+                "update, cancel, delete) — use mutate_calendar_event instead."
             ),
             "parameters": {
                 "type": "object",
@@ -82,11 +83,13 @@ CALENDAR_INTENT_TOOLS = [
         "function": {
             "name": "mutate_calendar_event",
             "description": (
-                "Create, update, or delete a calendar event. Use 'update' to change "
-                "event time, title, or details. Use 'delete' to cancel/remove an "
-                "event. For update and delete, you MUST first call read_calendar_events "
-                "to get the event_id. For create, this is an alternative to "
-                "create_event — both work."
+                "Create, update, or delete a calendar event. "
+                "ALWAYS use this tool — not read_calendar_events — when the user "
+                "wants to move, change, reschedule, shift, update, or cancel an event. "
+                "Mutation verbs (move, change, reschedule, shift, update, rename, "
+                "cancel, delete, remove) MUST route here. "
+                "For update/delete you can supply event_query+event_date instead of "
+                "event_id and the system will resolve the event automatically."
             ),
             "parameters": {
                 "type": "object",
@@ -94,7 +97,12 @@ CALENDAR_INTENT_TOOLS = [
                     "action": {
                         "type": "string",
                         "enum": ["create", "update", "delete"],
-                        "description": "The mutation to perform.",
+                        "description": (
+                            "The mutation to perform. Use 'update' when the user says "
+                            "move, change, reschedule, shift, update, rename, or "
+                            "'from X to Y'. Use 'delete' when the user says cancel, "
+                            "remove, or delete."
+                        ),
                     },
                     "idempotency_key": {
                         "type": "string",
@@ -115,21 +123,42 @@ CALENDAR_INTENT_TOOLS = [
                         "type": "integer",
                         "description": (
                             "ID of the event to update or delete. "
-                            "Required for update and delete actions. "
-                            "Get this from read_calendar_events."
+                            "If you don't know the ID, use event_query + "
+                            "event_date instead and the system will find it."
+                        ),
+                    },
+                    "event_query": {
+                        "type": "string",
+                        "description": (
+                            "Title search text to find the event for update/delete. "
+                            "Use when the user refers to an event by name, e.g. "
+                            "'Workout', 'Bible Study', 'team meeting'. The system "
+                            "performs a case-insensitive title match."
+                        ),
+                    },
+                    "event_date": {
+                        "type": "string",
+                        "description": (
+                            "Date hint to narrow event_query search for update/delete. "
+                            "Pass weekday names with modifiers (e.g. 'next wednesday', "
+                            "'wednesday', 'tomorrow') or YYYY-MM-DD. "
+                            "NEVER compute dates yourself."
                         ),
                     },
                     "title": {
                         "type": "string",
-                        "description": "Event title. Required for create.",
+                        "description": (
+                            "Event title. Required for create. For update, only "
+                            "provide if renaming the event."
+                        ),
                     },
                     "start_date": {
                         "type": "string",
                         "description": (
-                            "Event start date. Pass weekday names directly "
-                            "(e.g. 'monday', 'wednesday'). PRESERVE the user's "
-                            "exact modifier: 'next wednesday' = following week "
-                            "(not this week), 'last friday' = most recent past "
+                            "New start date for the event. Pass weekday names "
+                            "directly (e.g. 'monday', 'wednesday'). PRESERVE the "
+                            "user's exact modifier: 'next wednesday' = following "
+                            "week (not this week), 'last friday' = most recent past "
                             "Friday. Also accepts 'today', 'tomorrow', "
                             "'yesterday', 'in 3 days', or YYYY-MM-DD. "
                             "NEVER compute dates yourself. Required for create."
@@ -137,7 +166,10 @@ CALENDAR_INTENT_TOOLS = [
                     },
                     "start_time": {
                         "type": "string",
-                        "description": "Start time (HH:MM format, 24-hour).",
+                        "description": (
+                            "New start time in HH:MM 24-hour format. "
+                            "For update, this is the NEW time the user wants."
+                        ),
                     },
                     "end_time": {
                         "type": "string",

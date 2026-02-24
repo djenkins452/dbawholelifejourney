@@ -365,6 +365,54 @@ class DateResolutionTests(TestCase):
         central_next = resolve_weekday_to_date(user_central, 'next wednesday', reference_dt=ref_central)
         self.assertEqual(central_next, dt.date(2026, 3, 11))
 
+    # --- Mandatory test cases from spec ---
+
+    def test_case_d_next_monday_on_sunday_is_8_days_not_tomorrow(self):
+        """
+        Case D: Today Sunday March 1.
+        Bare 'monday' → tomorrow March 2 (1 day ahead).
+        'next monday' → March 9 (8 days ahead, not tomorrow).
+        """
+        ref = dt.datetime(2026, 3, 1, 10, 0, tzinfo=ZoneInfo('America/Chicago'))
+        bare = resolve_weekday_to_date(self.user, 'monday', reference_dt=ref)
+        self.assertEqual(bare, dt.date(2026, 3, 2))  # tomorrow
+
+        next_mon = resolve_weekday_to_date(self.user, 'next monday', reference_dt=ref)
+        self.assertEqual(next_mon, dt.date(2026, 3, 9))  # 8 days = following week
+
+    def test_realworld_feb24_tuesday_next_wednesday(self):
+        """
+        Real-world scenario: Today = Tuesday Feb 24.
+        User says "add a Strategy Meeting on next Wednesday at 7:30am".
+        LLM should send start_date="next wednesday".
+        Bare 'wednesday' → Feb 25 (1 day ahead, this week).
+        'next wednesday' → March 4 (following week, 8 days ahead).
+        """
+        ref = dt.datetime(2026, 2, 24, 10, 0, tzinfo=ZoneInfo('America/Chicago'))
+        bare = resolve_weekday_to_date(self.user, 'wednesday', reference_dt=ref)
+        self.assertEqual(bare, dt.date(2026, 2, 25))
+
+        next_wed = resolve_weekday_to_date(self.user, 'next wednesday', reference_dt=ref)
+        self.assertEqual(next_wed, dt.date(2026, 3, 4))
+
+    def test_next_wednesday_on_wednesday_morning(self):
+        """
+        Case B: Today Wednesday Feb 25, 5am (morning).
+        'next wednesday' → March 4 (always following week).
+        """
+        ref = dt.datetime(2026, 2, 25, 5, 0, tzinfo=ZoneInfo('America/Chicago'))
+        result = resolve_weekday_to_date(self.user, 'next wednesday', reference_dt=ref)
+        self.assertEqual(result, dt.date(2026, 3, 4))
+
+    def test_next_wednesday_on_wednesday_afternoon(self):
+        """
+        Today Wednesday Feb 25, 4pm.
+        'next wednesday' → March 4 (always following week regardless of time).
+        """
+        ref = dt.datetime(2026, 2, 25, 16, 0, tzinfo=ZoneInfo('America/Chicago'))
+        result = resolve_weekday_to_date(self.user, 'next wednesday', reference_dt=ref)
+        self.assertEqual(result, dt.date(2026, 3, 4))
+
     # --- Phase 9.3: Enhanced relative date resolution tests ---
 
     def test_yesterday(self):

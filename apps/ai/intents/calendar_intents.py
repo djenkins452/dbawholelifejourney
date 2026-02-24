@@ -38,9 +38,12 @@ CALENDAR_INTENT_TOOLS = [
                         "type": "string",
                         "description": (
                             "Start of date range filter. Pass weekday names "
-                            "directly (e.g. 'monday', 'wednesday') — the server "
-                            "resolves them. Also accepts 'today', 'tomorrow', or "
-                            "YYYY-MM-DD."
+                            "directly (e.g. 'monday', 'wednesday'). PRESERVE "
+                            "modifiers: 'next wednesday' = following week, "
+                            "'last friday' = most recent past Friday. Also "
+                            "accepts 'today', 'tomorrow', 'yesterday', "
+                            "'in 3 days', '2 weeks ago', or YYYY-MM-DD. "
+                            "NEVER compute dates yourself."
                         ),
                     },
                     "date_range_end": {
@@ -124,9 +127,12 @@ CALENDAR_INTENT_TOOLS = [
                         "type": "string",
                         "description": (
                             "Event start date. Pass weekday names directly "
-                            "(e.g. 'monday', 'wednesday') — the server resolves "
-                            "them. Also accepts 'today', 'tomorrow', or "
-                            "YYYY-MM-DD. Required for create."
+                            "(e.g. 'monday', 'wednesday'). PRESERVE the user's "
+                            "exact modifier: 'next wednesday' = following week "
+                            "(not this week), 'last friday' = most recent past "
+                            "Friday. Also accepts 'today', 'tomorrow', "
+                            "'yesterday', 'in 3 days', or YYYY-MM-DD. "
+                            "NEVER compute dates yourself. Required for create."
                         ),
                     },
                     "start_time": {

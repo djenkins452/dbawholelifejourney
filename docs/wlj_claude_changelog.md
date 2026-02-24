@@ -9,6 +9,22 @@
 
 # WLJ Change History
 
+## 2026-02-24 — Fix: "next Wednesday" ignored by LLM — tool schema + prompt update
+
+**Root Cause:** The `date_resolution.py` resolver correctly handled "next wednesday" → following week, BUT the LLM never sent that string. All three tool schemas (`create_event`, `mutate_calendar_event`, `read_calendar_events`) told the LLM: "Pass weekday names directly (e.g. 'monday', 'wednesday')". The system prompt examples only showed bare weekday names. So the LLM stripped "next" and sent `start_date="wednesday"`.
+
+**Fix:** Updated all three `start_date` / `date_range_start` descriptions in tool schemas to explicitly say: "PRESERVE the user's exact modifier: 'next wednesday' means the FOLLOWING week". Added system prompt examples showing `start_date="next wednesday"` and `start_date="next friday"`. Updated the IMPORTANT instruction to list all valid forms.
+
+**Files:**
+- `apps/ai/intents/life_intents.py` — `start_date` description updated
+- `apps/ai/intents/calendar_intents.py` — `start_date` and `date_range_start` descriptions updated
+- `apps/ai/intent_service.py` — Added "next wednesday"/"next friday" examples + updated IMPORTANT instruction
+- `apps/calendar_engine/test_phase9_calendar_determinism.py` — 4 new tests (Case A-D from spec + real-world Feb 24 scenario)
+
+**Tests:** 112/112 pass (51 date resolution + 27 CRUD + 24 integrity + 10 registration).
+
+---
+
 ## 2026-02-24 — Enhanced date resolution + semantic duplicate protection
 
 **What:**

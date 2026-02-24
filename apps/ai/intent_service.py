@@ -330,6 +330,8 @@ CALENDAR EVENTS:
 - "schedule a meeting at 2pm today" → create_event(title="Meeting", start_date="today", start_time="14:00")
 - "add Bible Study Wednesday 6pm-8pm" → create_event(title="Bible Study", start_date="wednesday", start_time="18:00", end_time="20:00", event_type="faith")
 - "put Pickleball on my calendar for Friday 6pm" → create_event(title="Pickleball", start_date="friday", start_time="18:00", event_type="health")
+- "add a Strategy Meeting next Wednesday at 7:30am" → create_event(title="Strategy Meeting", start_date="next wednesday", start_time="07:30")
+- "schedule a review for next Friday" → create_event(title="Review", start_date="next friday", start_time="09:00")
 
 FITNESS:
 - "just finished my workout" → log_workout(name="Workout")
@@ -341,7 +343,12 @@ FITNESS:
 - "walked for 45 minutes" → log_cardio(activity="walking", duration_minutes=45)
 - "biked 10 miles" → log_cardio(activity="cycling", duration_minutes=60, distance=10.0, distance_unit="miles")
 
-IMPORTANT: For create_event, pass weekday names directly (e.g. start_date="wednesday", start_date="friday"). NEVER compute YYYY-MM-DD from weekday names — the server does that. Use "today", "tomorrow", or weekday names. Only use YYYY-MM-DD when the user specifies an exact date like "March 15" or "2026-03-15".
+IMPORTANT: For create_event and mutate_calendar_event, pass the user's EXACT date phrase including modifiers. Examples:
+- User says "Wednesday" → start_date="wednesday" (this week's Wednesday)
+- User says "next Wednesday" → start_date="next wednesday" (FOLLOWING week, not this week)
+- User says "last Friday" → start_date="last friday" (most recent past Friday)
+- User says "in 3 days" → start_date="in 3 days"
+NEVER compute YYYY-MM-DD from weekday names — the server resolves all of these. Only use YYYY-MM-DD when the user specifies an exact date like "March 15" or "2026-03-15".
 
 CALENDAR QUERIES (read_calendar_events):
 - "what's on my calendar tomorrow?" → read_calendar_events(date_range_start="tomorrow", timezone="America/New_York")

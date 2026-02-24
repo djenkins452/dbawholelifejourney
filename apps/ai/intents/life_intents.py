@@ -94,7 +94,7 @@ LIFE_INTENT_TOOLS = [
                     },
                     "start_date": {
                         "type": "string",
-                        "description": "Event date. Pass weekday names directly (e.g. 'monday', 'wednesday', 'friday') — the server resolves them. Also accepts 'today', 'tomorrow', or YYYY-MM-DD. NEVER compute dates from weekday names yourself — just pass the weekday name."
+                        "description": "Event date. Pass weekday names directly (e.g. 'monday', 'wednesday', 'friday') — the server resolves them. PRESERVE the user's exact modifier: 'next wednesday' means the FOLLOWING week (not this week), 'last friday' means the most recent past Friday. Also accepts 'today', 'tomorrow', 'yesterday', 'in 3 days', '2 weeks from now', or YYYY-MM-DD. NEVER compute dates yourself — pass the natural language string."
                     },
                     "start_time": {
                         "type": "string",

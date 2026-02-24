@@ -1,7 +1,7 @@
 # CoS (Chief of Staff) v2 — Master Project Tracker
 
 **Created:** 2026-02-24
-**Status:** Phase 4 Complete — Ready for Phase 5
+**Status:** Phase 5 Complete — Ready for Phase 6
 **Owner:** Claude Code (lead engineer)
 
 ---
@@ -215,26 +215,39 @@ Journal append logic lives in a new `JournalCosActions` service that checks for 
 
 ---
 
-### Phase 5: Reflection Storage + Retrieval
+### Phase 5: Reflection Storage + Retrieval ✅
 **Goal:** Indefinite reflection storage attached to entities, queryable for context
+**Completed:** 2026-02-24 | **Tests:** 53 new (230 total CoS)
 
 **Tasks:**
-- [ ] Implement reflection CRUD service
-- [ ] Wire reflection capture into post-event check-in flow
-- [ ] Implement reflection retrieval for contextual prompts ("yesterday was cold…")
-- [ ] Add temporal comparison queries (yesterday vs today)
-- [ ] Integrate with SLCME for context memory
-- [ ] Add tests for storage, retrieval, temporal queries
-- [ ] Update CoS_Project_v2.md
+- [x] Implement reflection CRUD service (create, get, update, delete)
+- [x] Wire reflection capture into post-event check-in flow (via CosReflectionService)
+- [x] Implement reflection retrieval for contextual prompts
+- [x] Add temporal comparison queries (yesterday vs today, this week vs last)
+- [x] Implement streak detection (consecutive-day activity reflections)
+- [x] Implement sentiment trend analysis (improving/declining/stable)
+- [x] Implement contextual prompt prefix builder
+- [x] Auto-sentiment detection (keyword-based, fast)
+- [x] Integrate with SLCME for context memory (store_context_snapshot)
+- [x] Add tests for storage, retrieval, temporal queries, SLCME, stats
+- [x] Update CoS_Project_v2.md
 
-**Files to Touch:**
-- `apps/cos/services/reflection_service.py`
-- `apps/cos/models.py` (CosReflection already created in Phase 1)
-- `apps/core/ai_memory/` (integration point)
-- `apps/cos/tests/test_reflection_service.py`
+**Files Created/Modified:**
+- `apps/cos/services/reflection_service.py` — CosReflectionService (CRUD, temporal, contextual, SLCME)
+- `apps/cos/services/prompt_service.py` — Updated _capture_reflection_from_response to use CosReflectionService
+- `apps/cos/tests/test_reflection_service.py` — 53 tests across 10 test classes
 
-**Tests:** Attach reflection to entity, retrieve by entity, temporal comparison
-**Risk:** Query performance with large reflection datasets — add indexes
+**Architecture:**
+- `detect_sentiment(text)` — Keyword-based fast sentiment detection (positive/negative/neutral/mixed)
+- `get_yesterday_vs_today()` — Temporal comparison with sentiment summaries
+- `get_this_week_vs_last_week()` — Weekly comparison with type breakdowns
+- `get_streak_reflections(type, days)` — Consecutive-day streak detection
+- `get_sentiment_trend(type, days)` — Trend direction (improving/declining/stable/no_data)
+- `get_context_for_prompt(entity, type)` — Full context dict for prompt enrichment
+- `build_contextual_prompt_prefix(type)` — Human-readable prefix for prompts
+- SLCME integration: Stores `cos_reflection` context snapshots with `get_reflection_memory()` fallback
+
+**Risk mitigated:** Indexes on user+date, user+entity, user+type+date (created in Phase 1)
 
 ---
 

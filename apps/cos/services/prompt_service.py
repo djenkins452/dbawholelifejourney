@@ -408,20 +408,34 @@ class CosPromptService:
     def _capture_reflection_from_response(
         self, prompt: CosPromptSchedule, text: str
     ):
-        """Create a CosReflection from a prompt response."""
-        try:
-            # Determine activity date from the source entity
-            activity_date = prompt.scheduled_for.date()
-            source_entity = prompt.source_entity
-            if source_entity and hasattr(source_entity, "start_dt"):
-                activity_date = source_entity.start_dt.date()
+        """
+        Create a CosReflection from a prompt response.
 
-            CosReflection.objects.create(
-                user=self.user,
-                content_type=prompt.content_type,
-                object_id=prompt.object_id,
+        Uses CosReflectionService for auto-sentiment detection and
+        SLCME integration (long-term context memory).
+        """
+        try:
+            from apps.cos.services.reflection_service import CosReflectionService
+
+            source_entity = prompt.source_entity
+            if not source_entity:
+                # Fallback: create directly if source entity is gone
+                activity_date = prompt.scheduled_for.date()
+                CosReflection.objects.create(
+                    user=self.user,
+                    content_type=prompt.content_type,
+                    object_id=prompt.object_id,
+                    text=text,
+                    activity_date=activity_date,
+                    activity_type=prompt.activity_type,
+                    prompt_text=prompt.prompt_text,
+                )
+                return
+
+            svc = CosReflectionService(self.user)
+            svc.create_reflection(
+                source_entity=source_entity,
                 text=text,
-                activity_date=activity_date,
                 activity_type=prompt.activity_type,
                 prompt_text=prompt.prompt_text,
             )

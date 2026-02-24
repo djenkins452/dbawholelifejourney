@@ -9,6 +9,34 @@
 
 # WLJ Change History
 
+## 2026-02-24 — Fix recurring event duplicate creation + outdated validator gate message
+
+**What:** Two bugs: (1) "add Workout next Thursday at 6:15am" created a duplicate event when a weekly recurring Workout already covered that date/time. The semantic duplicate check only matched the base row's exact `start_dt`, not expanded recurrence occurrences. (2) The validator gate's canned response falsely claimed "updates or removals aren't available through chat yet" — this was outdated after shipping update/delete support.
+
+**Root cause:**
+1. `CalendarMutationService.create()` semantic dedup queried `title__iexact` + exact `start_dt`, which only matches the base CalendarEvent row. Recurring events store ONE base row and expand occurrences dynamically via `RecurrenceRule.get_occurrences()`, so future occurrences were invisible to the dedup check.
+2. `UNVERIFIABLE_ACTION_CLAIM_RESPONSE` in `validator_gate.py` was written before calendar update/delete was implemented and never updated.
+
+**Key changes:**
+- `apps/calendar_engine/services/calendar_mutation_service.py` — Added `_check_recurrence_duplicate()` method that queries recurring events with matching title (case-insensitive), expands occurrences in a ±1-day window around the proposed `start_dt`, and returns the base event with `reused=True` if a match is found. Called in both the pre-transaction and in-transaction paths for race safety.
+- `apps/core/ai_governance/validator_gate.py` — Updated `UNVERIFIABLE_ACTION_CLAIM_RESPONSE` to accurately reflect current capabilities (create, update, reschedule, remove). Updated stale `suggested_actions` in OpsAnomaly logging.
+
+**Tests:** 7 new tests in `test_recurrence_duplicate.py`:
+- Duplicate occurrence detected (reused=True, returns base event)
+- Same title at different time → allowed (new event)
+- Different title at same time → allowed (new event)
+- Case-insensitive title matching
+- Canceled recurring event doesn't block
+- Non-recurring event with different date → allowed
+- Base event date still caught by regular semantic dedup
+
+**Files changed:**
+- `apps/calendar_engine/services/calendar_mutation_service.py`
+- `apps/core/ai_governance/validator_gate.py`
+- `apps/calendar_engine/tests/test_recurrence_duplicate.py` (new)
+
+---
+
 ## 2026-02-24 — Fix protected event day-change rule not enforced
 
 **What:** When a user said "Move my Workout next Wednesday to Thursday at 6:15am", the system responded "✓ Updated" instead of blocking the move. Protected events (Workout, Bible Study, Prayer, etc.) must NEVER be moved to a different day — only same-day time changes are allowed. Even `force=True` must not bypass this rule.

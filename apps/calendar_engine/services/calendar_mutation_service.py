@@ -96,6 +96,60 @@ class CalendarMutationService:
         return dj_timezone.utc
 
     # ------------------------------------------------------------------ #
+    # Recurring-event duplicate detection
+    # ------------------------------------------------------------------ #
+
+    def _check_recurrence_duplicate(self, title, start_dt):
+        """
+        Check if *start_dt* collides with an occurrence of a recurring
+        event that has the same title (case-insensitive).
+
+        The regular semantic-dup check only matches the base row's exact
+        start_dt. This method expands RecurrenceRule occurrences in a
+        ±1-day window so that "add Workout next Thursday 6:15am" is
+        caught when a weekly Workout series already covers that slot.
+
+        Returns the base CalendarEvent if a match is found, else None.
+        """
+        from datetime import timedelta
+
+        recurring_candidates = (
+            CalendarEvent.objects
+            .filter(
+                user=self.user,
+                title__iexact=title.strip(),
+                recurrence__isnull=False,
+                deleted_at__isnull=True,
+            )
+            .exclude(status=CalendarEvent.STATUS_CANCELED)
+            .select_related('recurrence')
+        )
+
+        if not recurring_candidates.exists():
+            return None
+
+        window_start = start_dt - timedelta(days=1)
+        window_end = start_dt + timedelta(days=1)
+
+        for event in recurring_candidates:
+            try:
+                occurrences = event.recurrence.get_occurrences(
+                    window_start, window_end,
+                )
+            except Exception:
+                continue
+            for occ_start, _occ_end in occurrences:
+                if occ_start == start_dt:
+                    logger.info(
+                        "Recurrence duplicate blocked: user=%s title=%r "
+                        "start_dt=%s matches occurrence of recurring "
+                        "event pk=%s",
+                        self.user.id, title, start_dt, event.pk,
+                    )
+                    return event
+        return None
+
+    # ------------------------------------------------------------------ #
     # Auto-protect logic
     # ------------------------------------------------------------------ #
 
@@ -192,6 +246,20 @@ class CalendarMutationService:
                 success=True, event=semantic_dup, reused=True,
             )
 
+        # --- Recurring event duplicate check ---
+        # The semantic check above only matches exact start_dt on stored
+        # rows.  Recurring events store ONE base row and expand occurrences
+        # dynamically, so "add Workout next Thursday" won't match a weekly
+        # Workout whose base row is a different Thursday.  Expand
+        # occurrences in a ±1-day window around the proposed start_dt.
+        recurrence_dup = self._check_recurrence_duplicate(
+            title, start_dt,
+        )
+        if recurrence_dup:
+            return MutationResult(
+                success=True, event=recurrence_dup, reused=True,
+            )
+
         # --- Phase 10: Pre-commit conflict detection ---
         if not force and not is_all_day:
             conflict_result = self._check_pre_commit_conflicts(
@@ -229,6 +297,15 @@ class CalendarMutationService:
                 if semantic_dup:
                     return MutationResult(
                         success=True, event=semantic_dup, reused=True,
+                    )
+
+                # Re-check recurrence dup inside transaction
+                recurrence_dup = self._check_recurrence_duplicate(
+                    title, start_dt,
+                )
+                if recurrence_dup:
+                    return MutationResult(
+                        success=True, event=recurrence_dup, reused=True,
                     )
 
                 try:

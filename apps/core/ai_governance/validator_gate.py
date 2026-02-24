@@ -51,10 +51,9 @@ VALIDATOR_CRASH_RESPONSE = (
 )
 
 UNVERIFIABLE_ACTION_CLAIM_RESPONSE = (
-    "I can't confirm that change was made because no calendar update was "
-    "executed. I can create new events, but updates or removals aren't "
-    "available through chat yet. If you want, I can create a new event "
-    "for the correct date and time."
+    "I wasn't able to confirm that action was completed — no backend "
+    "change was executed. Could you try rephrasing your request? "
+    "I can create, update, reschedule, or remove calendar events."
 )
 
 
@@ -458,7 +457,7 @@ def _log_unverifiable_action_claim(user, claims_found, resp_hash, trace_id):
             evidence={'claims': claims_found, 'response_hash': resp_hash},
             suggested_actions=[
                 "Review LLM system prompt to discourage false confirmations.",
-                "Implement delete/update event tools to handle these requests.",
+                "Check that intent routing correctly dispatches mutation verbs.",
             ],
         )
     except Exception as e:

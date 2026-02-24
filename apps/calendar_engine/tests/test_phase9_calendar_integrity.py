@@ -598,7 +598,119 @@ class TestForcedIntegrityErrorRecovery(_UserMixin, TransactionTestCase):
 
 
 # ──────────────────────────────────────────────────────────
-# 9) ActionHandler integration concurrency (high-level)
+# 9) Provider-backed idempotency: title-edit stability
+# ──────────────────────────────────────────────────────────
+
+class TestProviderBackedTitleStability(_UserMixin, TransactionTestCase):
+    """
+    Provider-backed events (source_id set) must produce the same
+    idempotency key regardless of title changes. Re-calling
+    handle_create_event with a new title but same source_id must
+    reuse the existing row — no new row created.
+    """
+
+    def setUp(self):
+        self.user = self._create_user(email='provider_title@test.local')
+
+    def test_title_edit_reuses_existing_row(self):
+        """
+        1. Create event with source_type='task', source_id='42', title='Original'
+        2. Re-call with same source_type/source_id but title='Renamed'
+        3. Assert: same row reused, no new row, DB count == 1
+        """
+        from apps.ai.action_handlers import ActionHandler
+
+        handler = ActionHandler(self.user)
+
+        # First call — creates the event
+        result1 = handler.handle_create_event(
+            title="Original Task Title",
+            start_date="2026-04-15",
+            start_time="10:00",
+            source_type='task',
+            source_id='42',
+        )
+        self.assertTrue(result1.success, f"First create failed: {result1.message}")
+        event_id_1 = (
+            result1.created_object.get('id')
+            if hasattr(result1, 'created_object') and result1.created_object
+            else None
+        )
+
+        # Second call — same source, different title
+        result2 = handler.handle_create_event(
+            title="Renamed Task Title",
+            start_date="2026-04-15",
+            start_time="10:00",
+            source_type='task',
+            source_id='42',
+        )
+        self.assertTrue(result2.success, f"Second create failed: {result2.message}")
+        event_id_2 = (
+            result2.created_object.get('id')
+            if hasattr(result2, 'created_object') and result2.created_object
+            else None
+        )
+
+        # Same event reused
+        self.assertEqual(event_id_1, event_id_2, "Expected same event PK")
+
+        # Only 1 row in DB for this source
+        row_count = CalendarEvent.objects.filter(
+            user=self.user, source_type='task', source_id='42',
+        ).count()
+        self.assertEqual(row_count, 1, f"Expected 1 row, got {row_count}")
+
+        sys.stdout.write(
+            f"\n  [PROOF] Provider title-edit stability: "
+            f"event_id_1={event_id_1}, event_id_2={event_id_2}, "
+            f"DB rows=1, same_pk={event_id_1 == event_id_2}\n"
+        )
+
+    def test_idempotency_key_ignores_title_for_source_backed(self):
+        """
+        Direct unit test: compute_idempotency_key with source_id
+        produces identical keys regardless of title.
+        """
+        chicago = ZoneInfo('America/Chicago')
+        start = dt.datetime(2026, 5, 1, 9, 0, 0, tzinfo=chicago)
+
+        key1 = compute_idempotency_key(
+            self.user.id, "Original Title", start,
+            source_type='goal', source_id='99',
+        )
+        key2 = compute_idempotency_key(
+            self.user.id, "Completely Different Title", start,
+            source_type='goal', source_id='99',
+        )
+        key3 = compute_idempotency_key(
+            self.user.id, "", start,
+            source_type='goal', source_id='99',
+        )
+
+        self.assertEqual(key1, key2, "Keys must match regardless of title")
+        self.assertEqual(key1, key3, "Keys must match even with empty title")
+
+    def test_manual_event_key_still_uses_title(self):
+        """
+        Manual events (no source_id) must still include title in the key.
+        Different titles → different keys.
+        """
+        chicago = ZoneInfo('America/Chicago')
+        start = dt.datetime(2026, 5, 1, 9, 0, 0, tzinfo=chicago)
+
+        key1 = compute_idempotency_key(
+            self.user.id, "Title A", start,
+        )
+        key2 = compute_idempotency_key(
+            self.user.id, "Title B", start,
+        )
+
+        self.assertNotEqual(key1, key2, "Manual events must differ by title")
+
+
+# ──────────────────────────────────────────────────────────
+# 10) ActionHandler integration concurrency (high-level)
 # ──────────────────────────────────────────────────────────
 
 class TestConcurrentCreateIdempotency(_UserMixin, TransactionTestCase):

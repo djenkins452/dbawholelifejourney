@@ -4,8 +4,9 @@ Deterministic idempotency key generation for CalendarEvent.
 ONE function. No inline hashing elsewhere.
 SHA-256. Fixed-length hex string.
 
-Priority 1 — Source-backed events: hash(user_id, source_type, source_id, canonical_title)
-             Stable across time changes. Differentiates event kinds via title.
+Priority 1 — Source-backed events: hash(user_id, source_type, source_id)
+             Stable across title edits, time changes, and all mutable fields.
+             The source identity IS the event identity.
 
 Priority 2 — Manual events: hash(user_id, start_utc_seconds, end_utc_seconds,
              source_type, canonical_title)
@@ -29,7 +30,7 @@ def compute_idempotency_key(
 
     Args:
         user_id: int — user's primary key
-        title: str — event title (normalized: stripped, collapsed whitespace, lowered)
+        title: str — event title (used only for Priority 2 / manual events)
         start_dt: datetime — event start (timezone-aware)
         end_dt: datetime | None — event end (timezone-aware); defaults to start_dt
         source_type: str — e.g. 'task', 'goal', 'habit', 'none'
@@ -38,13 +39,14 @@ def compute_idempotency_key(
     Returns:
         str — 64-character hex SHA-256 digest
     """
-    canonical_title = " ".join(title.strip().split()).lower()
-
     if source_id:
-        # PRIORITY 1: Source-backed — stable across time changes
-        payload = f"{user_id}:{source_type}:{source_id}:{canonical_title}"
+        # PRIORITY 1: Source-backed — identity is (user, source_type, source_id).
+        # Title, start_dt, end_dt are NOT included. This key is stable
+        # across title edits, time changes, and all mutable field updates.
+        payload = f"{user_id}:{source_type}:{source_id}"
     else:
-        # PRIORITY 2: Manual — include UTC-normalized times
+        # PRIORITY 2: Manual — include UTC-normalized times + title
+        canonical_title = " ".join(title.strip().split()).lower()
         utc_start = start_dt.astimezone(datetime.timezone.utc).replace(microsecond=0)
         start_ts = int(utc_start.timestamp())
 

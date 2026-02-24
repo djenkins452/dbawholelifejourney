@@ -9,6 +9,19 @@
 
 # WLJ Change History
 
+## 2026-02-23 — Phase 9: Idempotency Final Corrections (Provider Stability)
+
+**Root Cause:** Priority 1 idempotency key included `canonical_title` in the hash payload, making it unstable across title edits for provider-backed events. Also, `handle_create_event` hardcoded `source_type=SOURCE_NONE` and never passed `source_type`/`source_id` to `compute_idempotency_key`.
+
+**Changes:**
+1. **compute_idempotency_key Priority 1:** Removed `canonical_title` from payload. Now `hash(user_id:source_type:source_id)` only.
+2. **handle_create_event:** Extracts `source_type`/`source_id` from `**kwargs`, passes to both `compute_idempotency_key()` and `CalendarEvent.objects.create()`.
+3. **New tests:** `TestProviderBackedTitleStability` — 3 tests proving title-edit stability.
+
+**Test results:** 51/51 pass. Provider proof: `event_id_1=34, event_id_2=34, DB rows=1, same_pk=True`.
+
+---
+
 ## 2026-02-23 — Phase 9: PostgreSQL Idempotency & Concurrency Hardening
 
 **Root Cause:** Idempotency lookups in `action_handlers.py` lacked `user=` scope (could match across users). `compute_idempotency_key()` didn't use source_id priority for projected events. Model `save()` auto-computed keys, masking missing-key bugs. Concurrency tests didn't force true IntegrityError paths.

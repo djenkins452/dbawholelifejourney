@@ -2132,15 +2132,31 @@ class ActionHandler:
             except Exception:
                 pass
 
+            # --- Source identity (Phase 9 final) ---
+            # Extract source_type/source_id from kwargs if provided
+            # (e.g. when called from projection or provider-backed paths).
+            # Defaults: manual event with no source.
+            source_type = kwargs.get('source_type', CalendarEvent.SOURCE_NONE)
+            source_id = str(kwargs.get('source_id', '') or '')
+
+            # Map event_kind based on source
+            if source_id:
+                event_kind = CalendarEvent.KIND_EXECUTION_BLOCK
+            else:
+                event_kind = CalendarEvent.KIND_MANUAL
+
             # --- Idempotency key (Phase 9) ---
             from apps.calendar_engine.utils.idempotency import compute_idempotency_key
             idem_key = compute_idempotency_key(
                 self.user.id, title, start_dt, end_dt=end_dt,
+                source_type=source_type, source_id=source_id,
             )
 
             logger.debug(
-                "[SCHED] Idempotency key: %s (user=%s, title=%r, start=%s)",
+                "[SCHED] Idempotency key: %s (user=%s, title=%r, start=%s, "
+                "source_type=%s, source_id=%s)",
                 idem_key[:12], self.user.id, title, start_dt.isoformat(),
+                source_type, source_id,
             )
 
             # --- Atomic boundary (Phase 9) ---
@@ -2174,8 +2190,9 @@ class ActionHandler:
                                 start_dt=start_dt,
                                 end_dt=end_dt,
                                 is_all_day=actual_all_day,
-                                event_kind=CalendarEvent.KIND_MANUAL,
-                                source_type=CalendarEvent.SOURCE_NONE,
+                                event_kind=event_kind,
+                                source_type=source_type,
+                                source_id=source_id,
                                 domain=domain,
                                 idempotency_key=idem_key,
                             )

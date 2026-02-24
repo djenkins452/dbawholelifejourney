@@ -9,6 +9,31 @@
 
 # WLJ Change History
 
+## 2026-02-24 — Fix protected event day-change rule not enforced
+
+**What:** When a user said "Move my Workout next Wednesday to Thursday at 6:15am", the system responded "✓ Updated" instead of blocking the move. Protected events (Workout, Bible Study, Prayer, etc.) must NEVER be moved to a different day — only same-day time changes are allowed. Even `force=True` must not bypass this rule.
+
+**Root cause:** Three bugs in `CalendarMutationService.update()`:
+1. The guard condition used `not force`, allowing `force=True` to bypass the protection entirely
+2. Date comparison used `.date()` on UTC-stored datetimes without user-timezone conversion — events near midnight could compare wrong dates
+3. The guard returned `MutationResult(success=False)` without `requires_decision=True`, so the AI didn't surface a user-facing explanation
+
+**Key changes:**
+- `apps/calendar_engine/services/calendar_mutation_service.py` — Added `_get_user_tz()` helper method. Rewrote the protected day-change guard: removed `not force` bypass (protected events NEVER move cross-day regardless of force), convert both existing and new start dates to user timezone before comparing, return `requires_decision=True` with descriptive error including event title.
+
+**Tests:** 7 new tests in `test_protected_day_rule.py`:
+- Protected same-day time change allowed (with and without force)
+- Protected cross-day move blocked (error includes "protected", "cannot be moved", event title)
+- Unprotected cross-day move allowed
+- `force=True` does NOT bypass protected day rule
+- Auto-protected events (via title pattern like "Workout") also blocked from cross-day moves
+
+**Files changed:**
+- `apps/calendar_engine/services/calendar_mutation_service.py`
+- `apps/calendar_engine/tests/test_protected_day_rule.py` (new)
+
+---
+
 ## 2026-02-24 — Fix update intent not firing for calendar mutation verbs
 
 **What:** When a user said "Change my Workout next Wednesday from 6:15am to 7:00am", the system called `read_calendar_events` (returning "Found 1 event...") but never called `mutate_calendar_event(action="update")`. The update was silently dropped.

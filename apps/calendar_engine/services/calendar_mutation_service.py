@@ -81,6 +81,21 @@ class CalendarMutationService:
         self.user = user
 
     # ------------------------------------------------------------------ #
+    # User timezone helper
+    # ------------------------------------------------------------------ #
+
+    def _get_user_tz(self):
+        """Get user's timezone for local-date comparison. Falls back to UTC."""
+        try:
+            from zoneinfo import ZoneInfo
+            tz_name = self.user.preferences.timezone_iana
+            if tz_name:
+                return ZoneInfo(tz_name)
+        except (AttributeError, Exception):
+            pass
+        return dj_timezone.utc
+
+    # ------------------------------------------------------------------ #
     # Auto-protect logic
     # ------------------------------------------------------------------ #
 
@@ -316,16 +331,25 @@ class CalendarMutationService:
                     )
 
                 # --- Phase 10: Protected event day-change guard ---
+                # Protected events can NEVER be moved to a different day,
+                # even with force=True.  Only same-day time changes allowed.
+                # Compare dates in user's local timezone to avoid UTC vs
+                # local date mismatch near midnight.
                 new_start_dt = update_fields.get('start_dt')
-                if (not force and event.is_protected and new_start_dt
-                        and new_start_dt.date() != event.start_dt.date()):
-                    return MutationResult(
-                        success=False,
-                        error=(
-                            "Protected events cannot be moved to a different day. "
-                            "You can adjust the time within the same day."
-                        ),
-                    )
+                if event.is_protected and new_start_dt:
+                    user_tz = self._get_user_tz()
+                    existing_local_date = event.start_dt.astimezone(user_tz).date()
+                    new_local_date = new_start_dt.astimezone(user_tz).date()
+                    if existing_local_date != new_local_date:
+                        return MutationResult(
+                            success=False,
+                            requires_decision=True,
+                            error=(
+                                f"{event.title} is protected and cannot be moved "
+                                f"to a different day. You can adjust the time "
+                                f"within the same day."
+                            ),
+                        )
 
                 # --- Phase 10: Pre-commit conflict detection ---
                 if not force and new_start_dt:

@@ -298,8 +298,9 @@ document.addEventListener('DOMContentLoaded', function() {
         showProgress();
     });
 
-    // Show progress on form submissions
+    // Show progress on form submissions (skip JS-handled forms like CoS chat)
     document.addEventListener('submit', function(e) {
+        if (e.defaultPrevented) return;
         var form = e.target;
         if (form.hasAttribute('hx-post') || form.hasAttribute('hx-get')) return;
         showProgress();

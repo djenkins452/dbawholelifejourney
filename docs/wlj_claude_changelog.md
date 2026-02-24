@@ -9,6 +9,17 @@
 
 # WLJ Change History
 
+## 2026-02-24 — Fix: Progress bar stuck animating after CoS chat messages
+
+**Root Cause:** The page progress bar in `main.js` hooks into all form `submit` events to show a loading indicator. The CoS chat form (`ap-chat-form`) is a regular `<form>` that calls `e.preventDefault()` and uses `fetch()` — not HTMX or page navigation. Every chat message triggered `showProgress()`, but since `fetch()` doesn't fire `htmx:afterRequest` and the page doesn't navigate, `hideProgress()` was never called. The gold bar animated indefinitely.
+
+**Fix:** Added `if (e.defaultPrevented) return;` check to the form submit handler. Since the chat form's own handler calls `preventDefault()` before the document-level handler fires (target phase before bubble phase), the progress bar is now correctly skipped for JS-handled forms.
+
+**Files:**
+- `static/js/main.js` — Added `e.defaultPrevented` guard to form submit progress bar handler
+
+---
+
 ## 2026-02-24 — Fix: "next Wednesday" ignored by LLM — tool schema + prompt update
 
 **Root Cause:** The `date_resolution.py` resolver correctly handled "next wednesday" → following week, BUT the LLM never sent that string. All three tool schemas (`create_event`, `mutate_calendar_event`, `read_calendar_events`) told the LLM: "Pass weekday names directly (e.g. 'monday', 'wednesday')". The system prompt examples only showed bare weekday names. So the LLM stripped "next" and sent `start_date="wednesday"`.

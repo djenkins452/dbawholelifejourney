@@ -497,3 +497,106 @@ class TestDateResolutionEdgeCases(_UserMixin, TestCase):
             )
             expected = dt.date(2026, 2, 25) + dt.timedelta(days=expected_days_ahead)
             self.assertEqual(result, expected, f"Failed for {abbr}")
+
+
+# ──────────────────────────────────────────────────────────
+# 8) PostgreSQL concurrency: 5 threads, same event, 1 row
+# ──────────────────────────────────────────────────────────
+
+class TestConcurrentCreateIdempotency(_UserMixin, TransactionTestCase):
+    """
+    5 threads call handle_create_event() with identical input concurrently.
+    Exactly 1 DB row must exist and all threads must return the same event.
+    No exceptions, no user-facing failures.
+
+    Uses TransactionTestCase because threading requires real committed data
+    visible across connections.
+    """
+
+    def setUp(self):
+        self.user = self._create_user(email='concurrency@test.local')
+
+    def test_concurrent_create_returns_same_event(self):
+        from apps.ai.action_handlers import ActionHandler
+
+        num_threads = 5
+        results = {}
+        barrier = threading.Barrier(num_threads, timeout=10)
+
+        def create_event(thread_id):
+            from django.db import connection as conn
+            try:
+                handler = ActionHandler(self.user)
+                barrier.wait()
+                result = handler.handle_create_event(
+                    title="Concurrent Test Event",
+                    start_date="2026-03-10",
+                    start_time="14:00",
+                )
+                results[thread_id] = {
+                    'success': result.success,
+                    'message': result.message,
+                    'event_id': (
+                        result.created_object.get('id')
+                        if hasattr(result, 'created_object') and result.created_object
+                        else None
+                    ),
+                    'reused': (
+                        result.created_object.get('reused')
+                        if hasattr(result, 'created_object') and result.created_object
+                        else None
+                    ),
+                    'error': getattr(result, 'error', None),
+                }
+            except Exception as e:
+                results[thread_id] = {
+                    'success': False,
+                    'message': str(e),
+                    'event_id': None,
+                    'reused': None,
+                    'error': f"{type(e).__name__}: {e}",
+                }
+            finally:
+                conn.close()
+
+        threads = [
+            threading.Thread(target=create_event, args=(i,))
+            for i in range(num_threads)
+        ]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=15)
+
+        # --- Assertions ---
+        # All threads must have returned a result
+        self.assertEqual(
+            len(results), num_threads,
+            f"Expected {num_threads} results, got {len(results)}",
+        )
+
+        # All threads must report success
+        failures = [
+            (tid, r) for tid, r in results.items() if not r['success']
+        ]
+        self.assertEqual(
+            len(failures), 0,
+            f"Threads failed: {failures}",
+        )
+
+        # All threads must return the same event ID
+        event_ids = {r['event_id'] for r in results.values()}
+        self.assertEqual(
+            len(event_ids), 1,
+            f"Expected 1 unique event ID, got {event_ids}",
+        )
+
+        # Exactly 1 DB row
+        row_count = CalendarEvent.objects.filter(
+            user=self.user,
+            title="Concurrent Test Event",
+        ).count()
+        self.assertEqual(
+            row_count, 1,
+            f"Expected 1 DB row, got {row_count}",
+        )

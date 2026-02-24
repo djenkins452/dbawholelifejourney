@@ -9,6 +9,26 @@
 
 # WLJ Change History
 
+## 2026-02-23 — Phase 9: PostgreSQL Concurrency Fix (Nested Savepoint)
+
+**Root Cause:** When multiple concurrent requests tried to create the same calendar event, the `IntegrityError` from the unique constraint aborted the PostgreSQL savepoint. The recovery query (re-fetching by idempotency key) then failed with "current transaction is aborted, commands ignored until end of transaction block." This bug was invisible on SQLite due to its single-writer lock.
+
+**Changes:**
+- Wrapped `CalendarEvent.objects.create()` in a nested `transaction.atomic()` savepoint inside `handle_create_event()`. On `IntegrityError`, only the inner savepoint rolls back — the outer transaction stays valid for the idempotent recovery query.
+- Added `TestConcurrentCreateIdempotency` test: 5 threads with `threading.Barrier` confirm exactly 1 DB row and 5 successful results.
+- Added management commands `test_phase9_failure` and `test_phase9_concurrency` for diagnostics.
+- Switched local dev from SQLite to PostgreSQL (`DATABASE_URL=postgres://dannyjenkins@localhost/wlj_dev`).
+
+**Files Modified:**
+- `apps/ai/action_handlers.py` — nested savepoint around `create()`
+- `apps/calendar_engine/tests/test_phase9_calendar_integrity.py` — added concurrency test (20 tests total)
+- `apps/calendar_engine/management/commands/test_phase9_failure.py` — diagnostic command
+- `apps/calendar_engine/management/commands/test_phase9_concurrency.py` — diagnostic command
+
+**Verification:** 20/20 tests pass on PostgreSQL including 5-thread concurrency test. Management command confirms 5/5 threads succeed, 0 exceptions, 1 DB row.
+
+---
+
 ## 2026-02-23 — Hotfix: Calendar Migration Deduplication
 
 **Root Cause:** Migration `0002_phase9_idempotency_and_unique_constraint` failed in production because existing duplicate `(user_id, title, start_dt)` rows violated the new `unique_user_title_start` constraint. The migration tried to create the unique index on data that already had duplicates.

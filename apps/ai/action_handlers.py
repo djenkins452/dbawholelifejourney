@@ -2146,6 +2146,11 @@ class ActionHandler:
             )
 
             # --- Atomic boundary (Phase 9, Section 4) ---
+            # Outer atomic: holds the full idempotency check + verification.
+            # Inner atomic (nested savepoint): wraps only the create() so that
+            # an IntegrityError rolls back the savepoint but keeps the outer
+            # transaction valid for the recovery query. This is required on
+            # PostgreSQL where any error aborts the current savepoint.
             reused = False
             with transaction.atomic():
                 # Check idempotency — return existing event if duplicate
@@ -2161,21 +2166,26 @@ class ActionHandler:
                     reused = True
                 else:
                     try:
-                        event = CalendarEvent.objects.create(
-                            user=self.user,
-                            title=title,
-                            description=description or "",
-                            start_dt=start_dt,
-                            end_dt=end_dt,
-                            is_all_day=actual_all_day,
-                            event_kind=CalendarEvent.KIND_MANUAL,
-                            source_type=CalendarEvent.SOURCE_NONE,
-                            domain=domain,
-                            idempotency_key=idem_key,
-                        )
+                        # Nested savepoint: if IntegrityError fires, only
+                        # this savepoint is rolled back — outer transaction
+                        # remains usable for the recovery query.
+                        with transaction.atomic():
+                            event = CalendarEvent.objects.create(
+                                user=self.user,
+                                title=title,
+                                description=description or "",
+                                start_dt=start_dt,
+                                end_dt=end_dt,
+                                is_all_day=actual_all_day,
+                                event_kind=CalendarEvent.KIND_MANUAL,
+                                source_type=CalendarEvent.SOURCE_NONE,
+                                domain=domain,
+                                idempotency_key=idem_key,
+                            )
                     except IntegrityError:
                         # Race window: concurrent create beat us —
                         # re-query by idempotency_key and return existing.
+                        # This query runs in the outer (still-valid) transaction.
                         logger.info(
                             "[SCHED] IntegrityError race: re-querying "
                             "idempotency_key=%s", idem_key[:12],

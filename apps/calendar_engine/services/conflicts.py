@@ -12,9 +12,23 @@ Two detection layers:
 
 import logging
 
+from django.utils import timezone as dj_timezone
+
 from apps.calendar_engine.models import CalendarEvent, CalendarOverrideLog
 
 logger = logging.getLogger(__name__)
+
+
+def _get_user_tz(user):
+    """Get user's timezone for local-time display. Falls back to current tz."""
+    try:
+        from zoneinfo import ZoneInfo
+        tz_name = user.preferences.timezone_iana
+        if tz_name:
+            return ZoneInfo(tz_name)
+    except (AttributeError, Exception):
+        pass
+    return dj_timezone.get_current_timezone()
 
 
 # ------------------------------------------------------------------ #
@@ -111,6 +125,9 @@ def detect_all_conflicts(user, start_dt, end_dt, exclude_event_id=None):
     Overlap formula: existing.start_dt < new.end_dt AND existing.end_dt > new.start_dt
     Only considers non-canceled, non-deleted events.
 
+    Times in the returned dicts are converted to the user's local timezone
+    so conflict messages display correctly (not UTC).
+
     Returns:
         dict with keys:
             has_conflict (bool)
@@ -127,13 +144,18 @@ def detect_all_conflicts(user, start_dt, end_dt, exclude_event_id=None):
     if exclude_event_id:
         qs = qs.exclude(pk=exclude_event_id)
 
+    user_tz = _get_user_tz(user)
+
     conflicts = []
     for event in qs:
+        # Convert UTC → user timezone for display
+        local_start = event.start_dt.astimezone(user_tz)
+        local_end = event.end_dt.astimezone(user_tz)
         conflicts.append({
             'id': event.pk,
             'title': event.title,
-            'start_dt': event.start_dt.isoformat(),
-            'end_dt': event.end_dt.isoformat(),
+            'start_dt': local_start.isoformat(),
+            'end_dt': local_end.isoformat(),
             'is_protected': event.is_protected,
             'domain': event.domain.name if event.domain else None,
         })
@@ -190,11 +212,17 @@ def build_conflict_message(case, conflicts, suggested_gaps=None):
     for c in conflicts[:3]:
         start = c.get('start_dt', '')
         end = c.get('end_dt', '')
-        # Parse ISO times for display
+        # Parse ISO times for display — times should already be in user tz
+        # from detect_all_conflicts(), but apply localtime() as safety net.
         try:
             from datetime import datetime as _dt
             s = _dt.fromisoformat(start)
             e = _dt.fromisoformat(end)
+            # Safety: if still in UTC, convert to active Django timezone
+            if s.tzinfo is not None:
+                s = dj_timezone.localtime(s)
+            if e.tzinfo is not None:
+                e = dj_timezone.localtime(e)
             time_range = friendly_time_range(s, e)
         except (ValueError, TypeError):
             time_range = f"{start} – {end}"
@@ -213,6 +241,11 @@ def build_conflict_message(case, conflicts, suggested_gaps=None):
                 from datetime import datetime as _dt
                 s = _dt.fromisoformat(g['start_dt']) if isinstance(g['start_dt'], str) else g['start_dt']
                 e = _dt.fromisoformat(g['end_dt']) if isinstance(g['end_dt'], str) else g['end_dt']
+                # Safety: convert to local timezone if aware
+                if hasattr(s, 'tzinfo') and s.tzinfo is not None:
+                    s = dj_timezone.localtime(s)
+                if hasattr(e, 'tzinfo') and e.tzinfo is not None:
+                    e = dj_timezone.localtime(e)
                 alt_lines.append(
                     f"  • {friendly_time_range(s, e)} "
                     f"({g['duration_minutes']} min)"

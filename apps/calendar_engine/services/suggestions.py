@@ -23,16 +23,29 @@ def find_gaps_for_day(user, date=None):
     Find open time windows in a user's day.
     Default work window: 6:00 AM - 10:00 PM.
 
+    All returned datetimes are in the user's local timezone so gap
+    boundaries display correctly in conflict messages and suggestions.
+
     Returns list of dicts: {start_dt, end_dt, duration_minutes}
     """
     if date is None:
         date = timezone.localdate()
 
-    tz = timezone.get_current_timezone()
+    # Use user's explicit timezone (not thread-local) for reliability
+    try:
+        from zoneinfo import ZoneInfo
+        tz_name = user.preferences.timezone_iana
+        tz = ZoneInfo(tz_name) if tz_name else timezone.get_current_timezone()
+    except (AttributeError, Exception):
+        tz = timezone.get_current_timezone()
+
     day_start = timezone.make_aware(dt.datetime.combine(date, dt.time(6, 0)), tz)
     day_end = timezone.make_aware(dt.datetime.combine(date, dt.time(22, 0)), tz)
 
     events = _get_events_for_range(user, day_start, day_end)
+
+    # Normalize all event times to user timezone so cursor stays consistent
+    events = [(s.astimezone(tz), e.astimezone(tz)) for s, e in events]
 
     # Sort by start time
     events.sort(key=lambda e: e[0])

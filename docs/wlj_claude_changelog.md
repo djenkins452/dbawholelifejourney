@@ -9,6 +9,28 @@
 
 # WLJ Change History
 
+## 2026-02-24 — Fix timezone shift in conflict detection and gap calculation
+
+**What:** Critical fix — conflict detection and gap suggestions displayed event times in UTC instead of the user's local timezone. A user scheduling "6:15 AM" (EST, UTC-5) would see "11:15 AM" in conflict messages. The 5-hour shift was caused by `event.start_dt.isoformat()` serializing the UTC value from the database without converting to the user's timezone first.
+
+**Root cause:** Three display-layer functions used raw UTC datetimes from the Django ORM:
+1. `detect_all_conflicts()` — serialized `event.start_dt` (UTC) without conversion
+2. `find_gaps_for_day()` — mixed user-tz day boundaries with UTC event times, causing gap cursors to drift into UTC
+3. `build_conflict_message()` — parsed ISO strings (UTC) and passed to `friendly_time()` which extracted `.time()` without timezone conversion
+
+**Key changes:**
+- `calendar_engine/services/conflicts.py` — Added `_get_user_tz()` helper; `detect_all_conflicts()` now converts event times to user timezone via `.astimezone(user_tz)` before ISO serialization; `build_conflict_message()` applies `dj_timezone.localtime()` as safety net
+- `calendar_engine/services/suggestions.py` — `find_gaps_for_day()` now resolves user timezone explicitly from `user.preferences.timezone_iana` (not thread-local); normalizes all DB event times to user tz before gap calculation loop
+
+**Tests:** 7 new tests in `test_timezone_conflict.py` — EST/CST conflict display, gap duration/boundaries, no double-conversion, CMS end-to-end.
+
+**Files changed:**
+- `apps/calendar_engine/services/conflicts.py`
+- `apps/calendar_engine/services/suggestions.py`
+- `apps/calendar_engine/tests/test_timezone_conflict.py` (new)
+
+---
+
 ## 2026-02-24 — Friendly Date Formatting + Semantic Dedup Fix
 
 **What:** Calendar event messages now use natural date/time formatting ("March 4th at 6:15am" instead of "Mar 04 at 06:15 AM"). Also fixed semantic duplicate detection that allowed duplicate Bible Study events by removing `end_dt` from the dedup check — same title + same start time = duplicate regardless of end time.

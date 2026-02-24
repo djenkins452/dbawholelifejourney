@@ -9,6 +9,17 @@
 
 # WLJ Change History
 
+## 2026-02-24 — Fix: "mark Quiet Time as Faith" created new event instead of updating domain
+
+**What:** "mark X as Y" was not recognized as a mutation verb, so it fell through to create instead of update. Additionally, `_mutate_update()` had no path for changing event_type/domain, and `domain` was not in the mutation service's ALLOWED_FIELDS. Fixed by: (1) adding "mark", "label", "tag", "categorize", "set" to CALENDAR_MUTATION_VERBS, (2) wiring event_type→domain resolution through the update path, (3) adding `domain` to the service's ALLOWED_FIELDS, (4) updating the tool description to tell the LLM about event_type updates for color coding.
+
+**Files:**
+- `apps/ai/intent_service.py` — Added 5 new mutation verbs
+- `apps/ai/intents/calendar_intents.py` — Updated tool description and event_type field description
+- `apps/ai/action_handlers.py` — Added event_type→domain mapping in `_mutate_update()`, passed event_type from handler, added domain label in update response message
+- `apps/calendar_engine/services/calendar_mutation_service.py` — Added `domain` to ALLOWED_FIELDS
+- `apps/ai/tests/test_calendar_crud.py` — 2 new tests (domain update via event_type, clear domain via personal)
+
 ## 2026-02-24 — Fix: Calendar event re-add after delete blocked by soft-delete ghost
 
 **What:** After soft-deleting a calendar event, re-adding the same event returned "no duplicate created" instead of creating a new event. The idempotency check in `CalendarMutationService.create()` was finding the soft-deleted row (still in DB with same idempotency_key) and returning it as `reused=True`. Fixed by excluding `deleted_at IS NOT NULL` / `status=canceled` from both pre-transaction and in-transaction idempotency checks. Also made the DB `UniqueConstraint` on `(user, idempotency_key)` conditional on `deleted_at IS NULL` so the insert doesn't violate the constraint.

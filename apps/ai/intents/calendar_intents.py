@@ -85,11 +85,14 @@ CALENDAR_INTENT_TOOLS = [
             "description": (
                 "Create, update, or delete a calendar event. "
                 "ALWAYS use this tool — not read_calendar_events — when the user "
-                "wants to move, change, reschedule, shift, update, or cancel an event. "
+                "wants to move, change, reschedule, shift, update, mark, label, "
+                "tag, categorize, set, or cancel an event. "
                 "Mutation verbs (move, change, reschedule, shift, update, rename, "
-                "cancel, delete, remove) MUST route here. "
+                "mark, label, tag, set, cancel, delete, remove) MUST route here. "
                 "For update/delete you can supply event_query+event_date instead of "
-                "event_id and the system will resolve the event automatically."
+                "event_id and the system will resolve the event automatically. "
+                "To change an event's category/domain (for color coding), use "
+                "action='update' with event_type set to the new category."
             ),
             "parameters": {
                 "type": "object",
@@ -99,9 +102,9 @@ CALENDAR_INTENT_TOOLS = [
                         "enum": ["create", "update", "delete"],
                         "description": (
                             "The mutation to perform. Use 'update' when the user says "
-                            "move, change, reschedule, shift, update, rename, or "
-                            "'from X to Y'. Use 'delete' when the user says cancel, "
-                            "remove, or delete."
+                            "move, change, reschedule, shift, update, rename, mark, "
+                            "label, tag, categorize, set, or 'from X to Y'. "
+                            "Use 'delete' when the user says cancel, remove, or delete."
                         ),
                     },
                     "idempotency_key": {
@@ -185,7 +188,12 @@ CALENDAR_INTENT_TOOLS = [
                             "personal", "family", "household", "faith",
                             "health", "work", "social", "travel", "other",
                         ],
-                        "description": "Type of event.",
+                        "description": (
+                            "Category/domain of the event (controls color coding). "
+                            "For create: sets the initial domain. For update: changes "
+                            "the domain. Use when the user says 'mark as faith', "
+                            "'label as health', 'categorize as work', etc."
+                        ),
                     },
                     "force_override": {
                         "type": "boolean",

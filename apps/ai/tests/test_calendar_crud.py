@@ -261,6 +261,51 @@ class MutateUpdateTests(CalendarCRUDTestMixin, TestCase):
             service.update(ev.pk, title='Locked Update')
             mock_sfu.assert_called_once()
 
+    def test_mutate_update_domain_via_event_type(self):
+        """Update event_type changes domain for color coding."""
+        from apps.purpose.models import LifeDomain
+        faith = LifeDomain.objects.filter(slug='faith', is_active=True).first()
+        if not faith:
+            faith = LifeDomain.objects.create(name='Faith', slug='faith', is_active=True)
+
+        ev = self._create_event(self.user, 'Quiet Time')
+        self.assertIsNone(ev.domain)
+
+        result = self.handler.handle_mutate_calendar_event(
+            action='update',
+            idempotency_key='update-domain-test',
+            timezone='America/New_York',
+            event_id=ev.pk,
+            event_type='faith',
+        )
+
+        self.assertTrue(result.success, f"Expected success, got: {result.message}")
+        ev.refresh_from_db()
+        self.assertIsNotNone(ev.domain)
+        self.assertEqual(ev.domain.slug, 'faith')
+
+    def test_mutate_update_domain_to_personal_clears(self):
+        """Setting event_type to 'personal' clears the domain."""
+        from apps.purpose.models import LifeDomain
+        faith = LifeDomain.objects.filter(slug='faith', is_active=True).first()
+        if not faith:
+            faith = LifeDomain.objects.create(name='Faith', slug='faith', is_active=True)
+
+        ev = self._create_event(self.user, 'Quiet Time', domain=faith)
+        self.assertEqual(ev.domain.slug, 'faith')
+
+        result = self.handler.handle_mutate_calendar_event(
+            action='update',
+            idempotency_key='clear-domain-test',
+            timezone='America/New_York',
+            event_id=ev.pk,
+            event_type='personal',
+        )
+
+        self.assertTrue(result.success)
+        ev.refresh_from_db()
+        self.assertIsNone(ev.domain)
+
 
 class MutateDeleteTests(CalendarCRUDTestMixin, TestCase):
     """Tests for mutate_calendar_event(action='delete')."""

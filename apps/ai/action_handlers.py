@@ -3352,7 +3352,7 @@ class ActionHandler:
                 service, event_id, idempotency_key, timezone,
                 title=title, start_date=start_date,
                 start_time=start_time, end_time=end_time,
-                description=description,
+                description=description, event_type=event_type,
                 force_override=force_override,
                 **kwargs,
             )
@@ -3445,7 +3445,7 @@ class ActionHandler:
     def _mutate_update(
         self, service, event_id, idempotency_key, timezone,
         title=None, start_date=None, start_time=None, end_time=None,
-        description=None, force_override=False, **kwargs,
+        description=None, event_type=None, force_override=False, **kwargs,
     ) -> ActionResult:
         """Update an existing calendar event via CalendarMutationService."""
         import datetime as dt
@@ -3462,6 +3462,27 @@ class ActionHandler:
             update_fields['title'] = title
         if description is not None:
             update_fields['description'] = description
+
+        # Resolve event_type → domain for color coding
+        if event_type is not None:
+            from apps.purpose.models import LifeDomain
+            domain_map = {
+                'health': 'health', 'fitness': 'health',
+                'work': 'work', 'professional': 'work',
+                'faith': 'faith', 'spiritual': 'faith',
+                'family': 'family',
+                'personal': None,
+            }
+            slug = domain_map.get(event_type)
+            if slug:
+                domain = LifeDomain.objects.filter(
+                    slug=slug, is_active=True,
+                ).first()
+                if domain:
+                    update_fields['domain'] = domain
+            else:
+                # "personal" or unmapped → clear domain
+                update_fields['domain'] = None
 
         # Resolve date/time if provided
         if start_date or start_time:
@@ -3568,6 +3589,9 @@ class ActionHandler:
                     msg_parts.append(f"moved to {friendly_datetime(event.start_dt)}")
                 elif field_name == 'title':
                     msg_parts.append(f"renamed to \"{diff['new']}\"")
+                elif field_name == 'domain':
+                    domain_label = diff['new'] if diff['new'] != 'None' else 'Personal'
+                    msg_parts.append(f"labeled as {domain_label}")
 
         if result.conflict_warning:
             msg_parts.append(result.conflict_warning)

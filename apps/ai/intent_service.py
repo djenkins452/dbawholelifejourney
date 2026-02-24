@@ -431,6 +431,7 @@ Examples:
     CALENDAR_MUTATION_VERBS = {
         'move', 'change', 'reschedule', 'shift', 'update',
         'rename', 'cancel', 'delete', 'remove',
+        'mark', 'label', 'tag', 'categorize', 'set',
     }
 
     def _enforce_mutation_routing(

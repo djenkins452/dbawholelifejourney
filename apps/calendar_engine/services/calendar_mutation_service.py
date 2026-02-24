@@ -394,7 +394,7 @@ class CalendarMutationService:
         """
         ALLOWED_FIELDS = {
             'title', 'description', 'start_dt', 'end_dt',
-            'is_all_day', 'is_protected', 'status',
+            'is_all_day', 'is_protected', 'status', 'domain',
         }
         update_fields = {k: v for k, v in fields.items() if k in ALLOWED_FIELDS}
         if not update_fields:

@@ -1034,6 +1034,35 @@ document.addEventListener('DOMContentLoaded', function() {
     // Upload with Retry
     // =============================================================================
 
+    // Infer correct MIME type — iOS Files may report application/octet-stream
+    // for formats it doesn't natively recognize (e.g., .webm)
+    function inferMimeType(blob) {
+        var browserType = blob.type;
+        if (browserType && browserType.startsWith('audio/')) {
+            return browserType;
+        }
+        if (browserType === 'video/mp4') {
+            return browserType; // accepted — some browsers report audio as video/mp4
+        }
+        // If blob came from a File with a name, derive from extension
+        if (blob.name) {
+            var ext = '.' + blob.name.split('.').pop().toLowerCase();
+            var extToMime = {
+                '.mp3': 'audio/mpeg',
+                '.m4a': 'audio/mp4',
+                '.mp4': 'audio/mp4',
+                '.wav': 'audio/wav',
+                '.webm': 'audio/webm',
+                '.ogg': 'audio/ogg',
+                '.caf': 'audio/x-caf',
+                '.aac': 'audio/aac',
+            };
+            if (extToMime[ext]) return extToMime[ext];
+        }
+        // Default for recordings is webm (most common MediaRecorder output)
+        return browserType || 'audio/webm';
+    }
+
     async function sleep(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
@@ -1053,7 +1082,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // Step 1: Get presigned upload URL
             const duration = savedDuration ? Math.floor(savedDuration / 1000) : null;
-            const mimeType = audioBlob.type || 'audio/webm';
+            const mimeType = inferMimeType(audioBlob);
 
             const getUrlResponse = await fetch("{% url 'capture:submit' %}", {
                 method: 'POST',

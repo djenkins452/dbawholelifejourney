@@ -185,6 +185,7 @@ def build_conflict_message(case, conflicts, suggested_gaps=None):
         str: Message for the user
     """
     # Format conflicting event titles with times
+    from apps.calendar_engine.utils.formatting import friendly_time_range
     conflict_lines = []
     for c in conflicts[:3]:
         start = c.get('start_dt', '')
@@ -194,7 +195,7 @@ def build_conflict_message(case, conflicts, suggested_gaps=None):
             from datetime import datetime as _dt
             s = _dt.fromisoformat(start)
             e = _dt.fromisoformat(end)
-            time_range = f"{s.strftime('%I:%M %p')} – {e.strftime('%I:%M %p')}"
+            time_range = friendly_time_range(s, e)
         except (ValueError, TypeError):
             time_range = f"{start} – {end}"
 
@@ -213,7 +214,7 @@ def build_conflict_message(case, conflicts, suggested_gaps=None):
                 s = _dt.fromisoformat(g['start_dt']) if isinstance(g['start_dt'], str) else g['start_dt']
                 e = _dt.fromisoformat(g['end_dt']) if isinstance(g['end_dt'], str) else g['end_dt']
                 alt_lines.append(
-                    f"  • {s.strftime('%I:%M %p')} – {e.strftime('%I:%M %p')} "
+                    f"  • {friendly_time_range(s, e)} "
                     f"({g['duration_minutes']} min)"
                 )
             except (ValueError, TypeError, KeyError):

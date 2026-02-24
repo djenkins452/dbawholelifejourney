@@ -153,13 +153,15 @@ class CalendarMutationService:
             )
 
         # --- Semantic duplicate check (before conflict detection) ---
+        # Match on title + start_dt only (not end_dt).  Events with the
+        # same name and start time are semantically the same even when
+        # the caller supplies a different duration.
         semantic_dup = (
             CalendarEvent.objects
             .filter(
                 user=self.user,
                 title__iexact=title.strip(),
                 start_dt=start_dt,
-                end_dt=end_dt,
                 deleted_at__isnull=True,
             )
             .exclude(status=CalendarEvent.STATUS_CANCELED)
@@ -204,7 +206,6 @@ class CalendarMutationService:
                         user=self.user,
                         title__iexact=title.strip(),
                         start_dt=start_dt,
-                        end_dt=end_dt,
                         deleted_at__isnull=True,
                     )
                     .exclude(status=CalendarEvent.STATUS_CANCELED)

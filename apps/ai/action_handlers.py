@@ -2375,6 +2375,13 @@ class ActionHandler:
         except Exception as e:
             logger.debug(f"CoS drift recompute skipped: {e}")
 
+        # Phase 10: Evaluate schedule instability after event creation
+        try:
+            from apps.core.drift.engine import DriftEngine
+            DriftEngine.evaluate_schedule_instability(user)
+        except Exception as e:
+            logger.debug(f"Schedule instability evaluation skipped: {e}")
+
         try:
             from apps.core.blueprint.weekly_pressure import compute_weekly_pressure
             from apps.core.blueprint.human_language import translate_capacity

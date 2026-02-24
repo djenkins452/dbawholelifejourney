@@ -20,7 +20,7 @@ from apps.calendar_engine.models import CalendarEvent
 from apps.calendar_engine.utils.idempotency import compute_idempotency_key
 from apps.core.ai_state.models import UserState
 from apps.core.drift.engine import DriftEngine
-from apps.core.drift.models import DriftSignal, ScheduleExecutionLog
+from apps.core.drift.models import DriftSignal, ExecutionLog
 from apps.core.drift.weights import compute_schedule_change_weight
 
 User = get_user_model()
@@ -113,7 +113,7 @@ class SmallShiftsNoInstabilityTest(DriftEngineTestMixin, TestCase):
             )
 
         # All logs should have instability_points=0
-        logs = ScheduleExecutionLog.objects.filter(user=self.user)
+        logs = ExecutionLog.objects.filter(user=self.user)
         self.assertEqual(logs.count(), 3)
         for log in logs:
             self.assertEqual(log.instability_points, 0)
@@ -142,7 +142,7 @@ class LargeShiftsEscalationTest(DriftEngineTestMixin, TestCase):
             )
 
         # Total instability: 3 * 3 = 9 points >= threshold(8)
-        logs = ScheduleExecutionLog.objects.filter(user=self.user)
+        logs = ExecutionLog.objects.filter(user=self.user)
         self.assertEqual(logs.count(), 3)
         total = sum(l.instability_points for l in logs)
         self.assertEqual(total, 9)
@@ -177,7 +177,7 @@ class NonTierEventsNoEscalationTest(DriftEngineTestMixin, TestCase):
             )
 
         # Points are logged
-        logs = ScheduleExecutionLog.objects.filter(user=self.user)
+        logs = ExecutionLog.objects.filter(user=self.user)
         total_pts = sum(l.instability_points for l in logs)
         self.assertEqual(total_pts, 9)
 
@@ -237,7 +237,7 @@ class IdempotencyDeduplicationTest(DriftEngineTestMixin, TestCase):
         self.assertIsNotNone(log1)
         self.assertIsNone(log2)
         self.assertEqual(
-            ScheduleExecutionLog.objects.filter(user=self.user).count(), 1,
+            ExecutionLog.objects.filter(user=self.user).count(), 1,
         )
 
 
@@ -257,12 +257,12 @@ class TransactionSafetyTest(DriftEngineTestMixin, TestCase):
             self.assertIsNotNone(log)
 
             # Verify we can still query after DriftEngine ran
-            count = ScheduleExecutionLog.objects.filter(user=self.user).count()
+            count = ExecutionLog.objects.filter(user=self.user).count()
             self.assertEqual(count, 1)
 
         # After atomic block, data persisted
         self.assertEqual(
-            ScheduleExecutionLog.objects.filter(user=self.user).count(), 1,
+            ExecutionLog.objects.filter(user=self.user).count(), 1,
         )
 
     def test_drift_engine_duplicate_inside_atomic_no_abort(self):
@@ -286,5 +286,5 @@ class TransactionSafetyTest(DriftEngineTestMixin, TestCase):
 
             # Transaction still alive — can query
             self.assertEqual(
-                ScheduleExecutionLog.objects.filter(user=self.user).count(), 1,
+                ExecutionLog.objects.filter(user=self.user).count(), 1,
             )

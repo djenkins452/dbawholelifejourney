@@ -9,6 +9,29 @@
 
 # WLJ Change History
 
+## 2026-02-24 — Phase 10 Consolidation: ExecutionLog Rename & Integration Move
+
+**What:** Structural consolidation — renamed `ScheduleExecutionLog` → `ExecutionLog` as the sole behavioral log table. Moved DriftEngine integration from REST API views into the CoS post-scheduling chain (inside `handle_create_event` flow).
+
+**Changes:**
+1. **Model rename:** `ScheduleExecutionLog` → `ExecutionLog` with new table name `core_execution_log`, updated related names and constraints.
+2. **DriftEngine update:** All references updated to `ExecutionLog`.
+3. **Integration moved:** Removed DriftEngine calls from `EventDetailView.patch()` and `EventMoveView.post()` in views.py. Added `DriftEngine.evaluate_schedule_instability()` to `_run_cos_post_scheduling()` in action_handlers.py.
+4. **Migration:** Proper `RenameModel` migration (0097) that preserves data, renames table, and updates constraints/indexes.
+
+**Files:**
+- `apps/core/drift/models.py` (model rename)
+- `apps/core/drift/engine.py` (references updated)
+- `apps/core/models.py` (model registry updated)
+- `apps/calendar_engine/views.py` (DriftEngine calls removed)
+- `apps/ai/action_handlers.py` (DriftEngine evaluation added)
+- `apps/core/drift/tests/test_drift_engine.py` (references updated)
+- `apps/core/migrations/0097_*` (rename migration)
+
+**Tests:** 14/14 drift tests pass. 24/24 calendar integrity tests pass.
+
+---
+
 ## 2026-02-23 — Phase 10: Schedule Drift Engine
 
 **What:** Minimal DriftEngine that detects weighted schedule instability over a rolling 7-day window and triggers controlled CoS escalation signals.

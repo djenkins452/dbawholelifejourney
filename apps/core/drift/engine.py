@@ -12,7 +12,7 @@ import logging
 from django.db.models import Sum
 from django.utils import timezone
 
-from apps.core.drift.models import DriftSignal, ScheduleExecutionLog
+from apps.core.drift.models import DriftSignal, ExecutionLog
 from apps.core.drift.weights import compute_schedule_change_weight
 
 logger = logging.getLogger(__name__)
@@ -44,7 +44,7 @@ class DriftEngine:
             new_start: datetime — new start (aware).
 
         Returns:
-            ScheduleExecutionLog or None (if idempotency dedupe).
+            ExecutionLog or None (if idempotency dedupe).
         """
         result = compute_schedule_change_weight(old_start, new_start)
 
@@ -54,12 +54,12 @@ class DriftEngine:
         )
 
         event_type = (
-            ScheduleExecutionLog.EVENT_TYPE_DATE_CHANGE
+            ExecutionLog.EVENT_TYPE_DATE_CHANGE
             if result['date_changed']
-            else ScheduleExecutionLog.EVENT_TYPE_TIME_SHIFT
+            else ExecutionLog.EVENT_TYPE_TIME_SHIFT
         )
 
-        log, created = ScheduleExecutionLog.objects.get_or_create(
+        log, created = ExecutionLog.objects.get_or_create(
             user=user,
             idempotency_key=idem_key,
             defaults={
@@ -104,7 +104,7 @@ class DriftEngine:
         window_start = window_end - timezone.timedelta(days=7)
 
         # 1) Query last 7 days with instability_points > 0
-        logs = ScheduleExecutionLog.objects.filter(
+        logs = ExecutionLog.objects.filter(
             user=user,
             occurred_at__date__gte=window_start,
             occurred_at__date__lte=window_end,

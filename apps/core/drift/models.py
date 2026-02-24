@@ -1,7 +1,8 @@
 """
 Phase 10 — Schedule Drift Detection Models.
 
-ScheduleExecutionLog: Tracks schedule changes with instability weighting.
+ExecutionLog: The sole behavioral log table — tracks schedule changes
+    with instability weighting.
 DriftSignal: Records when schedule instability crosses escalation threshold.
 """
 
@@ -10,9 +11,9 @@ from django.db import models
 from django.utils import timezone
 
 
-class ScheduleExecutionLog(models.Model):
+class ExecutionLog(models.Model):
     """
-    Log of schedule change events with instability scoring.
+    The sole behavioral log table for schedule change events.
 
     Each entry records a calendar event modification (time shift, reschedule)
     with deterministic weight and instability points computed from the delta.
@@ -31,12 +32,12 @@ class ScheduleExecutionLog(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name='schedule_execution_logs',
+        related_name='execution_logs',
     )
     calendar_event = models.ForeignKey(
         'calendar_engine.CalendarEvent',
         on_delete=models.CASCADE,
-        related_name='execution_logs',
+        related_name='cal_execution_logs',
     )
     event_type = models.CharField(
         max_length=20,
@@ -53,12 +54,12 @@ class ScheduleExecutionLog(models.Model):
 
     class Meta:
         app_label = 'core'
-        db_table = 'core_schedule_execution_log'
+        db_table = 'core_execution_log'
         ordering = ['-occurred_at']
         constraints = [
             models.UniqueConstraint(
                 fields=['user', 'idempotency_key'],
-                name='uq_schedule_exec_log_user_idempotency',
+                name='uq_exec_log_user_idempotency',
             ),
         ]
         indexes = [
@@ -67,7 +68,7 @@ class ScheduleExecutionLog(models.Model):
 
     def __str__(self):
         return (
-            f"ScheduleExecLog user={self.user_id} "
+            f"ExecutionLog user={self.user_id} "
             f"event={self.calendar_event_id} "
             f"pts={self.instability_points} w={self.weight}"
         )

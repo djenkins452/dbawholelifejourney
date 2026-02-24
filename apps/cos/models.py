@@ -194,6 +194,13 @@ class CosPromptSchedule(TimeStampedModel):
     delivered_at = models.DateTimeField(null=True, blank=True)
     responded_at = models.DateTimeField(null=True, blank=True)
 
+    # Metadata (tone, style, etc.)
+    metadata = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Contextual metadata (tone, style, delivery info)",
+    )
+
     # Response tracking
     response_positive = models.BooleanField(
         null=True,

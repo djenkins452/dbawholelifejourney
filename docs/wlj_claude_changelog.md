@@ -9,6 +9,21 @@
 
 # WLJ Change History
 
+## 2026-02-24 — CoS v2 Phase 9: Tone Modes + Final Integration
+
+**What:** Context-sensitive tone selection for CoS interactions. Activity type, time of day, and user sentiment history determine prompt tone (encouraging, gentle, direct, celebratory, empathetic, energized, reflective). Integrated with prompt delivery, action router, and user response style preferences.
+
+**Key changes:**
+- `apps/cos/services/tone_service.py` — New CosToneService with 8 tone modifiers, activity-type mapping, time-of-day overrides, sentiment-aware selection, and response style integration
+- `apps/cos/services/prompt_service.py` — Wired `_apply_tone_modifier()` into prompt delivery, stores tone in metadata
+- `apps/cos/models.py` — Added `metadata` JSONField to CosPromptSchedule
+- `apps/core/ai_orchestrator/action_router.py` — Added `user` param and tone enrichment to `route_action()`, `tone` field on EnrichedAction
+- `apps/cos/tests/test_tone_service.py` — 27 tone mode tests
+- `apps/cos/tests/test_integration.py` — 12 end-to-end integration tests
+- `apps/cos/migrations/0002_add_metadata_to_prompt_schedule.py` — Migration for metadata field
+
+---
+
 ## 2026-02-24 — CoS v2 Phase 8: Priority + Time-of-Day Auto-Shifting
 
 **What:** Created CosAutoShiftService for intelligent event rescheduling with human-realism constraints. Events are classified by priority (high/medium/low) based on protected status and activity type. Only low-priority events auto-shift; medium/high require user confirmation. Time-of-day suitability rules prevent nonsensical shifts (no late-night workouts, therapy only during daytime). Full audit trail via CosAutoShiftLog.

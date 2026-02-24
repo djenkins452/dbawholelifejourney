@@ -1,7 +1,7 @@
 # CoS (Chief of Staff) v2 — Master Project Tracker
 
 **Created:** 2026-02-24
-**Status:** Phase 8 Complete — Ready for Phase 9
+**Status:** Phase 9 Complete — Ready for Phase 10
 **Owner:** Claude Code (lead engineer)
 
 ---
@@ -347,11 +347,21 @@ Journal append logic lives in a new `JournalCosActions` service that checks for 
 **Goal:** Context-sensitive tone and full system integration
 
 **Tasks:**
-- [ ] Implement tone mode selection (work vs personal context detection)
-- [ ] Wire tone into CoS prompt generation
-- [ ] Integrate all CoS actions with UAIO action router
-- [ ] End-to-end integration tests across all modules
-- [ ] Update CoS_Project_v2.md
+- [x] Implement tone mode selection (work vs personal context detection)
+- [x] Wire tone into CoS prompt generation
+- [x] Integrate all CoS actions with UAIO action router
+- [x] End-to-end integration tests across all modules
+- [x] Update CoS_Project_v2.md
+
+**Completion Notes:**
+- Created `CosToneService` with 8 tone modifiers (encouraging, gentle, direct, celebratory, empathetic, energized, reflective, neutral)
+- Context-sensitive selection: activity type → time-of-day override → sentiment override (highest priority)
+- Wired into `CosPromptService.deliver_prompt()` — stores tone in prompt metadata
+- Added `user` parameter to `route_action()` for tone enrichment in action router
+- Added `metadata` JSONField to `CosPromptSchedule` model
+- Response style instruction from `cos_response_style` user preference (concise/balanced/strategic/deep_dive)
+- 39 new tests: 27 tone service + 12 integration (pipeline, cross-service, feature flag)
+- Total CoS tests: **352** (all passing)
 
 **Files to Touch:**
 - `apps/cos/services/tone_service.py`

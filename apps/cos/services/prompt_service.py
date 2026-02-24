@@ -200,13 +200,16 @@ class CosPromptService:
         """
         Deliver a single prompt.
 
-        Marks it as delivered and optionally routes through DNE.
-        Returns True if delivered successfully.
+        Applies tone modifier, marks as delivered, and optionally routes
+        through DNE. Returns True if delivered successfully.
         """
         if prompt.status != CosPromptSchedule.STATUS_PENDING:
             return False
 
         try:
+            # Apply tone modifier to prompt text before delivery
+            self._apply_tone_modifier(prompt)
+
             prompt.mark_delivered()
 
             # Route through DNE if available
@@ -444,6 +447,36 @@ class CosPromptService:
                 "Failed to capture reflection from prompt %s: %s",
                 prompt.pk, e,
             )
+
+    def _apply_tone_modifier(self, prompt: CosPromptSchedule):
+        """
+        Apply tone modifier to prompt text based on context.
+
+        Uses CosToneService to select context-appropriate tone and
+        prepends the tone instruction to the prompt_text metadata.
+        The tone is stored on the prompt for audit/analytics.
+        """
+        try:
+            from apps.cos.services.tone_service import CosToneService
+
+            tone_svc = CosToneService(self.user)
+            tone_key, tone_instruction = tone_svc.select_tone_for_prompt(prompt)
+
+            # Store the selected tone on the prompt metadata
+            if not prompt.metadata:
+                prompt.metadata = {}
+            prompt.metadata["tone"] = tone_key
+            if tone_instruction:
+                prompt.metadata["tone_instruction"] = tone_instruction
+
+            # Get response style instruction too
+            style_instruction = tone_svc.get_response_style_instruction()
+            if style_instruction:
+                prompt.metadata["response_style_instruction"] = style_instruction
+
+            prompt.save(update_fields=["metadata"])
+        except Exception as e:
+            logger.debug("Tone modifier not applied (non-fatal): %s", e)
 
     @staticmethod
     def _get_activity_icon(activity_type: str) -> str:

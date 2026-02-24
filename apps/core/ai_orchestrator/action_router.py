@@ -28,6 +28,7 @@ class EnrichedAction:
         "time_resolved",
         "context_resolved",
         "original_input",
+        "tone",
     )
 
     def __init__(self, intent_type, parameters, original_input=None):
@@ -37,9 +38,10 @@ class EnrichedAction:
         self.time_resolved = parameters.get("_time_resolved", False)
         self.context_resolved = parameters.get("_context_resolved", False)
         self.original_input = original_input
+        self.tone = parameters.get("_tone", None)
 
     def to_dict(self):
-        return {
+        result = {
             "intent_type": self.intent_type,
             "module": self.module,
             "time_resolved": self.time_resolved,
@@ -50,12 +52,15 @@ class EnrichedAction:
                 if not k.startswith("_")
             },
         }
+        if self.tone:
+            result["tone"] = self.tone
+        return result
 
 
 def route_action(intent_type, parameters, time_result=None, context_result=None,
-                  original_input=None):
+                  original_input=None, user=None):
     """
-    Enrich intent parameters with time/context resolution and prepare for execution.
+    Enrich intent parameters with time/context/tone resolution and prepare for execution.
 
     This is called BETWEEN intent recognition and intent execution.
 
@@ -65,6 +70,7 @@ def route_action(intent_type, parameters, time_result=None, context_result=None,
         time_result: InterpretationResult from HTIE (optional).
         context_result: MemoryResolution from SLCME (optional).
         original_input: The original user message.
+        user: The user making the request (optional, for tone enrichment).
 
     Returns:
         EnrichedAction ready for execution.
@@ -80,6 +86,23 @@ def route_action(intent_type, parameters, time_result=None, context_result=None,
         enriched_params["_context_type"] = context_result.meaning_type
         enriched_params["_context_id"] = context_result.meaning_identifier
         enriched_params["_context_resolved"] = True
+
+    # Enrich with tone if user is available and CoS v2 enabled
+    if user:
+        try:
+            cos_enabled = getattr(
+                getattr(user, "preferences", None),
+                "cos_v2_enabled", False,
+            )
+            if cos_enabled:
+                from apps.cos.services.tone_service import CosToneService
+
+                tone_svc = CosToneService(user)
+                activity_type = enriched_params.get("activity_type", "default")
+                tone = tone_svc.select_tone(activity_type=activity_type)
+                enriched_params["_tone"] = tone
+        except Exception as e:
+            logger.debug("Tone enrichment skipped: %s", e)
 
     return EnrichedAction(
         intent_type=intent_type,

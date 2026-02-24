@@ -359,6 +359,13 @@ class EventDetailView(LoginRequiredMixin, View):
 
             event.save()
 
+            # Phase 10: Record schedule change for drift detection
+            if 'start_dt' in data and original_start_dt != event.start_dt:
+                from apps.core.drift.engine import DriftEngine
+                DriftEngine.record_schedule_change(
+                    request.user, event, original_start_dt, event.start_dt,
+                )
+
             # Post-write verification: re-fetch and confirm changes applied
             verified = CalendarEvent.objects.get(pk=pk, user=request.user)
             changes_applied = False
@@ -456,10 +463,20 @@ class EventMoveView(LoginRequiredMixin, View):
                     reason=data.get('override_reason', 'User confirmed override')
                 )
 
+        # Capture original start for drift tracking
+        original_start_dt = event.start_dt
+
         # Perform the move
         event.start_dt = new_start
         event.end_dt = new_end
         event.save()
+
+        # Phase 10: Record schedule change for drift detection
+        if original_start_dt != new_start:
+            from apps.core.drift.engine import DriftEngine
+            DriftEngine.record_schedule_change(
+                request.user, event, original_start_dt, new_start,
+            )
 
         # Writeback to source
         writeback_result = self._writeback(event, new_start, new_end)

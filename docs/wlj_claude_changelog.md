@@ -9,6 +9,30 @@
 
 # WLJ Change History
 
+## 2026-02-23 — Phase 10: Schedule Drift Engine
+
+**What:** Minimal DriftEngine that detects weighted schedule instability over a rolling 7-day window and triggers controlled CoS escalation signals.
+
+**Changes:**
+1. **New models:** `ScheduleExecutionLog` (schedule change tracking with instability points/weight, idempotency-keyed), `DriftSignal` (escalation signal with unique constraint per user/type/window).
+2. **UserState fields:** Added `schedule_instability_score` (rolling 7-day total) and `schedule_instability_last_updated` to UserState model.
+3. **Weight calculation:** Deterministic `compute_schedule_change_weight()` — 0-14min=0pts, 15-59min=1pt, 60-179min=3pts, 180+min=5pts, date change overrides.
+4. **DriftEngine service:** `DriftEngine.record_schedule_change()` and `evaluate_schedule_instability()` — threshold=8 points, requires Tier-1/protected involvement and 2+ distinct events.
+5. **Integration:** Hooked into `EventDetailView.patch()` and `EventMoveView.post()` inside existing atomic blocks.
+6. **PostgreSQL safety:** Uses `get_or_create` (not `create` + catch `IntegrityError`) to prevent transaction abort on duplicates.
+
+**Files:**
+- `apps/core/drift/__init__.py`, `models.py`, `weights.py`, `engine.py` (new)
+- `apps/core/drift/tests/test_drift_engine.py` (new — 14 tests)
+- `apps/core/ai_state/models.py` (UserState fields)
+- `apps/core/models.py` (model registration)
+- `apps/calendar_engine/views.py` (integration points)
+- `apps/core/migrations/0096_*` (migration)
+
+**Tests:** 14/14 pass. 24/24 calendar integrity tests pass.
+
+---
+
 ## 2026-02-23 — Phase 9: Idempotency Final Corrections (Provider Stability)
 
 **Root Cause:** Priority 1 idempotency key included `canonical_title` in the hash payload, making it unstable across title edits for provider-backed events. Also, `handle_create_event` hardcoded `source_type=SOURCE_NONE` and never passed `source_type`/`source_id` to `compute_idempotency_key`.

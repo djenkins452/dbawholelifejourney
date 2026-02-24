@@ -27,6 +27,18 @@ class UserState(models.Model):
         default=dict,
         help_text="Structured state snapshot keyed by module.",
     )
+
+    # Phase 10 — Schedule instability (rolling 7-day total)
+    schedule_instability_score = models.IntegerField(
+        default=0,
+        help_text="Rolling 7-day schedule instability points total.",
+    )
+    schedule_instability_last_updated = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When schedule_instability_score was last recalculated.",
+    )
+
     last_updated = models.DateTimeField(auto_now=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

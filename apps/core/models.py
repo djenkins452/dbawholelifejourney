@@ -2302,3 +2302,9 @@ from apps.core.ai_arbitration.models import (  # noqa: E402, F401
     ScenarioHistory,
     WeightAdjustment,
 )
+
+# Phase 10 — Schedule drift detection models
+from apps.core.drift.models import (  # noqa: E402, F401
+    DriftSignal,
+    ScheduleExecutionLog,
+)

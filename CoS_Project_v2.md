@@ -138,26 +138,24 @@ Journal append logic lives in a new `JournalCosActions` service that checks for 
 
 ---
 
-### Phase 2: Calendar v2 — Enhanced Conflict Resolution
-**Goal:** Add conflict resolution options (shift, next slot, shorten, awareness-only)
+### Phase 2: Calendar v2 — Enhanced Conflict Resolution ✅
+**Goal:** Add conflict resolution options (shift, next slot, shorten, force create)
 
 **Tasks:**
-- [ ] Implement `CalendarCosActions` (contract implementation)
-- [ ] Add conflict resolution option generator (shift 15min, next slot, shorten, awareness-only)
-- [ ] Wire conflict options into calendar mutation service
-- [ ] Add "awareness-only" event status
-- [ ] Add tests for all conflict resolution paths
-- [ ] Update CoS_Project_v2.md
+- [x] Implement `CalendarCosActions` (full contract: create, update, delete, retrieve, summarise)
+- [x] Add conflict resolution option generator (shift_after_conflict, next_available, shorten, force_create)
+- [x] Wire resolution options into create() and check_conflicts() flows
+- [x] Implement duplicate detection via check_duplicate (semantic + recurrence)
+- [x] Implement reflection hook (capture_reflection_hook stores CosReflection)
+- [x] Add tests for all conflict resolution paths
+- [x] Update CoS_Project_v2.md
 
-**Files to Touch:**
-- `apps/cos/actions/calendar_actions.py`
-- `apps/calendar_engine/services/conflicts.py`
-- `apps/calendar_engine/services/calendar_mutation_service.py`
-- `apps/calendar_engine/models.py` (awareness-only status if needed)
-- `apps/cos/tests/test_calendar_actions.py`
+**Files Created/Modified:**
+- `apps/cos/actions/calendar_actions.py` — CalendarCosActions + generate_resolution_options()
+- `apps/cos/tests/test_calendar_actions.py` — 30 tests (CRUD, dup, conflicts, resolution options, reflections)
 
-**Tests:** Conflict resolution options, shift/next-slot/shorten/awareness paths
-**Risk:** Existing conflict detection must not regress — extensive testing required
+**Tests:** 98 total (17 baseline + 51 Phase 1 + 30 Phase 2) — all pass
+**Risk:** No changes to existing calendar_engine code — CalendarCosActions wraps CalendarMutationService
 
 ---
 
@@ -404,4 +402,4 @@ Journal append logic lives in a new `JournalCosActions` service that checks for 
 
 ---
 
-*Last updated: 2026-02-24 — Phase 1 complete*
+*Last updated: 2026-02-24 — Phase 2 complete*

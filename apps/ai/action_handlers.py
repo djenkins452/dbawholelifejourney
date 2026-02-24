@@ -2133,16 +2133,12 @@ class ActionHandler:
                 pass
 
             # --- Idempotency key (Phase 9, Section 3 + Phase 9.1 normalization) ---
-            normalized_title = " ".join(title.strip().split()).lower()
-            idem_key = hashlib.sha256(
-                f"{self.user.id}:{normalized_title}:{start_dt.isoformat()}".encode()
-            ).hexdigest()
+            from apps.calendar_engine.utils.idempotency import compute_idempotency_key
+            idem_key = compute_idempotency_key(self.user.id, title, start_dt)
 
             logger.debug(
-                "[SCHED] Idempotency key: %s (user=%s, title=%r, "
-                "normalized=%r, start=%s)",
-                idem_key[:12], self.user.id, title,
-                normalized_title, start_dt.isoformat(),
+                "[SCHED] Idempotency key: %s (user=%s, title=%r, start=%s)",
+                idem_key[:12], self.user.id, title, start_dt.isoformat(),
             )
 
             # --- Atomic boundary (Phase 9, Section 4) ---

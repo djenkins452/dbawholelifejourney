@@ -26,6 +26,7 @@ from freezegun import freeze_time
 
 from apps.calendar_engine.models import CalendarEvent
 from apps.calendar_engine.utils.date_resolution import resolve_weekday_to_date
+from apps.calendar_engine.utils.idempotency import compute_idempotency_key
 
 User = get_user_model()
 
@@ -337,12 +338,14 @@ class TestPatchVerifiesChange(_UserMixin, TestCase):
         self.client.force_login(self.user)
 
         chicago = ZoneInfo('America/Chicago')
+        start_dt = dt.datetime(2026, 3, 15, 10, 0, 0, tzinfo=chicago)
         self.event = CalendarEvent.objects.create(
             user=self.user,
             title="Original Title",
             description="Original description",
-            start_dt=dt.datetime(2026, 3, 15, 10, 0, 0, tzinfo=chicago),
+            start_dt=start_dt,
             end_dt=dt.datetime(2026, 3, 15, 11, 0, 0, tzinfo=chicago),
+            idempotency_key=compute_idempotency_key(self.user.id, "Original Title", start_dt),
         )
 
     def test_patch_with_valid_change(self):
@@ -386,11 +389,13 @@ class TestDeleteRowCountValidation(_UserMixin, TestCase):
         self.client.force_login(self.user)
 
         chicago = ZoneInfo('America/Chicago')
+        start_dt = dt.datetime(2026, 3, 20, 10, 0, 0, tzinfo=chicago)
         self.event = CalendarEvent.objects.create(
             user=self.user,
             title="Delete Me",
-            start_dt=dt.datetime(2026, 3, 20, 10, 0, 0, tzinfo=chicago),
+            start_dt=start_dt,
             end_dt=dt.datetime(2026, 3, 20, 11, 0, 0, tzinfo=chicago),
+            idempotency_key=compute_idempotency_key(self.user.id, "Delete Me", start_dt),
         )
 
     def test_delete_succeeds_for_existing_event(self):

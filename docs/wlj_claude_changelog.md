@@ -9,6 +9,31 @@
 
 # WLJ Change History
 
+## 2026-02-23 — Phase 9: Production-Grade Idempotency (NOT NULL + Utility + All Paths)
+
+**Root Cause:** `idempotency_key` was nullable (`null=True, blank=True`, max_length=64). Only the assistant path set it. Views, projection service, and tests created events without it. The field must be NOT NULL and deterministically computed for every event.
+
+**Changes:**
+- `idempotency_key` field: removed `null=True, blank=True`, set `max_length=128`.
+- Added `CalendarEvent.save()` override: deterministically computes key if not set.
+- Created `apps/calendar_engine/utils/idempotency.py` with `compute_idempotency_key()` utility.
+- Updated `action_handlers.py`, `views.py` (3 create sites), `projection.py` (5 create sites) to explicitly pass key.
+- Migration `0004_phase9_idempotency_not_null`: RunPython backfill + AlterField NOT NULL.
+- Updated Phase 9 tests to pass idempotency_key where needed.
+
+**Files Modified:**
+- `apps/calendar_engine/models.py` — field definition + save() override
+- `apps/calendar_engine/utils/idempotency.py` — new utility module
+- `apps/ai/action_handlers.py` — use utility function
+- `apps/calendar_engine/views.py` — 3 create sites updated
+- `apps/calendar_engine/services/projection.py` — 5 create sites updated
+- `apps/calendar_engine/migrations/0004_phase9_idempotency_not_null.py` — backfill + NOT NULL
+- `apps/calendar_engine/tests/test_phase9_calendar_integrity.py` — updated test creates
+
+**Verification:** 20/20 tests pass. PostgreSQL column is NOT NULL, max_length=128. Concurrency: 5/5 succeed, 0 exceptions, 1 row.
+
+---
+
 ## 2026-02-23 — Phase 9: Fix Idempotency Constraint to (user, idempotency_key)
 
 **Root Cause:** The UniqueConstraint was on `(user, title, start_dt)` instead of `(user, idempotency_key)`. This meant duplicate prevention depended on exact title+time match rather than the SHA-256 idempotency key. Events without an idempotency key (non-assistant path) could collide on title+time, while events with different titles but same idempotency key wouldn't be caught.

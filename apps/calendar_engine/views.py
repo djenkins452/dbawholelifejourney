@@ -14,6 +14,8 @@ from django.utils import timezone
 from django.views import View
 from django.views.generic import TemplateView
 
+from apps.calendar_engine.utils.idempotency import compute_idempotency_key
+
 from apps.help.mixins import HelpContextMixin
 
 from .models import CalendarEvent, CalendarOverrideLog, RecurrenceRule
@@ -286,6 +288,7 @@ class EventCreateView(LoginRequiredMixin, View):
             domain=domain,
             event_kind=data.get('event_kind', CalendarEvent.KIND_MANUAL),
             is_protected=data.get('is_protected', False),
+            idempotency_key=compute_idempotency_key(request.user.id, title, start_dt),
         )
 
         # Create recurrence rule if provided
@@ -574,6 +577,7 @@ class AcceptSuggestionView(LoginRequiredMixin, View):
                 event_kind=CalendarEvent.KIND_EXECUTION_BLOCK,
                 source_type=CalendarEvent.SOURCE_GOAL,
                 source_id=str(source_id),
+                idempotency_key=compute_idempotency_key(request.user.id, title, start_dt),
             )
             return JsonResponse({'event': _event_to_dict(event)}, status=201)
 
@@ -657,6 +661,7 @@ class NLPCreateView(LoginRequiredMixin, View):
             end_dt=end_dt,
             domain=domain,
             event_kind=CalendarEvent.KIND_MANUAL,
+            idempotency_key=compute_idempotency_key(request.user.id, parsed['title'], start_dt),
         )
 
         # Create recurrence if detected

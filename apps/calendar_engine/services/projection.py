@@ -9,6 +9,7 @@ import datetime as dt
 from django.utils import timezone
 
 from apps.calendar_engine.models import CalendarEvent, RecurrenceRule
+from apps.calendar_engine.utils.idempotency import compute_idempotency_key
 
 
 def _get_default_domain(slug='work'):
@@ -99,9 +100,10 @@ def upsert_from_task(task):
         existing.save()
         return existing
 
+    task_title = f"Due: {task.title}"
     return CalendarEvent.objects.create(
         user=task.user,
-        title=f"Due: {task.title}",
+        title=task_title,
         start_dt=start_dt,
         end_dt=end_dt,
         is_all_day=True,
@@ -110,6 +112,7 @@ def upsert_from_task(task):
         source_type=CalendarEvent.SOURCE_TASK,
         source_id=str(task.pk),
         status=CalendarEvent.STATUS_COMPLETED if task.is_completed else CalendarEvent.STATUS_SCHEDULED,
+        idempotency_key=compute_idempotency_key(task.user_id, task_title, start_dt),
     )
 
 
@@ -119,15 +122,17 @@ def upsert_execution_block_for_task(task, start_dt, end_dt):
     Does not overwrite deadline markers.
     """
     domain = _resolve_domain_for_task(task)
+    exec_title = f"Work on: {task.title}"
     return CalendarEvent.objects.create(
         user=task.user,
-        title=f"Work on: {task.title}",
+        title=exec_title,
         start_dt=start_dt,
         end_dt=end_dt,
         domain=domain,
         event_kind=CalendarEvent.KIND_EXECUTION_BLOCK,
         source_type=CalendarEvent.SOURCE_TASK,
         source_id=str(task.pk),
+        idempotency_key=compute_idempotency_key(task.user_id, exec_title, start_dt),
     )
 
 
@@ -178,9 +183,10 @@ def upsert_from_goal(goal):
             existing.save()
             events.append(existing)
         else:
+            goal_title = f"Goal Due: {goal.title}"
             events.append(CalendarEvent.objects.create(
                 user=goal.user,
-                title=f"Goal Due: {goal.title}",
+                title=goal_title,
                 start_dt=start_dt,
                 end_dt=end_dt,
                 is_all_day=True,
@@ -189,6 +195,7 @@ def upsert_from_goal(goal):
                 source_type=CalendarEvent.SOURCE_GOAL,
                 source_id=str(goal.pk),
                 status=CalendarEvent.STATUS_COMPLETED if is_completed else CalendarEvent.STATUS_SCHEDULED,
+                idempotency_key=compute_idempotency_key(goal.user_id, goal_title, start_dt),
             ))
 
     # Milestone markers
@@ -224,9 +231,10 @@ def _upsert_milestone_marker(goal, milestone):
         existing.save()
         return existing
 
+    ms_title = f"Milestone: {milestone.title}"
     return CalendarEvent.objects.create(
         user=goal.user,
-        title=f"Milestone: {milestone.title}",
+        title=ms_title,
         start_dt=start_dt,
         end_dt=end_dt,
         is_all_day=True,
@@ -235,6 +243,7 @@ def _upsert_milestone_marker(goal, milestone):
         source_type=CalendarEvent.SOURCE_GOAL_MILESTONE,
         source_id=str(milestone.pk),
         status=CalendarEvent.STATUS_COMPLETED if milestone.completed else CalendarEvent.STATUS_SCHEDULED,
+        idempotency_key=compute_idempotency_key(goal.user_id, ms_title, start_dt),
     )
 
 
@@ -313,6 +322,7 @@ def upsert_from_habit(habit):
             source_type=CalendarEvent.SOURCE_HABIT,
             source_id=str(habit.pk),
             is_protected=True,
+            idempotency_key=compute_idempotency_key(habit.user_id, habit.name, start_dt),
         )
 
     # Upsert recurrence rule

@@ -107,11 +107,9 @@ class CalendarEvent(models.Model):
     )
 
     idempotency_key = models.CharField(
-        max_length=64,
-        null=True,
-        blank=True,
+        max_length=128,
         db_index=True,
-        help_text='SHA-256 hash for assistant-path duplicate prevention',
+        help_text='SHA-256 hash for deterministic duplicate prevention',
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -130,6 +128,15 @@ class CalendarEvent(models.Model):
                 name='uq_calendar_event_user_idempotency',
             ),
         ]
+
+    def save(self, *args, **kwargs):
+        """Compute idempotency_key deterministically if not already set."""
+        if not self.idempotency_key:
+            from apps.calendar_engine.utils.idempotency import compute_idempotency_key
+            self.idempotency_key = compute_idempotency_key(
+                self.user_id, self.title, self.start_dt,
+            )
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.title} ({self.get_event_kind_display()}) - {self.start_dt:%Y-%m-%d}"

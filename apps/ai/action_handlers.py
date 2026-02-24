@@ -2232,7 +2232,12 @@ class ActionHandler:
             })
 
             # Build response with CoS awareness
-            response_parts = [f"✓ Scheduled: {title} on {date_str}{time_str}"]
+            if reused:
+                response_parts = [
+                    f"You already have {title} scheduled for {date_str}{time_str} — no duplicate created."
+                ]
+            else:
+                response_parts = [f"✓ Scheduled: {title} on {date_str}{time_str}"]
 
             if result.conflict_warning:
                 response_parts.append(result.conflict_warning)

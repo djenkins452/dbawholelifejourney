@@ -9,6 +9,16 @@
 
 # WLJ Change History
 
+## 2026-02-24 — Fix: Calendar event re-add after delete blocked by soft-delete ghost
+
+**What:** After soft-deleting a calendar event, re-adding the same event returned "no duplicate created" instead of creating a new event. The idempotency check in `CalendarMutationService.create()` was finding the soft-deleted row (still in DB with same idempotency_key) and returning it as `reused=True`. Fixed by excluding `deleted_at IS NOT NULL` / `status=canceled` from both pre-transaction and in-transaction idempotency checks. Also made the DB `UniqueConstraint` on `(user, idempotency_key)` conditional on `deleted_at IS NULL` so the insert doesn't violate the constraint.
+
+**Files:**
+- `apps/calendar_engine/services/calendar_mutation_service.py` — Added `deleted_at__isnull=True` + `.exclude(status=STATUS_CANCELED)` to both idempotency checks
+- `apps/calendar_engine/models.py` — Added `condition=Q(deleted_at__isnull=True)` to `uq_calendar_event_user_idempotency` constraint
+- `apps/calendar_engine/migrations/0007_fix_idempotency_constraint_exclude_deleted.py` — Migration for conditional constraint
+- `apps/calendar_engine/tests/test_recurrence_duplicate.py` — 3 new regression tests (`ReAddAfterSoftDeleteTests`)
+
 ## 2026-02-24 — CoS v2 Phase 11: Final Regression + Scenario Tests (PROJECT COMPLETE)
 
 **What:** 32 end-to-end scenario tests covering all 8 core scenarios. Fixed throttle logic to exclude opted-out records from throttle consideration. CoS v2 project complete with 399 tests passing.

@@ -213,9 +213,11 @@ class CalendarMutationService:
         # --- Idempotency check (before conflict detection) ---
         # Must check BEFORE conflict detection: replaying the same create
         # should return the existing event, not trigger a conflict.
+        # Exclude soft-deleted events so re-adding after delete works.
         existing = CalendarEvent.objects.filter(
             user=self.user, idempotency_key=idempotency_key,
-        ).first()
+            deleted_at__isnull=True,
+        ).exclude(status=CalendarEvent.STATUS_CANCELED).first()
         if existing:
             return MutationResult(
                 success=True, event=existing, reused=True,
@@ -272,9 +274,11 @@ class CalendarMutationService:
         try:
             with transaction.atomic():
                 # Re-check idempotency inside transaction for race safety
+                # Exclude soft-deleted events so re-adding after delete works.
                 existing = CalendarEvent.objects.filter(
                     user=self.user, idempotency_key=idempotency_key,
-                ).first()
+                    deleted_at__isnull=True,
+                ).exclude(status=CalendarEvent.STATUS_CANCELED).first()
 
                 if existing:
                     return MutationResult(

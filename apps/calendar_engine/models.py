@@ -136,6 +136,7 @@ class CalendarEvent(models.Model):
         constraints = [
             models.UniqueConstraint(
                 fields=['user', 'idempotency_key'],
+                condition=models.Q(deleted_at__isnull=True),
                 name='uq_calendar_event_user_idempotency',
             ),
         ]

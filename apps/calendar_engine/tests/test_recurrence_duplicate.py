@@ -217,3 +217,99 @@ class TestRecurrenceDuplicateDetection(_RecurrenceUserMixin, TestCase):
         self.assertTrue(result.success)
         self.assertTrue(result.reused)
         self.assertEqual(result.event.pk, self.base_event.pk)
+
+
+class ReAddAfterSoftDeleteTests(TestCase):
+    """
+    Regression tests: soft-deleted events must not block re-creation.
+
+    Covers the bug where idempotency_key check returned a canceled event
+    with reused=True, causing "no duplicate created" instead of creating
+    a new event.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email='readd@test.com', password='test1234',
+        )
+        self.svc = CalendarMutationService(self.user)
+        self.start_dt = dt.datetime(2026, 2, 26, 10, 0, tzinfo=EST)
+        self.end_dt = self.start_dt + dt.timedelta(hours=1)
+        self.title = 'WFM Interface Discussion'
+
+    @freeze_time('2026-02-24 18:00:00')
+    def test_readd_after_soft_delete_creates_new_event(self):
+        """Delete then re-add the same event → new event, not reused."""
+        idem_key = compute_idempotency_key(
+            self.user.id, self.title, self.start_dt, end_dt=self.end_dt,
+        )
+
+        # Create
+        r1 = self.svc.create(
+            title=self.title, start_dt=self.start_dt, end_dt=self.end_dt,
+            idempotency_key=idem_key,
+        )
+        self.assertTrue(r1.success)
+        self.assertFalse(r1.reused)
+        original_pk = r1.event.pk
+
+        # Delete (soft)
+        r_del = self.svc.delete(original_pk)
+        self.assertTrue(r_del.success)
+
+        # Re-add with same parameters
+        r2 = self.svc.create(
+            title=self.title, start_dt=self.start_dt, end_dt=self.end_dt,
+            idempotency_key=idem_key,
+        )
+        self.assertTrue(r2.success)
+        self.assertFalse(r2.reused, "Should create a NEW event, not return the deleted one")
+        self.assertNotEqual(r2.event.pk, original_pk)
+        self.assertEqual(r2.event.status, CalendarEvent.STATUS_SCHEDULED)
+        self.assertIsNone(r2.event.deleted_at)
+
+    @freeze_time('2026-02-24 18:00:00')
+    def test_semantic_dup_excludes_soft_deleted(self):
+        """Semantic duplicate check must not match soft-deleted events."""
+        idem_key = compute_idempotency_key(
+            self.user.id, self.title, self.start_dt, end_dt=self.end_dt,
+        )
+
+        # Create and delete
+        r1 = self.svc.create(
+            title=self.title, start_dt=self.start_dt, end_dt=self.end_dt,
+            idempotency_key=idem_key,
+        )
+        self.svc.delete(r1.event.pk)
+
+        # Re-add with a DIFFERENT idempotency key (same title + time)
+        idem_key2 = compute_idempotency_key(
+            self.user.id, self.title, self.start_dt, end_dt=self.end_dt,
+            source_type='manual', source_id='retry-1',
+        )
+        r2 = self.svc.create(
+            title=self.title, start_dt=self.start_dt, end_dt=self.end_dt,
+            idempotency_key=idem_key2,
+        )
+        self.assertTrue(r2.success)
+        self.assertFalse(r2.reused)
+
+    @freeze_time('2026-02-24 18:00:00')
+    def test_active_event_still_detected_as_duplicate(self):
+        """Active (non-deleted) event still returns reused=True."""
+        idem_key = compute_idempotency_key(
+            self.user.id, self.title, self.start_dt, end_dt=self.end_dt,
+        )
+
+        r1 = self.svc.create(
+            title=self.title, start_dt=self.start_dt, end_dt=self.end_dt,
+            idempotency_key=idem_key,
+        )
+        # Re-add without deleting first
+        r2 = self.svc.create(
+            title=self.title, start_dt=self.start_dt, end_dt=self.end_dt,
+            idempotency_key=idem_key,
+        )
+        self.assertTrue(r2.success)
+        self.assertTrue(r2.reused, "Active event should still be detected as duplicate")
+        self.assertEqual(r2.event.pk, r1.event.pk)

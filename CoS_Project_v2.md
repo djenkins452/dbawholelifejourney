@@ -159,24 +159,25 @@ Journal append logic lives in a new `JournalCosActions` service that checks for 
 
 ---
 
-### Phase 3: Journal v2 — Append Not Duplicate
+### Phase 3: Journal v2 — Append Not Duplicate ✅
 **Goal:** CoS-driven journal operations with same-date append behavior
 
 **Tasks:**
-- [ ] Implement `JournalCosActions` (contract implementation)
-- [ ] Add same-date entry detection + append logic
-- [ ] Add section update capability
-- [ ] Add entry summarization service
-- [ ] Add tests for create/append/update/summarize
-- [ ] Update CoS_Project_v2.md
+- [x] Implement `JournalCosActions` (full contract: create, update, delete, retrieve, summarise)
+- [x] Add same-date entry detection + append logic (_find_same_date_entry + _append_to_entry)
+- [x] Add section update capability (update with append_body kwarg)
+- [x] Add entry summarisation with date ranges and word counts
+- [x] Add duplicate check (same-date detection with message about append)
+- [x] Add reflection hook for journal entries
+- [x] Add tests for create/append/update/summarise + edge cases
+- [x] Update CoS_Project_v2.md
 
-**Files to Touch:**
-- `apps/cos/actions/journal_actions.py`
-- `apps/journal/models.py` (add append-friendly methods if needed)
-- `apps/cos/tests/test_journal_actions.py`
+**Files Created/Modified:**
+- `apps/cos/actions/journal_actions.py` — JournalCosActions with append-not-duplicate
+- `apps/cos/tests/test_journal_actions.py` — 38 tests
 
-**Tests:** Same-date append vs create, section update, summarize
-**Risk:** Existing journal behavior must be preserved — CoS path is additive
+**Tests:** 136 total (17+51+30+38) — all pass
+**Risk:** Zero changes to journal models — JournalCosActions is purely additive
 
 ---
 
@@ -402,4 +403,4 @@ Journal append logic lives in a new `JournalCosActions` service that checks for 
 
 ---
 
-*Last updated: 2026-02-24 — Phase 2 complete*
+*Last updated: 2026-02-24 — Phase 3 complete*

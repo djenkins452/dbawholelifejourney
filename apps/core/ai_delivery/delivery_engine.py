@@ -57,14 +57,21 @@ def deliver_due_notifications():
     return result
 
 
-def deliver_single(user, source_engine, source_object):
+def deliver_single(user, source_engine, source_object, payload=None):
     """
     Deliver a single intelligence item immediately (called from pipeline hooks).
 
     Non-blocking — failures are logged but never raised.
+
+    Args:
+        user: Django User instance.
+        source_engine: Engine code (e.g., "PIE", "CDCE", "COS").
+        source_object: The source model instance.
+        payload: Optional pre-built payload dict. If None, auto-built from source_object.
     """
     try:
-        payload = _build_payload(source_engine, source_object)
+        if payload is None:
+            payload = _build_payload(source_engine, source_object)
         if not payload:
             return
 
@@ -73,7 +80,10 @@ def deliver_single(user, source_engine, source_object):
         obj_id = source_object.id
 
         for channel in channels:
-            _deliver_to_channel(user, channel, payload, source_engine, obj_type, obj_id)
+            _deliver_to_channel(
+                user, channel, payload, source_engine, obj_type, obj_id,
+                priority=payload.get("priority"),
+            )
 
     except Exception as e:
         logger.error(f"DNE: deliver_single failed for user {user.id}: {e}")
@@ -97,6 +107,8 @@ def _deliver_for_user(user):
     items.extend(_get_undelivered_guidance(user))
     items.extend(_get_undelivered_briefings(user))
     items.extend(_get_undelivered_reports(user))
+    items.extend(_get_undelivered_insights(user))
+    items.extend(_get_undelivered_correlations(user))
 
     # ICQG quality gate (non-blocking)
     try:
@@ -229,6 +241,48 @@ def _build_payload(engine, obj):
             "icon": "📊",
         }
 
+    elif obj_type == "Insight":
+        # PIE insights — critical/warning severity pushed proactively
+        severity_icon = {
+            "critical": "🚨",
+            "warning": "⚠️",
+            "positive": "✅",
+            "info": "ℹ️",
+        }
+        priority = 1 if getattr(obj, "severity", "") == "critical" else 3
+        return {
+            "title": f"{severity_icon.get(obj.severity, 'ℹ️')} {obj.title[:80]}",
+            "message": (obj.message or obj.title)[:300],
+            "action_url": "/assistant/",
+            "icon": severity_icon.get(obj.severity, "ℹ️"),
+            "priority": priority,
+        }
+
+    elif obj_type == "DomainCorrelation":
+        # CDCE cross-domain correlations
+        strength_icon = {
+            "strong": "🔗",
+            "moderate": "🔄",
+            "weak": "💡",
+        }
+        return {
+            "title": f"{strength_icon.get(obj.strength, '🔄')} Cross-Domain Pattern Discovered",
+            "message": obj.narrative[:300] if obj.narrative else "New pattern found across your life domains.",
+            "action_url": "/assistant/",
+            "icon": strength_icon.get(obj.strength, "🔄"),
+            "priority": 3,
+        }
+
+    elif obj_type == "CosPromptSchedule":
+        # CoS proactive prompts
+        return {
+            "title": f"CoS: {getattr(obj, 'activity_type', 'Activity').replace('_', ' ').title()}",
+            "message": (getattr(obj, 'prompt_text', '') or "You have a prompt from your Chief of Staff.")[:300],
+            "action_url": "/assistant/",
+            "icon": "📌",
+            "priority": 3,
+        }
+
     logger.warning(f"DNE: Unknown object type: {obj_type}")
     return None
 
@@ -304,5 +358,67 @@ def _get_undelivered_reports(user):
 
     except Exception as e:
         logger.error(f"DNE: Failed to get weekly report for user {user.id}: {e}")
+
+    return items
+
+
+def _get_undelivered_insights(user):
+    """
+    Get critical/warning PIE insights from the last 24h for proactive push.
+
+    Only delivers critical and warning severity — info and positive are
+    surfaced in-conversation via cos_context.py, not pushed.
+    """
+    items = []
+    try:
+        from apps.core.ai_insights.models import Insight
+        from datetime import timedelta
+
+        cutoff = timezone.now() - timedelta(hours=24)
+        insights = Insight.objects.filter(
+            user=user,
+            severity__in=["critical", "warning"],
+            status__in=["new", "read"],
+            created_at__gte=cutoff,
+        ).order_by("-created_at")[:5]
+
+        for insight in insights:
+            payload = _build_payload("PIE", insight)
+            if payload:
+                items.append(("PIE", "Insight", insight.id, payload))
+
+    except Exception as e:
+        logger.error(f"DNE: Failed to get insights for user {user.id}: {e}")
+
+    return items
+
+
+def _get_undelivered_correlations(user):
+    """
+    Get new strong/moderate CDCE correlations for proactive push.
+
+    Only delivers correlations created in the last 24h with strength >= moderate.
+    Weak correlations are surfaced in-conversation only.
+    """
+    items = []
+    try:
+        from apps.core.ai_cross_domain.models import DomainCorrelation
+        from datetime import timedelta
+
+        cutoff = timezone.now() - timedelta(hours=24)
+        correlations = DomainCorrelation.objects.filter(
+            user=user,
+            status="active",
+            strength__in=["strong", "moderate"],
+            created_at__gte=cutoff,
+        ).order_by("-strength_score")[:3]
+
+        for corr in correlations:
+            payload = _build_payload("CDCE", corr)
+            if payload:
+                items.append(("CDCE", "DomainCorrelation", corr.id, payload))
+
+    except Exception as e:
+        logger.error(f"DNE: Failed to get correlations for user {user.id}: {e}")
 
     return items

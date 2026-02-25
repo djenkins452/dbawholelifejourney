@@ -782,3 +782,213 @@ class PushViewTests(DNETestBase):
         )
         response = self.client.get("/intelligence/delivery/history/")
         self.assertContains(response, "Push Test")
+
+
+# ---------------------------------------------------------------------------
+# Phase 4: Proactive Intelligence Delivery Tests
+# ---------------------------------------------------------------------------
+
+
+class ProactiveDeliveryPayloadTests(DNETestBase):
+    """Tests for new payload builders (Insight, DomainCorrelation, CosPromptSchedule)."""
+
+    def test_insight_payload_critical(self):
+        from apps.core.ai_delivery.delivery_engine import _build_payload
+
+        insight = MagicMock()
+        insight.__class__.__name__ = "Insight"
+        type(insight).__name__ = "Insight"
+        insight.title = "Sleep below 5h for 3 consecutive days"
+        insight.message = "Your sleep has dropped critically low."
+        insight.severity = "critical"
+
+        payload = _build_payload("PIE", insight)
+        self.assertIsNotNone(payload)
+        self.assertIn("🚨", payload["title"])
+        self.assertEqual(payload["priority"], 1)
+
+    def test_insight_payload_warning(self):
+        from apps.core.ai_delivery.delivery_engine import _build_payload
+
+        insight = MagicMock()
+        type(insight).__name__ = "Insight"
+        insight.title = "Weight trending up"
+        insight.message = "Weight has increased 3 lbs this week."
+        insight.severity = "warning"
+
+        payload = _build_payload("PIE", insight)
+        self.assertIsNotNone(payload)
+        self.assertIn("⚠️", payload["title"])
+        self.assertEqual(payload["priority"], 3)
+
+    def test_correlation_payload(self):
+        from apps.core.ai_delivery.delivery_engine import _build_payload
+
+        corr = MagicMock()
+        type(corr).__name__ = "DomainCorrelation"
+        corr.strength = "strong"
+        corr.narrative = "When sleep drops below 6.5h, mood is negative 78% of the time."
+
+        payload = _build_payload("CDCE", corr)
+        self.assertIsNotNone(payload)
+        self.assertIn("🔗", payload["title"])
+        self.assertIn("6.5h", payload["message"])
+
+    def test_cos_prompt_payload(self):
+        from apps.core.ai_delivery.delivery_engine import _build_payload
+
+        prompt = MagicMock()
+        type(prompt).__name__ = "CosPromptSchedule"
+        prompt.activity_type = "workout"
+        prompt.prompt_text = "Time to get moving! Your workout is in 15 minutes."
+
+        payload = _build_payload("COS", prompt)
+        self.assertIsNotNone(payload)
+        self.assertIn("Workout", payload["title"])
+        self.assertIn("15 minutes", payload["message"])
+
+
+class DeliverSingleWithPayloadTests(DNETestBase):
+    """Tests for deliver_single with optional payload parameter."""
+
+    @patch("apps.core.ai_delivery.delivery_engine._get_enabled_channels")
+    @patch("apps.core.ai_delivery.delivery_engine._deliver_to_channel")
+    def test_deliver_single_with_explicit_payload(self, mock_channel, mock_channels):
+        from apps.core.ai_delivery.delivery_engine import deliver_single
+
+        mock_channels.return_value = ["in_app"]
+        mock_channel.return_value = True
+
+        source = MagicMock()
+        source.id = 42
+        type(source).__name__ = "TestObject"
+
+        payload = {
+            "title": "Custom Title",
+            "message": "Custom message",
+            "action_url": "/custom/",
+            "priority": 2,
+        }
+
+        deliver_single(self.user, "TEST", source, payload=payload)
+        mock_channel.assert_called_once()
+        call_args = mock_channel.call_args
+        self.assertEqual(call_args[0][2], payload)  # payload arg
+
+    @patch("apps.core.ai_delivery.delivery_engine._get_enabled_channels")
+    @patch("apps.core.ai_delivery.delivery_engine._deliver_to_channel")
+    def test_deliver_single_auto_builds_payload(self, mock_channel, mock_channels):
+        from apps.core.ai_delivery.delivery_engine import deliver_single
+
+        mock_channels.return_value = ["in_app"]
+        mock_channel.return_value = True
+
+        # Use a mock that looks like a DomainCorrelation
+        corr = MagicMock()
+        corr.id = 1
+        type(corr).__name__ = "DomainCorrelation"
+        corr.strength = "moderate"
+        corr.narrative = "Test pattern found."
+
+        deliver_single(self.user, "CDCE", corr)
+        mock_channel.assert_called_once()
+
+
+class InsightGathererTests(DNETestBase):
+    """Tests for _get_undelivered_insights."""
+
+    def test_gets_critical_insights(self):
+        from apps.core.ai_delivery.delivery_engine import _get_undelivered_insights
+        from apps.core.ai_insights.models import Insight
+
+        Insight.objects.create(
+            user=self.user,
+            insight_type="rule",
+            severity="critical",
+            title="Critical Sleep Pattern",
+            message="Sleep below safe levels.",
+            module="health",
+            confidence_score=0.9,
+        )
+        Insight.objects.create(
+            user=self.user,
+            insight_type="rule",
+            severity="info",
+            title="Info only",
+            message="FYI.",
+            module="health",
+            confidence_score=0.5,
+        )
+
+        items = _get_undelivered_insights(self.user)
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0][0], "PIE")
+        self.assertEqual(items[0][1], "Insight")
+
+    def test_empty_when_no_critical(self):
+        from apps.core.ai_delivery.delivery_engine import _get_undelivered_insights
+
+        items = _get_undelivered_insights(self.user)
+        self.assertEqual(len(items), 0)
+
+
+class CorrelationGathererTests(DNETestBase):
+    """Tests for _get_undelivered_correlations."""
+
+    def test_gets_strong_correlations(self):
+        from apps.core.ai_delivery.delivery_engine import _get_undelivered_correlations
+        from apps.core.ai_cross_domain.models import DomainCorrelation
+
+        DomainCorrelation.objects.create(
+            user=self.user,
+            domain_a="health",
+            domain_b="journal",
+            correlation_type="sleep_mood",
+            strength="strong",
+            strength_score=0.78,
+            narrative="Test pattern.",
+            evidence_summary="Test evidence.",
+            dedupe_key="dne_test_1",
+            status="active",
+        )
+        DomainCorrelation.objects.create(
+            user=self.user,
+            domain_a="health",
+            domain_b="health",
+            correlation_type="fasting_fitness",
+            strength="weak",
+            strength_score=0.35,
+            narrative="Weak pattern.",
+            evidence_summary="Weak evidence.",
+            dedupe_key="dne_test_2",
+            status="active",
+        )
+
+        items = _get_undelivered_correlations(self.user)
+        # Only strong/moderate, not weak
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0][0], "CDCE")
+
+    def test_ignores_old_correlations(self):
+        from apps.core.ai_delivery.delivery_engine import _get_undelivered_correlations
+        from apps.core.ai_cross_domain.models import DomainCorrelation
+
+        corr = DomainCorrelation.objects.create(
+            user=self.user,
+            domain_a="health",
+            domain_b="journal",
+            correlation_type="sleep_mood",
+            strength="strong",
+            strength_score=0.78,
+            narrative="Old pattern.",
+            evidence_summary="Old evidence.",
+            dedupe_key="dne_test_old",
+            status="active",
+        )
+        # Backdate to 48h ago
+        DomainCorrelation.objects.filter(pk=corr.pk).update(
+            created_at=timezone.now() - datetime.timedelta(hours=48),
+        )
+
+        items = _get_undelivered_correlations(self.user)
+        self.assertEqual(len(items), 0)

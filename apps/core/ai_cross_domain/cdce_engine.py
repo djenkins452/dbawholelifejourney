@@ -882,6 +882,14 @@ def _store_correlation(user, corr_data):
             confidence=corr_data['strength_score'],
         )
 
+        # Proactive push for strong/moderate correlations via DNE
+        if corr_data['strength'] in ('strong', 'moderate'):
+            try:
+                from apps.core.ai_delivery.delivery_engine import deliver_single
+                deliver_single(user, "CDCE", obj)
+            except Exception:
+                pass  # Non-fatal — delivery is best-effort
+
         return obj
 
     except Exception as e:

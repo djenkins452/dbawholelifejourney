@@ -9,6 +9,21 @@
 
 # WLJ Change History
 
+## 2026-02-25 — Feature: CoS Phase 4 — Proactive Intelligence Delivery via DNE
+
+**What:** Extends the DNE to proactively push PIE insights, CDCE correlations, and CoS prompts across all 4 channels (in-app, email, SMS, push). Fixes `deliver_single()` to accept pre-built payloads. Adds payload builders for Insight, DomainCorrelation, and CosPromptSchedule object types. Wires CDCE to auto-push strong/moderate correlations when discovered.
+
+**Why:** The CoS was reactive-only — intelligence was generated but only surfaced when the user opened the app. Critical patterns (sleep drops, habit declines) and cross-domain correlations now push to the user proactively.
+
+**Files Modified:**
+- `apps/core/ai_delivery/delivery_engine.py` — Fixed `deliver_single()` signature to accept `payload=None`, added Insight/DomainCorrelation/CosPromptSchedule payload builders, added `_get_undelivered_insights()` and `_get_undelivered_correlations()` gatherers, wired both into batch delivery cycle
+- `apps/core/ai_delivery/tests.py` — Added 10 tests: payload builders, deliver_single with payload, insight gatherer, correlation gatherer
+- `apps/core/ai_cross_domain/cdce_engine.py` — Added proactive push hook in `_store_correlation()` for strong/moderate discoveries
+
+**Tests:** 63 DNE tests pass (53 existing + 10 new)
+
+---
+
 ## 2026-02-25 — Feature: CoS Phase 3 — Cross-Domain Correlation Engine (CDCE)
 
 **What:** Adds CDCE as a new Phase 3 (Post-Execution) engine that discovers statistically significant relationships between life domains. Includes 7 correlation detectors (sleep→mood, exercise→mood, habit→goal, faith→mood, fasting→fitness, nutrition→transformation, momentum→mood), DomainCorrelation model with dedup, scheduler integration on 6-hour cadence, and CoS system prompt injection.

@@ -25,7 +25,7 @@ from typing import Optional, Dict, Any
 logger = logging.getLogger(__name__)
 
 
-# Patterns that indicate web search is needed
+# Patterns that indicate web search / external knowledge is needed
 WEB_SEARCH_PATTERNS = [
     # Weather
     r'\bweather\b',
@@ -38,33 +38,109 @@ WEB_SEARCH_PATTERNS = [
     r'\bwhat.s it like outside\b',
 ]
 
+# Patterns that indicate general knowledge questions (non-personal, non-action)
+GENERAL_KNOWLEDGE_PATTERNS = [
+    # "What is X" / "Who is X" / "How does X work" / "Explain X"
+    r'^(?:what|who|where|when|how|why)\s+(?:is|are|was|were|does|do|did|can|should)\b',
+    r'\bexplain\b.*\bto me\b',
+    r'\btell me about\b',
+    r'\bwhat does\b.*\bmean\b',
+    r'\bdefine\b',
+    r'\bdifference between\b',
+    # Health/nutrition/fitness knowledge (not logging)
+    r'\bbenefit(?:s)?\s+of\b',
+    r'\bside effect(?:s)?\s+of\b',
+    r'\bhow\s+(?:much|many|often|long)\b.*\bshould\b',
+    r'\bis\s+(?:it|this)\s+(?:good|bad|healthy|safe|normal)\b',
+    r'\bcalories?\s+in\b',
+    r'\bprotein\s+in\b',
+    r'\bnutrition(?:al)?\s+(?:info|value|facts)\b',
+    # Recipes / cooking
+    r'\brecipe\s+for\b',
+    r'\bhow\s+(?:to|do\s+(?:you|i))\s+(?:cook|make|prepare|bake)\b',
+    # Exercise form / technique
+    r'\bproper\s+form\b',
+    r'\bhow\s+(?:to|do\s+(?:you|i))\s+(?:do|perform)\b.*\b(?:exercise|stretch|lift|squat|deadlift|press)\b',
+    # Bible / faith knowledge
+    r'\bwhat\s+(?:does|did)\s+(?:the\s+)?bible\s+say\b',
+    r'\bmeaning\s+of\b.*\b(?:verse|scripture|passage|proverb)\b',
+    r'\bwho\s+(?:was|is)\b.*\bin\s+the\s+bible\b',
+    # General factual
+    r'\bhow\s+(?:to|do\s+(?:you|i))\b',
+    r'\btips?\s+(?:for|on|to)\b',
+]
+
+# Patterns that should NOT trigger general knowledge (personal data queries)
+PERSONAL_DATA_EXCLUSIONS = [
+    r'\bmy\s+(?:weight|sleep|mood|steps|glucose|blood|heart|calories|macros|fasting|workout|habit|goal|prayer|journal)\b',
+    r'\bhow\s+(?:much|many|long)\s+(?:did|have)\s+i\b',
+    r'\b(?:log|track|record|add|save|create|start|end|complete|undo|edit)\b',
+    r'\bwhat\s+did\s+i\b',
+    r'\bshow\s+me\s+my\b',
+    r'\blast\s+(?:time|week|month|entry|workout|meal|fast|prayer|journal)\b',
+]
+
 
 def needs_web_search(message: str) -> bool:
     """
-    Check if a message requires web search to answer.
+    Check if a message requires web search or external knowledge.
 
     Args:
         message: User's message
 
     Returns:
-        True if web search would help answer the question
+        True if web search or general knowledge would help answer
     """
     message_lower = message.lower()
 
+    # First check if this is a personal data query — those go to data handlers
+    for pattern in PERSONAL_DATA_EXCLUSIONS:
+        if re.search(pattern, message_lower):
+            return False
+
+    # Check weather patterns
     for pattern in WEB_SEARCH_PATTERNS:
+        if re.search(pattern, message_lower):
+            return True
+
+    # Check general knowledge patterns
+    for pattern in GENERAL_KNOWLEDGE_PATTERNS:
         if re.search(pattern, message_lower):
             return True
 
     return False
 
 
+def get_query_type(message: str) -> str:
+    """
+    Classify a query as 'weather', 'general_knowledge', or 'unknown'.
+
+    Args:
+        message: User's message
+
+    Returns:
+        Query type string
+    """
+    message_lower = message.lower()
+
+    if re.search(r'\bweather\b|\bforecast\b|\btemperature\b|\boutside\b', message_lower):
+        return 'weather'
+
+    for pattern in GENERAL_KNOWLEDGE_PATTERNS:
+        if re.search(pattern, message_lower):
+            return 'general_knowledge'
+
+    return 'unknown'
+
+
 def search_web(query: str, user_location: str = None) -> Optional[str]:
     """
-    Search the web for real-time information.
+    Search the web for real-time information or general knowledge.
 
     Routes to appropriate service based on query type:
     - Weather queries -> Open-Meteo API
-    - Other queries -> helpful fallback
+    - General knowledge -> OpenAI focused factual response
+    - Other queries -> None (falls through to main CoS conversation)
 
     Args:
         query: The search query / user's question
@@ -73,14 +149,75 @@ def search_web(query: str, user_location: str = None) -> Optional[str]:
     Returns:
         Search result as formatted text, or None if search failed
     """
-    query_lower = query.lower()
+    query_type = get_query_type(query)
 
-    # Route weather queries to weather API
-    if re.search(r'\bweather\b|\bforecast\b|\btemperature\b|\boutside\b', query_lower):
+    if query_type == 'weather':
         return get_weather(query, user_location)
 
-    # For other queries, return helpful message
+    if query_type == 'general_knowledge':
+        return get_general_knowledge(query)
+
     return None
+
+
+def get_general_knowledge(query: str) -> Optional[str]:
+    """
+    Answer a general knowledge question using OpenAI with a focused prompt.
+
+    Uses a lightweight, fast call with a minimal system prompt focused on
+    factual accuracy. Keeps responses concise and helpful.
+
+    Args:
+        query: The user's general knowledge question
+
+    Returns:
+        Formatted answer string, or None on failure
+    """
+    try:
+        from openai import OpenAI
+        from django.conf import settings
+
+        client = OpenAI(api_key=settings.OPENAI_API_KEY)
+
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": GENERAL_KNOWLEDGE_SYSTEM_PROMPT,
+                },
+                {
+                    "role": "user",
+                    "content": query,
+                },
+            ],
+            temperature=0.3,
+            max_tokens=600,
+        )
+
+        answer = response.choices[0].message.content
+        if answer:
+            return answer.strip()
+
+        return None
+
+    except Exception as e:
+        logger.error(f"General knowledge query failed: {e}")
+        return None
+
+
+GENERAL_KNOWLEDGE_SYSTEM_PROMPT = """You are a knowledgeable assistant integrated into a personal wellness app called Whole Life Journey. Answer the user's question concisely and accurately.
+
+Guidelines:
+- Be factual and concise. Aim for 2-4 sentences unless the topic needs more detail.
+- For health/nutrition/fitness questions, provide evidence-based information.
+- For Bible/faith questions, reference specific scripture when relevant.
+- For recipes or how-to questions, give clear, actionable steps.
+- If the question is about a medical condition or medication, include a note to consult a healthcare provider.
+- Never invent facts. If you're unsure, say so.
+- Format for readability: use bullet points for lists, bold for key terms.
+- Do NOT ask follow-up questions. Just answer what was asked.
+"""
 
 
 def get_weather(query: str, user_location: str = None) -> Optional[str]:

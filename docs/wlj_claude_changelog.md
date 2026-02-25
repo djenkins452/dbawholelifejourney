@@ -9,6 +9,22 @@
 
 # WLJ Change History
 
+## 2026-02-25 — Feature: CoS Phase 5 — Web Search & General Knowledge
+
+**What:** Extends the web search service from weather-only to handle general knowledge questions (health, nutrition, fitness, Bible, recipes, techniques) via a focused OpenAI `gpt-4o-mini` call. Adds 30+ general knowledge detection patterns with exclusion rules for personal data queries. Keeps answers factual, concise (2-4 sentences), and separate from the full CoS system prompt.
+
+**Why:** Users asking general knowledge questions (e.g., "What are the benefits of creatine?", "How to do a proper deadlift?", "Calories in a banana") previously fell through to the full CoS conversation pipeline which is designed for personal data + coaching. A focused, fast, factual response is more appropriate for these queries.
+
+**Files Modified:**
+- `apps/ai/web_search_service.py` — Added `GENERAL_KNOWLEDGE_PATTERNS`, `PERSONAL_DATA_EXCLUSIONS`, `get_query_type()`, `get_general_knowledge()` with dedicated system prompt, extended `needs_web_search()` and `search_web()` routing
+
+**Files Created:**
+- `apps/ai/tests/test_web_search.py` — 16 tests: pattern matching, exclusions, routing, OpenAI mock, existing weather tests
+
+**Tests:** 16 tests pass
+
+---
+
 ## 2026-02-25 — Feature: CoS Phase 4 — Proactive Intelligence Delivery via DNE
 
 **What:** Extends the DNE to proactively push PIE insights, CDCE correlations, and CoS prompts across all 4 channels (in-app, email, SMS, push). Fixes `deliver_single()` to accept pre-built payloads. Adds payload builders for Insight, DomainCorrelation, and CosPromptSchedule object types. Wires CDCE to auto-push strong/moderate correlations when discovered.

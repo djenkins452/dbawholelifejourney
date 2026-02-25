@@ -131,6 +131,9 @@ class OpsStreamView(View):
         # EAE telemetry (Phase 8.8)
         eae_telemetry = _get_eae_ops_telemetry(now)
 
+        # APScheduler health (auto-restart detection)
+        scheduler_health = _get_scheduler_health()
+
         return JsonResponse({
             "server_time": now.isoformat(),
             "posture": posture,
@@ -140,6 +143,7 @@ class OpsStreamView(View):
             "feed": feed,
             "integrity": integrity,
             "scheduler_heartbeats": scheduler_heartbeats,
+            "scheduler_health": scheduler_health,
             "eae_telemetry": eae_telemetry,
             "next_since": now.isoformat(),
         })
@@ -674,6 +678,70 @@ class SchedulerHeartbeatView(View):
         })
 
 
+class SchedulerHealthView(View):
+    """
+    APScheduler health check endpoint.
+
+    GET /admin-console/ops/scheduler-health/
+
+    Returns scheduler running state, heartbeat drift, and whether
+    a restart is recommended.
+    """
+
+    def get(self, request):
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return JsonResponse({"error": "forbidden"}, status=403)
+
+        from apps.core.scheduler_health import get_scheduler_status
+        status = get_scheduler_status()
+        return JsonResponse({
+            "server_time": timezone.now().isoformat(),
+            "scheduler": status,
+        })
+
+
+class SchedulerRestartView(View):
+    """
+    APScheduler restart endpoint.
+
+    POST /admin-console/ops/scheduler-restart/
+
+    Shuts down the existing APScheduler instance and reinitializes it.
+    Staff-only. Creates an AdminIntervention audit record.
+    """
+
+    def post(self, request):
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return JsonResponse({"error": "forbidden"}, status=403)
+
+        from apps.core.scheduler_health import get_scheduler_status, restart_scheduler
+
+        # Pre-restart status for audit
+        pre_status = get_scheduler_status()
+
+        # Execute restart
+        result = restart_scheduler()
+
+        # Audit trail
+        try:
+            from apps.core.ai_observability.models import AdminIntervention
+            AdminIntervention.objects.create(
+                admin_user=request.user,
+                action_type='scheduler_restart',
+                engine_name='ISE',
+                details={
+                    'pre_status': pre_status,
+                    'post_status': result.get('status', {}),
+                    'success': result.get('success', False),
+                },
+            )
+        except Exception:
+            pass  # Audit must never block restart
+
+        status_code = 200 if result.get('success') else 500
+        return JsonResponse(result, status=status_code)
+
+
 class AllEnginesView(AdminRequiredMixin, TemplateView):
     """All engines table view with search."""
 
@@ -1078,6 +1146,16 @@ def _get_scheduler_heartbeats():
         })
 
     return schedulers
+
+
+def _get_scheduler_health():
+    """Get APScheduler health status for the Ops Wall stream."""
+    try:
+        from apps.core.scheduler_health import get_scheduler_status
+        return get_scheduler_status()
+    except Exception as e:
+        logger.debug("OpsWall: Scheduler health unavailable: %s", e)
+        return None
 
 
 def _get_eae_ops_telemetry(now):

@@ -40,6 +40,8 @@ urlpatterns = [
     path("ops/integrity/", ops_views.IntegrityIndexView.as_view(), name="ops_integrity"),
     path("ops/cadence/", ops_views.CadenceTimelineView.as_view(), name="ops_cadence"),
     path("ops/scheduler-heartbeat/", ops_views.SchedulerHeartbeatView.as_view(), name="ops_scheduler_heartbeat"),
+    path("ops/scheduler-health/", ops_views.SchedulerHealthView.as_view(), name="ops_scheduler_health"),
+    path("ops/scheduler-restart/", ops_views.SchedulerRestartView.as_view(), name="ops_scheduler_restart"),
     # Legacy poll endpoint (redirect to stream)
     path("ops/poll/", ops_views.OpsStreamView.as_view(), name="ops_poll"),
 

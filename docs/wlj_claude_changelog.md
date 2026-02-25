@@ -9,6 +9,23 @@
 
 # WLJ Change History
 
+## 2026-02-24 — Fix: CoS Voice Input Choppy/Premature Sending
+
+**What:** Voice input to Circle of Support was breaking speech into small choppy fragments because recognition used `continuous=false` and sent after just 200ms. Now uses continuous recognition with a 2-second silence buffer, allowing users to pause and gather their thoughts without prematurely sending incomplete messages.
+
+**Changes:**
+- Set `continuous=true` and `interimResults=true` on SpeechRecognition
+- Added silence buffer timer (2s) that resets on each new speech result
+- Transcript accumulates across all recognition results instead of just the first
+- Input field updates in real-time as user speaks
+- Only sends message after 2 seconds of silence
+
+**Files Modified:**
+- `templates/components/chat_widget.html` — Mobile/tablet floating chat voice recognition
+- `templates/components/assistant_panel.html` — Desktop persistent panel voice recognition
+
+---
+
 ## 2026-02-25 — Feature: Daily Routine Tasks with CoS Integration
 
 **What:** Daily routines (Quiet Time, Workout, etc.) are now modeled as recurring Tasks with scheduled begin/end times. CoS can see completion status, prompt before scheduled time, ask "How did it go?" after, and save reflections for future context. The `complete_task` handler was also fixed to properly call `mark_complete()` instead of bypassing it.

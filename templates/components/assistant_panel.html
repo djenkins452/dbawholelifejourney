@@ -740,6 +740,8 @@
     var voiceConversationMode = false;
     var pendingRestart = false;
     var preferredVoice = null;
+    var silenceTimer = null;
+    var SILENCE_BUFFER_MS = 2000; // Wait 2s of silence before sending
 
     if (SpeechRecognition && voiceBtn) {
         voiceBtn.style.display = 'flex';
@@ -754,6 +756,7 @@
     function exitVoiceConversation() {
         voiceConversationMode = false;
         pendingRestart = false;
+        if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
         voiceBtn.classList.remove('voice-conversation');
         window.speechSynthesis.cancel();
         stopListening();
@@ -762,10 +765,11 @@
     function startListening() {
         if (!SpeechRecognition) return;
         if (speechRec) { try { speechRec.stop(); } catch(e) {} speechRec = null; }
+        if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
         speechRec = new SpeechRecognition();
         speechRec.lang = 'en-US';
-        speechRec.interimResults = false;
-        speechRec.continuous = false;
+        speechRec.interimResults = true;
+        speechRec.continuous = true;
         speechRec.maxAlternatives = 1;
 
         speechRec.onstart = function() {
@@ -774,18 +778,31 @@
         };
 
         speechRec.onresult = function(event) {
-            var transcript = event.results[0][0].transcript;
-            if (transcript) {
-                chatInput.value = transcript;
-                setTimeout(function() {
-                    if (chatInput.value.trim()) {
-                        sendMessage(chatInput.value.trim(), chatMessages, chatInput, sendBtn);
-                    }
-                }, 200);
+            // Build full transcript from all results
+            var fullTranscript = '';
+            for (var i = 0; i < event.results.length; i++) {
+                fullTranscript += event.results[i][0].transcript;
             }
+            if (fullTranscript) {
+                chatInput.value = fullTranscript;
+            }
+
+            // Reset silence buffer — wait for user to stop talking
+            if (silenceTimer) clearTimeout(silenceTimer);
+            silenceTimer = setTimeout(function() {
+                silenceTimer = null;
+                // Stop recognition and send what we have
+                if (speechRec) {
+                    try { speechRec.stop(); } catch(e) {}
+                }
+                if (chatInput.value.trim()) {
+                    sendMessage(chatInput.value.trim(), chatMessages, chatInput, sendBtn);
+                }
+            }, SILENCE_BUFFER_MS);
         };
 
         speechRec.onerror = function(event) {
+            if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
             if (event.error === 'not-allowed') {
                 addMessage(chatMessages, 'Microphone access denied. Please allow microphone in browser settings.', false, true);
                 exitVoiceConversation();
@@ -801,6 +818,15 @@
         speechRec.onend = function() {
             isListening = false;
             voiceBtn.classList.remove('listening');
+            // If silence timer already sent the message, just restart listening
+            // If not (e.g. recognition ended unexpectedly), send what we have
+            if (silenceTimer) {
+                clearTimeout(silenceTimer);
+                silenceTimer = null;
+                if (chatInput.value.trim()) {
+                    sendMessage(chatInput.value.trim(), chatMessages, chatInput, sendBtn);
+                }
+            }
             if (voiceConversationMode && !pendingRestart) {
                 if (!window.speechSynthesis.speaking) {
                     setTimeout(function() { if (voiceConversationMode) startListening(); }, 300);
@@ -816,6 +842,7 @@
 
     function stopListening() {
         isListening = false;
+        if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
         if (voiceBtn) voiceBtn.classList.remove('listening');
         if (speechRec) { try { speechRec.stop(); } catch(e) {} speechRec = null; }
     }

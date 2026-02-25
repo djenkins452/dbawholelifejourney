@@ -1425,6 +1425,8 @@
     let lastInputWasVoice = false;
     let voiceConversationMode = false;
     let pendingRestart = false;
+    let silenceTimer = null;
+    const SILENCE_BUFFER_MS = 2000; // Wait 2s of silence before sending
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition && voiceBtn) {
@@ -1448,6 +1450,7 @@
     function exitVoiceConversation() {
         voiceConversationMode = false;
         pendingRestart = false;
+        if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
         voiceBtn.classList.remove('voice-conversation');
         if ('speechSynthesis' in window) window.speechSynthesis.cancel();
         stopListening();
@@ -1459,11 +1462,12 @@
             try { speechRecognition.stop(); } catch(e) {}
             speechRecognition = null;
         }
+        if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
 
         speechRecognition = new SpeechRecognition();
         speechRecognition.lang = 'en-US';
-        speechRecognition.interimResults = false;
-        speechRecognition.continuous = false;
+        speechRecognition.interimResults = true;
+        speechRecognition.continuous = true;
         speechRecognition.maxAlternatives = 1;
 
         speechRecognition.onstart = function() {
@@ -1473,20 +1477,33 @@
         };
 
         speechRecognition.onresult = function(event) {
-            const transcript = event.results[0][0].transcript;
-            if (transcript) {
-                input.value = transcript;
+            // Build full transcript from all results
+            let fullTranscript = '';
+            for (let i = 0; i < event.results.length; i++) {
+                fullTranscript += event.results[i][0].transcript;
+            }
+            if (fullTranscript) {
+                input.value = fullTranscript;
                 input.dispatchEvent(new Event('input', { bubbles: true }));
                 lastInputWasVoice = true;
-                setTimeout(function() {
-                    if (input.value.trim()) {
-                        sendMessage();
-                    }
-                }, 200);
             }
+
+            // Reset silence buffer — wait for user to stop talking
+            if (silenceTimer) clearTimeout(silenceTimer);
+            silenceTimer = setTimeout(function() {
+                silenceTimer = null;
+                // Stop recognition and send what we have
+                if (speechRecognition) {
+                    try { speechRecognition.stop(); } catch(e) {}
+                }
+                if (input.value.trim()) {
+                    sendMessage();
+                }
+            }, SILENCE_BUFFER_MS);
         };
 
         speechRecognition.onerror = function(event) {
+            if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
             if (event.error === 'not-allowed') {
                 addMessage('Microphone access denied. Please allow microphone in your browser settings.', false);
                 exitVoiceConversation();
@@ -1502,6 +1519,16 @@
         speechRecognition.onend = function() {
             isListening = false;
             voiceBtn.classList.remove('listening');
+            // If silence timer already sent the message, just restart listening
+            // If not (e.g. recognition ended unexpectedly), send what we have
+            if (silenceTimer) {
+                clearTimeout(silenceTimer);
+                silenceTimer = null;
+                if (input.value.trim()) {
+                    lastInputWasVoice = true;
+                    sendMessage();
+                }
+            }
             if (voiceConversationMode && !pendingRestart) {
                 if (!('speechSynthesis' in window) || !window.speechSynthesis.speaking) {
                     setTimeout(function() { if (voiceConversationMode) startListening(); }, 300);
@@ -1521,6 +1548,7 @@
 
     function stopListening() {
         isListening = false;
+        if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
         if (voiceBtn) {
             voiceBtn.classList.remove('listening');
             voiceBtn.title = 'Voice input';

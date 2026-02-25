@@ -805,14 +805,25 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-            // Select MIME type
-            const supportedTypes = [
-                'audio/webm;codecs=opus',
-                'audio/webm',
-                'audio/mp4',
-                'audio/ogg;codecs=opus',
-                'audio/wav'
-            ];
+            // Select MIME type — on iOS, prefer mp4 so the file is natively
+            // recognized by Files, Photos, and the re-upload picker. WebM
+            // technically works for recording on iOS 15+ but the saved file
+            // won't be recognized as audio by the OS.
+            const supportedTypes = isIOS
+                ? [
+                    'audio/mp4',
+                    'audio/webm;codecs=opus',
+                    'audio/webm',
+                    'audio/ogg;codecs=opus',
+                    'audio/wav',
+                ]
+                : [
+                    'audio/webm;codecs=opus',
+                    'audio/webm',
+                    'audio/mp4',
+                    'audio/ogg;codecs=opus',
+                    'audio/wav',
+                ];
             let mimeType = '';
             for (const type of supportedTypes) {
                 if (MediaRecorder.isTypeSupported(type)) {

@@ -9,6 +9,14 @@
 
 # WLJ Change History
 
+## 2026-02-25 — Docs: CoS Full System Report & Gap Analysis (Rewritten)
+
+**What:** Complete rewrite of `docs/cos_full_picture_report.md` — comprehensive inventory of everything CoS can do (36 intents, 17 engines, 26 data query types, full context assembly pipeline), plus an 18-gap analysis comparing CoS to Claude Code / ChatGPT. Intended as input for creating a master prompt to close the remaining gaps. Key gaps identified: no proactive push delivery, no general web search, no cross-domain pattern correlation, no predictive goal tracking, pattern insights not surfaced in chat, missing intents for sleep/water/steps/finance.
+
+**Files modified:** `docs/cos_full_picture_report.md`
+
+---
+
 ## 2026-02-25 — Feature: CoS Intelligence Upgrade (Phases 3 + 4c — RAG Memory + Response Validation)
 
 **What:** Completes the final phases of the CoS Intelligence Upgrade Plan. Phase 3 adds RAG-based long-term conversation memory using OpenAI embeddings — CoS can now reference semantically similar past conversations ("You mentioned last week..."). Phase 3b expands the learning extractor with explanation preference and time pattern detection. Phase 4c adds post-generation response quality validation that detects context mismatches (e.g., talking about routines when user asked about scripture) and auto-regenerates with stronger context emphasis.

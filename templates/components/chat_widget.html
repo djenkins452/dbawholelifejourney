@@ -766,6 +766,47 @@
     // Current page context - updated on page load and can be refreshed
     let currentPageContext = null;
 
+    // ── Session Activity Tracking ──────────────────────────
+    // Track page visits so CoS understands what the user has been doing
+    var SESSION_ACTIVITY_KEY = 'wlj_session_activity';
+    var MAX_SESSION_PAGES = 10;
+
+    function recordPageVisit() {
+        try {
+            var activity = JSON.parse(sessionStorage.getItem(SESSION_ACTIVITY_KEY) || '[]');
+            var now = new Date();
+            var entry = {
+                url: window.location.pathname,
+                title: document.title.replace(/\s*[-|]\s*Whole Life Journey.*$/i, '').trim(),
+                time: now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+                ts: now.getTime()
+            };
+            // Don't duplicate if same page
+            if (activity.length > 0 && activity[activity.length - 1].url === entry.url) {
+                return;
+            }
+            activity.push(entry);
+            // Keep only the most recent pages
+            if (activity.length > MAX_SESSION_PAGES) {
+                activity = activity.slice(-MAX_SESSION_PAGES);
+            }
+            sessionStorage.setItem(SESSION_ACTIVITY_KEY, JSON.stringify(activity));
+        } catch (e) {
+            // sessionStorage not available — non-fatal
+        }
+    }
+
+    function getSessionActivity() {
+        try {
+            return JSON.parse(sessionStorage.getItem(SESSION_ACTIVITY_KEY) || '[]');
+        } catch (e) {
+            return [];
+        }
+    }
+
+    // Record this page visit immediately
+    recordPageVisit();
+
     // Get current page context for context-aware responses
     function getPageContext() {
         const url = window.location.pathname;
@@ -809,7 +850,8 @@
             url: url,
             module: module,
             page_title: pageTitle,
-            page_content: null
+            page_content: null,
+            session_activity: getSessionActivity()
         };
 
         // Extract rich content based on page type
@@ -953,6 +995,50 @@
             const goalWhy = document.querySelector('.why-it-matters');
             if (goalWhy) {
                 content.why_it_matters = goalWhy.textContent.trim().substring(0, 300);
+            }
+
+            // Capture progress percentage
+            const goalProgress = document.querySelector('.goal-progress, .progress-percentage, .progress-text');
+            if (goalProgress) {
+                content.progress = goalProgress.textContent.trim();
+            }
+
+            // Capture milestones
+            const milestones = document.querySelectorAll('.milestone-item, .milestone-row');
+            if (milestones.length > 0) {
+                content.milestones = [];
+                milestones.forEach(function(m) {
+                    var text = m.textContent.trim().substring(0, 100);
+                    if (text) content.milestones.push(text);
+                });
+            }
+
+            // Capture target date
+            const targetDate = document.querySelector('.target-date, .goal-deadline');
+            if (targetDate) {
+                content.target_date = targetDate.textContent.trim();
+            }
+        }
+
+        // Habit Detail page
+        else if (url.match(/\/purpose\/habits\/\d+\//)) {
+            content.type = 'habit';
+
+            const habitTitle = document.querySelector('.habit-title, h1');
+            if (habitTitle) {
+                content.title = habitTitle.textContent.trim();
+            }
+
+            // Capture streak info
+            const streak = document.querySelector('.streak-count, .current-streak');
+            if (streak) {
+                content.streak = streak.textContent.trim();
+            }
+
+            // Capture completion status
+            const completionInfo = document.querySelector('.completion-rate, .habit-stats');
+            if (completionInfo) {
+                content.completion_info = completionInfo.textContent.trim().substring(0, 200);
             }
         }
 

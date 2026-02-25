@@ -796,6 +796,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for Daily Routine Tasks (PK 102)
         self._reset_routine_tasks_release_notes(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for CoS Intelligence Upgrade (PK 104)
+        self._reset_cos_intelligence_upgrade_fixtures(DataLoadConfig, force, verbosity)
+
         # Auto-sync CoS documentation to admin guide (runs if checksum changed)
         self._sync_cos_documentation(DataLoadConfig, force, verbosity)
 
@@ -3880,3 +3883,30 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset routine tasks release notes FAILED: {e}'))
+
+    def _reset_cos_intelligence_upgrade_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes for CoS Intelligence Upgrade (PK 104).
+        """
+        reset_tracker_name = 'reset_cos_intelligence_upgrade_2026_02_25'
+        try:
+            if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
+                return
+
+            config = DataLoadConfig.objects.get(loader_name='release_notes')
+            if config.is_loaded:
+                config.is_loaded = False
+                config.save()
+                if verbosity >= 1:
+                    self.stdout.write(f'  Reset release_notes loader for CoS Intelligence Upgrade')
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for CoS Intelligence Upgrade release notes (Feb 2026)',
+                'command',
+                'One-time reset to reload release_notes PK 104'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset CoS intelligence upgrade release notes FAILED: {e}'))

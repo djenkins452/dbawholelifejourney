@@ -1,6 +1,22 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 104,
+        "fields": {
+            "title": "Smarter CoS: Better Context, Reasoning & Session Awareness",
+            "description": "Your Chief of Staff just got a major intelligence upgrade. CoS now has a much larger conversation memory (40 messages vs 15), tracks your page navigation to understand what you're doing, and thinks through context before responding — so when you're reading scripture and ask about the Sabbath, it talks about scripture, not your work routines. CoS also detects whether you're asking about what's on your screen vs. continuing an earlier topic. Intent recognition is now powered by GPT-4o for better understanding of what you mean.",
+            "entry_type": "feature",
+            "version": "",
+            "release_date": "2026-02-25",
+            "is_published": true,
+            "is_major": true,
+            "learn_more_url": "",
+            "created_at": "2026-02-25T11:15:00Z",
+            "updated_at": "2026-02-25T11:15:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 103,
         "fields": {
             "title": "CoS Tracks Everything on Your Calendar",

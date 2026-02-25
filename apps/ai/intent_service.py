@@ -73,7 +73,7 @@ class IntentService:
 
     def __init__(self):
         self.client = None
-        self.model = getattr(settings, 'OPENAI_MODEL', 'gpt-4o-mini')
+        self.model = getattr(settings, 'OPENAI_INTENT_MODEL', getattr(settings, 'OPENAI_MODEL', 'gpt-4o'))
         self._initialize_client()
 
     def _initialize_client(self):

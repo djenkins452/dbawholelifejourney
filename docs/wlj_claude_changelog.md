@@ -9,6 +9,23 @@
 
 # WLJ Change History
 
+## 2026-02-25 — Feature: CoS Intelligence Upgrade (Phases 1-2b, 4a, 4b)
+
+**What:** Comprehensive upgrade to CoS contextual intelligence, reasoning quality, and session awareness. Implements 6 phases from the CoS Intelligence Upgrade Plan to bring CoS closer to the quality of conversation Claude Code / ChatGPT provide.
+
+**Changes:**
+- **Phase 1a — Larger context window:** Chat history 15→40 messages, response tokens brief 250→400, adaptive 450→800, deep 600→1200, user prompt history 10→20 messages
+- **Phase 1b — Context-priority routing:** When user is on a specific page (reading plan, journal, goal, etc.), CoS now injects a disambiguation instruction that forces page context priority over conversation history. Scripture pages get the strongest priority instruction.
+- **Phase 1c — Richer page content capture:** Added goal detail (milestones, progress, target_date), habit detail (title, streak, completion_info) capture from page DOM
+- **Phase 2a — Session activity tracking:** Tracks page visits in sessionStorage (last 10 pages), sends navigation history with each message, injected into system prompt so CoS knows the user's browsing flow
+- **Phase 2b — Conversation topic threading:** Detects whether user is asking about the current page vs. continuing a previous conversation thread, and injects a topic signal hint to guide the response
+- **Phase 4a — Pre-response reasoning ("think before speaking"):** Chain-of-thought instruction injected into user prompt. CoS silently reasons through context, likely intent, relevant data, and what to avoid before generating the visible response.
+- **Phase 4b — Intent model upgrade:** Intent recognition upgraded from gpt-4o-mini to gpt-4o for better understanding of nuanced user messages. Uses new `OPENAI_INTENT_MODEL` setting (falls back to `OPENAI_MODEL` then `gpt-4o`).
+
+**Files modified:** `apps/ai/personal_assistant.py`, `apps/ai/intent_service.py`, `templates/components/chat_widget.html`
+
+---
+
 ## 2026-02-25 — Docs: CoS Intelligence Upgrade Plan
 
 **What:** Created comprehensive plan document for upgrading CoS to have the same contextual understanding and reasoning quality as Claude Code / ChatGPT. Covers 4 phases: immediate intelligence upgrades, session awareness, long-term memory (RAG), and reasoning quality improvements.

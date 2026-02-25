@@ -2664,10 +2664,19 @@ Each night, the system builds tomorrow's plan:
 - **Command Brief** — Weekly pressure points and upcoming commitments
 
 ### AI Model & Prompt Architecture
-- **Model:** GPT-4o (upgraded from GPT-4o-mini for significantly better nuance, empathy, and conversational intelligence)
+- **Model:** GPT-4o for both response generation and intent recognition (intent upgraded from GPT-4o-mini). Configurable via `OPENAI_INTENT_MODEL` setting.
 - **Prompt hierarchy:** Priority-ordered layers — personality and relationship instructions first, user knowledge second, operational context last. This ensures the CoS maintains warmth and perceptiveness even when loaded with situational data.
 - **Situational awareness:** Compact context injection with schedule, calendar, medication, insights, predictions, and relationship signals. Raw metrics (drift scores, tier weights, override frequencies) are computed internally but not injected into the prompt.
 - **Temperature:** 0.65 for conversational warmth (0.4 for data-heavy responses)
+
+### Contextual Intelligence *(Feb 2026)*
+Major upgrade to CoS reasoning and context awareness:
+- **Expanded context window:** 40 messages of history (up from 15), with 20 messages in the user prompt for conversational threading. Response token budgets: brief 400, adaptive 800, deep 1200.
+- **Context-priority routing:** Per-page-type disambiguation instructions. When the user is on a reading plan page, scripture context is prioritized over conversation history. When on a journal, goal, task, or prayer page, the page content is prioritized. Prevents "topic mixing" where CoS answers about routines when the user asks about scripture.
+- **Rich page content capture:** Frontend captures goal milestones/progress/target dates, habit streaks/completion info, scripture text (up to 2000 chars), and sends all content to the backend for injection into the system prompt.
+- **Session activity tracking:** Tracks page visits in `sessionStorage` (last 10 pages). Navigation history is sent with each message and injected into the system prompt as "SESSION ACTIVITY" so CoS understands the user's browsing flow and intent.
+- **Conversation topic threading:** Detects whether the user is asking about the current page ("this", "it", "here") or continuing a previous conversation thread ("going back to", "you said", "earlier"), and injects a topic signal hint.
+- **Pre-response reasoning:** Chain-of-thought "think before speaking" instruction injected into every user prompt. CoS silently reasons through: (1) user's current context, (2) most likely topic, (3) relevant data, (4) what NOT to talk about — before generating the visible response.
 
 ### Proactive Questions & Calibration
 The CoS has a relationship-building introduction flow before it starts managing the user's day:

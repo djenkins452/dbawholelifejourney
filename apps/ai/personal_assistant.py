@@ -2956,8 +2956,9 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             image_data: Optional base64-encoded image data
             image_mime_type: Optional MIME type of the image (e.g., 'image/png')
         """
-        # Get conversation history - 15 messages gives good conversational threading
-        history = conversation.messages.order_by('-created_at')[:15]
+        # Get conversation history - 40 messages for deep conversational threading
+        # More history means CoS can follow topic changes and reference earlier context
+        history = conversation.messages.order_by('-created_at')[:40]
 
         # Always include time context so the AI knows the user's current time
         # (e.g., "what time is it?" queries). Urgency messaging is part of time context.
@@ -3376,6 +3377,19 @@ USER IS ASKING ABOUT THEIR TASKS/PRIORITIES - provide this information:
             page_title = page_context.get('page_title', '')
             page_content = page_context.get('page_content')
 
+            # Inject session activity — shows what pages user visited recently
+            session_activity = page_context.get('session_activity', [])
+            if session_activity and len(session_activity) > 1:
+                activity_lines = []
+                for sa in session_activity[-8:]:  # Last 8 pages
+                    activity_lines.append(f"  {sa.get('time', '?')}: {sa.get('title', sa.get('url', '?'))}")
+                system_prompt += f"""
+SESSION ACTIVITY (what the user has been doing this session):
+{chr(10).join(activity_lines)}
+Current page: {page_title or page_context.get('url', '')}
+Use this to understand the user's current flow and intent. If they navigated from one module to another, their question likely relates to their current page, not where they were before.
+"""
+
             context_parts = []
             if page_title:
                 context_parts.append(f"Page: {page_title}")
@@ -3438,6 +3452,21 @@ USER IS ASKING ABOUT THEIR TASKS/PRIORITIES - provide this information:
                         content_description += f"- Goal: {page_content['title']}\n"
                     if page_content.get('why_it_matters'):
                         content_description += f"- Why it matters: {page_content['why_it_matters']}\n"
+                    if page_content.get('progress'):
+                        content_description += f"- Progress: {page_content['progress']}\n"
+                    if page_content.get('target_date'):
+                        content_description += f"- Target date: {page_content['target_date']}\n"
+                    if page_content.get('milestones'):
+                        content_description += f"- Milestones: {'; '.join(page_content['milestones'][:5])}\n"
+
+                elif content_type == 'habit':
+                    content_description = "\nHABIT (user is viewing this):\n"
+                    if page_content.get('title'):
+                        content_description += f"- Habit: {page_content['title']}\n"
+                    if page_content.get('streak'):
+                        content_description += f"- Current streak: {page_content['streak']}\n"
+                    if page_content.get('completion_info'):
+                        content_description += f"- Completion: {page_content['completion_info']}\n"
 
                 elif content_type == 'prayer_request':
                     content_description = "\nPRAYER REQUEST (user is viewing this):\n"
@@ -3465,10 +3494,24 @@ USER IS ASKING ABOUT THEIR TASKS/PRIORITIES - provide this information:
                         content_description += f"- Workout info: {page_content['workout_info']}\n"
 
             if context_parts or content_description:
+                # Build context-priority instruction based on page type
+                context_priority_instruction = ""
+                if page_content:
+                    content_type = page_content.get('type', '')
+                    if content_type == 'reading_plan_progress':
+                        context_priority_instruction = """
+CONTEXT PRIORITY: The user is actively reading scripture. Unless they EXPLICITLY say "about my tasks", "about my routine", "about my schedule", or similar — assume their question is about the scripture/faith content above. Words like "this", "it", "what does it mean", "the sabbath", "Jesus", "God", names of biblical figures, or ANY theological/spiritual topic should be answered from the scripture context, even if the previous conversation was about something else entirely.
+"""
+                    elif content_type in ('journal_entry', 'goal', 'prayer_request', 'task'):
+                        context_priority_instruction = f"""
+CONTEXT PRIORITY: The user is viewing a specific {content_type.replace('_', ' ')}. When they say "this", "it", or ask about details, they mean the {content_type.replace('_', ' ')} described above — not something from earlier conversation unless they explicitly reference it.
+"""
+
                 system_prompt += f"""
 PAGE CONTEXT (where the user is currently viewing):
 {chr(10).join('- ' + p for p in context_parts) if context_parts else ''}
 {content_description}
+{context_priority_instruction}
 When the user asks about "this page", "this scripture", "this entry", etc., they are referring to the content above.
 Use this context to provide relevant, contextual help. For scripture questions, explain the passage and its meaning.
 """
@@ -3527,14 +3570,66 @@ Rules for voice responses:
                 logger.info(f"Answered query via web search: {message[:50]}...")
                 return web_result
 
-        # Build conversation context - include more messages for better threading
+        # Build conversation context - include recent messages for threading
+        # Use the 20 most recent for the user prompt (full 40 available for system context)
         messages_context = ""
-        history_list = list(reversed(list(history)[:10]))
+        history_list = list(reversed(list(history)[:20]))
         for msg in history_list:
             role = "User" if msg.role == 'user' else "Assistant"
             # Truncate very long messages to keep context manageable
             content = msg.content[:500] + "..." if len(msg.content) > 500 else msg.content
             messages_context += f"{role}: {content}\n"
+
+        # =============================================================
+        # Phase 2b: Conversation Topic Threading
+        # Detect when the user's message relates to the page they're on
+        # vs. a previous conversation thread, and inject a threading hint.
+        # =============================================================
+        topic_threading_hint = ""
+        if page_context and history_list:
+            current_page_url = page_context.get('url', '')
+            page_content_obj = page_context.get('page_content')
+            page_content_type = page_content_obj.get('type', '') if page_content_obj else ''
+
+            # Check if the user navigated to a new page since last message
+            # (i.e., page context differs from what was discussed)
+            last_user_msgs = [m for m in history_list if m.role == 'user']
+            prev_topic_keywords = set()
+            if last_user_msgs:
+                # Extract keywords from recent conversation
+                for m in last_user_msgs[-3:]:
+                    prev_topic_keywords.update(
+                        w.lower().strip('.,!?;:') for w in m.content.split()
+                        if len(w) > 3
+                    )
+
+            # If page context exists and is rich (not just URL), signal topic
+            if page_content_type:
+                msg_lower = message.lower()
+                # Detect if user is asking about the page ("this", "it", etc.)
+                page_referent_words = ['this', 'it', 'here', 'the page', 'what i see',
+                                       'what am i looking at', 'current']
+                refers_to_page = any(w in msg_lower for w in page_referent_words)
+
+                # Detect if user is continuing a previous thread
+                continues_thread = False
+                thread_signals = ['also', 'and what about', 'going back to',
+                                  'earlier', 'you said', 'we talked about',
+                                  'you mentioned', 'continuing']
+                continues_thread = any(s in msg_lower for s in thread_signals)
+
+                if refers_to_page and not continues_thread:
+                    topic_threading_hint = (
+                        "\nTOPIC SIGNAL: The user appears to be asking about the page "
+                        "they're currently viewing. Prioritize page context over "
+                        "earlier conversation topics.\n"
+                    )
+                elif continues_thread:
+                    topic_threading_hint = (
+                        "\nTOPIC SIGNAL: The user appears to be continuing an earlier "
+                        "conversation thread. Reference the relevant earlier exchange "
+                        "and build on it naturally.\n"
+                    )
 
         # Get user's first name for natural conversation
         user_name = self.user.first_name or self.user.get_short_name() or ""
@@ -3581,10 +3676,26 @@ Rules for voice responses:
         elif style_pref == 'deep_dive':
             style_nudge = '- Provide comprehensive analysis when data supports it.\n'
 
+        # =============================================================
+        # Phase 4a: Pre-Response Reasoning Step ("Think Before Speaking")
+        # Inject chain-of-thought instruction so the model reasons about
+        # context before generating the visible response. The reasoning
+        # is internal — only the final answer is shown to the user.
+        # =============================================================
+        reasoning_instruction = """
+Before responding, silently reason through these steps (do NOT include this reasoning in your response):
+1. What is the user's current context? (page they're viewing, time of day, recent session activity)
+2. What are they most likely asking about — the page content, their data, or a previous conversation topic?
+3. What data or context do I have that's directly relevant?
+4. What should I NOT talk about? (avoid mixing unrelated topics — don't mention routines when they're asking about scripture, don't discuss scripture when they're asking about tasks)
+Then give your response."""
+
         user_prompt = f"""{"The user's name is " + user_name + ". " if user_name else ""}Conversation so far:
 {messages_context}
 
 User's new message: {message}{image_note}
+{topic_threading_hint}
+{reasoning_instruction}
 
 Rules for this response:
 - Answer directly. Lead with the data when you have it.
@@ -3594,8 +3705,9 @@ Rules for this response:
 - If following up on previous conversation, build on it naturally"""
 
         # Dynamic token limit keyed to response mode
-        mode_tokens = {'brief': 250, 'adaptive': 450, 'deep': 600}
-        max_tokens = mode_tokens.get(response_mode, 450)
+        # Larger budgets allow deeper, more thoughtful responses
+        mode_tokens = {'brief': 400, 'adaptive': 800, 'deep': 1200}
+        max_tokens = mode_tokens.get(response_mode, 800)
 
         # Temperature: warm enough for natural conversation, lower for data accuracy
         has_personal_data = personal_data_result.get('has_data', False)

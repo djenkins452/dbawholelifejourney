@@ -1,7 +1,7 @@
 [
     {
         "model": "core.releasenote",
-        "pk": 101,
+        "pk": 102,
         "fields": {
             "title": "Daily Routine Tasks with CoS Check-ins",
             "description": "Your daily routines (Quiet Time, Workout, etc.) can now be set up as recurring tasks with scheduled times. Tell CoS 'Add Quiet Time at 5:30am daily' and it will create a completable task that shows up on your calendar at the right time. CoS will prompt you before your routine starts, check in afterwards to ask how it went, and remember your reflections for future conversations. Your executive briefing now shows which routines you've completed and which are still pending.",
@@ -13,6 +13,22 @@
             "learn_more_url": "",
             "created_at": "2026-02-25T02:00:00Z",
             "updated_at": "2026-02-25T02:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
+        "pk": 101,
+        "fields": {
+            "title": "Capture: iOS Audio Downloads & Readable Transcripts",
+            "description": "Two improvements to Capture recordings: (1) The 'Save to Device' and 'Download Audio' buttons now work correctly in the iOS app — tap to save your recording to Files, AirDrop it, or share to other apps. (2) Full transcripts are now formatted with paragraph breaks at natural topic changes, making long transcripts much easier to read. No wording is changed — just cleaner formatting.",
+            "entry_type": "enhancement",
+            "version": "",
+            "release_date": "2026-02-24",
+            "is_published": true,
+            "is_major": false,
+            "learn_more_url": "",
+            "created_at": "2026-02-24T23:30:00Z",
+            "updated_at": "2026-02-24T23:30:00Z"
         }
     },
     {

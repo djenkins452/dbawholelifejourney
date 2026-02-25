@@ -61,6 +61,17 @@
 
 **Why:** User's daily routines were invisible to the AI — they existed only as calendar entries or habit goals. CoS would incorrectly report activities as missed because it had no task-level completion data. Now routines are completable tasks with full lifecycle support.
 
+## 2026-02-24 — Feature: iOS native audio download + transcript paragraph formatting
+
+**What:** Two Capture enhancements: (1) "Save to Files"/"Download Audio" buttons now work in the iOS native app. WKWebView silently ignores the HTML `download` attribute, so on native iOS we now convert audio to base64, pass it through the wljBridge to Swift, which writes a temp file and presents UIActivityViewController (share sheet) — letting users save to Files, AirDrop, or share to other apps. (2) Whisper transcripts are now formatted with paragraph breaks at natural topic changes using gpt-4o-mini post-processing. The formatter only adds `\n\n` breaks — no wording changes. Word-count validation ensures fidelity; any error falls back to the unformatted transcript.
+
+**Files:**
+- `ios/WLJWrapper/WLJWrapper/Views/MainWebView.swift` — Added `saveFile` to JS bridge injection; added `saveFile` case to message handler switch; added `handleSaveFile()` method (base64 decode → temp file → UIActivityViewController with iPad popover support and temp file cleanup)
+- `templates/capture/capture_record.html` — Modified `setupDownloadLink()` to detect native iOS and use blob→base64→bridge instead of HTML download; same treatment for recovery download link
+- `templates/capture/capture_detail.html` — Added native iOS download interception on "Download Audio" button: fetches audio URL → blob → base64 → bridge; falls back to opening URL on error
+- `apps/capture/services/transcription.py` — Added `format_transcript()` method: calls gpt-4o-mini with temperature=0 to insert paragraph breaks; word-count validation (±5 tolerance); skips transcripts <500 chars; graceful fallback on any error
+- `apps/capture/tasks.py` — Inserted Step 1.5 between transcription and summarization: calls `format_transcript()` and saves if changed
+
 ## 2026-02-24 — Fix: AI falsely reporting completed activities as missed
 
 **What:** The Chief of Staff AI was telling the user that workouts and reading plan/Quiet Time were missed even when they had been logged hours earlier. Root cause: (1) The executive briefing health gate only reported *negative* workout status (missing) but never confirmed completed workouts, so the AI had no positive signal and hallucinated "missed" status. (2) Reading plan daily progress was completely absent from both the executive briefing and the state assessment — the AI had zero data about today's reading completion. (3) "How have I done today" didn't trigger the analysis code path, so the AI got no structured state data. Fixed by adding positive confirmations for completed workouts, adding reading plan/Quiet Time progress checks to the executive briefing and state assessment, expanding analysis trigger patterns, and adding a guard instruction against assuming items are missed without explicit data.

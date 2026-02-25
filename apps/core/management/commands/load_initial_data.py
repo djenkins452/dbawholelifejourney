@@ -790,7 +790,10 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for CoS v2 (PK 98)
         self._reset_cos_v2_release_notes(DataLoadConfig, force, verbosity)
 
-        # One-time: Reset release_notes for Daily Routine Tasks (PK 101)
+        # One-time: Reset release_notes for Capture iOS download + transcript formatting (PK 101)
+        self._reset_capture_ios_download_fixtures(DataLoadConfig, force, verbosity)
+
+        # One-time: Reset release_notes for Daily Routine Tasks (PK 102)
         self._reset_routine_tasks_release_notes(DataLoadConfig, force, verbosity)
 
         # Auto-sync CoS documentation to admin guide (runs if checksum changed)
@@ -3824,9 +3827,36 @@ Tasks are sorted by priority (ascending) then creation date.""",
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset CoS v2 release notes FAILED: {e}'))
 
+    def _reset_capture_ios_download_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes for Capture iOS download + transcript formatting (PK 101).
+        """
+        reset_tracker_name = 'reset_capture_ios_download_2026_02_24'
+        try:
+            if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
+                return
+
+            config = DataLoadConfig.objects.get(loader_name='release_notes')
+            if config.is_loaded:
+                config.is_loaded = False
+                config.save()
+                if verbosity >= 1:
+                    self.stdout.write(f'  Reset release_notes loader for Capture iOS download + transcript formatting')
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for Capture iOS download + transcript formatting (Feb 2026)',
+                'command',
+                'One-time reset to reload release_notes PK 101'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset Capture iOS download fixtures FAILED: {e}'))
+
     def _reset_routine_tasks_release_notes(self, DataLoadConfig, force=False, verbosity=1):
         """
-        One-time reset to reload release_notes for Daily Routine Tasks (PK 101).
+        One-time reset to reload release_notes for Daily Routine Tasks (PK 102).
         """
         reset_tracker_name = 'reset_routine_tasks_release_notes_2026_02_25'
         try:
@@ -3844,7 +3874,7 @@ Tasks are sorted by priority (ascending) then creation date.""",
                 DataLoadConfig, reset_tracker_name,
                 'Reset fixtures for Daily Routine Tasks release notes (Feb 2026)',
                 'command',
-                'One-time reset to reload release_notes PK 101'
+                'One-time reset to reload release_notes PK 102'
             )
 
         except Exception as e:

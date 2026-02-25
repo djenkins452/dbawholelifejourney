@@ -357,13 +357,15 @@ class TaskCreateView(LifeAccessMixin, CreateView):
     """Create a new task."""
     model = Task
     template_name = "life/task_form.html"
-    fields = ['title', 'notes', 'project', 'effort', 'due_date', 'is_recurring', 'recurrence_pattern', 'start_date', 'end_date']
+    fields = ['title', 'notes', 'project', 'effort', 'due_date', 'scheduled_time', 'scheduled_end_time', 'is_recurring', 'recurrence_pattern', 'start_date', 'end_date']
 
     def get_form(self, form_class=None):
         form = super().get_form(form_class)
         form.fields['project'].queryset = Project.objects.filter(
             user=self.request.user, status='active'
         )
+        form.fields['scheduled_time'].required = False
+        form.fields['scheduled_end_time'].required = False
         return form
 
     def get_initial(self):
@@ -405,16 +407,18 @@ class TaskUpdateView(LifeAccessMixin, UpdateView):
     """Edit a task."""
     model = Task
     template_name = "life/task_form.html"
-    fields = ['title', 'notes', 'project', 'effort', 'due_date', 'progress_percentage', 'is_recurring', 'recurrence_pattern', 'start_date', 'end_date']
-    
+    fields = ['title', 'notes', 'project', 'effort', 'due_date', 'scheduled_time', 'scheduled_end_time', 'progress_percentage', 'is_recurring', 'recurrence_pattern', 'start_date', 'end_date']
+
     def get_queryset(self):
         return Task.objects.filter(user=self.request.user)
-    
+
     def get_form(self, form_class=None):
         form = super().get_form(form_class)
         form.fields['project'].queryset = Project.objects.filter(
             user=self.request.user, status='active'
         )
+        form.fields['scheduled_time'].required = False
+        form.fields['scheduled_end_time'].required = False
         return form
     
     def get_success_url(self):

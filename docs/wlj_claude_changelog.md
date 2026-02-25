@@ -9,6 +9,19 @@
 
 # WLJ Change History
 
+## 2026-02-25 — Enhancement: Add Start/End Time Fields to Task Form
+
+**What:** The Task model had `scheduled_time` and `scheduled_end_time` fields for routine task scheduling, but these were not exposed in the task create/edit form. Users could not set task times through the UI.
+
+**Changes:**
+- Added `scheduled_time` and `scheduled_end_time` to `TaskCreateView` and `TaskUpdateView` field lists (`apps/life/views.py`)
+- Added always-visible Start Time / End Time inputs using `type="time"` in the task form template (`templates/life/task_form.html`)
+- Fields are optional — leaving them blank works the same as before
+
+**Files modified:** `apps/life/views.py`, `templates/life/task_form.html`
+
+---
+
 ## 2026-02-24 — Fix: CoS Voice Input Choppy/Premature Sending
 
 **What:** Voice input to Circle of Support was breaking speech into small choppy fragments because recognition used `continuous=false` and sent after just 200ms. Now uses continuous recognition with a 2-second silence buffer, allowing users to pause and gather their thoughts without prematurely sending incomplete messages.

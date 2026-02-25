@@ -405,7 +405,7 @@ def build_cos_context(user):
     # PHASE 4 — EXECUTIVE CONTEXT SIGNALS
     # =====================================================================
 
-    # Active PIE insights summary
+    # Active PIE insights — full coaching data for narrative injection
     try:
         from apps.core.ai_insights.models import Insight
         recent_insights = Insight.objects.filter(
@@ -416,14 +416,17 @@ def build_cos_context(user):
                 'type': i.insight_type,
                 'severity': i.severity,
                 'title': i.title,
+                'message': i.message,
+                'explain_why': i.explain_why,
                 'module': i.module,
+                'confidence': round(i.confidence_score, 2),
             }
             for i in recent_insights
         ]
     except Exception:
         context['active_insights'] = []
 
-    # Active PRIE predictions summary
+    # Active PRIE predictions — full projection data for trajectory context
     try:
         from apps.core.ai_predictions.models import Prediction
         active_predictions = Prediction.objects.filter(
@@ -435,11 +438,39 @@ def build_cos_context(user):
                 'module': p.module,
                 'value': p.predicted_value,
                 'confidence': round(p.confidence_score, 2),
+                'explanation': p.explanation,
+                'predicted_date': p.predicted_date.strftime('%b %d')
+                if p.predicted_date else None,
             }
             for p in active_predictions
         ]
     except Exception:
         context['active_predictions'] = []
+
+    # Active PGE guidance — actionable recommendations for coaching
+    try:
+        from apps.core.ai_guidance.models import GuidanceItem
+        now = timezone.now()
+        active_guidance = GuidanceItem.objects.filter(
+            user=user,
+            is_active=True,
+            dismissed_at__isnull=True,
+        ).exclude(
+            snoozed_until__gt=now,
+        ).order_by("priority", "-created_at")[:5]
+        context['active_guidance'] = [
+            {
+                'title': g.title,
+                'message': g.message,
+                'priority': g.priority,
+                'module': g.module,
+                'guidance_type': g.guidance_type,
+                'source': g.source,
+            }
+            for g in active_guidance
+        ]
+    except Exception:
+        context['active_guidance'] = []
 
     # Relationship signals
     try:
@@ -810,20 +841,51 @@ def format_cos_system_injection(context):
     # Key signals — only include things the CoS should mention or act on
     # (Skip raw scores/percentages that don't help the conversation)
 
-    # Active insights (things worth mentioning)
+    # Active insights — coaching-level narratives from PIE
     insights = context.get('active_insights', [])
     if insights:
         lines.append("")
-        lines.append("Notable Insights:")
+        lines.append("ACTIVE PATTERNS (reference when relevant — don't force into conversation):")
         for i in insights[:5]:
-            lines.append(f"  - {i['title']} ({i['module']})")
+            severity_prefix = ""
+            if i.get('severity') == 'critical':
+                severity_prefix = "[IMPORTANT] "
+            elif i.get('severity') == 'warning':
+                severity_prefix = "[Watch] "
+            elif i.get('severity') == 'positive':
+                severity_prefix = "[Positive] "
+            msg = i.get('message') or i.get('title', '')
+            why = i.get('explain_why', '')
+            if msg and why:
+                lines.append(f"  - {severity_prefix}{msg} ({why})")
+            elif msg:
+                lines.append(f"  - {severity_prefix}{msg}")
 
-    # Active predictions (things to watch)
+    # Active predictions — trajectory outlook from PRIE
     predictions = context.get('active_predictions', [])
     if predictions:
-        lines.append("Predictions:")
+        lines.append("")
+        lines.append("TRAJECTORY OUTLOOK (mention proactively when user asks about progress or goals):")
         for p in predictions[:3]:
-            lines.append(f"  - {p['type']}: {p['value']}")
+            explanation = p.get('explanation', '')
+            date_str = p.get('predicted_date', '')
+            conf = p.get('confidence', 0)
+            if explanation:
+                conf_label = "high" if conf >= 0.7 else "moderate" if conf >= 0.4 else "low"
+                date_note = f" (by {date_str})" if date_str else ""
+                lines.append(f"  - {explanation}{date_note} [{conf_label} confidence]")
+            else:
+                lines.append(f"  - {p['type']}: {p['value']}")
+
+    # Active guidance — recommended actions from PGE
+    guidance = context.get('active_guidance', [])
+    if guidance:
+        lines.append("")
+        lines.append("RECOMMENDED ACTIONS (suggest when naturally relevant — don't list unsolicited):")
+        for g in guidance[:3]:
+            msg = g.get('message') or g.get('title', '')
+            if msg:
+                lines.append(f"  - {msg}")
 
     # Relationship signals (people to reconnect with)
     rel_signals = context.get('relationship_signals', [])

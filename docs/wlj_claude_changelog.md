@@ -9,6 +9,26 @@
 
 # WLJ Change History
 
+## 2026-02-25 — Feature: CoS Phase 1 — Surface Existing Intelligence
+
+**What:** Upgrades CoS from terse metadata injection to coaching-level narrative intelligence. PIE insights, PRIE predictions, and PGE guidance are now injected into the system prompt as rich natural-language context that the LLM can reference conversationally. Post-action responses now include pattern-level PIE insights. Calibration answers are now extracted into the UserLearnedProfile.
+
+**Changes:**
+- **PIE coaching narratives:** Active insights injected as "ACTIVE PATTERNS" block with severity labels, full messages, and explain_why context (was: one-line titles only)
+- **PRIE trajectory outlook:** Active predictions injected as "TRAJECTORY OUTLOOK" block with explanations, predicted dates, and confidence labels (was: terse type/value pairs)
+- **PGE recommended actions:** Active guidance now injected as "RECOMMENDED ACTIONS" block (was: not injected at all)
+- **Post-action PIE follow-up:** After any data log, the latest warning/critical PIE insight for that module is appended to the confirmation response
+- **Calibration learning extraction:** `record_calibration_answer()` now calls `extract_learning()` to process answers into UserLearnedProfile. Added `backfill_calibration_learning()` for existing answers.
+
+**Files modified:**
+- `apps/core/ai_orchestrator/cos_context.py` — Enriched build_cos_context (PIE/PRIE/PGE data), upgraded format_cos_system_injection (coaching narratives)
+- `apps/ai/personal_assistant.py` — Enhanced `_format_confirmation_detail` with PIE insight injection, added `_infer_module_from_where` helper
+- `apps/core/blueprint/cos_governance.py` — Wired extract_learning into record_calibration_answer, added backfill_calibration_learning()
+
+**Why:** PIE/PRIE/PGE engines generate intelligence that was not being used conversationally. CoS had the data but didn't reference it in responses. This is the highest-ROI upgrade — zero new engines, purely surfacing existing intelligence.
+
+---
+
 ## 2026-02-25 — Docs: CoS Full System Report & Gap Analysis (Rewritten)
 
 **What:** Complete rewrite of `docs/cos_full_picture_report.md` — comprehensive inventory of everything CoS can do (36 intents, 17 engines, 26 data query types, full context assembly pipeline), plus an 18-gap analysis comparing CoS to Claude Code / ChatGPT. Intended as input for creating a master prompt to close the remaining gaps. Key gaps identified: no proactive push delivery, no general web search, no cross-domain pattern correlation, no predictive goal tracking, pattern insights not surfaced in chat, missing intents for sleep/water/steps/finance.

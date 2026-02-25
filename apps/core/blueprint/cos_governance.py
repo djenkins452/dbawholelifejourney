@@ -773,8 +773,59 @@ def record_calibration_answer(user, question_key, answer_text):
     except Exception:
         pass
 
+    # Extract learning from calibration answer into UserLearnedProfile.
+    # Calibration answers are the richest structured data about the user;
+    # the learning extractor will pattern-match values, non-negotiables,
+    # relationships, goals, etc.
+    try:
+        from apps.core.ai_learning.learning_extractor import extract_learning
+        # Prefix with question text for better context matching
+        q_text = q_def.get('question', '') if q_def else ''
+        learning_input = f"{q_text} {answer_text}" if q_text else answer_text
+        extract_learning(user, learning_input)
+    except Exception as e:
+        logger.debug("Learning extraction from calibration skipped: %s", e)
+
     # Advance to next question
     advance_calibration_stage(user)
+
+
+def backfill_calibration_learning(user):
+    """
+    Extract learning from all existing calibration answers.
+
+    Call this once per user to process answers that were recorded before
+    the learning extraction was wired into record_calibration_answer().
+    Safe to call multiple times — extract_learning deduplicates.
+    """
+    blueprint = _get_blueprint(user)
+    if not blueprint:
+        return 0
+
+    overrides = blueprint.governance_overrides or {}
+    answers = overrides.get('calibration_answers', {})
+    if not answers:
+        return 0
+
+    try:
+        from apps.core.ai_learning.learning_extractor import extract_learning
+    except ImportError:
+        return 0
+
+    total_extracted = 0
+    for key, answer_text in answers.items():
+        q_def = next(
+            (q for q in CALIBRATION_QUESTIONS if q['key'] == key), None
+        )
+        q_text = q_def.get('question', '') if q_def else ''
+        learning_input = f"{q_text} {answer_text}" if q_text else answer_text
+        try:
+            results = extract_learning(user, learning_input)
+            total_extracted += len(results) if results else 0
+        except Exception:
+            continue
+
+    return total_extracted
 
 
 def mark_calibration_welcome_shown(user):

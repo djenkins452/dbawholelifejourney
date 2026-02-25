@@ -2486,12 +2486,13 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             result['confirmation_detail'] = action_result.confirmation_detail
         return result
 
-    @staticmethod
-    def _format_confirmation_detail(action_result) -> str:
+    def _format_confirmation_detail(self, action_result) -> str:
         """
         Format confirmation_detail into response text.
 
-        Appends location, trend, and risk below the action message.
+        Appends location, trend, risk, and latest PIE insight for
+        the action's module so the user gets strategic context alongside
+        every data log.
         """
         detail = getattr(action_result, 'confirmation_detail', None)
         if not detail:
@@ -2508,9 +2509,46 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         if risk:
             parts.append(risk)
 
+        # Append latest PIE insight for this module as strategic context
+        try:
+            module = detail.get('module') or self._infer_module_from_where(where)
+            if module:
+                from apps.core.ai_insights.models import Insight
+                latest_insight = Insight.objects.filter(
+                    user=self.user,
+                    module=module,
+                    status__in=["new", "read"],
+                    severity__in=["warning", "critical"],
+                ).order_by("-created_at").first()
+                if latest_insight and latest_insight.message:
+                    parts.append(f"Pattern: {latest_insight.message}")
+        except Exception:
+            pass
+
         if parts:
             return '\n' + '\n'.join(parts)
         return ''
+
+    @staticmethod
+    def _infer_module_from_where(where):
+        """Infer PIE module name from confirmation_detail 'where' field."""
+        if not where:
+            return None
+        where_lower = where.lower()
+        module_map = {
+            'health': 'health', 'weight': 'health', 'heart': 'health',
+            'blood': 'health', 'glucose': 'health', 'oxygen': 'health',
+            'fitness': 'fitness', 'workout': 'fitness', 'cardio': 'fitness',
+            'journal': 'journal', 'gratitude': 'journal',
+            'faith': 'faith', 'prayer': 'faith', 'scripture': 'scripture',
+            'goal': 'goals', 'habit': 'habits',
+            'nutrition': 'nutrition', 'food': 'nutrition',
+            'fasting': 'fasting', 'fast': 'fasting',
+        }
+        for keyword, module in module_map.items():
+            if keyword in where_lower:
+                return module
+        return None
 
     def _check_feature_request(
         self,

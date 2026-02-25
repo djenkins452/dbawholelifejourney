@@ -9,6 +9,22 @@
 
 # WLJ Change History
 
+## 2026-02-25 — Feature: Smart Suggestion Decline & Past-Due Filtering
+
+**What:** Added a "Decline" button to Smart Suggestions on the calendar page so users can dismiss suggestions they don't want. Declined suggestions are tracked per-user per-date and won't reappear on refresh. Also added past-due filtering — when the page loads, suggestions whose time windows have already passed are automatically removed (both server-side during generation and client-side on render).
+
+**Files:**
+- `apps/calendar_engine/models.py` — NEW: `DeclinedSuggestion` model (tracks declined source_type + source_id per date)
+- `apps/calendar_engine/migrations/0008_declinedsuggestion.py` — Migration for new model
+- `apps/calendar_engine/views.py` — NEW: `DeclineSuggestionView` endpoint (POST /calendar/api/suggestions/decline/)
+- `apps/calendar_engine/urls.py` — Added decline URL route
+- `apps/calendar_engine/services/suggestions.py` — Updated `generate_suggestions()` to filter out past-due gaps and declined items
+- `templates/calendar_engine/dashboard.html` — Added Decline button with CSS, JS handler, and client-side past-due removal on load
+
+**Why:** Users needed a way to dismiss irrelevant suggestions, and stale suggestions with past time slots were confusing.
+
+---
+
 ## 2026-02-25 — Feature: CoS Phase 7 — Dynamic URL Resolution & Action Contracts
 
 **What:** Adds centralized URL resolution for all 40+ intent types, module landing pages, and entity detail pages. New `url_resolver.py` maps intents to post-action destination URLs. New `action_contracts.py` provides `ActionContract` dataclass that enriches action results with navigation URLs, follow-up links, icons, and detail page URLs. Enhanced `response_builder.py` with `build_response_with_contracts()` that returns both text and structured metadata. Injected navigable pages list into CoS system prompt via `cos_context.py` so CoS can direct users to specific app pages in conversation.

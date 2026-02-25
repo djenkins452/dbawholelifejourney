@@ -24,6 +24,7 @@ urlpatterns = [
     # Smart suggestions
     path('api/suggestions/gaps/', views.GapSuggestionsView.as_view(), name='api_gap_suggestions'),
     path('api/suggestions/accept/', views.AcceptSuggestionView.as_view(), name='api_accept_suggestion'),
+    path('api/suggestions/decline/', views.DeclineSuggestionView.as_view(), name='api_decline_suggestion'),
 
     # Domain metrics
     path('api/metrics/balance/', views.DomainBalanceView.as_view(), name='api_domain_balance'),

@@ -70,8 +70,11 @@
 .cal-suggestion-name { font-size: 0.875rem; font-weight: 500; color: var(--color-text); }
 .cal-suggestion-detail { font-size: 0.75rem; color: var(--color-text-muted); margin: 0.25rem 0; }
 .cal-suggestion-rationale { font-size: 0.75rem; color: var(--color-accent); font-style: italic; margin-bottom: 0.5rem; }
+.cal-suggestion-actions { display: flex; gap: 0.5rem; }
 .cal-suggestion-accept { padding: 0.375rem 0.75rem; border: 1px solid var(--color-accent); border-radius: var(--radius-lg); background: transparent; color: var(--color-accent); font-size: 0.75rem; cursor: pointer; font-weight: 500; }
 .cal-suggestion-accept:hover { background: var(--color-accent); color: #fff; }
+.cal-suggestion-decline { padding: 0.375rem 0.75rem; border: 1px solid var(--color-text-muted); border-radius: var(--radius-lg); background: transparent; color: var(--color-text-muted); font-size: 0.75rem; cursor: pointer; font-weight: 500; }
+.cal-suggestion-decline:hover { background: var(--color-text-muted); color: #fff; }
 .cal-no-suggestions { font-size: 0.875rem; color: var(--color-text-muted); }
 
 /* Conflict Modal */
@@ -178,7 +181,10 @@
                         <div class="cal-suggestion-name">{{ s.title }}</div>
                         <div class="cal-suggestion-detail" data-start="{{ s.start_dt }}" data-end="{{ s.end_dt }}"></div>
                         <div class="cal-suggestion-rationale">{{ s.rationale }}</div>
-                        <button class="cal-suggestion-accept">Accept</button>
+                        <div class="cal-suggestion-actions">
+                            <button class="cal-suggestion-accept">Accept</button>
+                            <button class="cal-suggestion-decline">Decline</button>
+                        </div>
                     </div>
                     {% empty %}
                     <div class="cal-no-suggestions">No suggestions right now. Keep it up!</div>
@@ -474,30 +480,55 @@
         }
     });
 
-    // ── Accept Suggestion ──
+    // ── Accept / Decline Suggestion ──
 
     document.getElementById('cal-suggestions-list').addEventListener('click', function(e) {
-        var btn = e.target.closest('.cal-suggestion-accept');
-        if (!btn) return;
-        var item = btn.closest('.cal-suggestion-item');
-        var data = {
-            source_type: item.dataset.sourceType,
-            source_id: item.dataset.sourceId,
-            start_dt: item.dataset.start,
-            end_dt: item.dataset.end,
-            title: item.dataset.title,
-        };
+        var acceptBtn = e.target.closest('.cal-suggestion-accept');
+        var declineBtn = e.target.closest('.cal-suggestion-decline');
+        if (!acceptBtn && !declineBtn) return;
 
-        api('/calendar/api/suggestions/accept/', {
-            method: 'POST',
-            body: JSON.stringify(data),
-        }).then(function(resp) {
-            if (resp.ok) {
-                item.remove();
-                loadView(currentView);
-            }
-        });
+        var item = (acceptBtn || declineBtn).closest('.cal-suggestion-item');
+
+        if (acceptBtn) {
+            var data = {
+                source_type: item.dataset.sourceType,
+                source_id: item.dataset.sourceId,
+                start_dt: item.dataset.start,
+                end_dt: item.dataset.end,
+                title: item.dataset.title,
+            };
+            api('/calendar/api/suggestions/accept/', {
+                method: 'POST',
+                body: JSON.stringify(data),
+            }).then(function(resp) {
+                if (resp.ok) {
+                    item.remove();
+                    loadView(currentView);
+                    checkEmptySuggestions();
+                }
+            });
+        } else if (declineBtn) {
+            api('/calendar/api/suggestions/decline/', {
+                method: 'POST',
+                body: JSON.stringify({
+                    source_type: item.dataset.sourceType,
+                    source_id: item.dataset.sourceId,
+                }),
+            }).then(function(resp) {
+                if (resp.ok) {
+                    item.remove();
+                    checkEmptySuggestions();
+                }
+            });
+        }
     });
+
+    function checkEmptySuggestions() {
+        var list = document.getElementById('cal-suggestions-list');
+        if (!list.querySelector('.cal-suggestion-item')) {
+            list.innerHTML = '<div class="cal-no-suggestions">No suggestions right now. Keep it up!</div>';
+        }
+    }
 
     // ── Source URL Map ──
 
@@ -682,10 +713,19 @@
         });
     };
 
-    // ── Format Suggestion Dates ──
+    // ── Format Suggestion Dates & Remove Past-Due ──
+    var now = new Date();
     document.querySelectorAll('.cal-suggestion-detail[data-start]').forEach(function(el) {
-        el.textContent = formatDateTime(el.dataset.start) + ' — ' + formatDateTime(el.dataset.end);
+        var endDt = new Date(el.dataset.end);
+        if (endDt <= now) {
+            // Suggested time is entirely in the past — remove it
+            var item = el.closest('.cal-suggestion-item');
+            if (item) item.remove();
+        } else {
+            el.textContent = formatDateTime(el.dataset.start) + ' — ' + formatDateTime(el.dataset.end);
+        }
     });
+    checkEmptySuggestions();
 
     // ── Init ──
     loadView('today');

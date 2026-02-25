@@ -182,12 +182,46 @@ def get_items_due_soon(user):
 def generate_suggestions(user, date=None):
     """
     Main entry point: find gaps, find items due soon, generate suggestions.
+    Filters out past-due gaps and declined items.
     Returns list of suggestion dicts.
     """
+    from apps.calendar_engine.models import DeclinedSuggestion
+
+    target_date = date or timezone.localdate()
     gaps = find_gaps_for_day(user, date)
     items = get_items_due_soon(user)
 
     if not gaps or not items:
+        return []
+
+    # Filter out gaps that are entirely in the past
+    now = timezone.now()
+    gaps = [g for g in gaps if g['end_dt'] > now]
+
+    # Trim the first gap's start if it's partially in the past
+    if gaps and gaps[0]['start_dt'] < now:
+        gaps[0] = {
+            'start_dt': now.replace(second=0, microsecond=0) + dt.timedelta(minutes=1),
+            'end_dt': gaps[0]['end_dt'],
+            'duration_minutes': int((gaps[0]['end_dt'] - now).total_seconds() / 60),
+        }
+        # Drop if remaining gap is too small
+        if gaps[0]['duration_minutes'] < MIN_GAP_MINUTES:
+            gaps.pop(0)
+
+    if not gaps:
+        return []
+
+    # Filter out declined items for today
+    declined = set(
+        DeclinedSuggestion.objects.filter(
+            user=user,
+            declined_date=target_date,
+        ).values_list('source_type', 'source_id')
+    )
+    items = [i for i in items if (i['source_type'], i['source_id']) not in declined]
+
+    if not items:
         return []
 
     suggestions = []

@@ -599,6 +599,38 @@ class AcceptSuggestionView(LoginRequiredMixin, View):
         return JsonResponse({'error': 'Unsupported source_type'}, status=400)
 
 
+class DeclineSuggestionView(LoginRequiredMixin, View):
+    """
+    POST /calendar/api/suggestions/decline/
+    Body: {source_type, source_id}
+
+    Records that the user declined a suggestion so it won't reappear today.
+    """
+
+    def post(self, request):
+        from apps.calendar_engine.models import DeclinedSuggestion
+
+        data = _parse_body(request)
+        if not data:
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        source_type = data.get('source_type', '')
+        source_id = data.get('source_id', '')
+
+        if not source_type or not source_id:
+            return JsonResponse({'error': 'source_type and source_id required'}, status=400)
+
+        today = timezone.localdate()
+        DeclinedSuggestion.objects.get_or_create(
+            user=request.user,
+            source_type=source_type,
+            source_id=source_id,
+            declined_date=today,
+        )
+
+        return JsonResponse({'status': 'declined'})
+
+
 # ──────────────────────────────────────────────────────────
 # Domain Balance Metrics
 # ──────────────────────────────────────────────────────────

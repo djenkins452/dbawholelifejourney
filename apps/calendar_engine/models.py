@@ -328,3 +328,28 @@ class CalendarOverrideLog(models.Model):
 
     def __str__(self):
         return f"Override: {self.event.title} over {self.overridden_event.title}"
+
+
+class DeclinedSuggestion(models.Model):
+    """
+    Tracks suggestions the user has declined so they don't reappear
+    for the same item on the same date.
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='declined_suggestions',
+    )
+    source_type = models.CharField(max_length=20)
+    source_id = models.CharField(max_length=100)
+    declined_date = models.DateField(
+        help_text='The date the suggestion was declined for',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['user', 'source_type', 'source_id', 'declined_date']
+
+    def __str__(self):
+        return f"Declined {self.source_type}:{self.source_id} on {self.declined_date}"

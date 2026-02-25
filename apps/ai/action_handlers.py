@@ -1870,6 +1870,13 @@ class ActionHandler:
         from apps.life.models import Task
         from datetime import time as dt_time
 
+        logger.info(
+            "handle_create_routine_task called: title=%s time=%s end=%s "
+            "duration=%s recurrence=%s user=%s",
+            title, scheduled_time, end_time, duration_minutes,
+            recurrence_pattern, self.user.id,
+        )
+
         try:
             # Parse scheduled_time
             parts = scheduled_time.replace('.', ':').split(':')
@@ -1915,6 +1922,13 @@ class ActionHandler:
                 effort='small',
             )
 
+            # Verify the task actually persisted
+            verify = Task.all_objects.filter(pk=task.pk).exists()
+            logger.info(
+                "Routine task created: id=%s title='%s' due=%s persisted=%s",
+                task.pk, task.title, task.due_date, verify,
+            )
+
             time_str = sched_time.strftime('%I:%M %p').lstrip('0')
             if sched_end_time:
                 end_time_str = sched_end_time.strftime('%I:%M %p').lstrip('0')
@@ -1926,7 +1940,7 @@ class ActionHandler:
             return ActionResult(
                 success=True,
                 message=(
-                    f"Created daily routine: **{title}** {time_display} "
+                    f"✓ Created routine: **{title}** {time_display} "
                     f"({recurrence_pattern}). "
                     f"I'll prompt you before and check in after. "
                     f"[View in Tasks]({task_url})"

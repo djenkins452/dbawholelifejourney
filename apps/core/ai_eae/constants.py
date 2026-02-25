@@ -3,7 +3,70 @@ EAE — Constants & Thresholds.
 
 All scoring weights, budget caps, escalation thresholds, and timing constants
 for the Executive Arbitration Engine. Centralized here for tuning and audit.
+
+INTENSITY MULTIPLIER:
+    A central scalar (default 1.0) that deterministically adjusts sensitivity
+    across scoring, escalation, budget compression, and tone transitions.
+    At 1.0, all behavior is baseline. Values > 1.0 increase sensitivity
+    (escalate sooner, tighter budgets, firmer tone). Values < 1.0 soften.
+    Future-proofed for per-user configuration via Blueprint, but not
+    user-facing in Phase 8 rollout.
 """
+
+# =============================================================================
+# INTENSITY MULTIPLIER (central tuning scalar)
+# =============================================================================
+
+# Default intensity: 1.0 = baseline behavior (no change)
+# > 1.0 = more aggressive (escalate faster, tighter budgets, firmer tone)
+# < 1.0 = more lenient (slower escalation, wider budgets, gentler tone)
+# Clamped to [0.5, 2.0] at runtime to prevent extreme behavior
+DEFAULT_INTENSITY_MULTIPLIER = 1.0
+INTENSITY_MIN = 0.5
+INTENSITY_MAX = 2.0
+
+
+def get_intensity(user=None):
+    """
+    Return the intensity multiplier for a user.
+
+    Phase 8: Always returns DEFAULT_INTENSITY_MULTIPLIER.
+    Future: Will read from PersonalOperatingBlueprint or EAEState per-user.
+    """
+    # Future hook: read from user's Blueprint or EAEState
+    # if user:
+    #     try:
+    #         bp = user.operating_blueprint
+    #         return max(INTENSITY_MIN, min(INTENSITY_MAX, bp.eae_intensity))
+    #     except Exception:
+    #         pass
+    return DEFAULT_INTENSITY_MULTIPLIER
+
+
+def apply_intensity(value, intensity=None, inverse=False):
+    """
+    Apply intensity multiplier to a threshold or score.
+
+    Args:
+        value: The base value to adjust.
+        intensity: Multiplier (default: DEFAULT_INTENSITY_MULTIPLIER).
+        inverse: If True, divides instead of multiplies. Use for thresholds
+                 where lower = more sensitive (e.g., confidence minimums,
+                 de-escalation requirements). Higher intensity should LOWER
+                 these thresholds, making them easier to trigger.
+
+    Returns:
+        Adjusted value. At intensity=1.0, returns value unchanged.
+    """
+    if intensity is None:
+        intensity = DEFAULT_INTENSITY_MULTIPLIER
+    intensity = max(INTENSITY_MIN, min(INTENSITY_MAX, intensity))
+    if intensity == 1.0:
+        return value
+    if inverse:
+        return value / intensity
+    return value * intensity
+
 
 # =============================================================================
 # SCORING & NORMALIZATION WEIGHTS (§4.2 of design spec)

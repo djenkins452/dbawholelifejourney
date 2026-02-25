@@ -8,7 +8,16 @@ and the Command Center.
 Core principle: Compute everything. Surface very little.
 
 Public API:
-    arbitrate(user, channel, cos_context, ual_result, session_context) -> EAEDecision
+    arbitrate(user, channel, recent_deliveries) -> EAEResult
 """
 
-__all__ = []  # Public API will be exported in Phase 8.5
+
+def __getattr__(name):
+    """Lazy import to avoid AppRegistryNotReady during app loading."""
+    if name in ("arbitrate", "EAEResult"):
+        from apps.core.ai_eae.eae_engine import EAEResult, arbitrate
+        return {"arbitrate": arbitrate, "EAEResult": EAEResult}[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+__all__ = ["arbitrate", "EAEResult"]

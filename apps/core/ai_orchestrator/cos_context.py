@@ -772,6 +772,13 @@ def build_cos_context(user):
         logger.debug("CoS context: life events unavailable: %s", e)
         context['approaching_life_events'] = []
 
+    # Navigable pages — URL awareness for directing users to app pages
+    try:
+        from apps.core.ai_orchestrator.url_resolver import get_navigable_pages
+        context['navigable_pages'] = get_navigable_pages()
+    except Exception:
+        context['navigable_pages'] = []
+
     return context
 
 
@@ -1154,6 +1161,16 @@ def format_cos_system_injection(context):
         if db_block:
             lines.append("")
             lines.append(db_block)
+
+    # Navigable pages — URL awareness for directing users to app pages
+    pages = context.get('navigable_pages', [])
+    if pages:
+        lines.append("")
+        lines.append(
+            "APP NAVIGATION (use these URLs when directing the user to a page):"
+        )
+        for p in pages:
+            lines.append(f"  - [{p['name']}]({p['url']})")
 
     lines.append("")
     lines.append("=== END SITUATIONAL AWARENESS ===")

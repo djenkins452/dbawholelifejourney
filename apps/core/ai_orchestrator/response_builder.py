@@ -2,7 +2,8 @@
 Response Builder — Build human-friendly responses from orchestrator results.
 
 Enhances action result messages with temporal context when HTIE
-resolved a time expression.
+resolved a time expression, and attaches URL navigation metadata
+via the ActionContract system (Phase 7).
 """
 
 import logging
@@ -66,3 +67,36 @@ def build_response(orchestrator_result):
         parts.append(message)
 
     return " ".join(parts)
+
+
+def build_response_with_contracts(orchestrator_result):
+    """
+    Build response string AND action contracts with URL metadata.
+
+    Returns both the text response and structured action contract data
+    for the frontend to render navigation links and action buttons.
+
+    Args:
+        orchestrator_result: OrchestratorResult from the orchestrator.
+
+    Returns:
+        Tuple of (response_string, action_contracts_list).
+        action_contracts_list is a list of dicts or empty list.
+    """
+    response = build_response(orchestrator_result)
+
+    # Build action contracts for successful actions
+    contracts = []
+    if orchestrator_result.action_results:
+        try:
+            from apps.core.ai_orchestrator.action_contracts import (
+                enrich_response_with_contracts,
+            )
+            contracts = enrich_response_with_contracts(
+                orchestrator_result.action_results,
+                orchestrator_result.actions_enriched,
+            )
+        except Exception as e:
+            logger.debug("Action contract generation skipped: %s", e)
+
+    return response, contracts

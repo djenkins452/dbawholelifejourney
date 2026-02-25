@@ -9,6 +9,21 @@
 
 # WLJ Change History
 
+## 2026-02-25 — Feature: CoS Phase 7 — Dynamic URL Resolution & Action Contracts
+
+**What:** Adds centralized URL resolution for all 40+ intent types, module landing pages, and entity detail pages. New `url_resolver.py` maps intents to post-action destination URLs. New `action_contracts.py` provides `ActionContract` dataclass that enriches action results with navigation URLs, follow-up links, icons, and detail page URLs. Enhanced `response_builder.py` with `build_response_with_contracts()` that returns both text and structured metadata. Injected navigable pages list into CoS system prompt via `cos_context.py` so CoS can direct users to specific app pages in conversation.
+
+**Files:**
+- `apps/core/ai_orchestrator/url_resolver.py` — NEW: INTENT_URL_MAP, MODULE_URL_MAP, NAVIGABLE_PAGES, resolve_intent_url(), resolve_module_url(), resolve_entity_url(), build_action_url_metadata()
+- `apps/core/ai_orchestrator/action_contracts.py` — NEW: ActionContract, ActionLink, build_action_contract(), enrich_response_with_contracts(), INTENT_ICONS, FOLLOW_UP_MAP
+- `apps/core/ai_orchestrator/response_builder.py` — Added build_response_with_contracts() returning (response, contracts) tuple
+- `apps/core/ai_orchestrator/cos_context.py` — Added navigable_pages to context + APP NAVIGATION section in system injection
+- `apps/core/ai_orchestrator/tests/test_url_resolver.py` — NEW: 33 tests
+
+**Why:** Phase 7 of the CoS upgrade enables dynamic URL-aware responses so CoS can direct users to the right page, embed navigation links in action confirmations, and reference specific app pages in conversation.
+
+---
+
 ## 2026-02-25 — Feature: CoS Phase 6 — Voice Output (TTS)
 
 **What:** Adds text-to-speech capability to CoS via OpenAI's TTS API. New `tts_service.py` module provides `generate_speech()` / `generate_speech_base64()` functions with voice selection (6 voices), speed control (0.25–4.0x), markdown/emoji stripping for natural speech, and user preference support. New `TextToSpeechView` POST endpoint at `/assistant/api/tts/` accepts text and returns base64-encoded MP3 audio for browser playback.

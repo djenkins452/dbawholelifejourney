@@ -43,13 +43,23 @@
 
 ---
 
+## 2026-02-25 — Fix: Calendar Task Click URL Prefix
+
+**What:** Calendar click routing for tasks used `/organize/tasks/{id}/edit/` but the correct URL is `/life/tasks/{id}/edit/`. Clicking a task on the calendar returned a 404.
+
+**Fix:** Changed task case in `getEditUrl()` from `/organize/` to `/life/`.
+
+**Files modified:** `templates/calendar_engine/month.html`
+
+---
+
 ## 2026-02-25 — Enhancement: Calendar Event Click Opens Edit Directly
 
 **What:** Clicking a calendar event in the month view now navigates directly to the edit page instead of showing a popover. Task-sourced events open the task edit form; all other events open the calendar manage page in edit mode.
 
 **Changes:**
 - Replaced popover-on-click with direct navigation in `templates/calendar_engine/month.html`
-- Added `getEditUrl()` function that routes by `source_type`: task → `/organize/tasks/{id}/edit/`, others → `/calendar/manage/?edit={id}`
+- Added `getEditUrl()` function that routes by `source_type`
 
 **Files modified:** `templates/calendar_engine/month.html`
 

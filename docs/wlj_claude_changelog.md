@@ -9,6 +9,27 @@
 
 # WLJ Change History
 
+## 2026-02-25 — Phase 8.1: Executive Arbitration Engine (EAE) — Foundation
+
+**What:** Phase 8 of CoS intelligence architecture. Creates the EAE app (`apps/core/ai_eae/`) with foundation models, constants, and feature flag. EAE is the "kernel" layer that will deterministically control what intelligence is surfaced to the user across chat, push, briefings, and Command Center. This sub-phase is models + feature flag only — no behavior changes yet.
+
+**Files:**
+- `apps/core/ai_eae/__init__.py` — NEW: App init with module docstring
+- `apps/core/ai_eae/apps.py` — NEW: AppConfig for ai_eae
+- `apps/core/ai_eae/models.py` — NEW: EAEState (per-user escalation/focus/budget), EAEDecisionLog (append-only audit), EAEOverride (signal suppression state machine), EAEEscalationEvent (transition log)
+- `apps/core/ai_eae/constants.py` — NEW: All scoring weights, noise budgets, escalation thresholds, tone bands, channel configs, dedup/expiry rules
+- `apps/core/ai_eae/admin.py` — NEW: Read-only admin for all 4 models
+- `apps/core/ai_eae/tests/test_models.py` — NEW: 39 tests covering all models, constraints, properties, and constants consistency
+- `apps/core/ai_eae/migrations/0001_initial.py` — NEW: Initial migration
+- `apps/core/blueprint/models.py` — Added `eae_enabled` BooleanField (default=False) to PersonalOperatingBlueprint
+- `apps/core/migrations/0100_personaloperatingblueprint_eae_enabled.py` — NEW: Blueprint migration
+- `config/settings.py` — Added `apps.core.ai_eae` to INSTALLED_APPS
+- `docs/PHASE_8_EAE_DESIGN_SPEC.md` — NEW: Complete design specification (10 deliverables)
+
+**Why:** Establishes the foundation for noise control across the intelligence architecture. All 24 engines compute everything; EAE will control what surfaces. Feature-flagged via `PersonalOperatingBlueprint.eae_enabled` for safe rollout.
+
+---
+
 ## 2026-02-25 — Feature: CoS Phase 7 — Dynamic URL Resolution & Action Contracts
 
 **What:** Adds centralized URL resolution for all 40+ intent types, module landing pages, and entity detail pages. New `url_resolver.py` maps intents to post-action destination URLs. New `action_contracts.py` provides `ActionContract` dataclass that enriches action results with navigation URLs, follow-up links, icons, and detail page URLs. Enhanced `response_builder.py` with `build_response_with_contracts()` that returns both text and structured metadata. Injected navigable pages list into CoS system prompt via `cos_context.py` so CoS can direct users to specific app pages in conversation.

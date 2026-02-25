@@ -9,6 +9,18 @@
 
 # WLJ Change History
 
+## 2026-02-25 — Enhancement: Calendar Event Click Opens Edit Directly
+
+**What:** Clicking a calendar event in the month view now navigates directly to the edit page instead of showing a popover. Task-sourced events open the task edit form; all other events open the calendar manage page in edit mode.
+
+**Changes:**
+- Replaced popover-on-click with direct navigation in `templates/calendar_engine/month.html`
+- Added `getEditUrl()` function that routes by `source_type`: task → `/organize/tasks/{id}/edit/`, others → `/calendar/manage/?edit={id}`
+
+**Files modified:** `templates/calendar_engine/month.html`
+
+---
+
 ## 2026-02-25 — Enhancement: Add Start/End Time Fields to Task Form
 
 **What:** The Task model had `scheduled_time` and `scheduled_end_time` fields for routine task scheduling, but these were not exposed in the task create/edit form. Users could not set task times through the UI.

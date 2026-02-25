@@ -410,15 +410,24 @@
 
     document.getElementById('cal-popover-close').addEventListener('click', hidePopover);
 
+    function getEditUrl(evt) {
+        // Task-sourced events → open task edit page directly
+        if (evt.source_type === 'task' && evt.source_id) {
+            return '/organize/tasks/' + evt.source_id + '/edit/';
+        }
+        // All other events → calendar manage page in edit mode
+        return '/calendar/manage/?edit=' + evt.id;
+    }
+
     document.addEventListener('click', function(e) {
-        // Event chip click — show popover
+        // Event chip click — navigate directly to edit page
         var chip = e.target.closest('.cal-event-chip');
         if (chip) {
             e.stopPropagation();
             var eventId = parseInt(chip.dataset.eventId);
             for (var i = 0; i < allEvents.length; i++) {
                 if (allEvents[i].id === eventId) {
-                    showPopover(allEvents[i], chip);
+                    window.location.href = getEditUrl(allEvents[i]);
                     return;
                 }
             }

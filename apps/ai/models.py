@@ -1395,3 +1395,73 @@ class ValuesRedirectSuggestion(models.Model):
                 break
 
         return matches
+
+
+# =============================================================================
+# CONVERSATION MEMORY (RAG) — Long-term vector memory for CoS
+# =============================================================================
+
+class ConversationMemory(models.Model):
+    """
+    Stores conversation turns with vector embeddings for semantic retrieval.
+
+    Each record represents one user↔assistant exchange. Embeddings are generated
+    via OpenAI text-embedding-3-small and stored as JSON arrays. Retrieval uses
+    cosine similarity computed in Python (suitable for per-user volumes; migrate
+    to pgvector if scale demands it).
+    """
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='conversation_memories',
+    )
+    conversation = models.ForeignKey(
+        AssistantConversation,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='memories',
+    )
+
+    # The content that was embedded (user message + assistant summary)
+    user_message = models.TextField(
+        help_text="The user's original message"
+    )
+    assistant_summary = models.TextField(
+        blank=True,
+        help_text="Condensed assistant response (first 300 chars)"
+    )
+
+    # Semantic metadata for filtering
+    topic_tags = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Auto-detected topic tags: faith, health, goals, tasks, journal, etc."
+    )
+    page_context_type = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Page type when this exchange happened (reading_plan_progress, goal, etc.)"
+    )
+
+    # Embedding vector (stored as JSON list of floats)
+    embedding = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="OpenAI text-embedding-3-small vector (1536 dimensions)"
+    )
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Conversation Memory"
+        verbose_name_plural = "Conversation Memories"
+        indexes = [
+            models.Index(fields=['user', '-created_at']),
+            models.Index(fields=['user', 'page_context_type']),
+        ]
+
+    def __str__(self):
+        return f"Memory {self.pk}: {self.user_message[:60]}..."

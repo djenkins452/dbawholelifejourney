@@ -2449,6 +2449,19 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         except Exception:
             pass  # Summary generation must never break chat
 
+        # Post-response: store conversation memory for RAG retrieval
+        try:
+            from apps.ai.memory_service import store_memory
+            store_memory(
+                user=self.user,
+                user_message=message,
+                assistant_response=response,
+                conversation=conversation,
+                page_context=page_context,
+            )
+        except Exception:
+            pass  # Memory storage must never break chat
+
         # Return structured response
         result = {'response': response}
         if actions_taken:
@@ -3370,6 +3383,15 @@ USER IS ASKING ABOUT THEIR TASKS/PRIORITIES - provide this information:
             if state.get('ai_assessment'):
                 system_prompt += f"\nASSESSMENT:\n{state['ai_assessment']}"
 
+        # Phase 3a: Inject relevant past conversations from long-term memory (RAG)
+        try:
+            from apps.ai.memory_service import get_memory_context_block
+            memory_block = get_memory_context_block(self.user, message)
+            if memory_block:
+                system_prompt += memory_block
+        except Exception as mem_err:
+            logger.debug("Memory retrieval skipped: %s", mem_err)
+
         # Add page context if provided - helps assistant give context-aware responses
         if page_context:
             page_context.get('url', '')
@@ -3729,6 +3751,40 @@ Rules for this response:
             # via COS_WRITE_SUPPRESSED_CONTRACT in the system prompt.
             # Post-generation compliance gate removed — prompt-level enforcement only.
 
+            # =============================================================
+            # Phase 4c: Response Quality Validation
+            # Lightweight post-generation check. If the response clearly
+            # violates context priority (e.g., talking about routines when
+            # user asked about scripture), regenerate with stronger emphasis.
+            # Only triggers on high-confidence mismatches to avoid cost.
+            # =============================================================
+            if page_context and response:
+                validation_issue = self._validate_response_context(
+                    message, response, page_context
+                )
+                if validation_issue:
+                    logger.info(
+                        "Response quality validation failed (%s), regenerating",
+                        validation_issue,
+                    )
+                    # Regenerate with explicit correction
+                    correction = (
+                        f"\n\nCRITICAL CORRECTION: Your previous response was "
+                        f"about {validation_issue} but the user is asking about "
+                        f"the content on their current page. ONLY answer about "
+                        f"the page context. Do NOT discuss unrelated topics."
+                    )
+                    response = ai_service._call_api(
+                        system_prompt + correction,
+                        user_prompt,
+                        max_tokens=max_tokens,
+                        image_data=image_data,
+                        image_mime_type=image_mime_type,
+                        temperature=0.3,  # Lower for correction
+                        endpoint='cos_chat',
+                        user=self.user,
+                    ) or response  # Fall back to original if regen fails
+
             return response
         except Exception as e:
             logger.error(f"Response generation error: {e}")
@@ -3820,6 +3876,82 @@ Rules for this response:
             )
         except Exception:
             return False
+
+    # -----------------------------------------------------------------
+    # Phase 4c: Response Quality Validator
+    # -----------------------------------------------------------------
+    @staticmethod
+    def _validate_response_context(
+        user_message: str,
+        response: str,
+        page_context: dict,
+    ) -> Optional[str]:
+        """Validate that the response matches the user's page context.
+
+        Returns None if valid, or a short description of the mismatch
+        (e.g., "work routines" when user asked about scripture).
+
+        Only triggers on high-confidence mismatches to avoid false positives.
+        Cost: Zero (keyword-based, no API call).
+        """
+        page_content = page_context.get('page_content')
+        if not page_content:
+            return None
+
+        content_type = page_content.get('type', '')
+        msg_lower = user_message.lower()
+        resp_lower = response.lower()
+
+        # Validation rule 1: Scripture page + scripture question, but response
+        # talks about tasks/routines/schedule instead
+        if content_type == 'reading_plan_progress':
+            scripture_signals = [
+                'scripture', 'verse', 'passage', 'bible', 'sabbath', 'jesus',
+                'god', 'faith', 'pray', 'pharisee', 'heal', 'miracle',
+                'parable', 'disciple', 'apostle', 'temple', 'commandment',
+                'this mean', 'what does', 'explain', 'the passage',
+            ]
+            user_asks_about_scripture = any(s in msg_lower for s in scripture_signals)
+
+            if user_asks_about_scripture:
+                # Check if response is about routines/tasks instead
+                off_topic_signals = [
+                    'your routine', 'your schedule', 'your tasks',
+                    'quiet time routine', 'morning routine', 'workout routine',
+                    'daily routine', 'here\'s your', 'let\'s look at your day',
+                    'your to-do', 'your priorities',
+                ]
+                for signal in off_topic_signals:
+                    if signal in resp_lower:
+                        return "work routines/schedule instead of scripture"
+
+        # Validation rule 2: Goal/task page + page-referent question, but
+        # response doesn't mention the goal/task at all
+        if content_type in ('goal', 'task') and page_content.get('title'):
+            page_referents = ['this', 'it', 'the goal', 'the task', 'my progress']
+            if any(r in msg_lower for r in page_referents):
+                title_words = set(
+                    w.lower() for w in page_content['title'].split()
+                    if len(w) > 3
+                )
+                # If the response doesn't contain ANY significant word from
+                # the title, it probably missed context
+                if title_words and not any(w in resp_lower for w in title_words):
+                    return f"unrelated content instead of the {content_type}"
+
+        # Validation rule 3: Journal entry page, user asks about "this entry"
+        # but response doesn't reference the entry content
+        if content_type == 'journal_entry' and page_content.get('body'):
+            if 'this entry' in msg_lower or 'this journal' in msg_lower:
+                body_words = set(
+                    w.lower() for w in page_content['body'].split()
+                    if len(w) > 4
+                )
+                # Sample check — need at least one overlap
+                if body_words and not any(w in resp_lower for w in list(body_words)[:20]):
+                    return "unrelated content instead of the journal entry"
+
+        return None
 
     # -----------------------------------------------------------------
     # Response-mode classifier (Phase 2B)

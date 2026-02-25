@@ -2678,6 +2678,27 @@ Major upgrade to CoS reasoning and context awareness:
 - **Conversation topic threading:** Detects whether the user is asking about the current page ("this", "it", "here") or continuing a previous conversation thread ("going back to", "you said", "earlier"), and injects a topic signal hint.
 - **Pre-response reasoning:** Chain-of-thought "think before speaking" instruction injected into every user prompt. CoS silently reasons through: (1) user's current context, (2) most likely topic, (3) relevant data, (4) what NOT to talk about — before generating the visible response.
 
+### Long-Term Memory (RAG) *(Feb 2026)*
+Vector-based semantic memory so CoS can reference past conversations naturally:
+- **Embedding storage:** Each conversation turn is embedded via OpenAI `text-embedding-3-small` (1536 dimensions) and stored in `ConversationMemory` model. 500-memory cap per user with automatic pruning.
+- **Semantic retrieval:** Before each response, the current message is embedded and compared against past memories using cosine similarity. Top-5 matches above 0.35 threshold are retrieved.
+- **System prompt injection:** Retrieved memories are formatted with natural time labels ("Last Tuesday", "2 weeks ago") and injected as "RELEVANT PAST CONVERSATIONS". CoS references them naturally ("You mentioned last week...").
+- **Topic tagging:** Each memory is auto-tagged with detected topics (faith, health, goals, tasks, journal, relationships, finance) for potential filtering.
+- **Cost:** ~$0.02 per 1M tokens for embeddings — roughly $0.00002 per conversation turn.
+- **Key files:** `apps/ai/memory_service.py`, `apps/ai/models.py` (ConversationMemory)
+
+### Response Quality Validation *(Feb 2026)*
+Post-generation check that catches context mismatches before the response reaches the user:
+- **Scripture mismatch detection:** If user is on a reading plan page and asks about scripture, but the response mentions routines/schedule/tasks, it triggers regeneration with explicit correction.
+- **Goal/task mismatch detection:** If user references "this" on a goal/task page but the response doesn't mention any words from the goal/task title, it triggers regeneration.
+- **Journal mismatch detection:** If user asks about "this entry" but response doesn't reference any words from the journal body, it triggers regeneration.
+- **Zero extra cost on success:** Validation is keyword-based (no API call). Only costs an extra API call when a mismatch is detected.
+
+### Expanded Learning Patterns *(Feb 2026)*
+Extended the learning extractor with new categories:
+- **Explanation preferences:** Detects when users say "keep it brief", "go deeper", "just the basics", etc. Stored in profile for response style adaptation.
+- **Time patterns:** Detects time-of-day behavioral patterns ("every morning I...", "my evening routine includes..."). Stored for temporal context awareness.
+
 ### Proactive Questions & Calibration
 The CoS has a relationship-building introduction flow before it starts managing the user's day:
 - **11 calibration questions** covering: core people, non-negotiables, preferred activities, accountability style, communication frequency, and focus areas

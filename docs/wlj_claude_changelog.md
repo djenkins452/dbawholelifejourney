@@ -9,6 +9,21 @@
 
 # WLJ Change History
 
+## 2026-02-25 — Feature: CoS Intelligence Upgrade (Phases 3 + 4c — RAG Memory + Response Validation)
+
+**What:** Completes the final phases of the CoS Intelligence Upgrade Plan. Phase 3 adds RAG-based long-term conversation memory using OpenAI embeddings — CoS can now reference semantically similar past conversations ("You mentioned last week..."). Phase 3b expands the learning extractor with explanation preference and time pattern detection. Phase 4c adds post-generation response quality validation that detects context mismatches (e.g., talking about routines when user asked about scripture) and auto-regenerates with stronger context emphasis.
+
+**Changes:**
+- **Phase 3a — RAG Memory:** New `ConversationMemory` model stores conversation turns with 1536-dim embeddings from `text-embedding-3-small`. `memory_service.py` handles embedding, storage (500-memory cap per user), cosine similarity retrieval (top-5, threshold 0.35), and system prompt injection as "RELEVANT PAST CONVERSATIONS". Integrated into `personal_assistant.py` (store after response, retrieve before response).
+- **Phase 3b — Expanded Learning:** Added `explanation_preference` and `time_pattern` extraction patterns to learning extractor. New fields on `UserLearnedProfile`. Updated `to_system_prompt_block()` to include them.
+- **Phase 4c — Response Validation:** Post-generation keyword-based check validates response relevance to page context. Three rules: scripture page mismatch (routines mentioned instead), goal/task page mismatch (title words missing), journal page mismatch. On failure, regenerates with explicit correction instruction and lower temperature.
+
+**Files created:** `apps/ai/memory_service.py`
+**Files modified:** `apps/ai/models.py`, `apps/ai/personal_assistant.py`, `apps/core/ai_learning/models.py`, `apps/core/ai_learning/learning_extractor.py`
+**Migrations:** `apps/ai/migrations/0023_conversationmemory.py`, `apps/core/migrations/0098_userlearnedprofile_explanation_preferences_and_more.py`
+
+---
+
 ## 2026-02-25 — Feature: CoS Intelligence Upgrade (Phases 1-2b, 4a, 4b)
 
 **What:** Comprehensive upgrade to CoS contextual intelligence, reasoning quality, and session awareness. Implements 6 phases from the CoS Intelligence Upgrade Plan to bring CoS closer to the quality of conversation Claude Code / ChatGPT provide.

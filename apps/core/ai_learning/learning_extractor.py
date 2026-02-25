@@ -87,6 +87,18 @@ EXTRACTION_PATTERNS = {
         r"(?:I need to (?:make sure|remember) to)\s+(.+?)(?:\.|,|$)",
         r"(?:I'm going to make sure)\s+(.+?)(?:\.|,|$)",
     ],
+    "explanation_preference": [
+        r"(?:(?:keep it|be) (?:short|brief|concise|simple))\b",
+        r"(?:(?:give me|I want|I need) (?:more )?detail(?:s|ed)?)\b",
+        r"(?:(?:go deeper|explain more|tell me more|elaborate))\b",
+        r"(?:just (?:the )?(?:basics|summary|short version|quick answer))\b",
+        r"(?:I (?:prefer|like|want) (?:short|detailed|thorough|brief) (?:answers|responses|explanations))\b",
+    ],
+    "time_pattern": [
+        r"(?:(?:every|each) (?:morning|evening|night|afternoon) I)\s+(.+?)(?:\.|,|$)",
+        r"(?:I (?:usually|always|tend to) (?:do |start |work on )?\w+ (?:in the )?(?:morning|evening|night|afternoon))\b",
+        r"(?:my (?:morning|evening|night|afternoon) (?:routine|habit|practice) (?:is|includes))\s+(.+?)(?:\.|,|$)",
+    ],
 }
 
 # Category → profile field mapping
@@ -102,6 +114,8 @@ CATEGORY_FIELD_MAP = {
     "health_concern": "health_concerns",
     "life_event_mention": "life_event_mentions",
     "commitment_made": "commitments_made",
+    "explanation_preference": "explanation_preferences",
+    "time_pattern": "time_patterns",
 }
 
 # Max items per category

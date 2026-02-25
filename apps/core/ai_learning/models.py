@@ -89,6 +89,18 @@ class UserLearnedProfile(models.Model):
         help_text="Promises or commitments the user stated they would do.",
     )
 
+    # Phase 3b: Expanded learned patterns
+    explanation_preferences = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Detected preferences for response depth: brief, detailed, etc.",
+    )
+    time_patterns = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Time-of-day behavioral patterns (morning routines, evening reflections).",
+    )
+
     # Metadata
     total_extractions = models.IntegerField(default=0)
     last_extraction_at = models.DateTimeField(null=True, blank=True)
@@ -136,6 +148,10 @@ class UserLearnedProfile(models.Model):
             lines.append(f"Upcoming Events Mentioned: {', '.join(self.life_event_mentions[:5])}")
         if self.commitments_made:
             lines.append(f"Commitments Made: {', '.join(self.commitments_made[:5])}")
+        if self.explanation_preferences:
+            lines.append(f"Response Preferences: {', '.join(self.explanation_preferences[:3])}")
+        if self.time_patterns:
+            lines.append(f"Time Patterns: {', '.join(self.time_patterns[:5])}")
 
         if len(lines) == 1:
             return ""  # Nothing learned yet
@@ -165,6 +181,8 @@ class LearningExtraction(models.Model):
         ("health_concern", "Health Concern"),
         ("life_event_mention", "Life Event Mention"),
         ("commitment_made", "Commitment Made"),
+        ("explanation_preference", "Explanation Preference"),
+        ("time_pattern", "Time Pattern"),
     ]
 
     user = models.ForeignKey(

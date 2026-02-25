@@ -59,9 +59,14 @@ class IntelligenceCommandCenterView(TemplateView):
         # Section 6: PRIE — Predictions
         context["predictions"] = self._get_predictions(user, now)
 
-        # Section 7: Observability (staff only)
+        # Section 7: EAE — Executive Arbitration Engine (Phase 8.8)
+        context["eae_state"] = self._get_eae_state(user)
+        context["eae_recent_decisions"] = self._get_eae_recent_decisions(user)
+
+        # Section 8: Observability (staff only)
         if user.is_staff:
             context["observability_snapshot"] = self._get_observability()
+            context["eae_telemetry"] = self._get_eae_telemetry(user)
 
         # Page metadata
         context["app_name"] = "intelligence"
@@ -146,6 +151,93 @@ class IntelligenceCommandCenterView(TemplateView):
         except Exception as e:
             logger.debug(f"ICC: PRIE unavailable: {e}")
             return []
+
+    def _get_eae_state(self, user):
+        """Fetch EAE escalation state for current user."""
+        try:
+            from apps.core.ai_eae.models import EAEState
+            from apps.core.ai_eae.constants import ESCALATION_CHOICES, TONE_CHOICES
+            state = EAEState.objects.filter(user=user).first()
+            if state:
+                # Enrich with display labels
+                level_map = dict(ESCALATION_CHOICES)
+                return {
+                    'escalation_level': state.escalation_level,
+                    'escalation_label': level_map.get(state.escalation_level, 'Unknown'),
+                    'drift_risk_severity': state.drift_risk_severity,
+                    'primary_focus_label': state.primary_focus_label or 'None set',
+                    'focus_changes_today': state.focus_changes_today,
+                    'noise_budget_used_today': state.noise_budget_used_today,
+                    'last_arbitration_at': state.last_arbitration_at,
+                    'focus_locked': state.focus_locked,
+                }
+            return None
+        except Exception as e:
+            logger.debug(f"ICC: EAE state unavailable: {e}")
+            return None
+
+    def _get_eae_recent_decisions(self, user):
+        """Fetch recent EAE decision logs for audit visibility."""
+        try:
+            from apps.core.ai_eae.models import EAEDecisionLog
+            return list(
+                EAEDecisionLog.objects.filter(
+                    user=user,
+                ).order_by('-created_at')[:5]
+            )
+        except Exception as e:
+            logger.debug(f"ICC: EAE decisions unavailable: {e}")
+            return []
+
+    def _get_eae_telemetry(self, user):
+        """Fetch EAE telemetry metrics (staff only)."""
+        try:
+            from apps.core.ai_eae.models import (
+                EAEDecisionLog,
+                EAEEscalationEvent,
+                EAEOverride,
+            )
+            from django.db.models import Avg, Count, Max
+
+            now = timezone.now()
+            last_24h = now - timedelta(hours=24)
+            last_7d = now - timedelta(days=7)
+
+            # Decision metrics (24h)
+            decisions_24h = EAEDecisionLog.objects.filter(
+                user=user, created_at__gte=last_24h,
+            )
+            decision_stats = decisions_24h.aggregate(
+                count=Count('id'),
+                avg_duration_ms=Avg('arbitration_duration_ms'),
+                avg_surfaced=Avg('surfaced_count'),
+                avg_suppressed=Avg('suppressed_count'),
+                avg_candidates=Avg('total_candidates'),
+            )
+
+            # Escalation events (7d)
+            escalation_events = EAEEscalationEvent.objects.filter(
+                user=user, created_at__gte=last_7d,
+            ).order_by('-created_at')[:10]
+
+            # Active overrides
+            overrides = EAEOverride.objects.filter(user=user)
+
+            return {
+                'decisions_24h': decision_stats,
+                'escalation_events': list(escalation_events.values(
+                    'direction', 'from_level', 'to_level',
+                    'trigger_reason', 'created_at',
+                )),
+                'active_overrides': list(overrides.values(
+                    'signal_type', 'override_type', 'strike_count',
+                    'cooldown_until', 'created_at',
+                )),
+                'override_count': overrides.count(),
+            }
+        except Exception as e:
+            logger.debug(f"ICC: EAE telemetry unavailable: {e}")
+            return None
 
     def _get_observability(self):
         """Fetch latest IOCD observability snapshot (staff only)."""

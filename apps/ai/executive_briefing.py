@@ -136,6 +136,21 @@ def build_executive_briefing(user, conversation) -> str:
         if gap_hours is not None and gap_hours >= 24:
             sections.append(_build_gap_context_section(user, gap_hours, today))
 
+        # Section G: EAE Intelligence Briefing (Phase 8.7)
+        # When EAE is enabled, inject scored/budgeted intelligence into briefing.
+        # EAE replaces ad-hoc signal injection with controlled cognitive units.
+        try:
+            from apps.core.blueprint.models import PersonalOperatingBlueprint
+            _bp = PersonalOperatingBlueprint.objects.filter(user=user).first()
+            if _bp and _bp.eae_enabled:
+                from apps.core.ai_eae.eae_engine import arbitrate
+                from apps.core.ai_eae.constants import CHANNEL_BRIEFING
+                eae_result = arbitrate(user, channel=CHANNEL_BRIEFING)
+                if eae_result.prompt_injection:
+                    sections.append(eae_result.prompt_injection)
+        except Exception as eae_err:
+            logger.debug("EAE briefing injection skipped: %s", eae_err)
+
         sections.append("")
         sections.append(
             "INSTRUCTION: Weave the above into your greeting naturally. "

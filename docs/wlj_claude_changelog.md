@@ -9,6 +9,29 @@
 
 # WLJ Change History
 
+## 2026-02-25 — Phase 8.6–8.9: EAE Integration — Chat, DNE, Briefing, Command Center, Stress Tests
+
+**What:** Wires the EAE pipeline into all delivery channels and adds telemetry. Feature-flagged via `PersonalOperatingBlueprint.eae_enabled` — when False, zero behavior change.
+
+**Phase 8.6 — Chat Integration:** EAE prompt injection replaces UAL narrative when enabled. Feature flag gate prevents any EAE calls when disabled. UAL skipped when EAE active.
+
+**Phase 8.7 — DNE + Briefing:** DNE delegates to EAE-controlled path when enabled. Cognitive units converted to push payloads. Executive briefing gains Section G with EAE intelligence. All delivery policies (quiet hours, throttle, dedupe) still apply.
+
+**Phase 8.8 — Command Center + Telemetry:** ICC shows EAE state (escalation, drift, focus, budget). Staff-only telemetry: decision metrics, escalation events, overrides. Ops Wall stream endpoint gains eae_telemetry.
+
+**Phase 8.9 — Stress Tests:** 19 tests covering high volume (50-100 signals), feature flag gate, full escalation ladder (up + down), intensity extremes (0.5/2.0), override accumulation, edge cases, error recovery, rapid arbitrations, all channels.
+
+**Files:**
+- `apps/ai/personal_assistant.py` — MODIFIED: EAE injection before UAL
+- `apps/core/ai_delivery/delivery_engine.py` — MODIFIED: EAE-gated delivery path
+- `apps/ai/executive_briefing.py` — MODIFIED: Section G EAE injection
+- `apps/core/views_intelligence_center.py` — MODIFIED: EAE state/telemetry in ICC
+- `apps/core/ai_observability/ops_views.py` — MODIFIED: EAE ops telemetry
+- `apps/core/ai_eae/tests/test_integration.py` — NEW: 9 integration tests
+- `apps/core/ai_eae/tests/test_stress.py` — NEW: 19 stress tests
+
+**Why:** Completes Phase 8 — EAE fully wired across all channels with 137 total tests. Ready for admin-only validation.
+
 ## 2026-02-25 — Phase 8.2–8.5: EAE Core Pipeline — Signal → Score → Bundle → Arbitrate
 
 **What:** Complete implementation of the EAE deterministic pipeline, phases 8.2 through 8.5. Collects signals from all engines (PIE, PRIE, PGE, CDCE, Drift, Pressure), normalizes to 0–100 with drift-anchored scoring, deduplicates, bundles into cognitive units, enforces per-channel noise budgets, manages 5-level escalation ladder with gated de-escalation, implements 3-strike override state machine, selects tone bands for LLM prompt injection, and manages primary focus (max 2 changes/day). All deterministic — zero LLM calls. Intensity multiplier hook (default 1.0) threaded through all scoring, escalation, budget, and tone logic for future per-user tuning.

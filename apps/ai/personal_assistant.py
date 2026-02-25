@@ -3325,17 +3325,38 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         except Exception:
             pass  # Executive briefing must never break chat
 
+        # Executive Arbitration Engine (EAE) — Phase 8
+        # When enabled, EAE is the FINAL authority on what intelligence is
+        # surfaced. It replaces UAL's narrative injection with a budgeted,
+        # scored, deduplicated intelligence briefing with tone directives.
+        # Feature-flagged: eae_enabled=False → existing UAL behavior unchanged.
+        _eae_active = False
+        try:
+            from apps.core.blueprint.models import PersonalOperatingBlueprint
+            _bp = PersonalOperatingBlueprint.objects.filter(user=self.user).first()
+            if _bp and _bp.eae_enabled:
+                from apps.core.ai_eae.eae_engine import arbitrate
+                from apps.core.ai_eae.constants import CHANNEL_CHAT
+                eae_result = arbitrate(self.user, channel=CHANNEL_CHAT)
+                if eae_result.prompt_injection:
+                    system_prompt += "\n\n" + eae_result.prompt_injection
+                    _eae_active = True
+        except Exception:
+            pass  # EAE must never break chat
+
         # Universal Arbitration Layer (UAL)
         # Sits between signal generation and user-facing intervention.
         # Classifies dominant scenario, fuses cross-domain signals,
         # selects ONE executive narrative, and shapes AI framing.
-        try:
-            from apps.core.ai_arbitration import run_arbitration
-            arbitration = run_arbitration(self.user)
-            if arbitration and arbitration.narrative_injection:
-                system_prompt += "\n\n" + arbitration.narrative_injection
-        except Exception:
-            pass  # UAL must never break chat
+        # SKIPPED when EAE is active — EAE supersedes UAL for chat.
+        if not _eae_active:
+            try:
+                from apps.core.ai_arbitration import run_arbitration
+                arbitration = run_arbitration(self.user)
+                if arbitration and arbitration.narrative_injection:
+                    system_prompt += "\n\n" + arbitration.narrative_injection
+            except Exception:
+                pass  # UAL must never break chat
 
         # Fallback: lightweight greeting for mid-conversation greetings
         # (when briefing gate didn't fire — not first-of-day)

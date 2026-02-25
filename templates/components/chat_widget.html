@@ -844,6 +844,18 @@
                 content.scriptures = Array.from(scriptureElements).map(el => el.textContent.trim());
             }
 
+            // Get expanded scripture text (the actual verses the user is reading)
+            const expandedScriptures = document.querySelectorAll('.scripture-text');
+            const visibleText = [];
+            expandedScriptures.forEach(function(el) {
+                if (el.textContent.trim().length > 0) {
+                    visibleText.push(el.textContent.trim());
+                }
+            });
+            if (visibleText.length > 0) {
+                content.scripture_text = visibleText.join('\n\n').substring(0, 2000);
+            }
+
             // Get context summary (who is speaking, time frame, key takeaway)
             const contextContent = document.querySelector('.context-content');
             if (contextContent) {

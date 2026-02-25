@@ -2786,7 +2786,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             content_type = page_context['page_content'].get('type', '')
             # For reading plans, skip navigation if query mentions scripture/reading/explain
             if content_type == 'reading_plan_progress':
-                reading_context_words = ['scripture', 'verse', 'passage', 'read', 'reading', 'explain', 'mean', 'bible', 'luke', 'john', 'matthew', 'mark']
+                reading_context_words = ['scripture', 'verse', 'passage', 'read', 'reading', 'explain', 'mean', 'bible', 'luke', 'john', 'matthew', 'mark', 'sabbath', 'pharisee', 'jesus', 'god', 'lord', 'faith', 'sin', 'forgive', 'pray', 'spirit', 'holy', 'parable', 'miracle', 'apostle', 'disciple', 'temple', 'prophet', 'commandment', 'covenant', 'psalm', 'genesis', 'exodus', 'leviticus', 'deuteronomy', 'romans', 'corinthians', 'galatians', 'ephesians', 'hebrews', 'revelation', 'acts', 'james', 'peter', 'timothy', 'titus', 'proverbs', 'isaiah', 'jeremiah', 'ezekiel', 'daniel']
                 if any(word in query_lower for word in reading_context_words):
                     return None
             # For journal entries, skip if query mentions entry/journal/wrote
@@ -3388,7 +3388,8 @@ USER IS ASKING ABOUT THEIR TASKS/PRIORITIES - provide this information:
                 content_type = page_content.get('type', '')
 
                 if content_type == 'reading_plan_progress':
-                    content_description = "\nREADING PLAN CONTENT (user is viewing this):\n"
+                    content_description = "\nREADING PLAN CONTENT (user is actively reading this scripture):\n"
+                    content_description += "IMPORTANT: The user is on their Bible reading plan. When they ask questions about faith, scripture, theology, or use words like 'this', 'it', 'the sabbath', 'Jesus', etc., they are asking about the scripture below — NOT about their tasks, routines, or schedule. Always answer in the context of the scripture they are reading.\n\n"
                     if page_content.get('current_day'):
                         content_description += f"- {page_content['current_day']}\n"
                     if page_content.get('reading_title'):
@@ -3397,6 +3398,9 @@ USER IS ASKING ABOUT THEIR TASKS/PRIORITIES - provide this information:
                         content_description += f"- Study Level: {page_content['difficulty_level']}\n"
                     if page_content.get('scriptures'):
                         content_description += f"- Scriptures: {', '.join(page_content['scriptures'])}\n"
+                    if page_content.get('scripture_text'):
+                        scripture_text = page_content['scripture_text'][:1500]
+                        content_description += f"- Scripture Text (what user is reading):\n{scripture_text}\n"
                     if page_content.get('context_summary'):
                         content_description += f"- Context (who/when/setting): {page_content['context_summary'][:400]}...\n" if len(page_content.get('context_summary', '')) > 400 else f"- Context: {page_content['context_summary']}\n"
                     if page_content.get('commentary'):

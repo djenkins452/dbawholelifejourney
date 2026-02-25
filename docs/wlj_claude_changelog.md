@@ -9,6 +9,20 @@
 
 # WLJ Change History
 
+## 2026-02-25 — Fix: CoS Loses Scripture Context on Reading Plan Page
+
+**What:** When on a Bible reading plan page, asking CoS a question about the scripture (e.g., "what does this mean for the Sabbath") caused CoS to respond about work routines instead of the scripture. Three issues: (1) the actual scripture text wasn't captured, (2) "sabbath" and other biblical terms weren't recognized as reading-plan context words, (3) the system prompt didn't strongly prioritize page context over conversation history.
+
+**Changes:**
+- Chat widget now captures expanded `.scripture-text` content (up to 2000 chars) and sends it as `scripture_text` in page context
+- Added ~40 biblical keywords (sabbath, pharisee, jesus, parable, book names, etc.) to `reading_context_words` so CoS recognizes scripture questions
+- System prompt for reading plan pages now includes an explicit instruction: "When they ask about faith, scripture, theology, etc., they are asking about the scripture below — NOT about tasks/routines/schedule"
+- Scripture text is injected into the system prompt so CoS has the actual verses, not just references
+
+**Files modified:** `templates/components/chat_widget.html`, `apps/ai/personal_assistant.py`
+
+---
+
 ## 2026-02-25 — Feature: CoS Full Calendar Tracking + Task Form Reorder
 
 **What:** CoS (Chief of Staff) can now track, prompt, and reflect on ALL calendar event types — habits, goals, milestones, life events, and manual events — not just tasks. Also reordered the task form fields and added click-through routing from calendar to source edit pages.

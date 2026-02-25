@@ -105,9 +105,11 @@ AdminTask `description` fields must be JSON: `{"objective": "...", "inputs": [..
 
 ## On Task Completion
 
+**EVERY commit — no matter how small — MUST include a changelog entry. No exceptions. Even one-line bug fixes get logged. This is non-negotiable.**
+
 After ANY changes (code, docs, or config), do ALL of the following **automatically without asking**:
 
-1. **Changelog:** Append to `docs/wlj_claude_changelog.md` (date, changes, files, why)
+1. **Changelog (REQUIRED, EVERY COMMIT):** Append to `docs/wlj_claude_changelog.md` (date, changes, files, why)
 2. **User-facing docs (MANDATORY for features/enhancements):** Update ALL of the following. See `docs/CLAUDE_DOC_UPDATES.md` for full checklist.
    - **Release notes** (`apps/core/fixtures/release_notes.json`) — user-facing What's New entry
    - **Help topics** (`apps/help/fixtures/help_topics.json`) — if new page has `help_context_id`

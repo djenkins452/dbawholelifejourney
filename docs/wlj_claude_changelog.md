@@ -43,6 +43,14 @@
 
 ---
 
+## 2026-02-25 — Config: Strengthen Changelog Requirement in CLAUDE.md
+
+**What:** Added explicit "no exceptions" language to the On Task Completion section to ensure every commit — even one-line fixes — includes a changelog entry. Previous wording was being skipped on small/urgent fixes.
+
+**Files modified:** `CLAUDE.md`
+
+---
+
 ## 2026-02-25 — Fix: Calendar Task Click URL Prefix
 
 **What:** Calendar click routing for tasks used `/organize/tasks/{id}/edit/` but the correct URL is `/life/tasks/{id}/edit/`. Clicking a task on the calendar returned a 404.

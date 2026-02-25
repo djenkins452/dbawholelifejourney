@@ -9,6 +9,18 @@
 
 # WLJ Change History
 
+## 2026-02-24 — Fix: AI falsely reporting completed activities as missed
+
+**What:** The Chief of Staff AI was telling the user that workouts and reading plan/Quiet Time were missed even when they had been logged hours earlier. Root cause: (1) The executive briefing health gate only reported *negative* workout status (missing) but never confirmed completed workouts, so the AI had no positive signal and hallucinated "missed" status. (2) Reading plan daily progress was completely absent from both the executive briefing and the state assessment — the AI had zero data about today's reading completion. (3) "How have I done today" didn't trigger the analysis code path, so the AI got no structured state data. Fixed by adding positive confirmations for completed workouts, adding reading plan/Quiet Time progress checks to the executive briefing and state assessment, expanding analysis trigger patterns, and adding a guard instruction against assuming items are missed without explicit data.
+
+**Files:**
+- `apps/ai/executive_briefing.py` — Added positive workout confirmation in health gate (reports workout name when logged), added reading plan/Quiet Time check using `UserReadingProgress.completed_at__date=today`
+- `apps/ai/personal_assistant.py` — Added `_get_fresh_today_faith()` and `_get_workout_today()` helper methods for real-time today-specific data; updated `_get_faith_state()` to include reading plan progress; updated `_get_health_state()` to include `workout_today`; added 'how have i done', 'how did i do', "how's my day" to analysis trigger patterns; added reading plan and workout status to analysis context injection; added anti-hallucination instruction for missed items
+
+**Why:** The user logged their workout and completed their reading plan before 7 AM, but at 7:44 PM the AI incorrectly told them both were missed, causing frustration.
+
+---
+
 ## 2026-02-24 — Fix: Capture audio upload format issues and broken file upload path
 
 **What:** Fixed multiple Capture audio upload issues: (1) iOS recordings saved as `.mp4` were rejected by the Upload Audio File page because `.mp4` wasn't in accepted extensions, (2) downloaded recordings from iOS had `.mp4` extension instead of `.m4a`, making them unrecognizable as audio, (3) `CaptureFileUploadView` crashed with ImportError due to missing `upload_audio_file` function — rewrote to use Cloudinary-first/S3-fallback like the main upload flow, (4) added broader format support (`.ogg`, `.caf`, `video/mp4` MIME type) for better iOS/Android compatibility.

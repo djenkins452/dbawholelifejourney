@@ -698,7 +698,7 @@ class PersonalAssistant:
                     logger.info("Snapshot stale: new data entries since last update, refreshing")
 
         if snapshot and not force_refresh and not coaching_style_changed and not snapshot_stale:
-            # Return cached data but with FRESH task counts
+            # Return cached data but with FRESH task counts and today-specific data
             result = self._snapshot_to_dict(snapshot)
             result['tasks'] = {
                 'completed_today': fresh_task_data.get('tasks_completed_today', 0),
@@ -706,6 +706,9 @@ class PersonalAssistant:
                 'overdue': fresh_task_data.get('tasks_overdue', 0),
                 'due_today': fresh_task_data.get('tasks_due_today', 0),
             }
+            # Always refresh today-specific ephemeral data
+            result['faith'].update(self._get_fresh_today_faith(today))
+            result['health']['workout_today'] = self._get_workout_today(today)
             return result
 
         # Gather fresh data for everything
@@ -763,7 +766,42 @@ class PersonalAssistant:
             }
         )
 
-        return self._snapshot_to_dict(snapshot)
+        result = self._snapshot_to_dict(snapshot)
+        result['faith'].update(self._get_fresh_today_faith(today))
+        result['health']['workout_today'] = self._get_workout_today(today)
+        return result
+
+    def _get_fresh_today_faith(self, today) -> Dict:
+        """Get today-specific faith data (reading plan completion)."""
+        try:
+            from apps.faith.models import UserReadingPlan, UserReadingProgress
+            active_plans = UserReadingPlan.objects.filter(
+                user=self.user, plan_status='active'
+            ).exclude(status='deleted')
+            count = active_plans.count()
+            completed = False
+            if count > 0:
+                completed = UserReadingProgress.objects.filter(
+                    user_plan__in=active_plans,
+                    is_completed=True,
+                    completed_at__date=today,
+                ).exists()
+            return {
+                'active_reading_plans': count,
+                'reading_completed_today': completed,
+            }
+        except Exception:
+            return {}
+
+    def _get_workout_today(self, today) -> bool:
+        """Check if user has logged a workout today."""
+        try:
+            from apps.health.models import WorkoutSession
+            return WorkoutSession.objects.filter(
+                user=self.user, date=today
+            ).exists()
+        except Exception:
+            return False
 
     def _gather_comprehensive_state(self) -> Dict[str, Any]:
         """Gather all user data for state assessment."""
@@ -1040,9 +1078,26 @@ class PersonalAssistant:
 
     def _get_faith_state(self, month_ago) -> Dict:
         """Get faith-related metrics."""
-        from apps.faith.models import PrayerRequest, FaithMilestone
+        from apps.core.utils import get_user_today
+        from apps.faith.models import (
+            FaithMilestone, PrayerRequest, UserReadingPlan, UserReadingProgress,
+        )
 
+        today = get_user_today(self.user)
         prayers = PrayerRequest.objects.filter(user=self.user)
+
+        # Reading plan daily progress
+        active_plans = UserReadingPlan.objects.filter(
+            user=self.user, plan_status='active'
+        ).exclude(status='deleted')
+        reading_completed_today = False
+        active_plan_count = active_plans.count()
+        if active_plan_count > 0:
+            reading_completed_today = UserReadingProgress.objects.filter(
+                user_plan__in=active_plans,
+                is_completed=True,
+                completed_at__date=today,
+            ).exists()
 
         return {
             'active_prayers': prayers.filter(is_answered=False).count(),
@@ -1057,6 +1112,8 @@ class PersonalAssistant:
             'faith_milestones': FaithMilestone.objects.filter(
                 user=self.user
             ).count(),
+            'active_reading_plans': active_plan_count,
+            'reading_completed_today': reading_completed_today,
         }
 
     def _get_health_state(self, today, week_ago) -> Dict:
@@ -1095,6 +1152,7 @@ class PersonalAssistant:
         # Workouts
         workouts = WorkoutSession.objects.filter(user=self.user)
         data['workouts_week'] = workouts.filter(date__gte=week_ago).count()
+        data['workout_today'] = workouts.filter(date=today).exists()
         data['workout_streak'] = self._calculate_workout_streak(today)
 
         # Medicine adherence (correct: expected vs taken from schedules)
@@ -3246,6 +3304,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             'my habits', 'my consistency', 'my streaks', 'my patterns',
             'missed', 'skipped', 'how many days',
             'since i started', 'how consistent', 'how am i doing',
+            'how have i done', 'how did i do', 'how\'s my day',
             'where am i', 'where do i need', 'where should i',
             'what areas', 'which areas',
             # Health data visibility questions
@@ -3263,18 +3322,29 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             remaining_tasks = tasks.get('due_today', 0) + tasks.get('overdue', 0)
 
             if is_asking_for_analysis:
+                faith = state.get('faith', {})
+                health = state.get('health', {})
+                reading_status = "completed today" if faith.get('reading_completed_today') else (
+                    "not yet done today" if faith.get('active_reading_plans', 0) > 0 else "no active plan"
+                )
+                workout_today = health.get('workout_today', False)
+                workout_status = "logged today" if workout_today else "not yet logged"
                 system_prompt += f"""
 
 USER IS ASKING FOR ANALYSIS OF THEIR DATA AND HABITS - provide specific, data-driven insights:
 - Tasks REMAINING today: {remaining_tasks} ({tasks.get('overdue', 0)} overdue, {tasks.get('due_today', 0)} due today)
 - Active goals needing progress: {state.get('goals', {}).get('active', 0)}
 - Journal streak: {state.get('journal', {}).get('streak', 0)} days
-- Active prayers: {state.get('faith', {}).get('active_prayers', 0)}
+- Active prayers: {faith.get('active_prayers', 0)}
+- Reading plan / Quiet Time: {reading_status}
+- Workout: {workout_status}
 - Time remaining in day: ~{time_context.get('hours_remaining', 'unknown')} hours until bedtime
 
 IMPORTANT: The user wants YOU to analyze their data and tell them where to focus.
 Do NOT tell them to go to a page or click a link. ANALYZE the data you have and give specific insights.
 If they ask about missed days or consistency, use the journal/health data to answer with real numbers.
+CRITICAL: Only report items as "missed" or "not done" if the data explicitly confirms they are not done.
+Never assume something is missed just because you lack data — absence of data is not evidence of absence.
 """
             else:
                 system_prompt += f"""

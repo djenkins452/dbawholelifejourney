@@ -486,7 +486,16 @@ def _build_health_gate_section(user, today) -> str:
         has_workout_today = WorkoutSession.objects.filter(
             user=user, date=today
         ).exclude(status='deleted').exists()
-        if not has_workout_today:
+        if has_workout_today:
+            # Positive confirmation so AI knows workout was completed
+            workout = WorkoutSession.objects.filter(
+                user=user, date=today
+            ).exclude(status='deleted').first()
+            workout_name = workout.name or workout.workout_type or "Workout"
+            lines.append(
+                f"Workout: {workout_name} logged today. Acknowledge this."
+            )
+        else:
             # Check if there's a scheduled workout
             try:
                 from apps.health.models import WorkoutSchedule
@@ -502,6 +511,32 @@ def _build_health_gate_section(user, today) -> str:
                     )
             except Exception:
                 pass
+    except Exception:
+        pass
+
+    # Reading plan / Quiet Time check
+    try:
+        from apps.faith.models import UserReadingPlan, UserReadingProgress
+        active_plans = UserReadingPlan.objects.filter(
+            user=user, plan_status='active'
+        ).exclude(status='deleted')
+        if active_plans.exists():
+            # Check if any reading was completed today
+            completed_today = UserReadingProgress.objects.filter(
+                user_plan__in=active_plans,
+                is_completed=True,
+                completed_at__date=today,
+            ).exists()
+            if completed_today:
+                lines.append(
+                    "Reading Plan / Quiet Time: Completed today. "
+                    "Acknowledge this."
+                )
+            else:
+                lines.append(
+                    "Reading Plan / Quiet Time: Active plan exists but "
+                    "today's reading not yet marked complete."
+                )
     except Exception:
         pass
 

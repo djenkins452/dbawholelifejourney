@@ -9,6 +9,30 @@
 
 # WLJ Change History
 
+## 2026-02-25 — Phase 8.2–8.5: EAE Core Pipeline — Signal → Score → Bundle → Arbitrate
+
+**What:** Complete implementation of the EAE deterministic pipeline, phases 8.2 through 8.5. Collects signals from all engines (PIE, PRIE, PGE, CDCE, Drift, Pressure), normalizes to 0–100 with drift-anchored scoring, deduplicates, bundles into cognitive units, enforces per-channel noise budgets, manages 5-level escalation ladder with gated de-escalation, implements 3-strike override state machine, selects tone bands for LLM prompt injection, and manages primary focus (max 2 changes/day). All deterministic — zero LLM calls. Intensity multiplier hook (default 1.0) threaded through all scoring, escalation, budget, and tone logic for future per-user tuning.
+
+**Files:**
+- `apps/core/ai_eae/__init__.py` — MODIFIED: Lazy imports to avoid AppRegistryNotReady
+- `apps/core/ai_eae/constants.py` — MODIFIED: Added intensity multiplier (get_intensity, apply_intensity)
+- `apps/core/ai_eae/signal_collector.py` — NEW: Collects RawSignals from PIE, PRIE, PGE, CDCE, Drift, Pressure engines
+- `apps/core/ai_eae/scorer.py` — NEW: Normalizes signals (local×0.35 + drift×0.30 + governance×0.20 + recency×0.15)
+- `apps/core/ai_eae/dedup.py` — NEW: 4-layer dedup (same-day, prediction, insight/guidance, cross-channel)
+- `apps/core/ai_eae/bundler.py` — NEW: Groups signals into CognitiveUnit bundles by bundle_key
+- `apps/core/ai_eae/budget.py` — NEW: Per-channel noise budget with capacity adjustment
+- `apps/core/ai_eae/escalation.py` — NEW: 5-level escalation ladder (Nominal→Override), immediate up, gated down
+- `apps/core/ai_eae/override.py` — NEW: 3-strike override state machine (temp→temp→permanent)
+- `apps/core/ai_eae/tone.py` — NEW: 5 tone bands with LLM prompt injection text
+- `apps/core/ai_eae/focus.py` — NEW: Primary focus management (morning set + midday correction)
+- `apps/core/ai_eae/formatter.py` — NEW: Formats cognitive units + tone for LLM prompt injection
+- `apps/core/ai_eae/eae_engine.py` — NEW: Main arbitrate() pipeline — the sole arbitration entry point
+- `apps/core/ai_eae/tests/test_scoring.py` — NEW: 17 tests for scoring, recency, drift anchor, intensity
+- `apps/core/ai_eae/tests/test_bundling.py` — NEW: 20 tests for bundling, budget, dedup, formatting
+- `apps/core/ai_eae/tests/test_escalation.py` — NEW: 33 tests for escalation, tone, override, focus
+
+**Why:** Completes the core deterministic engine. EAE can now take raw engine output from all sources, normalize it, prioritize it, and produce a formatted prompt injection for the LLM — all within 3–5 cognitive units per channel. No behavior change yet (feature-flagged). Next phases: wire into chat (8.6), DNE/briefing (8.7), Command Center (8.8), stress test (8.9).
+
 ## 2026-02-25 — Phase 8.1: Executive Arbitration Engine (EAE) — Foundation
 
 **What:** Phase 8 of CoS intelligence architecture. Creates the EAE app (`apps/core/ai_eae/`) with foundation models, constants, and feature flag. EAE is the "kernel" layer that will deterministically control what intelligence is surfaced to the user across chat, push, briefings, and Command Center. This sub-phase is models + feature flag only — no behavior changes yet.

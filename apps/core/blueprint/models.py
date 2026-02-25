@@ -248,6 +248,15 @@ class PersonalOperatingBlueprint(models.Model):
         ),
     )
 
+    eae_enabled = models.BooleanField(
+        default=False,
+        help_text=(
+            "Executive Arbitration Engine (Phase 8). When True, EAE controls "
+            "what intelligence is surfaced across chat, push, briefings, and "
+            "Command Center. When False, existing behavior is unchanged."
+        ),
+    )
+
     calibration_day = models.PositiveSmallIntegerField(
         default=0,
         help_text="Day counter for calibration mode (0-14)",

@@ -294,6 +294,11 @@ class RecurrenceService:
                 recurrence_pattern=task.recurrence_pattern,
                 start_date=task.start_date,
                 end_date=task.end_date,
+                # Carry forward routine fields
+                is_routine=task.is_routine,
+                scheduled_time=task.scheduled_time,
+                scheduled_end_time=task.scheduled_end_time,
+                estimated_duration_minutes=task.estimated_duration_minutes,
             )
 
         return new_task

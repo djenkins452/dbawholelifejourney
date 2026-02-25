@@ -1846,6 +1846,115 @@ class ActionHandler:
                 error=str(e)
             )
 
+    def handle_create_routine_task(
+        self,
+        title: str,
+        scheduled_time: str,
+        end_time: str = "",
+        duration_minutes: int = 30,
+        recurrence_pattern: str = "daily",
+        notes: str = "",
+        **kwargs,
+    ) -> ActionResult:
+        """
+        Create a daily routine task with scheduled time and CoS prompting.
+
+        Args:
+            title: Routine name (e.g., 'Quiet Time', 'Morning Workout')
+            scheduled_time: Begin time in HH:MM 24-hour format
+            end_time: End time in HH:MM 24-hour format (optional, computed from duration if omitted)
+            duration_minutes: Estimated duration (default 30, used if end_time not provided)
+            recurrence_pattern: How often (daily, weekdays, weekly:mon,wed,fri)
+            notes: Additional notes
+        """
+        from apps.life.models import Task
+        from datetime import time as dt_time
+
+        try:
+            # Parse scheduled_time
+            parts = scheduled_time.replace('.', ':').split(':')
+            hour = int(parts[0])
+            minute = int(parts[1]) if len(parts) > 1 else 0
+            sched_time = dt_time(hour, minute)
+
+            # Normalize common recurrence aliases
+            pattern_lower = recurrence_pattern.lower().strip()
+            if pattern_lower in ('weekdays', 'every weekday', 'every_weekday'):
+                recurrence_pattern = 'every_weekday'
+            elif pattern_lower in ('daily', 'every day', 'everyday'):
+                recurrence_pattern = 'daily'
+
+            today = self._get_user_today()
+
+            # Parse end_time if provided
+            sched_end_time = None
+            if end_time:
+                end_parts = end_time.replace('.', ':').split(':')
+                end_hour = int(end_parts[0])
+                end_minute = int(end_parts[1]) if len(end_parts) > 1 else 0
+                sched_end_time = dt_time(end_hour, end_minute)
+                # Compute duration from times if end_time is explicit
+                from datetime import datetime as dt_datetime, timedelta
+                start_tmp = dt_datetime.combine(today, sched_time)
+                end_tmp = dt_datetime.combine(today, sched_end_time)
+                if end_tmp > start_tmp:
+                    duration_minutes = int((end_tmp - start_tmp).total_seconds() / 60)
+
+            task = Task.objects.create(
+                user=self.user,
+                title=title,
+                notes=notes or "",
+                due_date=today,
+                is_routine=True,
+                is_recurring=True,
+                recurrence_pattern=recurrence_pattern,
+                start_date=today,
+                scheduled_time=sched_time,
+                scheduled_end_time=sched_end_time,
+                estimated_duration_minutes=duration_minutes,
+                effort='small',
+            )
+
+            time_str = sched_time.strftime('%I:%M %p').lstrip('0')
+            if sched_end_time:
+                end_time_str = sched_end_time.strftime('%I:%M %p').lstrip('0')
+                time_display = f"{time_str} – {end_time_str}"
+            else:
+                time_display = f"{time_str} ({duration_minutes} min)"
+            task_url = "/life/tasks/"
+
+            return ActionResult(
+                success=True,
+                message=(
+                    f"Created daily routine: **{title}** {time_display} "
+                    f"({recurrence_pattern}). "
+                    f"I'll prompt you before and check in after. "
+                    f"[View in Tasks]({task_url})"
+                ),
+                created_object={
+                    'model': 'Task',
+                    'id': task.id,
+                    'title': task.title,
+                    'scheduled_time': str(sched_time),
+                    'duration_minutes': duration_minutes,
+                    'recurrence_pattern': recurrence_pattern,
+                    'is_routine': True,
+                },
+                action_type='create_routine_task',
+                confirmation_detail=self._build_confirmation(
+                    what=f"{title} at {time_str} ({recurrence_pattern})",
+                    where="Organize > Tasks + Calendar",
+                )
+            )
+
+        except Exception as e:
+            logger.error(f"Error creating routine task: {e}", exc_info=True)
+            return ActionResult(
+                success=False,
+                message="Sorry, I couldn't create that routine.",
+                error=str(e),
+            )
+
     def handle_complete_task(self, task_keyword: str, notes: str = "",
                               **kwargs) -> ActionResult:
         """
@@ -1877,11 +1986,10 @@ class ActionHandler:
                 )
             elif count == 1:
                 task = tasks.first()
-                task.is_completed = True
-                task.completed_at = self._get_user_now()
                 if notes:
                     task.notes = (task.notes + "\n" + notes).strip() if task.notes else notes
-                task.save()
+                    task.save(update_fields=['notes', 'updated_at'])
+                task.mark_complete()  # handles recurrence + calendar sync + CoS
 
                 return ActionResult(
                     success=True,

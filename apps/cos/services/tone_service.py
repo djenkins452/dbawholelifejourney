@@ -99,6 +99,7 @@ ACTIVITY_TONE_MAP = {
     "journaling": "reflective",
     "meditation": "gentle",
     "fasting": "encouraging",
+    "routine": "encouraging",
     "task": "direct",
     "default": "encouraging",
 }

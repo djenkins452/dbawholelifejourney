@@ -10,6 +10,7 @@ Life Intent Definitions
 
 OpenAI function (tool) definitions for life management actions:
 - create_task: Create a new task
+- create_routine_task: Create a daily routine task with CoS prompting
 - complete_task: Mark a task as complete
 - create_event: Schedule a calendar event
 - add_reminder: Create a reminder for a significant event (birthday, anniversary)
@@ -52,6 +53,43 @@ LIFE_INTENT_TOOLS = [
                     }
                 },
                 "required": ["title"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_routine_task",
+            "description": "Create a daily routine task with scheduled time and CoS check-ins. Use when user says 'add X to my daily routine', 'schedule workout every morning at 6am', 'I want a daily quiet time at 5:30am', or similar. These are recurring tasks with pre/post activity prompting.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "description": "Routine task title (e.g., 'Quiet Time', 'Morning Workout', 'Evening Walk')"
+                    },
+                    "scheduled_time": {
+                        "type": "string",
+                        "description": "Begin time in HH:MM 24-hour format (e.g., '06:00', '17:30')"
+                    },
+                    "end_time": {
+                        "type": "string",
+                        "description": "End time in HH:MM 24-hour format (e.g., '06:30', '18:00'). If omitted, computed from duration_minutes."
+                    },
+                    "duration_minutes": {
+                        "type": "integer",
+                        "description": "Estimated duration in minutes (default 30). Ignored if end_time is provided."
+                    },
+                    "recurrence_pattern": {
+                        "type": "string",
+                        "description": "How often: 'daily', 'weekdays', 'weekly:mon,wed,fri', etc. Default 'daily'."
+                    },
+                    "notes": {
+                        "type": "string",
+                        "description": "Additional notes about the routine"
+                    }
+                },
+                "required": ["title", "scheduled_time"]
             }
         }
     },

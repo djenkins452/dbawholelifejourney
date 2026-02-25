@@ -41,6 +41,32 @@ def handle_pet_saved(sender, instance, created, **kwargs):
         logger.warning(f"Failed to create birthday event for pet {instance.id}: {e}")
 
 
+@receiver(post_save, sender='life.Task')
+def handle_routine_task_saved(sender, instance, created, **kwargs):
+    """
+    When a routine Task is saved (new or updated):
+    1. Project to calendar as a time-specific execution block
+    2. Schedule CoS pre/post activity prompts
+
+    Only fires for routine tasks with scheduled_time and due_date.
+    Skips completed tasks to avoid re-projection.
+    """
+    if not instance.is_routine:
+        return
+    if not instance.scheduled_time or not instance.due_date:
+        return
+    if instance.is_completed:
+        return
+
+    try:
+        from apps.life.services.routine_service import RoutineTaskService
+        RoutineTaskService.on_new_routine_task_created(instance)
+    except Exception as e:
+        logger.warning(
+            "Failed to process routine task %s: %s", instance.pk, e
+        )
+
+
 @receiver(post_delete, sender='life.Pet')
 def handle_pet_deleted(sender, instance, **kwargs):
     """

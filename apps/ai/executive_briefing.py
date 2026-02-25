@@ -540,6 +540,31 @@ def _build_health_gate_section(user, today) -> str:
     except Exception:
         pass
 
+    # Routine task check (daily routines modeled as tasks)
+    try:
+        from apps.life.models import Task
+        completed_routines = list(Task.objects.filter(
+            user=user, is_routine=True, is_completed=True,
+            due_date=today,
+        ).values_list('title', flat=True)[:5])
+        pending_routines = list(Task.objects.filter(
+            user=user, is_routine=True, is_completed=False,
+            due_date=today,
+        ).values_list('title', flat=True)[:5])
+
+        if completed_routines:
+            lines.append(
+                f"Routines Completed: {', '.join(completed_routines)}. "
+                "Acknowledge this."
+            )
+        if pending_routines:
+            lines.append(
+                f"Routines Pending: {', '.join(pending_routines)} "
+                "not yet done today."
+            )
+    except Exception:
+        pass
+
     if not lines:
         return ""
 

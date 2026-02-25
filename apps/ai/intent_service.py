@@ -341,6 +341,9 @@ LIFE/TASKS:
 - "remind me to buy groceries" → create_task(title="Buy groceries")
 - "I finished the laundry task" → complete_task(task_keyword="laundry")
 - "remember my wife's birthday is March 15" → add_reminder(title="Wife's Birthday", event_type="birthday", event_date="03-15")
+- "add Quiet Time to my daily routine at 5:30am" → create_routine_task(title="Quiet Time", scheduled_time="05:30")
+- "I want a daily workout at 6am" → create_routine_task(title="Workout", scheduled_time="06:00", duration_minutes=45)
+- "schedule my evening walk every day at 7pm" → create_routine_task(title="Evening Walk", scheduled_time="19:00", duration_minutes=30)
 
 CALENDAR EVENTS:
 - "add to my calendar 5am Wake Up for tomorrow" → create_event(title="Wake Up", start_date="tomorrow", start_time="05:00")
@@ -620,6 +623,11 @@ Examples:
             title = parameters.get('title', 'task')
             return f"I'll create task: {title}. Confirm?"
 
+        elif intent_type == 'create_routine_task':
+            title = parameters.get('title', 'routine')
+            time = parameters.get('scheduled_time', '')
+            return f"I'll create daily routine: {title} at {time}. Confirm?"
+
         elif intent_type == 'create_event':
             title = parameters.get('title', 'event')
             return f"I'll schedule: {title}. Confirm?"
@@ -737,6 +745,9 @@ Examples:
             # Life handlers
             elif intent_type == 'create_task':
                 return handler.handle_create_task(**parameters)
+
+            elif intent_type == 'create_routine_task':
+                return handler.handle_create_routine_task(**parameters)
 
             elif intent_type == 'complete_task':
                 return handler.handle_complete_task(**parameters)

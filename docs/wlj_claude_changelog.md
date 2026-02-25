@@ -9,6 +9,41 @@
 
 # WLJ Change History
 
+## 2026-02-25 — Feature: Daily Routine Tasks with CoS Integration
+
+**What:** Daily routines (Quiet Time, Workout, etc.) are now modeled as recurring Tasks with scheduled begin/end times. CoS can see completion status, prompt before scheduled time, ask "How did it go?" after, and save reflections for future context. The `complete_task` handler was also fixed to properly call `mark_complete()` instead of bypassing it.
+
+**Changes:**
+- Added `is_routine`, `scheduled_time`, `scheduled_end_time`, `estimated_duration_minutes` fields to Task model
+- Created `RoutineTaskService` coordinator for calendar projection, CoS prompt scheduling, and completion sync
+- Added `upsert_from_routine_task()` to projection service — creates time-specific execution blocks (not deadline markers)
+- Added `post_save` signal on Task to auto-project routine tasks to calendar
+- Fixed `handle_complete_task()` bug — was bypassing `mark_complete()` which skipped recurrence + calendar sync
+- Added `create_routine_task` intent with full 5-place registration (intent def, handler, dispatch, engine, confirmation)
+- Added routine task status (completed/pending) to executive briefing health gate
+- Added "routine" activity type to CoS prompt templates and tone service
+- RecurrenceService now copies all routine fields to next occurrence
+
+**Files Modified:**
+- `apps/life/models.py` — Task model fields + `mark_complete()` hook
+- `apps/life/services/routine_service.py` — NEW: RoutineTaskService coordinator
+- `apps/life/services/recurrence.py` — Copy routine fields to next occurrence
+- `apps/life/signals.py` — post_save signal for routine task projection
+- `apps/life/migrations/0014_add_routine_task_fields.py` — Schema migration
+- `apps/life/migrations/0015_add_scheduled_end_time.py` — End time field
+- `apps/calendar_engine/services/projection.py` — `upsert_from_routine_task()` + routing
+- `apps/ai/action_handlers.py` — Fixed `handle_complete_task()` + added `handle_create_routine_task()`
+- `apps/ai/intents/life_intents.py` — `create_routine_task` tool definition
+- `apps/ai/intents/__init__.py` — Intent registration
+- `apps/ai/intent_service.py` — Dispatch + confirmation + prompt examples
+- `apps/ai/executive_briefing.py` — Routine task status in health gate
+- `apps/ai/tests/test_intent_registration.py` — Added to NON_TIME_INTENTS
+- `apps/core/ai_orchestrator/intent_engine.py` — Added to LIFE_INTENTS
+- `apps/cos/services/prompt_templates.py` — "routine" activity type
+- `apps/cos/services/tone_service.py` — "routine" in ACTIVITY_TONE_MAP
+
+**Why:** User's daily routines were invisible to the AI — they existed only as calendar entries or habit goals. CoS would incorrectly report activities as missed because it had no task-level completion data. Now routines are completable tasks with full lifecycle support.
+
 ## 2026-02-24 — Fix: AI falsely reporting completed activities as missed
 
 **What:** The Chief of Staff AI was telling the user that workouts and reading plan/Quiet Time were missed even when they had been logged hours earlier. Root cause: (1) The executive briefing health gate only reported *negative* workout status (missing) but never confirmed completed workouts, so the AI had no positive signal and hallucinated "missed" status. (2) Reading plan daily progress was completely absent from both the executive briefing and the state assessment — the AI had zero data about today's reading completion. (3) "How have I done today" didn't trigger the analysis code path, so the AI got no structured state data. Fixed by adding positive confirmations for completed workouts, adding reading plan/Quiet Time progress checks to the executive briefing and state assessment, expanding analysis trigger patterns, and adding a guard instruction against assuming items are missed without explicit data.

@@ -124,6 +124,7 @@ NON_TIME_INTENTS = {
     'exit_learning_mode',      # Control-plane — no date/time component
     'complete_shopping_item',  # Updates existing item, no date
     'create_task',             # Tasks have due_date, not recorded_at
+    'create_routine_task',     # Routine tasks have scheduled_time, not recorded_at
     'create_event',            # Events have start/end, not recorded_at
     'read_calendar_events',    # Read-only query, no recorded_at
     'mutate_calendar_event',   # Uses start_date/start_time, not recorded_at

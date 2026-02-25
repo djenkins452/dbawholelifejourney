@@ -49,6 +49,10 @@ PRE_EVENT_TEMPLATES = {
         "Your appointment \"{title}\" starts in {lead_minutes} minutes. "
         "Don't forget to prepare anything you need."
     ),
+    "routine": (
+        "Your routine \"{title}\" starts in {lead_minutes} minutes. "
+        "Ready?"
+    ),
     "task": (
         "Your scheduled task \"{title}\" starts in {lead_minutes} minutes."
     ),
@@ -96,6 +100,10 @@ POST_EVENT_TEMPLATES = {
         "Your appointment \"{title}\" should be done. "
         "How did it go? Any follow-ups?"
     ),
+    "routine": (
+        "Did you complete your routine \"{title}\"? "
+        "How did it go?"
+    ),
     "task": (
         "Did you complete \"{title}\"?"
     ),
@@ -119,6 +127,7 @@ DEFAULT_LEAD_MINUTES = {
     "meditation": 5,
     "fasting": 10,
     "appointment": 15,
+    "routine": 10,
     "task": 10,
     "default": 15,
 }
@@ -133,6 +142,7 @@ DEFAULT_POST_DELAY_MINUTES = {
     "meditation": 5,
     "fasting": 5,
     "appointment": 10,
+    "routine": 5,
     "task": 5,
     "default": 5,
 }
@@ -172,6 +182,10 @@ ACTIVITY_TYPE_PATTERNS = {
     "appointment": [
         "appointment", "doctor", "dentist", "therapy",
         "medical", "checkup", "check-up",
+    ],
+    "routine": [
+        "routine", "daily routine", "morning routine",
+        "evening routine", "night routine",
     ],
 }
 

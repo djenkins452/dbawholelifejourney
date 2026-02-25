@@ -36,8 +36,26 @@ def _get_default_domain(slug='work'):
 def _resolve_domain_for_task(task):
     """
     Derive domain from task context.
-    Tasks don't have a domain FK, so we default to Work.
+    Routine tasks get domain based on title keywords.
+    Regular tasks default to Work.
     """
+    if getattr(task, 'is_routine', False):
+        title_lower = task.title.lower()
+        _ROUTINE_DOMAIN_MAP = {
+            'faith': [
+                'quiet time', 'bible', 'prayer', 'devotional',
+                'scripture', 'reading plan',
+            ],
+            'health': [
+                'workout', 'exercise', 'run', 'gym', 'walk',
+                'stretch', 'yoga', 'swim', 'cardio',
+            ],
+        }
+        for slug, keywords in _ROUTINE_DOMAIN_MAP.items():
+            if any(kw in title_lower for kw in keywords):
+                domain = _get_default_domain(slug)
+                if domain:
+                    return domain
     return _get_default_domain('work')
 
 
@@ -79,7 +97,12 @@ def upsert_from_task(task):
     """
     Ensure a DEADLINE_MARKER exists for a task with a due_date.
     Updates if task date changed; deletes if task has no due_date.
+    Routine tasks with scheduled_time are routed to upsert_from_routine_task().
     """
+    # Routine tasks get time-specific execution blocks, not deadline markers
+    if getattr(task, 'is_routine', False) and task.scheduled_time:
+        return upsert_from_routine_task(task)
+
     existing = CalendarEvent.objects.filter(
         user=task.user,
         source_type=CalendarEvent.SOURCE_TASK,
@@ -131,6 +154,84 @@ def upsert_from_task(task):
         status=CalendarEvent.STATUS_COMPLETED if task.is_completed else CalendarEvent.STATUS_SCHEDULED,
         idempotency_key=compute_idempotency_key(
             task.user_id, task_title, start_dt, end_dt=end_dt,
+            source_type='task', source_id=str(task.pk),
+        ),
+    )
+
+
+def upsert_from_routine_task(task):
+    """
+    Create/update a time-specific EXECUTION_BLOCK for a routine task.
+
+    Unlike upsert_from_task() which creates deadline markers at 23:59,
+    this creates actual time blocks at the task's scheduled_time with
+    proper duration — so the event appears at the right time on the calendar.
+
+    Args:
+        task: Task instance with is_routine=True, scheduled_time, due_date
+
+    Returns:
+        CalendarEvent instance, or None if missing required fields
+    """
+    if not task.due_date or not task.scheduled_time:
+        return None
+
+    # Look for existing execution block for this task
+    existing = CalendarEvent.objects.filter(
+        user=task.user,
+        source_type=CalendarEvent.SOURCE_TASK,
+        source_id=str(task.pk),
+        event_kind=CalendarEvent.KIND_EXECUTION_BLOCK,
+    ).first()
+
+    # Build time-specific datetime using user's timezone
+    from zoneinfo import ZoneInfo
+    user_tz = ZoneInfo(task.user.preferences.timezone_iana)
+    start_dt = timezone.make_aware(
+        dt.datetime.combine(task.due_date, task.scheduled_time),
+        user_tz,
+    )
+    # Use explicit end time if set, otherwise fall back to duration calculation
+    if task.scheduled_end_time:
+        end_dt = timezone.make_aware(
+            dt.datetime.combine(task.due_date, task.scheduled_end_time),
+            user_tz,
+        )
+    else:
+        duration = task.estimated_duration_minutes or 30
+        end_dt = start_dt + dt.timedelta(minutes=duration)
+
+    domain = _resolve_domain_for_task(task)
+    status = (
+        CalendarEvent.STATUS_COMPLETED if task.is_completed
+        else CalendarEvent.STATUS_SCHEDULED
+    )
+
+    if existing:
+        old_start = existing.start_dt
+        existing.title = task.title
+        existing.start_dt = start_dt
+        existing.end_dt = end_dt
+        existing.domain = domain
+        existing.is_all_day = False
+        existing.status = status
+        existing.save()
+        _log_schedule_change(task.user, existing, old_start, start_dt)
+        return existing
+
+    return CalendarEvent.objects.create(
+        user=task.user,
+        title=task.title,
+        start_dt=start_dt,
+        end_dt=end_dt,
+        is_all_day=False,
+        domain=domain,
+        event_kind=CalendarEvent.KIND_EXECUTION_BLOCK,
+        source_type=CalendarEvent.SOURCE_TASK,
+        source_id=str(task.pk),
+        status=status,
+        idempotency_key=compute_idempotency_key(
+            task.user_id, task.title, start_dt, end_dt=end_dt,
             source_type='task', source_id=str(task.pk),
         ),
     )

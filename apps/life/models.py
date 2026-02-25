@@ -242,6 +242,27 @@ class Task(UserOwnedModel):
         help_text="End date for recurring tasks (optional)"
     )
 
+    # Routine task scheduling
+    is_routine = models.BooleanField(
+        default=False,
+        help_text="Whether this is a daily routine task (Quiet Time, Workout, etc.)"
+    )
+    scheduled_time = models.TimeField(
+        null=True,
+        blank=True,
+        help_text="Scheduled start time for routine tasks (e.g., 06:00)"
+    )
+    scheduled_end_time = models.TimeField(
+        null=True,
+        blank=True,
+        help_text="Scheduled end time for routine tasks (e.g., 06:30)"
+    )
+    estimated_duration_minutes = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Estimated duration in minutes (computed from times or set manually)"
+    )
+
     # Email source tracking (for Gmail integration)
     email_source_id = models.CharField(
         max_length=255,
@@ -280,15 +301,23 @@ class Task(UserOwnedModel):
         """
         Mark task as completed.
         If recurring, automatically creates the next occurrence.
+        Syncs CalendarEvent status and triggers CoS reflection for routines.
         """
         self.is_completed = True
         self.completed_at = timezone.now()
         self.save(update_fields=['is_completed', 'completed_at', 'updated_at'])
-        
+
         # Handle recurrence
         if self.is_recurring and self.recurrence_pattern:
             from apps.life.services.recurrence import RecurrenceService
             RecurrenceService.process_completed_recurring_task(self)
+
+        # Sync CalendarEvent + trigger CoS reflection
+        try:
+            from apps.life.services.routine_service import RoutineTaskService
+            RoutineTaskService.on_task_completed(self)
+        except Exception:
+            pass  # Must never break task completion
     
     def mark_incomplete(self):
         """Mark task as not completed."""

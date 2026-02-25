@@ -51,6 +51,7 @@ PURPOSE_INTENTS = {
 
 LIFE_INTENTS = {
     "create_task",
+    "create_routine_task",
     "complete_task",
     "create_event",
     "add_reminder",

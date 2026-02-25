@@ -9,6 +9,20 @@
 
 # WLJ Change History
 
+## 2026-02-25 — Feature: CoS Phase 6 — Voice Output (TTS)
+
+**What:** Adds text-to-speech capability to CoS via OpenAI's TTS API. New `tts_service.py` module provides `generate_speech()` / `generate_speech_base64()` functions with voice selection (6 voices), speed control (0.25–4.0x), markdown/emoji stripping for natural speech, and user preference support. New `TextToSpeechView` POST endpoint at `/assistant/api/tts/` accepts text and returns base64-encoded MP3 audio for browser playback.
+
+**Files:**
+- `apps/ai/tts_service.py` — NEW: TTS service (generate_speech, clean_text_for_speech, voice choices, user prefs)
+- `apps/ai/views.py` — Added TextToSpeechView class (POST /assistant/api/tts/)
+- `apps/ai/urls.py` — Added TTS URL pattern
+- `apps/ai/tests/test_tts.py` — NEW: 29 tests (service + endpoint)
+
+**Why:** Phase 6 of the CoS upgrade enables voice output so users can listen to CoS responses instead of reading them, improving accessibility and hands-free usage.
+
+---
+
 ## 2026-02-25 — Feature: CoS Phase 5 — Web Search & General Knowledge
 
 **What:** Extends the web search service from weather-only to handle general knowledge questions (health, nutrition, fitness, Bible, recipes, techniques) via a focused OpenAI `gpt-4o-mini` call. Adds 30+ general knowledge detection patterns with exclusion rules for personal data queries. Keeps answers factual, concise (2-4 sentences), and separate from the full CoS system prompt.

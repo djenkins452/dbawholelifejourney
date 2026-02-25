@@ -1282,3 +1282,73 @@ class LearningModeToggleView(LoginRequiredMixin, View):
             })
 
         return JsonResponse({'error': 'Unknown action'}, status=400)
+
+
+# ---------------------------------------------------------------------------
+# Text-to-Speech (TTS) API
+# ---------------------------------------------------------------------------
+
+class TextToSpeechView(LoginRequiredMixin, View):
+    """
+    POST /ai/api/tts/
+
+    Convert text to speech audio using OpenAI TTS API.
+    Returns base64-encoded MP3 audio for playback in the browser.
+
+    Body (JSON):
+        text (str): Text to convert (required, max 4096 chars).
+        voice (str): Voice choice — alloy, echo, fable, nova, onyx, shimmer.
+        speed (float): Playback speed 0.25–4.0 (default 1.0).
+
+    Response:
+        { "audio": "<base64 mp3>", "content_type": "audio/mpeg" }
+    """
+
+    def post(self, request, *args, **kwargs):
+        try:
+            body = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({'error': 'Invalid JSON body'}, status=400)
+
+        text = (body.get('text') or '').strip()
+        if not text:
+            return JsonResponse({'error': 'Text is required'}, status=400)
+
+        voice = body.get('voice')
+        speed = body.get('speed', 1.0)
+
+        try:
+            speed = float(speed)
+        except (TypeError, ValueError):
+            speed = 1.0
+
+        from apps.ai.tts_service import (
+            clean_text_for_speech,
+            generate_speech_base64,
+            VOICE_CHOICES,
+        )
+
+        # Validate voice
+        if voice and voice not in VOICE_CHOICES:
+            return JsonResponse(
+                {'error': f'Invalid voice. Choose from: {", ".join(VOICE_CHOICES.keys())}'},
+                status=400,
+            )
+
+        # Clean text for natural speech
+        cleaned_text = clean_text_for_speech(text)
+        if not cleaned_text:
+            return JsonResponse({'error': 'Text is empty after cleaning'}, status=400)
+
+        # Generate audio
+        audio_b64 = generate_speech_base64(cleaned_text, voice=voice, speed=speed)
+        if not audio_b64:
+            return JsonResponse(
+                {'error': 'Speech generation failed. Please try again.'},
+                status=502,
+            )
+
+        return JsonResponse({
+            'audio': audio_b64,
+            'content_type': 'audio/mpeg',
+        })

@@ -102,7 +102,18 @@ def _deliver_for_user(user):
     if not channels:
         return result
 
-    # Gather deliverable items
+    # EAE-gated delivery (Phase 8.7)
+    # When EAE is enabled, it controls which items get pushed via noise budget,
+    # scoring, and dedup. Falls back to existing logic when disabled.
+    try:
+        from apps.core.blueprint.models import PersonalOperatingBlueprint
+        _bp = PersonalOperatingBlueprint.objects.filter(user=user).first()
+        if _bp and _bp.eae_enabled:
+            return _deliver_for_user_eae(user, channels)
+    except Exception as e:
+        logger.debug("DNE: EAE gate check failed (using legacy): %s", e)
+
+    # Legacy path: gather deliverable items manually
     items = []
     items.extend(_get_undelivered_guidance(user))
     items.extend(_get_undelivered_briefings(user))
@@ -129,6 +140,57 @@ def _deliver_for_user(user):
                 result["skipped"] += 1
             else:
                 result["failed"] += 1
+
+    return result
+
+
+def _deliver_for_user_eae(user, channels):
+    """
+    EAE-controlled delivery path (Phase 8.7).
+
+    Uses EAE's arbitrate() to get scored, budgeted, deduplicated cognitive
+    units for push delivery. Each cognitive unit becomes one notification.
+    Delivery policies (quiet hours, throttle, dedupe) still apply.
+    """
+    result = {"delivered": 0, "skipped": 0, "failed": 0}
+
+    try:
+        from apps.core.ai_eae.eae_engine import arbitrate
+        from apps.core.ai_eae.constants import CHANNEL_PUSH
+
+        eae_result = arbitrate(user, channel=CHANNEL_PUSH)
+
+        if not eae_result.cognitive_units:
+            return result
+
+        for unit in eae_result.cognitive_units:
+            # Build payload from cognitive unit
+            payload = {
+                "title": unit.title,
+                "message": getattr(unit, 'message', '') or unit.title,
+                "action_url": "/dashboard/",
+                "icon": "🧠",
+                "priority": 2 if eae_result.escalation_level >= 2 else 3,
+            }
+            engine = unit.module or "EAE"
+            obj_type = "CognitiveUnit"
+            obj_id = hash(unit.unit_id) % (10**9)  # Stable int from UUID
+
+            for channel in channels:
+                delivered = _deliver_to_channel(
+                    user, channel, payload, engine, obj_type, obj_id,
+                    priority=payload.get("priority"),
+                )
+                if delivered is True:
+                    result["delivered"] += 1
+                elif delivered is False:
+                    result["skipped"] += 1
+                else:
+                    result["failed"] += 1
+
+    except Exception as e:
+        logger.error("DNE: EAE delivery path failed for user %s: %s", user.id, e)
+        result["failed"] += 1
 
     return result
 

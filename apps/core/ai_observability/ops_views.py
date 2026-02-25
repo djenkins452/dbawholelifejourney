@@ -128,6 +128,9 @@ class OpsStreamView(View):
         # Scheduler heartbeats (ISE + SAME)
         scheduler_heartbeats = _get_scheduler_heartbeats()
 
+        # EAE telemetry (Phase 8.8)
+        eae_telemetry = _get_eae_ops_telemetry(now)
+
         return JsonResponse({
             "server_time": now.isoformat(),
             "posture": posture,
@@ -137,6 +140,7 @@ class OpsStreamView(View):
             "feed": feed,
             "integrity": integrity,
             "scheduler_heartbeats": scheduler_heartbeats,
+            "eae_telemetry": eae_telemetry,
             "next_since": now.isoformat(),
         })
 
@@ -1074,6 +1078,86 @@ def _get_scheduler_heartbeats():
         })
 
     return schedulers
+
+
+def _get_eae_ops_telemetry(now):
+    """
+    Get EAE telemetry for the Operations Wall (Phase 8.8).
+
+    Returns aggregate metrics across all users for monitoring EAE health.
+    """
+    try:
+        from apps.core.ai_eae.models import (
+            EAEDecisionLog,
+            EAEEscalationEvent,
+            EAEOverride,
+            EAEState,
+        )
+        from apps.core.ai_eae.constants import ESCALATION_CHOICES
+        from django.db.models import Avg, Count, Max, Min
+
+        last_1h = now - timedelta(hours=1)
+        last_24h = now - timedelta(hours=24)
+
+        # Decision metrics (last hour and last 24h)
+        decisions_1h = EAEDecisionLog.objects.filter(
+            created_at__gte=last_1h,
+        ).aggregate(
+            count=Count('id'),
+            avg_duration_ms=Avg('arbitration_duration_ms'),
+            max_duration_ms=Max('arbitration_duration_ms'),
+            avg_surfaced=Avg('surfaced_count'),
+            avg_suppressed=Avg('suppressed_count'),
+        )
+
+        decisions_24h = EAEDecisionLog.objects.filter(
+            created_at__gte=last_24h,
+        ).aggregate(
+            count=Count('id'),
+            avg_duration_ms=Avg('arbitration_duration_ms'),
+        )
+
+        # Escalation distribution (current state across all users)
+        level_map = dict(ESCALATION_CHOICES)
+        escalation_dist = {}
+        for level, label in ESCALATION_CHOICES:
+            count = EAEState.objects.filter(escalation_level=level).count()
+            if count:
+                escalation_dist[label] = count
+
+        # Recent escalation events (last 24h)
+        escalation_events_24h = EAEEscalationEvent.objects.filter(
+            created_at__gte=last_24h,
+        ).count()
+
+        # Active overrides
+        override_count = EAEOverride.objects.count()
+
+        # Last arbitration across all users
+        last_arb = EAEState.objects.aggregate(
+            last=Max('last_arbitration_at'),
+        )
+
+        return {
+            'decisions_1h': {
+                'count': decisions_1h['count'] or 0,
+                'avg_duration_ms': round(decisions_1h['avg_duration_ms'] or 0, 1),
+                'max_duration_ms': decisions_1h['max_duration_ms'] or 0,
+                'avg_surfaced': round(decisions_1h['avg_surfaced'] or 0, 1),
+                'avg_suppressed': round(decisions_1h['avg_suppressed'] or 0, 1),
+            },
+            'decisions_24h_count': decisions_24h['count'] or 0,
+            'decisions_24h_avg_ms': round(decisions_24h['avg_duration_ms'] or 0, 1),
+            'escalation_distribution': escalation_dist,
+            'escalation_events_24h': escalation_events_24h,
+            'active_overrides': override_count,
+            'last_arbitration_at': (
+                last_arb['last'].isoformat() if last_arb.get('last') else None
+            ),
+        }
+    except Exception as e:
+        logger.debug("OpsWall: EAE telemetry unavailable: %s", e)
+        return None
 
 
 def _human_ago(dt):

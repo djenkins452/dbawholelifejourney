@@ -67,6 +67,22 @@ def handle_routine_task_saved(sender, instance, created, **kwargs):
         )
 
 
+@receiver(post_save, sender='life.LifeEvent')
+def handle_life_event_saved(sender, instance, **kwargs):
+    """
+    When a LifeEvent is saved, project it to the calendar engine.
+    Creates or updates a CalendarEvent with source_type=life_event.
+    """
+    try:
+        from apps.calendar_engine.services.projection import upsert_from_life_event
+        upsert_from_life_event(instance)
+    except Exception as e:
+        logger.warning(
+            "Failed to project life event %s to calendar: %s",
+            instance.pk, e,
+        )
+
+
 @receiver(post_delete, sender='life.Pet')
 def handle_pet_deleted(sender, instance, **kwargs):
     """

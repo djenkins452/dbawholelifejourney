@@ -9,6 +9,40 @@
 
 # WLJ Change History
 
+## 2026-02-25 — Feature: CoS Full Calendar Tracking + Task Form Reorder
+
+**What:** CoS (Chief of Staff) can now track, prompt, and reflect on ALL calendar event types — habits, goals, milestones, life events, and manual events — not just tasks. Also reordered the task form fields and added click-through routing from calendar to source edit pages.
+
+**Changes:**
+- **Task form reorder:** Title → Notes → Recurring → Due Date → Time → Effort/Project → Progress
+- **CosPromptSchedule:** Added `occurrence_date` field for recurring event dedup (habits)
+- **CosPromptService:** Enhanced with `occurrence_date`, `override_start_dt/end_dt` params; integrated completion routing on positive post-event responses
+- **Prompt templates:** Added habit, goal_deadline, milestone_deadline, life_event activity types with pre/post templates and lead/delay times
+- **CosPromptScheduler (NEW):** Periodic service that generates CoS prompts for next 24h across all source types (habits, goals, milestones, life events, manual events)
+- **CosCompletionService (NEW):** Routes completions bidirectionally — CoS prompt "Yes" → source object completion, UI completion → CoS reflection scheduling
+- **ISE integration:** Registered `schedule_cos_prompts` (6h) and `deliver_cos_prompts` (5min) tasks
+- **Life event projection:** LifeEvent post_save signal creates/updates CalendarEvent with `source_type=life_event`
+- **Calendar click routing:** Events now route to their source: task → task edit, habit → habit detail, goal → goal detail, milestone → milestone edit, life event → life event edit
+- **Tone service:** Added tone mappings for new activity types (habit, goal_deadline, milestone_deadline, life_event)
+- **View hooks:** GoalToggleStatusView, MilestoneToggleView, HabitLogTodayView, HabitLogDateView sync completions to calendar + CoS
+
+**Files modified:**
+- `templates/life/task_form.html` — form reorder
+- `apps/cos/models.py` + migration — occurrence_date field
+- `apps/cos/services/prompt_service.py` — dedup + completion routing
+- `apps/cos/services/prompt_templates.py` — new activity type templates
+- `apps/cos/services/cos_prompt_scheduler.py` — NEW scheduler
+- `apps/cos/services/completion_service.py` — NEW completion service
+- `apps/cos/services/tone_service.py` — new tone mappings
+- `apps/core/ai_scheduler/scheduler_registry.py` — ISE tasks
+- `apps/core/ai_scheduler/scheduler_runner.py` — runner functions
+- `apps/calendar_engine/services/projection.py` — `upsert_from_life_event()`
+- `apps/life/signals.py` — LifeEvent post_save signal
+- `apps/purpose/views.py` — completion sync hooks
+- `templates/calendar_engine/month.html` — click routing for all source types
+
+---
+
 ## 2026-02-25 — Enhancement: Calendar Event Click Opens Edit Directly
 
 **What:** Clicking a calendar event in the month view now navigates directly to the edit page instead of showing a popover. Task-sourced events open the task edit form; all other events open the calendar manage page in edit mode.

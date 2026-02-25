@@ -101,6 +101,10 @@ ACTIVITY_TONE_MAP = {
     "fasting": "encouraging",
     "routine": "encouraging",
     "task": "direct",
+    "habit": "encouraging",
+    "goal_deadline": "direct",
+    "milestone_deadline": "direct",
+    "life_event": "encouraging",
     "default": "encouraging",
 }
 

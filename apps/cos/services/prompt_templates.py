@@ -56,6 +56,21 @@ PRE_EVENT_TEMPLATES = {
     "task": (
         "Your scheduled task \"{title}\" starts in {lead_minutes} minutes."
     ),
+    "habit": (
+        "Time for your habit \"{title}\" in {lead_minutes} minutes. "
+        "Keep the streak going!"
+    ),
+    "goal_deadline": (
+        "Your goal \"{title}\" target date is approaching. "
+        "How is progress looking?"
+    ),
+    "milestone_deadline": (
+        "Your milestone \"{title}\" is due soon. "
+        "Are you on track?"
+    ),
+    "life_event": (
+        "Your event \"{title}\" starts in {lead_minutes} minutes."
+    ),
     "default": (
         "Your activity \"{title}\" starts in {lead_minutes} minutes."
     ),
@@ -107,6 +122,21 @@ POST_EVENT_TEMPLATES = {
     "task": (
         "Did you complete \"{title}\"?"
     ),
+    "habit": (
+        "Did you complete your habit \"{title}\" today?"
+    ),
+    "goal_deadline": (
+        "Your goal \"{title}\" target date has arrived. "
+        "How did it go? Ready to mark it complete?"
+    ),
+    "milestone_deadline": (
+        "Your milestone \"{title}\" was due today. "
+        "Did you finish it?"
+    ),
+    "life_event": (
+        "Your event \"{title}\" should be done. "
+        "How did it go?"
+    ),
     "default": (
         "Your activity \"{title}\" should be done. "
         "How did it go?"
@@ -129,6 +159,10 @@ DEFAULT_LEAD_MINUTES = {
     "appointment": 15,
     "routine": 10,
     "task": 10,
+    "habit": 10,
+    "goal_deadline": 1440,  # 24 hours before deadline
+    "milestone_deadline": 1440,  # 24 hours before deadline
+    "life_event": 15,
     "default": 15,
 }
 
@@ -144,6 +178,10 @@ DEFAULT_POST_DELAY_MINUTES = {
     "appointment": 10,
     "routine": 5,
     "task": 5,
+    "habit": 5,
+    "goal_deadline": 60,  # 1 hour after deadline
+    "milestone_deadline": 60,  # 1 hour after deadline
+    "life_event": 10,
     "default": 5,
 }
 
@@ -186,6 +224,9 @@ ACTIVITY_TYPE_PATTERNS = {
     "routine": [
         "routine", "daily routine", "morning routine",
         "evening routine", "night routine",
+    ],
+    "habit": [
+        "habit",
     ],
 }
 

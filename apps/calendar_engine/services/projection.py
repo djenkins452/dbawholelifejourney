@@ -499,3 +499,94 @@ def delete_habit_events(habit):
         source_type=CalendarEvent.SOURCE_HABIT,
         source_id=str(habit.pk),
     ).delete()
+
+
+# ──────────────────────────────────────────────────────────
+# Life Event Projection
+# ──────────────────────────────────────────────────────────
+
+_LIFE_EVENT_DOMAIN_MAP = {
+    'personal': 'personal',
+    'family': 'family',
+    'household': 'personal',
+    'faith': 'faith',
+    'health': 'health',
+    'work': 'work',
+    'social': 'relationships',
+    'travel': 'personal',
+    'other': 'personal',
+}
+
+
+def upsert_from_life_event(event):
+    """
+    Create/update a CalendarEvent from a LifeEvent.
+    Handles all-day events, timed events, and recurring events.
+    """
+    user_tz = timezone.get_current_timezone()
+
+    # Build start/end datetimes
+    if event.is_all_day or not event.start_time:
+        start_dt = timezone.make_aware(
+            dt.datetime.combine(event.start_date, dt.time(0, 0)), user_tz
+        )
+        end_date = event.end_date or event.start_date
+        end_dt = timezone.make_aware(
+            dt.datetime.combine(end_date, dt.time(23, 59)), user_tz
+        )
+        is_all_day = True
+    else:
+        start_dt = timezone.make_aware(
+            dt.datetime.combine(event.start_date, event.start_time), user_tz
+        )
+        if event.end_date and event.end_time:
+            end_dt = timezone.make_aware(
+                dt.datetime.combine(event.end_date, event.end_time), user_tz
+            )
+        elif event.end_time:
+            end_dt = timezone.make_aware(
+                dt.datetime.combine(event.start_date, event.end_time), user_tz
+            )
+        else:
+            end_dt = start_dt + dt.timedelta(hours=1)
+        is_all_day = False
+
+    # Resolve domain
+    slug = _LIFE_EVENT_DOMAIN_MAP.get(event.event_type, 'personal')
+    domain = _get_default_domain(slug)
+
+    existing = CalendarEvent.objects.filter(
+        user=event.user,
+        source_type=CalendarEvent.SOURCE_LIFE_EVENT,
+        source_id=str(event.pk),
+    ).first()
+
+    if existing:
+        old_start = existing.start_dt
+        existing.title = event.title
+        existing.description = event.description or ''
+        existing.start_dt = start_dt
+        existing.end_dt = end_dt
+        existing.is_all_day = is_all_day
+        existing.domain = domain
+        existing.save()
+        _log_schedule_change(event.user, existing, old_start, start_dt)
+        return existing
+
+    cal_event = CalendarEvent.objects.create(
+        user=event.user,
+        title=event.title,
+        description=event.description or '',
+        start_dt=start_dt,
+        end_dt=end_dt,
+        is_all_day=is_all_day,
+        domain=domain,
+        event_kind=CalendarEvent.KIND_MANUAL,
+        source_type=CalendarEvent.SOURCE_LIFE_EVENT,
+        source_id=str(event.pk),
+        idempotency_key=compute_idempotency_key(
+            event.user_id, event.title, start_dt, end_dt=end_dt,
+            source_type='life_event', source_id=str(event.pk),
+        ),
+    )
+    return cal_event

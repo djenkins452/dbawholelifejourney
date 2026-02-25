@@ -1113,3 +1113,52 @@ def run_protective_alert_delivery():
             result['delivered'], result['suppressed'], result['errors'],
         )
         return result
+
+
+def run_cos_prompt_scheduling():
+    """
+    Schedule CoS prompts for upcoming habits, goals, milestones, and events.
+
+    Runs every 6 hours. Generates pre/post prompts for the next 24-48h window.
+
+    Returns:
+        dict — {scheduled: int, errors: int}
+    """
+    with trace_context(source="scheduler"):
+        try:
+            from apps.cos.services.cos_prompt_scheduler import CosPromptScheduler
+        except ImportError:
+            logger.error("ISE: CosPromptScheduler not available (import failed)")
+            return {"scheduled": 0, "errors": 0}
+
+        result = CosPromptScheduler.schedule_upcoming_prompts_for_all_users()
+        logger.info(
+            "ISE: CoS prompt scheduling complete — scheduled=%d, errors=%d",
+            result['scheduled'], result['errors'],
+        )
+        return result
+
+
+def run_cos_prompt_delivery():
+    """
+    Deliver due CoS prompts to all users.
+
+    Runs every 5 minutes. Finds pending prompts where scheduled_for <= now
+    and delivers them via DNE.
+
+    Returns:
+        dict — {delivered: int, errors: int}
+    """
+    with trace_context(source="scheduler"):
+        try:
+            from apps.cos.services.prompt_service import CosPromptService
+        except ImportError:
+            logger.error("ISE: CosPromptService not available (import failed)")
+            return {"delivered": 0, "errors": 0}
+
+        result = CosPromptService.deliver_all_due_for_all_users()
+        logger.info(
+            "ISE: CoS prompt delivery complete — delivered=%d, errors=%d",
+            result.get('delivered', 0), result.get('errors', 0),
+        )
+        return result

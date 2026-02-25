@@ -418,6 +418,11 @@ class GoalToggleStatusView(PurposeAccessMixin, View):
         
         if action == 'complete':
             goal.mark_complete()
+            try:
+                from apps.cos.services.completion_service import CosCompletionService
+                CosCompletionService.on_goal_completed(goal)
+            except Exception:
+                pass
             messages.success(request, f"Goal '{goal.title}' marked complete!")
         elif action == 'release':
             goal.mark_released()
@@ -968,6 +973,13 @@ class HabitLogTodayView(PurposeAccessMixin, View):
         from apps.core.ai_orchestrator.intelligence_hook import fire_intelligence
         fire_intelligence(request.user, "purpose", entry.id, "log_habit")
 
+        # Sync with CoS — cancel pre-prompt, schedule reflection
+        try:
+            from apps.cos.services.completion_service import CosCompletionService
+            CosCompletionService.on_habit_logged(goal, today, request.user)
+        except Exception:
+            pass
+
         return JsonResponse({
             'success': True,
             'created': created,
@@ -1060,6 +1072,13 @@ class HabitLogDateView(PurposeAccessMixin, View):
 
         # Calculate which box number this corresponds to
         day_number = (selected_date - goal.start_date).days + 1
+
+        # Sync with CoS — cancel pre-prompt, schedule reflection
+        try:
+            from apps.cos.services.completion_service import CosCompletionService
+            CosCompletionService.on_habit_logged(goal, selected_date, request.user)
+        except Exception:
+            pass
 
         return JsonResponse({
             'success': True,
@@ -1333,6 +1352,11 @@ class MilestoneToggleView(PurposeAccessMixin, View):
             messages.info(request, f"Milestone '{milestone.title}' marked incomplete.")
         else:
             milestone.mark_complete()
+            try:
+                from apps.cos.services.completion_service import CosCompletionService
+                CosCompletionService.on_milestone_completed(milestone)
+            except Exception:
+                pass
             messages.success(request, f"Milestone '{milestone.title}' completed!")
 
             # Fire intelligence chain

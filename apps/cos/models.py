@@ -198,6 +198,13 @@ class CosPromptSchedule(TimeStampedModel):
     delivered_at = models.DateTimeField(null=True, blank=True)
     responded_at = models.DateTimeField(null=True, blank=True)
 
+    # Occurrence tracking (for recurring events)
+    occurrence_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="For recurring events: the specific occurrence date. NULL for non-recurring.",
+    )
+
     # Metadata (tone, style, etc.)
     metadata = models.JSONField(
         default=dict,
@@ -226,6 +233,10 @@ class CosPromptSchedule(TimeStampedModel):
             models.Index(
                 fields=["status", "scheduled_for"],
                 name="cos_prompt_status_sched",
+            ),
+            models.Index(
+                fields=["user", "content_type", "object_id", "occurrence_date", "timing"],
+                name="cos_prompt_entity_occ_timing",
             ),
         ]
 

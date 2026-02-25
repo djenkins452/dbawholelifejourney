@@ -149,6 +149,17 @@ SCHEDULED_TASKS = {
         "interval_seconds": 300,  # 5 minutes
         "description": "Deliver due protective alerts via DNE with throttle respect (Phase 5).",
     },
+    # --- CoS Prompting ---
+    "schedule_cos_prompts": {
+        "function_path": "apps.core.ai_scheduler.scheduler_runner.run_cos_prompt_scheduling",
+        "interval_seconds": 21600,  # 6 hours
+        "description": "Schedule CoS prompts for upcoming habits, goals, milestones, and events.",
+    },
+    "deliver_cos_prompts": {
+        "function_path": "apps.core.ai_scheduler.scheduler_runner.run_cos_prompt_delivery",
+        "interval_seconds": 300,  # 5 minutes
+        "description": "Deliver due CoS prompts to all users.",
+    },
 }
 
 

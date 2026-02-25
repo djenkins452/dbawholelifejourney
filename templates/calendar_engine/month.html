@@ -411,11 +411,20 @@
     document.getElementById('cal-popover-close').addEventListener('click', hidePopover);
 
     function getEditUrl(evt) {
-        // Task-sourced events → open task edit page directly
-        if (evt.source_type === 'task' && evt.source_id) {
-            return '/organize/tasks/' + evt.source_id + '/edit/';
+        if (evt.source_id) {
+            switch (evt.source_type) {
+                case 'task':
+                    return '/organize/tasks/' + evt.source_id + '/edit/';
+                case 'habit':
+                    return '/purpose/habits/' + evt.source_id + '/';
+                case 'goal':
+                    return '/purpose/goals/' + evt.source_id + '/';
+                case 'goal_milestone':
+                    return '/purpose/milestones/' + evt.source_id + '/edit/';
+                case 'life_event':
+                    return '/life/significant-events/' + evt.source_id + '/edit/';
+            }
         }
-        // All other events → calendar manage page in edit mode
         return '/calendar/manage/?edit=' + evt.id;
     }
 

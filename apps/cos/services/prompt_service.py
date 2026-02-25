@@ -50,6 +50,9 @@ class CosPromptService:
         post_delay_minutes: Optional[int] = None,
         skip_pre: bool = False,
         skip_post: bool = False,
+        occurrence_date=None,
+        override_start_dt=None,
+        override_end_dt=None,
     ) -> List[CosPromptSchedule]:
         """
         Schedule both pre- and post-event prompts for a source object.
@@ -63,6 +66,9 @@ class CosPromptService:
             post_delay_minutes: Minutes after event end. If None, uses default.
             skip_pre: Don't schedule pre-event prompt.
             skip_post: Don't schedule post-event prompt.
+            occurrence_date: For recurring events, the specific date (dedup key).
+            override_start_dt: Use instead of source_object.start_dt (for occurrences).
+            override_end_dt: Use instead of source_object.end_dt (for occurrences).
 
         Returns:
             List of created CosPromptSchedule instances.
@@ -72,8 +78,8 @@ class CosPromptService:
         if not activity_type:
             activity_type = detect_activity_type(title)
 
-        start_dt = getattr(source_object, "start_dt", None)
-        end_dt = getattr(source_object, "end_dt", None)
+        start_dt = override_start_dt or getattr(source_object, "start_dt", None)
+        end_dt = override_end_dt or getattr(source_object, "end_dt", None)
 
         if not start_dt:
             logger.warning(
@@ -100,6 +106,7 @@ class CosPromptService:
                     object_id=source_object.pk,
                     timing=CosPromptSchedule.TIMING_PRE,
                     status=CosPromptSchedule.STATUS_PENDING,
+                    occurrence_date=occurrence_date,
                 ).exists()
 
                 if not existing_pre:
@@ -118,11 +125,12 @@ class CosPromptService:
                         lead_minutes=lead,
                         activity_type=activity_type,
                         prompt_text=prompt_text,
+                        occurrence_date=occurrence_date,
                     )
                     created.append(pre_prompt)
                     logger.debug(
-                        "Scheduled pre-event prompt: user=%s activity=%s at=%s",
-                        self.user.id, activity_type, scheduled_for,
+                        "Scheduled pre-event prompt: user=%s activity=%s at=%s occ=%s",
+                        self.user.id, activity_type, scheduled_for, occurrence_date,
                     )
 
         # ── Post-event prompt ─────────────────────────────
@@ -137,6 +145,7 @@ class CosPromptService:
                 object_id=source_object.pk,
                 timing=CosPromptSchedule.TIMING_POST,
                 status=CosPromptSchedule.STATUS_PENDING,
+                occurrence_date=occurrence_date,
             ).exists()
 
             if not existing_post:
@@ -151,11 +160,12 @@ class CosPromptService:
                     lead_minutes=0,
                     activity_type=activity_type,
                     prompt_text=prompt_text,
+                    occurrence_date=occurrence_date,
                 )
                 created.append(post_prompt)
                 logger.debug(
-                    "Scheduled post-event prompt: user=%s activity=%s at=%s",
-                    self.user.id, activity_type, scheduled_for,
+                    "Scheduled post-event prompt: user=%s activity=%s at=%s occ=%s",
+                    self.user.id, activity_type, scheduled_for, occurrence_date,
                 )
 
         return created
@@ -292,6 +302,16 @@ class CosPromptService:
         }
 
         if positive and prompt.timing == CosPromptSchedule.TIMING_POST:
+            # Route completion to source object (habit entry, goal, milestone)
+            try:
+                from apps.cos.services.completion_service import CosCompletionService
+                CosCompletionService.handle_completion_from_prompt(prompt)
+            except Exception as e:
+                logger.warning(
+                    "Completion routing failed for prompt %s: %s",
+                    prompt.pk, e,
+                )
+
             # Capture reflection if text provided
             if response_text:
                 self._capture_reflection_from_response(prompt, response_text)

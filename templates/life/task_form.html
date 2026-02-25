@@ -20,21 +20,7 @@
         <form method="post" class="life-form">
             {% csrf_token %}
 
-            <!-- Task Type Section - Ask if recurring first -->
-            <div class="form-section">
-                <div class="form-group">
-                    <label class="checkbox-label recurring-toggle">
-                        <input type="checkbox" name="is_recurring" id="id_is_recurring"
-                               {% if form.is_recurring.value %}checked{% endif %}
-                              >
-                        <span class="toggle-label">This is a recurring task</span>
-                    </label>
-                    <p class="form-help" style="margin-top: var(--space-2);">
-                        Recurring tasks repeat on a schedule. One-time tasks have a single due date.
-                    </p>
-                </div>
-            </div>
-
+            <!-- 1. Title & Notes -->
             <div class="form-section">
                 <div class="form-group">
                     <label for="id_title" class="form-label">What needs to be done?</label>
@@ -50,52 +36,35 @@
                 </div>
             </div>
 
-            <!-- Scheduled Time Section -->
+            <!-- 2. Recurring Toggle -->
             <div class="form-section">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="id_scheduled_time" class="form-label">Start Time</label>
-                        <input type="time" name="scheduled_time" id="id_scheduled_time" class="form-input"
-                               value="{{ form.scheduled_time.value|default:'' }}">
-                        <p class="form-help">When does this task start?</p>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="id_scheduled_end_time" class="form-label">End Time</label>
-                        <input type="time" name="scheduled_end_time" id="id_scheduled_end_time" class="form-input"
-                               value="{{ form.scheduled_end_time.value|default:'' }}">
-                        <p class="form-help">When does this task end?</p>
-                    </div>
+                <div class="form-group">
+                    <label class="checkbox-label recurring-toggle">
+                        <input type="checkbox" name="is_recurring" id="id_is_recurring"
+                               {% if form.is_recurring.value %}checked{% endif %}
+                              >
+                        <span class="toggle-label">This is a recurring task</span>
+                    </label>
+                    <p class="form-help" style="margin-top: var(--space-2);">
+                        Recurring tasks repeat on a schedule. One-time tasks have a single due date.
+                    </p>
                 </div>
             </div>
 
-            <!-- Date Section - changes based on recurring status -->
+            <!-- 3. Date Section - changes based on recurring status -->
             <div class="form-section">
                 <!-- Non-recurring: Due Date only -->
                 <div id="one-time-dates" style="{% if form.is_recurring.value %}display: none;{% endif %}">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="id_due_date" class="form-label">Due Date</label>
-                            <input type="date" name="due_date" id="id_due_date" class="form-input"
-                                   value="{{ form.due_date.value|date:'Y-m-d'|default:'' }}">
-                            <p class="form-help priority-help">
-                                Priority is set automatically based on due date:
-                                <span class="priority-indicator priority-now">Now</span> = due today/overdue,
-                                <span class="priority-indicator priority-soon">Soon</span> = within 7 days,
-                                <span class="priority-indicator priority-someday">Someday</span> = no date or 7+ days
-                            </p>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="id_effort" class="form-label">Effort</label>
-                            <select name="effort" id="id_effort" class="form-select">
-                                <option value="">Not specified</option>
-                                <option value="quick" {% if form.effort.value == 'quick' %}selected{% endif %}>Quick (&lt; 15 min)</option>
-                                <option value="small" {% if form.effort.value == 'small' %}selected{% endif %}>Small (&lt; 1 hour)</option>
-                                <option value="medium" {% if form.effort.value == 'medium' %}selected{% endif %}>Medium (1-3 hours)</option>
-                                <option value="large" {% if form.effort.value == 'large' %}selected{% endif %}>Large (half day+)</option>
-                            </select>
-                        </div>
+                    <div class="form-group">
+                        <label for="id_due_date" class="form-label">Due Date</label>
+                        <input type="date" name="due_date" id="id_due_date" class="form-input"
+                               value="{{ form.due_date.value|date:'Y-m-d'|default:'' }}">
+                        <p class="form-help priority-help">
+                            Priority is set automatically based on due date:
+                            <span class="priority-indicator priority-now">Now</span> = due today/overdue,
+                            <span class="priority-indicator priority-soon">Soon</span> = within 7 days,
+                            <span class="priority-indicator priority-someday">Someday</span> = no date or 7+ days
+                        </p>
                     </div>
                 </div>
 
@@ -117,47 +86,70 @@
                         </div>
                     </div>
 
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="id_recurrence_pattern" class="form-label">Repeat Pattern</label>
-                            <select name="recurrence_pattern" id="id_recurrence_pattern" class="form-select">
-                                <option value="daily" {% if form.recurrence_pattern.value == 'daily' %}selected{% endif %}>Daily</option>
-                                <option value="weekly" {% if form.recurrence_pattern.value == 'weekly' %}selected{% endif %}>Weekly</option>
-                                <option value="biweekly" {% if form.recurrence_pattern.value == 'biweekly' %}selected{% endif %}>Every 2 weeks</option>
-                                <option value="monthly" {% if form.recurrence_pattern.value == 'monthly' %}selected{% endif %}>Monthly</option>
-                                <option value="yearly" {% if form.recurrence_pattern.value == 'yearly' %}selected{% endif %}>Yearly</option>
-                                <option value="every_weekday" {% if form.recurrence_pattern.value == 'every_weekday' %}selected{% endif %}>Every weekday (Mon-Fri)</option>
-                            </select>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="id_effort_recurring" class="form-label">Effort</label>
-                            <select name="effort" id="id_effort_recurring" class="form-select">
-                                <option value="">Not specified</option>
-                                <option value="quick" {% if form.effort.value == 'quick' %}selected{% endif %}>Quick (&lt; 15 min)</option>
-                                <option value="small" {% if form.effort.value == 'small' %}selected{% endif %}>Small (&lt; 1 hour)</option>
-                                <option value="medium" {% if form.effort.value == 'medium' %}selected{% endif %}>Medium (1-3 hours)</option>
-                                <option value="large" {% if form.effort.value == 'large' %}selected{% endif %}>Large (half day+)</option>
-                            </select>
-                        </div>
+                    <div class="form-group" style="margin-top: var(--space-4);">
+                        <label for="id_recurrence_pattern" class="form-label">Repeat Pattern</label>
+                        <select name="recurrence_pattern" id="id_recurrence_pattern" class="form-select">
+                            <option value="daily" {% if form.recurrence_pattern.value == 'daily' %}selected{% endif %}>Daily</option>
+                            <option value="weekly" {% if form.recurrence_pattern.value == 'weekly' %}selected{% endif %}>Weekly</option>
+                            <option value="biweekly" {% if form.recurrence_pattern.value == 'biweekly' %}selected{% endif %}>Every 2 weeks</option>
+                            <option value="monthly" {% if form.recurrence_pattern.value == 'monthly' %}selected{% endif %}>Monthly</option>
+                            <option value="yearly" {% if form.recurrence_pattern.value == 'yearly' %}selected{% endif %}>Yearly</option>
+                            <option value="every_weekday" {% if form.recurrence_pattern.value == 'every_weekday' %}selected{% endif %}>Every weekday (Mon-Fri)</option>
+                        </select>
                     </div>
 
-                    <p class="form-help">
+                    <p class="form-help" style="margin-top: var(--space-3);">
                         The first due date will be set to the start date. When you complete this task, a new one will automatically be created for the next occurrence.
                     </p>
                 </div>
+            </div>
 
-                <div class="form-group" style="margin-top: var(--space-4);">
-                    <label for="id_project" class="form-label">Project</label>
-                    <select name="project" id="id_project" class="form-select">
-                        <option value="">No project</option>
-                        {% for project in form.fields.project.queryset %}
-                        <option value="{{ project.pk }}" {% if form.project.value == project.pk|stringformat:"s" or form.initial.project.pk == project.pk %}selected{% endif %}>{{ project.title }}</option>
-                        {% endfor %}
-                    </select>
+            <!-- 4. Scheduled Time -->
+            <div class="form-section">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="id_scheduled_time" class="form-label">Start Time</label>
+                        <input type="time" name="scheduled_time" id="id_scheduled_time" class="form-input"
+                               value="{{ form.scheduled_time.value|default:'' }}">
+                        <p class="form-help">When does this task start?</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="id_scheduled_end_time" class="form-label">End Time</label>
+                        <input type="time" name="scheduled_end_time" id="id_scheduled_end_time" class="form-input"
+                               value="{{ form.scheduled_end_time.value|default:'' }}">
+                        <p class="form-help">When does this task end?</p>
+                    </div>
                 </div>
             </div>
 
+            <!-- 5. Effort & Project -->
+            <div class="form-section">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="id_effort" class="form-label">Effort</label>
+                        <select name="effort" id="id_effort" class="form-select">
+                            <option value="">Not specified</option>
+                            <option value="quick" {% if form.effort.value == 'quick' %}selected{% endif %}>Quick (&lt; 15 min)</option>
+                            <option value="small" {% if form.effort.value == 'small' %}selected{% endif %}>Small (&lt; 1 hour)</option>
+                            <option value="medium" {% if form.effort.value == 'medium' %}selected{% endif %}>Medium (1-3 hours)</option>
+                            <option value="large" {% if form.effort.value == 'large' %}selected{% endif %}>Large (half day+)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="id_project" class="form-label">Project</label>
+                        <select name="project" id="id_project" class="form-select">
+                            <option value="">No project</option>
+                            {% for project in form.fields.project.queryset %}
+                            <option value="{{ project.pk }}" {% if form.project.value == project.pk|stringformat:"s" or form.initial.project.pk == project.pk %}selected{% endif %}>{{ project.title }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 6. Progress (edit only) -->
             {% if object %}
             <div class="form-section">
                 <div class="form-group">
@@ -195,29 +187,21 @@ function toggleTaskType() {
     if (isRecurring) {
         oneTimeDates.style.display = 'none';
         recurringDates.style.display = 'block';
-        // Disable the due_date field so it's not submitted
         document.getElementById('id_due_date').disabled = true;
-        document.getElementById('id_effort').disabled = true;
         document.getElementById('id_start_date').disabled = false;
         document.getElementById('id_end_date').disabled = false;
-        document.getElementById('id_effort_recurring').disabled = false;
     } else {
         oneTimeDates.style.display = 'block';
         recurringDates.style.display = 'none';
-        // Enable due_date, disable recurring fields
         document.getElementById('id_due_date').disabled = false;
-        document.getElementById('id_effort').disabled = false;
         document.getElementById('id_start_date').disabled = true;
         document.getElementById('id_end_date').disabled = true;
-        document.getElementById('id_effort_recurring').disabled = true;
     }
 }
 
 document.getElementById('id_is_recurring').addEventListener('change', toggleTaskType);
-// Run on page load to set initial state
 document.addEventListener('DOMContentLoaded', toggleTaskType);
 
-// Progress slider
 var progressSlider = document.getElementById('id_progress_percentage');
 var progressDisplay = document.getElementById('progress-value-display');
 if (progressSlider && progressDisplay) {

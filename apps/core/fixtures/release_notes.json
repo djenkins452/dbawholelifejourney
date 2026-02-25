@@ -1,6 +1,22 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 103,
+        "fields": {
+            "title": "CoS Tracks Everything on Your Calendar",
+            "description": "Your Chief of Staff now monitors and prompts on every type of calendar event — habits, goals, milestones, life events, and manual entries — not just tasks. CoS will prompt you before activities start, check in afterwards, and record your reflections. When you complete a habit, goal, or milestone (either through CoS or the app), it syncs across your calendar automatically. Clicking any calendar event now takes you directly to its edit page. The task form has also been reordered for a more natural flow: What → Notes → Recurring → Dates → Time.",
+            "entry_type": "feature",
+            "version": "",
+            "release_date": "2026-02-25",
+            "is_published": true,
+            "is_major": true,
+            "learn_more_url": "",
+            "created_at": "2026-02-25T10:30:00Z",
+            "updated_at": "2026-02-25T10:30:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 102,
         "fields": {
             "title": "Daily Routine Tasks with CoS Check-ins",

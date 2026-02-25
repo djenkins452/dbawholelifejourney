@@ -9,6 +9,14 @@
 
 # WLJ Change History
 
+## 2026-02-25 — Docs: CoS Intelligence Upgrade Plan
+
+**What:** Created comprehensive plan document for upgrading CoS to have the same contextual understanding and reasoning quality as Claude Code / ChatGPT. Covers 4 phases: immediate intelligence upgrades, session awareness, long-term memory (RAG), and reasoning quality improvements.
+
+**Files created:** `docs/COS_INTELLIGENCE_UPGRADE_PLAN.md`
+
+---
+
 ## 2026-02-25 — Fix: CoS Loses Scripture Context on Reading Plan Page
 
 **What:** When on a Bible reading plan page, asking CoS a question about the scripture (e.g., "what does this mean for the Sabbath") caused CoS to respond about work routines instead of the scripture. Three issues: (1) the actual scripture text wasn't captured, (2) "sabbath" and other biblical terms weren't recognized as reading-plan context words, (3) the system prompt didn't strongly prioritize page context over conversation history.

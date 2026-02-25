@@ -472,6 +472,27 @@ def build_cos_context(user):
     except Exception:
         context['active_guidance'] = []
 
+    # Active CDCE correlations — cross-domain patterns for coaching
+    try:
+        from apps.core.ai_cross_domain.models import DomainCorrelation
+        active_correlations = DomainCorrelation.objects.filter(
+            user=user, status='active',
+        ).order_by('-strength_score')[:5]
+        context['cross_domain_correlations'] = [
+            {
+                'type': c.correlation_type,
+                'strength': c.strength,
+                'score': round(c.strength_score, 2),
+                'direction': c.direction,
+                'narrative': c.narrative,
+                'evidence': c.evidence_summary,
+                'domains': [c.domain_a, c.domain_b],
+            }
+            for c in active_correlations
+        ]
+    except Exception:
+        context['cross_domain_correlations'] = []
+
     # Relationship signals
     try:
         from apps.core.ai_relationships.models import Relationship
@@ -886,6 +907,23 @@ def format_cos_system_injection(context):
             msg = g.get('message') or g.get('title', '')
             if msg:
                 lines.append(f"  - {msg}")
+
+    # Cross-domain correlations — discovered patterns from CDCE
+    correlations = context.get('cross_domain_correlations', [])
+    if correlations:
+        lines.append("")
+        lines.append(
+            "CROSS-DOMAIN PATTERNS (reference when domains overlap in conversation):"
+        )
+        for c in correlations[:4]:
+            strength_tag = ""
+            if c.get('strength') == 'strong':
+                strength_tag = "[Strong] "
+            elif c.get('strength') == 'moderate':
+                strength_tag = "[Moderate] "
+            narrative = c.get('narrative', '')
+            if narrative:
+                lines.append(f"  - {strength_tag}{narrative}")
 
     # Relationship signals (people to reconnect with)
     rel_signals = context.get('relationship_signals', [])

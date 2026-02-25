@@ -9,6 +9,29 @@
 
 # WLJ Change History
 
+## 2026-02-25 — Feature: CoS Phase 3 — Cross-Domain Correlation Engine (CDCE)
+
+**What:** Adds CDCE as a new Phase 3 (Post-Execution) engine that discovers statistically significant relationships between life domains. Includes 7 correlation detectors (sleep→mood, exercise→mood, habit→goal, faith→mood, fasting→fitness, nutrition→transformation, momentum→mood), DomainCorrelation model with dedup, scheduler integration on 6-hour cadence, and CoS system prompt injection.
+
+**Why:** The CoS had no cross-domain pattern recognition — each domain was evaluated independently. CDCE discovers patterns like "when sleep drops below 6.5h, mood is negative the next day 78% of the time" and injects them into the CoS system prompt so the assistant can reference cross-domain relationships during conversation.
+
+**Files Created:**
+- `apps/core/ai_cross_domain/cdce_engine.py` — Main engine with 7 detectors, SAE state collection, historical series builders, storage with dedup
+- `apps/core/ai_cross_domain/tests.py` — 26 tests covering detectors, storage, dedup, expiry, registry, context injection
+- `apps/core/migrations/0099_cdce_domain_correlation.py` — Migration for DomainCorrelation model
+
+**Files Modified:**
+- `apps/core/ai_cross_domain/models.py` — Already created in prior pass
+- `apps/core/models.py` — Import DomainCorrelation for Django model discovery
+- `apps/core/ai_observability/engine_registry.py` — Register CDCE (Phase 3, Post-Exec, synthetic mode)
+- `apps/core/ai_scheduler/scheduler_registry.py` — Add `run_cdce_correlations` task (6hr cadence)
+- `apps/core/ai_scheduler/scheduler_runner.py` — Add `run_cdce_synthetic()` runner
+- `apps/core/ai_orchestrator/cos_context.py` — Query DomainCorrelation in build_cos_context, add CROSS-DOMAIN PATTERNS block in format_cos_system_injection
+
+**Tests:** 26 CDCE tests + 87 related engine/scheduler tests pass
+
+---
+
 ## 2026-02-25 — Feature: CoS Phase 2 — Missing Intents & Data Completion
 
 **What:** Adds 10 new intents to CoS: sleep, water, steps, body measurement, finance (transaction + budget), undo, and edit. Expands CoS from 34 to 44 intents.

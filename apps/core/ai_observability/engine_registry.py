@@ -82,6 +82,16 @@ ENGINE_REGISTRY = {
         "needs_user_context": True,
         "execution_mode": "synthetic",
     },
+    "CDCE": {
+        "label": "Cross-Domain Correlation Engine",
+        "phase": 3,
+        "category": "Post-Exec",
+        "can_manual_run": True,
+        "batch_runner": "apps.core.ai_scheduler.scheduler_runner.run_cdce_synthetic",
+        "per_user_func": "apps.core.ai_cross_domain.cdce_engine.run_cdce",
+        "needs_user_context": True,
+        "execution_mode": "synthetic",
+    },
     # --- Phase 3: Post-Execution ---
     "DBE": {
         "label": "Daily Briefing Engine",

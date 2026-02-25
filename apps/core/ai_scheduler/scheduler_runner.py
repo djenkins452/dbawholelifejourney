@@ -623,6 +623,56 @@ def run_intervention_effectiveness():
         return {"evaluated": evaluated, "errors": errors}
 
 
+def run_cdce_synthetic():
+    """
+    Synthetic batch: run CDCE cross-domain correlations for all active AI users.
+
+    Discovers cross-domain patterns (sleep→mood, exercise→mood, etc.)
+    and stores DomainCorrelation records. Also expires stale correlations.
+
+    Returns:
+        dict — {processed: int, checked: int, correlations_found: int, errors: int}
+    """
+    with trace_context(source="manual_synthetic"):
+        try:
+            from apps.core.ai_cross_domain.cdce_engine import (
+                expire_stale_correlations,
+                run_cdce,
+            )
+        except ImportError:
+            logger.error("ISE: CDCE not available (import failed)")
+            return {"processed": 0, "checked": 0, "correlations_found": 0, "errors": 0}
+
+        # Step 1: Expire stale correlations globally
+        expire_stale_correlations()
+
+        # Step 2: Run CDCE per user
+        users = _get_active_ai_users()
+        checked = 0
+        total_correlations = 0
+        errors = 0
+
+        for user in users:
+            try:
+                results = run_cdce(user)
+                checked += 1
+                total_correlations += len(results) if results else 0
+            except Exception as e:
+                errors += 1
+                logger.warning(f"ISE: CDCE failed for user {user.email}: {e}")
+
+        logger.info(
+            f"ISE: CDCE synthetic — processed={len(users)}, "
+            f"checked={checked}, found={total_correlations}, errors={errors}"
+        )
+        return {
+            "processed": len(users),
+            "checked": checked,
+            "correlations_found": total_correlations,
+            "errors": errors,
+        }
+
+
 def run_cross_domain_insights():
     """
     Run cross-domain correlation insight rules for all active users.

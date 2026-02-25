@@ -2462,6 +2462,19 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         except Exception:
             pass  # Memory storage must never break chat
 
+        # Store actions_taken in conversation metadata for undo support
+        if actions_taken:
+            try:
+                meta = conversation.metadata or {}
+                stored_actions = meta.get('actions_taken', [])
+                stored_actions.extend(actions_taken)
+                # Keep only last 10 actions to prevent unbounded growth
+                meta['actions_taken'] = stored_actions[-10:]
+                conversation.metadata = meta
+                conversation.save(update_fields=['metadata', 'updated_at'])
+            except Exception:
+                pass  # Undo tracking must never break chat
+
         # Return structured response
         result = {'response': response}
         if actions_taken:

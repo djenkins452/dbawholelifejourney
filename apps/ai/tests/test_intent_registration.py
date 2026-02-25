@@ -50,6 +50,8 @@ from apps.core.ai_orchestrator.intent_engine import (
     CALIBRATION_INTENTS,
     TRANSFORMATION_INTENTS,
     LEARNING_MODE_INTENTS,
+    FINANCE_INTENTS,
+    SYSTEM_INTENTS,
     TIME_AWARE_INTENTS,
     get_intent_module,
 )
@@ -83,6 +85,8 @@ def _get_all_engine_intents():
         | CALIBRATION_INTENTS
         | TRANSFORMATION_INTENTS
         | LEARNING_MODE_INTENTS
+        | FINANCE_INTENTS
+        | SYSTEM_INTENTS
     )
 
 
@@ -132,6 +136,9 @@ NON_TIME_INTENTS = {
     'create_goal',             # Goals have target_date, not recorded_at
     'update_goal_progress',    # Progress updates, not backdatable
     'set_intention',           # Intentions are forward-looking
+    'undo_last_action',        # Undoes last action, no date component
+    'edit_last_entry',         # Edits most recent, no date component
+    'check_budget',            # Read-only query
 }
 
 

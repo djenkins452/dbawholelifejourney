@@ -801,6 +801,28 @@ Examples:
             elif intent_type == 'enter_learning_mode':
                 return handler.handle_enter_learning_mode(**parameters)
 
+            # New health intents (sleep, water, steps, body measurement)
+            elif intent_type == 'log_sleep':
+                return handler.handle_log_sleep(**parameters)
+            elif intent_type == 'log_water':
+                return handler.handle_log_water(**parameters)
+            elif intent_type == 'log_steps':
+                return handler.handle_log_steps(**parameters)
+            elif intent_type == 'log_body_measurement':
+                return handler.handle_log_body_measurement(**parameters)
+
+            # Finance handlers
+            elif intent_type == 'log_transaction':
+                return handler.handle_log_transaction(**parameters)
+            elif intent_type == 'check_budget':
+                return handler.handle_check_budget(**parameters)
+
+            # System handlers (undo/edit)
+            elif intent_type == 'undo_last_action':
+                return handler.handle_undo_last_action(**parameters)
+            elif intent_type == 'edit_last_entry':
+                return handler.handle_edit_last_entry(**parameters)
+
             else:
                 return ActionResult(
                     success=False,

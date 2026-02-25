@@ -214,6 +214,130 @@ HEALTH_INTENT_TOOLS = [
             }
         }
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "log_sleep",
+            "description": "Log sleep data for the user. Use when user mentions how they slept, hours of sleep, bedtime, wake time, or sleep quality.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "hours": {
+                        "type": "number",
+                        "description": "Total hours of sleep (e.g., 7.5). Can be decimal."
+                    },
+                    "quality": {
+                        "type": "string",
+                        "enum": ["excellent", "good", "fair", "poor", "terrible"],
+                        "description": "Sleep quality rating. Infer from user's description if not explicit."
+                    },
+                    "bedtime": {
+                        "type": "string",
+                        "description": "When they went to bed (e.g., '10:30 PM', '22:30'). Optional."
+                    },
+                    "wake_time": {
+                        "type": "string",
+                        "description": "When they woke up (e.g., '6:00 AM', '06:00'). Optional."
+                    },
+                    "interruptions": {
+                        "type": "integer",
+                        "description": "Number of times woke up during the night. Optional."
+                    },
+                    "notes": {
+                        "type": "string",
+                        "description": "Any additional notes about sleep (e.g., 'couldn't fall asleep', 'vivid dreams')"
+                    }
+                },
+                "required": ["hours"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "log_water",
+            "description": "Log water or hydration intake. Use when user mentions drinking water, glasses of water, hydration, or fluid intake.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "amount": {
+                        "type": "number",
+                        "description": "Amount of water consumed"
+                    },
+                    "unit": {
+                        "type": "string",
+                        "enum": ["oz", "ml", "cups", "liters"],
+                        "description": "Unit of measurement. Default 'oz' for US users. 'cups' means 8oz cups."
+                    },
+                    "notes": {
+                        "type": "string",
+                        "description": "Any additional notes"
+                    }
+                },
+                "required": ["amount"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "log_steps",
+            "description": "Log daily step count. Use when user mentions steps walked, step count, or pedometer reading.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "count": {
+                        "type": "integer",
+                        "description": "Number of steps"
+                    },
+                    "distance": {
+                        "type": "number",
+                        "description": "Distance walked in miles. Optional."
+                    },
+                    "calories": {
+                        "type": "integer",
+                        "description": "Active calories burned. Optional."
+                    },
+                    "notes": {
+                        "type": "string",
+                        "description": "Any additional notes"
+                    }
+                },
+                "required": ["count"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "log_body_measurement",
+            "description": "Log a body composition or measurement entry. Use when user mentions body fat, waist measurement, muscle mass, or any body measurement.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "metric": {
+                        "type": "string",
+                        "enum": ["body_fat_pct", "lean_mass", "fat_mass", "skeletal_muscle_mass", "waist", "chest", "hips", "arm_left", "arm_right", "thigh_left", "thigh_right", "neck", "shoulders", "calf_left", "calf_right", "bone_mass", "body_water_pct", "visceral_fat", "bmr", "metabolic_age"],
+                        "description": "Type of body measurement"
+                    },
+                    "value": {
+                        "type": "number",
+                        "description": "Measurement value"
+                    },
+                    "unit": {
+                        "type": "string",
+                        "enum": ["pct", "lb", "kg", "in", "cm", "kcal", "years", "index"],
+                        "description": "Unit of measurement. Infer from metric type (e.g., body_fat_pct uses 'pct', waist uses 'in')."
+                    },
+                    "notes": {
+                        "type": "string",
+                        "description": "Any additional notes"
+                    }
+                },
+                "required": ["metric", "value"]
+            }
+        }
+    },
 ]
 
 # Validation ranges for questioning unusual values (not hard rejections)

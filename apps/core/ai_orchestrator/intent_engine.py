@@ -19,6 +19,10 @@ HEALTH_INTENTS = {
     "log_glucose",
     "log_blood_oxygen",
     "log_food",
+    "log_sleep",
+    "log_water",
+    "log_steps",
+    "log_body_measurement",
 }
 
 MEDICINE_INTENTS = {
@@ -85,6 +89,16 @@ LEARNING_MODE_INTENTS = {
     "enter_learning_mode",
 }
 
+FINANCE_INTENTS = {
+    "log_transaction",
+    "check_budget",
+}
+
+SYSTEM_INTENTS = {
+    "undo_last_action",
+    "edit_last_entry",
+}
+
 # All intents that support a recorded_at timestamp override.
 # IMPORTANT: If you add a new intent category, add it here too unless
 # the intents truly have no date/time component. The test in
@@ -98,7 +112,7 @@ TIME_AWARE_INTENTS = (
     | FITNESS_INTENTS
     | TRANSFORMATION_INTENTS
     # Specific time-aware intents from other categories
-    | {"log_habit", "complete_task"}
+    | {"log_habit", "complete_task", "log_transaction"}
 )
 
 # All intents that might reference contextual objects
@@ -148,6 +162,10 @@ def get_intent_module(intent_type):
     if intent_type in CALIBRATION_INTENTS:
         return "core"
     if intent_type in LEARNING_MODE_INTENTS:
+        return "core"
+    if intent_type in FINANCE_INTENTS:
+        return "finance"
+    if intent_type in SYSTEM_INTENTS:
         return "core"
     return "unknown"
 

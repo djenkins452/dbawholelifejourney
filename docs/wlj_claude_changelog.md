@@ -9,6 +9,17 @@
 
 # WLJ Change History
 
+## 2026-02-25 — Feature: CoS Phase 2 — Missing Intents & Data Completion
+
+**What:** Adds 10 new intents to CoS: sleep, water, steps, body measurement, finance (transaction + budget), undo, and edit. Expands CoS from 34 to 44 intents.
+
+**New intents:** `log_sleep`, `log_water`, `log_steps`, `log_body_measurement`, `log_transaction`, `check_budget`, `undo_last_action`, `edit_last_entry`
+
+**Files created:** `apps/ai/intents/finance_intents.py`, `apps/ai/intents/system_intents.py`
+**Files modified:** `apps/ai/intents/health_intents.py`, `apps/ai/intents/__init__.py`, `apps/ai/action_handlers.py`, `apps/ai/intent_service.py`, `apps/ai/personal_assistant.py`, `apps/core/ai_orchestrator/intent_engine.py`, `apps/ai/tests/test_intent_registration.py`
+
+---
+
 ## 2026-02-25 — Feature: CoS Phase 1 — Surface Existing Intelligence
 
 **What:** Upgrades CoS from terse metadata injection to coaching-level narrative intelligence. PIE insights, PRIE predictions, and PGE guidance are now injected into the system prompt as rich natural-language context that the LLM can reference conversationally. Post-action responses now include pattern-level PIE insights. Calibration answers are now extracted into the UserLearnedProfile.

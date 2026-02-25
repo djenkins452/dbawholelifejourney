@@ -720,6 +720,721 @@ class ActionHandler:
             )
 
     # =========================================================================
+    # SLEEP / WATER / STEPS / BODY MEASUREMENT HANDLERS
+    # =========================================================================
+
+    def handle_log_sleep(self, hours: float, quality: str = "",
+                         bedtime: str = "", wake_time: str = "",
+                         interruptions: int = 0, notes: str = "",
+                         **kwargs) -> ActionResult:
+        """
+        Log a sleep entry.
+
+        Args:
+            hours: Total hours of sleep
+            quality: Quality rating (excellent/good/fair/poor/terrible)
+            bedtime: When they went to bed (optional)
+            wake_time: When they woke up (optional)
+            interruptions: Number of wake-ups (optional)
+            notes: Optional notes
+        """
+        from apps.health.models import SleepEntry
+        import datetime as dt
+
+        try:
+            recorded_at = self._get_recorded_at(kwargs)
+            today = self._get_user_today()
+            # Sleep date is typically the previous night
+            sleep_date = today - dt.timedelta(days=1)
+
+            total_minutes = int(hours * 60)
+
+            # Parse bedtime and wake_time if provided
+            bedtime_dt = None
+            wake_time_dt = None
+            if bedtime:
+                try:
+                    for fmt in ('%I:%M %p', '%I:%M%p', '%H:%M', '%I %p', '%I%p'):
+                        try:
+                            t = dt.datetime.strptime(bedtime.strip(), fmt).time()
+                            bedtime_dt = dt.datetime.combine(sleep_date, t)
+                            break
+                        except ValueError:
+                            continue
+                except Exception:
+                    pass
+            if wake_time:
+                try:
+                    for fmt in ('%I:%M %p', '%I:%M%p', '%H:%M', '%I %p', '%I%p'):
+                        try:
+                            t = dt.datetime.strptime(wake_time.strip(), fmt).time()
+                            wake_time_dt = dt.datetime.combine(today, t)
+                            break
+                        except ValueError:
+                            continue
+                except Exception:
+                    pass
+
+            # If no bedtime/wake_time, calculate reasonable defaults
+            if not bedtime_dt:
+                wake_hour = 7  # default wake time
+                bed_hour = wake_hour - hours
+                bedtime_dt = dt.datetime.combine(
+                    sleep_date, dt.time(int(bed_hour) % 24, int((bed_hour % 1) * 60))
+                )
+            if not wake_time_dt:
+                wake_time_dt = bedtime_dt + dt.timedelta(hours=hours)
+
+            entry = SleepEntry.objects.create(
+                user=self.user,
+                sleep_date=sleep_date,
+                bedtime=bedtime_dt,
+                wake_time=wake_time_dt,
+                total_duration_minutes=total_minutes,
+                quality_rating=quality or "",
+                interruption_count=interruptions,
+                notes=notes or "",
+                source="manual",
+                recorded_at=recorded_at,
+            )
+
+            # Trend: 7-day average sleep
+            trend = None
+            try:
+                cutoff = today - dt.timedelta(days=7)
+                recent = list(SleepEntry.objects.filter(
+                    user=self.user, sleep_date__gte=cutoff,
+                ).values_list('total_duration_minutes', flat=True))
+                if len(recent) >= 2:
+                    avg_hrs = sum(recent) / len(recent) / 60
+                    trend = f"7-day avg: {avg_hrs:.1f}h"
+            except Exception:
+                pass
+
+            quality_str = f" ({quality})" if quality else ""
+            return ActionResult(
+                success=True,
+                message=f"✓ Logged {hours}h sleep{quality_str}",
+                created_object={
+                    'model': 'SleepEntry',
+                    'id': entry.id,
+                    'hours': hours,
+                    'quality': quality,
+                    'sleep_date': sleep_date.isoformat(),
+                },
+                action_type='log_sleep',
+                confirmation_detail=self._build_confirmation(
+                    what=f"{hours}h{quality_str}",
+                    where="Health > Sleep",
+                    trend=trend,
+                )
+            )
+
+        except Exception as e:
+            logger.error(f"Error logging sleep: {e}", exc_info=True)
+            return ActionResult(
+                success=False,
+                message="Sorry, I couldn't log your sleep.",
+                error=str(e)
+            )
+
+    def handle_log_water(self, amount: float, unit: str = "oz",
+                         notes: str = "", **kwargs) -> ActionResult:
+        """
+        Log a water intake entry.
+
+        Args:
+            amount: Amount of water
+            unit: Unit (oz, ml, cups, liters)
+            notes: Optional notes
+        """
+        from apps.health.models import WaterEntry
+
+        try:
+            recorded_at = self._get_recorded_at(kwargs)
+            today = self._get_user_today()
+
+            entry = WaterEntry.objects.create(
+                user=self.user,
+                amount=Decimal(str(amount)),
+                unit=unit,
+                logged_date=today,
+                notes=notes or "",
+                source="manual",
+                recorded_at=recorded_at,
+            )
+
+            # Trend: daily total
+            trend = None
+            try:
+                daily_total = WaterEntry.get_daily_total(self.user, today)
+                if daily_total:
+                    progress = WaterEntry.get_daily_goal_progress(self.user, today)
+                    pct = progress.get('percentage', 0) if progress else 0
+                    trend = f"Today's total: {daily_total:.0f} oz ({pct:.0f}% of goal)"
+            except Exception:
+                pass
+
+            return ActionResult(
+                success=True,
+                message=f"✓ Logged {amount} {unit} of water",
+                created_object={
+                    'model': 'WaterEntry',
+                    'id': entry.id,
+                    'amount': float(entry.amount),
+                    'unit': entry.unit,
+                    'logged_date': today.isoformat(),
+                },
+                action_type='log_water',
+                confirmation_detail=self._build_confirmation(
+                    what=f"{amount} {unit}",
+                    where="Health > Water",
+                    trend=trend,
+                )
+            )
+
+        except Exception as e:
+            logger.error(f"Error logging water: {e}", exc_info=True)
+            return ActionResult(
+                success=False,
+                message="Sorry, I couldn't log your water intake.",
+                error=str(e)
+            )
+
+    def handle_log_steps(self, count: int, distance: float = None,
+                         calories: int = None, notes: str = "",
+                         **kwargs) -> ActionResult:
+        """
+        Log a steps entry.
+
+        Args:
+            count: Number of steps
+            distance: Distance in miles (optional)
+            calories: Active calories burned (optional)
+            notes: Optional notes
+        """
+        from apps.health.models import StepsEntry
+
+        try:
+            recorded_at = self._get_recorded_at(kwargs)
+            today = self._get_user_today()
+
+            create_kwargs = {
+                'user': self.user,
+                'count': count,
+                'logged_date': today,
+                'notes': notes or "",
+                'source': "manual",
+                'recorded_at': recorded_at,
+            }
+            if distance is not None:
+                create_kwargs['distance_miles'] = Decimal(str(distance))
+            if calories is not None:
+                create_kwargs['calories_burned'] = calories
+
+            entry = StepsEntry.objects.create(**create_kwargs)
+
+            # Trend: 7-day average
+            trend = None
+            try:
+                import datetime as dt
+                cutoff = today - dt.timedelta(days=7)
+                recent = list(StepsEntry.objects.filter(
+                    user=self.user, logged_date__gte=cutoff,
+                ).values_list('count', flat=True))
+                if len(recent) >= 2:
+                    avg = sum(recent) / len(recent)
+                    trend = f"7-day avg: {avg:,.0f} steps"
+            except Exception:
+                pass
+
+            return ActionResult(
+                success=True,
+                message=f"✓ Logged {count:,} steps",
+                created_object={
+                    'model': 'StepsEntry',
+                    'id': entry.id,
+                    'count': entry.count,
+                    'logged_date': today.isoformat(),
+                },
+                action_type='log_steps',
+                confirmation_detail=self._build_confirmation(
+                    what=f"{count:,} steps",
+                    where="Health > Steps",
+                    trend=trend,
+                )
+            )
+
+        except Exception as e:
+            logger.error(f"Error logging steps: {e}", exc_info=True)
+            return ActionResult(
+                success=False,
+                message="Sorry, I couldn't log your steps.",
+                error=str(e)
+            )
+
+    def handle_log_body_measurement(self, metric: str, value: float,
+                                     unit: str = "", notes: str = "",
+                                     **kwargs) -> ActionResult:
+        """
+        Log a body composition/measurement entry.
+
+        Args:
+            metric: Type of measurement (body_fat_pct, waist, etc.)
+            value: Measurement value
+            unit: Unit (inferred from metric if not specified)
+            notes: Optional notes
+        """
+        from apps.health.models import BodyCompositionEntry
+
+        try:
+            today = self._get_user_today()
+
+            # Infer unit from metric if not provided
+            if not unit:
+                unit_map = {
+                    'body_fat_pct': 'pct', 'body_water_pct': 'pct',
+                    'lean_mass': 'lb', 'fat_mass': 'lb',
+                    'skeletal_muscle_mass': 'lb', 'bone_mass': 'lb',
+                    'waist': 'in', 'chest': 'in', 'hips': 'in',
+                    'neck': 'in', 'shoulders': 'in',
+                    'arm_left': 'in', 'arm_right': 'in',
+                    'thigh_left': 'in', 'thigh_right': 'in',
+                    'calf_left': 'in', 'calf_right': 'in',
+                    'bmr': 'kcal', 'metabolic_age': 'years',
+                    'visceral_fat': 'index',
+                }
+                unit = unit_map.get(metric, '')
+
+            entry = BodyCompositionEntry.objects.create(
+                user=self.user,
+                metric_name=metric,
+                value=Decimal(str(value)),
+                unit=unit,
+                measurement_date=today,
+                notes=notes or "",
+                source="manual",
+            )
+
+            # Trend: compare to last measurement
+            trend = None
+            try:
+                prev = BodyCompositionEntry.objects.filter(
+                    user=self.user, metric_name=metric,
+                ).exclude(id=entry.id).order_by('-measurement_date').first()
+                if prev:
+                    diff = float(entry.value) - float(prev.value)
+                    direction = "up" if diff > 0 else "down"
+                    trend = f"{direction.capitalize()} {abs(diff):.1f} {unit} from last"
+            except Exception:
+                pass
+
+            # Human-readable metric name
+            metric_labels = {
+                'body_fat_pct': 'Body Fat %', 'lean_mass': 'Lean Mass',
+                'waist': 'Waist', 'chest': 'Chest', 'hips': 'Hips',
+                'skeletal_muscle_mass': 'Skeletal Muscle',
+                'visceral_fat': 'Visceral Fat', 'bmr': 'BMR',
+            }
+            label = metric_labels.get(metric, metric.replace('_', ' ').title())
+
+            return ActionResult(
+                success=True,
+                message=f"✓ Logged {label}: {value} {unit}",
+                created_object={
+                    'model': 'BodyCompositionEntry',
+                    'id': entry.id,
+                    'metric': metric,
+                    'value': float(entry.value),
+                    'unit': unit,
+                },
+                action_type='log_body_measurement',
+                confirmation_detail=self._build_confirmation(
+                    what=f"{value} {unit}",
+                    where=f"Health > {label}",
+                    trend=trend,
+                )
+            )
+
+        except Exception as e:
+            logger.error(f"Error logging body measurement: {e}", exc_info=True)
+            return ActionResult(
+                success=False,
+                message="Sorry, I couldn't log that measurement.",
+                error=str(e)
+            )
+
+    # =========================================================================
+    # FINANCE HANDLERS
+    # =========================================================================
+
+    def handle_log_transaction(self, amount: float, description: str,
+                                category: str = "", account: str = "",
+                                notes: str = "", **kwargs) -> ActionResult:
+        """
+        Log a financial transaction.
+
+        Args:
+            amount: Amount (positive=income, negative=expense)
+            description: Transaction description
+            category: Category name (matched against user's categories)
+            account: Account name (matched against user's accounts)
+            notes: Optional notes
+        """
+        from apps.finance.models import Transaction, FinancialAccount, TransactionCategory
+
+        try:
+            today = self._get_user_today()
+
+            # Find or default account
+            acct = None
+            if account:
+                acct = FinancialAccount.objects.filter(
+                    user=self.user, name__icontains=account, is_hidden=False,
+                ).first()
+            if not acct:
+                acct = FinancialAccount.objects.filter(
+                    user=self.user, is_hidden=False,
+                ).order_by('sort_order').first()
+
+            if not acct:
+                return ActionResult(
+                    success=False,
+                    message="You don't have any financial accounts set up yet. "
+                            "Add one in Finance > Accounts first.",
+                    error="no_account"
+                )
+
+            # Find or create category
+            cat = None
+            if category:
+                cat = TransactionCategory.objects.filter(
+                    user=self.user, name__icontains=category,
+                ).first()
+                if not cat:
+                    # Create the category
+                    cat = TransactionCategory.objects.create(
+                        user=self.user,
+                        name=category.title(),
+                    )
+
+            entry = Transaction.objects.create(
+                user=self.user,
+                account=acct,
+                date=today,
+                amount=Decimal(str(amount)),
+                description=description,
+                category=cat,
+                notes=notes or "",
+            )
+
+            # Update account balance
+            try:
+                acct.recalculate_balance()
+            except Exception:
+                pass
+
+            # Type label
+            txn_type = "income" if amount > 0 else "expense"
+            amt_display = f"${abs(amount):,.2f}"
+            cat_str = f" ({cat.name})" if cat else ""
+
+            return ActionResult(
+                success=True,
+                message=f"✓ Logged {txn_type}: {amt_display} — {description}{cat_str}",
+                created_object={
+                    'model': 'Transaction',
+                    'id': entry.id,
+                    'amount': float(entry.amount),
+                    'description': entry.description,
+                    'account': acct.name,
+                },
+                action_type='log_transaction',
+                confirmation_detail=self._build_confirmation(
+                    what=f"{amt_display} {description}",
+                    where=f"Finance > {acct.name}",
+                )
+            )
+
+        except Exception as e:
+            logger.error(f"Error logging transaction: {e}", exc_info=True)
+            return ActionResult(
+                success=False,
+                message="Sorry, I couldn't log that transaction.",
+                error=str(e)
+            )
+
+    def handle_check_budget(self, category: str = "",
+                             month: str = "", **kwargs) -> ActionResult:
+        """
+        Check budget status for a category or overall.
+
+        Args:
+            category: Specific category to check (optional)
+            month: Month to check (optional, defaults to current)
+        """
+        from apps.finance.models import Budget
+        import datetime as dt
+
+        try:
+            today = self._get_user_today()
+            month_date = today.replace(day=1)
+
+            if category:
+                budgets = Budget.objects.filter(
+                    user=self.user, month=month_date,
+                    category__name__icontains=category,
+                )
+            else:
+                budgets = Budget.objects.filter(
+                    user=self.user, month=month_date,
+                ).select_related('category')
+
+            if not budgets.exists():
+                if category:
+                    msg = f"No budget found for '{category}' this month."
+                else:
+                    msg = "No budgets set up for this month."
+                return ActionResult(
+                    success=True,
+                    message=msg,
+                    action_type='check_budget',
+                )
+
+            lines = []
+            total_budgeted = Decimal('0')
+            total_spent = Decimal('0')
+            for b in budgets:
+                spent = b.spent_amount
+                remaining = b.remaining_amount
+                status = b.health_status
+                icon = "✓" if status == "on_track" else "⚠" if status == "warning" else "✗"
+                lines.append(
+                    f"{icon} {b.category.name}: ${spent:,.2f} / ${b.total_budget:,.2f} "
+                    f"(${remaining:,.2f} left)"
+                )
+                total_budgeted += b.total_budget
+                total_spent += spent
+
+            summary = "\n".join(lines)
+            if len(budgets) > 1:
+                summary += f"\n\nTotal: ${total_spent:,.2f} / ${total_budgeted:,.2f}"
+
+            return ActionResult(
+                success=True,
+                message=summary,
+                action_type='check_budget',
+                confirmation_detail=self._build_confirmation(
+                    what=f"${total_spent:,.2f} spent",
+                    where="Finance > Budgets",
+                )
+            )
+
+        except Exception as e:
+            logger.error(f"Error checking budget: {e}", exc_info=True)
+            return ActionResult(
+                success=False,
+                message="Sorry, I couldn't check your budget.",
+                error=str(e)
+            )
+
+    # =========================================================================
+    # UNDO / EDIT HANDLERS
+    # =========================================================================
+
+    def handle_undo_last_action(self, confirmation: str = "",
+                                 **kwargs) -> ActionResult:
+        """
+        Undo the most recent action by soft-deleting the created record.
+
+        Uses the last_action tracking from the conversation metadata.
+        """
+        try:
+            # Get the last action from conversation actions_taken
+            conversation = kwargs.get('conversation')
+            if not conversation:
+                return ActionResult(
+                    success=False,
+                    message="Nothing to undo — I don't see a recent action.",
+                    error="no_conversation"
+                )
+
+            meta = conversation.metadata or {}
+            last_actions = meta.get('actions_taken', [])
+            if not last_actions:
+                return ActionResult(
+                    success=False,
+                    message="Nothing to undo — no recent actions in this conversation.",
+                    error="no_actions"
+                )
+
+            last = last_actions[-1]
+            model_name = last.get('created', {}).get('model', '')
+            obj_id = last.get('created', {}).get('id')
+            action_type = last.get('type', '')
+
+            if not model_name or not obj_id:
+                return ActionResult(
+                    success=False,
+                    message="Can't undo — the last action didn't create a record.",
+                    error="no_record"
+                )
+
+            # Resolve model and soft-delete
+            model_map = self._get_undo_model_map()
+            model_class = model_map.get(model_name)
+            if not model_class:
+                return ActionResult(
+                    success=False,
+                    message=f"Can't undo {action_type} — this type isn't undoable yet.",
+                    error="unsupported_model"
+                )
+
+            obj = model_class.objects.filter(
+                user=self.user, id=obj_id,
+            ).first()
+            if not obj:
+                return ActionResult(
+                    success=False,
+                    message="That record has already been removed.",
+                    error="not_found"
+                )
+
+            # Soft-delete if available, else hard delete
+            if hasattr(obj, 'soft_delete'):
+                obj.soft_delete()
+            else:
+                obj.delete()
+
+            # Remove from actions_taken
+            last_actions.pop()
+            meta['actions_taken'] = last_actions
+            conversation.metadata = meta
+            conversation.save(update_fields=['metadata', 'updated_at'])
+
+            return ActionResult(
+                success=True,
+                message=f"✓ Undone — removed the {action_type.replace('_', ' ')} entry.",
+                action_type='undo_last_action',
+            )
+
+        except Exception as e:
+            logger.error(f"Error undoing action: {e}", exc_info=True)
+            return ActionResult(
+                success=False,
+                message="Sorry, I couldn't undo that action.",
+                error=str(e)
+            )
+
+    def handle_edit_last_entry(self, entry_type: str, new_value: float = None,
+                                field: str = "", new_text: str = "",
+                                **kwargs) -> ActionResult:
+        """
+        Edit the most recent entry for a given data type.
+
+        Args:
+            entry_type: Type of entry to edit (weight, heart_rate, etc.)
+            new_value: New numeric value
+            field: Specific field to update
+            new_text: New text value for text fields
+        """
+        try:
+            model_map = {
+                'weight': ('apps.health.models', 'WeightEntry', 'value', 'recorded_at'),
+                'heart_rate': ('apps.health.models', 'HeartRateEntry', 'bpm', 'recorded_at'),
+                'blood_pressure': ('apps.health.models', 'BloodPressureEntry', 'systolic', 'recorded_at'),
+                'glucose': ('apps.health.models', 'GlucoseEntry', 'value', 'recorded_at'),
+                'blood_oxygen': ('apps.health.models', 'BloodOxygenEntry', 'spo2', 'recorded_at'),
+                'sleep': ('apps.health.models', 'SleepEntry', 'total_duration_minutes', 'recorded_at'),
+                'water': ('apps.health.models', 'WaterEntry', 'amount', 'recorded_at'),
+                'steps': ('apps.health.models', 'StepsEntry', 'count', 'recorded_at'),
+            }
+
+            info = model_map.get(entry_type)
+            if not info:
+                return ActionResult(
+                    success=False,
+                    message=f"Can't edit '{entry_type}' entries yet.",
+                    error="unsupported_type"
+                )
+
+            module_path, class_name, default_field, order_field = info
+            import importlib
+            mod = importlib.import_module(module_path)
+            model_class = getattr(mod, class_name)
+
+            # Get the most recent entry
+            entry = model_class.objects.filter(
+                user=self.user,
+            ).order_by(f'-{order_field}').first()
+
+            if not entry:
+                return ActionResult(
+                    success=False,
+                    message=f"No {entry_type} entries found to edit.",
+                    error="not_found"
+                )
+
+            target_field = field or default_field
+            old_value = getattr(entry, target_field, None)
+
+            if new_value is not None:
+                setattr(entry, target_field, Decimal(str(new_value))
+                        if isinstance(old_value, Decimal) else new_value)
+            elif new_text:
+                setattr(entry, target_field, new_text)
+            else:
+                return ActionResult(
+                    success=False,
+                    message="Please specify the new value.",
+                    error="no_value"
+                )
+
+            entry.save()
+
+            display_value = new_value if new_value is not None else new_text
+            return ActionResult(
+                success=True,
+                message=f"✓ Updated {entry_type}: {target_field} changed from {old_value} to {display_value}",
+                action_type='edit_last_entry',
+                confirmation_detail=self._build_confirmation(
+                    what=f"{display_value}",
+                    where=f"Health > {entry_type.replace('_', ' ').title()}",
+                )
+            )
+
+        except Exception as e:
+            logger.error(f"Error editing entry: {e}", exc_info=True)
+            return ActionResult(
+                success=False,
+                message="Sorry, I couldn't edit that entry.",
+                error=str(e)
+            )
+
+    @staticmethod
+    def _get_undo_model_map():
+        """Map model names to model classes for undo operations."""
+        from apps.health.models import (
+            WeightEntry, HeartRateEntry, BloodPressureEntry,
+            GlucoseEntry, BloodOxygenEntry, SleepEntry, WaterEntry,
+            StepsEntry, FoodEntry, BodyCompositionEntry,
+        )
+        from apps.journal.models import JournalEntry
+        return {
+            'WeightEntry': WeightEntry,
+            'HeartRateEntry': HeartRateEntry,
+            'BloodPressureEntry': BloodPressureEntry,
+            'GlucoseEntry': GlucoseEntry,
+            'BloodOxygenEntry': BloodOxygenEntry,
+            'SleepEntry': SleepEntry,
+            'WaterEntry': WaterEntry,
+            'StepsEntry': StepsEntry,
+            'FoodEntry': FoodEntry,
+            'BodyCompositionEntry': BodyCompositionEntry,
+            'JournalEntry': JournalEntry,
+        }
+
+    # =========================================================================
     # MEDICINE HANDLERS
     # =========================================================================
 

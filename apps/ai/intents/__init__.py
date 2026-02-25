@@ -13,7 +13,8 @@ This package contains OpenAI function (tool) definitions for intent recognition.
 Each intent defines a structured action the user can take through natural language.
 
 Supported Intent Categories:
-- Health: log_heart_rate, log_blood_pressure, log_weight, log_glucose, log_blood_oxygen, log_food
+- Health: log_heart_rate, log_blood_pressure, log_weight, log_glucose, log_blood_oxygen,
+          log_food, log_sleep, log_water, log_steps, log_body_measurement
 - Medicine: take_medicine
 - Fasting: start_fast, end_fast
 - Journal: create_journal_entry, add_gratitude
@@ -21,6 +22,8 @@ Supported Intent Categories:
 - Purpose: create_goal, update_goal_progress, set_intention, log_habit
 - Life: create_task, create_routine_task, complete_task, create_event, add_reminder
 - Fitness: log_workout, log_exercise_set, log_cardio
+- Finance: log_transaction, check_budget
+- System: undo_last_action, edit_last_entry
 """
 
 from .health_intents import HEALTH_INTENT_TOOLS
@@ -35,6 +38,8 @@ from .settings_intents import SETTINGS_INTENT_TOOLS
 from .calibration_intents import CALIBRATION_INTENT_TOOLS
 from .learning_mode_intents import LEARNING_MODE_INTENT_TOOLS
 from .calendar_intents import CALENDAR_INTENT_TOOLS
+from .finance_intents import FINANCE_INTENT_TOOLS
+from .system_intents import SYSTEM_INTENT_TOOLS
 
 # Combine all intent tools for the OpenAI API
 ALL_INTENT_TOOLS = (
@@ -49,7 +54,9 @@ ALL_INTENT_TOOLS = (
     SETTINGS_INTENT_TOOLS +
     CALIBRATION_INTENT_TOOLS +
     LEARNING_MODE_INTENT_TOOLS +
-    CALENDAR_INTENT_TOOLS
+    CALENDAR_INTENT_TOOLS +
+    FINANCE_INTENT_TOOLS +
+    SYSTEM_INTENT_TOOLS
 )
 
 # Intent type to handler mapping (for routing)
@@ -61,6 +68,10 @@ INTENT_HANDLERS = {
     'log_glucose': 'health',
     'log_blood_oxygen': 'health',
     'log_food': 'health',
+    'log_sleep': 'health',
+    'log_water': 'health',
+    'log_steps': 'health',
+    'log_body_measurement': 'health',
     # Medicine
     'take_medicine': 'medicine',
     # Fasting
@@ -104,6 +115,12 @@ INTENT_HANDLERS = {
     'log_transformation_protocol': 'transformation',
     'log_shopping_item': 'transformation',
     'complete_shopping_item': 'transformation',
+    # Finance
+    'log_transaction': 'finance',
+    'check_budget': 'finance',
+    # System (undo/edit)
+    'undo_last_action': 'system',
+    'edit_last_entry': 'system',
     # No action
     'no_action': None,
 }
@@ -123,4 +140,6 @@ __all__ = [
     'CALIBRATION_INTENT_TOOLS',
     'LEARNING_MODE_INTENT_TOOLS',
     'CALENDAR_INTENT_TOOLS',
+    'FINANCE_INTENT_TOOLS',
+    'SYSTEM_INTENT_TOOLS',
 ]

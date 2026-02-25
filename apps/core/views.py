@@ -228,6 +228,16 @@ class HealthCheckView(View):
             health_status['database'] = f'error: {str(e)[:100]}'
             return JsonResponse(health_status, status=503)
 
+        # Scheduler health (non-blocking, informational)
+        try:
+            from apps.core.scheduler_health import get_scheduler_status
+            sched = get_scheduler_status()
+            health_status['scheduler'] = sched.get('status', 'unknown')
+            if sched.get('needs_restart'):
+                health_status['scheduler_needs_restart'] = True
+        except Exception:
+            health_status['scheduler'] = 'unknown'
+
         return JsonResponse(health_status, status=200)
 
 

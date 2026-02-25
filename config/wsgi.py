@@ -40,6 +40,10 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 
 application = get_wsgi_application()
 
+# Module-level scheduler reference for health checks and restart.
+# Accessed by apps.core.scheduler_health module.
+_scheduler_instance = None
+
 # Start background schedulers in production (only once, not in each worker)
 # Protection layers:
 #   1. DEBUG check (skip in dev)
@@ -263,6 +267,11 @@ def start_scheduler():
         )
 
         scheduler.start()
+
+        # Store reference for health checks / restart via scheduler_health module
+        global _scheduler_instance
+        _scheduler_instance = scheduler
+
         logger.info("=" * 60)
         logger.info("APScheduler STARTED successfully with 15 jobs:")
         logger.info("  (SAME monitoring moved to Celery Beat)")

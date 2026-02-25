@@ -9,6 +9,25 @@
 
 # WLJ Change History
 
+## 2026-02-25 — APScheduler health check + auto-restart endpoint
+
+**What:** Added scheduler health monitoring and restart capability. The APScheduler runs in-process with Gunicorn; if the scheduler thread dies while Gunicorn stays alive, ISE and all downstream engines stop. This adds detection and recovery without requiring a full container restart.
+
+**Files:**
+- `config/wsgi.py` — MODIFIED: Store scheduler instance in `_scheduler_instance` module variable for external access
+- `apps/core/scheduler_health.py` — NEW: `get_scheduler_status()` (checks running state, heartbeat drift, needs_restart flag) and `restart_scheduler()` (shutdown + reinit)
+- `apps/core/ai_observability/ops_views.py` — MODIFIED: Added `SchedulerHealthView` (GET) and `SchedulerRestartView` (POST) + `scheduler_health` in Ops Wall stream
+- `apps/admin_console/urls.py` — MODIFIED: Added `/ops/scheduler-health/` and `/ops/scheduler-restart/` routes
+- `apps/core/views.py` — MODIFIED: Enhanced `/_health/` to include scheduler status
+- `apps/core/tests/test_scheduler_health.py` — NEW: 4 tests for scheduler health module
+
+**Endpoints:**
+- `GET /admin-console/ops/scheduler-health/` — Returns scheduler status (staff-only)
+- `POST /admin-console/ops/scheduler-restart/` — Restarts APScheduler thread (staff-only, audited)
+- `GET /_health/` — Now includes `scheduler` and `scheduler_needs_restart` fields
+
+**Why:** ISE went offline (+2170s drift) due to Gunicorn worker restart killing the APScheduler thread. This provides a recovery mechanism without full container restart and makes scheduler health visible in the Ops Wall.
+
 ## 2026-02-25 — Phase 8.6–8.9: EAE Integration — Chat, DNE, Briefing, Command Center, Stress Tests
 
 **What:** Wires the EAE pipeline into all delivery channels and adds telemetry. Feature-flagged via `PersonalOperatingBlueprint.eae_enabled` — when False, zero behavior change.

@@ -312,6 +312,10 @@ HEALTH:
 - "I had eggs and toast for breakfast" → log_food(food_name="eggs and toast", quantity=1, meal_type="breakfast")
 - "took my metformin" → take_medicine(medicine_name="metformin")
 - "I took my 8am meds at 10am" → take_medicine(medicine_name="8am meds")
+- "took my evening meds" → take_medicines_by_time(time_of_day="evening")
+- "mark morning medicines taken" → take_medicines_by_time(time_of_day="morning")
+- "took all my nightly pills" → take_medicines_by_time(time_of_day="nightly")
+- "I took my two evening medicines, mark them took at scheduled time" → take_medicines_by_time(time_of_day="evening", use_scheduled_time=true)
 - "starting a fast" → start_fast(fasting_type="16:8")
 - "ending my fast" → end_fast()
 
@@ -584,6 +588,12 @@ Examples:
             medicine = parameters.get('medicine_name', 'medicine')
             return f"I'll log that you took {medicine}. Confirm?"
 
+        elif intent_type == 'take_medicines_by_time':
+            tod = parameters.get('time_of_day', 'scheduled')
+            scheduled = parameters.get('use_scheduled_time', False)
+            time_note = " at their scheduled times" if scheduled else ""
+            return f"I'll mark all {tod} medicines as taken{time_note}. Confirm?"
+
         elif intent_type == 'start_fast':
             fasting_type = parameters.get('fasting_type', '16:8')
             return f"I'll start a {fasting_type} fast for you. Confirm?"
@@ -702,6 +712,9 @@ Examples:
 
             elif intent_type == 'take_medicine':
                 return handler.handle_take_medicine(**parameters)
+
+            elif intent_type == 'take_medicines_by_time':
+                return handler.handle_take_medicines_by_time(**parameters)
 
             elif intent_type == 'start_fast':
                 return handler.handle_start_fast(**parameters)

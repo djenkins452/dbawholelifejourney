@@ -9,6 +9,17 @@
 
 # WLJ Change History
 
+## 2026-02-25 — AI can now mark medicines by time-of-day ("took my evening meds")
+
+**What:** Added `take_medicines_by_time` intent so the AI assistant can bulk-log medicines by time period (morning, evening, nightly, etc.). Previously, saying "I took my evening medicines" resulted in "I couldn't find 'evening medicines'" because the system only searched by medicine name. Now it queries `MedicineSchedule.time_of_day` and logs all matching medicines, with support for "took at scheduled time" vs current time.
+
+**Why:** User testing showed the AI couldn't handle natural requests like "mark my evening medicines as took at scheduled time" — a core medicine workflow.
+
+**Files:**
+- `apps/ai/intents/medicine_intents.py` — Added `take_medicines_by_time` intent definition with `time_of_day` and `use_scheduled_time` params
+- `apps/ai/action_handlers.py` — Added `handle_take_medicines_by_time()` handler mirroring `MedicineBulkTakeView` logic
+- `apps/ai/intent_service.py` — Added dispatch, examples, and confirmation message for new intent
+
 ## 2026-02-25 — Reframe AI identity from "wellness app" to whole-life platform
 
 **What:** The AI assistant was identifying itself as a "wellness app" assistant across all system prompts, which narrowly framed WLJ and led to generic wellness-focused responses. WLJ covers health, faith, purpose, finances, brain training, journaling, life organization, and more — it's a whole-life platform, not a wellness tracker. Updated ~20 references across system prompts, services, fixtures, and docstrings.

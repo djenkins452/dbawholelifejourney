@@ -9,6 +9,34 @@
 
 # WLJ Change History
 
+## 2026-02-26 — Capture Module: Comprehensive UI Test Coverage Expansion
+
+**What:** Built capture module UI test suite from scratch (0 → 20 comprehensive test cases). Added `data-testid` attributes to 4 capture templates. Tests cover page structure, navigation flows, and empty state — purposefully excludes audio recording and file upload (require hardware/browser APIs the YAML framework can't automate).
+
+**Test Coverage (20 cases):**
+- **Authentication (1):** CAP-AUTH-001 — login with 10s click timeout for navigation
+- **List Page (5):** CAP-LIST-001 through CAP-LIST-005 — URL loads, container visible, upload/record buttons visible, empty state
+- **Record Page (4):** CAP-RECORD-001 through CAP-RECORD-004 — loads from button click, container visible, back link, title text
+- **Upload Page (6):** CAP-UPLOAD-001 through CAP-UPLOAD-006 — loads from button click, container visible, back link, drop zone, browse button, title text
+- **Navigation (4):** CAP-NAV-001 through CAP-NAV-004 — record→list, upload→list, list→record→list, list→upload→list round trips
+
+**data-testid Additions:**
+- `capture_list.html`: `capture-list`, `capture-upload-button`, `capture-record-button`, `capture-empty-state`
+- `capture_record.html`: `capture-record-page`, `capture-back-link`
+- `capture_upload.html`: `capture-upload-page`, `capture-back-link`
+- `capture_detail.html`: `capture-detail`, `capture-back-link`
+
+**Result:** 20/20 pass (100%), stable across multiple runs. No regressions (goals 27/27, journal 37/37 still passing).
+
+**Files Modified:**
+- `templates/capture/capture_list.html` — added 4 data-testid attrs
+- `templates/capture/capture_record.html` — added 2 data-testid attrs
+- `templates/capture/capture_upload.html` — added 2 data-testid attrs
+- `templates/capture/capture_detail.html` — added 2 data-testid attrs
+- `wlj_ui_tests/modules/capture/suite.yaml` — expanded from 0 to 20 tests
+
+---
+
 ## 2026-02-26 — Goals Module: Comprehensive UI Test Coverage Expansion
 
 **What:** Expanded goals UI test suite from 4 basic smoke tests to 27 comprehensive test cases covering all CRUD operations, navigation flows, delete confirmation (with auto-accept dialog), and cleanup. Added missing `data-testid` attributes to 3 goal templates.

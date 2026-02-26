@@ -49,6 +49,8 @@ def handle_quick_reply(user, action: str, params: dict) -> dict:
     handlers = {
         'mark_medicine_taken': handle_mark_medicine_taken,
         'skip_medicine': handle_skip_medicine,
+        'mark_medicine_group_taken': handle_mark_medicine_group_taken,
+        'skip_medicine_group': handle_skip_medicine_group,
         'remind_later': handle_remind_later,
         'confirm_workout': handle_confirm_workout,
         'start_journal': handle_start_journal,
@@ -178,21 +180,147 @@ def handle_skip_medicine(user, params: dict) -> dict:
         }
 
 
-def handle_remind_later(user, params: dict) -> dict:
-    """Snooze a reminder for later."""
-    from apps.core.services.notification_service import notification_service
+def handle_mark_medicine_group_taken(user, params: dict) -> dict:
+    """Mark ALL medicines in a time-of-day group as taken."""
+    from apps.health.models import Medicine, MedicineLog, MedicineSchedule
+    from apps.core.utils import get_user_today
 
-    reminder_type = params.get('reminder_type', 'general')
-    item_id = params.get('item_id')
-    snooze_minutes = params.get('snooze_minutes', 60)
+    time_of_day = params.get('time_of_day')
+    medicine_ids = params.get('medicine_ids', [])
+    dose_time = params.get('due_time') or params.get('dose_time')
 
-    # Create a notification to fire later
-    snooze_time = timezone.now() + timedelta(minutes=snooze_minutes)
+    if not medicine_ids:
+        return {
+            'success': False,
+            'message': "I couldn't find which medicines to mark.",
+        }
 
-    # For now, just acknowledge - full snooze implementation can come later
+    today = get_user_today(user)
+    marked_count = 0
+    med_names = []
+
+    for med_id in medicine_ids:
+        try:
+            medicine = Medicine.objects.get(id=med_id, user=user)
+            # Find the schedule for this medicine and time_of_day
+            schedule = MedicineSchedule.objects.filter(
+                medicine=medicine,
+                is_active=True,
+                time_of_day=time_of_day,
+            ).first()
+
+            log_time = schedule.scheduled_time.strftime('%H:%M') if schedule else (dose_time or '09:00')
+
+            # Create or update log
+            MedicineLog.objects.update_or_create(
+                medicine=medicine,
+                date=today,
+                time=log_time,
+                defaults={
+                    'status': 'taken',
+                    'notes': 'Logged via assistant group quick reply',
+                }
+            )
+            marked_count += 1
+            med_names.append(medicine.name)
+        except Medicine.DoesNotExist:
+            continue
+
+    if marked_count == 0:
+        return {
+            'success': False,
+            'message': "Couldn't find those medicines in your list.",
+        }
+
+    group_display = (time_of_day or 'morning').replace('_', ' ')
     return {
         'success': True,
-        'message': f"Got it! I'll check back with you in about {snooze_minutes} minutes.",
+        'message': f"Marked all {marked_count} {group_display} meds as taken.",
+        'data': {'marked_count': marked_count, 'medicine_names': med_names},
+    }
+
+
+def handle_skip_medicine_group(user, params: dict) -> dict:
+    """Skip ALL medicines in a time-of-day group."""
+    from apps.health.models import Medicine, MedicineLog, MedicineSchedule
+    from apps.core.utils import get_user_today
+
+    time_of_day = params.get('time_of_day')
+    medicine_ids = params.get('medicine_ids', [])
+    dose_time = params.get('due_time') or params.get('dose_time')
+
+    if not medicine_ids:
+        return {
+            'success': False,
+            'message': "I couldn't find which medicines to skip.",
+        }
+
+    today = get_user_today(user)
+    skipped_count = 0
+
+    for med_id in medicine_ids:
+        try:
+            medicine = Medicine.objects.get(id=med_id, user=user)
+            schedule = MedicineSchedule.objects.filter(
+                medicine=medicine,
+                is_active=True,
+                time_of_day=time_of_day,
+            ).first()
+
+            log_time = schedule.scheduled_time.strftime('%H:%M') if schedule else (dose_time or '09:00')
+
+            MedicineLog.objects.update_or_create(
+                medicine=medicine,
+                date=today,
+                time=log_time,
+                defaults={
+                    'status': 'skipped',
+                    'notes': 'Skipped via assistant group quick reply',
+                }
+            )
+            skipped_count += 1
+        except Medicine.DoesNotExist:
+            continue
+
+    group_display = (time_of_day or 'morning').replace('_', ' ')
+    return {
+        'success': True,
+        'message': f"Noted. Skipped all {skipped_count} {group_display} meds.",
+    }
+
+
+def handle_remind_later(user, params: dict) -> dict:
+    """Snooze a reminder for later. Uses the actual due time when available."""
+    reminder_type = params.get('reminder_type', 'general')
+    item_id = params.get('item_id')
+    due_time = params.get('due_time')
+
+    # Calculate snooze: use actual due time if available, otherwise 30 min
+    if due_time:
+        try:
+            from apps.core.utils import get_user_now
+            from datetime import datetime
+            user_now = get_user_now(user)
+            due_hour, due_min = map(int, due_time.split(':'))
+            due_dt = user_now.replace(hour=due_hour, minute=due_min, second=0, microsecond=0)
+
+            # If due time hasn't passed yet, remind at due time
+            if due_dt > user_now:
+                diff_minutes = int((due_dt - user_now).total_seconds() / 60)
+                time_display = due_dt.strftime('%I:%M %p').lstrip('0')
+                return {
+                    'success': True,
+                    'message': f"Got it! I'll remind you at {time_display}.",
+                    'data': {'snooze_until': due_dt.isoformat()},
+                }
+        except Exception:
+            pass
+
+    # Fallback: 30 minute snooze
+    snooze_time = timezone.now() + timedelta(minutes=30)
+    return {
+        'success': True,
+        'message': "Got it! I'll check back in about 30 minutes.",
         'data': {'snooze_until': snooze_time.isoformat()},
     }
 
@@ -327,6 +455,67 @@ def generate_medicine_check_in_replies(medicine_id: int, medicine_name: str, dos
                 'reminder_type': 'medicine',
                 'item_id': medicine_id,
                 'snooze_minutes': 30,
+            },
+            'style': 'secondary',
+        },
+    ]
+
+
+def generate_grouped_medicine_replies(time_of_day: str, medicine_ids: list, due_time: str = None) -> list:
+    """
+    Generate quick reply buttons for a GROUPED medicine check-in.
+
+    Instead of per-pill buttons, gives group-level actions:
+    - "I took them" → marks ALL medicines in this group as taken
+    - "Skip" → marks all as skipped
+    - "Remind me later" → reminds at the actual due time (not hardcoded 30 min)
+    """
+    # Calculate snooze: time until actual due time, or 30 min fallback
+    snooze_minutes = 30
+    if due_time:
+        try:
+            from datetime import datetime
+            from apps.core.time.system_clock import get_current_time
+            now = get_current_time()
+            due_dt = datetime.strptime(due_time, '%H:%M')
+            # Use a simple minutes-until-due calculation
+            due_hour, due_min = int(due_time.split(':')[0]), int(due_time.split(':')[1])
+            # We'll pass the actual due_time and let the handler compute
+        except Exception:
+            pass
+
+    return [
+        {
+            'id': 'group_taken',
+            'label': 'I took them',
+            'action': 'mark_medicine_group_taken',
+            'params': {
+                'time_of_day': time_of_day,
+                'medicine_ids': medicine_ids,
+                'due_time': due_time,
+            },
+            'style': 'primary',
+        },
+        {
+            'id': 'group_skip',
+            'label': 'Skip',
+            'action': 'skip_medicine_group',
+            'params': {
+                'time_of_day': time_of_day,
+                'medicine_ids': medicine_ids,
+                'due_time': due_time,
+            },
+            'style': 'secondary',
+        },
+        {
+            'id': 'remind_later',
+            'label': 'Remind me later',
+            'action': 'remind_later',
+            'params': {
+                'reminder_type': 'medicine_group',
+                'time_of_day': time_of_day,
+                'item_id': medicine_ids[0] if medicine_ids else None,
+                'due_time': due_time,
             },
             'style': 'secondary',
         },

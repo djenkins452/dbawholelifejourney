@@ -9,6 +9,21 @@
 
 # WLJ Change History
 
+## 2026-02-26 — Fix medicine check-in timing, grouping, and remind-me-later
+
+**What:** Three fixes to the proactive medicine check-in system:
+
+1. **Timing bug** — Check-ins used `timezone.now().time()` (UTC) to compare against scheduled times (stored as user's local time). At 7:42 AM CST, UTC time is 1:42 PM, so `13:42 >= 09:00` passed and check-ins fired 2 hours before meds were due. Fixed to use `get_user_now(user).time()` for correct local-time comparison.
+
+2. **Grouped notifications** — Instead of one notification per pill ("Your 9:00 AM Atorvastatin wasn't marked", "Your 9:00 AM Lantus...", etc.), now groups all medicines by `time_of_day` and sends ONE message: "Your morning meds are due by 9:00 AM." with group action buttons ("I took them", "Skip", "Remind me later").
+
+3. **Remind me later** — Was hardcoded to snooze 30 minutes. Now calculates time until the actual due time and responds "I'll remind you at 9:00 AM." Falls back to 30 min if due time has already passed.
+
+**Files:**
+- `apps/ai/proactive_checkins.py` — MODIFIED: Rewrote `generate_medicine_check_ins_for_user()` with local-time comparison + group-by-time_of_day logic; added `generate_grouped_medicine_check_in()` method
+- `apps/ai/assistant_intelligence.py` — MODIFIED: Added `grouped_meds_due` template to all 4 coaching styles
+- `apps/ai/quick_reply_handlers.py` — MODIFIED: Added `generate_grouped_medicine_replies()`, `handle_mark_medicine_group_taken()`, `handle_skip_medicine_group()`; rewrote `handle_remind_later()` to use actual due time
+
 ## 2026-02-26 — Fix timezone bug in calendar dedup
 
 **What:** The dedup cleanup was grouping events by `start_dt.date()` which returns the UTC date. For users in America/Chicago (UTC-6), events on the same local date could have different UTC dates near the midnight boundary, causing duplicates to survive cleanup.

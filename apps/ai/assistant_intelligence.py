@@ -48,6 +48,7 @@ COACHING_STYLE_TEMPLATES = {
     'default': {
         'missed_med': "Your {time} {medicine} wasn't marked. Did you take it, or should I mark it skipped?",
         'missed_med_with_context': "Your {time} {medicine} wasn't marked. Your last labs showed {context}.",
+        'grouped_meds_due': "Your {group} meds are due by {time}.",
         'overdue_task': "'{task}' is overdue. Still on your plate, or should we reschedule?",
         'workout_check': "No workout logged today. Did you get one in?",
         'journal_check': "No journal entry today. Want to log one?",
@@ -61,6 +62,7 @@ COACHING_STYLE_TEMPLATES = {
     'southern_belle': {
         'missed_med': "Sugar, looks like your {time} {medicine} wasn't marked yet. Did you take it, or want me to mark it skipped?",
         'missed_med_with_context': "Darlin', your {time} {medicine} wasn't marked. Remember, your last labs showed {context}.",
+        'grouped_meds_due': "Mornin'! Your {group} meds are due by {time}, hon.",
         'overdue_task': "'{task}' is waitin' on you, hon. Still need to do it, or should we push it out?",
         'workout_check': "Haven't seen a workout logged today, sweetie. Did you get movin'?",
         'journal_check': "No journal entry today, dear. Want to jot something down?",
@@ -74,6 +76,7 @@ COACHING_STYLE_TEMPLATES = {
     'new_yorker': {
         'missed_med': "{time} {medicine} - not marked. Took it or no?",
         'missed_med_with_context': "{time} {medicine} not marked. Your labs had elevated {context}.",
+        'grouped_meds_due': "{group} meds — due by {time}.",
         'overdue_task': "'{task}' is overdue. Doing it or rescheduling?",
         'workout_check': "No workout today. Did you go or not?",
         'journal_check': "No journal yet. Writing one?",
@@ -87,6 +90,7 @@ COACHING_STYLE_TEMPLATES = {
     'california': {
         'missed_med': "Hey, your {time} {medicine} isn't marked yet. Did you take it, or want me to skip it?",
         'missed_med_with_context': "Yo, your {time} {medicine} isn't marked. Just a heads up - your labs showed {context}.",
+        'grouped_meds_due': "Hey, your {group} meds are due by {time}.",
         'overdue_task': "'{task}' is overdue, dude. Still gonna do it, or should we reschedule?",
         'workout_check': "No workout logged today. Did you get out there?",
         'journal_check': "No journal entry yet. Wanna write something?",

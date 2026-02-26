@@ -2,7 +2,7 @@
 
 **Version:** 1.1.0
 **Created:** 2026-02-25
-**Status:** Phase 2 — Core Runner Engine (Complete)
+**Status:** Phase 3 — Action Execution Engine (Complete)
 **Author:** Claude Code (Opus 4.6)
 
 ---
@@ -1159,10 +1159,10 @@ git log --all --oneline -- '*.html' | head -20
 - [x] Lines of code ≤ 300 (248 lines)
 
 ### Phase 3 Checklist
-- [ ] `framework/executor.py` created
-- [ ] All 6 action types supported (NAVIGATE, CLICK, TYPE, SELECT, WAIT, ASSERT)
-- [ ] Each action maps to correct Playwright method
-- [ ] Lines of code ≤ 300
+- [x] `framework/executor.py` created
+- [x] All 6 action types supported (NAVIGATE, CLICK, TYPE, SELECT, WAIT, ASSERT)
+- [x] Each action maps to correct Playwright method
+- [x] Lines of code ≤ 300 (246 lines)
 
 ### Phase 4 Checklist
 - [ ] `framework/selectors.py` created
@@ -1308,7 +1308,7 @@ This section is updated after each phase completion to track implementation prog
 | 0 | **COMPLETE** | 2026-02-25 | 2026-02-25 | 1 | 0 | This document |
 | 1 | **COMPLETE** | 2026-02-25 | 2026-02-25 | 23 | 1 | Skeleton: dirs, __init__.py, version.py, requirements.txt, .gitkeep files |
 | 2 | **COMPLETE** | 2026-02-25 | 2026-02-25 | 1 | 2 | SuiteRunner: YAML loading, case iteration, RUN_ID, state lock, variable substitution |
-| 3 | PENDING | — | — | — | — | — |
+| 3 | **COMPLETE** | 2026-02-25 | 2026-02-25 | 1 | 2 | ActionExecutor: 6 action types, 8 assertion types, basic selector resolution |
 | 4 | PENDING | — | — | — | — | — |
 | 5 | PENDING | — | — | — | — | — |
 | 6 | PENDING | — | — | — | — | — |

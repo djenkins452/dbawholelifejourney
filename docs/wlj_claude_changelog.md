@@ -61,6 +61,19 @@
 - `apps/ai/tests/test_values_filter.py` — Updated test docstring to match new culture description
 - `apps/users/management/commands/setup_app_review_account.py` — Updated sample journal title
 
+## 2026-02-25 — WLJ UI Testing Framework Phase 3: Action Execution Engine
+
+**What:** Implemented `ActionExecutor` class that translates YAML step definitions to Playwright browser actions. Supports all 6 action types (NAVIGATE, CLICK, TYPE, SELECT, WAIT, ASSERT) and all 8 assertion types (text_contains, text_equals, url_contains, url_equals, element_visible, element_not_visible, element_count, attribute_equals). Includes basic selector resolution for 5 strategies.
+
+**Files:**
+- `wlj_ui_tests/framework/executor.py` — NEW: `ActionExecutor`, `ExecutionError`, `resolve_selector()`, action/assertion handler dispatch
+- `wlj_ui_tests/framework/__init__.py` — MODIFIED: Added executor exports
+- `wlj_ui_tests/framework/version.py` — MODIFIED: Bumped to `0.3.0`
+
+**Why:** Phase 3 of the UI testing framework. The executor is the bridge between YAML test definitions and Playwright browser automation.
+
+---
+
 ## 2026-02-25 — WLJ UI Testing Framework Phase 2: Core Runner Engine
 
 **What:** Implemented the `SuiteRunner` class — the core orchestrator for the UI testing framework. Loads YAML suite files, generates unique RUN_IDs, manages a framework state lock for concurrency safety, iterates test cases with pass/fail tracking, and performs variable substitution (`${RUN_ID}`, `${BASE_URL}`, etc.).

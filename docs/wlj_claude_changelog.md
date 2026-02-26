@@ -61,6 +61,20 @@
 - `apps/ai/tests/test_values_filter.py` — Updated test docstring to match new culture description
 - `apps/users/management/commands/setup_app_review_account.py` — Updated sample journal title
 
+## 2026-02-25 — WLJ UI Testing Framework Phase 8: YAML Schema Loader and Validator
+
+**What:** Implemented `SchemaValidator` class that validates YAML suite files against the full WLJ test schema (Section 7). Validates all required fields (version, suite, module, auth, cases), enum values (actions, strategies, priorities, assert types), conditional requirements (auth fields per strategy, selector per action type, expected per assert type), and structural constraints (unique case IDs, correct types). Collects all errors before raising, providing descriptive messages with field paths.
+
+**Files:**
+- `wlj_ui_tests/framework/schema_validator.py` — NEW: `SchemaValidator`, `ValidationError`, `validate_file()`, `validate()`, section validators for metadata/auth/defaults/cases/steps/asserts/selectors
+- `wlj_ui_tests/framework/__init__.py` — MODIFIED: Added `SchemaValidator`, `ValidationError` exports
+- `wlj_ui_tests/framework/version.py` — MODIFIED: Bumped to `0.8.0`
+- `wlj_ui_tests/wlj_test_master_prompt_requirements.md` — MODIFIED: Phase 8 checklist checked, tracking log updated
+
+**Why:** Phase 8 of the UI testing framework. Schema validation catches YAML errors before test execution, providing clear feedback on what needs to be fixed. Validates against the full Section 7 spec including conditional field requirements.
+
+---
+
 ## 2026-02-25 — WLJ UI Testing Framework Phase 7: Claude Fix Prompt Generator
 
 **What:** Implemented `PromptBuilder` class that generates `claude_fix_prompt.md` files from test failures. Reads failure data (directly or from `fail.ndjson`), generates structured markdown with environment info, per-failure sections including case ID, failure details, selector strategy info, artifact paths, reproduction commands, and actionable fix instructions. One prompt file per module, copy-paste ready for Claude Code.

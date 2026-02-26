@@ -2,7 +2,7 @@
 
 **Version:** 1.1.0
 **Created:** 2026-02-25
-**Status:** Phase 7 — Claude Fix Prompt Generator (Complete)
+**Status:** Phase 8 — YAML Schema Loader and Validator (Complete)
 **Author:** Claude Code (Opus 4.6)
 
 ---
@@ -1192,10 +1192,10 @@ git log --all --oneline -- '*.html' | head -20
 - [x] Lines of code ≤ 200
 
 ### Phase 8 Checklist
-- [ ] `framework/schema_validator.py` created
-- [ ] JSON Schema validates all YAML fields
-- [ ] Invalid YAML produces descriptive errors
-- [ ] Lines of code ≤ 300
+- [x] `framework/schema_validator.py` created
+- [x] JSON Schema validates all YAML fields
+- [x] Invalid YAML produces descriptive errors
+- [x] Lines of code ≤ 300
 
 ### Phase 9 Checklist
 - [ ] Stub `suite.yaml` exists for all 9 modules
@@ -1313,7 +1313,7 @@ This section is updated after each phase completion to track implementation prog
 | 5 | **COMPLETE** | 2026-02-25 | 2026-02-25 | 1 | 2 | ReportWriter: pass/fail NDJSON, execution_log NDJSON, run_summary.json with framework_version |
 | 6 | **COMPLETE** | 2026-02-25 | 2026-02-25 | 1 | 2 | ArtifactCapture: screenshot PNG + HTML dump on failure, module-scoped paths, convention naming |
 | 7 | **COMPLETE** | 2026-02-25 | 2026-02-25 | 1 | 2 | PromptBuilder: claude_fix_prompt.md generation from failures, NDJSON reader, actionable fix steps |
-| 8 | PENDING | — | — | — | — | — |
+| 8 | **COMPLETE** | 2026-02-25 | 2026-02-25 | 1 | 2 | SchemaValidator: full YAML schema validation, enum checks, conditional requirements, descriptive errors |
 | 9 | PENDING | — | — | — | — | — |
 | 10 | PENDING | — | — | — | — | — |
 | 11 | PENDING | — | — | — | — | — |

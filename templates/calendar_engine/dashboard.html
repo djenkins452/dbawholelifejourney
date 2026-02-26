@@ -378,7 +378,8 @@
                 var borderColor = evt.domain_color || 'var(--color-accent)';
                 var sourceType = escHtml(evt.source_type || 'none');
                 var sourceId = escHtml(evt.source_id || '');
-                html += '<div class="cal-event-item' + kindClass + '" data-event-id="' + evt.id + '" data-source-type="' + sourceType + '" data-source-id="' + sourceId + '" style="border-left-color:' + borderColor + '">';
+                var eventKind = escHtml(evt.event_kind || 'manual');
+                html += '<div class="cal-event-item' + kindClass + '" data-event-id="' + evt.id + '" data-source-type="' + sourceType + '" data-source-id="' + sourceId + '" data-event-kind="' + eventKind + '" style="border-left-color:' + borderColor + '">';
                 html += '<div style="flex:1"><div class="cal-event-title">' + escHtml(evt.title) + ' ' + badgeHtml + '</div>';
                 html += '<div class="cal-event-time">' + formatTime(evt.start_dt) + ' — ' + formatTime(evt.end_dt);
                 if (evt.domain) html += ' &middot; ' + escHtml(evt.domain);
@@ -548,8 +549,18 @@
         var sourceType = item.dataset.sourceType;
         var sourceId = item.dataset.sourceId;
         var eventId = Number(item.dataset.eventId);
+        var eventKind = item.dataset.eventKind;
 
-        // Source-linked events → navigate to source page
+        // Execution blocks → always open calendar edit modal.
+        // These are calendar-native events projected from tasks/routines.
+        // The source task may have been soft-deleted (routine tasks recycle
+        // daily), so navigating to /life/tasks/{id}/edit/ would 404.
+        if (eventKind === 'execution_block') {
+            openEventEdit(eventId);
+            return;
+        }
+
+        // Source-linked non-execution events → navigate to source page
         if (sourceType && sourceType !== 'none' && sourceId && SOURCE_URLS[sourceType]) {
             window.location.href = SOURCE_URLS[sourceType].replace('{id}', sourceId);
             return;
@@ -583,9 +594,10 @@
         document.getElementById('cal-event-edit-end').value = toLocalInput(evt.end_dt);
         document.getElementById('cal-event-edit-title').textContent = 'Edit: ' + evt.title;
 
-        // Show source link if linked
+        // Show source link if linked (but NOT for execution blocks —
+        // the source task may have been recycled/deleted)
         var sourceEl = document.getElementById('cal-event-edit-source-info');
-        if (evt.source_type && evt.source_type !== 'none' && evt.source_id && SOURCE_URLS[evt.source_type]) {
+        if (evt.event_kind !== 'execution_block' && evt.source_type && evt.source_type !== 'none' && evt.source_id && SOURCE_URLS[evt.source_type]) {
             var url = SOURCE_URLS[evt.source_type].replace('{id}', evt.source_id);
             sourceEl.innerHTML = '<a href="' + url + '" class="cal-edit-source-link">View ' + escHtml(evt.source_type) + ' &#8599;</a>';
         } else {

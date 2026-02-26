@@ -9,6 +9,15 @@
 
 # WLJ Change History
 
+## 2026-02-26 — Fix calendar execution block click 404
+
+**What:** Clicking "Workout" (or any execution block event) on the calendar navigated to `/life/tasks/{id}/edit/` which 404'd because the source task was soft-deleted (routine tasks get recycled daily). Execution block events are calendar-native — they should open the calendar edit modal, not navigate to a potentially-deleted task.
+
+**Fix:** Added `data-event-kind` attribute to calendar event elements. Updated click handler: execution_block events now always open the calendar edit modal instead of navigating to the source task page. Also hid the "View task" link in the edit modal for execution blocks since the source may not exist.
+
+**Files:**
+- `templates/calendar_engine/dashboard.html` — MODIFIED: Added event_kind to rendered event elements, updated click handler for execution blocks, hid source link in edit modal for execution blocks
+
 ## 2026-02-26 — Redesign UI Test Runner Available Modules layout
 
 **What:** The Available Modules section on the UI Test Runner page looked unprofessional — uneven spacing, inconsistent alignment, and a cramped single-column list feel. Redesigned with a responsive card grid layout: auto-fill columns (min 280px), module name and case count on the same row, cleaner typography, hover highlights, selected state (blue border + tinted background), and collapsible test case lists that don't toggle the checkbox.

@@ -20,7 +20,10 @@ Usage:
 import logging
 from pathlib import Path
 
-import yaml
+try:
+    import yaml
+except ImportError:
+    yaml = None
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +47,10 @@ def discover_modules(base_dir=None):
           - case_count (int): Number of test cases
           - path (str): Relative path to suite.yaml from project root
     """
+    if yaml is None:
+        logger.warning("PyYAML not installed — cannot discover UI test modules")
+        return []
+
     modules_dir = Path(base_dir) if base_dir else _MODULES_DIR
 
     if not modules_dir.is_dir():

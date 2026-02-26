@@ -721,10 +721,15 @@ class UITestModulesView(AdminRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         from django.conf import settings
-        from apps.admin_console.services.test_module_registry import discover_modules
         from apps.admin_console.models import UITestRun
 
-        context['modules'] = discover_modules()
+        try:
+            from apps.admin_console.services.test_module_registry import discover_modules
+            context['modules'] = discover_modules()
+        except Exception:
+            logger.exception("Failed to discover UI test modules")
+            context['modules'] = []
+
         context['debug'] = settings.DEBUG
 
         # Recent UI test runs for history section

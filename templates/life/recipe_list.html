@@ -4,9 +4,9 @@
 {% block title %}Recipes - Organize{% endblock %}
 
 {% block content %}
-<div class="container">
+<div class="container" data-testid="life-recipe-list">
     <nav class="breadcrumb mb-4">
-        <a href="{% url 'life:home' %}">Organize</a>
+        <a href="{% url 'life:home' %}" data-testid="life-back-link">Organize</a>
         <span>/</span>
         <span>Recipes</span>
     </nav>

@@ -3,9 +3,9 @@
 {% block title %}Pets - Organize{% endblock %}
 
 {% block content %}
-<div class="container">
+<div class="container" data-testid="life-pet-list">
     <nav class="breadcrumb mb-4">
-        <a href="{% url 'life:home' %}">Organize</a>
+        <a href="{% url 'life:home' %}" data-testid="life-back-link">Organize</a>
         <span>/</span>
         <span>Pets</span>
     </nav>
@@ -15,7 +15,7 @@
             <h1 class="page-title">Pets {% include "components/favorite_toggle.html" with page_title="Pets" %}</h1>
             <p class="page-subtitle">Your furry family members</p>
         </div>
-        <a href="{% url 'life:pet_create' %}" class="btn btn-primary">
+        <a href="{% url 'life:pet_create' %}" class="btn btn-primary" data-testid="life-add-pet-button">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="12" y1="5" x2="12" y2="19"/>
                 <line x1="5" y1="12" x2="19" y2="12"/>

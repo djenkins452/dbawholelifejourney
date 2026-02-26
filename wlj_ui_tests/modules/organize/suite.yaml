@@ -14,4 +14,383 @@ defaults:
   screenshot_on_failure: true
   html_dump_on_failure: true
 
-cases: []
+cases:
+
+  # ============================================================
+  # AUTH
+  # ============================================================
+
+  - id: "ORG-AUTH-001"
+    name: "Login and navigate to organize"
+    priority: "high"
+    tags: ["auth", "smoke"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/accounts/logout/"
+      - action: "NAVIGATE"
+        url: "/accounts/login/"
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "login-email-input"
+        input: "${TEST_USERNAME}"
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "login-password-input"
+        input: "${TEST_PASSWORD}"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "login-submit-button"
+        timeout_ms: 10000
+      - action: "WAIT"
+        timeout_ms: 3000
+    asserts:
+      - type: "url_contains"
+        expected: "/dashboard/"
+
+  # ============================================================
+  # PETS
+  # ============================================================
+
+  - id: "ORG-PET-001"
+    name: "Pets list page loads"
+    priority: "high"
+    tags: ["pets", "smoke"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/life/pets/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/life/pets/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "life-pet-list"
+
+  - id: "ORG-PET-002"
+    name: "Pets shows title"
+    priority: "medium"
+    tags: ["pets"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/life/pets/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "life-pet-list"
+        expected: "Pets"
+
+  - id: "ORG-PET-003"
+    name: "Add Pet button visible"
+    priority: "medium"
+    tags: ["pets"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/life/pets/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "life-add-pet-button"
+
+  - id: "ORG-PET-004"
+    name: "Pets back link returns to organize"
+    priority: "medium"
+    tags: ["pets", "navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/life/pets/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "life-back-link"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/life/"
+
+  # ============================================================
+  # RECIPES
+  # ============================================================
+
+  - id: "ORG-REC-001"
+    name: "Recipes list page loads"
+    priority: "high"
+    tags: ["recipes", "smoke"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/life/recipes/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/life/recipes/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "life-recipe-list"
+
+  - id: "ORG-REC-002"
+    name: "Recipes shows title"
+    priority: "medium"
+    tags: ["recipes"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/life/recipes/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "life-recipe-list"
+        expected: "Recipes"
+
+  - id: "ORG-REC-003"
+    name: "Recipes back link returns to organize"
+    priority: "medium"
+    tags: ["recipes", "navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/life/recipes/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "life-back-link"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/life/"
+
+  # ============================================================
+  # MAINTENANCE
+  # ============================================================
+
+  - id: "ORG-MAINT-001"
+    name: "Maintenance list page loads"
+    priority: "high"
+    tags: ["maintenance", "smoke"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/life/maintenance/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/life/maintenance/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "life-maintenance-list"
+
+  - id: "ORG-MAINT-002"
+    name: "Maintenance shows title"
+    priority: "medium"
+    tags: ["maintenance"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/life/maintenance/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "life-maintenance-list"
+        expected: "Maintenance"
+
+  - id: "ORG-MAINT-003"
+    name: "Maintenance back link returns to organize"
+    priority: "medium"
+    tags: ["maintenance", "navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/life/maintenance/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "life-back-link"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/life/"
+
+  # ============================================================
+  # DOCUMENTS
+  # ============================================================
+
+  - id: "ORG-DOC-001"
+    name: "Documents list page loads"
+    priority: "high"
+    tags: ["documents", "smoke"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/life/documents/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/life/documents/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "life-document-list"
+
+  - id: "ORG-DOC-002"
+    name: "Documents shows title"
+    priority: "medium"
+    tags: ["documents"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/life/documents/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "life-document-list"
+        expected: "Documents"
+
+  - id: "ORG-DOC-003"
+    name: "Documents back link returns to organize"
+    priority: "medium"
+    tags: ["documents", "navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/life/documents/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "life-back-link"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/life/"
+
+  # ============================================================
+  # SIGNIFICANT EVENTS
+  # ============================================================
+
+  - id: "ORG-EVT-001"
+    name: "Significant events list page loads"
+    priority: "high"
+    tags: ["events", "smoke"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/life/significant-events/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/life/significant-events/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "life-event-list"
+
+  - id: "ORG-EVT-002"
+    name: "Significant events shows title"
+    priority: "medium"
+    tags: ["events"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/life/significant-events/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "life-event-list"
+        expected: "Significant Events"
+
+  - id: "ORG-EVT-003"
+    name: "Significant events back link returns to organize"
+    priority: "medium"
+    tags: ["events", "navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/life/significant-events/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "life-back-link"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/life/"
+
+  # ============================================================
+  # CALENDAR
+  # ============================================================
+
+  - id: "ORG-CAL-001"
+    name: "Calendar page loads"
+    priority: "high"
+    tags: ["calendar", "smoke"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/life/calendar/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/life/calendar/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "life-calendar"
+
+  - id: "ORG-CAL-002"
+    name: "Calendar shows title"
+    priority: "medium"
+    tags: ["calendar"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/life/calendar/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "life-calendar"
+        expected: "Calendar"
+
+  - id: "ORG-CAL-003"
+    name: "Calendar back link returns to organize"
+    priority: "medium"
+    tags: ["calendar", "navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/life/calendar/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "life-back-link"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/life/"

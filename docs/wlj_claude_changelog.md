@@ -9,6 +9,18 @@
 
 # WLJ Change History
 
+## 2026-02-26 — Phase 4b: Fill Empty Suites (Organize, Preferences)
+
+**What:** Populated the two empty test suites that showed 0 cases on the UI Test Runner page.
+
+**Organize Module (20 tests):** Auth (1), Pets (4: list, title, add button, back link), Recipes (3: list, title, back link), Maintenance (3: list, title, back link), Documents (3: list, title, back link), Significant Events (3: list, title, back link), Calendar (3: page load, title, back link). Added data-testid to 6 templates: pet_list.html, recipe_list.html, maintenance_list.html, document_list.html, significant_event_list.html, calendar.html.
+
+**Preferences Module (9 tests):** Auth (1), Main Page (5: page load, title, appearance section, save button, modules section), Theme Selection (3: page load, title, theme cards). Added data-testid to theme_selection.html.
+
+**Result:** All 29 new tests pass at 100%, stable across multiple runs.
+
+---
+
 ## 2026-02-26 — Phase 4 UI Test Expansion: Users, Help, Security
 
 **What:** Built UI test suites for 3 more modules as part of Phase 4 expansion. Added data-testid attributes to templates and wrote comprehensive YAML test suites.

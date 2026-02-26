@@ -4,7 +4,7 @@
 {% block title %}CoS Settings — Whole Life Journey{% endblock %}
 
 {% block content %}
-<div class="page-container" style="max-width: 640px; margin: 0 auto; padding: 1rem;">
+<div class="page-container" data-testid="cos-settings" style="max-width: 640px; margin: 0 auto; padding: 1rem;">
     <h1 style="font-size: 1.5rem; font-weight: 600; margin-bottom: 0.25rem;">{{ cos_display_name|default:"Chief of Staff" }} Settings</h1>
     <p style="color: var(--text-secondary); margin-bottom: 1.5rem; font-size: 0.9rem;">
         Control how {% if not cos_has_custom_name %}your {% endif %}{{ cos_display_name|default:"Chief of Staff" }} communicates. Everything else is learned through conversation.

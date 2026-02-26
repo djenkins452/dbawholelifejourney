@@ -18,7 +18,7 @@
 }
 </style>
 {# Desktop Panel (hidden on mobile via CSS) #}
-<aside id="assistant-panel" class="assistant-panel"
+<aside id="assistant-panel" class="assistant-panel" data-testid="cos-panel"
        data-calibration-active="{{ calibration_active|yesno:'true,false' }}"
        aria-label="Chief of Staff Chat">
     <div class="assistant-panel-header">
@@ -44,7 +44,7 @@
     <div class="assistant-panel-body">
         {# ====== CHAT TAB (default) ====== #}
         <div class="ap-tab-content ap-tab-chat" id="ap-tab-chat">
-            <div class="ap-chat-messages" id="ap-chat-messages">
+            <div class="ap-chat-messages" id="ap-chat-messages" data-testid="cos-chat-messages">
                 <div id="ap-chat-loading" class="ap-chat-loading">
                     <div class="ap-chat-loading-spinner"></div>
                     <span>Connecting...</span>
@@ -63,7 +63,7 @@
                     </button>
                 </div>
 
-                <form id="ap-chat-form" class="ap-chat-form">
+                <form id="ap-chat-form" class="ap-chat-form" data-testid="cos-chat-form">
                     {% csrf_token %}
                     <input type="file" id="ap-file-input" accept="image/jpeg,image/png,image/gif,image/webp" hidden>
 
@@ -74,7 +74,7 @@
                         </svg>
                     </button>
 
-                    <input type="text" id="ap-chat-input" class="ap-chat-input"
+                    <input type="text" id="ap-chat-input" class="ap-chat-input" data-testid="cos-chat-input"
                            placeholder="Message {% if not cos_has_custom_name %}your {% endif %}{{ cos_display_name|default:'Chief of Staff' }}..."
                            autocomplete="off" maxlength="2000">
 
@@ -87,7 +87,7 @@
                         </svg>
                     </button>
 
-                    <button type="submit" id="ap-send-btn" class="ap-send-btn" disabled>
+                    <button type="submit" id="ap-send-btn" class="ap-send-btn" data-testid="cos-send-btn" disabled>
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <line x1="22" y1="2" x2="11" y2="13"></line>
                             <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>

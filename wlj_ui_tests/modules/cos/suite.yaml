@@ -14,4 +14,342 @@ defaults:
   screenshot_on_failure: true
   html_dump_on_failure: true
 
-cases: []
+cases:
+
+  # ============================================================
+  # AUTH
+  # ============================================================
+
+  - id: "COS-AUTH-001"
+    name: "Login and navigate to dashboard"
+    priority: "high"
+    tags: ["auth", "smoke"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/accounts/logout/"
+      - action: "NAVIGATE"
+        url: "/accounts/login/"
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "login-email-input"
+        input: "${TEST_USERNAME}"
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "login-password-input"
+        input: "${TEST_PASSWORD}"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "login-submit-button"
+        timeout_ms: 10000
+      - action: "WAIT"
+        timeout_ms: 3000
+    asserts:
+      - type: "url_contains"
+        expected: "/dashboard/"
+
+  # ============================================================
+  # CHAT PANEL PRESENCE
+  # ============================================================
+
+  - id: "COS-PANEL-001"
+    name: "Chat panel visible on dashboard"
+    priority: "high"
+    tags: ["panel", "smoke"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/dashboard/"
+      - action: "WAIT"
+        timeout_ms: 3000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "cos-panel"
+
+  - id: "COS-PANEL-002"
+    name: "Chat panel shows on journal page too"
+    priority: "medium"
+    tags: ["panel"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/journal/"
+      - action: "WAIT"
+        timeout_ms: 3000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "cos-panel"
+
+  - id: "COS-PANEL-003"
+    name: "Chat input field visible"
+    priority: "high"
+    tags: ["panel"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/journal/"
+      - action: "WAIT"
+        timeout_ms: 3000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "cos-chat-input"
+
+  - id: "COS-PANEL-004"
+    name: "Chat messages container visible"
+    priority: "medium"
+    tags: ["panel"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/journal/"
+      - action: "WAIT"
+        timeout_ms: 3000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "cos-chat-messages"
+
+  - id: "COS-PANEL-005"
+    name: "Send button visible"
+    priority: "medium"
+    tags: ["panel"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/journal/"
+      - action: "WAIT"
+        timeout_ms: 3000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "cos-send-btn"
+
+  # ============================================================
+  # CHAT INTERACTION — BASIC
+  # ============================================================
+
+  - id: "COS-CHAT-001"
+    name: "Type message in chat input"
+    priority: "high"
+    tags: ["chat"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/journal/"
+      - action: "WAIT"
+        timeout_ms: 3000
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "cos-chat-input"
+        input: "Hello"
+      - action: "WAIT"
+        timeout_ms: 500
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "cos-chat-input"
+
+  - id: "COS-CHAT-002"
+    name: "Send greeting and receive response"
+    priority: "high"
+    tags: ["chat", "interaction"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/journal/"
+      - action: "WAIT"
+        timeout_ms: 3000
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "cos-chat-input"
+        input: "Hello"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "cos-send-btn"
+        timeout_ms: 10000
+      - action: "WAIT"
+        timeout_ms: 15000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "cos-chat-messages"
+
+  - id: "COS-CHAT-003"
+    name: "Ask about available features"
+    priority: "high"
+    tags: ["chat", "interaction"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/journal/"
+      - action: "WAIT"
+        timeout_ms: 3000
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "cos-chat-input"
+        input: "What features are available?"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "cos-send-btn"
+        timeout_ms: 10000
+      - action: "WAIT"
+        timeout_ms: 15000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "cos-chat-messages"
+
+  - id: "COS-CHAT-004"
+    name: "Ask about journal entries"
+    priority: "high"
+    tags: ["chat", "interaction", "data"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/journal/"
+      - action: "WAIT"
+        timeout_ms: 3000
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "cos-chat-input"
+        input: "Do I have any journal entries?"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "cos-send-btn"
+        timeout_ms: 10000
+      - action: "WAIT"
+        timeout_ms: 15000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "cos-chat-messages"
+
+  - id: "COS-CHAT-005"
+    name: "Ask about goals"
+    priority: "high"
+    tags: ["chat", "interaction", "data"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/journal/"
+      - action: "WAIT"
+        timeout_ms: 3000
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "cos-chat-input"
+        input: "What are my goals?"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "cos-send-btn"
+        timeout_ms: 10000
+      - action: "WAIT"
+        timeout_ms: 15000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "cos-chat-messages"
+
+  - id: "COS-CHAT-006"
+    name: "Ask about today's schedule"
+    priority: "high"
+    tags: ["chat", "interaction", "data"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/journal/"
+      - action: "WAIT"
+        timeout_ms: 3000
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "cos-chat-input"
+        input: "What is on my schedule today?"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "cos-send-btn"
+        timeout_ms: 10000
+      - action: "WAIT"
+        timeout_ms: 15000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "cos-chat-messages"
+
+  - id: "COS-CHAT-007"
+    name: "Ask about health tracking"
+    priority: "medium"
+    tags: ["chat", "interaction", "data"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/journal/"
+      - action: "WAIT"
+        timeout_ms: 3000
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "cos-chat-input"
+        input: "How is my health tracking going?"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "cos-send-btn"
+        timeout_ms: 10000
+      - action: "WAIT"
+        timeout_ms: 15000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "cos-chat-messages"
+
+  # ============================================================
+  # COS SETTINGS
+  # ============================================================
+
+  - id: "COS-SET-001"
+    name: "COS settings page loads"
+    priority: "high"
+    tags: ["settings"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/assistant/cos/settings/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/assistant/cos/settings/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "cos-settings"
+
+  - id: "COS-SET-002"
+    name: "COS settings shows title"
+    priority: "medium"
+    tags: ["settings"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/assistant/cos/settings/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "cos-settings"
+        expected: "Settings"

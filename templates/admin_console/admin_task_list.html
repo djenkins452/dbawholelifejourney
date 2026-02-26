@@ -3,11 +3,11 @@
 {% block title %}Task List - Admin Console{% endblock %}
 
 {% block content %}
-<div class="container" id="task-list-container" style="opacity: 0; transition: opacity 0.15s ease-in;">
+<div class="container" id="task-list-container" data-testid="ac-task-list" style="opacity: 0; transition: opacity 0.15s ease-in;">
     <div class="page-header">
         <div>
             <nav class="breadcrumb">
-                <a href="{% url 'admin_console:dashboard' %}">Admin Console</a>
+                <a href="{% url 'admin_console:dashboard' %}" data-testid="ac-back-link">Admin Console</a>
                 <span>/</span>
                 <span>Task List</span>
             </nav>

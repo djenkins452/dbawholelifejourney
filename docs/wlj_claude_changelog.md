@@ -9,6 +9,13 @@
 
 # WLJ Change History
 
+## 2026-02-26 — Enrich check-in briefing with specific item names
+
+**What:** The check-in briefing was giving vague counts like "2 tasks due today" and "8 active prayers" without listing the actual items. The user couldn't take action because they didn't know WHAT was outstanding. Fixed by pulling and injecting the actual item names: task titles (overdue + due today + completed today), goal titles, prayer request titles, medication names with taken/not-taken status, and calendar event names with times.
+
+**Files:**
+- `apps/ai/personal_assistant.py` — MODIFIED: Rewrote check-in briefing section to query actual task titles, goal titles, prayer titles, med names w/ schedule times, calendar events w/ local times; updated system prompt instructions to demand specific items by name, not counts
+
 ## 2026-02-26 — Fix gap detector false positives (architectural fix)
 
 **What:** The gap detector's "unknown data type" detection was too aggressive. It triggered on ANY chat message containing "me"/"my"/"I" + an unrecognized word, creating admin tasks like "Evaluate new data type: 'pick'" from the message "Look at the scripture on the screen and pick one and walk me through it." The word "pick" was a common verb, not a data type — but the system had no way to distinguish conversational commands from personal data queries.

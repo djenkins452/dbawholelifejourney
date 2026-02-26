@@ -9,6 +9,16 @@
 
 # WLJ Change History
 
+## 2026-02-26 — Environment lock + Easy Button hardening
+
+**What:** Pinned `dj-stripe==2.10.3` in requirements.txt and hardened the Easy Button scripts with environment validation: enforces venv activation (errors out if no venv found), validates Python is running from venv, checks dj-stripe is exactly 2.10.3, runs `migrate --noinput` with error handling, uses `127.0.0.1` instead of `localhost`, and adds module-first workflow messaging.
+
+**Why:** After repairing the djstripe migration mismatch (system Python had 2.8.4, venv had 2.10.3), we needed to lock the version to prevent future drift and ensure the Easy Button always runs inside the venv with the correct packages.
+
+**Files:**
+- `requirements.txt` — MODIFIED: `dj-stripe>=2.8.0` → `dj-stripe==2.10.3`
+- `scripts/start_wlj_test_env.sh` — MODIFIED: Added venv enforcement, dj-stripe version check, git worktree venv discovery, `migrate --noinput`, 127.0.0.1 URLs, module-first status banner
+
 ## 2026-02-26 — djstripe migration state repair (version mismatch)
 
 **What:** Repaired djstripe migration state mismatch between system Python 3.9 (djstripe 2.8.4) and venv Python 3.12 (djstripe 2.10.3). The DB schema was built with 2.8.4's migration chain (0001→0008→0009→0010→0011→0012) but the venv's 2.10.3 has a different chain (0001→0002_2_10). Migration `0002_2_10` failed because it tried to alter tables (`djstripe_activeentitlement`) that the old 0001_initial never created.

@@ -9,6 +9,19 @@
 
 # WLJ Change History
 
+## 2026-02-26 — WLJ UI Testing Framework Phase 15: Execution Orchestrator
+
+**What:** Created `ExecutionOrchestrator` class that manages the full test run lifecycle through a structured 12-phase pipeline: generate RUN_ID → init runner → init manifest → init registry → validate schema → validate selectors → init subsystems → execute suite → write reports → finalize manifest → verify integrity → generate fix prompt. Replaced direct `SuiteRunner` calls in `run_suite.py` with the orchestrator, providing unified coordination of all framework subsystems. Added `--health-check` CLI flag that validates 33 framework checks across 10 categories (version, modules, schema, selectors, registry, reporting, safety, manifest, writer, prompt builder) without executing any tests.
+
+**Files:**
+- `wlj_ui_tests/framework/execution_orchestrator.py` — NEW: `ExecutionOrchestrator` class with `run()` pipeline and `health_check()` validation, `OrchestratorError` exception
+- `wlj_ui_tests/framework/__init__.py` — MODIFIED: Added ExecutionOrchestrator and OrchestratorError exports
+- `wlj_ui_tests/run_suite.py` — MODIFIED: Rewired to use ExecutionOrchestrator instead of direct SuiteRunner; added --health-check flag; --module/--suite now optional when --health-check is used
+
+**Why:** Centralizes the execution pipeline in a single class rather than scattering it across run_suite.py, eliminates ad-hoc wiring between subsystems, ensures manifest/registry/reporting are always initialized together, and provides a single --health-check command for CI pre-flight validation.
+
+---
+
 ## 2026-02-25 — WLJ UI Testing Framework Phase 14: Run Integrity and Recovery
 
 **What:** Added run manifest generation (`RunManifest` class) that writes `run_manifest.json` at start and completion of each run, tracking expected_cases, completed_cases, failed_cases, and integrity summary with missing case detection. Created orphan recovery script (`recover_orphaned_test_data.py`) that reads `test_data_registry.ndjson` to find uncleaned AUTOTEST records and generates remediation instructions. Created pre-execution selector validator (`validate_selectors.py`) that scans suite YAMLs for `data-testid` selectors and verifies they exist in Django templates — currently 22/22 selectors found, 0 missing. Added retry layer to `ActionExecutor` with exponential backoff (500ms base, doubled per attempt) for CLICK/TYPE/WAIT/ASSERT actions (max_retries=2 default); NAVIGATE and SELECT are excluded from retries.

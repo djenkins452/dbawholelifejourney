@@ -5,6 +5,7 @@ from .runner import SuiteRunner, LockError, generate_run_id
 from .executor import ActionExecutor, ExecutionError
 from .selectors import SelectorResolver, SelectorError, resolve_selector
 from .reporting import ReportWriter
+from .artifacts import ArtifactCapture
 
 __all__ = [
     "__version__",
@@ -12,4 +13,5 @@ __all__ = [
     "ActionExecutor", "ExecutionError",
     "SelectorResolver", "SelectorError", "resolve_selector",
     "ReportWriter",
+    "ArtifactCapture",
 ]

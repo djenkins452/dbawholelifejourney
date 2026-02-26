@@ -9,6 +9,20 @@
 
 # WLJ Change History
 
+## 2026-02-25 — WLJ UI Testing Framework Phase 6: Artifact Capture
+
+**What:** Implemented `ArtifactCapture` class for capturing failure artifacts. Takes full-page PNG screenshots and HTML page dumps on test failure. Artifacts saved to module-scoped directories with naming convention `{module}_{case_id}_{timestamp}.{ext}`. Includes `capture_on_failure()` convenience method that captures both artifacts in one call.
+
+**Files:**
+- `wlj_ui_tests/framework/artifacts.py` — NEW: `ArtifactCapture` class with `capture_on_failure()`, `capture_screenshot()`, `capture_html()`, artifact naming helpers
+- `wlj_ui_tests/framework/__init__.py` — MODIFIED: Added `ArtifactCapture` export
+- `wlj_ui_tests/framework/version.py` — MODIFIED: Bumped to `0.6.0`
+- `wlj_ui_tests/wlj_test_master_prompt_requirements.md` — MODIFIED: Phase 6 checklist checked, tracking log updated
+
+**Why:** Phase 6 of the UI testing framework. Artifact capture provides visual debugging evidence (screenshots) and DOM state snapshots (HTML dumps) when tests fail, enabling faster diagnosis.
+
+---
+
 ## 2026-02-25 — WLJ UI Testing Framework Phase 5: Reporting System
 
 **What:** Implemented `ReportWriter` class that writes pass/fail NDJSON logs, step-level execution logs, and run summaries. Supports dual output to both module-scoped and aggregated report directories. Includes `framework_version` and `schema_version` in run summaries per Section 16.5.

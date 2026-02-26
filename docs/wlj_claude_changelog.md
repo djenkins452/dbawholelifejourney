@@ -61,6 +61,20 @@
 - `apps/ai/tests/test_values_filter.py` — Updated test docstring to match new culture description
 - `apps/users/management/commands/setup_app_review_account.py` — Updated sample journal title
 
+## 2026-02-25 — WLJ UI Testing Framework Phase 7: Claude Fix Prompt Generator
+
+**What:** Implemented `PromptBuilder` class that generates `claude_fix_prompt.md` files from test failures. Reads failure data (directly or from `fail.ndjson`), generates structured markdown with environment info, per-failure sections including case ID, failure details, selector strategy info, artifact paths, reproduction commands, and actionable fix instructions. One prompt file per module, copy-paste ready for Claude Code.
+
+**Files:**
+- `wlj_ui_tests/framework/prompt_builder.py` — NEW: `PromptBuilder` class with `generate()`, `generate_from_ndjson()`, failure section builder, selector detail extraction, fix instruction generator
+- `wlj_ui_tests/framework/__init__.py` — MODIFIED: Added `PromptBuilder` export
+- `wlj_ui_tests/framework/version.py` — MODIFIED: Bumped to `0.7.0`
+- `wlj_ui_tests/wlj_test_master_prompt_requirements.md` — MODIFIED: Phase 7 checklist checked, tracking log updated
+
+**Why:** Phase 7 of the UI testing framework. The prompt generator closes the feedback loop — when tests fail, it creates actionable fix prompts that can be fed directly to Claude Code for automated remediation.
+
+---
+
 ## 2026-02-25 — WLJ UI Testing Framework Phase 6: Artifact Capture
 
 **What:** Implemented `ArtifactCapture` class for capturing failure artifacts. Takes full-page PNG screenshots and HTML page dumps on test failure. Artifacts saved to module-scoped directories with naming convention `{module}_{case_id}_{timestamp}.{ext}`. Includes `capture_on_failure()` convenience method that captures both artifacts in one call.

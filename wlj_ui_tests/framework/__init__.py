@@ -6,6 +6,7 @@ from .executor import ActionExecutor, ExecutionError
 from .selectors import SelectorResolver, SelectorError, resolve_selector
 from .reporting import ReportWriter
 from .artifacts import ArtifactCapture
+from .prompt_builder import PromptBuilder
 
 __all__ = [
     "__version__",
@@ -14,4 +15,5 @@ __all__ = [
     "SelectorResolver", "SelectorError", "resolve_selector",
     "ReportWriter",
     "ArtifactCapture",
+    "PromptBuilder",
 ]

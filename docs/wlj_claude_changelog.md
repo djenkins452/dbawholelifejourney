@@ -9,43 +9,14 @@
 
 # WLJ Change History
 
-## 2026-02-26 — Phase 5: Admin Console & COS Test Suites
+## 2026-02-26 — Fix calendar execution block click 404
 
-**What:** Built UI test suites for the final two modules: Admin Console and Calendar of Services (COS). These were explicitly requested — Admin Console because admins are users too, and COS because it's the heart of the system.
+**What:** Clicking "Workout" (or any execution block event) on the calendar navigated to `/life/tasks/{id}/edit/` which 404'd because the source task was soft-deleted (routine tasks get recycled daily). Execution block events are calendar-native — they should open the calendar edit modal, not navigate to a potentially-deleted task.
 
-**Admin Console (26 tests):** Auth (1), Access Control (2: unauthenticated user blocked from admin console, re-login after access test), Dashboard (5: page load, title, quick stats, admin cards, ops/testing cards), Themes (3: list loads, title/content, breadcrumb nav), Tasks (3: list loads, title/controls, What's Next button), Users (2: list loads, title/table), Site Config (2: page loads, branding section), UI Test Runner (2: page loads, module tiles), Operations Wall (1: page loads), Announcements (2: list loads, title/create button), Navigation (3: dashboard→themes, dashboard→tasks, breadcrumb back). Templates instrumented: dashboard.html, theme_list.html, admin_task_list.html, user_list.html, site_config.html, ui_test_modules.html, operations_wall.html, system_announcement_list.html.
+**Fix:** Added `data-event-kind` attribute to calendar event elements. Updated click handler: execution_block events now always open the calendar edit modal instead of navigating to the source task page. Also hid the "View task" link in the edit modal for execution blocks since the source may not exist.
 
-**COS (15 tests):** Auth (1), Panel Presence (5: panel on dashboard, panel on journal page, chat input, messages container, send button), Chat Interaction (7: type message, send greeting, ask about features, ask about journal, ask about goals, ask about schedule, ask about health), Settings (2: settings page loads, shows title). Templates instrumented: assistant_panel.html, cos_settings.html. Also enabled personal_assistant for test user in test_user_service.py.
-
-**Result:** Admin Console 24/24 (100%), COS 15/15 (100%), both stable across multiple runs.
-
----
-
-## 2026-02-26 — Phase 4b: Fill Empty Suites (Organize, Preferences)
-
-**What:** Populated the two empty test suites that showed 0 cases on the UI Test Runner page.
-
-**Organize Module (20 tests):** Auth (1), Pets (4: list, title, add button, back link), Recipes (3: list, title, back link), Maintenance (3: list, title, back link), Documents (3: list, title, back link), Significant Events (3: list, title, back link), Calendar (3: page load, title, back link). Added data-testid to 6 templates: pet_list.html, recipe_list.html, maintenance_list.html, document_list.html, significant_event_list.html, calendar.html.
-
-**Preferences Module (9 tests):** Auth (1), Main Page (5: page load, title, appearance section, save button, modules section), Theme Selection (3: page load, title, theme cards). Added data-testid to theme_selection.html.
-
-**Result:** All 29 new tests pass at 100%, stable across multiple runs.
-
----
-
-## 2026-02-26 — Phase 4 UI Test Expansion: Users, Help, Security
-
-**What:** Built UI test suites for 3 more modules as part of Phase 4 expansion. Added data-testid attributes to templates and wrote comprehensive YAML test suites.
-
-**Users Module (19 tests):** Auth (1), Profile (5: page load, title, edit button, email display, edit navigation), Profile Edit (5: page load, form visible, save/cancel buttons, cancel returns, back link), Preferences (3: page load, title, appearance section), Data Export (3: page load, title, back link), Navigation (2: round trips). Templates: profile.html, profile_edit.html, preferences.html, data_export.html.
-
-**Help Module (14 tests):** Auth (1), Help Center (5: page load, title, search box, categories, popular topics), Category (3: page load, name display, back link), Article (3: page load, content, back link), Navigation (2: round trips). Templates: help_center.html, article.html, category.html. Loaded help fixture data (28 objects — 5 categories, 23 articles).
-
-**Security Module (4 tests):** Auth (1), Dashboard (3: page load, title, run assessment button). Template: dashboard.html. Admin Console skipped (requires staff access).
-
-**Result:** All 37 new tests pass at 100%, stable across multiple runs.
-
----
+**Files:**
+- `templates/calendar_engine/dashboard.html` — MODIFIED: Added event_kind to rendered event elements, updated click handler for execution blocks, hid source link in edit modal for execution blocks
 
 ## 2026-02-26 — Redesign UI Test Runner Available Modules layout
 

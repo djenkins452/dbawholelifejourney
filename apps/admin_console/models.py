@@ -1530,3 +1530,61 @@ class AdminGuideArticle(models.Model):
 
     def __str__(self):
         return f"{self.section.title} > {self.title}"
+
+
+# =============================================================================
+# UI TEST RUN MODELS
+# =============================================================================
+
+class UITestRun(models.Model):
+    """
+    Record of a WLJ UI test framework run (wlj_ui_tests).
+
+    Separate from core.TestRun which tracks Django unit tests.
+    Stores per-run results for the Playwright-based UI test suite.
+    """
+
+    STATUS_CHOICES = [
+        ('running', 'Running'),
+        ('passed', 'All Passed'),
+        ('failed', 'Some Failed'),
+        ('error', 'Error'),
+    ]
+
+    # Run metadata
+    run_at = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='running')
+    modules = models.JSONField(
+        default=list,
+        help_text="List of module names tested (e.g. ['journal', 'smoke'])"
+    )
+
+    # Results
+    total_cases = models.PositiveIntegerField(default=0)
+    passed = models.PositiveIntegerField(default=0)
+    failed = models.PositiveIntegerField(default=0)
+    pass_rate = models.DecimalField(
+        max_digits=5, decimal_places=2, default=0,
+        help_text="Pass rate as percentage"
+    )
+    duration_seconds = models.FloatField(default=0, help_text="Total run time in seconds")
+
+    # Framework run ID (from ExecutionOrchestrator)
+    run_id = models.CharField(max_length=50, blank=True, help_text="WLJ UI framework RUN_ID")
+
+    # Raw output
+    output = models.TextField(blank=True, help_text="Combined stdout/stderr from run")
+
+    class Meta:
+        ordering = ['-run_at']
+        verbose_name = "UI Test Run"
+        verbose_name_plural = "UI Test Runs"
+
+    def __str__(self):
+        module_str = ", ".join(self.modules) if self.modules else "none"
+        return f"UI Test Run {self.run_at.strftime('%Y-%m-%d %H:%M')} [{module_str}] - {self.status}"
+
+    @property
+    def modules_display(self):
+        """Return modules as a comma-separated display string."""
+        return ", ".join(self.modules) if self.modules else "None"

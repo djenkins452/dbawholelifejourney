@@ -9,6 +9,23 @@
 
 # WLJ Change History
 
+## 2026-02-25 — Admin Console UI Test Runner with module selection
+
+**What:** Added a dedicated UI Test Runner tile to the Admin Console dashboard, enabling staff users to select and run WLJ UI test modules from the browser. Created `test_module_registry.py` service that scans `wlj_ui_tests/modules/*/suite.yaml` to discover available test modules with case metadata. Added `UITestRun` model to track UI test execution history (separate from Django unit test `TestRun`). Built three views: module selection page with checkboxes and expandable case lists, background test execution via subprocess (`run_suite.py --module --no-browser`), and run detail page with output viewer. All templates are CSP-compliant with `addEventListener` instead of inline handlers. Converted `services.py` to `services/` package to accommodate the new registry module.
+
+**Files:**
+- `apps/admin_console/services/__init__.py` — renamed from `services.py`, fixed relative import
+- `apps/admin_console/services/test_module_registry.py` — NEW: `discover_modules()` function
+- `apps/admin_console/models.py` — added `UITestRun` model
+- `apps/admin_console/migrations/0029_add_uitestrun_model.py` — NEW migration
+- `apps/admin_console/views.py` — added `UITestModulesView`, `RunUITestsView`, `UITestRunDetailView`
+- `apps/admin_console/urls.py` — added `ui-tests/`, `ui-tests/run/`, `ui-tests/<pk>/`
+- `templates/admin_console/ui_test_modules.html` — NEW: module selection with checkboxes
+- `templates/admin_console/ui_test_detail.html` — NEW: run result details
+- `templates/admin_console/dashboard.html` — added UI Test Runner tile
+
+**Why:** To integrate the WLJ UI testing framework with the Admin Console, allowing staff to run Playwright-based UI tests by module selection without needing CLI access.
+
 ## 2026-02-26 — Activate real Playwright execution in WLJ UI Testing Framework
 
 **What:** Activated real Playwright browser execution as the default mode for the UI testing framework. Created `BrowserManager` class encapsulating the full Playwright sync API lifecycle (`sync_playwright()` → `chromium.launch()` → `new_context()` → `new_page()`) with guaranteed clean teardown. The `ExecutionOrchestrator` now internally creates a `BrowserManager` and `ActionExecutor(page)` — all action handlers (NAVIGATE, CLICK, TYPE, SELECT, WAIT, ASSERT) execute against a real Chromium browser. Added `--no-browser` CLI flag to preserve the previous framework-only enumeration mode. Verified end-to-end: browser launches, executor fires real HTTP requests via `page.goto()`, failures captured with Playwright error messages, fix prompt generated, browser closed cleanly.

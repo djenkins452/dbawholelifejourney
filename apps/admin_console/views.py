@@ -711,6 +711,196 @@ class RunTestsView(AdminRequiredMixin, View):
 
 
 # ============================================================
+# UI Test Runner Views
+# ============================================================
+
+class UITestModulesView(AdminRequiredMixin, TemplateView):
+    """Display available UI test modules with checkboxes for selection."""
+    template_name = "admin_console/ui_test_modules.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        from django.conf import settings
+        from apps.admin_console.services.test_module_registry import discover_modules
+        from apps.admin_console.models import UITestRun
+
+        context['modules'] = discover_modules()
+        context['debug'] = settings.DEBUG
+
+        # Recent UI test runs for history section
+        context['recent_runs'] = UITestRun.objects.all()[:10]
+
+        return context
+
+
+class RunUITestsView(AdminRequiredMixin, View):
+    """Execute UI tests for selected modules (dev only)."""
+
+    def post(self, request):
+        from django.conf import settings
+        import json
+        import subprocess
+        import sys
+        import time
+
+        # Only allow in DEBUG mode
+        if not settings.DEBUG:
+            messages.error(request, "UI test execution is only available in development mode.")
+            return redirect('admin_console:ui_test_modules')
+
+        # Get selected modules from form
+        selected_modules = request.POST.getlist('modules')
+        if not selected_modules:
+            messages.warning(request, "No modules selected. Please select at least one module.")
+            return redirect('admin_console:ui_test_modules')
+
+        # Create UITestRun record
+        from apps.admin_console.models import UITestRun
+        ui_run = UITestRun.objects.create(
+            status='running',
+            modules=selected_modules,
+        )
+
+        # Run each module via subprocess
+        total_cases = 0
+        total_passed = 0
+        total_failed = 0
+        combined_output = []
+        overall_status = 'passed'
+        start_time = time.time()
+
+        ui_tests_dir = settings.BASE_DIR / 'wlj_ui_tests'
+
+        for module_name in selected_modules:
+            combined_output.append(f"\n{'=' * 60}")
+            combined_output.append(f"  Module: {module_name}")
+            combined_output.append(f"{'=' * 60}\n")
+
+            try:
+                result = subprocess.run(
+                    [
+                        sys.executable,
+                        str(ui_tests_dir / 'run_suite.py'),
+                        '--module', module_name,
+                        '--no-browser',
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=300,  # 5 minute timeout per module
+                    cwd=str(settings.BASE_DIR),
+                )
+
+                combined_output.append(result.stdout)
+                if result.stderr:
+                    combined_output.append(result.stderr)
+
+                # Parse JSON summary from stderr
+                summary = _parse_ui_test_summary(result.stderr)
+                if summary:
+                    total_cases += summary.get('total_cases', 0)
+                    total_passed += summary.get('passed', 0)
+                    total_failed += summary.get('failed', 0)
+                    if summary.get('failed', 0) > 0:
+                        overall_status = 'failed'
+                    run_id = summary.get('run_id', '')
+                    if run_id and not ui_run.run_id:
+                        ui_run.run_id = run_id
+
+                if result.returncode != 0 and overall_status != 'failed':
+                    overall_status = 'failed'
+
+            except subprocess.TimeoutExpired:
+                combined_output.append(f"ERROR: Module {module_name} timed out after 5 minutes.")
+                overall_status = 'error'
+            except FileNotFoundError:
+                combined_output.append(f"ERROR: Could not find run_suite.py for module {module_name}.")
+                overall_status = 'error'
+            except Exception as e:
+                combined_output.append(f"ERROR: {module_name}: {str(e)}")
+                overall_status = 'error'
+
+        duration = time.time() - start_time
+        pass_rate = (total_passed / total_cases * 100) if total_cases > 0 else 0
+
+        # Update UITestRun record
+        ui_run.status = overall_status
+        ui_run.total_cases = total_cases
+        ui_run.passed = total_passed
+        ui_run.failed = total_failed
+        ui_run.pass_rate = pass_rate
+        ui_run.duration_seconds = duration
+        ui_run.output = "\n".join(combined_output)
+        ui_run.save()
+
+        if overall_status == 'passed':
+            messages.success(request, f"UI tests passed! {total_passed}/{total_cases} cases passed.")
+        elif overall_status == 'failed':
+            messages.warning(request, f"UI tests completed with failures: {total_failed}/{total_cases} failed.")
+        else:
+            messages.error(request, "UI test execution encountered errors.")
+
+        return redirect('admin_console:ui_test_detail', pk=ui_run.pk)
+
+
+class UITestRunDetailView(AdminRequiredMixin, TemplateView):
+    """View details of a specific UI test run."""
+    template_name = "admin_console/ui_test_detail.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        from apps.admin_console.models import UITestRun
+
+        ui_run = get_object_or_404(UITestRun, pk=self.kwargs['pk'])
+        context['ui_run'] = ui_run
+        return context
+
+
+def _parse_ui_test_summary(stderr_output):
+    """Parse JSON summary from run_suite.py stderr output.
+
+    The orchestrator emits a JSON summary to stderr. Find and parse it.
+
+    Args:
+        stderr_output: Combined stderr string from subprocess.
+
+    Returns:
+        Dict with summary data, or None if not found.
+    """
+    import json
+
+    if not stderr_output:
+        return None
+
+    # The JSON summary is the last JSON object in stderr
+    # Try parsing from the end of stderr
+    lines = stderr_output.strip().split('\n')
+
+    # Look for the JSON block (starts with { and ends with })
+    json_lines = []
+    in_json = False
+    brace_depth = 0
+
+    for line in reversed(lines):
+        stripped = line.strip()
+        if not in_json and stripped.endswith('}'):
+            in_json = True
+
+        if in_json:
+            json_lines.insert(0, line)
+            brace_depth += stripped.count('{') - stripped.count('}')
+            if brace_depth >= 0 and stripped.startswith('{'):
+                break
+
+    if json_lines:
+        try:
+            return json.loads('\n'.join(json_lines))
+        except json.JSONDecodeError:
+            pass
+
+    return None
+
+
+# ============================================================
 # Project Phase Views
 # ============================================================
 

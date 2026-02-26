@@ -82,6 +82,11 @@ urlpatterns = [
     path("tests/<int:pk>/", views.TestRunDetailView.as_view(), name="test_run_detail"),
     path("tests/<int:pk>/delete/", views.TestRunDeleteView.as_view(), name="test_run_delete"),
 
+    # UI Test Runner
+    path("ui-tests/", views.UITestModulesView.as_view(), name="ui_test_modules"),
+    path("ui-tests/run/", views.RunUITestsView.as_view(), name="run_ui_tests"),
+    path("ui-tests/<int:pk>/", views.UITestRunDetailView.as_view(), name="ui_test_detail"),
+
     # Project Phases
     path("projects/phases/", views.ProjectPhaseListView.as_view(), name="project_phase_list"),
     path("projects/phases/new/", views.ProjectPhaseCreateView.as_view(), name="project_phase_create"),

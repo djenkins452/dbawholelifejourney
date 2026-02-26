@@ -208,6 +208,8 @@ def _ensure_preferences(user):
         prefs.ai_enabled = True
         prefs.capture_enabled = True
         prefs.scan_enabled = True
+        prefs.personal_assistant_enabled = True
+        prefs.personal_assistant_consent = True
         prefs.email_notifications_enabled = False
         prefs.notifications_enabled = False
         prefs.save()

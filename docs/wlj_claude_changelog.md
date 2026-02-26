@@ -9,6 +9,18 @@
 
 # WLJ Change History
 
+## 2026-02-26 — Phase 5: Admin Console & COS Test Suites
+
+**What:** Built UI test suites for the final two modules: Admin Console and Calendar of Services (COS). These were explicitly requested — Admin Console because admins are users too, and COS because it's the heart of the system.
+
+**Admin Console (24 tests):** Auth (1), Dashboard (5: page load, title, quick stats, admin cards, ops/testing cards), Themes (3: list loads, title/content, breadcrumb nav), Tasks (3: list loads, title/controls, What's Next button), Users (2: list loads, title/table), Site Config (2: page loads, branding section), UI Test Runner (2: page loads, module tiles), Operations Wall (1: page loads), Announcements (2: list loads, title/create button), Navigation (3: dashboard→themes, dashboard→tasks, breadcrumb back). Templates instrumented: dashboard.html, theme_list.html, admin_task_list.html, user_list.html, site_config.html, ui_test_modules.html, operations_wall.html, system_announcement_list.html.
+
+**COS (15 tests):** Auth (1), Panel Presence (5: panel on dashboard, panel on journal page, chat input, messages container, send button), Chat Interaction (7: type message, send greeting, ask about features, ask about journal, ask about goals, ask about schedule, ask about health), Settings (2: settings page loads, shows title). Templates instrumented: assistant_panel.html, cos_settings.html. Also enabled personal_assistant for test user in test_user_service.py.
+
+**Result:** Admin Console 24/24 (100%), COS 15/15 (100%), both stable across multiple runs.
+
+---
+
 ## 2026-02-26 — Phase 4b: Fill Empty Suites (Organize, Preferences)
 
 **What:** Populated the two empty test suites that showed 0 cases on the UI Test Runner page.

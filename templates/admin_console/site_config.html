@@ -3,11 +3,11 @@
 {% block title %}Site Configuration - Admin Console{% endblock %}
 
 {% block content %}
-<div class="container">
+<div class="container" data-testid="ac-site-config">
     <div class="page-header">
         <div>
             <nav class="breadcrumb">
-                <a href="{% url 'admin_console:dashboard' %}">Admin Console</a>
+                <a href="{% url 'admin_console:dashboard' %}" data-testid="ac-back-link">Admin Console</a>
                 <span>/</span>
                 <span>Site Configuration</span>
             </nav>

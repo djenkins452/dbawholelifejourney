@@ -14,4 +14,509 @@ defaults:
   screenshot_on_failure: true
   html_dump_on_failure: true
 
-cases: []
+cases:
+
+  # ============================================================
+  # AUTH
+  # ============================================================
+
+  - id: "AC-AUTH-001"
+    name: "Login and navigate to admin console"
+    priority: "high"
+    tags: ["auth", "smoke"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/accounts/logout/"
+      - action: "NAVIGATE"
+        url: "/accounts/login/"
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "login-email-input"
+        input: "${TEST_USERNAME}"
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "login-password-input"
+        input: "${TEST_PASSWORD}"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "login-submit-button"
+        timeout_ms: 10000
+      - action: "WAIT"
+        timeout_ms: 3000
+    asserts:
+      - type: "url_contains"
+        expected: "/dashboard/"
+
+  # ============================================================
+  # DASHBOARD
+  # ============================================================
+
+  - id: "AC-DASH-001"
+    name: "Admin console dashboard loads"
+    priority: "high"
+    tags: ["dashboard", "smoke"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/admin-console/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/admin-console/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "ac-dashboard"
+
+  - id: "AC-DASH-002"
+    name: "Dashboard shows title"
+    priority: "medium"
+    tags: ["dashboard"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/admin-console/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "ac-dashboard"
+        expected: "Admin Console"
+
+  - id: "AC-DASH-003"
+    name: "Dashboard shows quick stats"
+    priority: "medium"
+    tags: ["dashboard"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/admin-console/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "ac-dashboard"
+        expected: "Users"
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "ac-dashboard"
+        expected: "Journal Entries"
+
+  - id: "AC-DASH-004"
+    name: "Dashboard shows admin section cards"
+    priority: "medium"
+    tags: ["dashboard"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/admin-console/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "ac-dashboard"
+        expected: "Site Configuration"
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "ac-dashboard"
+        expected: "Themes"
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "ac-dashboard"
+        expected: "Categories"
+
+  - id: "AC-DASH-005"
+    name: "Dashboard shows operations and testing cards"
+    priority: "medium"
+    tags: ["dashboard"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/admin-console/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "ac-dashboard"
+        expected: "UI Test Runner"
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "ac-dashboard"
+        expected: "Test History"
+
+  # ============================================================
+  # THEME LIST
+  # ============================================================
+
+  - id: "AC-THEME-001"
+    name: "Theme list page loads"
+    priority: "high"
+    tags: ["themes"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/admin-console/themes/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/admin-console/themes/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "ac-theme-list"
+
+  - id: "AC-THEME-002"
+    name: "Theme list shows title and themes"
+    priority: "medium"
+    tags: ["themes"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/admin-console/themes/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "ac-theme-list"
+        expected: "Themes"
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "ac-theme-list"
+        expected: "New Theme"
+
+  - id: "AC-THEME-003"
+    name: "Theme list breadcrumb links back to dashboard"
+    priority: "medium"
+    tags: ["themes", "navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/admin-console/themes/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "ac-back-link"
+        timeout_ms: 5000
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/admin-console/"
+
+  # ============================================================
+  # TASK LIST
+  # ============================================================
+
+  - id: "AC-TASK-001"
+    name: "Task list page loads"
+    priority: "high"
+    tags: ["tasks"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/admin-console/projects/tasks/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/admin-console/projects/tasks/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "ac-task-list"
+
+  - id: "AC-TASK-002"
+    name: "Task list shows title and controls"
+    priority: "medium"
+    tags: ["tasks"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/admin-console/projects/tasks/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "ac-task-list"
+        expected: "Task List"
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "ac-task-list"
+        expected: "Task Intake"
+
+  - id: "AC-TASK-003"
+    name: "Task list has What's Next button"
+    priority: "medium"
+    tags: ["tasks"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/admin-console/projects/tasks/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "ac-task-list"
+        expected: "What's Next?"
+
+  # ============================================================
+  # USER LIST
+  # ============================================================
+
+  - id: "AC-USER-001"
+    name: "User list page loads"
+    priority: "high"
+    tags: ["users"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/admin-console/users/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/admin-console/users/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "ac-user-list"
+
+  - id: "AC-USER-002"
+    name: "User list shows title and table"
+    priority: "medium"
+    tags: ["users"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/admin-console/users/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "ac-user-list"
+        expected: "Users"
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "ac-user-list"
+        expected: "Email"
+
+  # ============================================================
+  # SITE CONFIG
+  # ============================================================
+
+  - id: "AC-CONFIG-001"
+    name: "Site configuration page loads"
+    priority: "high"
+    tags: ["config"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/admin-console/config/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/admin-console/config/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "ac-site-config"
+
+  - id: "AC-CONFIG-002"
+    name: "Site config shows branding section"
+    priority: "medium"
+    tags: ["config"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/admin-console/config/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "ac-site-config"
+        expected: "Site Configuration"
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "ac-site-config"
+        expected: "Branding"
+
+  # ============================================================
+  # UI TEST RUNNER
+  # ============================================================
+
+  - id: "AC-UITEST-001"
+    name: "UI test runner page loads"
+    priority: "high"
+    tags: ["testing"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/admin-console/ui-tests/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/admin-console/ui-tests/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "ac-ui-test-runner"
+
+  - id: "AC-UITEST-002"
+    name: "UI test runner shows module tiles"
+    priority: "medium"
+    tags: ["testing"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/admin-console/ui-tests/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "ac-ui-test-runner"
+        expected: "UI Test Runner"
+
+  # ============================================================
+  # OPERATIONS WALL
+  # ============================================================
+
+  - id: "AC-OPS-001"
+    name: "Operations wall loads"
+    priority: "high"
+    tags: ["operations"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/admin-console/ops/"
+      - action: "WAIT"
+        timeout_ms: 3000
+    asserts:
+      - type: "url_contains"
+        expected: "/admin-console/ops/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "ac-operations-wall"
+
+  # ============================================================
+  # SYSTEM ANNOUNCEMENTS
+  # ============================================================
+
+  - id: "AC-ANN-001"
+    name: "System announcements page loads"
+    priority: "high"
+    tags: ["announcements"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/admin-console/announcements/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/admin-console/announcements/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "ac-announcements"
+
+  - id: "AC-ANN-002"
+    name: "Announcements shows title and create button"
+    priority: "medium"
+    tags: ["announcements"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/admin-console/announcements/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "ac-announcements"
+        expected: "System Announcements"
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "ac-announcements"
+        expected: "New Announcement"
+
+  # ============================================================
+  # NAVIGATION
+  # ============================================================
+
+  - id: "AC-NAV-001"
+    name: "Dashboard to themes navigation"
+    priority: "medium"
+    tags: ["navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/admin-console/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "NAVIGATE"
+        url: "/admin-console/themes/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "ac-theme-list"
+
+  - id: "AC-NAV-002"
+    name: "Dashboard to tasks navigation"
+    priority: "medium"
+    tags: ["navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/admin-console/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "NAVIGATE"
+        url: "/admin-console/projects/tasks/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "ac-task-list"
+
+  - id: "AC-NAV-003"
+    name: "Task list breadcrumb back to dashboard"
+    priority: "medium"
+    tags: ["navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/admin-console/projects/tasks/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "ac-back-link"
+        timeout_ms: 5000
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/admin-console/"

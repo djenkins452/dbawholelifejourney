@@ -9,6 +9,19 @@
 
 # WLJ Change History
 
+## 2026-02-25 — Page context extraction + save_verse false positive fix
+
+**What:** Two fixes for AI chat quality:
+1. **Page context not reaching AI** — `assistant_panel.html` only sent URL and page title to the AI chat API. Added `extractPageContent()` and `getFullPageContext()` functions that scrape rich page context (scripture references, reading plan details, health data, medicine schedules, etc.) from the current page DOM and send it with every chat message. This gives the AI awareness of what the user is actually looking at.
+2. **save_verse false positive** — Conversational scripture mentions like "the screen has Matthew 13:1-30" were incorrectly triggering the `save_verse` intent. Tightened the intent description to require explicit action words (save/bookmark/remember/keep) and added negative examples to the intent_service.py prompt showing common conversational patterns that should NOT trigger save_verse.
+
+**Why:** Users reported the AI ignored scripture on their screen (Matthew 13:1-30) and picked random verses instead, because it had no page context. Users also reported that correcting the AI ("the screen has Matthew 13:1-30") triggered a save_verse action instead of being treated as conversation.
+
+**Files:**
+- `templates/components/assistant_panel.html` — MODIFIED: Added `extractPageContent()`, `getFullPageContext()`, updated JSON + FormData request paths
+- `apps/ai/intents/faith_intents.py` — MODIFIED: Tightened `save_verse` description with explicit action-word requirement
+- `apps/ai/intent_service.py` — MODIFIED: Added save_verse negative examples + reinforced NOT-trigger section
+
 ## 2026-02-25 — Structured conversation threading for AI chat
 
 **What:** Replaced the flat-text conversation history embedding with proper OpenAI structured message arrays. Previously, conversation history was converted to a string like "User: ... Assistant: ..." and stuffed into the user prompt as plain text. Now, history is passed as structured `[{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]` message objects between the system prompt and current user message — exactly how OpenAI's API is designed to handle multi-turn conversations.

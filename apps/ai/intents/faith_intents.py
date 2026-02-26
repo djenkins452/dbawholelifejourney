@@ -75,7 +75,7 @@ FAITH_INTENT_TOOLS = [
         "type": "function",
         "function": {
             "name": "save_verse",
-            "description": "Save a scripture verse to the user's collection. Use when user wants to save, bookmark, or remember a Bible verse.",
+            "description": "Save a scripture verse to the user's collection. ONLY use when user explicitly asks to save, bookmark, or remember a verse using action words like 'save', 'bookmark', 'remember', 'keep'. Do NOT trigger when user merely mentions, asks about, discusses, or references a scripture passage in conversation.",
             "parameters": {
                 "type": "object",
                 "properties": {

@@ -9,6 +9,22 @@
 
 # WLJ Change History
 
+## 2026-02-25 — WLJ UI Testing Framework Phase 1: Skeleton
+
+**What:** Created the directory structure and skeleton files for the WLJ Functional UI Testing Framework (Phase 1 of 11). No logic code — just the scaffolding required to build on in subsequent phases.
+
+**Files:**
+- `wlj_ui_tests/framework/__init__.py` — NEW: Package init
+- `wlj_ui_tests/framework/version.py` — NEW: `__version__ = "0.1.0"`, schema version constants
+- `wlj_ui_tests/requirements.txt` — NEW: playwright, pyyaml, jsonschema dependencies
+- `wlj_ui_tests/wlj_test_master_prompt_requirements.md` — MODIFIED: Phase 1 checklist + tracking log updated
+- `wlj_ui_tests/{reports,artifacts}/.gitkeep` — NEW: Top-level report/artifact dirs
+- `wlj_ui_tests/modules/{journal,faith,health,organize,goals,capture,cos,preferences,admin}/{reports,artifacts}/.gitkeep` — NEW: Per-module report/artifact dirs
+
+**Why:** Phase 1 establishes the directory skeleton and version file per the master requirements document. No framework logic — that starts in Phase 2.
+
+---
+
 ## 2026-02-25 — APScheduler health check + auto-restart endpoint
 
 **What:** Added scheduler health monitoring and restart capability. The APScheduler runs in-process with Gunicorn; if the scheduler thread dies while Gunicorn stays alive, ISE and all downstream engines stop. This adds detection and recovery without requiring a full container restart.

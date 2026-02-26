@@ -14,4 +14,135 @@ defaults:
   screenshot_on_failure: true
   html_dump_on_failure: true
 
-cases: []
+cases:
+  - id: "GOAL-001"
+    name: "Goals list page loads"
+    priority: "high"
+    tags: ["smoke", "auth", "crud"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/accounts/logout/"
+      - action: "NAVIGATE"
+        url: "/accounts/login/"
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "login-email-input"
+        input: "${TEST_USERNAME}"
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "login-password-input"
+        input: "${TEST_PASSWORD}"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "login-submit-button"
+      - action: "WAIT"
+        timeout_ms: 3000
+      - action: "NAVIGATE"
+        url: "/purpose/goals/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/purpose/goals/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "goal-list"
+
+  - id: "GOAL-002"
+    name: "Goal create flow redirects to detail"
+    priority: "high"
+    tags: ["smoke", "crud"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/purpose/goals/new/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "goal-title-input"
+        input: "AUTOTEST|goals|${RUN_ID}|Smoke Test Goal"
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "goal-description-input"
+        input: "This is an automated test goal created by the WLJ UI test framework."
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "goal-save-button"
+      - action: "WAIT"
+        timeout_ms: 3000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "goal-detail"
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "goal-title"
+        expected: "AUTOTEST|goals|${RUN_ID}|Smoke Test Goal"
+
+  - id: "GOAL-003"
+    name: "Goal detail page loads from list click"
+    priority: "high"
+    tags: ["smoke", "crud"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/purpose/goals/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "text_contains"
+          value: "AUTOTEST|goals|${RUN_ID}|Smoke Test Goal"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "goal-detail"
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "goal-title"
+        expected: "AUTOTEST|goals|${RUN_ID}|Smoke Test Goal"
+
+  - id: "GOAL-004"
+    name: "Goal edit flow works"
+    priority: "high"
+    tags: ["smoke", "crud"]
+    steps:
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "goal-edit-button"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "goal-title-input"
+        input: "AUTOTEST|goals|${RUN_ID}|Edited Goal"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "goal-save-button"
+      - action: "WAIT"
+        timeout_ms: 3000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "goal-detail"
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "goal-title"
+        expected: "AUTOTEST|goals|${RUN_ID}|Edited Goal"

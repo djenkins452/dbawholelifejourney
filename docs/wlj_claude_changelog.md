@@ -9,6 +9,27 @@
 
 # WLJ Change History
 
+## 2026-02-26 — Goals module UI test coverage + CSP fixes + create redirect fix
+
+**What:** Expanded WLJ UI test framework coverage to the Goals module with 4 test cases (GOAL-001 through GOAL-004). Also fixed 5 CSP inline event handler violations in goal_detail.html and changed GoalCreateView to redirect to the goal detail page instead of the list.
+
+**Changes:**
+1. Created `wlj_ui_tests/modules/goals/suite.yaml` with 4 cases: list page loads, create flow redirects to detail, detail page loads from list click, edit flow works
+2. Added `data-testid` attributes to goal templates: `goal-list`, `goal-detail`, `goal-title`, `goal-form`, `goal-title-input`, `goal-description-input`, `goal-save-button`, `goal-edit-button`, `goal-delete-button`
+3. Fixed 5 CSP violations in goal_detail.html: replaced `onclick="toggleMilestoneForm()"`, `onclick="toggleMilestoneEdit(id)"`, and `onclick="closeCelebrationModal()"` with `data-action` attributes + `addEventListener()` patterns. Added `nonce="{{ csp_nonce }}"` to script tags.
+4. Changed `GoalCreateView.get_success_url()` to redirect to `purpose:goal_detail` instead of `purpose:goal_list` for consistency with journal create flow
+
+**Why:** Expanding UI test coverage to goals module per test framework rollout plan. CSP violations were auto-fixed per CLAUDE.md auto-fix rule. Create redirect fixed to match test spec and journal pattern.
+
+**Files:**
+- `wlj_ui_tests/modules/goals/suite.yaml` — MODIFIED: Added 4 test cases
+- `apps/purpose/templates/purpose/goal_list.html` — MODIFIED: Added data-testid="goal-list"
+- `apps/purpose/templates/purpose/goal_detail.html` — MODIFIED: Added data-testid attrs, fixed 5 CSP violations
+- `apps/purpose/templates/purpose/goal_form.html` — MODIFIED: Added data-testid attrs
+- `apps/purpose/views.py` — MODIFIED: GoalCreateView redirect to goal_detail
+
+**Test results:** 4/4 UI tests passing (100%), 172/172 purpose Django tests passing
+
 ## 2026-02-26 — Calendar duplicate cleanup + root cause fix
 
 **What:** Fixed duplicate calendar events appearing on the Time Command Center. Two issues:

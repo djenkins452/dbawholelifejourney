@@ -8,6 +8,7 @@ from .reporting import ReportWriter
 from .artifacts import ArtifactCapture
 from .prompt_builder import PromptBuilder
 from .schema_validator import SchemaValidator, ValidationError
+from .safety import SafetyController, SafetyError, is_production
 
 __all__ = [
     "__version__",
@@ -18,4 +19,5 @@ __all__ = [
     "ArtifactCapture",
     "PromptBuilder",
     "SchemaValidator", "ValidationError",
+    "SafetyController", "SafetyError", "is_production",
 ]

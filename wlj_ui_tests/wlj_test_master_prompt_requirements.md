@@ -2,7 +2,7 @@
 
 **Version:** 1.1.0
 **Created:** 2026-02-25
-**Status:** Phase 9 — Module Isolation System (Complete)
+**Status:** Phase 10 — Safety Controls (Complete)
 **Author:** Claude Code (Opus 4.6)
 
 ---
@@ -1205,11 +1205,11 @@ git log --all --oneline -- '*.html' | head -20
 - [x] Lines of code ≤ 200
 
 ### Phase 10 Checklist
-- [ ] `framework/safety.py` created
-- [ ] Production safety mode activates on production URLs
-- [ ] Cleanup prefix enforcement blocks non-matching deletions
-- [ ] Rate limiting works in production mode
-- [ ] Lines of code ≤ 250
+- [x] `framework/safety.py` created
+- [x] Production safety mode activates on production URLs
+- [x] Cleanup prefix enforcement blocks non-matching deletions
+- [x] Rate limiting works in production mode
+- [x] Lines of code ≤ 250
 
 ### Phase 11 Checklist
 - [ ] `run_suite.py` created
@@ -1315,7 +1315,7 @@ This section is updated after each phase completion to track implementation prog
 | 7 | **COMPLETE** | 2026-02-25 | 2026-02-25 | 1 | 2 | PromptBuilder: claude_fix_prompt.md generation from failures, NDJSON reader, actionable fix steps |
 | 8 | **COMPLETE** | 2026-02-25 | 2026-02-25 | 1 | 2 | SchemaValidator: full YAML schema validation, enum checks, conditional requirements, descriptive errors |
 | 9 | **COMPLETE** | 2026-02-25 | 2026-02-25 | 9 | 2 | Module isolation: 9 stub suite.yaml files, module path resolution in runner, list_modules() |
-| 10 | PENDING | — | — | — | — | — |
+| 10 | **COMPLETE** | 2026-02-25 | 2026-02-25 | 1 | 2 | SafetyController: env detection, cleanup prefix enforcement, rate limiting, destructive action blocking, audit log |
 | 11 | PENDING | — | — | — | — | — |
 
 ---

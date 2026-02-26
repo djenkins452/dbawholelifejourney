@@ -61,6 +61,20 @@
 - `apps/ai/tests/test_values_filter.py` — Updated test docstring to match new culture description
 - `apps/users/management/commands/setup_app_review_account.py` — Updated sample journal title
 
+## 2026-02-25 — WLJ UI Testing Framework Phase 10: Safety Controls
+
+**What:** Implemented `SafetyController` class with production safety mode per Section 11. Auto-detects production vs development from BASE_URL (railway.app, wholelifejourney.com = prod; localhost, 127.0.0.1 = dev; unknown defaults to prod). Enforces cleanup prefix pattern `AUTOTEST|<MODULE>|<RUN_ID>|`, rate limiting (500ms between navigations, 200ms between actions in prod), destructive action blocking (DELETE/DROP/TRUNCATE/DESTROY), mandatory artifact capture in prod, and audit logging.
+
+**Files:**
+- `wlj_ui_tests/framework/safety.py` — NEW: `SafetyController`, `SafetyError`, `is_production()`, cleanup prefix validation, rate limiting, destructive action blocking, audit log
+- `wlj_ui_tests/framework/__init__.py` — MODIFIED: Added `SafetyController`, `SafetyError`, `is_production` exports
+- `wlj_ui_tests/framework/version.py` — MODIFIED: Bumped to `0.10.0`
+- `wlj_ui_tests/wlj_test_master_prompt_requirements.md` — MODIFIED: Phase 10 checklist checked, tracking log updated
+
+**Why:** Phase 10 of the UI testing framework. Safety controls prevent test framework from accidentally corrupting production data, ensuring all test data uses the AUTOTEST prefix and rate-limiting actions against production servers.
+
+---
+
 ## 2026-02-25 — WLJ UI Testing Framework Phase 9: Module Isolation System
 
 **What:** Created stub `suite.yaml` files for all 9 initial modules (journal, faith, health, organize, goals, capture, cos, preferences, admin). Each is a valid schema-compliant YAML file with session auth and standard defaults. Enhanced `SuiteRunner` with module path resolution: `resolve_module_suite()`, `module_reports_dir()`, `module_artifacts_dir()`, `list_modules()`, and `--module` constructor parameter. Runner now supports both `suite_path` and `module` initialization.

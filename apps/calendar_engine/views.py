@@ -570,8 +570,7 @@ class AcceptSuggestionView(LoginRequiredMixin, View):
             except (Task.DoesNotExist, ValueError):
                 return JsonResponse({'error': 'Task not found'}, status=404)
         elif source_type == 'goal':
-            # Create execution block linked to goal
-            from apps.purpose.models import LifeDomain
+            # Create or update execution block linked to goal
             domain = None
             try:
                 from apps.purpose.models import LifeGoal
@@ -579,6 +578,23 @@ class AcceptSuggestionView(LoginRequiredMixin, View):
                 domain = goal.domain
             except Exception:
                 pass
+
+            # Check for existing execution block for this goal
+            existing = CalendarEvent.objects.filter(
+                user=request.user,
+                source_type=CalendarEvent.SOURCE_GOAL,
+                source_id=str(source_id),
+                event_kind=CalendarEvent.KIND_EXECUTION_BLOCK,
+                status=CalendarEvent.STATUS_SCHEDULED,
+                deleted_at__isnull=True,
+            ).first()
+
+            if existing:
+                existing.start_dt = start_dt
+                existing.end_dt = end_dt
+                existing.domain = domain
+                existing.save(update_fields=['start_dt', 'end_dt', 'domain', 'updated_at'])
+                return JsonResponse({'event': _event_to_dict(existing)})
 
             event = CalendarEvent.objects.create(
                 user=request.user,

@@ -9,6 +9,21 @@
 
 # WLJ Change History
 
+## 2026-02-26 — Calendar duplicate cleanup + root cause fix
+
+**What:** Fixed duplicate calendar events appearing on the Time Command Center. Two issues:
+
+1. **Root cause fix** — `upsert_execution_block_for_task()` in `projection.py` created new events blindly via `CalendarEvent.objects.create()`, bypassing all duplicate detection in `CalendarMutationService`. When both the signal-triggered projection AND the AcceptSuggestionView fired for the same task, two execution blocks were created. Fixed by adding upsert logic: check for existing execution block with same `source_type + source_id` before creating. Same fix applied to goal execution blocks in `AcceptSuggestionView`.
+
+2. **Cleanup command** — New `cleanup_calendar_duplicates` management command that scans all events, groups by `(title, date)`, and soft-deletes lower-priority duplicates. Priority: protected > execution_block > manual > oldest. Supports `--dry-run` (default), `--apply`, `--days`, `--future-days`, `--user`.
+
+Also fixed: `upsert_execution_block_for_task()` was prefixing titles with "Work on: " which created semantic-dedup mismatches vs the signal path that used the bare task title.
+
+**Files:**
+- `apps/calendar_engine/services/projection.py` — MODIFIED: `upsert_execution_block_for_task()` now checks for existing events before creating; uses bare task title
+- `apps/calendar_engine/views.py` — MODIFIED: `AcceptSuggestionView` goal path now checks for existing execution blocks
+- `apps/calendar_engine/management/commands/cleanup_calendar_duplicates.py` — NEW: Dedup cleanup command
+
 ## 2026-02-25 — Page context extraction + save_verse false positive fix
 
 **What:** Two fixes for AI chat quality:

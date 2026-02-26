@@ -122,6 +122,14 @@ class BrowserManager:
         self._context.set_default_timeout(self.timeout)
 
         self._page = self._context.new_page()
+
+        # Auto-accept browser dialogs (confirm, alert, prompt) so that
+        # tests can interact with forms that use native confirm() guards
+        # (e.g., data-confirm-delete).  Without this, Playwright
+        # auto-*dismisses* dialogs, causing confirm() to return False
+        # and blocking form submissions.
+        self._page.on("dialog", lambda dialog: dialog.accept())
+
         self._started = True
 
         return self._page

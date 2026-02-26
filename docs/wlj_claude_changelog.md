@@ -9,6 +9,31 @@
 
 # WLJ Change History
 
+## 2026-02-26 — Journal Module: Comprehensive UI Test Coverage Expansion
+
+**What:** Expanded journal UI test suite from 4 basic smoke tests to 37 comprehensive test cases covering all CRUD operations, navigation flows, validation, and delete confirmation. Added missing `data-testid` attributes to journal templates and dialog auto-accept to BrowserManager for confirm dialog support.
+
+**Test Coverage (37 cases):**
+- **Authentication (1):** JRN-AUTH-001
+- **List Page (7):** JRN-LIST-001 through JRN-LIST-007 — loads, empty state, entries display, title/preview verification, click-to-detail, create button navigation
+- **Create Entry (8):** JRN-CREATE-001 through JRN-CREATE-008 — form loads, validation, cancel, create+redirect, title/body verification, save-and-add-another
+- **Detail Page (6):** JRN-DETAIL-001 through JRN-DETAIL-006 — loads, title/body display, edit/delete/back button existence
+- **Edit Entry (6):** JRN-EDIT-001 through JRN-EDIT-006 — loads, cancel returns, edit+save, changes persist, redirect, validation
+- **Delete Entry (4):** JRN-DELETE-001 through JRN-DELETE-004 — create target, confirm delete, redirect to list, entry removed
+- **Navigation (4):** JRN-NAV-001 through JRN-NAV-004 — list↔create, list↔detail, detail↔edit, detail→delete→list
+- **Cleanup (1):** JRN-CLEANUP — removes all AUTOTEST entries
+
+**Files:**
+- `wlj_ui_tests/modules/journal/suite.yaml` — expanded from 4 to 37 test cases
+- `templates/journal/entry_list.html` — added `data-testid` for entry-link, entry-preview, empty-state
+- `templates/journal/entry_detail.html` — added `data-testid` for edit-button, back-button
+- `templates/journal/entry_form.html` — added `data-testid` for cancel-button, save-add-another-button
+- `wlj_ui_tests/framework/browser_manager.py` — added dialog auto-accept (one line) for confirm() dialogs
+
+**Results:** 37/37 passing, 100% pass rate, stable across multiple runs.
+
+---
+
 ## 2026-02-26 — UI Test Runner: Headed Mode toggle
 
 **What:** Added a "Headed Mode" checkbox to the UI Test Runner page. When enabled, Playwright launches a visible Chromium browser window so you can watch tests execute in real time.

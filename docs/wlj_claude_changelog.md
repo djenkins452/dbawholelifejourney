@@ -9,6 +9,19 @@
 
 # WLJ Change History
 
+## 2026-02-25 — WLJ UI Testing Framework Phase 11: CLI Runner (FINAL PHASE)
+
+**What:** Created `run_suite.py` CLI entry point — the command-line interface for running test suites. Supports `--suite` (file path) and `--module` (name) as mutually exclusive run targets, plus `--base-url`, `--headed`, `--env`, `--list-modules`, and `--version`. Validates YAML schema before execution. Exit codes: 0=all pass, 1=failures, 2=error. Outputs human-readable summary to stdout and JSON summary to stderr for CI integration. **This completes all 12 phases (0–11) of the WLJ UI Testing Framework.**
+
+**Files:**
+- `wlj_ui_tests/run_suite.py` — NEW: CLI entry point with argparse, schema validation, runner wiring, summary output
+- `wlj_ui_tests/framework/version.py` — MODIFIED: Bumped to `0.11.0`
+- `wlj_ui_tests/wlj_test_master_prompt_requirements.md` — MODIFIED: Phase 11 checklist checked, tracking log updated, status set to ALL PHASES COMPLETE
+
+**Why:** Final phase of the UI testing framework. The CLI runner is the user-facing entry point that ties together all framework subsystems: runner, executor, selectors, reporting, artifacts, prompt builder, schema validator, and safety controls.
+
+---
+
 ## 2026-02-25 — WLJ UI Testing Framework Phase 10: Safety Controls
 
 **What:** Implemented `SafetyController` class with production safety mode per Section 11. Auto-detects production vs development from BASE_URL (railway.app, wholelifejourney.com = prod; localhost, 127.0.0.1 = dev; unknown defaults to prod). Enforces cleanup prefix pattern `AUTOTEST|<MODULE>|<RUN_ID>|`, rate limiting (500ms between navigations, 200ms between actions in prod), destructive action blocking (DELETE/DROP/TRUNCATE/DESTROY), mandatory artifact capture in prod, and audit logging.

@@ -61,6 +61,20 @@
 - `apps/ai/tests/test_values_filter.py` — Updated test docstring to match new culture description
 - `apps/users/management/commands/setup_app_review_account.py` — Updated sample journal title
 
+## 2026-02-25 — WLJ UI Testing Framework Phase 5: Reporting System
+
+**What:** Implemented `ReportWriter` class that writes pass/fail NDJSON logs, step-level execution logs, and run summaries. Supports dual output to both module-scoped and aggregated report directories. Includes `framework_version` and `schema_version` in run summaries per Section 16.5.
+
+**Files:**
+- `wlj_ui_tests/framework/reporting.py` — NEW: `ReportWriter` class with `record_pass()`, `record_fail()`, `log_event()`, `log_step()`, `write_all()`, NDJSON writer, run summary generator
+- `wlj_ui_tests/framework/__init__.py` — MODIFIED: Added `ReportWriter` export
+- `wlj_ui_tests/framework/version.py` — MODIFIED: Bumped to `0.5.0`
+- `wlj_ui_tests/wlj_test_master_prompt_requirements.md` — MODIFIED: Phase 5 checklist checked, tracking log updated
+
+**Why:** Phase 5 of the UI testing framework. The reporting engine provides structured NDJSON output for pass/fail tracking, step-level execution logs for debugging, and JSON run summaries for CI/CD integration.
+
+---
+
 ## 2026-02-25 — WLJ UI Testing Framework Phase 4: Selector System
 
 **What:** Implemented `SelectorResolver` class with 5 selector strategies (data-testid, id, name, role, text_contains), priority-based compound resolution, and strategy metadata extraction. Refactored executor.py to delegate selector resolution to the new selectors module.

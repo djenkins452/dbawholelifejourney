@@ -2,7 +2,7 @@
 
 **Version:** 1.1.0
 **Created:** 2026-02-25
-**Status:** Phase 4 — Selector System (Complete)
+**Status:** Phase 5 — Reporting System (Complete)
 **Author:** Claude Code (Opus 4.6)
 
 ---
@@ -1171,12 +1171,12 @@ git log --all --oneline -- '*.html' | head -20
 - [x] Lines of code ≤ 200 (153 lines)
 
 ### Phase 5 Checklist
-- [ ] `framework/reporting.py` created
-- [ ] `pass.ndjson` output is valid NDJSON
-- [ ] `fail.ndjson` output is valid NDJSON
-- [ ] `execution_log.ndjson` records step-level actions per Section 8.5
-- [ ] `run_summary.json` contains correct aggregate stats and `framework_version`
-- [ ] Lines of code ≤ 250
+- [x] `framework/reporting.py` created
+- [x] `pass.ndjson` output is valid NDJSON
+- [x] `fail.ndjson` output is valid NDJSON
+- [x] `execution_log.ndjson` records step-level actions per Section 8.5
+- [x] `run_summary.json` contains correct aggregate stats and `framework_version`
+- [x] Lines of code ≤ 250 (166 lines)
 
 ### Phase 6 Checklist
 - [ ] `framework/artifacts.py` created
@@ -1310,7 +1310,7 @@ This section is updated after each phase completion to track implementation prog
 | 2 | **COMPLETE** | 2026-02-25 | 2026-02-25 | 1 | 2 | SuiteRunner: YAML loading, case iteration, RUN_ID, state lock, variable substitution |
 | 3 | **COMPLETE** | 2026-02-25 | 2026-02-25 | 1 | 2 | ActionExecutor: 6 action types, 8 assertion types, basic selector resolution |
 | 4 | **COMPLETE** | 2026-02-25 | 2026-02-25 | 1 | 3 | SelectorResolver: 5 strategies, priority resolution, compound selectors; executor refactored to use selectors module |
-| 5 | PENDING | — | — | — | — | — |
+| 5 | **COMPLETE** | 2026-02-25 | 2026-02-25 | 1 | 2 | ReportWriter: pass/fail NDJSON, execution_log NDJSON, run_summary.json with framework_version |
 | 6 | PENDING | — | — | — | — | — |
 | 7 | PENDING | — | — | — | — | — |
 | 8 | PENDING | — | — | — | — | — |

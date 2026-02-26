@@ -21,6 +21,8 @@ cases:
     tags: ["smoke", "auth"]
     steps:
       - action: "NAVIGATE"
+        url: "/accounts/logout/"
+      - action: "NAVIGATE"
         url: "/accounts/login/"
       - action: "TYPE"
         selector:

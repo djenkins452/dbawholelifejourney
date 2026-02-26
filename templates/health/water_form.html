@@ -3,11 +3,11 @@
 {% block title %}{% if object %}Edit{% else %}Log{% endif %} Water - Health - Whole Life Journey{% endblock %}
 
 {% block content %}
-<div class="content-container">
+<div class="content-container" data-testid="health-water-form">
     <nav class="breadcrumb mb-4">
         <a href="{% url 'health:home' %}">Health</a>
         <span>/</span>
-        <a href="{% url 'health:water_list' %}">Water</a>
+        <a href="{% url 'health:water_list' %}" data-testid="health-back-link">Water</a>
         <span>/</span>
         <span>{% if object %}Edit{% else %}Log{% endif %}</span>
     </nav>
@@ -16,7 +16,7 @@
         <h1 class="page-title">{% if object %}Edit{% else %}Log{% endif %} Water Intake</h1>
     </div>
 
-    <form method="post" class="card">
+    <form method="post" class="card" data-testid="water-form">
         {% csrf_token %}
 
         <!-- Quick Presets -->
@@ -121,7 +121,7 @@
         </div>
 
         <div class="form-actions">
-            <button type="submit" class="btn btn-primary">
+            <button type="submit" class="btn btn-primary" data-testid="water-save-button">
                 {% if object %}Save Changes{% else %}Log Water{% endif %}
             </button>
             {% if not object %}
@@ -129,7 +129,7 @@
                 Save &amp; Add Another
             </button>
             {% endif %}
-            <a href="{% url 'health:water_list' %}" class="btn btn-ghost">Cancel</a>
+            <a href="{% url 'health:water_list' %}" class="btn btn-ghost" data-testid="water-cancel-button">Cancel</a>
         </div>
     </form>
 </div>

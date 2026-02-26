@@ -14,4 +14,706 @@ defaults:
   screenshot_on_failure: true
   html_dump_on_failure: true
 
-cases: []
+cases:
+
+  # ============================================================
+  # AUTH
+  # ============================================================
+
+  - id: "HEALTH-AUTH-001"
+    name: "Login and navigate to health landing"
+    priority: "high"
+    tags: ["smoke", "auth"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/accounts/logout/"
+      - action: "NAVIGATE"
+        url: "/accounts/login/"
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "login-email-input"
+        input: "${TEST_USERNAME}"
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "login-password-input"
+        input: "${TEST_PASSWORD}"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "login-submit-button"
+        timeout_ms: 10000
+      - action: "WAIT"
+        timeout_ms: 3000
+    asserts:
+      - type: "url_contains"
+        expected: "/dashboard/"
+
+  # ============================================================
+  # LANDING PAGE
+  # ============================================================
+
+  - id: "HEALTH-LANDING-001"
+    name: "Landing page loads with correct structure"
+    priority: "high"
+    tags: ["landing", "smoke"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/health/"
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "health-landing"
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "health-landing"
+        expected: "Health"
+
+  - id: "HEALTH-LANDING-002"
+    name: "Physical Health tile is visible"
+    priority: "high"
+    tags: ["landing"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/health/"
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "health-landing"
+        expected: "Physical Health"
+
+  - id: "HEALTH-LANDING-003"
+    name: "Cognitive Health tile is visible"
+    priority: "medium"
+    tags: ["landing"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/health/"
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "health-landing"
+        expected: "Cognitive Health"
+
+  # ============================================================
+  # PHYSICAL HEALTH HOME
+  # ============================================================
+
+  - id: "HEALTH-HOME-001"
+    name: "Navigate to Physical Health home"
+    priority: "high"
+    tags: ["home", "smoke"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/health/physical/"
+    asserts:
+      - type: "url_contains"
+        expected: "/health/physical/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "health-home"
+
+  - id: "HEALTH-HOME-002"
+    name: "Health home has breadcrumb back to landing"
+    priority: "medium"
+    tags: ["home", "nav"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/health/physical/"
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "health-back-link"
+
+  - id: "HEALTH-HOME-003"
+    name: "Health home displays Physical Health title"
+    priority: "medium"
+    tags: ["home"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/health/physical/"
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "health-home"
+        expected: "Physical Health"
+
+  # ============================================================
+  # WEIGHT - LIST
+  # ============================================================
+
+  - id: "HEALTH-WEIGHT-001"
+    name: "Navigate to Weight list"
+    priority: "high"
+    tags: ["weight", "list"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/health/physical/weight/"
+    asserts:
+      - type: "url_contains"
+        expected: "/health/physical/weight/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "health-weight-list"
+
+  - id: "HEALTH-WEIGHT-002"
+    name: "Weight list has Log Weight button"
+    priority: "high"
+    tags: ["weight", "list"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/health/physical/weight/"
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "health-add-weight-button"
+
+  - id: "HEALTH-WEIGHT-003"
+    name: "Log Weight button navigates to form"
+    priority: "high"
+    tags: ["weight", "nav"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/health/physical/weight/"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "health-add-weight-button"
+    asserts:
+      - type: "url_contains"
+        expected: "/health/physical/weight/log/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "health-weight-form"
+
+  # ============================================================
+  # WEIGHT - CREATE
+  # ============================================================
+
+  - id: "HEALTH-WEIGHT-004"
+    name: "Weight form has all required fields"
+    priority: "high"
+    tags: ["weight", "form"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/health/physical/weight/log/"
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "weight-form"
+      - type: "element_visible"
+        selector:
+          strategy: "id"
+          value: "id_value"
+      - type: "element_visible"
+        selector:
+          strategy: "id"
+          value: "id_unit"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "weight-save-button"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "weight-cancel-button"
+
+  - id: "HEALTH-WEIGHT-005"
+    name: "Create weight entry"
+    priority: "high"
+    tags: ["weight", "create"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/health/physical/weight/log/"
+      - action: "TYPE"
+        selector:
+          strategy: "id"
+          value: "id_value"
+        input: "185"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "weight-save-button"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/health/physical/weight/"
+
+  - id: "HEALTH-WEIGHT-006"
+    name: "Cancel weight form returns to list"
+    priority: "medium"
+    tags: ["weight", "nav"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/health/physical/weight/log/"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "weight-cancel-button"
+    asserts:
+      - type: "url_contains"
+        expected: "/health/physical/weight/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "health-weight-list"
+
+  - id: "HEALTH-WEIGHT-007"
+    name: "Weight list breadcrumb navigates back to health"
+    priority: "medium"
+    tags: ["weight", "nav"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/health/physical/weight/"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "health-back-link"
+    asserts:
+      - type: "url_contains"
+        expected: "/health/physical/"
+
+  # ============================================================
+  # SLEEP - LIST
+  # ============================================================
+
+  - id: "HEALTH-SLEEP-001"
+    name: "Navigate to Sleep list"
+    priority: "high"
+    tags: ["sleep", "list"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/health/physical/sleep/"
+    asserts:
+      - type: "url_contains"
+        expected: "/health/physical/sleep/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "health-sleep-list"
+
+  - id: "HEALTH-SLEEP-002"
+    name: "Sleep list has Log Sleep button"
+    priority: "high"
+    tags: ["sleep", "list"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/health/physical/sleep/"
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "health-add-sleep-button"
+
+  - id: "HEALTH-SLEEP-003"
+    name: "Log Sleep button navigates to form"
+    priority: "high"
+    tags: ["sleep", "nav"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/health/physical/sleep/"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "health-add-sleep-button"
+    asserts:
+      - type: "url_contains"
+        expected: "/health/physical/sleep/log/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "health-sleep-form"
+
+  - id: "HEALTH-SLEEP-004"
+    name: "Sleep form has all required fields"
+    priority: "high"
+    tags: ["sleep", "form"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/health/physical/sleep/log/"
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "sleep-form"
+      - type: "element_visible"
+        selector:
+          strategy: "id"
+          value: "id_sleep_date"
+      - type: "element_visible"
+        selector:
+          strategy: "id"
+          value: "id_bedtime"
+      - type: "element_visible"
+        selector:
+          strategy: "id"
+          value: "id_wake_time"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "sleep-save-button"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "sleep-cancel-button"
+
+  - id: "HEALTH-SLEEP-005"
+    name: "Cancel sleep form returns to list"
+    priority: "medium"
+    tags: ["sleep", "nav"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/health/physical/sleep/log/"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "sleep-cancel-button"
+    asserts:
+      - type: "url_contains"
+        expected: "/health/physical/sleep/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "health-sleep-list"
+
+  - id: "HEALTH-SLEEP-006"
+    name: "Sleep list breadcrumb navigates back to health"
+    priority: "medium"
+    tags: ["sleep", "nav"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/health/physical/sleep/"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "health-back-link"
+    asserts:
+      - type: "url_contains"
+        expected: "/health/physical/"
+
+  # ============================================================
+  # STEPS - LIST
+  # ============================================================
+
+  - id: "HEALTH-STEPS-001"
+    name: "Navigate to Steps list"
+    priority: "high"
+    tags: ["steps", "list"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/health/physical/steps/"
+    asserts:
+      - type: "url_contains"
+        expected: "/health/physical/steps/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "health-steps-list"
+
+  - id: "HEALTH-STEPS-002"
+    name: "Steps list has Log Steps button"
+    priority: "high"
+    tags: ["steps", "list"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/health/physical/steps/"
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "health-add-steps-button"
+
+  - id: "HEALTH-STEPS-003"
+    name: "Log Steps button navigates to form"
+    priority: "high"
+    tags: ["steps", "nav"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/health/physical/steps/"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "health-add-steps-button"
+    asserts:
+      - type: "url_contains"
+        expected: "/health/physical/steps/log/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "health-steps-form"
+
+  # ============================================================
+  # STEPS - CREATE
+  # ============================================================
+
+  - id: "HEALTH-STEPS-004"
+    name: "Steps form has all required fields"
+    priority: "high"
+    tags: ["steps", "form"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/health/physical/steps/log/"
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "steps-form"
+      - type: "element_visible"
+        selector:
+          strategy: "id"
+          value: "id_count"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "steps-save-button"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "steps-cancel-button"
+
+  - id: "HEALTH-STEPS-005"
+    name: "Create steps entry"
+    priority: "high"
+    tags: ["steps", "create"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/health/physical/steps/log/"
+      - action: "TYPE"
+        selector:
+          strategy: "id"
+          value: "id_count"
+        input: "10000"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "steps-save-button"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/health/physical/steps/"
+
+  - id: "HEALTH-STEPS-006"
+    name: "Cancel steps form returns to list"
+    priority: "medium"
+    tags: ["steps", "nav"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/health/physical/steps/log/"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "steps-cancel-button"
+    asserts:
+      - type: "url_contains"
+        expected: "/health/physical/steps/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "health-steps-list"
+
+  - id: "HEALTH-STEPS-007"
+    name: "Steps list breadcrumb navigates back to health"
+    priority: "medium"
+    tags: ["steps", "nav"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/health/physical/steps/"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "health-back-link"
+    asserts:
+      - type: "url_contains"
+        expected: "/health/physical/"
+
+  # ============================================================
+  # WATER - LIST
+  # ============================================================
+
+  - id: "HEALTH-WATER-001"
+    name: "Navigate to Water list"
+    priority: "high"
+    tags: ["water", "list"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/health/physical/water/"
+    asserts:
+      - type: "url_contains"
+        expected: "/health/physical/water/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "health-water-list"
+
+  - id: "HEALTH-WATER-002"
+    name: "Water list has Log Water button"
+    priority: "high"
+    tags: ["water", "list"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/health/physical/water/"
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "health-add-water-button"
+
+  - id: "HEALTH-WATER-003"
+    name: "Log Water button navigates to form"
+    priority: "high"
+    tags: ["water", "nav"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/health/physical/water/"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "health-add-water-button"
+    asserts:
+      - type: "url_contains"
+        expected: "/health/physical/water/log/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "health-water-form"
+
+  # ============================================================
+  # WATER - CREATE
+  # ============================================================
+
+  - id: "HEALTH-WATER-004"
+    name: "Water form has all required fields"
+    priority: "high"
+    tags: ["water", "form"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/health/physical/water/log/"
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "water-form"
+      - type: "element_visible"
+        selector:
+          strategy: "id"
+          value: "id_amount"
+      - type: "element_visible"
+        selector:
+          strategy: "id"
+          value: "id_unit"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "water-save-button"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "water-cancel-button"
+
+  - id: "HEALTH-WATER-005"
+    name: "Create water entry"
+    priority: "high"
+    tags: ["water", "create"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/health/physical/water/log/"
+      - action: "TYPE"
+        selector:
+          strategy: "id"
+          value: "id_amount"
+        input: "16"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "water-save-button"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/health/physical/water/"
+
+  - id: "HEALTH-WATER-006"
+    name: "Cancel water form returns to list"
+    priority: "medium"
+    tags: ["water", "nav"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/health/physical/water/log/"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "water-cancel-button"
+    asserts:
+      - type: "url_contains"
+        expected: "/health/physical/water/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "health-water-list"
+
+  - id: "HEALTH-WATER-007"
+    name: "Water list breadcrumb navigates back to health"
+    priority: "medium"
+    tags: ["water", "nav"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/health/physical/water/"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "health-back-link"
+    asserts:
+      - type: "url_contains"
+        expected: "/health/physical/"
+
+  # ============================================================
+  # NAVIGATION FLOWS
+  # ============================================================
+
+  - id: "HEALTH-NAV-001"
+    name: "Landing Physical Health tile navigates to home"
+    priority: "high"
+    tags: ["nav"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/health/"
+      - action: "CLICK"
+        selector:
+          strategy: "text_contains"
+          value: "Physical Health"
+        timeout_ms: 5000
+      - action: "WAIT"
+        timeout_ms: 1000
+    asserts:
+      - type: "url_contains"
+        expected: "/health/physical/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "health-home"
+
+  - id: "HEALTH-NAV-002"
+    name: "Home breadcrumb returns to landing"
+    priority: "medium"
+    tags: ["nav"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/health/physical/"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "health-back-link"
+    asserts:
+      - type: "url_contains"
+        expected: "/health/"

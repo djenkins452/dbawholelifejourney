@@ -2,15 +2,17 @@
 """WLJ UI Test Framework — CLI Runner.
 
 Entry point for running test suites from the command line.
-Supports running by suite file path or module name.
+Uses the ExecutionOrchestrator for full run lifecycle management.
 
 Usage:
     python wlj_ui_tests/run_suite.py --module journal
     python wlj_ui_tests/run_suite.py --suite modules/journal/suite.yaml
     python wlj_ui_tests/run_suite.py --module journal --headed --base-url http://localhost:8000
+    python wlj_ui_tests/run_suite.py --health-check
+    python wlj_ui_tests/run_suite.py --list-modules
 
 Exit codes:
-    0 — All tests passed
+    0 — All tests passed (or health check passed)
     1 — One or more tests failed
     2 — Framework error (invalid args, file not found, etc.)
 """
@@ -24,42 +26,60 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from framework import __version__, SuiteRunner
-from framework.schema_validator import SchemaValidator, ValidationError
+from framework.execution_orchestrator import ExecutionOrchestrator
 
 
 def main():
-    """Parse arguments, run the suite, and exit with appropriate code."""
+    """Parse arguments, run the suite via orchestrator, and exit."""
     args = parse_args()
 
-    try:
-        runner = build_runner(args)
-    except (FileNotFoundError, ValueError) as exc:
-        print(f"ERROR: {exc}", file=sys.stderr)
-        return 2
+    # Health check mode
+    if args.health_check:
+        orchestrator = ExecutionOrchestrator()
+        passed, failed, results = orchestrator.health_check()
+        return 0 if failed == 0 else 1
 
-    # Validate YAML schema before running
+    # Standard run via orchestrator
     try:
-        validator = SchemaValidator()
-        validator.validate_file(runner.suite_path)
-    except ValidationError as exc:
-        print(f"SCHEMA ERROR: {exc}", file=sys.stderr)
-        return 2
-    except FileNotFoundError as exc:
-        print(f"ERROR: {exc}", file=sys.stderr)
-        return 2
-
-    # Run the suite (without Playwright executor — framework-only mode)
-    try:
-        summary = runner.run()
+        orchestrator = ExecutionOrchestrator(
+            module=args.module,
+            suite_path=args.suite,
+            base_url=args.base_url,
+            headed=args.headed,
+            env=args.env,
+        )
     except Exception as exc:
-        print(f"RUNTIME ERROR: {exc}", file=sys.stderr)
+        print(f"ERROR: {exc}", file=sys.stderr)
         return 2
 
-    print_summary(summary)
+    exit_code = orchestrator.run()
 
-    if summary["failed"] > 0:
-        return 1
-    return 0
+    # Print summary
+    summary = orchestrator.get_summary()
+    if summary:
+        print_summary(summary)
+
+        # Report fix prompt location if generated
+        fix_prompt = orchestrator.get_fix_prompt_path()
+        if fix_prompt and fix_prompt.exists():
+            print(f"  Fix prompt: {fix_prompt}\n")
+
+        # Report manifest location
+        manifest_path = orchestrator.get_manifest_path()
+        if manifest_path and manifest_path.exists():
+            print(f"  Manifest: {manifest_path}")
+
+        # Report selector validation
+        sel_results = orchestrator.get_selector_results()
+        if sel_results and sel_results.get("status") == "completed":
+            missing = sel_results.get("missing", 0)
+            if missing > 0:
+                print(f"  ⚠ Selector warnings: {missing} missing")
+
+        # Emit machine-readable JSON summary to stderr for CI integration
+        print(json.dumps(summary, indent=2, default=str), file=sys.stderr)
+
+    return exit_code
 
 
 def parse_args():
@@ -74,7 +94,7 @@ def parse_args():
         version=f"%(prog)s {__version__}",
     )
 
-    group = parser.add_mutually_exclusive_group(required=True)
+    group = parser.add_mutually_exclusive_group(required=False)
     group.add_argument(
         "--suite", type=str,
         help="Path to a YAML suite file",
@@ -100,6 +120,10 @@ def parse_args():
         "--list-modules", action="store_true", default=False,
         help="List available modules and exit",
     )
+    parser.add_argument(
+        "--health-check", action="store_true", default=False,
+        help="Run framework health check without executing tests",
+    )
 
     args = parser.parse_args()
 
@@ -110,18 +134,11 @@ def parse_args():
             print(f"  - {m}")
         sys.exit(0)
 
+    # Require --module or --suite unless --health-check or --list-modules
+    if not args.health_check and not args.suite and not args.module:
+        parser.error("one of --module, --suite, or --health-check is required")
+
     return args
-
-
-def build_runner(args):
-    """Construct a SuiteRunner from parsed CLI arguments."""
-    return SuiteRunner(
-        suite_path=args.suite,
-        module=args.module,
-        base_url=args.base_url,
-        headed=args.headed,
-        env=args.env,
-    )
 
 
 def print_summary(summary):
@@ -148,11 +165,8 @@ def print_summary(summary):
     if failed > 0:
         print("\n  FAILED CASES:")
         for f in summary["results"]["failed"]:
-            print(f"    ✗ {f['case_id']}: {f['error']}")
+            print(f"    {f['case_id']}: {f['error']}")
         print()
-
-    # Emit machine-readable JSON summary to stderr for CI integration
-    print(json.dumps(summary, indent=2, default=str), file=sys.stderr)
 
 
 if __name__ == "__main__":

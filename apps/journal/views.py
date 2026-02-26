@@ -41,7 +41,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import models
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse_lazy
+from django.urls import reverse, reverse_lazy
 from django.views.generic import (
     CreateView,
     DetailView,
@@ -323,9 +323,11 @@ class EntryCreateView(HelpContextMixin, SaveAddAnotherMixin, LoginRequiredMixin,
     model = JournalEntry
     form_class = JournalEntryForm
     template_name = "journal/entry_form.html"
-    success_url = reverse_lazy("journal:entry_list")
     help_context_id = "JOURNAL_ENTRY_CREATE"
     save_add_another_message = "Journal entry created. Add another!"
+
+    def get_success_url(self):
+        return reverse("journal:entry_detail", kwargs={"pk": self.object.pk})
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()

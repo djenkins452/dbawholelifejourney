@@ -74,16 +74,14 @@ cases:
       - action: "WAIT"
         timeout_ms: 3000
     asserts:
-      - type: "url_contains"
-        expected: "/journal/"
       - type: "element_visible"
         selector:
           strategy: "data-testid"
-          value: "journal-entry-list"
+          value: "journal-entry-detail"
       - type: "text_contains"
         selector:
           strategy: "data-testid"
-          value: "journal-entry-list"
+          value: "journal-entry-detail-title"
         expected: "AUTOTEST|journal|${RUN_ID}|Smoke Test Entry"
 
   - id: "JRN-003"

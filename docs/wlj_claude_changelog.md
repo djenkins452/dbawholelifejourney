@@ -74,13 +74,16 @@
 - `apps/ai/tests/test_values_filter.py` — Updated test docstring to match new culture description
 - `apps/users/management/commands/setup_app_review_account.py` — Updated sample journal title
 ## 2026-02-26 — Fix JRN-002 assertion: match actual post-create redirect
+## 2026-02-26 — Fix journal create redirect: entry_list → entry_detail (architectural fix)
 
-**What:** JRN-002 (Create a new journal entry) asserted `data-testid="journal-entry-detail"` after saving, but the `JournalEntryCreateView` redirects to the entry list (`success_url = reverse_lazy("journal:entry_list")`), not the detail page. Updated assertions to verify the entry list page: `url_contains /journal/`, `element_visible journal-entry-list`, and `text_contains` with the AUTOTEST title. No business logic changed.
+
+**What:** `EntryCreateView` had `success_url = reverse_lazy("journal:entry_list")` which redirected to the entry list after creating a journal entry. The correct UX contract is CREATE → VIEW DETAIL. Replaced the static `success_url` with `get_success_url()` returning `reverse("journal:entry_detail", kwargs={"pk": self.object.pk})`. Also reverted previous suite.yaml weakening — JRN-002 assertions now correctly expect `journal-entry-detail` and `journal-entry-detail-title` on the detail page.
 
 **Files:**
-- `wlj_ui_tests/modules/journal/suite.yaml` — updated JRN-002 assertions to match entry list redirect
+- `apps/journal/views.py` — replaced `success_url` with `get_success_url()` on `EntryCreateView`
+- `wlj_ui_tests/modules/journal/suite.yaml` — reverted JRN-002 assertions back to detail page checks
 
-**Why:** Test expected detail page after create, but the view redirects to the list page. Assertions now match actual application behavior.
+**Why:** The UI test (JRN-002) correctly asserted the detail page after create. The application redirect was wrong, not the test. This matches `EntryUpdateView` which already redirects to entry_detail.
 
 
 ## 2026-02-26 — Fix login test reliability: force logout before login

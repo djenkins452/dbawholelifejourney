@@ -1585,6 +1585,129 @@ class ActionHandler:
             )
         )
 
+    def handle_take_medicines_by_time(self, time_of_day: str,
+                                      use_scheduled_time: bool = False,
+                                      notes: str = "", **kwargs) -> ActionResult:
+        """
+        Mark all medicines for a time-of-day period as taken.
+
+        Mirrors MedicineBulkTakeView logic.
+
+        Args:
+            time_of_day: Period like 'morning', 'evening', 'nightly'
+            use_scheduled_time: If True, log with scheduled time instead of now
+            notes: Optional notes
+        """
+        from apps.health.models import Medicine, MedicineSchedule, MedicineLog
+        from datetime import datetime as dt
+        import pytz
+
+        try:
+            today = self._get_user_today()
+            now = self._get_user_now()
+
+            # Get all active scheduled (non-PRN) medicines
+            active_medicines = Medicine.objects.filter(
+                user=self.user,
+                medicine_status=Medicine.STATUS_ACTIVE,
+                status='active',
+                is_prn=False,
+            )
+
+            taken_count = 0
+            taken_names = []
+
+            for medicine in active_medicines:
+                for schedule in medicine.schedules.filter(
+                    is_active=True,
+                    time_of_day=time_of_day,
+                ):
+                    if not schedule.applies_to_day(today.weekday()):
+                        continue
+
+                    # Check if already logged
+                    existing_log = MedicineLog.objects.filter(
+                        medicine=medicine,
+                        schedule=schedule,
+                        scheduled_date=today,
+                    ).first()
+
+                    if existing_log and existing_log.log_status in [
+                        MedicineLog.STATUS_TAKEN,
+                        MedicineLog.STATUS_LATE,
+                        MedicineLog.STATUS_SKIPPED,
+                    ]:
+                        continue  # Already handled
+
+                    # Create or update log
+                    log, created = MedicineLog.objects.get_or_create(
+                        user=self.user,
+                        medicine=medicine,
+                        schedule=schedule,
+                        scheduled_date=today,
+                        defaults={
+                            "scheduled_time": schedule.scheduled_time,
+                            "is_prn_dose": False,
+                            "notes": notes,
+                        }
+                    )
+
+                    # Determine taken_at time
+                    taken_at = None
+                    if use_scheduled_time and schedule.scheduled_time:
+                        user_tz = pytz.timezone(self.user.preferences.timezone_iana)
+                        scheduled_dt = dt.combine(today, schedule.scheduled_time)
+                        taken_at = user_tz.localize(scheduled_dt)
+
+                    log.mark_taken(taken_at=taken_at)
+                    taken_count += 1
+                    taken_names.append(f"{medicine.name} ({medicine.dose})")
+
+                    # Decrease supply if tracked
+                    if medicine.current_supply is not None and medicine.current_supply > 0:
+                        medicine.current_supply -= 1
+                        medicine.save(update_fields=["current_supply", "updated_at"])
+
+            if taken_count == 0:
+                time_display = dict(MedicineSchedule.TIME_OF_DAY_CHOICES).get(
+                    time_of_day, time_of_day
+                )
+                return ActionResult(
+                    success=False,
+                    message=f"No pending {time_display.lower()} medicines to log today. They may already be logged.",
+                    error='no_pending_medicines'
+                )
+
+            time_display = dict(MedicineSchedule.TIME_OF_DAY_CHOICES).get(
+                time_of_day, time_of_day
+            )
+            time_note = " at their scheduled times" if use_scheduled_time else ""
+            names_list = "\n".join(f"  • {n}" for n in taken_names)
+
+            return ActionResult(
+                success=True,
+                message=f"✓ Logged {taken_count} {time_display.lower()} medicine{'s' if taken_count != 1 else ''}{time_note}:\n{names_list}",
+                created_object={
+                    'model': 'MedicineLog',
+                    'count': taken_count,
+                    'time_of_day': time_of_day,
+                    'medicines': taken_names,
+                },
+                action_type='take_medicines_by_time',
+                confirmation_detail=self._build_confirmation(
+                    what=f"{taken_count} {time_display.lower()} medicines",
+                    where="Health > Medicine",
+                )
+            )
+
+        except Exception as e:
+            logger.error(f"Error bulk logging medicines: {e}", exc_info=True)
+            return ActionResult(
+                success=False,
+                message="Sorry, I couldn't log those medicines.",
+                error=str(e)
+            )
+
     # =========================================================================
     # FASTING HANDLERS
     # =========================================================================

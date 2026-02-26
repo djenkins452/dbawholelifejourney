@@ -9,6 +9,15 @@
 
 # WLJ Change History
 
+## 2026-02-26 — Fix login test reliability: force logout before login
+
+**What:** Added a NAVIGATE to `/accounts/logout/` as the first step of JRN-001 (Login to application) to force a clean unauthenticated state before the login test runs. Prevents intermittent failures when the browser is already authenticated from a previous session.
+
+**Files:**
+- `wlj_ui_tests/modules/journal/suite.yaml` — added logout step at start of JRN-001
+
+**Why:** Login test could fail if browser already had an active session, causing redirect away from login page.
+
 ## 2026-02-26 — Test user provisioning for automated UI testing
 
 **What:** Implemented a secure, idempotent test user provisioning system for the WLJ UI testing framework. Created a service layer (`test_user_service.py`) and management command (`create_test_user`) that provisions a dedicated test user with verified email, `is_app_review_account=True` (MFA bypass), staff/superuser access, onboarding complete, and all modules enabled. Integrated with `ExecutionOrchestrator` via `--provision-test-user` CLI flag that calls the management command via subprocess before running tests. Environment guard prevents accidental creation in production (requires `DEBUG=True` or `ALLOW_TEST_USER_CREATION=True`).

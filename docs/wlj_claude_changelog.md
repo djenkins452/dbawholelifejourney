@@ -9,19 +9,32 @@
 
 # WLJ Change History
 
-## 2026-02-26 — ISE Resilience: Redundant Celery Beat Trigger for Intelligence Scheduler
+## 2026-02-26 — Goals Module: Comprehensive UI Test Coverage Expansion
 
-**What:** Added ISE (Intelligence Scheduler Engine) as a Celery Beat periodic task to eliminate single-point-of-failure when the APScheduler thread inside Gunicorn dies. Previously, ISE only ran via APScheduler in the web process — if the scheduler thread died (OOM, deadlock, exception), all 30+ intelligence tasks stopped executing, causing engines (SAE, PIE, PGE, ICQG) to miss cadence and the System Integrity Index to drop to CRITICAL.
+**What:** Expanded goals UI test suite from 4 basic smoke tests to 27 comprehensive test cases covering all CRUD operations, navigation flows, delete confirmation (with auto-accept dialog), and cleanup. Added missing `data-testid` attributes to 3 goal templates.
 
-**Root cause:** APScheduler runs in-process with Gunicorn. If the scheduler thread dies while Gunicorn stays alive, ISE goes offline but the container doesn't restart. SAME (which runs via Celery Beat) detected the issue but couldn't fix it.
+**Test Coverage (27 cases):**
+- **Authentication (1):** GOAL-AUTH-001
+- **List Page (4):** GOAL-LIST-001 through GOAL-LIST-004 — page loads, container visible, new button visible, new button navigates to form
+- **Create Goal (6):** GOAL-CREATE-001 through GOAL-CREATE-006 — form loads, minimal fields, all fields, redirect, cancel, setup for edit/delete
+- **Detail Page (5):** GOAL-DETAIL-001 through GOAL-DETAIL-005 — loads from list, description section, edit/delete buttons, back link
+- **Edit Goal (4):** GOAL-EDIT-001 through GOAL-EDIT-004 — form loads pre-filled, edit title, edit description, cancel edit
+- **Delete Goal (3):** GOAL-DELETE-001 through GOAL-DELETE-003 — navigate to detail, delete via confirm dialog, verify removed
+- **Navigation (3):** GOAL-NAV-001 through GOAL-NAV-003 — list→create→cancel→list, create→detail→back→list, create→detail→edit→save→detail
+- **Cleanup (1):** GOAL-CLEANUP-001 — removes all AUTOTEST goals
 
-**Fix:** Added `run_ise_cycle_task` Celery Beat task that fires every 300s (5 min), redundant with APScheduler. Built-in dedup via `ScheduledIntelligenceTask.next_run_at` prevents double-execution — whichever trigger fires first advances the task's next run time, and the second trigger safely skips.
+**data-testid Additions:**
+- `goal_list.html`: `goal-new-button`, `goal-card`, `goal-card-link`, `goal-empty-state`
+- `goal_form.html`: `goal-cancel-button`, `goal-save-add-another-button`
+- `goal_detail.html`: `goal-back-link`, `goal-description-section`, `goal-delete-form`
 
-**Files:**
-- `apps/core/tasks.py` — Added `run_ise_cycle_task` shared Celery task
-- `config/settings.py` — Added ISE to `CELERY_BEAT_SCHEDULE` (every 300s)
+**Result:** 27/27 pass (100%), stable across multiple runs. No regressions (journal 37/37 still passing).
 
-**Why:** Dashboard showed ISE OFFLINE with +3063s drift, score 34 (CRITICAL), 4 engines missing cadence. This ensures ISE survives APScheduler thread death.
+**Files Modified:**
+- `apps/purpose/templates/purpose/goal_list.html` — added 4 data-testid attrs
+- `apps/purpose/templates/purpose/goal_form.html` — added 2 data-testid attrs
+- `apps/purpose/templates/purpose/goal_detail.html` — added 3 data-testid attrs
+- `wlj_ui_tests/modules/goals/suite.yaml` — expanded from 4 to 27 tests
 
 ---
 

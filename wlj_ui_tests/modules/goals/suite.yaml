@@ -15,10 +15,15 @@ defaults:
   html_dump_on_failure: true
 
 cases:
-  - id: "GOAL-001"
-    name: "Goals list page loads"
+
+  # ==========================================================================
+  #  AUTHENTICATION
+  # ==========================================================================
+
+  - id: "GOAL-AUTH-001"
+    name: "Login and navigate to goals list"
     priority: "high"
-    tags: ["smoke", "auth", "crud"]
+    tags: ["smoke", "auth"]
     steps:
       - action: "NAVIGATE"
         url: "/accounts/logout/"
@@ -40,6 +45,23 @@ cases:
           value: "login-submit-button"
       - action: "WAIT"
         timeout_ms: 3000
+    asserts:
+      - type: "url_contains"
+        expected: "/dashboard/"
+      - type: "element_not_visible"
+        selector:
+          strategy: "data-testid"
+          value: "login-form"
+
+  # ==========================================================================
+  #  CATEGORY 1 — GOALS LIST PAGE
+  # ==========================================================================
+
+  - id: "GOAL-LIST-001"
+    name: "Goals list page loads with correct URL"
+    priority: "high"
+    tags: ["list", "smoke"]
+    steps:
       - action: "NAVIGATE"
         url: "/purpose/goals/"
       - action: "WAIT"
@@ -47,15 +69,87 @@ cases:
     asserts:
       - type: "url_contains"
         expected: "/purpose/goals/"
+
+  - id: "GOAL-LIST-002"
+    name: "Goal list container is visible"
+    priority: "high"
+    tags: ["list", "smoke"]
+    steps:
+      - action: "WAIT"
+        timeout_ms: 500
+    asserts:
       - type: "element_visible"
         selector:
           strategy: "data-testid"
           value: "goal-list"
 
-  - id: "GOAL-002"
-    name: "Goal create flow redirects to detail"
+  - id: "GOAL-LIST-003"
+    name: "New Goal button is visible"
     priority: "high"
-    tags: ["smoke", "crud"]
+    tags: ["list", "ui"]
+    steps:
+      - action: "WAIT"
+        timeout_ms: 500
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "goal-new-button"
+
+  - id: "GOAL-LIST-004"
+    name: "New Goal button navigates to create form"
+    priority: "high"
+    tags: ["list", "navigation"]
+    steps:
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "goal-new-button"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/purpose/goals/new/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "goal-form"
+
+  # ==========================================================================
+  #  CATEGORY 2 — CREATE GOAL
+  # ==========================================================================
+
+  - id: "GOAL-CREATE-001"
+    name: "Create form loads with all expected fields"
+    priority: "high"
+    tags: ["create", "smoke"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/purpose/goals/new/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "goal-form"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "goal-title-input"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "goal-description-input"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "goal-save-button"
+
+  - id: "GOAL-CREATE-002"
+    name: "Create goal with minimal fields (title only)"
+    priority: "high"
+    tags: ["create", "crud"]
     steps:
       - action: "NAVIGATE"
         url: "/purpose/goals/new/"
@@ -65,12 +159,7 @@ cases:
         selector:
           strategy: "data-testid"
           value: "goal-title-input"
-        input: "AUTOTEST|goals|${RUN_ID}|Smoke Test Goal"
-      - action: "TYPE"
-        selector:
-          strategy: "data-testid"
-          value: "goal-description-input"
-        input: "This is an automated test goal created by the WLJ UI test framework."
+        input: "AUTOTEST|goals|${RUN_ID}|Minimal Goal"
       - action: "CLICK"
         selector:
           strategy: "data-testid"
@@ -86,12 +175,136 @@ cases:
         selector:
           strategy: "data-testid"
           value: "goal-title"
-        expected: "AUTOTEST|goals|${RUN_ID}|Smoke Test Goal"
+        expected: "AUTOTEST|goals|${RUN_ID}|Minimal Goal"
 
-  - id: "GOAL-003"
-    name: "Goal detail page loads from list click"
+  - id: "GOAL-CREATE-003"
+    name: "Create goal with all fields populated"
     priority: "high"
-    tags: ["smoke", "crud"]
+    tags: ["create", "crud"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/purpose/goals/new/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "goal-title-input"
+        input: "AUTOTEST|goals|${RUN_ID}|Full Goal"
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "goal-description-input"
+        input: "This is a comprehensive test goal with all fields populated."
+      - action: "TYPE"
+        selector:
+          strategy: "id"
+          value: "id_why_it_matters"
+        input: "Testing complete goal creation with motivation field."
+      - action: "TYPE"
+        selector:
+          strategy: "id"
+          value: "id_success_looks_like"
+        input: "All UI tests pass at 100% rate."
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "goal-save-button"
+      - action: "WAIT"
+        timeout_ms: 3000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "goal-detail"
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "goal-title"
+        expected: "AUTOTEST|goals|${RUN_ID}|Full Goal"
+
+  - id: "GOAL-CREATE-004"
+    name: "Create redirects to detail page after save"
+    priority: "high"
+    tags: ["create", "redirect"]
+    steps:
+      - action: "WAIT"
+        timeout_ms: 500
+    asserts:
+      - type: "url_contains"
+        expected: "/purpose/goals/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "goal-detail"
+
+  - id: "GOAL-CREATE-005"
+    name: "Cancel from create form returns to list"
+    priority: "medium"
+    tags: ["create", "navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/purpose/goals/new/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "goal-cancel-button"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/purpose/goals/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "goal-list"
+
+  - id: "GOAL-CREATE-006"
+    name: "Create third goal for edit and delete tests"
+    priority: "high"
+    tags: ["create", "setup"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/purpose/goals/new/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "goal-title-input"
+        input: "AUTOTEST|goals|${RUN_ID}|Edit Target"
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "goal-description-input"
+        input: "This goal will be edited and then deleted during testing."
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "goal-save-button"
+      - action: "WAIT"
+        timeout_ms: 3000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "goal-detail"
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "goal-title"
+        expected: "AUTOTEST|goals|${RUN_ID}|Edit Target"
+
+  # ==========================================================================
+  #  CATEGORY 3 — GOAL DETAIL PAGE
+  # ==========================================================================
+
+  - id: "GOAL-DETAIL-001"
+    name: "Detail page loads from list click"
+    priority: "high"
+    tags: ["detail", "navigation"]
     steps:
       - action: "NAVIGATE"
         url: "/purpose/goals/"
@@ -100,7 +313,7 @@ cases:
       - action: "CLICK"
         selector:
           strategy: "text_contains"
-          value: "AUTOTEST|goals|${RUN_ID}|Smoke Test Goal"
+          value: "AUTOTEST|goals|${RUN_ID}|Full Goal"
       - action: "WAIT"
         timeout_ms: 2000
     asserts:
@@ -112,19 +325,106 @@ cases:
         selector:
           strategy: "data-testid"
           value: "goal-title"
-        expected: "AUTOTEST|goals|${RUN_ID}|Smoke Test Goal"
+        expected: "AUTOTEST|goals|${RUN_ID}|Full Goal"
 
-  - id: "GOAL-004"
-    name: "Goal edit flow works"
-    priority: "high"
-    tags: ["smoke", "crud"]
+  - id: "GOAL-DETAIL-002"
+    name: "Detail page shows description section"
+    priority: "medium"
+    tags: ["detail", "content"]
     steps:
+      - action: "WAIT"
+        timeout_ms: 500
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "goal-description-section"
+
+  - id: "GOAL-DETAIL-003"
+    name: "Edit button is visible on detail page"
+    priority: "high"
+    tags: ["detail", "ui"]
+    steps:
+      - action: "WAIT"
+        timeout_ms: 500
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "goal-edit-button"
+
+  - id: "GOAL-DETAIL-004"
+    name: "Delete button is visible on detail page"
+    priority: "high"
+    tags: ["detail", "ui"]
+    steps:
+      - action: "WAIT"
+        timeout_ms: 500
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "goal-delete-button"
+
+  - id: "GOAL-DETAIL-005"
+    name: "Back link navigates to goals list"
+    priority: "medium"
+    tags: ["detail", "navigation"]
+    steps:
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "goal-back-link"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/purpose/goals/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "goal-list"
+
+  # ==========================================================================
+  #  CATEGORY 4 — EDIT GOAL
+  # ==========================================================================
+
+  - id: "GOAL-EDIT-001"
+    name: "Navigate to edit form for Edit Target goal"
+    priority: "high"
+    tags: ["edit", "navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/purpose/goals/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "text_contains"
+          value: "AUTOTEST|goals|${RUN_ID}|Edit Target"
+      - action: "WAIT"
+        timeout_ms: 2000
       - action: "CLICK"
         selector:
           strategy: "data-testid"
           value: "goal-edit-button"
       - action: "WAIT"
         timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "goal-form"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "goal-title-input"
+
+  - id: "GOAL-EDIT-002"
+    name: "Edit goal title and save"
+    priority: "high"
+    tags: ["edit", "crud"]
+    steps:
       - action: "TYPE"
         selector:
           strategy: "data-testid"
@@ -146,3 +446,316 @@ cases:
           strategy: "data-testid"
           value: "goal-title"
         expected: "AUTOTEST|goals|${RUN_ID}|Edited Goal"
+
+  - id: "GOAL-EDIT-003"
+    name: "Edit description field and save"
+    priority: "medium"
+    tags: ["edit", "crud"]
+    steps:
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "goal-edit-button"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "goal-description-input"
+        input: "Updated description via UI test automation."
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "goal-save-button"
+      - action: "WAIT"
+        timeout_ms: 3000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "goal-detail"
+
+  - id: "GOAL-EDIT-004"
+    name: "Cancel edit returns to detail page"
+    priority: "medium"
+    tags: ["edit", "navigation"]
+    steps:
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "goal-edit-button"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "goal-cancel-button"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/purpose/goals/"
+
+  # ==========================================================================
+  #  CATEGORY 5 — DELETE GOAL
+  #  Deletes the "Edited Goal" via confirm dialog on detail page.
+  #  BrowserManager auto-accepts confirm() dialogs.
+  # ==========================================================================
+
+  - id: "GOAL-DELETE-001"
+    name: "Navigate to goal detail for delete test"
+    priority: "high"
+    tags: ["delete", "setup"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/purpose/goals/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "text_contains"
+          value: "AUTOTEST|goals|${RUN_ID}|Edited Goal"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "goal-detail"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "goal-delete-button"
+
+  - id: "GOAL-DELETE-002"
+    name: "Delete goal via confirm dialog"
+    priority: "high"
+    tags: ["delete", "crud"]
+    steps:
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "goal-delete-button"
+      - action: "WAIT"
+        timeout_ms: 3000
+    asserts:
+      - type: "url_contains"
+        expected: "/purpose/goals/"
+
+  - id: "GOAL-DELETE-003"
+    name: "List page loads and remaining goals still exist"
+    priority: "high"
+    tags: ["delete", "verify"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/purpose/goals/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "goal-list"
+
+  # ==========================================================================
+  #  CATEGORY 6 — NAVIGATION INTEGRITY
+  # ==========================================================================
+
+  - id: "GOAL-NAV-001"
+    name: "Navigation: list -> create -> cancel -> list"
+    priority: "medium"
+    tags: ["navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/purpose/goals/"
+      - action: "WAIT"
+        timeout_ms: 1000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "goal-new-button"
+      - action: "WAIT"
+        timeout_ms: 1500
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "goal-cancel-button"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/purpose/goals/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "goal-list"
+
+  - id: "GOAL-NAV-002"
+    name: "Navigation: create -> detail -> back -> list"
+    priority: "medium"
+    tags: ["navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/purpose/goals/new/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "goal-title-input"
+        input: "AUTOTEST|goals|${RUN_ID}|Nav Back Test"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "goal-save-button"
+      - action: "WAIT"
+        timeout_ms: 3000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "goal-back-link"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/purpose/goals/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "goal-list"
+
+  - id: "GOAL-NAV-003"
+    name: "Navigation: create -> detail -> edit -> save -> detail"
+    priority: "high"
+    tags: ["navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/purpose/goals/new/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "goal-title-input"
+        input: "AUTOTEST|goals|${RUN_ID}|Nav Edit Test"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "goal-save-button"
+      - action: "WAIT"
+        timeout_ms: 3000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "goal-edit-button"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "goal-title-input"
+        input: "AUTOTEST|goals|${RUN_ID}|Nav Edit Complete"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "goal-save-button"
+      - action: "WAIT"
+        timeout_ms: 3000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "goal-detail"
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "goal-title"
+        expected: "AUTOTEST|goals|${RUN_ID}|Nav Edit Complete"
+
+  # ==========================================================================
+  #  CLEANUP — Remove all AUTOTEST goals from this run
+  #  Goals list has no search, so we click by text content.
+  #  Each iteration: list → click AUTOTEST goal → delete → back to list.
+  # ==========================================================================
+
+  - id: "GOAL-CLEANUP-001"
+    name: "Cleanup AUTOTEST goals for this run"
+    priority: "high"
+    tags: ["cleanup"]
+    cleanup_scope: "AUTOTEST|goals|${RUN_ID}|"
+    steps:
+      - action: "NAVIGATE"
+        url: "/purpose/goals/"
+        description: "Navigate to goals list to find AUTOTEST entries"
+      - action: "WAIT"
+        timeout_ms: 2000
+    cleanup:
+      # Iteration 1
+      - action: "CLICK"
+        selector:
+          strategy: "text_contains"
+          value: "AUTOTEST|goals|${RUN_ID}|"
+        description: "Click first AUTOTEST goal"
+      - action: "WAIT"
+        timeout_ms: 1500
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "goal-delete-button"
+        description: "Delete it (confirm auto-accepted)"
+      - action: "WAIT"
+        timeout_ms: 2000
+      # Iteration 2
+      - action: "NAVIGATE"
+        url: "/purpose/goals/"
+      - action: "WAIT"
+        timeout_ms: 1500
+      - action: "CLICK"
+        selector:
+          strategy: "text_contains"
+          value: "AUTOTEST|goals|${RUN_ID}|"
+      - action: "WAIT"
+        timeout_ms: 1500
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "goal-delete-button"
+      - action: "WAIT"
+        timeout_ms: 2000
+      # Iteration 3
+      - action: "NAVIGATE"
+        url: "/purpose/goals/"
+      - action: "WAIT"
+        timeout_ms: 1500
+      - action: "CLICK"
+        selector:
+          strategy: "text_contains"
+          value: "AUTOTEST|goals|${RUN_ID}|"
+      - action: "WAIT"
+        timeout_ms: 1500
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "goal-delete-button"
+      - action: "WAIT"
+        timeout_ms: 2000
+      # Iteration 4
+      - action: "NAVIGATE"
+        url: "/purpose/goals/"
+      - action: "WAIT"
+        timeout_ms: 1500
+      - action: "CLICK"
+        selector:
+          strategy: "text_contains"
+          value: "AUTOTEST|goals|${RUN_ID}|"
+      - action: "WAIT"
+        timeout_ms: 1500
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "goal-delete-button"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/purpose/goals/"

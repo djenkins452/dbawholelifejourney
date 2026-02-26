@@ -9,6 +9,24 @@
 
 # WLJ Change History
 
+## 2026-02-26 — Admin Console UI Test Runner enhancements
+
+**What:** Enhanced the existing Admin Console UI Test Runner with 3 improvements:
+1. Registered UITestRun in Django admin (read-only) for DB-level inspection
+2. Added Quick Run buttons (Run Journal Tests, Run Goals Tests, Run All Tests) to `/admin-console/ui-tests/`
+3. Fixed RunUITestsView to use headless Playwright instead of `--no-browser` (which only validated YAML schema without running actual browser tests), and added `--provision-test-user` flag
+
+**Why:** The UI Test Runner page existed but had no quick-action buttons (required manual checkbox selection), was not registered in Django admin, and was running in `--no-browser` mode which skipped actual Playwright browser execution entirely.
+
+**Files:**
+- `apps/admin_console/admin.py` — MODIFIED: Added UITestRunAdmin (read-only, list_display, list_filter)
+- `apps/admin_console/views.py` — MODIFIED: RunUITestsView subprocess args: removed `--no-browser`, added `--provision-test-user`
+- `templates/admin_console/ui_test_modules.html` — MODIFIED: Added Quick Run card with Journal/Goals/All buttons
+
+**Test results:** 278/278 admin_console tests passing
+
+## 2026-02-26 — Goals module UI test coverage + CSP fixes + create redirect fix
+
 ## 2026-02-26 — Fix timezone bug in calendar dedup
 
 **What:** The dedup cleanup was grouping events by `start_dt.date()` which returns the UTC date. For users in America/Chicago (UTC-6), events on the same local date could have different UTC dates near the midnight boundary, causing duplicates to survive cleanup.

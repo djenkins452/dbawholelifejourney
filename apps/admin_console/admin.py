@@ -9,7 +9,23 @@
 
 from django.contrib import admin
 
-from .models import AdminGuideSection, AdminGuideArticle
+from .models import AdminGuideSection, AdminGuideArticle, UITestRun
+
+
+@admin.register(UITestRun)
+class UITestRunAdmin(admin.ModelAdmin):
+    list_display = ['run_id', 'modules_display', 'status', 'passed', 'failed', 'run_at']
+    list_filter = ['status']
+    readonly_fields = [
+        'run_at', 'status', 'modules', 'total_cases', 'passed', 'failed',
+        'pass_rate', 'duration_seconds', 'run_id', 'output',
+    ]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(AdminGuideSection)

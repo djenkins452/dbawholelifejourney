@@ -787,7 +787,7 @@ class RunUITestsView(AdminRequiredMixin, View):
                         sys.executable,
                         str(ui_tests_dir / 'run_suite.py'),
                         '--module', module_name,
-                        '--no-browser',
+                        '--provision-test-user',
                     ],
                     capture_output=True,
                     text=True,

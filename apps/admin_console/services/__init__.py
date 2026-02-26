@@ -13,7 +13,7 @@ from typing import List, Optional
 
 from django.utils import timezone
 
-from .models import AdminProject, AdminProjectPhase, AdminTask, AdminActivityLog
+from ..models import AdminProject, AdminProjectPhase, AdminTask, AdminActivityLog
 
 
 # ==============================================================================

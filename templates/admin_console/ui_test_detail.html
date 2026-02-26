@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}UI Test Run Details - Admin Console{% endblock %}
+
+{% block content %}
+<div class="container">
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-2xl font-bold">UI Test Run Details</h1>
+            <p class="text-muted">{{ ui_run.run_at|date:"M d, Y H:i:s" }}</p>
+        </div>
+        <a href="{% url 'admin_console:ui_test_modules' %}" class="btn btn-secondary">Back to UI Tests</a>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="card p-4">
+            <div class="text-3xl font-bold">{{ ui_run.total_cases }}</div>
+            <div class="text-muted">Total Cases</div>
+        </div>
+        <div class="card p-4">
+            <div class="text-3xl font-bold text-green-600">{{ ui_run.passed }}</div>
+            <div class="text-muted">Passed</div>
+        </div>
+        <div class="card p-4">
+            <div class="text-3xl font-bold {% if ui_run.failed > 0 %}text-red-600{% endif %}">{{ ui_run.failed }}</div>
+            <div class="text-muted">Failed</div>
+        </div>
+        <div class="card p-4">
+            <div class="text-3xl font-bold">{{ ui_run.pass_rate|floatformat:0 }}%</div>
+            <div class="text-muted">Pass Rate</div>
+        </div>
+    </div>
+
+    <!-- Run Info -->
+    <div class="card">
+        <div class="p-4 border-b">
+            <h2 class="text-lg font-semibold">Run Information</h2>
+        </div>
+        <div class="p-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <span class="text-sm text-muted">Status</span>
+                    <div class="mt-1">
+                        {% if ui_run.status == 'passed' %}
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            All Passed
+                        </span>
+                        {% elif ui_run.status == 'failed' %}
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                            Some Failed
+                        </span>
+                        {% elif ui_run.status == 'running' %}
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            Running
+                        </span>
+                        {% else %}
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                            Error
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div>
+                    <span class="text-sm text-muted">Duration</span>
+                    <div class="mt-1 font-medium">{{ ui_run.duration_seconds|floatformat:1 }}s</div>
+                </div>
+                <div>
+                    <span class="text-sm text-muted">Modules Tested</span>
+                    <div class="mt-1">
+                        {% for module in ui_run.modules %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mr-1 mb-1">
+                            {{ module }}
+                        </span>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% if ui_run.run_id %}
+                <div>
+                    <span class="text-sm text-muted">Framework Run ID</span>
+                    <div class="mt-1">
+                        <code class="text-xs bg-surface px-2 py-1 rounded">{{ ui_run.run_id }}</code>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Raw Output -->
+    {% if ui_run.output %}
+    <div class="card">
+        <div class="p-4 border-b flex justify-between items-center">
+            <h2 class="text-lg font-semibold">Run Output</h2>
+            <button type="button" class="btn btn-secondary btn-sm" id="toggle-output-btn">Show Output</button>
+        </div>
+        <div id="output-section" class="hidden">
+            <pre class="p-4 bg-surface text-sm overflow-x-auto" style="max-height: 600px; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word;">{{ ui_run.output }}</pre>
+        </div>
+    </div>
+    {% endif %}
+</div>
+</div>
+
+<script nonce="{{ csp_nonce }}">
+(function() {
+    'use strict';
+
+    var toggleBtn = document.getElementById('toggle-output-btn');
+    var outputSection = document.getElementById('output-section');
+
+    if (toggleBtn && outputSection) {
+        toggleBtn.addEventListener('click', function() {
+            var isHidden = outputSection.classList.contains('hidden');
+            outputSection.classList.toggle('hidden');
+            toggleBtn.textContent = isHidden ? 'Hide Output' : 'Show Output';
+        });
+    }
+})();
+</script>
+{% endblock %}

@@ -755,6 +755,7 @@ class RunUITestsView(AdminRequiredMixin, View):
 
         # Get selected modules from form
         selected_modules = request.POST.getlist('modules')
+        headed = request.POST.get('headed') == '1'
         if not selected_modules:
             messages.warning(request, "No modules selected. Please select at least one module.")
             return redirect('admin_console:ui_test_modules')
@@ -783,13 +784,16 @@ class RunUITestsView(AdminRequiredMixin, View):
             combined_output.append(f"{'=' * 60}\n")
 
             try:
+                cmd = [
+                    sys.executable,
+                    str(ui_tests_dir / 'run_suite.py'),
+                    '--module', module_name,
+                    '--provision-test-user',
+                ]
+                if headed:
+                    cmd.append('--headed')
                 result = subprocess.run(
-                    [
-                        sys.executable,
-                        str(ui_tests_dir / 'run_suite.py'),
-                        '--module', module_name,
-                        '--provision-test-user',
-                    ],
+                    cmd,
                     capture_output=True,
                     text=True,
                     timeout=300,  # 5 minute timeout per module
@@ -885,6 +889,7 @@ class RunFullSuiteView(AdminRequiredMixin, View):
             messages.warning(request, "No modules with test cases found.")
             return redirect('admin_console:ui_test_modules')
 
+        headed = request.POST.get('headed') == '1'
         from apps.admin_console.models import UITestRun
 
         # Create parent full-suite record
@@ -909,13 +914,16 @@ class RunFullSuiteView(AdminRequiredMixin, View):
             )
 
             try:
+                cmd = [
+                    sys.executable,
+                    str(ui_tests_dir / 'run_suite.py'),
+                    '--module', module_name,
+                    '--provision-test-user',
+                ]
+                if headed:
+                    cmd.append('--headed')
                 result = subprocess.run(
-                    [
-                        sys.executable,
-                        str(ui_tests_dir / 'run_suite.py'),
-                        '--module', module_name,
-                        '--provision-test-user',
-                    ],
+                    cmd,
                     capture_output=True,
                     text=True,
                     timeout=300,

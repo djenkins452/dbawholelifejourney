@@ -9,6 +9,18 @@
 
 # WLJ Change History
 
+## 2026-02-26 — UI Test Runner: Headed Mode toggle
+
+**What:** Added a "Headed Mode" checkbox to the UI Test Runner page. When enabled, Playwright launches a visible Chromium browser window so you can watch tests execute in real time.
+
+**Files:**
+- `templates/admin_console/ui_test_modules.html` — added Run Options card with headed toggle, JS to inject hidden `headed=1` input into all test forms on submit
+- `apps/admin_console/views.py` — `RunUITestsView` and `RunFullSuiteView` now read `headed` POST param and pass `--headed` flag to `run_suite.py` subprocess
+
+**Why:** User wanted to visually observe Playwright browser actions during test runs for debugging and monitoring.
+
+---
+
 ## 2026-02-26 — Centralized test result reporting (local → production sync)
 
 **What:** Added a complete local→production sync pipeline for UI test results. After every UITestRun completes (via Admin Console or CLI), results are POSTed to a production ingest API so the production dashboard becomes the single source of truth for all test health.

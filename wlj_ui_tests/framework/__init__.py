@@ -10,6 +10,7 @@ from .prompt_builder import PromptBuilder
 from .schema_validator import SchemaValidator, ValidationError
 from .safety import SafetyController, SafetyError, is_production
 from .test_data_registry import TestDataRegistry
+from .run_manifest import RunManifest
 
 __all__ = [
     "__version__",
@@ -22,4 +23,5 @@ __all__ = [
     "SchemaValidator", "ValidationError",
     "SafetyController", "SafetyError", "is_production",
     "TestDataRegistry",
+    "RunManifest",
 ]

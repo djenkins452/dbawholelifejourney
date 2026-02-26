@@ -270,6 +270,7 @@ class AIService:
         temperature: float = 0.5,
         endpoint: str = 'general',
         user=None,
+        conversation_history: list = None,
     ) -> Optional[str]:
         """
         Make an API call to OpenAI with retry, backoff, and observability.
@@ -288,6 +289,10 @@ class AIService:
                         Use lower (0.3) for data-heavy responses to reduce hallucination.
             endpoint: Label for observability logging (e.g. 'cos_chat', 'journal_reflection')
             user: Optional user instance for usage logging
+            conversation_history: Optional list of {"role": "user"|"assistant",
+                        "content": "..."} dicts representing prior conversation turns.
+                        When provided, these are inserted between the system prompt
+                        and the final user message for proper conversational threading.
 
         Returns:
             The AI response content or None if unavailable
@@ -312,10 +317,11 @@ class AIService:
         else:
             user_content = user_prompt
 
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_content}
-        ]
+        # Build message array: system → [history] → user
+        messages = [{"role": "system", "content": system_prompt}]
+        if conversation_history:
+            messages.extend(conversation_history)
+        messages.append({"role": "user", "content": user_content})
 
         last_error = None
         for attempt in range(1, LLM_MAX_RETRIES + 1):

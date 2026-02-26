@@ -27,6 +27,7 @@ HEALTH_INTENTS = {
 
 MEDICINE_INTENTS = {
     "take_medicine",
+    "take_medicines_by_time",
 }
 
 FASTING_INTENTS = {

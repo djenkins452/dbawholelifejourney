@@ -3664,15 +3664,14 @@ Rules for voice responses:
                 logger.info(f"Answered query via web search: {message[:50]}...")
                 return web_result
 
-        # Build conversation context - include recent messages for threading
-        # Use the 20 most recent for the user prompt (full 40 available for system context)
-        messages_context = ""
+        # Build structured conversation history for OpenAI message threading.
+        # Instead of embedding history as flat text in the user prompt,
+        # we pass it as proper {"role": "user/assistant"} message objects.
+        from apps.ai.conversation.message_builder import build_messages_from_history
+        conversation_history = build_messages_from_history(history, message)
+
+        # Also build a simple list for topic threading keyword extraction
         history_list = list(reversed(list(history)[:20]))
-        for msg in history_list:
-            role = "User" if msg.role == 'user' else "Assistant"
-            # Truncate very long messages to keep context manageable
-            content = msg.content[:500] + "..." if len(msg.content) > 500 else msg.content
-            messages_context += f"{role}: {content}\n"
 
         # =============================================================
         # Phase 2b: Conversation Topic Threading
@@ -3784,10 +3783,7 @@ Before responding, silently reason through these steps (do NOT include this reas
 4. What should I NOT talk about? (avoid mixing unrelated topics — don't mention routines when they're asking about scripture, don't discuss scripture when they're asking about tasks)
 Then give your response."""
 
-        user_prompt = f"""{"The user's name is " + user_name + ". " if user_name else ""}Conversation so far:
-{messages_context}
-
-User's new message: {message}{image_note}
+        user_prompt = f"""{"The user's name is " + user_name + ". " if user_name else ""}{message}{image_note}
 {topic_threading_hint}
 {reasoning_instruction}
 
@@ -3817,6 +3813,7 @@ Rules for this response:
                 temperature=temperature,
                 endpoint='cos_chat',
                 user=self.user,
+                conversation_history=conversation_history,
             ) or self._get_fallback_response(message)
 
             # Write-suppressed behavior is now enforced at generation time
@@ -3855,6 +3852,7 @@ Rules for this response:
                         temperature=0.3,  # Lower for correction
                         endpoint='cos_chat',
                         user=self.user,
+                        conversation_history=conversation_history,
                     ) or response  # Fall back to original if regen fails
 
             return response

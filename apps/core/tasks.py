@@ -11,13 +11,19 @@ Description:
 
     Currently handles:
     - SAME (System Autonomous Monitoring Engine) cycle execution
+    - ISE (Intelligence Scheduler Engine) cycle execution (redundant trigger)
 
 Tasks:
     - run_same_cycle_task: Triggers SAME monitoring cycle every 60 seconds
+    - run_ise_cycle_task: Triggers ISE scheduler cycle every 5 minutes
+      (redundant with APScheduler — ensures ISE survives scheduler thread death)
 
 Note:
     The DB lock in run_same_cycle() prevents duplicate execution even if
     multiple workers pick up the same task. Celery is only the trigger.
+
+    ISE dedup is handled by ScheduledIntelligenceTask.next_run_at — tasks
+    that have already run (via APScheduler or Celery) won't re-execute.
 
 Copyright:
     (c) Whole Life Journey. All rights reserved.
@@ -149,6 +155,77 @@ def run_same_cycle_task(self):
                 "duration_seconds": round(duration, 2),
                 "task_id": task_id,
             }
+
+
+# =========================================================================
+# ISE (INTELLIGENCE SCHEDULER ENGINE) — REDUNDANT CELERY BEAT TRIGGER
+# =========================================================================
+
+
+@shared_task(
+    bind=True,
+    name="apps.core.tasks.run_ise_cycle_task",
+    max_retries=2,
+    default_retry_delay=15,
+    acks_late=True,
+    reject_on_worker_lost=True,
+    soft_time_limit=240,
+)
+def run_ise_cycle_task(self):
+    """
+    Celery Beat redundant trigger for ISE scheduler cycle.
+
+    Provides resilience against APScheduler thread death. The ISE also runs
+    every 5 minutes via APScheduler in the Gunicorn web process (wsgi.py).
+    If APScheduler is alive, both triggers fire but tasks only execute once
+    (ScheduledIntelligenceTask.next_run_at prevents double-execution).
+
+    If the APScheduler thread dies (which caused ISE to go offline for 51+
+    minutes), this Celery Beat task keeps ISE alive independently.
+    """
+    task_id = self.request.id or "local"
+    start = time.monotonic()
+    logger.info("ISE Celery Beat task starting (task_id=%s)", task_id)
+
+    try:
+        from apps.core.ai_scheduler.scheduler_engine import run_scheduler_cycle
+
+        result = run_scheduler_cycle()
+
+        duration = time.monotonic() - start
+        logger.info(
+            "ISE Celery Beat task completed "
+            "(task_id=%s, duration=%.2fs, executed=%d, skipped=%d, failed=%d)",
+            task_id, duration,
+            result["executed"], result["skipped"], result["failed"],
+        )
+
+        return {
+            "status": "ok",
+            "duration_seconds": round(duration, 2),
+            "task_id": task_id,
+            "result": result,
+        }
+
+    except SoftTimeLimitExceeded:
+        duration = time.monotonic() - start
+        logger.warning(
+            "ISE Celery Beat task hit soft time limit (task_id=%s, duration=%.2fs)",
+            task_id, duration,
+        )
+        return {"status": "timeout", "task_id": task_id}
+
+    except Exception as exc:
+        duration = time.monotonic() - start
+        logger.exception(
+            "ISE Celery Beat task failed (task_id=%s, duration=%.2fs): %s",
+            task_id, duration, exc,
+        )
+        try:
+            raise self.retry(exc=exc)
+        except self.MaxRetriesExceededError:
+            logger.error("ISE Celery Beat task max retries exceeded (task_id=%s)", task_id)
+            return {"status": "max_retries_exceeded", "task_id": task_id}
 
 
 def _get_or_create_execution_log(task_id):

@@ -9,6 +9,22 @@
 
 # WLJ Change History
 
+## 2026-02-26 — ISE Resilience: Redundant Celery Beat Trigger for Intelligence Scheduler
+
+**What:** Added ISE (Intelligence Scheduler Engine) as a Celery Beat periodic task to eliminate single-point-of-failure when the APScheduler thread inside Gunicorn dies. Previously, ISE only ran via APScheduler in the web process — if the scheduler thread died (OOM, deadlock, exception), all 30+ intelligence tasks stopped executing, causing engines (SAE, PIE, PGE, ICQG) to miss cadence and the System Integrity Index to drop to CRITICAL.
+
+**Root cause:** APScheduler runs in-process with Gunicorn. If the scheduler thread dies while Gunicorn stays alive, ISE goes offline but the container doesn't restart. SAME (which runs via Celery Beat) detected the issue but couldn't fix it.
+
+**Fix:** Added `run_ise_cycle_task` Celery Beat task that fires every 300s (5 min), redundant with APScheduler. Built-in dedup via `ScheduledIntelligenceTask.next_run_at` prevents double-execution — whichever trigger fires first advances the task's next run time, and the second trigger safely skips.
+
+**Files:**
+- `apps/core/tasks.py` — Added `run_ise_cycle_task` shared Celery task
+- `config/settings.py` — Added ISE to `CELERY_BEAT_SCHEDULE` (every 300s)
+
+**Why:** Dashboard showed ISE OFFLINE with +3063s drift, score 34 (CRITICAL), 4 engines missing cadence. This ensures ISE survives APScheduler thread death.
+
+---
+
 ## 2026-02-26 — Journal Module: Comprehensive UI Test Coverage Expansion
 
 **What:** Expanded journal UI test suite from 4 basic smoke tests to 37 comprehensive test cases covering all CRUD operations, navigation flows, validation, and delete confirmation. Added missing `data-testid` attributes to journal templates and dialog auto-accept to BrowserManager for confirm dialog support.

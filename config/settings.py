@@ -1008,6 +1008,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.core.tasks.run_same_cycle_task",
         "schedule": 60.0,
     },
+    "run-ise-cycle-every-300-seconds": {
+        "task": "apps.core.tasks.run_ise_cycle_task",
+        "schedule": 300.0,  # Every 5 minutes — redundant with APScheduler
+    },
 }
 
 # Worker settings

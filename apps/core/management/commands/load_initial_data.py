@@ -799,6 +799,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for CoS Intelligence Upgrade (PK 104)
         self._reset_cos_intelligence_upgrade_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Clean up duplicate calendar events for all users
+        self._cleanup_calendar_duplicates(DataLoadConfig, force, verbosity)
+
         # Auto-sync CoS documentation to admin guide (runs if checksum changed)
         self._sync_cos_documentation(DataLoadConfig, force, verbosity)
 
@@ -3910,3 +3913,67 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset CoS intelligence upgrade release notes FAILED: {e}'))
+
+    def _cleanup_calendar_duplicates(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time cleanup of duplicate calendar events for all users.
+
+        Root cause: upsert_execution_block_for_task() bypassed CalendarMutationService
+        dedup checks, creating duplicate execution blocks when both signal-triggered
+        projection and AcceptSuggestionView fired for the same task.
+        Only runs once (tracked via DataLoadConfig) unless force=True.
+        """
+        loader_name = 'cleanup_calendar_duplicates_2026_02'
+
+        if not force and self._is_loader_complete(DataLoadConfig, loader_name):
+            return
+
+        try:
+            from collections import defaultdict
+            from apps.calendar_engine.models import CalendarEvent
+
+            # Get all active events
+            events = CalendarEvent.objects.filter(
+                status=CalendarEvent.STATUS_SCHEDULED,
+                deleted_at__isnull=True,
+            ).select_related('user')
+
+            # Group by (user_id, title_lower, date)
+            groups = defaultdict(list)
+            for event in events:
+                key = (event.user_id, event.title.strip().lower(), event.start_dt.date())
+                groups[key].append(event)
+
+            # Find duplicates and soft-delete lower-priority copies
+            total_deleted = 0
+            for key, group in groups.items():
+                if len(group) <= 1:
+                    continue
+
+                # Sort: protected > execution_block > longer duration > newest
+                group.sort(key=lambda e: (
+                    e.is_protected,
+                    e.event_kind == CalendarEvent.KIND_EXECUTION_BLOCK,
+                    (e.end_dt - e.start_dt).total_seconds(),
+                    e.created_at,
+                ))
+                keeper = group[-1]
+                for dupe in group[:-1]:
+                    dupe.soft_delete()
+                    total_deleted += 1
+
+            if total_deleted > 0 and verbosity >= 1:
+                self.stdout.write(self.style.SUCCESS(
+                    f'  Calendar dedup: soft-deleted {total_deleted} duplicate events'
+                ))
+
+            self._mark_loader_complete(
+                DataLoadConfig, loader_name,
+                'Calendar duplicate cleanup (Feb 2026)',
+                'command',
+                'One-time cleanup of duplicate calendar events caused by projection bypass'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Calendar dedup cleanup FAILED: {e}'))

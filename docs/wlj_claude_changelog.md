@@ -9,6 +9,27 @@
 
 # WLJ Change History
 
+## 2026-02-25 — Structured conversation threading for AI chat
+
+**What:** Replaced the flat-text conversation history embedding with proper OpenAI structured message arrays. Previously, conversation history was converted to a string like "User: ... Assistant: ..." and stuffed into the user prompt as plain text. Now, history is passed as structured `[{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]` message objects between the system prompt and current user message — exactly how OpenAI's API is designed to handle multi-turn conversations.
+
+**Why:** The flat-text approach caused the AI to lose conversational threading, leading to generic responses ("Thank you for your kind words!"), repeated questions (asking the same thing twice ignoring the answer), and inability to build naturally on previous exchanges. Structured messages give the model native understanding of who said what and when.
+
+**Architecture:**
+- New `apps/ai/conversation/` package with `message_builder.py` and `token_budget.py`
+- `_call_api()` accepts optional `conversation_history` parameter (fully backward-compatible — all existing callers unaffected)
+- History trimmed to ~6000 token budget, oldest messages dropped first
+- Individual messages capped at 800 chars with truncation
+
+**Files:**
+- `apps/ai/conversation/__init__.py` — NEW: Package init
+- `apps/ai/conversation/message_builder.py` — NEW: `build_messages_from_history()` — converts AssistantMessage queryset to structured array
+- `apps/ai/conversation/token_budget.py` — NEW: `trim_messages_to_token_budget()` — char-ratio estimator, oldest-first trimming
+- `apps/ai/services.py` — MODIFIED: Added `conversation_history` param to `_call_api()`, inserts between system and user messages
+- `apps/ai/personal_assistant.py` — MODIFIED: Replaced flat text history with `build_messages_from_history()` call; removed embedded history from user prompt
+- `apps/ai/intents/__init__.py` — MODIFIED: Registered `take_medicines_by_time` in INTENT_HANDLERS
+- `apps/core/ai_orchestrator/intent_engine.py` — MODIFIED: Added `take_medicines_by_time` to MEDICINE_INTENTS
+
 ## 2026-02-25 — AI can now mark medicines by time-of-day ("took my evening meds")
 
 **What:** Added `take_medicines_by_time` intent so the AI assistant can bulk-log medicines by time period (morning, evening, nightly, etc.). Previously, saying "I took my evening medicines" resulted in "I couldn't find 'evening medicines'" because the system only searched by medicine name. Now it queries `MedicineSchedule.time_of_day` and logs all matching medicines, with support for "took at scheduled time" vs current time.

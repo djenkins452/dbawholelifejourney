@@ -14,4 +14,391 @@ defaults:
   screenshot_on_failure: true
   html_dump_on_failure: true
 
-cases: []
+cases:
+
+  # ==========================================================================
+  #  AUTHENTICATION
+  # ==========================================================================
+
+  - id: "CAP-AUTH-001"
+    name: "Login and navigate to capture list"
+    priority: "high"
+    tags: ["smoke", "auth"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/accounts/logout/"
+      - action: "NAVIGATE"
+        url: "/accounts/login/"
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "login-email-input"
+        input: "${TEST_USERNAME}"
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "login-password-input"
+        input: "${TEST_PASSWORD}"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "login-submit-button"
+        timeout_ms: 10000
+      - action: "WAIT"
+        timeout_ms: 3000
+    asserts:
+      - type: "url_contains"
+        expected: "/dashboard/"
+
+  # ==========================================================================
+  #  CAPTURE LIST PAGE
+  # ==========================================================================
+
+  - id: "CAP-LIST-001"
+    name: "Capture list page loads with correct URL"
+    priority: "high"
+    tags: ["list", "smoke"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/capture/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/capture/"
+
+  - id: "CAP-LIST-002"
+    name: "Capture list container is visible"
+    priority: "high"
+    tags: ["list", "structure"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/capture/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "capture-list"
+
+  - id: "CAP-LIST-003"
+    name: "Upload button is visible on list page"
+    priority: "high"
+    tags: ["list", "structure"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/capture/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "capture-upload-button"
+
+  - id: "CAP-LIST-004"
+    name: "Record button is visible on list page"
+    priority: "high"
+    tags: ["list", "structure"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/capture/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "capture-record-button"
+
+  - id: "CAP-LIST-005"
+    name: "Empty state displays when no recordings"
+    priority: "medium"
+    tags: ["list", "empty-state"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/capture/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "capture-empty-state"
+
+  # ==========================================================================
+  #  RECORD PAGE
+  # ==========================================================================
+
+  - id: "CAP-RECORD-001"
+    name: "Record page loads from list button"
+    priority: "high"
+    tags: ["record", "navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/capture/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "capture-record-button"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/capture/record/"
+
+  - id: "CAP-RECORD-002"
+    name: "Record page container is visible"
+    priority: "high"
+    tags: ["record", "structure"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/capture/record/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "capture-record-page"
+
+  - id: "CAP-RECORD-003"
+    name: "Record page has back link to capture list"
+    priority: "medium"
+    tags: ["record", "navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/capture/record/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "capture-back-link"
+
+  - id: "CAP-RECORD-004"
+    name: "Record page title displays correctly"
+    priority: "medium"
+    tags: ["record", "structure"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/capture/record/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "capture-record-page"
+        expected: "Record Audio"
+
+  # ==========================================================================
+  #  UPLOAD PAGE
+  # ==========================================================================
+
+  - id: "CAP-UPLOAD-001"
+    name: "Upload page loads from list button"
+    priority: "high"
+    tags: ["upload", "navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/capture/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "capture-upload-button"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/capture/upload/"
+
+  - id: "CAP-UPLOAD-002"
+    name: "Upload page container is visible"
+    priority: "high"
+    tags: ["upload", "structure"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/capture/upload/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "capture-upload-page"
+
+  - id: "CAP-UPLOAD-003"
+    name: "Upload page has back link to capture list"
+    priority: "medium"
+    tags: ["upload", "navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/capture/upload/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "capture-back-link"
+
+  - id: "CAP-UPLOAD-004"
+    name: "Upload page shows drop zone"
+    priority: "high"
+    tags: ["upload", "structure"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/capture/upload/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "id"
+          value: "drop-zone"
+
+  - id: "CAP-UPLOAD-005"
+    name: "Upload page shows browse files button"
+    priority: "medium"
+    tags: ["upload", "structure"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/capture/upload/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "id"
+          value: "browse-btn"
+
+  - id: "CAP-UPLOAD-006"
+    name: "Upload page title displays correctly"
+    priority: "medium"
+    tags: ["upload", "structure"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/capture/upload/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "capture-upload-page"
+        expected: "Upload Audio File"
+
+  # ==========================================================================
+  #  NAVIGATION FLOWS
+  # ==========================================================================
+
+  - id: "CAP-NAV-001"
+    name: "Back link from record page returns to list"
+    priority: "high"
+    tags: ["navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/capture/record/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "capture-back-link"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/capture/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "capture-list"
+
+  - id: "CAP-NAV-002"
+    name: "Back link from upload page returns to list"
+    priority: "high"
+    tags: ["navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/capture/upload/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "capture-back-link"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/capture/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "capture-list"
+
+  - id: "CAP-NAV-003"
+    name: "List to record to list round-trip navigation"
+    priority: "high"
+    tags: ["navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/capture/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "capture-record-button"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "capture-back-link"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/capture/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "capture-list"
+
+  - id: "CAP-NAV-004"
+    name: "List to upload to list round-trip navigation"
+    priority: "high"
+    tags: ["navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/capture/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "capture-upload-button"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "capture-back-link"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/capture/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "capture-list"

@@ -4,7 +4,7 @@
 {% block title %}Capture - Whole Life Journey{% endblock %}
 
 {% block content %}
-<div class="content-container">
+<div class="content-container" data-testid="capture-list">
     <nav class="breadcrumb mb-4">
         <a href="{% url 'dashboard:home' %}">Dashboard</a>
         <span>/</span>
@@ -17,10 +17,10 @@
             <p class="page-subtitle">{{ total_count }} recording{{ total_count|pluralize }} · {{ ready_count }} ready</p>
         </div>
         <div class="header-actions" style="display: flex; gap: 0.5rem;">
-            <a href="{% url 'capture:upload' %}" class="btn btn-secondary">
+            <a href="{% url 'capture:upload' %}" class="btn btn-secondary" data-testid="capture-upload-button">
                 Upload File
             </a>
-            <a href="{% url 'capture:record' %}" class="btn btn-primary">
+            <a href="{% url 'capture:record' %}" class="btn btn-primary" data-testid="capture-record-button">
                 Record Audio
             </a>
         </div>
@@ -226,7 +226,7 @@
 
     {% else %}
     <!-- Empty State -->
-    <div class="card" style="text-align: center; padding: 4rem 2rem;">
+    <div class="card" data-testid="capture-empty-state" style="text-align: center; padding: 4rem 2rem;">
         {% if active_category or active_subcategory or search_query %}
         <!-- No results with filters -->
         <div style="font-size: 4rem; margin-bottom: 1.5rem;">&#128269;</div>

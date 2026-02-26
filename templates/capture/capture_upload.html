@@ -3,11 +3,11 @@
 {% block title %}Upload Audio - Whole Life Journey{% endblock %}
 
 {% block content %}
-<div class="content-container">
+<div class="content-container" data-testid="capture-upload-page">
     <nav class="breadcrumb mb-4">
         <a href="{% url 'dashboard:home' %}">Dashboard</a>
         <span>/</span>
-        <a href="{% url 'capture:list' %}">Capture</a>
+        <a href="{% url 'capture:list' %}" data-testid="capture-back-link">Capture</a>
         <span>/</span>
         <span>Upload</span>
     </nav>

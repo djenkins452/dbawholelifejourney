@@ -15,7 +15,12 @@ defaults:
   html_dump_on_failure: true
 
 cases:
-  - id: "JRN-001"
+
+  # ==========================================================================
+  #  AUTHENTICATION
+  # ==========================================================================
+
+  - id: "JRN-AUTH-001"
     name: "Login to application"
     priority: "high"
     tags: ["smoke", "auth"]
@@ -48,10 +53,150 @@ cases:
           strategy: "data-testid"
           value: "login-form"
 
-  - id: "JRN-002"
-    name: "Create a new journal entry"
+  # ==========================================================================
+  #  CATEGORY 1 — JOURNAL LIST PAGE
+  # ==========================================================================
+
+  - id: "JRN-LIST-001"
+    name: "Journal list page loads successfully"
     priority: "high"
-    tags: ["smoke", "crud"]
+    tags: ["list", "smoke"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/journal/entries/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/journal/entries/"
+
+  - id: "JRN-LIST-002"
+    name: "Empty state renders correctly when no entries match"
+    priority: "medium"
+    tags: ["list", "empty-state"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/journal/entries/?search=XYZNONEXISTENT999NORESULTS"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "journal-empty-state"
+
+  - id: "JRN-LIST-007"
+    name: "Create button navigates to create form"
+    priority: "high"
+    tags: ["list", "navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/journal/entries/"
+      - action: "WAIT"
+        timeout_ms: 1000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "journal-new-entry-button"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/journal/new/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-form"
+
+  # ==========================================================================
+  #  CATEGORY 2 — CREATE ENTRY
+  # ==========================================================================
+
+  - id: "JRN-CREATE-001"
+    name: "Create page loads with form elements"
+    priority: "high"
+    tags: ["create", "smoke"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/journal/new/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/journal/new/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-form"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-title-input"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-body-textarea"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-save-button"
+
+  - id: "JRN-CREATE-006"
+    name: "Validation prevents empty body submission"
+    priority: "medium"
+    tags: ["create", "validation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/journal/new/"
+      - action: "WAIT"
+        timeout_ms: 1000
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-title-input"
+        input: "AUTOTEST|journal|${RUN_ID}|Validation Test"
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-body-textarea"
+        input: ""
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-save-button"
+      - action: "WAIT"
+        timeout_ms: 1000
+    asserts:
+      - type: "url_contains"
+        expected: "/journal/new/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-form"
+
+  - id: "JRN-CREATE-007"
+    name: "Cancel button returns to list"
+    priority: "medium"
+    tags: ["create", "navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/journal/new/"
+      - action: "WAIT"
+        timeout_ms: 1000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "journal-cancel-button"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/journal/entries/"
+
+  - id: "JRN-CREATE-002"
+    name: "Create journal entry successfully"
+    priority: "high"
+    tags: ["create", "crud"]
     steps:
       - action: "NAVIGATE"
         url: "/journal/new/"
@@ -61,12 +206,12 @@ cases:
         selector:
           strategy: "data-testid"
           value: "journal-entry-title-input"
-        input: "AUTOTEST|journal|${RUN_ID}|Smoke Test Entry"
+        input: "AUTOTEST|journal|${RUN_ID}|Entry Alpha"
       - action: "TYPE"
         selector:
           strategy: "data-testid"
           value: "journal-entry-body-textarea"
-        input: "This is an automated test entry created by the WLJ UI test framework. It should be cleaned up after the test run completes."
+        input: "This is the body of Entry Alpha, created by the WLJ UI test framework for comprehensive journal testing."
       - action: "CLICK"
         selector:
           strategy: "data-testid"
@@ -78,16 +223,152 @@ cases:
         selector:
           strategy: "data-testid"
           value: "journal-entry-detail"
+
+  - id: "JRN-CREATE-003"
+    name: "Redirect to detail page after create"
+    priority: "high"
+    tags: ["create", "redirect"]
+    steps:
+      - action: "WAIT"
+        timeout_ms: 500
+    asserts:
+      - type: "url_contains"
+        expected: "/journal/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-detail"
+
+  - id: "JRN-CREATE-004"
+    name: "Created entry displays correct title"
+    priority: "high"
+    tags: ["create", "verify"]
+    steps:
+      - action: "WAIT"
+        timeout_ms: 500
+    asserts:
       - type: "text_contains"
         selector:
           strategy: "data-testid"
           value: "journal-entry-detail-title"
-        expected: "AUTOTEST|journal|${RUN_ID}|Smoke Test Entry"
+        expected: "AUTOTEST|journal|${RUN_ID}|Entry Alpha"
 
-  - id: "JRN-003"
-    name: "Verify entry appears in entry list"
+  - id: "JRN-CREATE-005"
+    name: "Created entry displays correct body"
     priority: "high"
-    tags: ["smoke", "crud"]
+    tags: ["create", "verify"]
+    steps:
+      - action: "WAIT"
+        timeout_ms: 500
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-detail-body"
+        expected: "body of Entry Alpha"
+
+  # ==========================================================================
+  #  CATEGORY 3 — ENTRY DETAIL PAGE
+  # ==========================================================================
+
+  - id: "JRN-DETAIL-001"
+    name: "Detail page loads with all components"
+    priority: "high"
+    tags: ["detail", "smoke"]
+    steps:
+      - action: "WAIT"
+        timeout_ms: 500
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-detail"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-detail-title"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-detail-body"
+
+  - id: "JRN-DETAIL-002"
+    name: "Title displays correctly on detail"
+    priority: "high"
+    tags: ["detail"]
+    steps:
+      - action: "WAIT"
+        timeout_ms: 500
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-detail-title"
+        expected: "AUTOTEST|journal|${RUN_ID}|Entry Alpha"
+
+  - id: "JRN-DETAIL-003"
+    name: "Body displays correctly on detail"
+    priority: "high"
+    tags: ["detail"]
+    steps:
+      - action: "WAIT"
+        timeout_ms: 500
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-detail-body"
+        expected: "body of Entry Alpha"
+
+  - id: "JRN-DETAIL-004"
+    name: "Edit button exists on detail"
+    priority: "high"
+    tags: ["detail", "navigation"]
+    steps:
+      - action: "WAIT"
+        timeout_ms: 500
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "journal-edit-button"
+
+  - id: "JRN-DETAIL-005"
+    name: "Delete button exists on detail"
+    priority: "high"
+    tags: ["detail"]
+    steps:
+      - action: "WAIT"
+        timeout_ms: 500
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-delete-button"
+
+  - id: "JRN-DETAIL-006"
+    name: "Back button returns to list"
+    priority: "high"
+    tags: ["detail", "navigation"]
+    steps:
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "journal-back-button"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/journal/entries/"
+
+  # ==========================================================================
+  #  CATEGORY 1 (cont.) — LIST PAGE WITH DATA
+  # ==========================================================================
+
+  - id: "JRN-LIST-003"
+    name: "Entries display correctly when present"
+    priority: "high"
+    tags: ["list"]
     steps:
       - action: "NAVIGATE"
         url: "/journal/entries/"
@@ -98,13 +379,461 @@ cases:
         selector:
           strategy: "data-testid"
           value: "journal-entry-list"
+      - type: "element_not_visible"
+        selector:
+          strategy: "data-testid"
+          value: "journal-empty-state"
+
+  - id: "JRN-LIST-004"
+    name: "Entries show correct title in list"
+    priority: "high"
+    tags: ["list"]
+    steps:
+      - action: "WAIT"
+        timeout_ms: 500
+    asserts:
       - type: "text_contains"
         selector:
           strategy: "data-testid"
           value: "journal-entry-list"
-        expected: "AUTOTEST|journal|${RUN_ID}|Smoke Test Entry"
+        expected: "AUTOTEST|journal|${RUN_ID}|Entry Alpha"
 
-  - id: "JRN-004"
+  - id: "JRN-LIST-005"
+    name: "Entries show correct preview snippet in list"
+    priority: "medium"
+    tags: ["list"]
+    steps:
+      - action: "WAIT"
+        timeout_ms: 500
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-list"
+        expected: "body of Entry Alpha"
+
+  - id: "JRN-LIST-006"
+    name: "Clicking entry opens detail page"
+    priority: "high"
+    tags: ["list", "navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/journal/entries/?search=AUTOTEST%7Cjournal%7C${RUN_ID}%7CEntry+Alpha"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-link"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-detail"
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-detail-title"
+        expected: "AUTOTEST|journal|${RUN_ID}|Entry Alpha"
+
+  # ==========================================================================
+  #  CATEGORY 4 — EDIT ENTRY
+  # ==========================================================================
+
+  - id: "JRN-EDIT-001"
+    name: "Edit page loads from detail"
+    priority: "high"
+    tags: ["edit", "smoke"]
+    steps:
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "journal-edit-button"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/edit/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-form"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-title-input"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-body-textarea"
+
+  - id: "JRN-EDIT-005"
+    name: "Cancel edit returns to detail"
+    priority: "medium"
+    tags: ["edit", "navigation"]
+    steps:
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "journal-cancel-button"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-detail"
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-detail-title"
+        expected: "AUTOTEST|journal|${RUN_ID}|Entry Alpha"
+
+  - id: "JRN-EDIT-002"
+    name: "Edit existing entry successfully"
+    priority: "high"
+    tags: ["edit", "crud"]
+    steps:
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "journal-edit-button"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-title-input"
+        input: "AUTOTEST|journal|${RUN_ID}|Entry Alpha Edited"
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-body-textarea"
+        input: "This is the EDITED body of Entry Alpha. Changes should persist after save."
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-save-button"
+      - action: "WAIT"
+        timeout_ms: 3000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-detail"
+
+  - id: "JRN-EDIT-003"
+    name: "Changes persist after save"
+    priority: "high"
+    tags: ["edit", "verify"]
+    steps:
+      - action: "WAIT"
+        timeout_ms: 500
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-detail-title"
+        expected: "AUTOTEST|journal|${RUN_ID}|Entry Alpha Edited"
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-detail-body"
+        expected: "EDITED body of Entry Alpha"
+
+  - id: "JRN-EDIT-004"
+    name: "Redirect to detail after edit"
+    priority: "high"
+    tags: ["edit", "redirect"]
+    steps:
+      - action: "WAIT"
+        timeout_ms: 500
+    asserts:
+      - type: "url_contains"
+        expected: "/journal/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-detail"
+
+  - id: "JRN-EDIT-006"
+    name: "Validation prevents invalid update (empty body)"
+    priority: "medium"
+    tags: ["edit", "validation"]
+    steps:
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "journal-edit-button"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-body-textarea"
+        input: ""
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-save-button"
+      - action: "WAIT"
+        timeout_ms: 1000
+    asserts:
+      - type: "url_contains"
+        expected: "/edit/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-form"
+
+  # ==========================================================================
+  #  CATEGORY 2 (cont.) — SAVE AND ADD ANOTHER
+  # ==========================================================================
+
+  - id: "JRN-CREATE-008"
+    name: "Save and add another works correctly"
+    priority: "medium"
+    tags: ["create", "save-add-another"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/journal/new/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-title-input"
+        input: "AUTOTEST|journal|${RUN_ID}|SaveAddAnother Entry"
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-body-textarea"
+        input: "Testing the save and add another button. After save this should redirect back to a blank create form."
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "journal-save-add-another-button"
+      - action: "WAIT"
+        timeout_ms: 3000
+    asserts:
+      - type: "url_contains"
+        expected: "/journal/new/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-form"
+
+  # ==========================================================================
+  #  CATEGORY 5 — DELETE ENTRY
+  #  Creates a dedicated entry, then deletes it via the detail page.
+  #  Requires dialog auto-accept (BrowserManager handles confirm() dialogs).
+  # ==========================================================================
+
+  - id: "JRN-DELETE-001"
+    name: "Create entry for delete test and navigate to detail"
+    priority: "high"
+    tags: ["delete", "setup"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/journal/new/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-title-input"
+        input: "AUTOTEST|journal|${RUN_ID}|Delete Target"
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-body-textarea"
+        input: "This entry will be deleted to test the delete flow."
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-save-button"
+      - action: "WAIT"
+        timeout_ms: 3000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-detail"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-delete-button"
+
+  - id: "JRN-DELETE-002"
+    name: "Confirm delete removes entry"
+    priority: "high"
+    tags: ["delete", "crud"]
+    steps:
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-delete-button"
+      - action: "WAIT"
+        timeout_ms: 3000
+    asserts:
+      - type: "url_contains"
+        expected: "/journal/"
+
+  - id: "JRN-DELETE-003"
+    name: "Redirect to list after delete"
+    priority: "high"
+    tags: ["delete", "redirect"]
+    steps:
+      - action: "WAIT"
+        timeout_ms: 500
+    asserts:
+      - type: "url_contains"
+        expected: "/journal/"
+
+  - id: "JRN-DELETE-004"
+    name: "Deleted entry no longer appears in list"
+    priority: "high"
+    tags: ["delete", "verify"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/journal/entries/?search=AUTOTEST%7Cjournal%7C${RUN_ID}%7CDelete+Target"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "journal-empty-state"
+
+  # ==========================================================================
+  #  CATEGORY 6 — NAVIGATION INTEGRITY
+  # ==========================================================================
+
+  - id: "JRN-NAV-001"
+    name: "Navigation: list -> create -> list"
+    priority: "medium"
+    tags: ["navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/journal/entries/"
+      - action: "WAIT"
+        timeout_ms: 1000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "journal-new-entry-button"
+      - action: "WAIT"
+        timeout_ms: 1500
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "journal-cancel-button"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/journal/entries/"
+
+  - id: "JRN-NAV-002"
+    name: "Navigation: list -> detail -> list"
+    priority: "medium"
+    tags: ["navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/journal/entries/?search=AUTOTEST%7Cjournal%7C${RUN_ID}%7CEntry+Alpha"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-link"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "journal-back-button"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/journal/entries/"
+
+  - id: "JRN-NAV-003"
+    name: "Navigation: detail -> edit -> detail"
+    priority: "medium"
+    tags: ["navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/journal/entries/?search=AUTOTEST%7Cjournal%7C${RUN_ID}%7CEntry+Alpha"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-link"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "journal-edit-button"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "journal-cancel-button"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-detail"
+
+  - id: "JRN-NAV-004"
+    name: "Navigation: detail -> delete -> list"
+    priority: "medium"
+    tags: ["navigation", "delete"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/journal/new/"
+      - action: "WAIT"
+        timeout_ms: 1500
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-title-input"
+        input: "AUTOTEST|journal|${RUN_ID}|Nav Delete Target"
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-body-textarea"
+        input: "Created for nav delete test. Will be soft-deleted."
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-save-button"
+      - action: "WAIT"
+        timeout_ms: 3000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-delete-button"
+      - action: "WAIT"
+        timeout_ms: 3000
+    asserts:
+      - type: "url_contains"
+        expected: "/journal/"
+
+  # ==========================================================================
+  #  CLEANUP — Remove all AUTOTEST entries from this run
+  # ==========================================================================
+
+  - id: "JRN-CLEANUP"
     name: "Cleanup AUTOTEST journal entries for this run"
     priority: "high"
     tags: ["cleanup"]
@@ -118,9 +847,9 @@ cases:
     cleanup:
       - action: "CLICK"
         selector:
-          strategy: "text_contains"
-          value: "AUTOTEST|journal|${RUN_ID}|"
-        description: "Click the AUTOTEST entry scoped to this RUN_ID"
+          strategy: "data-testid"
+          value: "journal-entry-link"
+        description: "Click the first AUTOTEST entry"
       - action: "WAIT"
         timeout_ms: 1000
       - action: "CLICK"
@@ -128,6 +857,25 @@ cases:
           strategy: "data-testid"
           value: "journal-entry-delete-button"
         description: "Soft-delete the AUTOTEST entry"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "NAVIGATE"
+        url: "/journal/entries/?search=AUTOTEST%7Cjournal%7C${RUN_ID}%7C"
+        description: "Return to filtered list for next entry"
+      - action: "WAIT"
+        timeout_ms: 1000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-link"
+        description: "Click second AUTOTEST entry if present"
+      - action: "WAIT"
+        timeout_ms: 1000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-delete-button"
+        description: "Soft-delete second entry"
       - action: "WAIT"
         timeout_ms: 2000
     asserts:

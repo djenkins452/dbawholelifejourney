@@ -52,6 +52,7 @@ def main():
             headed=args.headed,
             env=args.env,
             no_browser=args.no_browser,
+            provision_test_user=args.provision_test_user,
         )
     except Exception as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
@@ -133,6 +134,11 @@ def parse_args():
     parser.add_argument(
         "--health-check", action="store_true", default=False,
         help="Run framework health check without executing tests",
+    )
+    parser.add_argument(
+        "--provision-test-user", action="store_true", default=False,
+        help="Create/update the automated test user before running tests "
+             "(requires Django env: DEBUG=True or ALLOW_TEST_USER_CREATION=True)",
     )
 
     args = parser.parse_args()

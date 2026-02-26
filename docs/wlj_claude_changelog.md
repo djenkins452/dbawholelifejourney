@@ -9,6 +9,19 @@
 
 # WLJ Change History
 
+## 2026-02-26 — Test user provisioning for automated UI testing
+
+**What:** Implemented a secure, idempotent test user provisioning system for the WLJ UI testing framework. Created a service layer (`test_user_service.py`) and management command (`create_test_user`) that provisions a dedicated test user with verified email, `is_app_review_account=True` (MFA bypass), staff/superuser access, onboarding complete, and all modules enabled. Integrated with `ExecutionOrchestrator` via `--provision-test-user` CLI flag that calls the management command via subprocess before running tests. Environment guard prevents accidental creation in production (requires `DEBUG=True` or `ALLOW_TEST_USER_CREATION=True`).
+
+**Files:**
+- `apps/core/services/test_user_service.py` — NEW: `ensure_test_user_exists()`, `get_test_credentials()`, `is_provisioning_allowed()`
+- `apps/core/management/commands/create_test_user.py` — NEW: management command wrapper
+- `apps/core/tests/test_test_user_service.py` — NEW: 15 tests covering creation, verification, MFA, idempotency, env guard
+- `wlj_ui_tests/framework/execution_orchestrator.py` — added `provision_test_user` param and `_provision_test_user()` method
+- `wlj_ui_tests/run_suite.py` — added `--provision-test-user` CLI flag
+
+**Why:** Test automation requires a known user that can log in without email verification or MFA blocking execution.
+
 ## 2026-02-25 — Fix 500 error: add PyYAML to requirements.txt for UI test registry
 
 **What:** The UI Test Runner page crashed on production because `test_module_registry.py` imports PyYAML (`import yaml`) which was only listed in `wlj_ui_tests/requirements.txt`, not the main `requirements.txt`. Added `PyYAML>=6.0` to main requirements. Also made the yaml import graceful (try/except returns empty list if missing) and wrapped `discover_modules()` call in the view with exception handling.

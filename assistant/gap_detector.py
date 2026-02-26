@@ -137,6 +137,21 @@ CONVERSATIONAL_WORDS = {
     'fall', 'fell', 'falling', 'cut', 'cutting',
     'reach', 'reached', 'reaching', 'kill', 'killed', 'killing',
     'remain', 'remained', 'remaining',
+    'pick', 'picked', 'picking', 'choose', 'chose', 'chosen', 'choosing',
+    'select', 'selected', 'selecting', 'grab', 'grabbed', 'grabbing',
+    'handle', 'handled', 'handling', 'start', 'started', 'starting',
+    'finish', 'finished', 'finishing', 'turn', 'turned', 'turning',
+    'hold', 'held', 'holding', 'carry', 'carried', 'carrying',
+    'pull', 'pulled', 'pulling', 'push', 'pushed', 'pushing',
+    'drop', 'dropped', 'dropping', 'pass', 'passed', 'passing',
+    'point', 'pointed', 'pointing', 'raise', 'raised', 'raising',
+    'cover', 'covered', 'covering', 'focus', 'focused', 'focusing',
+    'share', 'shared', 'sharing', 'connect', 'connected', 'connecting',
+    'mark', 'marked', 'marking', 'save', 'saved', 'saving',
+    'load', 'loaded', 'loading', 'switch', 'switched', 'switching',
+    'scroll', 'scrolled', 'scrolling', 'type', 'typed', 'typing',
+    'enter', 'entered', 'entering', 'exit', 'exited', 'exiting',
+    'press', 'pressed', 'pressing', 'sign', 'signed', 'signing',
     'summarize', 'summarized', 'summarizing', 'summary', 'summaries',
     'improve', 'improved', 'improving', 'improvement', 'improvements',
     'author', 'authors', 'authored', 'authoring',
@@ -286,6 +301,95 @@ def is_bible_reference(query: str) -> bool:
             # Also match just the book name with a number after it
             if re.search(rf'\b{book}\s+\d', query_lower):
                 return True
+
+    return False
+
+
+def is_conversational_command(query: str) -> bool:
+    """
+    Detect if a query is a conversational command/instruction directed at the AI.
+
+    These are imperative instructions where pronouns like "me" are indirect objects
+    of a command, NOT indicators of personal data. Adding words to exclusion lists
+    is a losing battle — instead we detect the PATTERN of conversational commands.
+
+    The key insight: "walk me through it" uses "me" as the object of a command,
+    while "show me my weight" uses "my" possessively with a potential data type.
+
+    Args:
+        query: The user's query string.
+
+    Returns:
+        True if this is a conversational instruction, not a personal data query.
+
+    Examples:
+        >>> is_conversational_command("Look at the scripture and pick one and walk me through it")
+        True
+        >>> is_conversational_command("Help me understand Psalm 23")
+        True
+        >>> is_conversational_command("What was my weight yesterday?")
+        False
+    """
+    query_lower = query.lower().strip()
+
+    # Imperative "verb + me" patterns where "me" is an indirect object of a command
+    # These are instructions TO the AI, not personal data queries
+    command_me_patterns = [
+        'walk me through', 'talk me through', 'guide me through',
+        'help me understand', 'help me with', 'help me figure',
+        'help me learn', 'help me think', 'help me see',
+        'teach me', 'show me how', 'show me what',
+        'tell me about', 'tell me more', 'tell me why', 'tell me how',
+        'remind me to', 'remind me about', 'remind me when',
+        'let me know', 'give me a', 'give me an', 'give me some',
+        'give me your', 'give me the',
+        'send me a', 'send me the',
+        'point me to', 'point me toward',
+        'take me to', 'take me through',
+        'break it down for me', 'explain it to me', 'explain this to me',
+        'read it to me', 'read this to me', 'read me',
+    ]
+
+    for pattern in command_me_patterns:
+        if pattern in query_lower:
+            return True
+
+    # Imperative commands that start with a verb directed at the AI
+    # (no personal data context). These are instructions like "Look at...",
+    # "Pick one and...", "Go to...", etc.
+    imperative_patterns = [
+        'look at the', 'look at this', 'look at that',
+        'look at what', 'look on the',
+        'pick one', 'pick a ', 'pick the', 'pick from',
+        'choose one', 'choose a ', 'choose the', 'choose from',
+        'select one', 'select a ', 'select the', 'select from',
+        'go to the', 'go to my', 'go back',
+        'open the', 'open my', 'open this',
+        'close the', 'close this',
+        'start with', 'start from', 'start by',
+        'focus on', 'zoom in', 'zoom out',
+        'break down', 'sum up', 'wrap up',
+        'figure out', 'sort out', 'work through',
+    ]
+
+    for pattern in imperative_patterns:
+        if query_lower.startswith(pattern) or f' and {pattern}' in query_lower:
+            return True
+
+    # Pattern: message is entirely imperative commands chained with "and"
+    # e.g., "Look at X and pick one and walk me through it"
+    # Detect by checking if "me" only appears as indirect object after a verb
+    import re
+    # If "me" appears only in "verb me" patterns (not "my X" possessive),
+    # it's likely a command, not a data query
+    has_my_noun = bool(re.search(r'\bmy\s+\w{4,}', query_lower))
+    if not has_my_noun:
+        # No "my [noun]" pattern — check if all "me" usages are indirect objects
+        # Pattern: "verb + me + preposition/adverb" (walk me through, help me with, etc.)
+        me_as_indirect = re.findall(r'\b\w+\s+me\s+(?:through|with|about|to|how|why|the|a|an|this|that|some|your)\b', query_lower)
+        me_total = len(re.findall(r'\bme\b', query_lower))
+        if me_total > 0 and len(me_as_indirect) >= me_total:
+            return True
 
     return False
 
@@ -460,6 +564,7 @@ def detect_knowledge_gap(
     # - Meta questions about the assistant itself
     # - Bible verse references
     # - External data queries (weather, time, definitions, etc.)
+    # - Conversational commands/instructions ("walk me through it", "pick one")
     if is_meta_question(original_query):
         return base_response
 
@@ -469,32 +574,40 @@ def detect_knowledge_gap(
     if is_external_data_query(original_query):
         return base_response
 
-    # Check for query patterns that suggest it should be personal
-    # Use word boundary matching to avoid false positives like "Interesting" matching "i"
-    # or "mercy" matching "me"
+    if is_conversational_command(original_query):
+        return base_response
+
+    # Check for STRONG personal data indicators.
+    # Previously, ANY "me"/"my"/"I" triggered gap detection, causing massive
+    # false positives (e.g., "walk me through it" → "pick" flagged as data type).
+    #
+    # Now we require POSSESSIVE context — "my [noun]" — which is the strongest
+    # signal that someone is asking about their personal data.
+    # Weak signals like "I said" or "help me" are filtered by the checks above.
     import re
-    personal_patterns = [
-        r'\bmy\b',      # my (word boundary)
-        r'\bi\b',       # i (word boundary)
-        r'\bme\b',      # me (word boundary)
-        r"\bi've\b",    # i've (word boundary)
-        r"\bi'm\b",     # i'm (word boundary)
-    ]
-    has_personal_indicators = any(
-        re.search(pattern, query_lower)
-        for pattern in personal_patterns
+    # Strong signal: "my [4+ char word]" — possessive + potential data noun
+    # e.g., "my hydration", "my steps", "my screentime"
+    has_possessive_data_ref = bool(
+        re.search(r'\bmy\s+([a-z]{4,})', query_lower)
     )
 
-    if has_personal_indicators and not intent_result.get('is_personal_query'):
-        potential_keywords = extract_potential_keywords(original_query)
-        if potential_keywords:
-            # Query has personal indicators but no recognized data type
-            return {
-                **base_response,
-                'gap_detected': True,
-                'gap_type': GapType.UNKNOWN_DATA_TYPE,
-                'suggested_category': potential_keywords[0],
-            }
+    if has_possessive_data_ref and not intent_result.get('is_personal_query'):
+        # Extract what comes after "my" as the primary candidate
+        match = re.search(r'\bmy\s+([a-z]{4,})', query_lower)
+        if match:
+            candidate_word = match.group(1)
+            # Make sure the candidate isn't already a known data type or
+            # conversational word
+            if (candidate_word not in CONVERSATIONAL_WORDS
+                    and candidate_word not in STOP_WORDS):
+                potential_keywords = extract_potential_keywords(original_query)
+                if potential_keywords:
+                    return {
+                        **base_response,
+                        'gap_detected': True,
+                        'gap_type': GapType.UNKNOWN_DATA_TYPE,
+                        'suggested_category': potential_keywords[0],
+                    }
 
     return base_response
 

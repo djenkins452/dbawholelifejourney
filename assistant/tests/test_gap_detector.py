@@ -24,6 +24,7 @@ from assistant.gap_detector import (
     detect_knowledge_gap,
     extract_potential_keywords,
     is_bible_reference,
+    is_conversational_command,
     is_external_data_query,
     is_meta_question,
 )
@@ -832,6 +833,159 @@ class TestRealFalsePositiveCases(unittest.TestCase):
                 result['gap_detected'],
                 f"Message '{msg[:40]}...' should NOT trigger gap detection"
             )
+
+
+class TestIsConversationalCommand(unittest.TestCase):
+    """Tests for is_conversational_command helper function."""
+
+    def test_walk_me_through(self):
+        """'walk me through' is a command, not a data query."""
+        self.assertTrue(is_conversational_command(
+            "Look at the scripture on the screen and pick one and walk me through it"
+        ))
+
+    def test_help_me_understand(self):
+        """'help me understand' is a command, not a data query."""
+        self.assertTrue(is_conversational_command("Help me understand Psalm 23"))
+
+    def test_teach_me(self):
+        """'teach me' is a command, not a data query."""
+        self.assertTrue(is_conversational_command("Teach me about prayer"))
+
+    def test_tell_me_about(self):
+        """'tell me about' is a command, not a data query."""
+        self.assertTrue(is_conversational_command("Tell me about the book of James"))
+
+    def test_give_me_a_rundown(self):
+        """'give me a' is a command, not a data query."""
+        self.assertTrue(is_conversational_command("Give me a summary of this chapter"))
+
+    def test_show_me_how(self):
+        """'show me how' is a command, not a data query."""
+        self.assertTrue(is_conversational_command("Show me how to set up reminders"))
+
+    def test_look_at_the_screen(self):
+        """'look at the' starting a sentence is a command."""
+        self.assertTrue(is_conversational_command("Look at the scripture on the screen"))
+
+    def test_pick_one_imperative(self):
+        """Imperative 'pick one' chained with 'and' is a command."""
+        self.assertTrue(is_conversational_command(
+            "Look at the options and pick one and explain it"
+        ))
+
+    def test_break_it_down(self):
+        """'break it down for me' is a command."""
+        self.assertTrue(is_conversational_command("Break it down for me step by step"))
+
+    def test_explain_it_to_me(self):
+        """'explain it to me' is a command."""
+        self.assertTrue(is_conversational_command("Explain it to me like I'm five"))
+
+    def test_personal_data_query_not_command(self):
+        """Personal data queries should NOT be detected as commands."""
+        self.assertFalse(is_conversational_command("What was my weight yesterday?"))
+        self.assertFalse(is_conversational_command("Show me my glucose levels"))
+        self.assertFalse(is_conversational_command("How much caffeine did I have?"))
+
+    def test_my_noun_not_command(self):
+        """'my [data noun]' possessive patterns are NOT commands."""
+        self.assertFalse(is_conversational_command("What was my creatinine level?"))
+        self.assertFalse(is_conversational_command("Track my hydration for me"))
+
+
+class TestPickFalsePositive(unittest.TestCase):
+    """
+    Regression tests for the 'pick' false positive.
+
+    Real case: User said "Look at the scripture on the screen and pick one
+    and walk me through it" and got an email about evaluating 'pick' as a
+    new data type. This was caused by:
+    1. 'me' in 'walk me through it' triggering personal indicator detection
+    2. 'pick' not being in CONVERSATIONAL_WORDS
+    3. Case 4 being too aggressive (any 'me'/'my'/'I' + unknown word = gap)
+    """
+
+    def _get_non_personal_intent(self):
+        return {
+            'is_personal_query': False,
+            'data_types': [],
+            'has_date_context': False,
+            'is_meta_question': False,
+            'is_compound_query': False,
+        }
+
+    def test_pick_scripture_no_gap(self):
+        """The exact message that triggered the false positive email."""
+        result = detect_knowledge_gap(
+            "Look at the scripture on the screen and pick one and walk me through it",
+            intent_result=self._get_non_personal_intent(),
+            data_result=None
+        )
+        self.assertFalse(result['gap_detected'])
+
+    def test_pick_not_extracted_as_keyword(self):
+        """'pick' should not be extracted as a potential keyword."""
+        result = extract_potential_keywords(
+            "Look at the scripture on the screen and pick one and walk me through it"
+        )
+        self.assertNotIn('pick', result)
+
+    def test_help_me_with_no_gap(self):
+        """Commands with 'me' as indirect object should not trigger gaps."""
+        result = detect_knowledge_gap(
+            "Help me figure out what this passage means",
+            intent_result=self._get_non_personal_intent(),
+            data_result=None
+        )
+        self.assertFalse(result['gap_detected'])
+
+    def test_walk_me_through_no_gap(self):
+        """'walk me through' is a command, not a data query."""
+        result = detect_knowledge_gap(
+            "Walk me through this chapter verse by verse",
+            intent_result=self._get_non_personal_intent(),
+            data_result=None
+        )
+        self.assertFalse(result['gap_detected'])
+
+    def test_guide_me_no_gap(self):
+        """'guide me through' is a command, not a data query."""
+        result = detect_knowledge_gap(
+            "Guide me through setting up my morning routine",
+            intent_result=self._get_non_personal_intent(),
+            data_result=None
+        )
+        self.assertFalse(result['gap_detected'])
+
+    def test_give_me_a_summary_no_gap(self):
+        """'give me a summary' is a command, not a data query."""
+        result = detect_knowledge_gap(
+            "Give me a summary of what happened this week",
+            intent_result=self._get_non_personal_intent(),
+            data_result=None
+        )
+        self.assertFalse(result['gap_detected'])
+
+    def test_my_creatinine_still_triggers_gap(self):
+        """Legitimate 'my [noun]' data requests should STILL trigger gaps."""
+        result = detect_knowledge_gap(
+            "What was my creatinine level today?",
+            intent_result=self._get_non_personal_intent(),
+            data_result=None
+        )
+        self.assertTrue(result['gap_detected'])
+        self.assertEqual(result['gap_type'], GapType.UNKNOWN_DATA_TYPE)
+
+    def test_my_caffeine_still_triggers_gap(self):
+        """Legitimate 'my caffeine' data request should STILL trigger gaps."""
+        result = detect_knowledge_gap(
+            "What was my caffeine intake today?",
+            intent_result=self._get_non_personal_intent(),
+            data_result=None
+        )
+        self.assertTrue(result['gap_detected'])
+        self.assertEqual(result['gap_type'], GapType.UNKNOWN_DATA_TYPE)
 
 
 class TestLegitimateGapDetection(unittest.TestCase):

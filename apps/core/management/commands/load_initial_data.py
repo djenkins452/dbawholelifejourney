@@ -802,6 +802,9 @@ class Command(BaseCommand):
         # One-time: Clean up duplicate calendar events for all users
         self._cleanup_calendar_duplicates(DataLoadConfig, force, verbosity)
 
+        # One-time: Clean up false-positive gap detection improvement tasks
+        self._cleanup_false_positive_improvement_tasks(DataLoadConfig, force, verbosity)
+
         # Auto-sync CoS documentation to admin guide (runs if checksum changed)
         self._sync_cos_documentation(DataLoadConfig, force, verbosity)
 
@@ -3913,6 +3916,69 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset CoS intelligence upgrade release notes FAILED: {e}'))
+
+    def _cleanup_false_positive_improvement_tasks(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time cleanup of false-positive improvement tasks created by the
+        gap detector before it was fixed (Feb 2026).
+
+        The gap detector was too aggressive — it flagged ANY message containing
+        'me'/'my'/'I' + unknown words as potential new data types. Common verbs
+        like 'pick' from "Look at the scripture and pick one and walk me through
+        it" triggered "Evaluate new data type: 'pick'" email alerts.
+
+        This cleans up those false-positive tasks.
+        """
+        loader_name = 'cleanup_false_positive_improvement_tasks_2026_02'
+
+        if not force and self._is_loader_complete(DataLoadConfig, loader_name):
+            return
+
+        try:
+            from assistant.models import ImprovementTaskModel
+
+            # Known false positive patterns — common verbs/conversational words
+            # that were incorrectly flagged as potential data types
+            false_positive_words = {
+                'pick', 'picked', 'picking',
+                'choose', 'chose', 'chosen',
+                'select', 'selected',
+                'grab', 'handle',
+                'turn', 'push', 'pull', 'drop',
+                'point', 'cover', 'focus', 'share',
+                'mark', 'save', 'load', 'switch',
+                'scroll', 'type', 'enter', 'exit', 'press', 'sign',
+            }
+
+            # Find tasks with these false-positive titles
+            from django.db.models import Q
+            q_filter = Q()
+            for word in false_positive_words:
+                q_filter |= Q(title__iexact=f"Evaluate new data type: '{word}'")
+
+            false_tasks = ImprovementTaskModel.objects.filter(q_filter)
+            count = false_tasks.count()
+
+            if count > 0:
+                # Mark them as resolved/rejected
+                false_tasks.update(status='rejected')
+                if verbosity >= 1:
+                    self.stdout.write(self.style.SUCCESS(
+                        f'  Cleaned up {count} false-positive improvement task(s)'
+                    ))
+
+            self._mark_loader_complete(
+                DataLoadConfig, loader_name,
+                'False-positive improvement task cleanup (Feb 2026)',
+                'command',
+                'One-time cleanup of tasks created by overly aggressive gap detector'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(
+                    f'False-positive improvement task cleanup FAILED: {e}'
+                ))
 
     def _cleanup_calendar_duplicates(self, DataLoadConfig, force=False, verbosity=1):
         """

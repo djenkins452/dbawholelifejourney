@@ -9,6 +9,26 @@
 
 # WLJ Change History
 
+## 2026-02-25 — WLJ UI Testing Framework Phase 13: Framework Hardening
+
+**What:** Hardened the framework with RUN_ID-scoped cleanup, a cross-module smoke suite, a test data registry, and a comprehensive self-test script (46/46 checks passed). JRN-004 cleanup now searches by `AUTOTEST|journal|${RUN_ID}|` instead of clicking generic entry cards, preventing accidental deletion of entries from other concurrent runs. Created `smoke` module (SMK-001–SMK-004) mirroring the journal flow for cross-module essentials. Added `TestDataRegistry` class for NDJSON append-only audit trail of all AUTOTEST objects created during runs, with register/mark_cleaned_up/flush/read/summary operations.
+
+**Files:**
+- `wlj_ui_tests/modules/journal/suite.yaml` — MODIFIED: JRN-004 cleanup_scope + RUN_ID-scoped search/text_contains selectors
+- `wlj_ui_tests/modules/smoke/suite.yaml` — NEW: 4 smoke cases (login, create, verify, cleanup), all RUN_ID-scoped
+- `wlj_ui_tests/modules/smoke/reports/.gitkeep` — NEW: Smoke reports directory
+- `wlj_ui_tests/modules/smoke/artifacts/.gitkeep` — NEW: Smoke artifacts directory
+- `wlj_ui_tests/framework/test_data_registry.py` — NEW: TestDataRegistry class with NDJSON persistence
+- `wlj_ui_tests/reports/test_data_registry.ndjson` — NEW: Empty registry file
+- `wlj_ui_tests/run_framework_self_test.py` — NEW: 46-check self-test (runner, reporting, artifacts, prompt, registry, schema, safety)
+- `wlj_ui_tests/framework/__init__.py` — MODIFIED: Added TestDataRegistry export
+- `wlj_ui_tests/framework/runner.py` — MODIFIED: Added 'smoke' to KNOWN_MODULES (9→10)
+- `wlj_ui_tests/validate_framework.py` — MODIFIED: Updated module count 9→10
+
+**Why:** Prevents cross-run data pollution in concurrent test execution, provides audit trail for test data lifecycle, and adds a fast non-Playwright validation tool for CI pre-checks.
+
+---
+
 ## 2026-02-25 — WLJ UI Testing Framework Phase 12: Validation & Journal Module Tests
 
 **What:** Validated all 12 framework subsystems (35/35 checks passed) without Playwright. Created `framework_state.json` with locked=true to prevent framework modifications. Added 16 `data-testid` attributes across 4 Django templates (login, entry form, entry list, entry detail) — attribute additions only, no structural/logic/style changes. Implemented 4 journal test cases (JRN-001 through JRN-004): login, create entry, verify entry in list, cleanup AUTOTEST entries. All cases use `data-testid` selectors exclusively and pass schema validation.

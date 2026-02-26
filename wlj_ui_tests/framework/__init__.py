@@ -9,6 +9,7 @@ from .artifacts import ArtifactCapture
 from .prompt_builder import PromptBuilder
 from .schema_validator import SchemaValidator, ValidationError
 from .safety import SafetyController, SafetyError, is_production
+from .test_data_registry import TestDataRegistry
 
 __all__ = [
     "__version__",
@@ -20,4 +21,5 @@ __all__ = [
     "PromptBuilder",
     "SchemaValidator", "ValidationError",
     "SafetyController", "SafetyError", "is_production",
+    "TestDataRegistry",
 ]

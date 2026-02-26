@@ -31,10 +31,10 @@ class SuiteRunner:
     LOCK_FILE = BASE_DIR / ".wlj_test.lock"
     LOCK_STALE_MINUTES = 30
 
-    # The 9 initial modules per Section 4 directory structure
+    # The 10 modules per Section 4 directory structure + smoke
     KNOWN_MODULES = (
         "journal", "faith", "health", "organize", "goals",
-        "capture", "cos", "preferences", "admin",
+        "capture", "cos", "preferences", "admin", "smoke",
     )
 
     def __init__(self, suite_path=None, base_url=None, headed=False,

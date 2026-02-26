@@ -3923,7 +3923,7 @@ Tasks are sorted by priority (ascending) then creation date.""",
         projection and AcceptSuggestionView fired for the same task.
         Only runs once (tracked via DataLoadConfig) unless force=True.
         """
-        loader_name = 'cleanup_calendar_duplicates_2026_02'
+        loader_name = 'cleanup_calendar_duplicates_2026_02_v2'
 
         if not force and self._is_loader_complete(DataLoadConfig, loader_name):
             return
@@ -3938,10 +3938,26 @@ Tasks are sorted by priority (ascending) then creation date.""",
                 deleted_at__isnull=True,
             ).select_related('user')
 
-            # Group by (user_id, title_lower, date)
+            # Cache user timezones to avoid repeated DB hits
+            _tz_cache = {}
+
+            def _get_user_tz(user):
+                if user.id not in _tz_cache:
+                    try:
+                        from zoneinfo import ZoneInfo
+                        _tz_cache[user.id] = ZoneInfo(user.preferences.timezone_iana)
+                    except Exception:
+                        from django.utils import timezone as dj_tz
+                        _tz_cache[user.id] = dj_tz.utc
+                return _tz_cache[user.id]
+
+            # Group by (user_id, title_lower, local_date) — must use user's
+            # local date, not UTC date, to correctly group near midnight
             groups = defaultdict(list)
             for event in events:
-                key = (event.user_id, event.title.strip().lower(), event.start_dt.date())
+                user_tz = _get_user_tz(event.user)
+                local_date = event.start_dt.astimezone(user_tz).date()
+                key = (event.user_id, event.title.strip().lower(), local_date)
                 groups[key].append(event)
 
             # Find duplicates and soft-delete lower-priority copies

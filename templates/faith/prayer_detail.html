@@ -3,21 +3,21 @@
 {% block title %}{{ prayer.title }} - Prayer Request - Whole Life Journey{% endblock %}
 
 {% block content %}
-<div class="content-container">
+<div class="content-container" data-testid="faith-prayer-detail">
     <nav class="breadcrumb mb-4">
         <a href="{% url 'faith:home' %}">Faith</a>
         <span>/</span>
-        <a href="{% url 'faith:prayer_list' %}">Prayer Requests</a>
+        <a href="{% url 'faith:prayer_list' %}" data-testid="faith-back-link">Prayer Requests</a>
         <span>/</span>
         <span>{{ prayer.title|truncatewords:5 }}</span>
     </nav>
-    
+
     <article class="prayer-detail card">
         <header class="prayer-header">
             {% if prayer.priority == 'urgent' %}
                 <span class="priority-badge">Urgent</span>
             {% endif %}
-            <h1 class="prayer-title">{{ prayer.title }}</h1>
+            <h1 class="prayer-title" data-testid="prayer-title">{{ prayer.title }}</h1>
             <p class="prayer-meta">
                 Added {{ prayer.created_at|date:"F j, Y" }}
                 {% if prayer.remind_daily %}
@@ -39,7 +39,7 @@
         {% endif %}
         
         <div class="prayer-actions">
-            <a href="{% url 'faith:prayer_update' prayer.pk %}" class="btn btn-secondary">
+            <a href="{% url 'faith:prayer_update' prayer.pk %}" class="btn btn-secondary" data-testid="prayer-edit-button">
                 Edit
             </a>
             
@@ -50,9 +50,9 @@
                 </button>
             </form>
             
-            <form method="post" action="{% url 'faith:prayer_delete' prayer.pk %}" class="inline-form" data-confirm-delete>
+            <form method="post" action="{% url 'faith:prayer_delete' prayer.pk %}" class="inline-form" data-confirm-delete data-testid="prayer-delete-form">
                 {% csrf_token %}
-                <button type="submit" class="btn btn-ghost text-error">Delete</button>
+                <button type="submit" class="btn btn-ghost text-error" data-testid="prayer-delete-button">Delete</button>
             </form>
         </div>
     </article>

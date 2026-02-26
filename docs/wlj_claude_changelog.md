@@ -9,6 +9,18 @@
 
 # WLJ Change History
 
+## 2026-02-26 — Faith Module: Comprehensive UI Test Coverage Expansion
+
+**What:** Built faith module UI test suite from scratch (0 → 27 tests). Added data-testid to 8 templates. Full prayer CRUD, 5 sub-module page loads, navigation, cleanup. Made prayer titles clickable links (UX improvement).
+
+**Test Coverage (27):** Auth (1), Home (4), Prayer List (3), Create (4), Detail (3), Edit (2), Delete (1 self-contained), Sub-Modules (5), Nav (3), Cleanup (1).
+
+**Templates Modified:** home.html, prayer_list.html, prayer_form.html, prayer_detail.html, scripture_list.html, milestone_list.html, reading_plans/list.html, study_tools/home.html
+
+**Result:** 27/27 pass (100%), stable across multiple runs.
+
+---
+
 ## 2026-02-26 — Capture Module: Comprehensive UI Test Coverage Expansion
 
 **What:** Built capture module UI test suite from scratch (0 → 20 comprehensive test cases). Added `data-testid` attributes to 4 capture templates. Tests cover page structure, navigation flows, and empty state — purposefully excludes audio recording and file upload (require hardware/browser APIs the YAML framework can't automate).

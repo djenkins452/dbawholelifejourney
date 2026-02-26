@@ -3,9 +3,9 @@
 {% block title %}Bible Study Tools - Whole Life Journey{% endblock %}
 
 {% block content %}
-<div class="container">
+<div class="container" data-testid="faith-study-tools">
     <nav class="breadcrumb mb-4">
-        <a href="{% url 'faith:home' %}">Faith</a>
+        <a href="{% url 'faith:home' %}" data-testid="faith-back-link">Faith</a>
         <span>/</span>
         <span>Study Tools</span>
     </nav>

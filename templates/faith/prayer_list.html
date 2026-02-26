@@ -4,9 +4,9 @@
 {% block title %}Prayer Requests - Faith - Whole Life Journey{% endblock %}
 
 {% block content %}
-<div class="container">
+<div class="container" data-testid="faith-prayer-list">
     <nav class="breadcrumb mb-4">
-        <a href="{% url 'faith:home' %}">Faith</a>
+        <a href="{% url 'faith:home' %}" data-testid="faith-back-link">Faith</a>
         <span>/</span>
         <span>Prayer Requests</span>
     </nav>
@@ -16,7 +16,7 @@
             <h1 class="page-title">Prayer Requests {% include "components/favorite_toggle.html" with page_title="Prayer Requests" %}</h1>
             <p class="page-subtitle">{{ prayers|length }} active request{{ prayers|length|pluralize }}</p>
         </div>
-        <a href="{% url 'faith:prayer_create' %}" class="btn btn-primary">
+        <a href="{% url 'faith:prayer_create' %}" class="btn btn-primary" data-testid="faith-add-prayer-button">
             Add Prayer
         </a>
     </div>
@@ -51,7 +51,7 @@
                         <input type="checkbox" data-item-checkbox class="bulk-checkbox" value="{{ prayer.pk }}">
                     </div>
                     <div class="prayer-header">
-                        <h2 class="prayer-title">{{ prayer.title }}</h2>
+                        <h2 class="prayer-title"><a href="{% url 'faith:prayer_detail' prayer.pk %}" data-testid="prayer-card-link">{{ prayer.title }}</a></h2>
                         {% if prayer.priority == 'urgent' %}
                             <span class="priority-badge">Urgent</span>
                         {% endif %}

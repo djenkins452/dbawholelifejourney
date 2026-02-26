@@ -3,9 +3,9 @@
 {% block title %}Faith Journey Milestones - Whole Life Journey{% endblock %}
 
 {% block content %}
-<div class="container">
+<div class="container" data-testid="faith-milestone-list">
     <nav class="breadcrumb mb-4">
-        <a href="{% url 'faith:home' %}">Faith</a>
+        <a href="{% url 'faith:home' %}" data-testid="faith-back-link">Faith</a>
         <span>/</span>
         <span>Milestones</span>
     </nav>
@@ -15,7 +15,7 @@
             <h1 class="page-title">Faith Journey {% include "components/favorite_toggle.html" with page_title="Faith Journey" %}</h1>
             <p class="page-subtitle">Significant moments in your walk with God</p>
         </div>
-        <a href="{% url 'faith:milestone_create' %}" class="btn btn-primary">Add Milestone</a>
+        <a href="{% url 'faith:milestone_create' %}" class="btn btn-primary" data-testid="faith-add-milestone-button">Add Milestone</a>
     </div>
     
     {% if milestones %}

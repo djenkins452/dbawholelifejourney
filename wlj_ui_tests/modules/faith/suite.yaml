@@ -14,4 +14,639 @@ defaults:
   screenshot_on_failure: true
   html_dump_on_failure: true
 
-cases: []
+cases:
+
+  # ==========================================================================
+  #  AUTHENTICATION
+  # ==========================================================================
+
+  - id: "FAITH-AUTH-001"
+    name: "Login and navigate to faith home"
+    priority: "high"
+    tags: ["smoke", "auth"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/accounts/logout/"
+      - action: "NAVIGATE"
+        url: "/accounts/login/"
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "login-email-input"
+        input: "${TEST_USERNAME}"
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "login-password-input"
+        input: "${TEST_PASSWORD}"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "login-submit-button"
+        timeout_ms: 10000
+      - action: "WAIT"
+        timeout_ms: 3000
+    asserts:
+      - type: "url_contains"
+        expected: "/dashboard/"
+
+  # ==========================================================================
+  #  FAITH HOME PAGE
+  # ==========================================================================
+
+  - id: "FAITH-HOME-001"
+    name: "Faith home page loads with correct URL"
+    priority: "high"
+    tags: ["home", "smoke"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/faith/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/faith/"
+
+  - id: "FAITH-HOME-002"
+    name: "Faith home container is visible"
+    priority: "high"
+    tags: ["home", "structure"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/faith/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "faith-home"
+
+  - id: "FAITH-HOME-003"
+    name: "Add Prayer button visible on faith home"
+    priority: "high"
+    tags: ["home", "structure"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/faith/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "faith-add-prayer-button"
+
+  - id: "FAITH-HOME-004"
+    name: "Faith home displays page title"
+    priority: "medium"
+    tags: ["home", "structure"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/faith/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "faith-home"
+        expected: "Faith"
+
+  # ==========================================================================
+  #  PRAYER LIST PAGE
+  # ==========================================================================
+
+  - id: "FAITH-PRAYER-LIST-001"
+    name: "Prayer list page loads"
+    priority: "high"
+    tags: ["prayer", "list"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/faith/prayers/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/faith/prayers/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "faith-prayer-list"
+
+  - id: "FAITH-PRAYER-LIST-002"
+    name: "Add Prayer button visible on prayer list"
+    priority: "high"
+    tags: ["prayer", "list"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/faith/prayers/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "faith-add-prayer-button"
+
+  - id: "FAITH-PRAYER-LIST-003"
+    name: "Add Prayer button navigates to create form"
+    priority: "high"
+    tags: ["prayer", "navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/faith/prayers/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "faith-add-prayer-button"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/faith/prayers/new/"
+
+  # ==========================================================================
+  #  PRAYER CREATE
+  # ==========================================================================
+
+  - id: "FAITH-PRAYER-CREATE-001"
+    name: "Prayer form loads with all fields"
+    priority: "high"
+    tags: ["prayer", "create"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/faith/prayers/new/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "faith-prayer-form"
+      - type: "element_visible"
+        selector:
+          strategy: "id"
+          value: "id_title"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "prayer-save-button"
+
+  - id: "FAITH-PRAYER-CREATE-002"
+    name: "Create prayer with title only"
+    priority: "high"
+    tags: ["prayer", "create"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/faith/prayers/new/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "TYPE"
+        selector:
+          strategy: "id"
+          value: "id_title"
+        input: "AUTOTEST|faith|${RUN_ID}|Prayer One"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "prayer-save-button"
+        timeout_ms: 10000
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/faith/prayers/"
+
+  - id: "FAITH-PRAYER-CREATE-003"
+    name: "Create prayer with description for edit/delete tests"
+    priority: "high"
+    tags: ["prayer", "create"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/faith/prayers/new/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "TYPE"
+        selector:
+          strategy: "id"
+          value: "id_title"
+        input: "AUTOTEST|faith|${RUN_ID}|Prayer Two"
+      - action: "TYPE"
+        selector:
+          strategy: "id"
+          value: "id_description"
+        input: "Test prayer description for edit and delete tests"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "prayer-save-button"
+        timeout_ms: 10000
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/faith/prayers/"
+
+  - id: "FAITH-PRAYER-CREATE-004"
+    name: "Cancel returns to prayer list"
+    priority: "medium"
+    tags: ["prayer", "create"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/faith/prayers/new/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "prayer-cancel-button"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/faith/prayers/"
+
+  # ==========================================================================
+  #  PRAYER DETAIL
+  # ==========================================================================
+
+  - id: "FAITH-PRAYER-DETAIL-001"
+    name: "Prayer detail page loads from list"
+    priority: "high"
+    tags: ["prayer", "detail"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/faith/prayers/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "text_contains"
+          value: "AUTOTEST|faith|${RUN_ID}|Prayer Two"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "faith-prayer-detail"
+
+  - id: "FAITH-PRAYER-DETAIL-002"
+    name: "Prayer title displays correctly"
+    priority: "high"
+    tags: ["prayer", "detail"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/faith/prayers/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "text_contains"
+          value: "AUTOTEST|faith|${RUN_ID}|Prayer Two"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "prayer-title"
+        expected: "AUTOTEST|faith|${RUN_ID}|Prayer Two"
+
+  - id: "FAITH-PRAYER-DETAIL-003"
+    name: "Edit and delete buttons visible on detail"
+    priority: "high"
+    tags: ["prayer", "detail"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/faith/prayers/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "text_contains"
+          value: "AUTOTEST|faith|${RUN_ID}|Prayer Two"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "prayer-edit-button"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "prayer-delete-button"
+
+  # ==========================================================================
+  #  PRAYER EDIT
+  # ==========================================================================
+
+  - id: "FAITH-PRAYER-EDIT-001"
+    name: "Edit form loads with pre-filled title"
+    priority: "high"
+    tags: ["prayer", "edit"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/faith/prayers/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "text_contains"
+          value: "AUTOTEST|faith|${RUN_ID}|Prayer Two"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "prayer-edit-button"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/edit/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "faith-prayer-form"
+
+  - id: "FAITH-PRAYER-EDIT-002"
+    name: "Edit prayer title and save"
+    priority: "high"
+    tags: ["prayer", "edit"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/faith/prayers/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "text_contains"
+          value: "AUTOTEST|faith|${RUN_ID}|Prayer Two"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "prayer-edit-button"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "TYPE"
+        selector:
+          strategy: "id"
+          value: "id_title"
+        input: "AUTOTEST|faith|${RUN_ID}|Prayer Edited"
+        clear_first: true
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "prayer-save-button"
+        timeout_ms: 10000
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/faith/prayers/"
+
+  # ==========================================================================
+  #  PRAYER DELETE
+  # ==========================================================================
+
+  - id: "FAITH-PRAYER-DELETE-001"
+    name: "Delete prayer from detail page (self-contained)"
+    priority: "high"
+    tags: ["prayer", "delete"]
+    steps:
+      # Create a fresh prayer for deletion
+      - action: "NAVIGATE"
+        url: "/faith/prayers/new/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "TYPE"
+        selector:
+          strategy: "id"
+          value: "id_title"
+        input: "AUTOTEST|faith|${RUN_ID}|Delete Me"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "prayer-save-button"
+        timeout_ms: 10000
+      - action: "WAIT"
+        timeout_ms: 2000
+      # Navigate to list and click the prayer (not yet in nav dropdown)
+      - action: "NAVIGATE"
+        url: "/faith/prayers/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "text_contains"
+          value: "AUTOTEST|faith|${RUN_ID}|Delete Me"
+      - action: "WAIT"
+        timeout_ms: 2000
+      # Delete from detail page
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "prayer-delete-button"
+        timeout_ms: 10000
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/faith/prayers/"
+
+  # ==========================================================================
+  #  SUB-MODULE PAGES
+  # ==========================================================================
+
+  - id: "FAITH-SCRIPTURE-001"
+    name: "Scripture library page loads"
+    priority: "high"
+    tags: ["scripture", "structure"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/faith/scripture/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/faith/scripture/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "faith-scripture-list"
+
+  - id: "FAITH-MILESTONE-001"
+    name: "Milestones page loads"
+    priority: "high"
+    tags: ["milestone", "structure"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/faith/milestones/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/faith/milestones/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "faith-milestone-list"
+
+  - id: "FAITH-MILESTONE-002"
+    name: "Add Milestone button visible"
+    priority: "medium"
+    tags: ["milestone", "structure"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/faith/milestones/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "faith-add-milestone-button"
+
+  - id: "FAITH-READING-PLANS-001"
+    name: "Reading plans page loads"
+    priority: "high"
+    tags: ["reading-plans", "structure"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/faith/reading-plans/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/faith/reading-plans/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "faith-reading-plans"
+
+  - id: "FAITH-STUDY-TOOLS-001"
+    name: "Study tools page loads"
+    priority: "high"
+    tags: ["study-tools", "structure"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/faith/study-tools/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/faith/study-tools/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "faith-study-tools"
+
+  # ==========================================================================
+  #  NAVIGATION FLOWS
+  # ==========================================================================
+
+  - id: "FAITH-NAV-001"
+    name: "Back link from prayer list returns to faith home"
+    priority: "medium"
+    tags: ["navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/faith/prayers/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "faith-back-link"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/faith/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "faith-home"
+
+  - id: "FAITH-NAV-002"
+    name: "Back link from scripture returns to faith home"
+    priority: "medium"
+    tags: ["navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/faith/scripture/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "faith-back-link"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/faith/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "faith-home"
+
+  - id: "FAITH-NAV-003"
+    name: "Back link from milestones returns to faith home"
+    priority: "medium"
+    tags: ["navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/faith/milestones/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "faith-back-link"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/faith/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "faith-home"
+
+  # ==========================================================================
+  #  CLEANUP
+  # ==========================================================================
+
+  - id: "FAITH-CLEANUP-001"
+    name: "Clean up AUTOTEST Prayer One (not in nav dropdown)"
+    priority: "high"
+    tags: ["cleanup"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/faith/prayers/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "text_contains"
+          value: "AUTOTEST|faith|${RUN_ID}|Prayer One"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "prayer-delete-button"
+        timeout_ms: 10000
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/faith/prayers/"

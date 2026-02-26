@@ -61,6 +61,20 @@
 - `apps/ai/tests/test_values_filter.py` — Updated test docstring to match new culture description
 - `apps/users/management/commands/setup_app_review_account.py` — Updated sample journal title
 
+## 2026-02-26 — Activate real Playwright execution in WLJ UI Testing Framework
+
+**What:** Activated real Playwright browser execution as the default mode for the UI testing framework. Created `BrowserManager` class encapsulating the full Playwright sync API lifecycle (`sync_playwright()` → `chromium.launch()` → `new_context()` → `new_page()`) with guaranteed clean teardown. The `ExecutionOrchestrator` now internally creates a `BrowserManager` and `ActionExecutor(page)` — all action handlers (NAVIGATE, CLICK, TYPE, SELECT, WAIT, ASSERT) execute against a real Chromium browser. Added `--no-browser` CLI flag to preserve the previous framework-only enumeration mode. Verified end-to-end: browser launches, executor fires real HTTP requests via `page.goto()`, failures captured with Playwright error messages, fix prompt generated, browser closed cleanly.
+
+**Files:**
+- `wlj_ui_tests/framework/browser_manager.py` — NEW: `BrowserManager` class with context manager, configurable headed/slow_mo/viewport/timeouts, clean ordered teardown
+- `wlj_ui_tests/framework/execution_orchestrator.py` — MODIFIED: Added `no_browser` param, `BrowserManager` integration, internal `ActionExecutor` creation with base_url/timeout_ms defaults, browser cleanup in finally block
+- `wlj_ui_tests/framework/__init__.py` — MODIFIED: Added BrowserManager export
+- `wlj_ui_tests/run_suite.py` — MODIFIED: Added `--no-browser` flag, updated docstring with Playwright usage examples
+
+**Why:** The framework previously ran in "framework-only" mode where all cases passed by enumeration without touching a browser. Real Playwright execution is required to detect actual UI failures and close the automated QA repair loop.
+
+---
+
 ## 2026-02-26 — WLJ UI Testing Framework Phase 15: Execution Orchestrator
 
 **What:** Created `ExecutionOrchestrator` class that manages the full test run lifecycle through a structured 12-phase pipeline: generate RUN_ID → init runner → init manifest → init registry → validate schema → validate selectors → init subsystems → execute suite → write reports → finalize manifest → verify integrity → generate fix prompt. Replaced direct `SuiteRunner` calls in `run_suite.py` with the orchestrator, providing unified coordination of all framework subsystems. Added `--health-check` CLI flag that validates 33 framework checks across 10 categories (version, modules, schema, selectors, registry, reporting, safety, manifest, writer, prompt builder) without executing any tests.

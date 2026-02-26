@@ -130,6 +130,79 @@ class ProactiveCheckInService:
             }
         )
 
+    def generate_grouped_medicine_check_in(
+        self,
+        time_of_day: str,
+        medicines: list,
+        due_time=None,
+    ) -> Optional[AssistantMessage]:
+        """
+        Generate a SINGLE grouped check-in for all medicines in a time period.
+
+        Instead of "Your 9:00 AM Atorvastatin wasn't marked" x3, sends:
+        "Your morning meds are due by 9:00 AM." with group action buttons.
+
+        Args:
+            time_of_day: The time group (morning, evening, nightly, etc.)
+            medicines: List of (medicine, schedule) tuples
+            due_time: The scheduled_time for this group (for display + snooze)
+
+        Returns:
+            AssistantMessage with grouped quick reply buttons, or None if throttled
+        """
+        # Check throttle
+        item_key = f"group_{time_of_day}"
+        if not self.throttler.can_send('medicine', hash(item_key)):
+            return None
+
+        # Format time for display
+        time_display = ''
+        if due_time:
+            try:
+                from datetime import datetime
+                time_obj = datetime.combine(datetime.today(), due_time)
+                time_display = time_obj.strftime('%I:%M %p').lstrip('0')
+            except (ValueError, TypeError):
+                time_display = str(due_time)
+
+        # Build grouped message
+        group_display = time_of_day.replace('_', ' ').title()
+        med_count = len(medicines)
+        med_names = ', '.join(m.name for m, s in medicines)
+
+        if time_display:
+            template = get_style_template(self.user, 'grouped_meds_due')
+            message_content = template.format(
+                group=group_display.lower(),
+                time=time_display,
+                count=med_count,
+                names=med_names,
+            )
+        else:
+            message_content = f"Your {group_display.lower()} meds haven't been marked yet."
+
+        # Build quick replies with GROUP actions
+        from .quick_reply_handlers import generate_grouped_medicine_replies
+        quick_replies = generate_grouped_medicine_replies(
+            time_of_day=time_of_day,
+            medicine_ids=[m.id for m, s in medicines],
+            due_time=due_time.strftime('%H:%M') if due_time else None,
+        )
+
+        medicine_ids = [m.id for m, s in medicines]
+        return self._create_proactive_message(
+            content=message_content,
+            quick_replies=quick_replies,
+            message_type='nudge',
+            metadata={
+                'check_in_type': 'medicine_group',
+                'time_of_day': time_of_day,
+                'medicine_ids': medicine_ids,
+                'medicine_count': med_count,
+                'due_time': due_time.strftime('%H:%M') if due_time else None,
+            }
+        )
+
     def generate_workout_check_in(self) -> Optional[AssistantMessage]:
         """
         Generate a brief check-in about today's workout.
@@ -443,11 +516,15 @@ def get_proactive_service(user):
 
 def generate_medicine_check_ins_for_user(user, dose_time: str = None):
     """
-    Generate medicine check-in messages for a user.
+    Generate GROUPED medicine check-in messages for a user.
+
+    Groups medicines by time_of_day (morning, evening, nightly, etc.) and
+    sends ONE check-in per group instead of per-pill notifications.
 
     Only sends if:
     - User has proactive checkins enabled
-    - Dose time has passed and not logged
+    - Dose time has passed (in USER'S local timezone)
+    - Not already logged or checked-in today
     - Not throttled (no spam)
 
     Args:
@@ -455,7 +532,8 @@ def generate_medicine_check_ins_for_user(user, dose_time: str = None):
         dose_time: Optional specific dose time
     """
     from apps.health.models import Medicine, MedicineSchedule, MedicineLog
-    from apps.core.utils import get_user_today
+    from apps.core.utils import get_user_today, get_user_now
+    from collections import defaultdict
 
     # Check user preferences
     prefs = user.preferences
@@ -466,11 +544,20 @@ def generate_medicine_check_ins_for_user(user, dose_time: str = None):
 
     service = get_proactive_service(user)
     today = get_user_today(user)
-    now = timezone.now()
-    current_time = now.time()
+    # CRITICAL: Use user's LOCAL time, not UTC. At 7:42 AM CST,
+    # timezone.now().time() returns 1:42 PM UTC which falsely triggers
+    # 9:00 AM check-ins 2 hours early.
+    user_now = get_user_now(user)
+    current_time = user_now.time()
 
     # Get active medicines
     medicines = Medicine.objects.filter(user=user, medicine_status='active')
+
+    # Collect un-logged medicines grouped by time_of_day
+    # Key: time_of_day (e.g., "morning") → list of (medicine, schedule) tuples
+    pending_by_group = defaultdict(list)
+    # Track the latest scheduled_time per group for "Remind me later"
+    group_due_times = {}
 
     for medicine in medicines:
         schedules = MedicineSchedule.objects.filter(medicine=medicine, is_active=True)
@@ -481,7 +568,7 @@ def generate_medicine_check_ins_for_user(user, dose_time: str = None):
 
             scheduled_time = schedule.scheduled_time
 
-            # Only check doses whose time has passed
+            # Only check doses whose time has passed in user's LOCAL timezone
             if current_time < scheduled_time:
                 continue
 
@@ -495,29 +582,38 @@ def generate_medicine_check_ins_for_user(user, dose_time: str = None):
             if log and log.log_status in ['taken', 'skipped']:
                 continue
 
-            # Check if we already sent a check-in for this dose today
-            item_key = f"{medicine.id}_{scheduled_time.strftime('%H%M')}"
-            recent_checkin = AssistantMessage.objects.filter(
-                conversation__user=user,
-                is_proactive=True,
-                metadata__check_in_type='medicine',
-                metadata__medicine_id=medicine.id,
-                metadata__dose_time=scheduled_time.strftime('%H:%M'),
-                created_at__date=today,
-            ).exists()
+            # Group by time_of_day (morning, evening, etc.)
+            group_key = schedule.time_of_day or 'other'
+            pending_by_group[group_key].append((medicine, schedule))
 
-            if recent_checkin:
-                continue
+            # Track the due time for "Remind me later"
+            if group_key not in group_due_times or scheduled_time > group_due_times[group_key]:
+                group_due_times[group_key] = scheduled_time
 
-            # Get health context if available
-            context = _get_medicine_health_context(medicine)
+    # Generate ONE grouped check-in per time_of_day group
+    for group_key, med_schedules in pending_by_group.items():
+        if not med_schedules:
+            continue
 
-            # Generate check-in
-            service.generate_medicine_check_in(
-                medicine=medicine,
-                dose_time=scheduled_time.strftime('%H:%M'),
-                context=context
-            )
+        # Check if we already sent a grouped check-in for this group today
+        recent_group_checkin = AssistantMessage.objects.filter(
+            conversation__user=user,
+            is_proactive=True,
+            metadata__check_in_type='medicine_group',
+            metadata__time_of_day=group_key,
+            created_at__date=today,
+        ).exists()
+
+        if recent_group_checkin:
+            continue
+
+        # Build the grouped message
+        due_time = group_due_times.get(group_key)
+        service.generate_grouped_medicine_check_in(
+            time_of_day=group_key,
+            medicines=[(m, s) for m, s in med_schedules],
+            due_time=due_time,
+        )
 
 
 def _get_medicine_health_context(medicine) -> Optional[str]:

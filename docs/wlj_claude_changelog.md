@@ -9,82 +9,20 @@
 
 # WLJ Change History
 
-## 2026-02-26 — Environment lock + Easy Button hardening
+## 2026-02-26 — Fix medicine check-in timing, grouping, and remind-me-later
 
-**What:** Pinned `dj-stripe==2.10.3` in requirements.txt and hardened the Easy Button scripts with environment validation: enforces venv activation (errors out if no venv found), validates Python is running from venv, checks dj-stripe is exactly 2.10.3, runs `migrate --noinput` with error handling, uses `127.0.0.1` instead of `localhost`, and adds module-first workflow messaging.
+**What:** Three fixes to the proactive medicine check-in system:
 
-**Why:** After repairing the djstripe migration mismatch (system Python had 2.8.4, venv had 2.10.3), we needed to lock the version to prevent future drift and ensure the Easy Button always runs inside the venv with the correct packages.
+1. **Timing bug** — Check-ins used `timezone.now().time()` (UTC) to compare against scheduled times (stored as user's local time). At 7:42 AM CST, UTC time is 1:42 PM, so `13:42 >= 09:00` passed and check-ins fired 2 hours before meds were due. Fixed to use `get_user_now(user).time()` for correct local-time comparison.
 
-**Files:**
-- `requirements.txt` — MODIFIED: `dj-stripe>=2.8.0` → `dj-stripe==2.10.3`
-- `scripts/start_wlj_test_env.sh` — MODIFIED: Added venv enforcement, dj-stripe version check, git worktree venv discovery, `migrate --noinput`, 127.0.0.1 URLs, module-first status banner
+2. **Grouped notifications** — Instead of one notification per pill ("Your 9:00 AM Atorvastatin wasn't marked", "Your 9:00 AM Lantus...", etc.), now groups all medicines by `time_of_day` and sends ONE message: "Your morning meds are due by 9:00 AM." with group action buttons ("I took them", "Skip", "Remind me later").
 
-## 2026-02-26 — djstripe migration state repair (version mismatch)
-
-**What:** Repaired djstripe migration state mismatch between system Python 3.9 (djstripe 2.8.4) and venv Python 3.12 (djstripe 2.10.3). The DB schema was built with 2.8.4's migration chain (0001→0008→0009→0010→0011→0012) but the venv's 2.10.3 has a different chain (0001→0002_2_10). Migration `0002_2_10` failed because it tried to alter tables (`djstripe_activeentitlement`) that the old 0001_initial never created.
-
-**Root cause:** Two different versions of dj-stripe installed — system pip has 2.8.4 (6 migrations), venv pip has 2.10.3 (2 migrations). The DB was built with 2.8.4 and lacked 10 tables that 2.10.3's `0001_initial` creates. Meanwhile, 5 stale migration records (0008-0012) in `django_migrations` had no matching files in 2.10.3.
-
-**Fix applied:**
-1. Created 10 missing tables via Django schema editor: `activeentitlement`, `earlyfraudwarning`, `feature`, `issuing_authorization`, `issuing_card`, `issuing_cardholder`, `issuing_dispute`, `issuing_transaction`, `promotioncode`, `review`
-2. Removed 5 stale migration records (0008-0012) from `django_migrations`
-3. Fake-applied `0002_2_10` for venv Python (schema now matches post-migration state)
-4. Re-faked 0008-0012 for system Python (so both environments are stable)
-
-**Verification:**
-- `python3 manage.py migrate` (system Python 3.9): No migrations to apply
-- `venv/bin/python manage.py migrate` (venv Python 3.12): No migrations to apply
-- Both `showmigrations djstripe` show all migrations as `[X]`
-- DB now has 68 djstripe tables (58 original + 10 new)
-
-**Files:** No code files changed — this was a database-only repair (migration history + table creation).
-
-## 2026-02-26 — Bootstrap scripts for WLJ test environment
-
-**What:** Created two bootstrap scripts for quickly starting the WLJ dev server and opening the UI Test Runner page:
-1. `scripts/start_wlj_test_env.sh` — Full bootstrap: auto-detects project root, activates venv, checks migrations, starts Django dev server, opens browser to `/admin-console/ui-tests/`. Supports `--no-open` flag. Detects if port 8000 is already in use.
-2. `scripts/start_wlj.command` — Double-clickable macOS launcher that delegates to the main script. Opens in Terminal.app when double-clicked in Finder.
-
-**Why:** Provides a one-click way to launch the WLJ dev environment and land directly on the UI Test Runner page, without needing to remember commands or manually activate the venv.
+3. **Remind me later** — Was hardcoded to snooze 30 minutes. Now calculates time until the actual due time and responds "I'll remind you at 9:00 AM." Falls back to 30 min if due time has already passed.
 
 **Files:**
-- `scripts/start_wlj_test_env.sh` — ADDED: Main bootstrap script
-- `scripts/start_wlj.command` — ADDED: macOS double-clickable launcher
-
-## 2026-02-26 — Full Suite execution for Admin Console UI Test Runner
-
-**What:** Added "Run Full Suite" capability to the Admin Console UI Test Runner. Runs all modules sequentially, saves individual UITestRun records per module linked to a parent run, and displays per-module breakdown on the detail page.
-
-**Why:** Previously, running all UI test modules required either clicking "Run All Tests" (which ran them in a single subprocess) or running each module individually. The new Full Suite mode runs each module in its own subprocess with isolated results, provides a parent record for the overall run, and shows a table breakdown of per-module results.
-
-**Changes:**
-- `apps/admin_console/models.py` — MODIFIED: Added `parent_run` self-referencing FK to UITestRun, added `is_full_suite` property
-- `apps/admin_console/migrations/0030_uitestrun_parent_run.py` — ADDED: Migration for parent_run FK
-- `apps/admin_console/views.py` — MODIFIED: Added RunFullSuiteView (discovers modules, creates parent+child UITestRun records, runs each module sequentially, aggregates results); updated UITestRunDetailView to pass child_runs context
-- `apps/admin_console/urls.py` — MODIFIED: Added `ui-tests/run-full-suite/` route
-- `apps/admin_console/admin.py` — MODIFIED: Added `parent_run` to UITestRunAdmin readonly_fields
-- `templates/admin_console/ui_test_modules.html` — MODIFIED: Added "Run Full Suite" button (purple accent)
-- `templates/admin_console/ui_test_detail.html` — MODIFIED: Added Module Results table for full-suite runs, per-child collapsible output sections with CSP-compliant toggle JS
-
-**Test results:** 278/278 admin_console tests passing
-
-## 2026-02-26 — Admin Console UI Test Runner enhancements
-
-**What:** Enhanced the existing Admin Console UI Test Runner with 3 improvements:
-1. Registered UITestRun in Django admin (read-only) for DB-level inspection
-2. Added Quick Run buttons (Run Journal Tests, Run Goals Tests, Run All Tests) to `/admin-console/ui-tests/`
-3. Fixed RunUITestsView to use headless Playwright instead of `--no-browser` (which only validated YAML schema without running actual browser tests), and added `--provision-test-user` flag
-
-**Why:** The UI Test Runner page existed but had no quick-action buttons (required manual checkbox selection), was not registered in Django admin, and was running in `--no-browser` mode which skipped actual Playwright browser execution entirely.
-
-**Files:**
-- `apps/admin_console/admin.py` — MODIFIED: Added UITestRunAdmin (read-only, list_display, list_filter)
-- `apps/admin_console/views.py` — MODIFIED: RunUITestsView subprocess args: removed `--no-browser`, added `--provision-test-user`
-- `templates/admin_console/ui_test_modules.html` — MODIFIED: Added Quick Run card with Journal/Goals/All buttons
-
-**Test results:** 278/278 admin_console tests passing
-
-## 2026-02-26 — Goals module UI test coverage + CSP fixes + create redirect fix
+- `apps/ai/proactive_checkins.py` — MODIFIED: Rewrote `generate_medicine_check_ins_for_user()` with local-time comparison + group-by-time_of_day logic; added `generate_grouped_medicine_check_in()` method
+- `apps/ai/assistant_intelligence.py` — MODIFIED: Added `grouped_meds_due` template to all 4 coaching styles
+- `apps/ai/quick_reply_handlers.py` — MODIFIED: Added `generate_grouped_medicine_replies()`, `handle_mark_medicine_group_taken()`, `handle_skip_medicine_group()`; rewrote `handle_remind_later()` to use actual due time
 
 ## 2026-02-26 — Fix timezone bug in calendar dedup
 

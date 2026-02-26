@@ -60,6 +60,15 @@
 - `apps/help/fixtures/teaching_destinations.json` — Updated dashboard and health explanations/keywords
 - `apps/ai/tests/test_values_filter.py` — Updated test docstring to match new culture description
 - `apps/users/management/commands/setup_app_review_account.py` — Updated sample journal title
+## 2026-02-26 — Fix JRN-002 assertion: match actual post-create redirect
+
+**What:** JRN-002 (Create a new journal entry) asserted `data-testid="journal-entry-detail"` after saving, but the `JournalEntryCreateView` redirects to the entry list (`success_url = reverse_lazy("journal:entry_list")`), not the detail page. Updated assertions to verify the entry list page: `url_contains /journal/`, `element_visible journal-entry-list`, and `text_contains` with the AUTOTEST title. No business logic changed.
+
+**Files:**
+- `wlj_ui_tests/modules/journal/suite.yaml` — updated JRN-002 assertions to match entry list redirect
+
+**Why:** Test expected detail page after create, but the view redirects to the list page. Assertions now match actual application behavior.
+
 
 ## 2026-02-26 — Fix login test reliability: force logout before login
 

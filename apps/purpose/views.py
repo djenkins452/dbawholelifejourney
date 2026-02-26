@@ -370,7 +370,7 @@ class GoalCreateView(SaveAddAnotherMixin, PurposeAccessMixin, CreateView):
         return response
 
     def get_success_url(self):
-        return reverse('purpose:goal_list')
+        return reverse('purpose:goal_detail', kwargs={'pk': self.object.pk})
 
 
 class GoalUpdateView(PurposeAccessMixin, UpdateView):

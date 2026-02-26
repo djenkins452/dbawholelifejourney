@@ -18,19 +18,19 @@
             <p class="page-subtitle">Focus on direction, not execution</p>
         </div>
         
-        <form method="post" class="form-card">
+        <form method="post" class="form-card" data-testid="goal-form">
             {% csrf_token %}
-            
+
             <div class="form-group">
                 <label for="id_title" class="form-label">Goal Title</label>
-                <input type="text" name="title" id="id_title" class="form-input"
+                <input type="text" name="title" id="id_title" class="form-input" data-testid="goal-title-input"
                        value="{{ form.title.value|default:'' }}" required
                        placeholder="What do you want to achieve?">
             </div>
-            
+
             <div class="form-group">
                 <label for="id_description" class="form-label">Description</label>
-                <textarea name="description" id="id_description" class="form-textarea" rows="3"
+                <textarea name="description" id="id_description" class="form-textarea" rows="3" data-testid="goal-description-input"
                           placeholder="Describe this goal...">{{ form.description.value|default:'' }}</textarea>
             </div>
             
@@ -115,7 +115,7 @@
             
             <div class="form-actions">
                 <a href="{% url 'purpose:goal_list' %}" class="btn btn-ghost">Cancel</a>
-                <button type="submit" class="btn btn-primary">
+                <button type="submit" class="btn btn-primary" data-testid="goal-save-button">
                     {% if form.instance.pk %}Save Changes{% else %}Add Goal{% endif %}
                 </button>
                 {% if not form.instance.pk %}

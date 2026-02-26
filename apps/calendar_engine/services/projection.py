@@ -239,14 +239,34 @@ def upsert_from_routine_task(task):
 
 def upsert_execution_block_for_task(task, start_dt, end_dt):
     """
-    Create an EXECUTION_BLOCK linked to a task.
+    Create or update an EXECUTION_BLOCK linked to a task.
+    Checks for existing execution blocks for this task to prevent duplicates.
     Does not overwrite deadline markers.
     """
+    # Check for ANY existing execution block for this task (same source)
+    existing = CalendarEvent.objects.filter(
+        user=task.user,
+        source_type=CalendarEvent.SOURCE_TASK,
+        source_id=str(task.pk),
+        event_kind=CalendarEvent.KIND_EXECUTION_BLOCK,
+        status=CalendarEvent.STATUS_SCHEDULED,
+        deleted_at__isnull=True,
+    ).first()
+
     domain = _resolve_domain_for_task(task)
-    exec_title = f"Work on: {task.title}"
+
+    if existing:
+        old_start = existing.start_dt
+        existing.start_dt = start_dt
+        existing.end_dt = end_dt
+        existing.domain = domain
+        existing.save(update_fields=['start_dt', 'end_dt', 'domain', 'updated_at'])
+        _log_schedule_change(task.user, existing, old_start, start_dt)
+        return existing
+
     return CalendarEvent.objects.create(
         user=task.user,
-        title=exec_title,
+        title=task.title,
         start_dt=start_dt,
         end_dt=end_dt,
         domain=domain,
@@ -254,7 +274,7 @@ def upsert_execution_block_for_task(task, start_dt, end_dt):
         source_type=CalendarEvent.SOURCE_TASK,
         source_id=str(task.pk),
         idempotency_key=compute_idempotency_key(
-            task.user_id, exec_title, start_dt, end_dt=end_dt,
+            task.user_id, task.title, start_dt, end_dt=end_dt,
             source_type='task', source_id=str(task.pk),
         ),
     )

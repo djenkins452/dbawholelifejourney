@@ -153,7 +153,7 @@ class Command(BaseCommand):
 
         entries = [
             {
-                "title": "Starting my wellness journey",
+                "title": "Starting my journey",
                 "body": "Today I decided to take my health more seriously. I've downloaded this app to help me track my progress and stay accountable. I'm excited to see where this journey takes me!",
                 "mood": "great",
                 "entry_date": timezone.now().date() - timedelta(days=7),

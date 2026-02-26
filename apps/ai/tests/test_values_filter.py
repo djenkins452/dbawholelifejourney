@@ -2,7 +2,7 @@
 Tests for WLJ Values Guardrails (Task 9.3)
 
 Tests the ValuesFilter service for content filtering aligned with
-WLJ culture: faith-positive, wellness-focused, encouraging.
+WLJ culture: faith-positive, life-affirming, encouraging.
 """
 from django.test import TestCase
 from django.contrib.auth import get_user_model

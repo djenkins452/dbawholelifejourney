@@ -9,6 +9,26 @@
 
 # WLJ Change History
 
+## 2026-02-25 — Reframe AI identity from "wellness app" to whole-life platform
+
+**What:** The AI assistant was identifying itself as a "wellness app" assistant across all system prompts, which narrowly framed WLJ and led to generic wellness-focused responses. WLJ covers health, faith, purpose, finances, brain training, journaling, life organization, and more — it's a whole-life platform, not a wellness tracker. Updated ~20 references across system prompts, services, fixtures, and docstrings.
+
+**Why:** User feedback showed the AI giving generic "wellness journey" responses instead of engaging with the full breadth of what the platform offers.
+
+**Files:**
+- `apps/ai/personal_assistant.py` — Reframed identity prompt from "wellness app" to "personal life management platform"; removed wellness-specific language from scope descriptions and faith integration prompt
+- `apps/ai/intent_service.py` — Updated intent system prompt identity
+- `apps/ai/web_search_service.py` — Updated general knowledge system prompt
+- `apps/ai/values_filter.py` — Changed culture description from "wellness-focused" to "life-affirming"
+- `apps/ai/models.py` — Changed general module label from "wellness tools" to "life tools"
+- `apps/scan/services/vision.py` — Updated vision system prompt
+- `apps/finance/services/ai_insights.py` — Updated finance AI system prompt
+- `apps/dashboard/__init__.py` — Updated docstring
+- `apps/ai/fixtures/values_redirect_suggestions.json` — Removed wellness framing from redirect suggestions
+- `apps/help/fixtures/teaching_destinations.json` — Updated dashboard and health explanations/keywords
+- `apps/ai/tests/test_values_filter.py` — Updated test docstring to match new culture description
+- `apps/users/management/commands/setup_app_review_account.py` — Updated sample journal title
+
 ## 2026-02-25 — APScheduler health check + auto-restart endpoint
 
 **What:** Added scheduler health monitoring and restart capability. The APScheduler runs in-process with Gunicorn; if the scheduler thread dies while Gunicorn stays alive, ISE and all downstream engines stop. This adds detection and recovery without requiring a full container restart.

@@ -565,7 +565,7 @@ Use neutral, observational language."""
 
         Follows AI Finance Rules for safe, observation-based responses.
         """
-        base = """You are a supportive financial awareness assistant for "Whole Life Journey," a personal wellness app.
+        base = """You are a supportive financial awareness assistant for "Whole Life Journey," a personal life management platform.
 
 Your role is to provide observations about spending patterns - NOT financial advice.
 

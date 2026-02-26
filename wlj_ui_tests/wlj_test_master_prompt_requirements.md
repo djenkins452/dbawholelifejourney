@@ -1,6 +1,6 @@
 # WLJ Functional UI Testing System — Master Requirements & Governance
 
-**Version:** 1.0.0
+**Version:** 1.1.0
 **Created:** 2026-02-25
 **Status:** Phase 0 — Requirements & Governance (Documentation Only)
 **Author:** Claude Code (Opus 4.6)
@@ -24,7 +24,8 @@
 13. [Risk Analysis](#13-risk-analysis)
 14. [Rollback Plan](#14-rollback-plan)
 15. [Validation Checklist](#15-validation-checklist)
-16. [Phase Tracking Log](#16-phase-tracking-log)
+16. [Framework Versioning](#16-framework-versioning)
+17. [Phase Tracking Log](#17-phase-tracking-log)
 
 ---
 
@@ -134,6 +135,7 @@ Data Flow:
 | Artifacts | `framework/artifacts.py` | Captures screenshots + HTML dumps on failure |
 | Prompt Builder | `framework/prompt_builder.py` | Generates Claude fix prompts from failures |
 | Safety | `framework/safety.py` | Enforces production safety rules |
+| Version | `framework/version.py` | Framework version constant and compatibility check |
 
 ---
 
@@ -155,7 +157,8 @@ wlj_ui_tests/
 │   ├── artifacts.py                           # Screenshot + HTML capture
 │   ├── prompt_builder.py                      # Claude fix prompt generator
 │   ├── schema_validator.py                    # YAML schema validation
-│   └── safety.py                              # Production safety controls
+│   ├── safety.py                              # Production safety controls
+│   └── version.py                             # Framework version constant
 │
 ├── modules/                                   # Module-isolated test suites
 │   ├── journal/
@@ -248,7 +251,7 @@ Additional modules may be added later for: `dashboard`, `finance`, `billing`, `a
 | **Scope** | Directories and `__init__.py` files only |
 | **Files to create** | All directories listed in Section 4; `__init__.py` for framework/; `requirements.txt`; `.gitkeep` files for empty dirs |
 | **Files allowed to modify** | None outside `wlj_ui_tests/` |
-| **Tasks** | 1. Create `wlj_ui_tests/framework/` with `__init__.py` 2. Create all module directories with `reports/` and `artifacts/` subdirs 3. Create `wlj_ui_tests/reports/` and `wlj_ui_tests/artifacts/` 4. Create `requirements.txt` with `playwright>=1.40.0` + `pyyaml>=6.0` + `jsonschema>=4.0` |
+| **Tasks** | 1. Create `wlj_ui_tests/framework/` with `__init__.py` 2. Create all module directories with `reports/` and `artifacts/` subdirs 3. Create `wlj_ui_tests/reports/` and `wlj_ui_tests/artifacts/` 4. Create `requirements.txt` with `playwright>=1.40.0` + `pyyaml>=6.0` + `jsonschema>=4.0` 5. Create `framework/version.py` with initial version constant (see Section 16) |
 | **Validation criteria** | All directories exist; `requirements.txt` is valid; no Python logic files yet |
 | **Exit criteria** | `find wlj_ui_tests -type d` matches expected structure |
 | **Risk level** | Negligible — directory creation only |
@@ -266,7 +269,7 @@ Additional modules may be added later for: `dashboard`, `finance`, `billing`, `a
 | **Scope** | `framework/runner.py` only |
 | **Files to create** | `wlj_ui_tests/framework/runner.py` |
 | **Files allowed to modify** | `wlj_ui_tests/framework/__init__.py` (exports) |
-| **Tasks** | 1. Implement `SuiteRunner` class 2. YAML loading with `yaml.safe_load()` 3. Case iteration with pass/fail tracking 4. Integration hooks for executor, reporting, artifacts 5. Environment-aware base URL configuration |
+| **Tasks** | 1. Implement `SuiteRunner` class 2. YAML loading with `yaml.safe_load()` 3. Case iteration with pass/fail tracking 4. Integration hooks for executor, reporting, artifacts 5. Environment-aware base URL configuration 6. RUN_ID generation (see Section 7.5) 7. Framework state lock acquisition/release (see Section 6.5) |
 | **Validation criteria** | Runner loads a sample YAML and iterates cases (stub executor) |
 | **Exit criteria** | Unit test: load a minimal YAML, confirm cases are enumerated |
 | **Risk level** | Low — new file only, no existing code modified |
@@ -349,7 +352,7 @@ selector:
 | **Scope** | `framework/reporting.py` only |
 | **Files to create** | `wlj_ui_tests/framework/reporting.py` |
 | **Files allowed to modify** | `wlj_ui_tests/framework/__init__.py` |
-| **Tasks** | 1. Implement `ReportWriter` class 2. Write `pass.ndjson` (one JSON object per line per passing case) 3. Write `fail.ndjson` (one JSON object per line per failing case) 4. Write `run_summary.json` (aggregate stats) 5. Module-scoped report paths |
+| **Tasks** | 1. Implement `ReportWriter` class 2. Write `pass.ndjson` (one JSON object per line per passing case) 3. Write `fail.ndjson` (one JSON object per line per failing case) 4. Write `run_summary.json` (aggregate stats, includes `framework_version`) 5. Write `execution_log.ndjson` (step-level action log, see Section 8.5) 6. Module-scoped report paths |
 | **Validation criteria** | Reports are valid NDJSON; summary contains correct counts |
 | **Exit criteria** | Unit test: simulate 3 passes + 2 fails, verify file contents |
 | **Risk level** | Low — new file only |
@@ -511,6 +514,7 @@ The following are **absolutely forbidden** and must never be modified by this te
 | Production configuration | `config/settings.py`, `config/settings_production.py` |
 | Infrastructure | `Procfile`, `nixpacks.toml`, `railway.json`, Docker files |
 | Deployment | CI/CD pipelines, deploy scripts |
+| Direct database access | Django ORM, raw SQL, `psycopg2`, `sqlite3`, `manage.py` commands (see Section 6.6) |
 
 ### 6.3 Data Safety
 
@@ -528,6 +532,48 @@ The following are **absolutely forbidden** and must never be modified by this te
 | Files changed per phase | Maximum 10 |
 | Lines of code per phase | Maximum 300 |
 | Template modifications per phase | Maximum 5 (data-testid additions only) |
+
+### 6.5 Framework State Lock
+
+The framework state lock prevents concurrent test runs from corrupting shared report files or creating conflicting test data.
+
+**Lock Mechanism:**
+
+| Attribute | Value |
+|-----------|-------|
+| Lock file | `wlj_ui_tests/.wlj_test.lock` |
+| Format | JSON: `{"run_id": "<RUN_ID>", "module": "<module>", "pid": <pid>, "started_at": "<ISO 8601>"}` |
+| Acquisition | Runner must acquire lock before executing any case |
+| Release | Runner must release lock on completion, failure, or interrupt (SIGINT/SIGTERM) |
+| Stale detection | Lock is considered stale if the PID is no longer running or if `started_at` is older than 30 minutes |
+| Stale recovery | Stale locks are force-released with a warning logged to `execution_log.ndjson` |
+
+**Lock Rules:**
+
+1. **One runner per module at a time** — a second runner targeting the same module must wait or fail with exit code 2
+2. **Cross-module parallelism allowed** — different modules may run concurrently since they have isolated reports/artifacts
+3. **Lock file is ephemeral** — added to `.gitignore`, never committed
+4. **Graceful shutdown** — on SIGINT/SIGTERM, the runner must release the lock before exiting
+5. **Lock file path** — always at `wlj_ui_tests/.wlj_test.lock` (not per-module, to allow the runner to detect any active run)
+
+**Implementation Phase:** Phase 2 (Core Runner Engine) — lock acquisition/release is a runner responsibility.
+
+### 6.6 Prohibition Against Direct Database Access
+
+The test framework operates **exclusively through the browser UI via Playwright**. Direct database access is absolutely forbidden.
+
+| Rule | Rationale |
+|------|-----------|
+| No Django ORM imports | Framework must not import from `apps/` or `django.db` |
+| No raw SQL connections | No `psycopg2`, `sqlite3`, or any database driver usage |
+| No Django management commands | No `call_command()` or `manage.py` invocations from test code |
+| No API calls bypassing the UI | Tests must interact only through browser page actions |
+| No fixture loading | Tests must not load or manipulate Django fixtures directly |
+| No model instantiation | Tests must not create, read, update, or delete records via ORM |
+
+**Why:** The framework's safety guarantees depend on all data mutations flowing through the same UI that users interact with. Direct database access bypasses CSP, authentication, validation, and business logic — making it impossible to guarantee production safety.
+
+**Exception:** The only permitted "backend" interaction is reading environment variables for configuration (credentials, base URL).
 
 ---
 
@@ -678,6 +724,42 @@ The following variables are available in YAML values:
 | `${MODULE}` | Suite metadata | Current module name |
 | `${TIMESTAMP}` | Generated | ISO 8601 timestamp of test execution |
 
+### 7.5 RUN_ID Generation Requirements
+
+The `RUN_ID` is a critical identifier that ties together test data, reports, artifacts, and cleanup operations for a single test run.
+
+**Generation Rules:**
+
+| Attribute | Value |
+|-----------|-------|
+| Format | 8-character lowercase hexadecimal string |
+| Source | First 8 characters of a UUID4 hex digest |
+| Generation | `uuid.uuid4().hex[:8]` |
+| Uniqueness | Must be unique per suite execution |
+| Scope | One RUN_ID per `run_suite.py` invocation |
+| Immutability | Once generated, the RUN_ID must not change for the duration of the run |
+
+**Generation Algorithm:**
+
+```python
+import uuid
+
+def generate_run_id() -> str:
+    """Generate a unique 8-char hex RUN_ID for this test run."""
+    return uuid.uuid4().hex[:8]
+```
+
+**Usage Contract:**
+
+1. The runner generates the RUN_ID **once** at the start of execution, before any cases run
+2. The RUN_ID is substituted into all `${RUN_ID}` references in YAML values
+3. The RUN_ID is included in every report entry (`pass.ndjson`, `fail.ndjson`, `run_summary.json`, `execution_log.ndjson`)
+4. The RUN_ID is part of the cleanup prefix: `AUTOTEST|<MODULE>|<RUN_ID>|`
+5. The RUN_ID is written to the framework state lock file (Section 6.5)
+6. The RUN_ID is included in the Claude fix prompt (Section 10)
+
+**Why 8 characters:** Short enough for readable data prefixes in the UI (`AUTOTEST|journal|a1b2c3d4|Test Entry`) while providing ~4 billion unique values — sufficient to avoid collisions across all practical usage.
+
 ---
 
 ## 8. Reporting Specification
@@ -734,6 +816,60 @@ One JSON object per line, one line per failing case:
 | Aggregated | `wlj_ui_tests/reports/` |
 
 Module reports contain only that module's results. Aggregated reports combine all modules from a multi-module run.
+
+### 8.5 Execution Log (`execution_log.ndjson`)
+
+The execution log is a **comprehensive, append-only** record of every action the framework takes during a test run. Unlike pass/fail logs which record case-level outcomes, the execution log records step-level detail — every navigation, click, type, wait, and assertion.
+
+**Purpose:** Debugging, auditing, and post-mortem analysis. When a test fails, the execution log provides the exact sequence of actions leading to the failure.
+
+**Format:** One JSON object per line, one line per step executed:
+
+```json
+{"run_id": "a1b2c3d4", "module": "journal", "case_id": "journal-create-entry", "step_index": 0, "action": "NAVIGATE", "target": "/journal/", "status": "ok", "duration_ms": 320, "timestamp": "2026-02-25T10:30:01.123Z"}
+{"run_id": "a1b2c3d4", "module": "journal", "case_id": "journal-create-entry", "step_index": 1, "action": "CLICK", "target": "[data-testid='journal-new-entry-btn']", "status": "ok", "duration_ms": 85, "timestamp": "2026-02-25T10:30:01.450Z"}
+{"run_id": "a1b2c3d4", "module": "journal", "case_id": "journal-create-entry", "step_index": 2, "action": "TYPE", "target": "[name='title']", "input": "AUTOTEST|journal|a1b2c3d4|Test Entry", "status": "ok", "duration_ms": 42, "timestamp": "2026-02-25T10:30:01.540Z"}
+{"run_id": "a1b2c3d4", "module": "journal", "case_id": "journal-create-entry", "step_index": 3, "action": "CLICK", "target": "[data-testid='journal-save-btn']", "status": "error", "error": "Timeout waiting for selector", "duration_ms": 5001, "timestamp": "2026-02-25T10:30:06.545Z"}
+```
+
+**Field Definitions:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `run_id` | string | Yes | The RUN_ID for this execution |
+| `module` | string | Yes | Module being tested |
+| `case_id` | string | Yes | Case being executed |
+| `step_index` | integer | Yes | Zero-based index of the step within the case |
+| `action` | string | Yes | Action type: `NAVIGATE`, `CLICK`, `TYPE`, `SELECT`, `WAIT`, `ASSERT` |
+| `target` | string | Yes | Resolved selector or URL for the action |
+| `input` | string | No | Input value (for `TYPE` and `SELECT` actions only) |
+| `status` | enum | Yes | `ok` or `error` |
+| `error` | string | No | Error message (only present when `status` is `error`) |
+| `duration_ms` | integer | Yes | Time taken for this step in milliseconds |
+| `timestamp` | string | Yes | ISO 8601 timestamp with millisecond precision |
+
+**Special Log Entries:**
+
+The execution log also records framework-level events:
+
+```json
+{"run_id": "a1b2c3d4", "module": "journal", "event": "suite_start", "suite": "Journal Module Tests", "total_cases": 10, "timestamp": "2026-02-25T10:30:00.000Z"}
+{"run_id": "a1b2c3d4", "module": "journal", "event": "case_start", "case_id": "journal-create-entry", "timestamp": "2026-02-25T10:30:01.000Z"}
+{"run_id": "a1b2c3d4", "module": "journal", "event": "case_end", "case_id": "journal-create-entry", "status": "fail", "duration_ms": 5545, "timestamp": "2026-02-25T10:30:06.545Z"}
+{"run_id": "a1b2c3d4", "module": "journal", "event": "lock_stale_recovery", "stale_run_id": "x9y8z7w6", "stale_pid": 12345, "timestamp": "2026-02-25T10:30:00.050Z"}
+{"run_id": "a1b2c3d4", "module": "journal", "event": "suite_end", "passed": 8, "failed": 2, "duration_ms": 45230, "timestamp": "2026-02-25T10:30:45.230Z"}
+```
+
+**Storage:**
+
+| Scope | Path |
+|-------|------|
+| Module-specific | `wlj_ui_tests/modules/<module>/reports/execution_log.ndjson` |
+| Aggregated | `wlj_ui_tests/reports/execution_log.ndjson` |
+
+**Retention:** Execution logs are append-only within a single run and overwritten on the next run for the same module. They are not committed to git.
+
+**Implementation Phase:** Phase 5 (Reporting System) — the execution log is a reporting responsibility.
 
 ---
 
@@ -1008,8 +1144,9 @@ git log --all --oneline -- '*.html' | head -20
 ### Phase 1 Checklist
 - [ ] All directories created per Section 4
 - [ ] `framework/__init__.py` exists
+- [ ] `framework/version.py` created with `__version__ = "0.1.0"`
 - [ ] `requirements.txt` created with correct dependencies
-- [ ] No Python logic files created
+- [ ] No Python logic files created (except `version.py` constant)
 - [ ] File count ≤ 10
 
 ### Phase 2 Checklist
@@ -1017,6 +1154,8 @@ git log --all --oneline -- '*.html' | head -20
 - [ ] `SuiteRunner` class implemented
 - [ ] YAML loading works with `yaml.safe_load()`
 - [ ] Case iteration works
+- [ ] RUN_ID generation per Section 7.5
+- [ ] Framework state lock acquisition/release per Section 6.5
 - [ ] Lines of code ≤ 300
 
 ### Phase 3 Checklist
@@ -1035,7 +1174,8 @@ git log --all --oneline -- '*.html' | head -20
 - [ ] `framework/reporting.py` created
 - [ ] `pass.ndjson` output is valid NDJSON
 - [ ] `fail.ndjson` output is valid NDJSON
-- [ ] `run_summary.json` contains correct aggregate stats
+- [ ] `execution_log.ndjson` records step-level actions per Section 8.5
+- [ ] `run_summary.json` contains correct aggregate stats and `framework_version`
 - [ ] Lines of code ≤ 250
 
 ### Phase 6 Checklist
@@ -1079,7 +1219,87 @@ git log --all --oneline -- '*.html' | head -20
 
 ---
 
-## 16. Phase Tracking Log
+## 16. Framework Versioning
+
+### 16.1 Version File (`framework/version.py`)
+
+The framework version is defined in a single source-of-truth file:
+
+```python
+"""WLJ UI Test Framework version."""
+
+__version__ = "0.1.0"
+
+# Minimum YAML schema version this framework supports
+MIN_SCHEMA_VERSION = "1.0"
+
+# Maximum YAML schema version this framework supports
+MAX_SCHEMA_VERSION = "1.0"
+```
+
+### 16.2 Versioning Scheme
+
+The framework follows [Semantic Versioning](https://semver.org/):
+
+| Component | Meaning | Example |
+|-----------|---------|---------|
+| **MAJOR** | Breaking changes to YAML schema, report format, or CLI interface | `1.0.0` → `2.0.0` |
+| **MINOR** | New features, new action types, new assertion types (backward-compatible) | `0.1.0` → `0.2.0` |
+| **PATCH** | Bug fixes, documentation updates, internal refactors | `0.1.0` → `0.1.1` |
+
+### 16.3 Version Lifecycle
+
+| Version | Phase | Description |
+|---------|-------|-------------|
+| `0.1.0` | Phase 1 | Initial skeleton — directories, `version.py`, `requirements.txt` |
+| `0.2.0` | Phase 2 | Core runner engine with YAML loading and RUN_ID generation |
+| `0.3.0` | Phase 3 | Action execution engine |
+| `0.4.0` | Phase 4 | Selector system |
+| `0.5.0` | Phase 5 | Reporting system (pass/fail/execution logs) |
+| `0.6.0` | Phase 6 | Artifact capture |
+| `0.7.0` | Phase 7 | Claude fix prompt generator |
+| `0.8.0` | Phase 8 | YAML schema validator |
+| `0.9.0` | Phase 9 | Module isolation system |
+| `0.10.0` | Phase 10 | Safety controls |
+| `0.11.0` | Phase 11 | CLI runner |
+| `1.0.0` | Post-Phase 11 | First stable release (all phases complete, validated) |
+
+### 16.4 Version Compatibility Check
+
+The schema validator (Phase 8) must verify that the `version` field in each `suite.yaml` is within the supported range:
+
+```python
+def check_schema_compatibility(suite_version: str) -> bool:
+    """Verify suite YAML version is supported by this framework version."""
+    from framework.version import MIN_SCHEMA_VERSION, MAX_SCHEMA_VERSION
+    return MIN_SCHEMA_VERSION <= suite_version <= MAX_SCHEMA_VERSION
+```
+
+If a suite's schema version is outside the supported range, the runner must **refuse to execute** and exit with code 2 (error), printing a clear message:
+
+```
+ERROR: Suite schema version "2.0" is not supported.
+Supported range: 1.0 — 1.0
+Framework version: 0.8.0
+```
+
+### 16.5 Version in Reports
+
+The framework version must be included in every `run_summary.json`:
+
+```json
+{
+  "framework_version": "0.8.0",
+  "schema_version": "1.0",
+  ...
+}
+```
+
+This allows post-mortem analysis to determine which framework version produced a given report.
+
+---
+
+## 17. Phase Tracking Log
 
 This section is updated after each phase completion to track implementation progress across sessions.
 

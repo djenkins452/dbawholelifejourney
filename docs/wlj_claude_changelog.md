@@ -9,6 +9,19 @@
 
 # WLJ Change History
 
+## 2026-02-25 — WLJ UI Testing Framework Phase 2: Core Runner Engine
+
+**What:** Implemented the `SuiteRunner` class — the core orchestrator for the UI testing framework. Loads YAML suite files, generates unique RUN_IDs, manages a framework state lock for concurrency safety, iterates test cases with pass/fail tracking, and performs variable substitution (`${RUN_ID}`, `${BASE_URL}`, etc.).
+
+**Files:**
+- `wlj_ui_tests/framework/runner.py` — NEW: `SuiteRunner` class, `LockError`, `generate_run_id()`, variable substitution, lock management with signal handling
+- `wlj_ui_tests/framework/__init__.py` — MODIFIED: Added exports for `SuiteRunner`, `LockError`, `generate_run_id`
+- `wlj_ui_tests/framework/version.py` — MODIFIED: Bumped to `0.2.0`
+
+**Why:** Phase 2 of the UI testing framework. The runner is the central orchestrator that all other subsystems (executor, reporting, artifacts) will plug into.
+
+---
+
 ## 2026-02-25 — WLJ UI Testing Framework Phase 1: Skeleton
 
 **What:** Created the directory structure and skeleton files for the WLJ Functional UI Testing Framework (Phase 1 of 11). No logic code — just the scaffolding required to build on in subsequent phases.

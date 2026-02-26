@@ -2,7 +2,7 @@
 
 **Version:** 1.1.0
 **Created:** 2026-02-25
-**Status:** Phase 1 — Framework Skeleton (Complete)
+**Status:** Phase 2 — Core Runner Engine (Complete)
 **Author:** Claude Code (Opus 4.6)
 
 ---
@@ -1150,13 +1150,13 @@ git log --all --oneline -- '*.html' | head -20
 - [x] File count ≤ 10
 
 ### Phase 2 Checklist
-- [ ] `framework/runner.py` created
-- [ ] `SuiteRunner` class implemented
-- [ ] YAML loading works with `yaml.safe_load()`
-- [ ] Case iteration works
-- [ ] RUN_ID generation per Section 7.5
-- [ ] Framework state lock acquisition/release per Section 6.5
-- [ ] Lines of code ≤ 300
+- [x] `framework/runner.py` created
+- [x] `SuiteRunner` class implemented
+- [x] YAML loading works with `yaml.safe_load()`
+- [x] Case iteration works
+- [x] RUN_ID generation per Section 7.5
+- [x] Framework state lock acquisition/release per Section 6.5
+- [x] Lines of code ≤ 300 (248 lines)
 
 ### Phase 3 Checklist
 - [ ] `framework/executor.py` created
@@ -1307,7 +1307,7 @@ This section is updated after each phase completion to track implementation prog
 |-------|--------|-------------|----------------|---------------|----------------|-------|
 | 0 | **COMPLETE** | 2026-02-25 | 2026-02-25 | 1 | 0 | This document |
 | 1 | **COMPLETE** | 2026-02-25 | 2026-02-25 | 23 | 1 | Skeleton: dirs, __init__.py, version.py, requirements.txt, .gitkeep files |
-| 2 | PENDING | — | — | — | — | — |
+| 2 | **COMPLETE** | 2026-02-25 | 2026-02-25 | 1 | 2 | SuiteRunner: YAML loading, case iteration, RUN_ID, state lock, variable substitution |
 | 3 | PENDING | — | — | — | — | — |
 | 4 | PENDING | — | — | — | — | — |
 | 5 | PENDING | — | — | — | — | — |

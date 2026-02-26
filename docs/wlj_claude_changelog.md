@@ -9,6 +9,22 @@
 
 # WLJ Change History
 
+## 2026-02-26 — Fix gap detector false positives (architectural fix)
+
+**What:** The gap detector's "unknown data type" detection was too aggressive. It triggered on ANY chat message containing "me"/"my"/"I" + an unrecognized word, creating admin tasks like "Evaluate new data type: 'pick'" from the message "Look at the scripture on the screen and pick one and walk me through it." The word "pick" was a common verb, not a data type — but the system had no way to distinguish conversational commands from personal data queries.
+
+**Root cause:** Case 4 in `detect_knowledge_gap()` matched personal pronouns (me/my/I) with zero regard for context. "Walk **me** through it" was treated the same as "Show me **my** data."
+
+**Architectural fix (not just adding words to a list):**
+1. **New `is_conversational_command()` filter** — Detects imperative instructions to the AI ("walk me through", "help me understand", "pick one and...", "look at the screen") where "me" is an indirect object of a command, not a personal data indicator. Blocks gap detection entirely for these patterns.
+2. **Tightened Case 4 evidence** — Changed from "any personal pronoun" to requiring **possessive context** (`my [noun]`). "Walk me through it" no longer triggers. "What was my creatinine level?" still triggers correctly.
+3. **Expanded CONVERSATIONAL_WORDS** — Added ~60 common action verbs as defense-in-depth safety net.
+
+**Files:**
+- `assistant/gap_detector.py` — MODIFIED: Added `is_conversational_command()`, tightened Case 4 to require possessive "my [noun]" pattern, added missing verbs to CONVERSATIONAL_WORDS
+- `assistant/tests/test_gap_detector.py` — MODIFIED: Added `TestIsConversationalCommand` (12 tests) and `TestPickFalsePositive` (8 regression tests)
+- `apps/core/management/commands/load_initial_data.py` — MODIFIED: Added one-time cleanup to reject false-positive improvement tasks
+
 ## 2026-02-26 — Add full CoS check-in briefing on user request
 
 **What:** When the user asks "how's my day looking?", "check in with me", "brief me", etc., the AI now delivers a complete Chief of Staff briefing including calendar events, medication status, health gates (fasting, workout, reading plan), tasks, goals, and routines — pulled from the executive briefing system. This is never throttled; scheduled proactive check-ins are throttled but user-initiated requests always get the full picture.

@@ -9,6 +9,20 @@
 
 # WLJ Change History
 
+## 2026-02-25 — WLJ UI Testing Framework Phase 9: Module Isolation System
+
+**What:** Created stub `suite.yaml` files for all 9 initial modules (journal, faith, health, organize, goals, capture, cos, preferences, admin). Each is a valid schema-compliant YAML file with session auth and standard defaults. Enhanced `SuiteRunner` with module path resolution: `resolve_module_suite()`, `module_reports_dir()`, `module_artifacts_dir()`, `list_modules()`, and `--module` constructor parameter. Runner now supports both `suite_path` and `module` initialization.
+
+**Files:**
+- `wlj_ui_tests/modules/{journal,faith,health,organize,goals,capture,cos,preferences,admin}/suite.yaml` — NEW: 9 stub suite files
+- `wlj_ui_tests/framework/runner.py` — MODIFIED: Added module path resolution, KNOWN_MODULES, classmethod helpers
+- `wlj_ui_tests/framework/version.py` — MODIFIED: Bumped to `0.9.0`
+- `wlj_ui_tests/wlj_test_master_prompt_requirements.md` — MODIFIED: Phase 9 checklist checked, tracking log updated
+
+**Why:** Phase 9 of the UI testing framework. Module isolation ensures each module has its own suite config, reports, and artifacts — preventing cross-module contamination and enabling parallel test runs.
+
+---
+
 ## 2026-02-25 — WLJ UI Testing Framework Phase 8: YAML Schema Loader and Validator
 
 **What:** Implemented `SchemaValidator` class that validates YAML suite files against the full WLJ test schema (Section 7). Validates all required fields (version, suite, module, auth, cases), enum values (actions, strategies, priorities, assert types), conditional requirements (auth fields per strategy, selector per action type, expected per assert type), and structural constraints (unique case IDs, correct types). Collects all errors before raising, providing descriptive messages with field paths.

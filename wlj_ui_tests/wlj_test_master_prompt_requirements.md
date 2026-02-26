@@ -2,7 +2,7 @@
 
 **Version:** 1.1.0
 **Created:** 2026-02-25
-**Status:** Phase 8 — YAML Schema Loader and Validator (Complete)
+**Status:** Phase 9 — Module Isolation System (Complete)
 **Author:** Claude Code (Opus 4.6)
 
 ---
@@ -1198,11 +1198,11 @@ git log --all --oneline -- '*.html' | head -20
 - [x] Lines of code ≤ 300
 
 ### Phase 9 Checklist
-- [ ] Stub `suite.yaml` exists for all 9 modules
-- [ ] Module path resolution works in runner
-- [ ] Reports write to module-specific directories
-- [ ] Artifacts write to module-specific directories
-- [ ] Lines of code ≤ 200
+- [x] Stub `suite.yaml` exists for all 9 modules
+- [x] Module path resolution works in runner
+- [x] Reports write to module-specific directories
+- [x] Artifacts write to module-specific directories
+- [x] Lines of code ≤ 200
 
 ### Phase 10 Checklist
 - [ ] `framework/safety.py` created
@@ -1314,7 +1314,7 @@ This section is updated after each phase completion to track implementation prog
 | 6 | **COMPLETE** | 2026-02-25 | 2026-02-25 | 1 | 2 | ArtifactCapture: screenshot PNG + HTML dump on failure, module-scoped paths, convention naming |
 | 7 | **COMPLETE** | 2026-02-25 | 2026-02-25 | 1 | 2 | PromptBuilder: claude_fix_prompt.md generation from failures, NDJSON reader, actionable fix steps |
 | 8 | **COMPLETE** | 2026-02-25 | 2026-02-25 | 1 | 2 | SchemaValidator: full YAML schema validation, enum checks, conditional requirements, descriptive errors |
-| 9 | PENDING | — | — | — | — | — |
+| 9 | **COMPLETE** | 2026-02-25 | 2026-02-25 | 9 | 2 | Module isolation: 9 stub suite.yaml files, module path resolution in runner, list_modules() |
 | 10 | PENDING | — | — | — | — | — |
 | 11 | PENDING | — | — | — | — | — |
 

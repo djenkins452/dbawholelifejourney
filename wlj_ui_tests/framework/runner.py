@@ -26,21 +26,84 @@ class SuiteRunner:
     executor/reporting/artifact subsystems via hooks.
     """
 
-    LOCK_FILE = Path(__file__).parent.parent / ".wlj_test.lock"
+    BASE_DIR = Path(__file__).parent.parent
+    MODULES_DIR = BASE_DIR / "modules"
+    LOCK_FILE = BASE_DIR / ".wlj_test.lock"
     LOCK_STALE_MINUTES = 30
 
-    def __init__(self, suite_path, base_url=None, headed=False, env=None):
-        self.suite_path = Path(suite_path)
+    # The 9 initial modules per Section 4 directory structure
+    KNOWN_MODULES = (
+        "journal", "faith", "health", "organize", "goals",
+        "capture", "cos", "preferences", "admin",
+    )
+
+    def __init__(self, suite_path=None, base_url=None, headed=False,
+                 env=None, module=None):
+        """Initialize runner with suite path or module name.
+
+        Args:
+            suite_path: Explicit path to a suite YAML file.
+            base_url: Base URL for testing. Defaults to $BASE_URL.
+            headed: Run browser in headed mode.
+            env: Environment name override.
+            module: Module name — resolves to modules/<module>/suite.yaml.
+                Ignored if suite_path is provided.
+        """
+        if suite_path:
+            self.suite_path = Path(suite_path)
+        elif module:
+            self.suite_path = self.resolve_module_suite(module)
+        else:
+            raise ValueError("Either suite_path or module must be provided")
+
         self.base_url = base_url or os.environ.get("BASE_URL", "http://localhost:8000")
         self.headed = headed
         self.env = env or os.environ.get("WLJ_TEST_ENV")
         self.run_id = generate_run_id()
         self.suite_data = None
-        self.module = None
+        self.module = module
         self.results = {"passed": [], "failed": []}
         self._lock_acquired = False
         self._orig_sigint = None
         self._orig_sigterm = None
+
+    @classmethod
+    def resolve_module_suite(cls, module):
+        """Resolve module name to its suite.yaml path.
+
+        Args:
+            module: Module name (e.g., 'journal').
+
+        Returns:
+            Path to the module's suite.yaml file.
+
+        Raises:
+            FileNotFoundError: If the suite file doesn't exist.
+        """
+        suite_path = cls.MODULES_DIR / module / "suite.yaml"
+        if not suite_path.exists():
+            raise FileNotFoundError(
+                f"Suite file not found for module '{module}': {suite_path}"
+            )
+        return suite_path
+
+    @classmethod
+    def module_reports_dir(cls, module):
+        """Return the reports directory for a module."""
+        return cls.MODULES_DIR / module / "reports"
+
+    @classmethod
+    def module_artifacts_dir(cls, module):
+        """Return the artifacts directory for a module."""
+        return cls.MODULES_DIR / module / "artifacts"
+
+    @classmethod
+    def list_modules(cls):
+        """List all modules that have a suite.yaml file."""
+        return [
+            m for m in cls.KNOWN_MODULES
+            if (cls.MODULES_DIR / m / "suite.yaml").exists()
+        ]
 
     def load_suite(self):
         """Load and parse the YAML suite file."""

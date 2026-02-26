@@ -39,6 +39,10 @@
                 {% endfor %}
                 <button type="submit" class="btn btn-primary">Run All Tests</button>
             </form>
+            <form method="post" action="{% url 'admin_console:run_full_suite' %}" class="inline">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-primary" style="background: var(--color-accent-alt, #7c3aed);">Run Full Suite</button>
+            </form>
         </div>
     </div>
 

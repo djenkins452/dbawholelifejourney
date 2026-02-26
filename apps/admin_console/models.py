@@ -1575,6 +1575,13 @@ class UITestRun(models.Model):
     # Raw output
     output = models.TextField(blank=True, help_text="Combined stdout/stderr from run")
 
+    # Full-suite parent-child linking
+    parent_run = models.ForeignKey(
+        'self', null=True, blank=True, on_delete=models.CASCADE,
+        related_name='child_runs',
+        help_text="Parent full-suite run (null for standalone or parent runs)"
+    )
+
     class Meta:
         ordering = ['-run_at']
         verbose_name = "UI Test Run"
@@ -1588,3 +1595,8 @@ class UITestRun(models.Model):
     def modules_display(self):
         """Return modules as a comma-separated display string."""
         return ", ".join(self.modules) if self.modules else "None"
+
+    @property
+    def is_full_suite(self):
+        """True if this is a full-suite parent run."""
+        return 'full_suite' in self.modules

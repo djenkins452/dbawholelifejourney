@@ -18,7 +18,7 @@ class UITestRunAdmin(admin.ModelAdmin):
     list_filter = ['status']
     readonly_fields = [
         'run_at', 'status', 'modules', 'total_cases', 'passed', 'failed',
-        'pass_rate', 'duration_seconds', 'run_id', 'output',
+        'pass_rate', 'duration_seconds', 'run_id', 'output', 'parent_run',
     ]
 
     def has_add_permission(self, request):

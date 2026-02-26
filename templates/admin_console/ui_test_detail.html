@@ -90,6 +90,59 @@
         </div>
     </div>
 
+    <!-- Per-Module Breakdown (Full Suite) -->
+    {% if child_runs %}
+    <div class="card">
+        <div class="p-4 border-b">
+            <h2 class="text-lg font-semibold">Module Results</h2>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-surface">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-sm font-medium">Module</th>
+                        <th class="px-4 py-3 text-center text-sm font-medium">Status</th>
+                        <th class="px-4 py-3 text-center text-sm font-medium">Cases</th>
+                        <th class="px-4 py-3 text-center text-sm font-medium">Passed</th>
+                        <th class="px-4 py-3 text-center text-sm font-medium">Failed</th>
+                        <th class="px-4 py-3 text-center text-sm font-medium">Duration</th>
+                        <th class="px-4 py-3 text-center text-sm font-medium">Run ID</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y">
+                    {% for child in child_runs %}
+                    <tr class="hover:bg-surface/50">
+                        <td class="px-4 py-3 font-medium">{{ child.modules_display }}</td>
+                        <td class="px-4 py-3 text-center">
+                            {% if child.status == 'passed' %}
+                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">PASS</span>
+                            {% elif child.status == 'failed' %}
+                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">FAIL</span>
+                            {% elif child.status == 'running' %}
+                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">RUNNING</span>
+                            {% else %}
+                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">ERROR</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-sm text-center">{{ child.total_cases }}</td>
+                        <td class="px-4 py-3 text-sm text-center text-green-600">{{ child.passed }}</td>
+                        <td class="px-4 py-3 text-sm text-center {% if child.failed > 0 %}text-red-600 font-bold{% endif %}">{{ child.failed }}</td>
+                        <td class="px-4 py-3 text-sm text-center">{{ child.duration_seconds|floatformat:1 }}s</td>
+                        <td class="px-4 py-3 text-center">
+                            {% if child.run_id %}
+                            <code class="text-xs bg-surface px-2 py-1 rounded">{{ child.run_id }}</code>
+                            {% else %}
+                            <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Raw Output -->
     {% if ui_run.output %}
     <div class="card">
@@ -101,6 +154,23 @@
             <pre class="p-4 bg-surface text-sm overflow-x-auto" style="max-height: 600px; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word;">{{ ui_run.output }}</pre>
         </div>
     </div>
+    {% endif %}
+
+    <!-- Child Module Outputs (Full Suite) -->
+    {% if child_runs %}
+    {% for child in child_runs %}
+    {% if child.output %}
+    <div class="card">
+        <div class="p-4 border-b flex justify-between items-center">
+            <h2 class="text-lg font-semibold">{{ child.modules_display|title }} Output</h2>
+            <button type="button" class="btn btn-secondary btn-sm" data-action="toggle-child-output" data-target="child-output-{{ child.pk }}">Show Output</button>
+        </div>
+        <div id="child-output-{{ child.pk }}" class="hidden">
+            <pre class="p-4 bg-surface text-sm overflow-x-auto" style="max-height: 400px; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word;">{{ child.output }}</pre>
+        </div>
+    </div>
+    {% endif %}
+    {% endfor %}
     {% endif %}
 </div>
 </div>
@@ -119,6 +189,19 @@
             toggleBtn.textContent = isHidden ? 'Hide Output' : 'Show Output';
         });
     }
+
+    // Child output toggles (full suite)
+    document.querySelectorAll('[data-action="toggle-child-output"]').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var targetId = btn.getAttribute('data-target');
+            var target = document.getElementById(targetId);
+            if (target) {
+                var isHidden = target.classList.contains('hidden');
+                target.classList.toggle('hidden');
+                btn.textContent = isHidden ? 'Hide Output' : 'Show Output';
+            }
+        });
+    });
 })();
 </script>
 {% endblock %}

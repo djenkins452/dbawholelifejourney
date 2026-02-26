@@ -9,6 +9,18 @@
 
 # WLJ Change History
 
+## 2026-02-26 — Bootstrap scripts for WLJ test environment
+
+**What:** Created two bootstrap scripts for quickly starting the WLJ dev server and opening the UI Test Runner page:
+1. `scripts/start_wlj_test_env.sh` — Full bootstrap: auto-detects project root, activates venv, checks migrations, starts Django dev server, opens browser to `/admin-console/ui-tests/`. Supports `--no-open` flag. Detects if port 8000 is already in use.
+2. `scripts/start_wlj.command` — Double-clickable macOS launcher that delegates to the main script. Opens in Terminal.app when double-clicked in Finder.
+
+**Why:** Provides a one-click way to launch the WLJ dev environment and land directly on the UI Test Runner page, without needing to remember commands or manually activate the venv.
+
+**Files:**
+- `scripts/start_wlj_test_env.sh` — ADDED: Main bootstrap script
+- `scripts/start_wlj.command` — ADDED: macOS double-clickable launcher
+
 ## 2026-02-26 — Full Suite execution for Admin Console UI Test Runner
 
 **What:** Added "Run Full Suite" capability to the Admin Console UI Test Runner. Runs all modules sequentially, saves individual UITestRun records per module linked to a parent run, and displays per-module breakdown on the detail page.

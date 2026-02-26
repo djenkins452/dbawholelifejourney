@@ -4,10 +4,10 @@
 {% block title %}{{ article.title }} - Help - Whole Life Journey{% endblock %}
 
 {% block content %}
-<div class="page-container">
+<div class="page-container" data-testid="help-article">
     <!-- Breadcrumb -->
     <nav class="help-breadcrumb">
-        <a href="{% url 'help:center' %}">Help Center</a>
+        <a href="{% url 'help:center' %}" data-testid="help-back-link">Help Center</a>
         {% if article.category %}
         <span class="breadcrumb-sep">/</span>
         <a href="{% url 'help:category' article.category.slug %}">{{ article.category.name }}</a>

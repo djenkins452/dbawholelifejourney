@@ -4,9 +4,9 @@
 {% block title %}Export Your Data - Whole Life Journey{% endblock %}
 
 {% block content %}
-<div class="content-container">
+<div class="content-container" data-testid="users-data-export">
     <nav class="breadcrumb mb-4">
-        <a href="{% url 'users:preferences' %}">Settings</a>
+        <a href="{% url 'users:preferences' %}" data-testid="users-back-link">Settings</a>
         <span>/</span>
         <span>Export Data</span>
     </nav>

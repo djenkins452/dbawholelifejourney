@@ -9,6 +9,20 @@
 
 # WLJ Change History
 
+## 2026-02-26 — Phase 4 UI Test Expansion: Users, Help, Security
+
+**What:** Built UI test suites for 3 more modules as part of Phase 4 expansion. Added data-testid attributes to templates and wrote comprehensive YAML test suites.
+
+**Users Module (19 tests):** Auth (1), Profile (5: page load, title, edit button, email display, edit navigation), Profile Edit (5: page load, form visible, save/cancel buttons, cancel returns, back link), Preferences (3: page load, title, appearance section), Data Export (3: page load, title, back link), Navigation (2: round trips). Templates: profile.html, profile_edit.html, preferences.html, data_export.html.
+
+**Help Module (14 tests):** Auth (1), Help Center (5: page load, title, search box, categories, popular topics), Category (3: page load, name display, back link), Article (3: page load, content, back link), Navigation (2: round trips). Templates: help_center.html, article.html, category.html. Loaded help fixture data (28 objects — 5 categories, 23 articles).
+
+**Security Module (4 tests):** Auth (1), Dashboard (3: page load, title, run assessment button). Template: dashboard.html. Admin Console skipped (requires staff access).
+
+**Result:** All 37 new tests pass at 100%, stable across multiple runs.
+
+---
+
 ## 2026-02-26 — Phase 3 UI Test Expansion: Finance, Medical, Brain Training
 
 **What:** Built UI test suites for 3 more modules as part of Phase 3 expansion. Added data-testid attributes to templates and wrote comprehensive YAML test suites.

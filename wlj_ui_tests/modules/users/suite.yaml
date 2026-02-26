@@ -1,0 +1,391 @@
+version: "1.0"
+suite: "Users Module Tests"
+module: "users"
+
+auth:
+  strategy: "session"
+  username: "${TEST_USERNAME}"
+  password: "${TEST_PASSWORD}"
+  login_url: "/accounts/login/"
+
+defaults:
+  timeout_ms: 5000
+  base_url: "${BASE_URL}"
+  screenshot_on_failure: true
+  html_dump_on_failure: true
+
+cases:
+
+  # ============================================================
+  # AUTH
+  # ============================================================
+
+  - id: "USR-AUTH-001"
+    name: "Login and navigate to profile"
+    priority: "high"
+    tags: ["auth", "smoke"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/accounts/logout/"
+      - action: "NAVIGATE"
+        url: "/accounts/login/"
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "login-email-input"
+        input: "${TEST_USERNAME}"
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "login-password-input"
+        input: "${TEST_PASSWORD}"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "login-submit-button"
+        timeout_ms: 10000
+      - action: "WAIT"
+        timeout_ms: 3000
+    asserts:
+      - type: "url_contains"
+        expected: "/dashboard/"
+
+  # ============================================================
+  # PROFILE
+  # ============================================================
+
+  - id: "USR-PROF-001"
+    name: "Profile page loads"
+    priority: "high"
+    tags: ["profile", "smoke"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/user/profile/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/user/profile/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "users-profile"
+
+  - id: "USR-PROF-002"
+    name: "Profile shows Profile title"
+    priority: "medium"
+    tags: ["profile"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/user/profile/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "users-profile"
+        expected: "Profile"
+
+  - id: "USR-PROF-003"
+    name: "Edit Profile button visible"
+    priority: "high"
+    tags: ["profile"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/user/profile/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "users-edit-profile-button"
+
+  - id: "USR-PROF-004"
+    name: "Profile shows user email"
+    priority: "medium"
+    tags: ["profile"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/user/profile/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "users-profile"
+        expected: "Email"
+
+  - id: "USR-PROF-005"
+    name: "Edit Profile button navigates to edit page"
+    priority: "high"
+    tags: ["profile", "navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/user/profile/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "users-edit-profile-button"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/user/profile/edit/"
+
+  # ============================================================
+  # PROFILE EDIT
+  # ============================================================
+
+  - id: "USR-EDIT-001"
+    name: "Profile edit page loads"
+    priority: "high"
+    tags: ["profile-edit"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/user/profile/edit/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/user/profile/edit/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "users-profile-edit"
+
+  - id: "USR-EDIT-002"
+    name: "Edit form visible"
+    priority: "high"
+    tags: ["profile-edit"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/user/profile/edit/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "profile-edit-form"
+
+  - id: "USR-EDIT-003"
+    name: "Save and Cancel buttons visible"
+    priority: "medium"
+    tags: ["profile-edit"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/user/profile/edit/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "profile-save-button"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "profile-cancel-button"
+
+  - id: "USR-EDIT-004"
+    name: "Cancel returns to profile"
+    priority: "medium"
+    tags: ["profile-edit", "navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/user/profile/edit/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "profile-cancel-button"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/user/profile/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "users-profile"
+
+  - id: "USR-EDIT-005"
+    name: "Back link returns to profile"
+    priority: "medium"
+    tags: ["profile-edit", "navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/user/profile/edit/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "users-back-link"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/user/profile/"
+
+  # ============================================================
+  # PREFERENCES
+  # ============================================================
+
+  - id: "USR-PREF-001"
+    name: "Preferences page loads"
+    priority: "high"
+    tags: ["preferences", "smoke"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/user/preferences/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/user/preferences/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "users-preferences"
+
+  - id: "USR-PREF-002"
+    name: "Preferences shows title"
+    priority: "medium"
+    tags: ["preferences"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/user/preferences/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "users-preferences"
+        expected: "Preferences"
+
+  - id: "USR-PREF-003"
+    name: "Preferences shows Appearance section"
+    priority: "medium"
+    tags: ["preferences"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/user/preferences/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "users-preferences"
+        expected: "Appearance"
+
+  # ============================================================
+  # DATA EXPORT
+  # ============================================================
+
+  - id: "USR-EXPORT-001"
+    name: "Data export page loads"
+    priority: "high"
+    tags: ["export"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/user/data-export/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/user/data-export/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "users-data-export"
+
+  - id: "USR-EXPORT-002"
+    name: "Export shows title and description"
+    priority: "medium"
+    tags: ["export"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/user/data-export/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "users-data-export"
+        expected: "Export Your Data"
+
+  - id: "USR-EXPORT-003"
+    name: "Back link returns to preferences"
+    priority: "medium"
+    tags: ["export", "navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/user/data-export/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "users-back-link"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/user/preferences/"
+
+  # ============================================================
+  # NAVIGATION
+  # ============================================================
+
+  - id: "USR-NAV-001"
+    name: "Profile → Edit → Profile round trip"
+    priority: "high"
+    tags: ["navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/user/profile/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "users-edit-profile-button"
+        timeout_ms: 10000
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "profile-cancel-button"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/user/profile/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "users-profile"
+
+  - id: "USR-NAV-002"
+    name: "Profile back link goes to settings"
+    priority: "medium"
+    tags: ["navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/user/profile/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "users-back-link"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/user/preferences/"

@@ -3,11 +3,11 @@
 {% block title %}Edit Profile - Whole Life Journey{% endblock %}
 
 {% block content %}
-<div class="content-container">
+<div class="content-container" data-testid="users-profile-edit">
     <nav class="breadcrumb mb-4">
         <a href="{% url 'users:preferences' %}">Settings</a>
         <span>/</span>
-        <a href="{% url 'users:profile' %}">Profile</a>
+        <a href="{% url 'users:profile' %}" data-testid="users-back-link">Profile</a>
         <span>/</span>
         <span>Edit</span>
     </nav>
@@ -17,7 +17,7 @@
         <p class="page-subtitle">Update your personal information</p>
     </div>
     
-    <form method="post" enctype="multipart/form-data" class="profile-form">
+    <form method="post" enctype="multipart/form-data" class="profile-form" data-testid="profile-edit-form">
         {% csrf_token %}
 
         {% if form.errors %}
@@ -142,8 +142,8 @@
         
         <!-- Form Actions -->
         <div class="form-actions">
-            <button type="submit" class="btn btn-primary">Save Changes</button>
-            <a href="{% url 'users:profile' %}" class="btn btn-ghost">Cancel</a>
+            <button type="submit" class="btn btn-primary" data-testid="profile-save-button">Save Changes</button>
+            <a href="{% url 'users:profile' %}" class="btn btn-ghost" data-testid="profile-cancel-button">Cancel</a>
         </div>
     </form>
 </div>

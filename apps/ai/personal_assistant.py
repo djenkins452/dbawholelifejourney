@@ -3430,9 +3430,9 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             remaining_tasks = tasks.get('due_today', 0) + tasks.get('overdue', 0)
 
             if is_requesting_checkin:
-                # FULL CoS BRIEFING — calendar + meds + health + tasks + everything
-                # User explicitly asked for a check-in — give them the complete picture.
-                # This is NEVER throttled — the user's CoS always answers when asked.
+                # FULL CoS BRIEFING — with SPECIFIC item names, not just counts.
+                # User explicitly asked for a check-in — give them actionable specifics
+                # so they can knock items out. Never throttled.
                 from apps.core.utils import get_user_today, get_user_now
                 from apps.ai.executive_briefing import (
                     _build_health_gate_section,
@@ -3461,34 +3461,157 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                 except Exception:
                     pass
 
+                # ── Pull SPECIFIC ITEMS (not just counts) ──
+                # Tasks: actual names of overdue and due-today tasks
+                task_details = ''
+                try:
+                    from apps.life.models import Task as LifeTask
+                    overdue_tasks = list(LifeTask.objects.filter(
+                        user=self.user, is_completed=False, due_date__lt=today
+                    ).exclude(status='deleted').values_list('title', flat=True)[:10])
+                    due_today_tasks = list(LifeTask.objects.filter(
+                        user=self.user, is_completed=False, due_date=today
+                    ).exclude(status='deleted').values_list('title', flat=True)[:10])
+                    completed_today_tasks = list(LifeTask.objects.filter(
+                        user=self.user, is_completed=True, completed_at__date=today
+                    ).exclude(status='deleted').values_list('title', flat=True)[:10])
+
+                    parts = []
+                    if overdue_tasks:
+                        parts.append(f"OVERDUE ({len(overdue_tasks)}):\n" + '\n'.join(f'  • {t}' for t in overdue_tasks))
+                    if due_today_tasks:
+                        parts.append(f"DUE TODAY ({len(due_today_tasks)}):\n" + '\n'.join(f'  • {t}' for t in due_today_tasks))
+                    if completed_today_tasks:
+                        parts.append(f"COMPLETED TODAY ({len(completed_today_tasks)}):\n" + '\n'.join(f'  ✓ {t}' for t in completed_today_tasks))
+                    if not parts:
+                        parts.append("No tasks due today and nothing overdue.")
+                    task_details = '\n'.join(parts)
+                except Exception:
+                    task_details = f"Tasks remaining: {remaining_tasks}"
+
+                # Goals: actual goal titles
+                goal_details = ''
+                try:
+                    from apps.purpose.models import LifeGoal
+                    active_goals = list(LifeGoal.objects.filter(
+                        user=self.user, status='active'
+                    ).exclude(deleted_at__isnull=False).values_list('title', flat=True)[:10])
+                    if active_goals:
+                        goal_details = '\n'.join(f'  • {g}' for g in active_goals)
+                    else:
+                        goal_details = 'No active goals.'
+                except Exception:
+                    goal_details = f"Active goals: {state.get('goals', {}).get('active', 0)}"
+
+                # Prayers: actual prayer request titles/summaries
+                prayer_details = ''
+                try:
+                    from apps.faith.models import PrayerRequest
+                    active_prayers = list(PrayerRequest.objects.filter(
+                        user=self.user, is_answered=False
+                    ).exclude(status='deleted').values_list('title', flat=True)[:15])
+                    if active_prayers:
+                        prayer_details = f"Active prayer requests ({len(active_prayers)}):\n" + '\n'.join(f'  • {p}' for p in active_prayers)
+                    else:
+                        prayer_details = 'No active prayer requests.'
+                except Exception:
+                    prayer_details = f"Active prayers: {faith.get('active_prayers', 0)}"
+
+                # Medications: actual med names and what's outstanding
+                med_details = ''
+                try:
+                    from apps.health.models import Medicine, MedicineLog
+                    active_meds = Medicine.objects.filter(
+                        user=self.user, medicine_status=Medicine.STATUS_ACTIVE,
+                    ).exclude(status='deleted')
+
+                    taken_meds = []
+                    untaken_meds = []
+                    for med in active_meds:
+                        schedules = med.schedules.all()
+                        for sched in schedules:
+                            taken = MedicineLog.objects.filter(
+                                medicine=med,
+                                scheduled_date=today,
+                                log_status__in=['taken', 'late'],
+                            ).exists()
+                            time_str = sched.scheduled_time.strftime('%I:%M %p').lstrip('0') if sched.scheduled_time else ''
+                            label = f"{med.name} ({time_str})" if time_str else med.name
+                            if taken:
+                                taken_meds.append(label)
+                            else:
+                                untaken_meds.append(label)
+
+                    parts = []
+                    if untaken_meds:
+                        parts.append(f"NOT YET TAKEN ({len(untaken_meds)}):\n" + '\n'.join(f'  ⬜ {m}' for m in untaken_meds))
+                    if taken_meds:
+                        parts.append(f"TAKEN ({len(taken_meds)}):\n" + '\n'.join(f'  ✓ {m}' for m in taken_meds))
+                    med_details = '\n'.join(parts) if parts else 'No active medications.'
+                except Exception:
+                    med_details = 'Medication data unavailable.'
+
+                # Calendar: actual event names with times
+                calendar_details = ''
+                try:
+                    from apps.calendar_engine.models import CalendarEvent
+                    events = CalendarEvent.objects.filter(
+                        user=self.user, start_dt__date=today
+                    ).exclude(status='canceled').exclude(
+                        deleted_at__isnull=False
+                    ).order_by('start_dt')[:15]
+
+                    if events.exists():
+                        cal_lines = []
+                        for evt in events:
+                            local_start = evt.start_dt.astimezone(user_now.tzinfo)
+                            time_str = local_start.strftime('%I:%M %p').lstrip('0')
+                            status_mark = '✓' if evt.status == 'completed' else '·'
+                            cal_lines.append(f"  {status_mark} {time_str} — {evt.title}")
+                        calendar_details = '\n'.join(cal_lines)
+                    else:
+                        calendar_details = 'No events scheduled today.'
+                except Exception:
+                    calendar_details = day_overview or 'Calendar data unavailable.'
+
                 system_prompt += f"""
 
 USER IS REQUESTING A CHECK-IN / DAY BRIEFING — give a complete Chief of Staff assessment.
-This is a user-initiated request. Give them the FULL picture of their day — never withhold or throttle.
+This is a user-initiated request. List SPECIFIC items by name so they can take action. Never give vague counts without the actual items.
 
-SCHEDULE:
-{day_overview or 'No calendar events found for today.'}
+TODAY'S CALENDAR:
+{calendar_details}
+
+MEDICATIONS:
+{med_details}
 
 HEALTH & ROUTINES:
 {health_gate or 'No health gate data available.'}
-
-TASKS & GOALS:
-- Tasks REMAINING today: {remaining_tasks} ({tasks.get('overdue', 0)} overdue, {tasks.get('due_today', 0)} due today)
-- Active goals needing progress: {state.get('goals', {}).get('active', 0)}
-- Journal streak: {state.get('journal', {}).get('streak', 0)} days
-- Active prayers: {faith.get('active_prayers', 0)}
 - Reading plan / Quiet Time: {reading_status}
 - Workout: {workout_status}
-- Time remaining in day: ~{time_context.get('hours_remaining', 'unknown')} hours until bedtime
+
+TASKS:
+{task_details}
+
+ACTIVE GOALS:
+{goal_details}
+
+FAITH:
+{prayer_details}
+- Journal streak: {state.get('journal', {}).get('streak', 0)} days
+
+TIME CONTEXT:
+- ~{time_context.get('hours_remaining', 'unknown')} hours until bedtime
 
 INSTRUCTIONS:
-- Present this as a cohesive briefing, not a raw data dump.
-- Lead with what's happening NOW and coming up soon.
-- Note what's done vs outstanding.
-- If meds aren't taken, mention them naturally (e.g., "Your morning meds are still pending").
-- If something is overdue, flag it.
-- End with a clear recommendation for what to tackle next.
-- Keep it concise but complete — this is a Chief of Staff check-in, not a report.
+- LIST the specific outstanding items BY NAME so the user can knock them out.
+- Group by urgency: overdue first, then due today, then upcoming.
+- For meds, list what's NOT taken yet by name — don't just say "74% adherence."
+- For tasks, list each overdue/due-today task by title — don't just say "2 tasks due."
+- For prayers, list them if fewer than 8; summarize if more.
+- Note what IS done too (briefly) so they see progress.
+- End with a prioritized recommendation: "Here's what I'd tackle first: ..."
+- Be concise but SPECIFIC — this person wants an actionable list, not a motivational summary.
 """
             elif is_asking_for_analysis:
                 faith = state.get('faith', {})

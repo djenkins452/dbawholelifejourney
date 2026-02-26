@@ -9,6 +9,17 @@
 
 # WLJ Change History
 
+## 2026-02-25 — Fix 500 error: add PyYAML to requirements.txt for UI test registry
+
+**What:** The UI Test Runner page crashed on production because `test_module_registry.py` imports PyYAML (`import yaml`) which was only listed in `wlj_ui_tests/requirements.txt`, not the main `requirements.txt`. Added `PyYAML>=6.0` to main requirements. Also made the yaml import graceful (try/except returns empty list if missing) and wrapped `discover_modules()` call in the view with exception handling.
+
+**Files:**
+- `requirements.txt` — added `PyYAML>=6.0`
+- `apps/admin_console/services/test_module_registry.py` — graceful yaml import, early return if unavailable
+- `apps/admin_console/views.py` — try/except around `discover_modules()` call
+
+**Why:** 500 Server Error on production when visiting `/admin-console/ui-tests/` because PyYAML was not installed in the production environment.
+
 ## 2026-02-25 — Admin Console UI Test Runner with module selection
 
 **What:** Added a dedicated UI Test Runner tile to the Admin Console dashboard, enabling staff users to select and run WLJ UI test modules from the browser. Created `test_module_registry.py` service that scans `wlj_ui_tests/modules/*/suite.yaml` to discover available test modules with case metadata. Added `UITestRun` model to track UI test execution history (separate from Django unit test `TestRun`). Built three views: module selection page with checkboxes and expandable case lists, background test execution via subprocess (`run_suite.py --module --no-browser`), and run detail page with output viewer. All templates are CSP-compliant with `addEventListener` instead of inline handlers. Converted `services.py` to `services/` package to accommodate the new registry module.

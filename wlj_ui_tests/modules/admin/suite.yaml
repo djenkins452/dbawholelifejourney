@@ -567,3 +567,119 @@ cases:
     asserts:
       - type: "url_contains"
         expected: "/admin-console/"
+
+  # ============================================================
+  # ANNOUNCEMENT CRUD
+  # ============================================================
+
+  - id: "AC-ANN-FORM-001"
+    name: "Announcement create form loads"
+    priority: "high"
+    tags: ["announcements", "form"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/admin-console/announcements/new/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/admin-console/announcements/new/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "ac-announcement-form"
+
+  - id: "AC-ANN-FORM-002"
+    name: "Announcement form has title and message fields"
+    priority: "medium"
+    tags: ["announcements", "form"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/admin-console/announcements/new/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "id"
+          value: "id_title"
+      - type: "element_visible"
+        selector:
+          strategy: "id"
+          value: "id_message"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "ac-announcement-save-button"
+
+  - id: "AC-ANN-CREATE-001"
+    name: "Create system announcement"
+    priority: "high"
+    tags: ["announcements", "crud", "create"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/admin-console/announcements/new/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "TYPE"
+        selector:
+          strategy: "id"
+          value: "id_title"
+        input: "AUTOTEST|admin|${RUN_ID}|Test Announcement"
+      - action: "TYPE"
+        selector:
+          strategy: "id"
+          value: "id_message"
+        input: "This is an automated test announcement."
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "ac-announcement-save-button"
+        timeout_ms: 10000
+      - action: "WAIT"
+        timeout_ms: 3000
+    asserts:
+      - type: "url_contains"
+        expected: "/admin-console/announcements/"
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "ac-announcements"
+        expected: "AUTOTEST|admin|${RUN_ID}|Test Announcement"
+
+  - id: "AC-ANN-CANCEL-001"
+    name: "Cancel announcement returns to list"
+    priority: "medium"
+    tags: ["announcements", "form"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/admin-console/announcements/new/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "ac-announcement-cancel-button"
+        timeout_ms: 5000
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/admin-console/announcements/"
+
+  # ============================================================
+  # TASK INTAKE FORM
+  # ============================================================
+
+  - id: "AC-INTAKE-001"
+    name: "Task intake form loads"
+    priority: "high"
+    tags: ["tasks", "form"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/admin-console/projects/intake/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/admin-console/projects/intake/"

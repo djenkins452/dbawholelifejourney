@@ -187,3 +187,88 @@ cases:
           strategy: "data-testid"
           value: "users-theme-selection"
         expected: "Select Theme"
+
+  # ============================================================
+  # PREFERENCES — FORM INTERACTION
+  # ============================================================
+
+  - id: "PREF-FORM-001"
+    name: "Preferences form visible with save button"
+    priority: "high"
+    tags: ["form"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/user/preferences/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "id"
+          value: "preferences-form"
+
+  - id: "PREF-FORM-002"
+    name: "Expand All reveals theme dropdown"
+    priority: "medium"
+    tags: ["form", "interaction"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/user/preferences/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "id"
+          value: "expand-all-btn"
+        timeout_ms: 5000
+      - action: "WAIT"
+        timeout_ms: 1000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "id"
+          value: "id_theme"
+
+  - id: "PREF-FORM-003"
+    name: "Collapse All hides expanded sections"
+    priority: "medium"
+    tags: ["form", "interaction"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/user/preferences/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "id"
+          value: "expand-all-btn"
+        timeout_ms: 5000
+      - action: "WAIT"
+        timeout_ms: 1000
+      - action: "CLICK"
+        selector:
+          strategy: "id"
+          value: "collapse-all-btn"
+        timeout_ms: 5000
+      - action: "WAIT"
+        timeout_ms: 1000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "users-preferences"
+
+  - id: "PREF-THEME-CUSTOM-001"
+    name: "Custom theme form visible on theme page"
+    priority: "medium"
+    tags: ["theme", "custom"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/user/preferences/theme/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "id"
+          value: "customThemeForm"

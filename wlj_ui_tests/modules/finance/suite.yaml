@@ -469,3 +469,241 @@ cases:
     asserts:
       - type: "url_contains"
         expected: "/finance/"
+
+  # ============================================================
+  # ACCOUNT CRUD
+  # ============================================================
+
+  - id: "FIN-ACCT-CREATE-001"
+    name: "Create account with required fields"
+    priority: "high"
+    tags: ["accounts", "crud", "create"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/finance/accounts/new/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "TYPE"
+        selector:
+          strategy: "id"
+          value: "id_name"
+        input: "AUTOTEST|finance|${RUN_ID}|Checking"
+      - action: "SELECT"
+        selector:
+          strategy: "id"
+          value: "id_account_type"
+        value: "checking"
+      - action: "TYPE"
+        selector:
+          strategy: "id"
+          value: "id_current_balance"
+        input: "1000.00"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "account-save-button"
+        timeout_ms: 10000
+      - action: "WAIT"
+        timeout_ms: 3000
+    asserts:
+      - type: "url_contains"
+        expected: "/finance/accounts/"
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "finance-account-list"
+        expected: "AUTOTEST|finance|${RUN_ID}|Checking"
+
+  - id: "FIN-ACCT-CREATE-002"
+    name: "Account form validates required name field"
+    priority: "high"
+    tags: ["accounts", "crud", "validation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/finance/accounts/new/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "TYPE"
+        selector:
+          strategy: "id"
+          value: "id_current_balance"
+        input: "500.00"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "account-save-button"
+        timeout_ms: 5000
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/finance/accounts/new/"
+
+  - id: "FIN-ACCT-VERIFY-001"
+    name: "Created account appears in list"
+    priority: "high"
+    tags: ["accounts", "crud", "read"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/finance/accounts/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "finance-account-list"
+        expected: "AUTOTEST|finance|${RUN_ID}|Checking"
+
+  # ============================================================
+  # BUDGET FORM INTERACTION
+  # ============================================================
+
+  - id: "FIN-BUD-FORM-001"
+    name: "Budget form loads with form and save button"
+    priority: "high"
+    tags: ["budgets", "form"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/finance/budgets/new/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "budget-form"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "budget-save-button"
+
+  - id: "FIN-BUD-FORM-002"
+    name: "Budget cancel returns to list"
+    priority: "medium"
+    tags: ["budgets", "form"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/finance/budgets/new/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "budget-cancel-button"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/finance/budgets/"
+
+  # ============================================================
+  # GOAL FORM INTERACTION
+  # ============================================================
+
+  - id: "FIN-GOAL-FORM-001"
+    name: "Goal form loads with form and save button"
+    priority: "high"
+    tags: ["goals", "form"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/finance/goals/new/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "finance-goal-form"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "finance-goal-save-button"
+
+  - id: "FIN-GOAL-FORM-002"
+    name: "Goal cancel returns to list"
+    priority: "medium"
+    tags: ["goals", "form"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/finance/goals/new/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "finance-goal-cancel-button"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/finance/goals/"
+
+  - id: "FIN-GOAL-CREATE-001"
+    name: "Create financial goal with required fields"
+    priority: "high"
+    tags: ["goals", "crud", "create"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/finance/goals/new/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "TYPE"
+        selector:
+          strategy: "id"
+          value: "id_name"
+        input: "AUTOTEST|finance|${RUN_ID}|Emergency Fund"
+      - action: "SELECT"
+        selector:
+          strategy: "id"
+          value: "id_goal_type"
+        value: "savings"
+      - action: "TYPE"
+        selector:
+          strategy: "id"
+          value: "id_target_amount"
+        input: "5000.00"
+      - action: "TYPE"
+        selector:
+          strategy: "id"
+          value: "id_current_amount"
+        input: "100.00"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "finance-goal-save-button"
+        timeout_ms: 10000
+      - action: "WAIT"
+        timeout_ms: 3000
+    asserts:
+      - type: "url_contains"
+        expected: "/finance/goals/"
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "finance-goal-list"
+        expected: "AUTOTEST|finance|${RUN_ID}|Emergency Fund"
+
+  # ============================================================
+  # CLEANUP
+  # ============================================================
+
+  - id: "FIN-CLEANUP-001"
+    name: "Cleanup AUTOTEST finance data"
+    priority: "high"
+    tags: ["cleanup"]
+    cleanup_scope: "AUTOTEST|finance|${RUN_ID}|"
+    steps:
+      - action: "NAVIGATE"
+        url: "/finance/accounts/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    cleanup:
+      - action: "CLICK"
+        selector:
+          strategy: "text_contains"
+          value: "AUTOTEST|finance|${RUN_ID}|"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "NAVIGATE"
+        url: "/finance/accounts/"
+      - action: "WAIT"
+        timeout_ms: 2000

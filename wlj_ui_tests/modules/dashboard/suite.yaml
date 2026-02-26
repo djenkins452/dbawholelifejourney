@@ -315,3 +315,73 @@ cases:
         selector:
           strategy: "data-testid"
           value: "dashboard-home"
+
+  # ============================================================
+  # CUSTOMIZATION INTERACTION
+  # ============================================================
+
+  - id: "DASH-CUST-001"
+    name: "Customize button visible on dashboard"
+    priority: "high"
+    tags: ["customize", "interaction"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/dashboard/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "dashboard-customize-button"
+
+  - id: "DASH-CUST-002"
+    name: "Clicking customize enters edit mode"
+    priority: "high"
+    tags: ["customize", "interaction"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/dashboard/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "dashboard-customize-button"
+        timeout_ms: 5000
+      - action: "WAIT"
+        timeout_ms: 1000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "dashboard-home"
+
+  - id: "DASH-CUST-003"
+    name: "Clicking customize again exits edit mode"
+    priority: "medium"
+    tags: ["customize", "interaction"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/dashboard/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "dashboard-customize-button"
+        timeout_ms: 5000
+      - action: "WAIT"
+        timeout_ms: 1000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "dashboard-customize-button"
+        timeout_ms: 5000
+      - action: "WAIT"
+        timeout_ms: 1000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "dashboard-home"

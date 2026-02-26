@@ -389,3 +389,68 @@ cases:
     asserts:
       - type: "url_contains"
         expected: "/user/preferences/"
+
+  # ============================================================
+  # PROFILE EDIT — FORM SUBMISSION
+  # ============================================================
+
+  - id: "USR-EDIT-SUBMIT-001"
+    name: "Edit profile with first and last name"
+    priority: "high"
+    tags: ["profile-edit", "crud", "form"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/user/profile/edit/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "TYPE"
+        selector:
+          strategy: "id"
+          value: "id_first_name"
+        input: "AutoTest"
+      - action: "TYPE"
+        selector:
+          strategy: "id"
+          value: "id_last_name"
+        input: "User"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "profile-save-button"
+        timeout_ms: 10000
+      - action: "WAIT"
+        timeout_ms: 3000
+    asserts:
+      - type: "url_contains"
+        expected: "/user/profile/"
+
+  - id: "USR-EDIT-SUBMIT-002"
+    name: "Verify updated name shows on profile"
+    priority: "high"
+    tags: ["profile-edit", "crud", "verify"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/user/profile/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "users-profile"
+        expected: "AutoTest"
+
+  - id: "USR-EDIT-SUBMIT-003"
+    name: "Edit form preserves email field"
+    priority: "medium"
+    tags: ["profile-edit", "form"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/user/profile/edit/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "id"
+          value: "id_email"

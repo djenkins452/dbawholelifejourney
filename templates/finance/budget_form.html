@@ -16,7 +16,7 @@
         <h1 class="page-title">{% if object %}Edit{% else %}Add{% endif %} Budget {% include "components/favorite_toggle.html" with page_title="Add Budget" %}</h1>
     </div>
 
-    <form method="post" class="form-card">
+    <form method="post" class="form-card" data-testid="budget-form">
         {% csrf_token %}
 
         <div class="form-row">
@@ -48,8 +48,8 @@
         </div>
 
         <div class="form-actions">
-            <button type="submit" class="btn btn-primary">{% if object %}Save Changes{% else %}Create Budget{% endif %}</button>
-            <a href="{% url 'finance:budget_list' %}" class="btn btn-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary" data-testid="budget-save-button">{% if object %}Save Changes{% else %}Create Budget{% endif %}</button>
+            <a href="{% url 'finance:budget_list' %}" class="btn btn-secondary" data-testid="budget-cancel-button">Cancel</a>
         </div>
     </form>
 </div>

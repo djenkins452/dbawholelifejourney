@@ -9,6 +9,37 @@
 
 # WLJ Change History
 
+## 2026-02-26 — UI Test Quality Enhancement: Depth Pass Across 6 Modules
+
+**What:** Expert audit of all ~380 UI tests identified ~280 as shallow (page-load-only). Enhanced 6 modules with CRUD operations, form interactions, data creation/verification, and cleanup patterns to match the depth of the gold-standard modules (Journal, Goals, Faith, Health).
+
+**Finance (24 → 33 tests):** Added account CRUD (create with AUTOTEST prefix, SELECT account type, TYPE balance, verify in list), budget form interaction (load, cancel), financial goal CRUD (create with AUTOTEST prefix, verify), cleanup step. Instrumented: `budget_form.html`, `goal_form.html` with data-testid attributes.
+
+**Users (19 → 22 tests):** Added profile edit submission (type first/last name, save, verify redirect to profile), verify updated name displays on profile page, email field preservation check.
+
+**Help (14 → 18 tests):** Added search interaction tests (search input visibility, type "journal" and verify results, search "dashboard" shows results, empty search clears results with element_not_visible assertion).
+
+**Admin Console (26 → 31 tests):** Added announcement CRUD (form loads, field visibility, create with AUTOTEST prefix and verify in list, cancel returns to list), task intake form loads. Instrumented: `system_announcement_form.html` with data-testid attributes.
+
+**Preferences (9 → 13 tests):** Added form interaction tests (preferences form visible, Expand All reveals theme dropdown, Collapse All hides sections, custom theme form on theme page).
+
+**Dashboard (15 → 18 tests):** Added customization interaction tests (customize button visible, click enters edit mode, toggle edit mode on/off).
+
+**Result:** All 6 modules at 100% pass rate. Total new tests: +30 (135 → 165 across these modules). Total system-wide: ~410 UI tests.
+
+**Files modified:**
+- `templates/finance/budget_form.html` — data-testid added
+- `templates/finance/goal_form.html` — data-testid added
+- `templates/admin_console/system_announcement_form.html` — data-testid added
+- `wlj_ui_tests/modules/finance/suite.yaml` — 24→33 tests
+- `wlj_ui_tests/modules/users/suite.yaml` — 19→22 tests
+- `wlj_ui_tests/modules/help/suite.yaml` — 14→18 tests
+- `wlj_ui_tests/modules/admin/suite.yaml` — 26→31 tests
+- `wlj_ui_tests/modules/preferences/suite.yaml` — 9→13 tests
+- `wlj_ui_tests/modules/dashboard/suite.yaml` — 15→18 tests
+
+---
+
 ## 2026-02-26 — Fix calendar execution block click 404
 
 **What:** Clicking "Workout" (or any execution block event) on the calendar navigated to `/life/tasks/{id}/edit/` which 404'd because the source task was soft-deleted (routine tasks get recycled daily). Execution block events are calendar-native — they should open the calendar edit modal, not navigate to a potentially-deleted task.
@@ -24,6 +55,44 @@
 
 **Files:**
 - `templates/admin_console/ui_test_modules.html` — MODIFIED: Redesigned module cards with responsive grid, hover/selected states, proper click delegation for toggle-cases buttons
+
+## 2026-02-26 — Phase 5: Admin Console & COS Test Suites
+
+**What:** Built UI test suites for the final two modules: Admin Console and Calendar of Services (COS). These were explicitly requested — Admin Console because admins are users too, and COS because it's the heart of the system.
+
+**Admin Console (26 tests):** Auth (1), Access Control (2: unauthenticated user blocked from admin console, re-login after access test), Dashboard (5: page load, title, quick stats, admin cards, ops/testing cards), Themes (3: list loads, title/content, breadcrumb nav), Tasks (3: list loads, title/controls, What's Next button), Users (2: list loads, title/table), Site Config (2: page loads, branding section), UI Test Runner (2: page loads, module tiles), Operations Wall (1: page loads), Announcements (2: list loads, title/create button), Navigation (3: dashboard→themes, dashboard→tasks, breadcrumb back). Templates instrumented: dashboard.html, theme_list.html, admin_task_list.html, user_list.html, site_config.html, ui_test_modules.html, operations_wall.html, system_announcement_list.html.
+
+**COS (15 tests):** Auth (1), Panel Presence (5: panel on dashboard, panel on journal page, chat input, messages container, send button), Chat Interaction (7: type message, send greeting, ask about features, ask about journal, ask about goals, ask about schedule, ask about health), Settings (2: settings page loads, shows title). Templates instrumented: assistant_panel.html, cos_settings.html. Also enabled personal_assistant for test user in test_user_service.py.
+
+**Result:** Admin Console 24/24 (100%), COS 15/15 (100%), both stable across multiple runs.
+
+---
+
+## 2026-02-26 — Phase 4b: Fill Empty Suites (Organize, Preferences)
+
+**What:** Populated the two empty test suites that showed 0 cases on the UI Test Runner page.
+
+**Organize Module (20 tests):** Auth (1), Pets (4: list, title, add button, back link), Recipes (3: list, title, back link), Maintenance (3: list, title, back link), Documents (3: list, title, back link), Significant Events (3: list, title, back link), Calendar (3: page load, title, back link). Added data-testid to 6 templates: pet_list.html, recipe_list.html, maintenance_list.html, document_list.html, significant_event_list.html, calendar.html.
+
+**Preferences Module (9 tests):** Auth (1), Main Page (5: page load, title, appearance section, save button, modules section), Theme Selection (3: page load, title, theme cards). Added data-testid to theme_selection.html.
+
+**Result:** All 29 new tests pass at 100%, stable across multiple runs.
+
+---
+
+## 2026-02-26 — Phase 4 UI Test Expansion: Users, Help, Security
+
+**What:** Built UI test suites for 3 more modules as part of Phase 4 expansion. Added data-testid attributes to templates and wrote comprehensive YAML test suites.
+
+**Users Module (19 tests):** Auth (1), Profile (5: page load, title, edit button, email display, edit navigation), Profile Edit (5: page load, form visible, save/cancel buttons, cancel returns, back link), Preferences (3: page load, title, appearance section), Data Export (3: page load, title, back link), Navigation (2: round trips). Templates: profile.html, profile_edit.html, preferences.html, data_export.html.
+
+**Help Module (14 tests):** Auth (1), Help Center (5: page load, title, search box, categories, popular topics), Category (3: page load, name display, back link), Article (3: page load, content, back link), Navigation (2: round trips). Templates: help_center.html, article.html, category.html. Loaded help fixture data (28 objects — 5 categories, 23 articles).
+
+**Security Module (4 tests):** Auth (1), Dashboard (3: page load, title, run assessment button). Template: dashboard.html. Admin Console skipped (requires staff access).
+
+**Result:** All 37 new tests pass at 100%, stable across multiple runs.
+
+---
 
 ## 2026-02-26 — Phase 3 UI Test Expansion: Finance, Medical, Brain Training
 

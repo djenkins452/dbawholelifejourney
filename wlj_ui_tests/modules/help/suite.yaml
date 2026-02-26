@@ -291,3 +291,95 @@ cases:
     asserts:
       - type: "url_contains"
         expected: "/help/"
+
+  # ============================================================
+  # SEARCH INTERACTION
+  # ============================================================
+
+  - id: "HELP-SEARCH-001"
+    name: "Search input visible on help center"
+    priority: "high"
+    tags: ["search"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/help/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "id"
+          value: "help-search"
+
+  - id: "HELP-SEARCH-002"
+    name: "Type search query in help center"
+    priority: "high"
+    tags: ["search", "interaction"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/help/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "TYPE"
+        selector:
+          strategy: "id"
+          value: "help-search"
+        input: "journal"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "id"
+          value: "help-search-results"
+
+  - id: "HELP-SEARCH-003"
+    name: "Search for dashboard shows results"
+    priority: "medium"
+    tags: ["search", "interaction"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/help/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "TYPE"
+        selector:
+          strategy: "id"
+          value: "help-search"
+        input: "dashboard"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "id"
+          value: "help-search-results"
+
+  - id: "HELP-SEARCH-004"
+    name: "Empty search clears results"
+    priority: "medium"
+    tags: ["search", "interaction"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/help/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "TYPE"
+        selector:
+          strategy: "id"
+          value: "help-search"
+        input: "journal"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "TYPE"
+        selector:
+          strategy: "id"
+          value: "help-search"
+        input: ""
+      - action: "WAIT"
+        timeout_ms: 1000
+    asserts:
+      - type: "element_not_visible"
+        selector:
+          strategy: "id"
+          value: "help-search-results"

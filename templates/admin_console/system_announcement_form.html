@@ -3,11 +3,11 @@
 {% block title %}{% if announcement %}Edit Announcement{% else %}New Announcement{% endif %} - Admin Console{% endblock %}
 
 {% block content %}
-<div class="container">
+<div class="container" data-testid="ac-announcement-form">
     <div class="page-header">
         <div>
             <nav class="breadcrumb">
-                <a href="{% url 'admin_console:dashboard' %}">Admin Console</a>
+                <a href="{% url 'admin_console:dashboard' %}" data-testid="ac-back-link">Admin Console</a>
                 <span>/</span>
                 <a href="{% url 'admin_console:system_announcement_list' %}">System Announcements</a>
                 <span>/</span>
@@ -101,10 +101,10 @@
         </div>
 
         <div class="form-actions">
-            <button type="submit" class="btn btn-primary">
+            <button type="submit" class="btn btn-primary" data-testid="ac-announcement-save-button">
                 {% if announcement %}Save Changes{% else %}Create Announcement{% endif %}
             </button>
-            <a href="{% url 'admin_console:system_announcement_list' %}" class="btn btn-ghost">Cancel</a>
+            <a href="{% url 'admin_console:system_announcement_list' %}" class="btn btn-ghost" data-testid="ac-announcement-cancel-button">Cancel</a>
         </div>
     </form>
 </div>

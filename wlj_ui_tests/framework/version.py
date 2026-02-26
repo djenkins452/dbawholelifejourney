@@ -1,6 +1,6 @@
 """WLJ UI Test Framework version."""
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 # Minimum YAML schema version this framework supports
 MIN_SCHEMA_VERSION = "1.0"

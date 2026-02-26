@@ -74,57 +74,75 @@
             </div>
 
             {% if modules %}
-            <div class="p-4">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="p-4" style="padding: 16px;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px;">
                     {% for module in modules %}
-                    <div class="border rounded-lg p-4 hover:bg-surface/50 transition-colors" data-module-card>
-                        <div class="flex items-start gap-3">
-                            <input type="checkbox"
-                                   name="modules"
-                                   value="{{ module.name }}"
-                                   id="module-{{ module.name }}"
-                                   class="mt-1 module-checkbox"
-                                   style="width: 18px; height: 18px;">
-                            <div class="flex-1">
-                                <label for="module-{{ module.name }}" class="font-semibold text-base cursor-pointer">
+                    <label for="module-{{ module.name }}"
+                           class="module-card"
+                           data-module-card
+                           style="display: flex; align-items: flex-start; gap: 12px;
+                                  border: 1px solid var(--color-border, #e5e7eb); border-radius: 10px;
+                                  padding: 14px 16px; cursor: pointer;
+                                  transition: all 0.15s ease;
+                                  background: var(--color-bg, #fff);">
+                        <input type="checkbox"
+                               name="modules"
+                               value="{{ module.name }}"
+                               id="module-{{ module.name }}"
+                               class="module-checkbox"
+                               style="width: 18px; height: 18px; margin-top: 2px; flex-shrink: 0; accent-color: var(--color-primary, #2563eb);">
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                                <span style="font-weight: 600; font-size: 0.95rem; color: var(--color-text, #1f2937);">
                                     {{ module.name|title }}
-                                </label>
-                                <p class="text-sm text-muted mt-1">{{ module.suite_title }}</p>
-                                <div class="flex items-center gap-2 mt-2">
-                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                        {{ module.case_count }} case{{ module.case_count|pluralize }}
-                                    </span>
-                                </div>
-
-                                {% if module.cases %}
-                                <div class="mt-3">
-                                    <button type="button"
-                                            class="text-xs text-primary hover:underline"
-                                            data-action="toggle-cases"
-                                            data-target="cases-{{ module.name }}">
-                                        Show test cases
-                                    </button>
-                                    <div id="cases-{{ module.name }}" class="hidden mt-2">
-                                        <ul class="space-y-1">
-                                            {% for case in module.cases %}
-                                            <li class="text-xs text-muted flex items-center gap-2">
-                                                <code class="bg-surface px-1.5 py-0.5 rounded font-mono">{{ case.id }}</code>
-                                                <span>{{ case.name }}</span>
-                                            </li>
-                                            {% endfor %}
-                                        </ul>
-                                    </div>
-                                </div>
-                                {% endif %}
+                                </span>
+                                <span style="display: inline-flex; align-items: center; padding: 2px 8px;
+                                             border-radius: 9999px; font-size: 0.7rem; font-weight: 600;
+                                             background: var(--color-surface, #f3f4f6); color: var(--color-text-muted, #6b7280);
+                                             white-space: nowrap;">
+                                    {{ module.case_count }} case{{ module.case_count|pluralize }}
+                                </span>
                             </div>
+                            <p style="font-size: 0.8rem; color: var(--color-text-muted, #6b7280); margin: 4px 0 0 0; line-height: 1.4;">
+                                {{ module.suite_title }}
+                            </p>
+                            {% if module.cases %}
+                            <div style="margin-top: 8px;">
+                                <button type="button"
+                                        class="toggle-cases-btn"
+                                        data-action="toggle-cases"
+                                        data-target="cases-{{ module.name }}"
+                                        style="font-size: 0.75rem; color: var(--color-primary, #2563eb);
+                                               background: none; border: none; padding: 0; cursor: pointer;
+                                               text-decoration: none;">
+                                    ▸ {{ module.cases|length }} test case{{ module.cases|length|pluralize }}
+                                </button>
+                                <div id="cases-{{ module.name }}" class="hidden"
+                                     style="margin-top: 8px; padding: 8px 10px;
+                                            background: var(--color-surface, #f9fafb); border-radius: 6px;">
+                                    {% for case in module.cases %}
+                                    <div style="font-size: 0.72rem; color: var(--color-text-muted, #6b7280);
+                                                padding: 3px 0; display: flex; align-items: baseline; gap: 6px;
+                                                {% if not forloop.last %}border-bottom: 1px solid var(--color-border-light, #f3f4f6);{% endif %}">
+                                        <code style="font-family: 'SF Mono', Monaco, monospace; font-size: 0.68rem;
+                                                     background: var(--color-bg, #fff); padding: 1px 5px;
+                                                     border-radius: 3px; color: var(--color-text-muted, #6b7280);
+                                                     white-space: nowrap;">{{ case.id }}</code>
+                                        <span>{{ case.name }}</span>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% endif %}
                         </div>
-                    </div>
+                    </label>
                     {% endfor %}
                 </div>
             </div>
 
-            <div class="p-4 border-t flex justify-between items-center">
-                <span class="text-sm text-muted" id="selected-count">0 modules selected</span>
+            <div style="padding: 12px 16px; border-top: 1px solid var(--color-border, #e5e7eb);
+                        display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 0.85rem; color: var(--color-text-muted, #6b7280);" id="selected-count">0 modules selected</span>
                 <button type="submit" class="btn btn-primary" id="run-btn" disabled>
                     Run Selected Tests
                 </button>
@@ -227,6 +245,25 @@
 </div>
 </div>
 
+<style nonce="{{ csp_nonce }}">
+    .module-card:hover {
+        border-color: var(--color-primary, #2563eb) !important;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+    }
+    .module-card.selected {
+        border-color: var(--color-primary, #2563eb) !important;
+        background: color-mix(in srgb, var(--color-primary, #2563eb) 4%, var(--color-bg, #fff)) !important;
+    }
+    .toggle-cases-btn:hover {
+        text-decoration: underline;
+    }
+    @media (max-width: 480px) {
+        .module-card {
+            padding: 12px !important;
+        }
+    }
+</style>
+
 <script nonce="{{ csp_nonce }}">
 (function() {
     'use strict';
@@ -268,6 +305,18 @@
         var checked = form.querySelectorAll('.module-checkbox:checked').length;
         selectedCount.textContent = checked + ' module' + (checked !== 1 ? 's' : '') + ' selected';
         runBtn.disabled = checked === 0;
+
+        // Update card selected state
+        checkboxes.forEach(function(cb) {
+            var card = cb.closest('.module-card');
+            if (card) {
+                if (cb.checked) {
+                    card.classList.add('selected');
+                } else {
+                    card.classList.remove('selected');
+                }
+            }
+        });
     }
 
     // Checkbox change events
@@ -305,16 +354,29 @@
         });
     }
 
-    // Toggle cases visibility
+    // Toggle cases visibility — prevent label click from toggling checkbox
     document.querySelectorAll('[data-action="toggle-cases"]').forEach(function(btn) {
-        btn.addEventListener('click', function() {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
             var targetId = btn.getAttribute('data-target');
             var target = document.getElementById(targetId);
             if (target) {
                 var isHidden = target.classList.contains('hidden');
                 target.classList.toggle('hidden');
-                btn.textContent = isHidden ? 'Hide test cases' : 'Show test cases';
+                var caseCount = target.querySelectorAll('div > code').length || target.children.length;
+                btn.textContent = isHidden
+                    ? '▾ Hide test cases'
+                    : '▸ ' + caseCount + ' test case' + (caseCount !== 1 ? 's' : '');
             }
+        });
+    });
+
+    // Prevent clicks on the cases list from toggling the checkbox
+    document.querySelectorAll('[id^="cases-"]').forEach(function(el) {
+        el.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
         });
     });
 })();

@@ -9,6 +9,13 @@
 
 # WLJ Change History
 
+## 2026-02-26 — Redesign UI Test Runner Available Modules layout
+
+**What:** The Available Modules section on the UI Test Runner page looked unprofessional — uneven spacing, inconsistent alignment, and a cramped single-column list feel. Redesigned with a responsive card grid layout: auto-fill columns (min 280px), module name and case count on the same row, cleaner typography, hover highlights, selected state (blue border + tinted background), and collapsible test case lists that don't toggle the checkbox.
+
+**Files:**
+- `templates/admin_console/ui_test_modules.html` — MODIFIED: Redesigned module cards with responsive grid, hover/selected states, proper click delegation for toggle-cases buttons
+
 ## 2026-02-26 — Phase 3 UI Test Expansion: Finance, Medical, Brain Training
 
 **What:** Built UI test suites for 3 more modules as part of Phase 3 expansion. Added data-testid attributes to templates and wrote comprehensive YAML test suites.

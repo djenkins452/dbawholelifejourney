@@ -20,6 +20,7 @@ Health-check mode: validates framework subsystems without running tests.
 """
 
 import json
+import os
 import sys
 import tempfile
 from datetime import datetime, timezone
@@ -427,6 +428,10 @@ class ExecutionOrchestrator:
 
         Calls ``python manage.py create_test_user`` via subprocess so the
         test framework stays decoupled from Django internals.
+
+        After provisioning, exports TEST_USERNAME and TEST_PASSWORD into
+        os.environ so the SuiteRunner's variable interpolation
+        (${TEST_USERNAME}, ${TEST_PASSWORD}) resolves correctly.
         """
         import subprocess
 
@@ -437,6 +442,10 @@ class ExecutionOrchestrator:
             self._log("provision_test_user_skip",
                        reason="manage.py not found at " + str(manage_py))
             return
+
+        # Read credentials from same env vars the service uses (with defaults)
+        test_email = os.environ.get("WLJ_TEST_EMAIL", "autotest@local.test")
+        test_password = os.environ.get("WLJ_TEST_PASSWORD", "testpass123")
 
         try:
             result = subprocess.run(
@@ -456,6 +465,11 @@ class ExecutionOrchestrator:
             self._log("provision_test_user_timeout")
         except Exception as exc:
             self._log("provision_test_user_error", error=str(exc))
+
+        # Export credentials so the runner can interpolate ${TEST_USERNAME}
+        # and ${TEST_PASSWORD} in suite YAML files.
+        os.environ.setdefault("TEST_USERNAME", test_email)
+        os.environ.setdefault("TEST_PASSWORD", test_password)
 
     def _build_runner(self):
         """Build a SuiteRunner from orchestrator parameters."""

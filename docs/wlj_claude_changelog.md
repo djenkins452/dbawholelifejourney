@@ -78,12 +78,23 @@
 
 
 **What:** `EntryCreateView` had `success_url = reverse_lazy("journal:entry_list")` which redirected to the entry list after creating a journal entry. The correct UX contract is CREATE → VIEW DETAIL. Replaced the static `success_url` with `get_success_url()` returning `reverse("journal:entry_detail", kwargs={"pk": self.object.pk})`. Also reverted previous suite.yaml weakening — JRN-002 assertions now correctly expect `journal-entry-detail` and `journal-entry-detail-title` on the detail page.
+## 2026-02-26 — Fix journal create redirect + test user credential bridging
+
+**What:** Two fixes for the journal UI test suite:
+
+1. **Redirect fix (architectural):** `EntryCreateView` had `success_url = reverse_lazy("journal:entry_list")` — redirected to list after create. The correct UX contract is CREATE → VIEW DETAIL. Replaced with `get_success_url()` returning `reverse("journal:entry_detail", kwargs={"pk": self.object.pk})`. Reverted previous suite.yaml weakening — JRN-002 assertions correctly expect `journal-entry-detail`.
+
+2. **Credential bridging fix:** `_provision_test_user()` in ExecutionOrchestrator created the test user but didn't export `TEST_USERNAME`/`TEST_PASSWORD` env vars. The SuiteRunner reads these for `${TEST_USERNAME}` interpolation — without them, login sent blank credentials. Now exports credentials after provisioning via `os.environ.setdefault()`.
+
 
 **Files:**
 - `apps/journal/views.py` — replaced `success_url` with `get_success_url()` on `EntryCreateView`
 - `wlj_ui_tests/modules/journal/suite.yaml` — reverted JRN-002 assertions back to detail page checks
+- `wlj_ui_tests/framework/execution_orchestrator.py` — added `import os`, export TEST_USERNAME/TEST_PASSWORD after provisioning
 
-**Why:** The UI test (JRN-002) correctly asserted the detail page after create. The application redirect was wrong, not the test. This matches `EntryUpdateView` which already redirects to entry_detail.
+**Playwright result:** 4/4 passed, 0 failed (JRN-001 login, JRN-002 create→detail, JRN-003 list, JRN-004 cleanup)
+
+**Why:** The UI test correctly asserted the detail page after create — the application redirect was wrong. The credential gap meant provisioning worked but the runner couldn't authenticate.
 
 
 ## 2026-02-26 — Fix login test reliability: force logout before login

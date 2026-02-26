@@ -9,6 +9,21 @@
 
 # WLJ Change History
 
+## 2026-02-25 — WLJ UI Testing Framework Phase 14: Run Integrity and Recovery
+
+**What:** Added run manifest generation (`RunManifest` class) that writes `run_manifest.json` at start and completion of each run, tracking expected_cases, completed_cases, failed_cases, and integrity summary with missing case detection. Created orphan recovery script (`recover_orphaned_test_data.py`) that reads `test_data_registry.ndjson` to find uncleaned AUTOTEST records and generates remediation instructions. Created pre-execution selector validator (`validate_selectors.py`) that scans suite YAMLs for `data-testid` selectors and verifies they exist in Django templates — currently 22/22 selectors found, 0 missing. Added retry layer to `ActionExecutor` with exponential backoff (500ms base, doubled per attempt) for CLICK/TYPE/WAIT/ASSERT actions (max_retries=2 default); NAVIGATE and SELECT are excluded from retries.
+
+**Files:**
+- `wlj_ui_tests/framework/run_manifest.py` — NEW: `RunManifest` class with set_expected_cases/record_case_pass/record_case_fail/finalize/write
+- `wlj_ui_tests/recover_orphaned_test_data.py` — NEW: CLI orphan recovery with --run-id, --json, --purge options
+- `wlj_ui_tests/validate_selectors.py` — NEW: Pre-execution data-testid validation against Django templates
+- `wlj_ui_tests/framework/executor.py` — MODIFIED: Added `_execute_with_retry()`, `RETRYABLE_ACTIONS`, `RETRY_BASE_DELAY_MS`, `max_retries` param, `retries_attempted` on ExecutionError
+- `wlj_ui_tests/framework/__init__.py` — MODIFIED: Added RunManifest export
+
+**Why:** Run manifests enable detection of interrupted runs (crashes, timeouts) and provide audit trail for CI. Orphan recovery prevents AUTOTEST data accumulation. Selector pre-validation catches template regressions before Playwright launches. Retry layer handles transient browser timing issues without masking real failures.
+
+---
+
 ## 2026-02-25 — WLJ UI Testing Framework Phase 13: Framework Hardening
 
 **What:** Hardened the framework with RUN_ID-scoped cleanup, a cross-module smoke suite, a test data registry, and a comprehensive self-test script (46/46 checks passed). JRN-004 cleanup now searches by `AUTOTEST|journal|${RUN_ID}|` instead of clicking generic entry cards, preventing accidental deletion of entries from other concurrent runs. Created `smoke` module (SMK-001–SMK-004) mirroring the journal flow for cross-module essentials. Added `TestDataRegistry` class for NDJSON append-only audit trail of all AUTOTEST objects created during runs, with register/mark_cleaned_up/flush/read/summary operations.

@@ -2,7 +2,15 @@
 
 Translates YAML action types to Playwright browser actions.
 Supports: NAVIGATE, CLICK, TYPE, SELECT, WAIT, ASSERT.
+
+Retry layer (Phase 14): CLICK, TYPE, WAIT, and ASSERT actions are
+retried up to max_retries times (default 2) with exponential backoff
+on transient failures. NAVIGATE and SELECT are NOT retried — navigation
+failures indicate real problems, and SELECT on the wrong element
+could cause data corruption.
 """
+
+import time
 
 from .selectors import resolve_selector
 
@@ -10,11 +18,20 @@ from .selectors import resolve_selector
 class ExecutionError(Exception):
     """Raised when an action or assertion fails during execution."""
 
-    def __init__(self, message, step_index=None, action=None, selector=None):
+    def __init__(self, message, step_index=None, action=None, selector=None,
+                 retries_attempted=0):
         super().__init__(message)
         self.step_index = step_index
         self.action = action
         self.selector = selector
+        self.retries_attempted = retries_attempted
+
+
+# Actions eligible for retry — NAVIGATE and SELECT are excluded
+RETRYABLE_ACTIONS = {"CLICK", "TYPE", "WAIT", "ASSERT"}
+
+# Base delay between retries (milliseconds), doubled each attempt
+RETRY_BASE_DELAY_MS = 500
 
 
 class ActionExecutor:
@@ -22,50 +39,93 @@ class ActionExecutor:
 
     Each action type maps to a Playwright page method per Section 5/Phase 3.
     Selector resolution is basic here; Phase 4 SelectorResolver enhances it.
+
+    Retry layer: CLICK, TYPE, WAIT, and ASSERT actions are automatically
+    retried up to max_retries times with exponential backoff.
     """
 
     DEFAULT_TIMEOUT_MS = 5000
+    DEFAULT_MAX_RETRIES = 2
 
-    def __init__(self, page, defaults=None):
+    def __init__(self, page, defaults=None, max_retries=None):
         """Initialize with a Playwright page and optional suite defaults.
 
         Args:
             page: Playwright Page object.
             defaults: Suite-level defaults dict (timeout_ms, base_url, etc.).
+            max_retries: Max retry attempts for retryable actions.
+                Defaults to 2. Set to 0 to disable retries.
         """
         self.page = page
         self.defaults = defaults or {}
         self.timeout_ms = self.defaults.get("timeout_ms", self.DEFAULT_TIMEOUT_MS)
+        self.max_retries = (
+            max_retries if max_retries is not None
+            else self.DEFAULT_MAX_RETRIES
+        )
 
     def execute_case(self, case):
         """Execute all steps and assertions for a test case.
 
         Raises ExecutionError with context on any step or assertion failure.
+        Retryable actions (CLICK, TYPE, WAIT, ASSERT) are automatically
+        retried up to max_retries times.
         """
         steps = case.get("steps", [])
         asserts = case.get("asserts", [])
 
         for i, step in enumerate(steps):
+            action = (step.get("action") or "").upper()
+            retries = self.max_retries if action in RETRYABLE_ACTIONS else 0
+
             try:
-                self.execute_step(step)
+                self._execute_with_retry(
+                    lambda s=step: self.execute_step(s),
+                    max_retries=retries,
+                )
             except Exception as exc:
                 raise ExecutionError(
                     str(exc),
                     step_index=i,
-                    action=step.get("action"),
+                    action=action,
                     selector=step.get("selector"),
+                    retries_attempted=retries,
                 ) from exc
 
         for i, assertion in enumerate(asserts):
             try:
-                self.execute_assert(assertion)
+                self._execute_with_retry(
+                    lambda a=assertion: self.execute_assert(a),
+                    max_retries=self.max_retries,
+                )
             except Exception as exc:
                 raise ExecutionError(
                     str(exc),
                     step_index=len(steps) + i,
                     action="ASSERT",
                     selector=assertion.get("selector"),
+                    retries_attempted=self.max_retries,
                 ) from exc
+
+    def _execute_with_retry(self, fn, max_retries=0):
+        """Execute a callable with retry and exponential backoff.
+
+        Args:
+            fn: Zero-arg callable to execute.
+            max_retries: Maximum number of retry attempts (0 = no retries).
+
+        Raises:
+            The last exception if all attempts fail.
+        """
+        for attempt in range(max_retries + 1):
+            try:
+                return fn()
+            except Exception:
+                if attempt < max_retries:
+                    delay_ms = RETRY_BASE_DELAY_MS * (2 ** attempt)
+                    time.sleep(delay_ms / 1000.0)
+                    continue
+                raise
 
     def execute_step(self, step):
         """Execute a single YAML step definition."""

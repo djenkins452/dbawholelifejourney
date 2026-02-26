@@ -132,14 +132,24 @@
     <!-- Recent Runs -->
     {% if recent_runs %}
     <div class="card">
-        <div class="p-4 border-b">
+        <div class="p-4 border-b flex justify-between items-center">
             <h2 class="text-lg font-semibold">Recent UI Test Runs</h2>
+            <div class="flex items-center gap-2">
+                <label class="text-sm text-muted" for="env-filter">Environment:</label>
+                <select id="env-filter" class="form-select text-sm" style="min-width: 120px; font-size: 16px; padding: 6px 8px; border: 1px solid var(--color-border); border-radius: 6px;">
+                    <option value="all">All</option>
+                    <option value="local">Local</option>
+                    <option value="production">Production</option>
+                    <option value="ci">CI</option>
+                </select>
+            </div>
         </div>
         <div class="overflow-x-auto">
             <table class="w-full">
                 <thead class="bg-surface">
                     <tr>
                         <th class="px-4 py-3 text-left text-sm font-medium">Date/Time</th>
+                        <th class="px-4 py-3 text-left text-sm font-medium">Env</th>
                         <th class="px-4 py-3 text-left text-sm font-medium">Modules</th>
                         <th class="px-4 py-3 text-left text-sm font-medium">Status</th>
                         <th class="px-4 py-3 text-center text-sm font-medium">Cases</th>
@@ -151,11 +161,20 @@
                 </thead>
                 <tbody class="divide-y">
                     {% for run in recent_runs %}
-                    <tr class="hover:bg-surface/50">
+                    <tr class="hover:bg-surface/50" data-env="{{ run.environment }}">
                         <td class="px-4 py-3 text-sm">
                             <a href="{% url 'admin_console:ui_test_detail' run.pk %}" class="hover:underline">
                                 {{ run.run_at|date:"M d, Y H:i" }}
                             </a>
+                        </td>
+                        <td class="px-4 py-3">
+                            {% if run.environment == 'production' %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">Prod</span>
+                            {% elif run.environment == 'ci' %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">CI</span>
+                            {% else %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">Local</span>
+                            {% endif %}
                         </td>
                         <td class="px-4 py-3 text-sm">{{ run.modules_display }}</td>
                         <td class="px-4 py-3">
@@ -230,6 +249,21 @@
             updateCount();
         });
     });
+
+    // Environment filter for recent runs table
+    var envFilter = document.getElementById('env-filter');
+    if (envFilter) {
+        envFilter.addEventListener('change', function() {
+            var val = envFilter.value;
+            document.querySelectorAll('tr[data-env]').forEach(function(row) {
+                if (val === 'all' || row.getAttribute('data-env') === val) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        });
+    }
 
     // Toggle cases visibility
     document.querySelectorAll('[data-action="toggle-cases"]').forEach(function(btn) {

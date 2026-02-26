@@ -9,52 +9,127 @@
 
 # WLJ Change History
 
-## 2026-02-26 — Add full CoS check-in briefing on user request
+## 2026-02-26 — Centralized test result reporting (local → production sync)
 
-**What:** When the user asks "how's my day looking?", "check in with me", "brief me", etc., the AI now delivers a complete Chief of Staff briefing including calendar events, medication status, health gates (fasting, workout, reading plan), tasks, goals, and routines — pulled from the executive briefing system. This is never throttled; scheduled proactive check-ins are throttled but user-initiated requests always get the full picture.
+**What:** Added a complete local→production sync pipeline for UI test results. After every UITestRun completes (via Admin Console or CLI), results are POSTed to a production ingest API so the production dashboard becomes the single source of truth for all test health.
 
-**Files:**
-- `apps/ai/personal_assistant.py` — MODIFIED: Added `is_requesting_checkin` detection + full briefing injection using `_build_health_gate_section` and `_build_day_overview_section` from executive_briefing.py
-
-## 2026-02-26 — Fix medicine check-in timing, grouping, and remind-me-later
-
-**What:** Three fixes to the proactive medicine check-in system:
-
-1. **Timing bug** — Check-ins used `timezone.now().time()` (UTC) to compare against scheduled times (stored as user's local time). At 7:42 AM CST, UTC time is 1:42 PM, so `13:42 >= 09:00` passed and check-ins fired 2 hours before meds were due. Fixed to use `get_user_now(user).time()` for correct local-time comparison.
-
-2. **Grouped notifications** — Instead of one notification per pill ("Your 9:00 AM Atorvastatin wasn't marked", "Your 9:00 AM Lantus...", etc.), now groups all medicines by `time_of_day` and sends ONE message: "Your morning meds are due by 9:00 AM." with group action buttons ("I took them", "Skip", "Remind me later").
-
-3. **Remind me later** — Was hardcoded to snooze 30 minutes. Now calculates time until the actual due time and responds "I'll remind you at 9:00 AM." Falls back to 30 min if due time has already passed.
+**Components:**
+1. **Model changes:** Added `environment`, `source_host`, `source_user`, `case_results` (JSONField) to UITestRun
+2. **Ingest API:** `POST /admin-console/api/test-results/ingest/` — CSRF-exempt, rate-limited (30/min), authenticated via `X-Test-Results-API-Key` header with constant-time comparison, idempotent (duplicate run_id+source_host returns 200), handles full-suite children
+3. **Sync client:** `wlj_ui_tests/framework/result_sync.py` — Pure stdlib (no Django dependency), 3 retries with exponential backoff, fail-silent, auto-populates hostname/username
+4. **Admin view hooks:** RunUITestsView and RunFullSuiteView now populate environment fields and trigger sync via daemon thread (non-blocking)
+5. **CLI hook:** run_suite.py calls sync_result() after orchestrator completes
+6. **Dashboard:** Environment column with color-coded badges (Local/Prod/CI), filter dropdown, per-case results table on detail page
 
 **Files:**
-- `apps/ai/proactive_checkins.py` — MODIFIED: Rewrote `generate_medicine_check_ins_for_user()` with local-time comparison + group-by-time_of_day logic; added `generate_grouped_medicine_check_in()` method
-- `apps/ai/assistant_intelligence.py` — MODIFIED: Added `grouped_meds_due` template to all 4 coaching styles
-- `apps/ai/quick_reply_handlers.py` — MODIFIED: Added `generate_grouped_medicine_replies()`, `handle_mark_medicine_group_taken()`, `handle_skip_medicine_group()`; rewrote `handle_remind_later()` to use actual due time
+- `apps/admin_console/models.py` — MODIFIED: Added 4 fields to UITestRun
+- `apps/admin_console/migrations/0031_uitestrun_case_results_uitestrun_environment_and_more.py` — ADDED
+- `config/settings.py` — MODIFIED: Added TEST_RESULTS_API_KEY, TEST_RESULTS_SYNC_URL
+- `wlj_ui_tests/framework/result_sync.py` — ADDED: Sync client module
+- `apps/admin_console/views.py` — MODIFIED: Added TestResultIngestAPIView, _sync_ui_test_run helper, modified RunUITestsView + RunFullSuiteView
+- `apps/admin_console/urls.py` — MODIFIED: Added ingest endpoint route
+- `apps/admin_console/admin.py` — MODIFIED: Added new fields to list_display/list_filter/readonly_fields
+- `wlj_ui_tests/run_suite.py` — MODIFIED: Added sync hook after orchestrator run
+- `templates/admin_console/ui_test_modules.html` — MODIFIED: Added environment column, filter dropdown, filter JS
+- `templates/admin_console/ui_test_detail.html` — MODIFIED: Added environment badge, source info, per-case results table
 
-## 2026-02-26 — Fix timezone bug in calendar dedup
+**Test results:** 278/278 admin_console tests passing
 
-**What:** The dedup cleanup was grouping events by `start_dt.date()` which returns the UTC date. For users in America/Chicago (UTC-6), events on the same local date could have different UTC dates near the midnight boundary, causing duplicates to survive cleanup.
+## 2026-02-26 — Environment lock + Easy Button hardening
 
-**Fix:** Both `cleanup_calendar_duplicates` command and `load_initial_data` startup cleanup now convert to user's local timezone before extracting the date: `event.start_dt.astimezone(user_tz).date()`. Bumped loader name to `v2` so the corrected cleanup re-runs on next deploy.
+**What:** Pinned `dj-stripe==2.10.3` in requirements.txt and hardened the Easy Button scripts with environment validation: enforces venv activation (errors out if no venv found), validates Python is running from venv, checks dj-stripe is exactly 2.10.3, runs `migrate --noinput` with error handling, uses `127.0.0.1` instead of `localhost`, and adds module-first workflow messaging.
 
-**Files:**
-- `apps/calendar_engine/management/commands/cleanup_calendar_duplicates.py` — MODIFIED: Added user timezone lookup, fixed date grouping
-- `apps/core/management/commands/load_initial_data.py` — MODIFIED: Added timezone cache + local-date grouping, bumped loader to v2
-
-## 2026-02-26 — Calendar duplicate cleanup + root cause fix
-
-**What:** Fixed duplicate calendar events appearing on the Time Command Center. Two issues:
-
-1. **Root cause fix** — `upsert_execution_block_for_task()` in `projection.py` created new events blindly via `CalendarEvent.objects.create()`, bypassing all duplicate detection in `CalendarMutationService`. When both the signal-triggered projection AND the AcceptSuggestionView fired for the same task, two execution blocks were created. Fixed by adding upsert logic: check for existing execution block with same `source_type + source_id` before creating. Same fix applied to goal execution blocks in `AcceptSuggestionView`.
-
-2. **Cleanup command** — New `cleanup_calendar_duplicates` management command that scans all events, groups by `(title, date)`, and soft-deletes lower-priority duplicates. Priority: protected > execution_block > manual > oldest. Supports `--dry-run` (default), `--apply`, `--days`, `--future-days`, `--user`.
-
-Also fixed: `upsert_execution_block_for_task()` was prefixing titles with "Work on: " which created semantic-dedup mismatches vs the signal path that used the bare task title.
+**Why:** After repairing the djstripe migration mismatch (system Python had 2.8.4, venv had 2.10.3), we needed to lock the version to prevent future drift and ensure the Easy Button always runs inside the venv with the correct packages.
 
 **Files:**
-- `apps/calendar_engine/services/projection.py` — MODIFIED: `upsert_execution_block_for_task()` now checks for existing events before creating; uses bare task title
-- `apps/calendar_engine/views.py` — MODIFIED: `AcceptSuggestionView` goal path now checks for existing execution blocks
-- `apps/calendar_engine/management/commands/cleanup_calendar_duplicates.py` — NEW: Dedup cleanup command
+- `requirements.txt` — MODIFIED: `dj-stripe>=2.8.0` → `dj-stripe==2.10.3`
+- `scripts/start_wlj_test_env.sh` — MODIFIED: Added venv enforcement, dj-stripe version check, git worktree venv discovery, `migrate --noinput`, 127.0.0.1 URLs, module-first status banner
+
+## 2026-02-26 — djstripe migration state repair (version mismatch)
+
+**What:** Repaired djstripe migration state mismatch between system Python 3.9 (djstripe 2.8.4) and venv Python 3.12 (djstripe 2.10.3). The DB schema was built with 2.8.4's migration chain (0001→0008→0009→0010→0011→0012) but the venv's 2.10.3 has a different chain (0001→0002_2_10). Migration `0002_2_10` failed because it tried to alter tables (`djstripe_activeentitlement`) that the old 0001_initial never created.
+
+**Root cause:** Two different versions of dj-stripe installed — system pip has 2.8.4 (6 migrations), venv pip has 2.10.3 (2 migrations). The DB was built with 2.8.4 and lacked 10 tables that 2.10.3's `0001_initial` creates. Meanwhile, 5 stale migration records (0008-0012) in `django_migrations` had no matching files in 2.10.3.
+
+**Fix applied:**
+1. Created 10 missing tables via Django schema editor: `activeentitlement`, `earlyfraudwarning`, `feature`, `issuing_authorization`, `issuing_card`, `issuing_cardholder`, `issuing_dispute`, `issuing_transaction`, `promotioncode`, `review`
+2. Removed 5 stale migration records (0008-0012) from `django_migrations`
+3. Fake-applied `0002_2_10` for venv Python (schema now matches post-migration state)
+4. Re-faked 0008-0012 for system Python (so both environments are stable)
+
+**Verification:**
+- `python3 manage.py migrate` (system Python 3.9): No migrations to apply
+- `venv/bin/python manage.py migrate` (venv Python 3.12): No migrations to apply
+- Both `showmigrations djstripe` show all migrations as `[X]`
+- DB now has 68 djstripe tables (58 original + 10 new)
+
+**Files:** No code files changed — this was a database-only repair (migration history + table creation).
+
+## 2026-02-26 — Bootstrap scripts for WLJ test environment
+
+**What:** Created two bootstrap scripts for quickly starting the WLJ dev server and opening the UI Test Runner page:
+1. `scripts/start_wlj_test_env.sh` — Full bootstrap: auto-detects project root, activates venv, checks migrations, starts Django dev server, opens browser to `/admin-console/ui-tests/`. Supports `--no-open` flag. Detects if port 8000 is already in use.
+2. `scripts/start_wlj.command` — Double-clickable macOS launcher that delegates to the main script. Opens in Terminal.app when double-clicked in Finder.
+
+**Why:** Provides a one-click way to launch the WLJ dev environment and land directly on the UI Test Runner page, without needing to remember commands or manually activate the venv.
+
+**Files:**
+- `scripts/start_wlj_test_env.sh` — ADDED: Main bootstrap script
+- `scripts/start_wlj.command` — ADDED: macOS double-clickable launcher
+
+## 2026-02-26 — Full Suite execution for Admin Console UI Test Runner
+
+**What:** Added "Run Full Suite" capability to the Admin Console UI Test Runner. Runs all modules sequentially, saves individual UITestRun records per module linked to a parent run, and displays per-module breakdown on the detail page.
+
+**Why:** Previously, running all UI test modules required either clicking "Run All Tests" (which ran them in a single subprocess) or running each module individually. The new Full Suite mode runs each module in its own subprocess with isolated results, provides a parent record for the overall run, and shows a table breakdown of per-module results.
+
+**Changes:**
+- `apps/admin_console/models.py` — MODIFIED: Added `parent_run` self-referencing FK to UITestRun, added `is_full_suite` property
+- `apps/admin_console/migrations/0030_uitestrun_parent_run.py` — ADDED: Migration for parent_run FK
+- `apps/admin_console/views.py` — MODIFIED: Added RunFullSuiteView (discovers modules, creates parent+child UITestRun records, runs each module sequentially, aggregates results); updated UITestRunDetailView to pass child_runs context
+- `apps/admin_console/urls.py` — MODIFIED: Added `ui-tests/run-full-suite/` route
+- `apps/admin_console/admin.py` — MODIFIED: Added `parent_run` to UITestRunAdmin readonly_fields
+- `templates/admin_console/ui_test_modules.html` — MODIFIED: Added "Run Full Suite" button (purple accent)
+- `templates/admin_console/ui_test_detail.html` — MODIFIED: Added Module Results table for full-suite runs, per-child collapsible output sections with CSP-compliant toggle JS
+
+**Test results:** 278/278 admin_console tests passing
+
+## 2026-02-26 — Admin Console UI Test Runner enhancements
+
+**What:** Enhanced the existing Admin Console UI Test Runner with 3 improvements:
+1. Registered UITestRun in Django admin (read-only) for DB-level inspection
+2. Added Quick Run buttons (Run Journal Tests, Run Goals Tests, Run All Tests) to `/admin-console/ui-tests/`
+3. Fixed RunUITestsView to use headless Playwright instead of `--no-browser` (which only validated YAML schema without running actual browser tests), and added `--provision-test-user` flag
+
+**Why:** The UI Test Runner page existed but had no quick-action buttons (required manual checkbox selection), was not registered in Django admin, and was running in `--no-browser` mode which skipped actual Playwright browser execution entirely.
+
+**Files:**
+- `apps/admin_console/admin.py` — MODIFIED: Added UITestRunAdmin (read-only, list_display, list_filter)
+- `apps/admin_console/views.py` — MODIFIED: RunUITestsView subprocess args: removed `--no-browser`, added `--provision-test-user`
+- `templates/admin_console/ui_test_modules.html` — MODIFIED: Added Quick Run card with Journal/Goals/All buttons
+
+**Test results:** 278/278 admin_console tests passing
+
+## 2026-02-26 — Goals module UI test coverage + CSP fixes + create redirect fix
+
+**What:** Expanded WLJ UI test framework coverage to the Goals module with 4 test cases (GOAL-001 through GOAL-004). Also fixed 5 CSP inline event handler violations in goal_detail.html and changed GoalCreateView to redirect to the goal detail page instead of the list.
+
+**Changes:**
+1. Created `wlj_ui_tests/modules/goals/suite.yaml` with 4 cases: list page loads, create flow redirects to detail, detail page loads from list click, edit flow works
+2. Added `data-testid` attributes to goal templates: `goal-list`, `goal-detail`, `goal-title`, `goal-form`, `goal-title-input`, `goal-description-input`, `goal-save-button`, `goal-edit-button`, `goal-delete-button`
+3. Fixed 5 CSP violations in goal_detail.html: replaced `onclick="toggleMilestoneForm()"`, `onclick="toggleMilestoneEdit(id)"`, and `onclick="closeCelebrationModal()"` with `data-action` attributes + `addEventListener()` patterns. Added `nonce="{{ csp_nonce }}"` to script tags.
+4. Changed `GoalCreateView.get_success_url()` to redirect to `purpose:goal_detail` instead of `purpose:goal_list` for consistency with journal create flow
+
+**Why:** Expanding UI test coverage to goals module per test framework rollout plan. CSP violations were auto-fixed per CLAUDE.md auto-fix rule. Create redirect fixed to match test spec and journal pattern.
+
+**Files:**
+- `wlj_ui_tests/modules/goals/suite.yaml` — MODIFIED: Added 4 test cases
+- `apps/purpose/templates/purpose/goal_list.html` — MODIFIED: Added data-testid="goal-list"
+- `apps/purpose/templates/purpose/goal_detail.html` — MODIFIED: Added data-testid attrs, fixed 5 CSP violations
+- `apps/purpose/templates/purpose/goal_form.html` — MODIFIED: Added data-testid attrs
+- `apps/purpose/views.py` — MODIFIED: GoalCreateView redirect to goal_detail
+
+**Test results:** 4/4 UI tests passing (100%), 172/172 purpose Django tests passing
 
 ## 2026-02-25 — Page context extraction + save_verse false positive fix
 
@@ -120,6 +195,309 @@ Also fixed: `upsert_execution_block_for_task()` was prefixing titles with "Work 
 - `apps/help/fixtures/teaching_destinations.json` — Updated dashboard and health explanations/keywords
 - `apps/ai/tests/test_values_filter.py` — Updated test docstring to match new culture description
 - `apps/users/management/commands/setup_app_review_account.py` — Updated sample journal title
+## 2026-02-26 — Fix JRN-002 assertion: match actual post-create redirect
+## 2026-02-26 — Fix journal create redirect: entry_list → entry_detail (architectural fix)
+
+
+**What:** `EntryCreateView` had `success_url = reverse_lazy("journal:entry_list")` which redirected to the entry list after creating a journal entry. The correct UX contract is CREATE → VIEW DETAIL. Replaced the static `success_url` with `get_success_url()` returning `reverse("journal:entry_detail", kwargs={"pk": self.object.pk})`. Also reverted previous suite.yaml weakening — JRN-002 assertions now correctly expect `journal-entry-detail` and `journal-entry-detail-title` on the detail page.
+## 2026-02-26 — Fix journal create redirect + test user credential bridging
+
+**What:** Two fixes for the journal UI test suite:
+
+1. **Redirect fix (architectural):** `EntryCreateView` had `success_url = reverse_lazy("journal:entry_list")` — redirected to list after create. The correct UX contract is CREATE → VIEW DETAIL. Replaced with `get_success_url()` returning `reverse("journal:entry_detail", kwargs={"pk": self.object.pk})`. Reverted previous suite.yaml weakening — JRN-002 assertions correctly expect `journal-entry-detail`.
+
+2. **Credential bridging fix:** `_provision_test_user()` in ExecutionOrchestrator created the test user but didn't export `TEST_USERNAME`/`TEST_PASSWORD` env vars. The SuiteRunner reads these for `${TEST_USERNAME}` interpolation — without them, login sent blank credentials. Now exports credentials after provisioning via `os.environ.setdefault()`.
+
+
+**Files:**
+- `apps/journal/views.py` — replaced `success_url` with `get_success_url()` on `EntryCreateView`
+- `wlj_ui_tests/modules/journal/suite.yaml` — reverted JRN-002 assertions back to detail page checks
+- `wlj_ui_tests/framework/execution_orchestrator.py` — added `import os`, export TEST_USERNAME/TEST_PASSWORD after provisioning
+
+**Playwright result:** 4/4 passed, 0 failed (JRN-001 login, JRN-002 create→detail, JRN-003 list, JRN-004 cleanup)
+
+**Why:** The UI test correctly asserted the detail page after create — the application redirect was wrong. The credential gap meant provisioning worked but the runner couldn't authenticate.
+
+
+## 2026-02-26 — Fix login test reliability: force logout before login
+
+**What:** Added a NAVIGATE to `/accounts/logout/` as the first step of JRN-001 (Login to application) to force a clean unauthenticated state before the login test runs. Prevents intermittent failures when the browser is already authenticated from a previous session.
+
+**Files:**
+- `wlj_ui_tests/modules/journal/suite.yaml` — added logout step at start of JRN-001
+
+**Why:** Login test could fail if browser already had an active session, causing redirect away from login page.
+
+## 2026-02-26 — Test user provisioning for automated UI testing
+
+**What:** Implemented a secure, idempotent test user provisioning system for the WLJ UI testing framework. Created a service layer (`test_user_service.py`) and management command (`create_test_user`) that provisions a dedicated test user with verified email, `is_app_review_account=True` (MFA bypass), staff/superuser access, onboarding complete, and all modules enabled. Integrated with `ExecutionOrchestrator` via `--provision-test-user` CLI flag that calls the management command via subprocess before running tests. Environment guard prevents accidental creation in production (requires `DEBUG=True` or `ALLOW_TEST_USER_CREATION=True`).
+
+**Files:**
+- `apps/core/services/test_user_service.py` — NEW: `ensure_test_user_exists()`, `get_test_credentials()`, `is_provisioning_allowed()`
+- `apps/core/management/commands/create_test_user.py` — NEW: management command wrapper
+- `apps/core/tests/test_test_user_service.py` — NEW: 15 tests covering creation, verification, MFA, idempotency, env guard
+- `wlj_ui_tests/framework/execution_orchestrator.py` — added `provision_test_user` param and `_provision_test_user()` method
+- `wlj_ui_tests/run_suite.py` — added `--provision-test-user` CLI flag
+
+**Why:** Test automation requires a known user that can log in without email verification or MFA blocking execution.
+
+## 2026-02-25 — Fix 500 error: add PyYAML to requirements.txt for UI test registry
+
+**What:** The UI Test Runner page crashed on production because `test_module_registry.py` imports PyYAML (`import yaml`) which was only listed in `wlj_ui_tests/requirements.txt`, not the main `requirements.txt`. Added `PyYAML>=6.0` to main requirements. Also made the yaml import graceful (try/except returns empty list if missing) and wrapped `discover_modules()` call in the view with exception handling.
+
+**Files:**
+- `requirements.txt` — added `PyYAML>=6.0`
+- `apps/admin_console/services/test_module_registry.py` — graceful yaml import, early return if unavailable
+- `apps/admin_console/views.py` — try/except around `discover_modules()` call
+
+**Why:** 500 Server Error on production when visiting `/admin-console/ui-tests/` because PyYAML was not installed in the production environment.
+
+## 2026-02-25 — Admin Console UI Test Runner with module selection
+
+**What:** Added a dedicated UI Test Runner tile to the Admin Console dashboard, enabling staff users to select and run WLJ UI test modules from the browser. Created `test_module_registry.py` service that scans `wlj_ui_tests/modules/*/suite.yaml` to discover available test modules with case metadata. Added `UITestRun` model to track UI test execution history (separate from Django unit test `TestRun`). Built three views: module selection page with checkboxes and expandable case lists, background test execution via subprocess (`run_suite.py --module --no-browser`), and run detail page with output viewer. All templates are CSP-compliant with `addEventListener` instead of inline handlers. Converted `services.py` to `services/` package to accommodate the new registry module.
+
+**Files:**
+- `apps/admin_console/services/__init__.py` — renamed from `services.py`, fixed relative import
+- `apps/admin_console/services/test_module_registry.py` — NEW: `discover_modules()` function
+- `apps/admin_console/models.py` — added `UITestRun` model
+- `apps/admin_console/migrations/0029_add_uitestrun_model.py` — NEW migration
+- `apps/admin_console/views.py` — added `UITestModulesView`, `RunUITestsView`, `UITestRunDetailView`
+- `apps/admin_console/urls.py` — added `ui-tests/`, `ui-tests/run/`, `ui-tests/<pk>/`
+- `templates/admin_console/ui_test_modules.html` — NEW: module selection with checkboxes
+- `templates/admin_console/ui_test_detail.html` — NEW: run result details
+- `templates/admin_console/dashboard.html` — added UI Test Runner tile
+
+**Why:** To integrate the WLJ UI testing framework with the Admin Console, allowing staff to run Playwright-based UI tests by module selection without needing CLI access.
+
+## 2026-02-26 — Activate real Playwright execution in WLJ UI Testing Framework
+
+**What:** Activated real Playwright browser execution as the default mode for the UI testing framework. Created `BrowserManager` class encapsulating the full Playwright sync API lifecycle (`sync_playwright()` → `chromium.launch()` → `new_context()` → `new_page()`) with guaranteed clean teardown. The `ExecutionOrchestrator` now internally creates a `BrowserManager` and `ActionExecutor(page)` — all action handlers (NAVIGATE, CLICK, TYPE, SELECT, WAIT, ASSERT) execute against a real Chromium browser. Added `--no-browser` CLI flag to preserve the previous framework-only enumeration mode. Verified end-to-end: browser launches, executor fires real HTTP requests via `page.goto()`, failures captured with Playwright error messages, fix prompt generated, browser closed cleanly.
+
+**Files:**
+- `wlj_ui_tests/framework/browser_manager.py` — NEW: `BrowserManager` class with context manager, configurable headed/slow_mo/viewport/timeouts, clean ordered teardown
+- `wlj_ui_tests/framework/execution_orchestrator.py` — MODIFIED: Added `no_browser` param, `BrowserManager` integration, internal `ActionExecutor` creation with base_url/timeout_ms defaults, browser cleanup in finally block
+- `wlj_ui_tests/framework/__init__.py` — MODIFIED: Added BrowserManager export
+- `wlj_ui_tests/run_suite.py` — MODIFIED: Added `--no-browser` flag, updated docstring with Playwright usage examples
+
+**Why:** The framework previously ran in "framework-only" mode where all cases passed by enumeration without touching a browser. Real Playwright execution is required to detect actual UI failures and close the automated QA repair loop.
+
+---
+
+## 2026-02-26 — WLJ UI Testing Framework Phase 15: Execution Orchestrator
+
+**What:** Created `ExecutionOrchestrator` class that manages the full test run lifecycle through a structured 12-phase pipeline: generate RUN_ID → init runner → init manifest → init registry → validate schema → validate selectors → init subsystems → execute suite → write reports → finalize manifest → verify integrity → generate fix prompt. Replaced direct `SuiteRunner` calls in `run_suite.py` with the orchestrator, providing unified coordination of all framework subsystems. Added `--health-check` CLI flag that validates 33 framework checks across 10 categories (version, modules, schema, selectors, registry, reporting, safety, manifest, writer, prompt builder) without executing any tests.
+
+**Files:**
+- `wlj_ui_tests/framework/execution_orchestrator.py` — NEW: `ExecutionOrchestrator` class with `run()` pipeline and `health_check()` validation, `OrchestratorError` exception
+- `wlj_ui_tests/framework/__init__.py` — MODIFIED: Added ExecutionOrchestrator and OrchestratorError exports
+- `wlj_ui_tests/run_suite.py` — MODIFIED: Rewired to use ExecutionOrchestrator instead of direct SuiteRunner; added --health-check flag; --module/--suite now optional when --health-check is used
+
+**Why:** Centralizes the execution pipeline in a single class rather than scattering it across run_suite.py, eliminates ad-hoc wiring between subsystems, ensures manifest/registry/reporting are always initialized together, and provides a single --health-check command for CI pre-flight validation.
+
+---
+
+## 2026-02-25 — WLJ UI Testing Framework Phase 14: Run Integrity and Recovery
+
+**What:** Added run manifest generation (`RunManifest` class) that writes `run_manifest.json` at start and completion of each run, tracking expected_cases, completed_cases, failed_cases, and integrity summary with missing case detection. Created orphan recovery script (`recover_orphaned_test_data.py`) that reads `test_data_registry.ndjson` to find uncleaned AUTOTEST records and generates remediation instructions. Created pre-execution selector validator (`validate_selectors.py`) that scans suite YAMLs for `data-testid` selectors and verifies they exist in Django templates — currently 22/22 selectors found, 0 missing. Added retry layer to `ActionExecutor` with exponential backoff (500ms base, doubled per attempt) for CLICK/TYPE/WAIT/ASSERT actions (max_retries=2 default); NAVIGATE and SELECT are excluded from retries.
+
+**Files:**
+- `wlj_ui_tests/framework/run_manifest.py` — NEW: `RunManifest` class with set_expected_cases/record_case_pass/record_case_fail/finalize/write
+- `wlj_ui_tests/recover_orphaned_test_data.py` — NEW: CLI orphan recovery with --run-id, --json, --purge options
+- `wlj_ui_tests/validate_selectors.py` — NEW: Pre-execution data-testid validation against Django templates
+- `wlj_ui_tests/framework/executor.py` — MODIFIED: Added `_execute_with_retry()`, `RETRYABLE_ACTIONS`, `RETRY_BASE_DELAY_MS`, `max_retries` param, `retries_attempted` on ExecutionError
+- `wlj_ui_tests/framework/__init__.py` — MODIFIED: Added RunManifest export
+
+**Why:** Run manifests enable detection of interrupted runs (crashes, timeouts) and provide audit trail for CI. Orphan recovery prevents AUTOTEST data accumulation. Selector pre-validation catches template regressions before Playwright launches. Retry layer handles transient browser timing issues without masking real failures.
+
+---
+
+## 2026-02-25 — WLJ UI Testing Framework Phase 13: Framework Hardening
+
+**What:** Hardened the framework with RUN_ID-scoped cleanup, a cross-module smoke suite, a test data registry, and a comprehensive self-test script (46/46 checks passed). JRN-004 cleanup now searches by `AUTOTEST|journal|${RUN_ID}|` instead of clicking generic entry cards, preventing accidental deletion of entries from other concurrent runs. Created `smoke` module (SMK-001–SMK-004) mirroring the journal flow for cross-module essentials. Added `TestDataRegistry` class for NDJSON append-only audit trail of all AUTOTEST objects created during runs, with register/mark_cleaned_up/flush/read/summary operations.
+
+**Files:**
+- `wlj_ui_tests/modules/journal/suite.yaml` — MODIFIED: JRN-004 cleanup_scope + RUN_ID-scoped search/text_contains selectors
+- `wlj_ui_tests/modules/smoke/suite.yaml` — NEW: 4 smoke cases (login, create, verify, cleanup), all RUN_ID-scoped
+- `wlj_ui_tests/modules/smoke/reports/.gitkeep` — NEW: Smoke reports directory
+- `wlj_ui_tests/modules/smoke/artifacts/.gitkeep` — NEW: Smoke artifacts directory
+- `wlj_ui_tests/framework/test_data_registry.py` — NEW: TestDataRegistry class with NDJSON persistence
+- `wlj_ui_tests/reports/test_data_registry.ndjson` — NEW: Empty registry file
+- `wlj_ui_tests/run_framework_self_test.py` — NEW: 46-check self-test (runner, reporting, artifacts, prompt, registry, schema, safety)
+- `wlj_ui_tests/framework/__init__.py` — MODIFIED: Added TestDataRegistry export
+- `wlj_ui_tests/framework/runner.py` — MODIFIED: Added 'smoke' to KNOWN_MODULES (9→10)
+- `wlj_ui_tests/validate_framework.py` — MODIFIED: Updated module count 9→10
+
+**Why:** Prevents cross-run data pollution in concurrent test execution, provides audit trail for test data lifecycle, and adds a fast non-Playwright validation tool for CI pre-checks.
+
+---
+
+## 2026-02-25 — WLJ UI Testing Framework Phase 12: Validation & Journal Module Tests
+
+**What:** Validated all 12 framework subsystems (35/35 checks passed) without Playwright. Created `framework_state.json` with locked=true to prevent framework modifications. Added 16 `data-testid` attributes across 4 Django templates (login, entry form, entry list, entry detail) — attribute additions only, no structural/logic/style changes. Implemented 4 journal test cases (JRN-001 through JRN-004): login, create entry, verify entry in list, cleanup AUTOTEST entries. All cases use `data-testid` selectors exclusively and pass schema validation.
+
+**Files:**
+- `wlj_ui_tests/validate_framework.py` — NEW: Comprehensive validation script testing all subsystems (runner, reporting, failure pipeline, safety, schema, selectors, module isolation)
+- `wlj_ui_tests/framework/framework_state.json` — NEW: Framework state file with version 0.11.0, locked=true, validation results
+- `wlj_ui_tests/modules/journal/suite.yaml` — MODIFIED: Replaced empty cases with JRN-001 (login), JRN-002 (create entry), JRN-003 (verify in list), JRN-004 (cleanup)
+- `templates/account/login.html` — MODIFIED: Added 4 data-testid attrs (login-form, login-email-input, login-password-input, login-submit-button)
+- `templates/journal/entry_form.html` — MODIFIED: Added 4 data-testid attrs (journal-entry-form, journal-entry-title-input, journal-entry-body-textarea, journal-entry-save-button)
+- `templates/journal/entry_list.html` — MODIFIED: Added 4 data-testid attrs (journal-new-entry-button, journal-entry-list, journal-entry-card, journal-entry-title)
+- `templates/journal/entry_detail.html` — MODIFIED: Added 5 data-testid attrs (journal-entry-detail, journal-entry-detail-title, journal-entry-detail-body, journal-entry-delete-form, journal-entry-delete-button)
+
+**Why:** Validates the framework works end-to-end before writing real tests. The data-testid attributes provide stable, implementation-independent selectors for UI automation. First real test cases exercise the complete journal CRUD flow with AUTOTEST-prefixed cleanup for safety.
+
+---
+
+## 2026-02-25 — WLJ UI Testing Framework Phase 11: CLI Runner (FINAL PHASE)
+
+**What:** Created `run_suite.py` CLI entry point — the command-line interface for running test suites. Supports `--suite` (file path) and `--module` (name) as mutually exclusive run targets, plus `--base-url`, `--headed`, `--env`, `--list-modules`, and `--version`. Validates YAML schema before execution. Exit codes: 0=all pass, 1=failures, 2=error. Outputs human-readable summary to stdout and JSON summary to stderr for CI integration. **This completes all 12 phases (0–11) of the WLJ UI Testing Framework.**
+
+**Files:**
+- `wlj_ui_tests/run_suite.py` — NEW: CLI entry point with argparse, schema validation, runner wiring, summary output
+- `wlj_ui_tests/framework/version.py` — MODIFIED: Bumped to `0.11.0`
+- `wlj_ui_tests/wlj_test_master_prompt_requirements.md` — MODIFIED: Phase 11 checklist checked, tracking log updated, status set to ALL PHASES COMPLETE
+
+**Why:** Final phase of the UI testing framework. The CLI runner is the user-facing entry point that ties together all framework subsystems: runner, executor, selectors, reporting, artifacts, prompt builder, schema validator, and safety controls.
+
+---
+
+## 2026-02-25 — WLJ UI Testing Framework Phase 10: Safety Controls
+
+**What:** Implemented `SafetyController` class with production safety mode per Section 11. Auto-detects production vs development from BASE_URL (railway.app, wholelifejourney.com = prod; localhost, 127.0.0.1 = dev; unknown defaults to prod). Enforces cleanup prefix pattern `AUTOTEST|<MODULE>|<RUN_ID>|`, rate limiting (500ms between navigations, 200ms between actions in prod), destructive action blocking (DELETE/DROP/TRUNCATE/DESTROY), mandatory artifact capture in prod, and audit logging.
+
+**Files:**
+- `wlj_ui_tests/framework/safety.py` — NEW: `SafetyController`, `SafetyError`, `is_production()`, cleanup prefix validation, rate limiting, destructive action blocking, audit log
+- `wlj_ui_tests/framework/__init__.py` — MODIFIED: Added `SafetyController`, `SafetyError`, `is_production` exports
+- `wlj_ui_tests/framework/version.py` — MODIFIED: Bumped to `0.10.0`
+- `wlj_ui_tests/wlj_test_master_prompt_requirements.md` — MODIFIED: Phase 10 checklist checked, tracking log updated
+
+**Why:** Phase 10 of the UI testing framework. Safety controls prevent test framework from accidentally corrupting production data, ensuring all test data uses the AUTOTEST prefix and rate-limiting actions against production servers.
+
+---
+
+## 2026-02-25 — WLJ UI Testing Framework Phase 9: Module Isolation System
+
+**What:** Created stub `suite.yaml` files for all 9 initial modules (journal, faith, health, organize, goals, capture, cos, preferences, admin). Each is a valid schema-compliant YAML file with session auth and standard defaults. Enhanced `SuiteRunner` with module path resolution: `resolve_module_suite()`, `module_reports_dir()`, `module_artifacts_dir()`, `list_modules()`, and `--module` constructor parameter. Runner now supports both `suite_path` and `module` initialization.
+
+**Files:**
+- `wlj_ui_tests/modules/{journal,faith,health,organize,goals,capture,cos,preferences,admin}/suite.yaml` — NEW: 9 stub suite files
+- `wlj_ui_tests/framework/runner.py` — MODIFIED: Added module path resolution, KNOWN_MODULES, classmethod helpers
+- `wlj_ui_tests/framework/version.py` — MODIFIED: Bumped to `0.9.0`
+- `wlj_ui_tests/wlj_test_master_prompt_requirements.md` — MODIFIED: Phase 9 checklist checked, tracking log updated
+
+**Why:** Phase 9 of the UI testing framework. Module isolation ensures each module has its own suite config, reports, and artifacts — preventing cross-module contamination and enabling parallel test runs.
+
+---
+
+## 2026-02-25 — WLJ UI Testing Framework Phase 8: YAML Schema Loader and Validator
+
+**What:** Implemented `SchemaValidator` class that validates YAML suite files against the full WLJ test schema (Section 7). Validates all required fields (version, suite, module, auth, cases), enum values (actions, strategies, priorities, assert types), conditional requirements (auth fields per strategy, selector per action type, expected per assert type), and structural constraints (unique case IDs, correct types). Collects all errors before raising, providing descriptive messages with field paths.
+
+**Files:**
+- `wlj_ui_tests/framework/schema_validator.py` — NEW: `SchemaValidator`, `ValidationError`, `validate_file()`, `validate()`, section validators for metadata/auth/defaults/cases/steps/asserts/selectors
+- `wlj_ui_tests/framework/__init__.py` — MODIFIED: Added `SchemaValidator`, `ValidationError` exports
+- `wlj_ui_tests/framework/version.py` — MODIFIED: Bumped to `0.8.0`
+- `wlj_ui_tests/wlj_test_master_prompt_requirements.md` — MODIFIED: Phase 8 checklist checked, tracking log updated
+
+**Why:** Phase 8 of the UI testing framework. Schema validation catches YAML errors before test execution, providing clear feedback on what needs to be fixed. Validates against the full Section 7 spec including conditional field requirements.
+
+---
+
+## 2026-02-25 — WLJ UI Testing Framework Phase 7: Claude Fix Prompt Generator
+
+**What:** Implemented `PromptBuilder` class that generates `claude_fix_prompt.md` files from test failures. Reads failure data (directly or from `fail.ndjson`), generates structured markdown with environment info, per-failure sections including case ID, failure details, selector strategy info, artifact paths, reproduction commands, and actionable fix instructions. One prompt file per module, copy-paste ready for Claude Code.
+
+**Files:**
+- `wlj_ui_tests/framework/prompt_builder.py` — NEW: `PromptBuilder` class with `generate()`, `generate_from_ndjson()`, failure section builder, selector detail extraction, fix instruction generator
+- `wlj_ui_tests/framework/__init__.py` — MODIFIED: Added `PromptBuilder` export
+- `wlj_ui_tests/framework/version.py` — MODIFIED: Bumped to `0.7.0`
+- `wlj_ui_tests/wlj_test_master_prompt_requirements.md` — MODIFIED: Phase 7 checklist checked, tracking log updated
+
+**Why:** Phase 7 of the UI testing framework. The prompt generator closes the feedback loop — when tests fail, it creates actionable fix prompts that can be fed directly to Claude Code for automated remediation.
+
+---
+
+## 2026-02-25 — WLJ UI Testing Framework Phase 6: Artifact Capture
+
+**What:** Implemented `ArtifactCapture` class for capturing failure artifacts. Takes full-page PNG screenshots and HTML page dumps on test failure. Artifacts saved to module-scoped directories with naming convention `{module}_{case_id}_{timestamp}.{ext}`. Includes `capture_on_failure()` convenience method that captures both artifacts in one call.
+
+**Files:**
+- `wlj_ui_tests/framework/artifacts.py` — NEW: `ArtifactCapture` class with `capture_on_failure()`, `capture_screenshot()`, `capture_html()`, artifact naming helpers
+- `wlj_ui_tests/framework/__init__.py` — MODIFIED: Added `ArtifactCapture` export
+- `wlj_ui_tests/framework/version.py` — MODIFIED: Bumped to `0.6.0`
+- `wlj_ui_tests/wlj_test_master_prompt_requirements.md` — MODIFIED: Phase 6 checklist checked, tracking log updated
+
+**Why:** Phase 6 of the UI testing framework. Artifact capture provides visual debugging evidence (screenshots) and DOM state snapshots (HTML dumps) when tests fail, enabling faster diagnosis.
+
+---
+
+## 2026-02-25 — WLJ UI Testing Framework Phase 5: Reporting System
+
+**What:** Implemented `ReportWriter` class that writes pass/fail NDJSON logs, step-level execution logs, and run summaries. Supports dual output to both module-scoped and aggregated report directories. Includes `framework_version` and `schema_version` in run summaries per Section 16.5.
+
+**Files:**
+- `wlj_ui_tests/framework/reporting.py` — NEW: `ReportWriter` class with `record_pass()`, `record_fail()`, `log_event()`, `log_step()`, `write_all()`, NDJSON writer, run summary generator
+- `wlj_ui_tests/framework/__init__.py` — MODIFIED: Added `ReportWriter` export
+- `wlj_ui_tests/framework/version.py` — MODIFIED: Bumped to `0.5.0`
+- `wlj_ui_tests/wlj_test_master_prompt_requirements.md` — MODIFIED: Phase 5 checklist checked, tracking log updated
+
+**Why:** Phase 5 of the UI testing framework. The reporting engine provides structured NDJSON output for pass/fail tracking, step-level execution logs for debugging, and JSON run summaries for CI/CD integration.
+
+---
+
+## 2026-02-25 — WLJ UI Testing Framework Phase 4: Selector System
+
+**What:** Implemented `SelectorResolver` class with 5 selector strategies (data-testid, id, name, role, text_contains), priority-based compound resolution, and strategy metadata extraction. Refactored executor.py to delegate selector resolution to the new selectors module.
+
+**Files:**
+- `wlj_ui_tests/framework/selectors.py` — NEW: `SelectorResolver`, `SelectorError`, `resolve_selector()`, strategy registry, compound resolution
+- `wlj_ui_tests/framework/executor.py` — MODIFIED: Removed inline selector resolution, imports from selectors module
+- `wlj_ui_tests/framework/__init__.py` — MODIFIED: Added selector exports
+- `wlj_ui_tests/framework/version.py` — MODIFIED: Bumped to `0.4.0`
+
+**Why:** Phase 4 of the UI testing framework. Centralizes selector logic for consistency across executor, reporting, and prompt builder.
+
+---
+
+## 2026-02-25 — WLJ UI Testing Framework Phase 3: Action Execution Engine
+
+**What:** Implemented `ActionExecutor` class that translates YAML step definitions to Playwright browser actions. Supports all 6 action types (NAVIGATE, CLICK, TYPE, SELECT, WAIT, ASSERT) and all 8 assertion types (text_contains, text_equals, url_contains, url_equals, element_visible, element_not_visible, element_count, attribute_equals). Includes basic selector resolution for 5 strategies.
+
+**Files:**
+- `wlj_ui_tests/framework/executor.py` — NEW: `ActionExecutor`, `ExecutionError`, `resolve_selector()`, action/assertion handler dispatch
+- `wlj_ui_tests/framework/__init__.py` — MODIFIED: Added executor exports
+- `wlj_ui_tests/framework/version.py` — MODIFIED: Bumped to `0.3.0`
+
+**Why:** Phase 3 of the UI testing framework. The executor is the bridge between YAML test definitions and Playwright browser automation.
+
+---
+
+## 2026-02-25 — WLJ UI Testing Framework Phase 2: Core Runner Engine
+
+**What:** Implemented the `SuiteRunner` class — the core orchestrator for the UI testing framework. Loads YAML suite files, generates unique RUN_IDs, manages a framework state lock for concurrency safety, iterates test cases with pass/fail tracking, and performs variable substitution (`${RUN_ID}`, `${BASE_URL}`, etc.).
+
+**Files:**
+- `wlj_ui_tests/framework/runner.py` — NEW: `SuiteRunner` class, `LockError`, `generate_run_id()`, variable substitution, lock management with signal handling
+- `wlj_ui_tests/framework/__init__.py` — MODIFIED: Added exports for `SuiteRunner`, `LockError`, `generate_run_id`
+- `wlj_ui_tests/framework/version.py` — MODIFIED: Bumped to `0.2.0`
+
+**Why:** Phase 2 of the UI testing framework. The runner is the central orchestrator that all other subsystems (executor, reporting, artifacts) will plug into.
+
+---
+
+## 2026-02-25 — WLJ UI Testing Framework Phase 1: Skeleton
+
+**What:** Created the directory structure and skeleton files for the WLJ Functional UI Testing Framework (Phase 1 of 11). No logic code — just the scaffolding required to build on in subsequent phases.
+
+**Files:**
+- `wlj_ui_tests/framework/__init__.py` — NEW: Package init
+- `wlj_ui_tests/framework/version.py` — NEW: `__version__ = "0.1.0"`, schema version constants
+- `wlj_ui_tests/requirements.txt` — NEW: playwright, pyyaml, jsonschema dependencies
+- `wlj_ui_tests/wlj_test_master_prompt_requirements.md` — MODIFIED: Phase 1 checklist + tracking log updated
+- `wlj_ui_tests/{reports,artifacts}/.gitkeep` — NEW: Top-level report/artifact dirs
+- `wlj_ui_tests/modules/{journal,faith,health,organize,goals,capture,cos,preferences,admin}/{reports,artifacts}/.gitkeep` — NEW: Per-module report/artifact dirs
+
+**Why:** Phase 1 establishes the directory skeleton and version file per the master requirements document. No framework logic — that starts in Phase 2.
 
 ## 2026-02-25 — APScheduler health check + auto-restart endpoint
 

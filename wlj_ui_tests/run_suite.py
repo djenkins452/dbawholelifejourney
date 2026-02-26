@@ -85,6 +85,13 @@ def main():
         # Emit machine-readable JSON summary to stderr for CI integration
         print(json.dumps(summary, indent=2, default=str), file=sys.stderr)
 
+        # Sync result to production (non-blocking, fail-silent)
+        try:
+            from framework.result_sync import sync_result
+            sync_result(summary)
+        except Exception:
+            pass  # Never block CLI exit
+
     return exit_code
 
 

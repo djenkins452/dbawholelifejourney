@@ -1582,6 +1582,29 @@ class UITestRun(models.Model):
         help_text="Parent full-suite run (null for standalone or parent runs)"
     )
 
+    # Environment tracking (for centralized local→production reporting)
+    ENVIRONMENT_CHOICES = [
+        ('local', 'Local'),
+        ('production', 'Production'),
+        ('ci', 'CI'),
+    ]
+    environment = models.CharField(
+        max_length=20, default='local', choices=ENVIRONMENT_CHOICES,
+        help_text="Environment where tests ran"
+    )
+    source_host = models.CharField(
+        max_length=255, blank=True,
+        help_text="Hostname of machine that ran the tests"
+    )
+    source_user = models.CharField(
+        max_length=255, blank=True,
+        help_text="OS username or identifier of who triggered the run"
+    )
+    case_results = models.JSONField(
+        default=dict, blank=True,
+        help_text='Per-test-case results: {"passed": [...], "failed": [...]}'
+    )
+
     class Meta:
         ordering = ['-run_at']
         verbose_name = "UI Test Run"

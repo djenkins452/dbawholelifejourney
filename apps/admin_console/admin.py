@@ -14,11 +14,12 @@ from .models import AdminGuideSection, AdminGuideArticle, UITestRun
 
 @admin.register(UITestRun)
 class UITestRunAdmin(admin.ModelAdmin):
-    list_display = ['run_id', 'modules_display', 'status', 'passed', 'failed', 'run_at']
-    list_filter = ['status']
+    list_display = ['run_id', 'modules_display', 'environment', 'status', 'passed', 'failed', 'run_at']
+    list_filter = ['status', 'environment']
     readonly_fields = [
         'run_at', 'status', 'modules', 'total_cases', 'passed', 'failed',
         'pass_rate', 'duration_seconds', 'run_id', 'output', 'parent_run',
+        'environment', 'source_host', 'source_user', 'case_results',
     ]
 
     def has_add_permission(self, request):

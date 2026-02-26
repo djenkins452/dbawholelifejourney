@@ -73,6 +73,14 @@ FATSECRET_CLIENT_SECRET = os.environ.get('FATSECRET_CLIENT_SECRET')
 # Used by Claude Code to authenticate with the Ready Tasks API endpoint
 CLAUDE_API_KEY = os.environ.get('CLAUDE_API_KEY', '')
 
+# Test Results Sync API key (local→production reporting)
+# Separate from CLAUDE_API_KEY for security isolation
+TEST_RESULTS_API_KEY = os.environ.get('TEST_RESULTS_API_KEY', '')
+TEST_RESULTS_SYNC_URL = os.environ.get(
+    'TEST_RESULTS_SYNC_URL',
+    'https://wholelifejourney.com/admin-console/api/test-results/ingest/'
+)
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent

@@ -1,0 +1,293 @@
+version: "1.0"
+suite: "Help Module Tests"
+module: "help"
+
+auth:
+  strategy: "session"
+  username: "${TEST_USERNAME}"
+  password: "${TEST_PASSWORD}"
+  login_url: "/accounts/login/"
+
+defaults:
+  timeout_ms: 5000
+  base_url: "${BASE_URL}"
+  screenshot_on_failure: true
+  html_dump_on_failure: true
+
+cases:
+
+  # ============================================================
+  # AUTH
+  # ============================================================
+
+  - id: "HELP-AUTH-001"
+    name: "Login and navigate to help center"
+    priority: "high"
+    tags: ["auth", "smoke"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/accounts/logout/"
+      - action: "NAVIGATE"
+        url: "/accounts/login/"
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "login-email-input"
+        input: "${TEST_USERNAME}"
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "login-password-input"
+        input: "${TEST_PASSWORD}"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "login-submit-button"
+        timeout_ms: 10000
+      - action: "WAIT"
+        timeout_ms: 3000
+    asserts:
+      - type: "url_contains"
+        expected: "/dashboard/"
+
+  # ============================================================
+  # HELP CENTER
+  # ============================================================
+
+  - id: "HELP-CENTER-001"
+    name: "Help Center page loads"
+    priority: "high"
+    tags: ["center", "smoke"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/help/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/help/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "help-center"
+
+  - id: "HELP-CENTER-002"
+    name: "Help Center shows title"
+    priority: "medium"
+    tags: ["center"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/help/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "help-center"
+        expected: "Help Center"
+
+  - id: "HELP-CENTER-003"
+    name: "Search box visible"
+    priority: "medium"
+    tags: ["center"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/help/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "id"
+          value: "help-search"
+
+  - id: "HELP-CENTER-004"
+    name: "Categories are displayed"
+    priority: "high"
+    tags: ["center"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/help/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "help-center"
+        expected: "Getting Started"
+
+  - id: "HELP-CENTER-005"
+    name: "Popular Topics section visible"
+    priority: "medium"
+    tags: ["center"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/help/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "help-center"
+        expected: "Popular Topics"
+
+  # ============================================================
+  # CATEGORY PAGE
+  # ============================================================
+
+  - id: "HELP-CAT-001"
+    name: "Category page loads"
+    priority: "high"
+    tags: ["category"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/help/category/getting-started/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/help/category/getting-started/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "help-category"
+
+  - id: "HELP-CAT-002"
+    name: "Category shows category name"
+    priority: "medium"
+    tags: ["category"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/help/category/getting-started/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "help-category"
+        expected: "Getting Started"
+
+  - id: "HELP-CAT-003"
+    name: "Back link returns to help center"
+    priority: "high"
+    tags: ["category", "navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/help/category/getting-started/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "help-back-link"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/help/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "help-center"
+
+  # ============================================================
+  # ARTICLE PAGE
+  # ============================================================
+
+  - id: "HELP-ART-001"
+    name: "Article page loads"
+    priority: "high"
+    tags: ["article"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/help/article/welcome/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/help/article/welcome/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "help-article"
+
+  - id: "HELP-ART-002"
+    name: "Article shows content"
+    priority: "medium"
+    tags: ["article"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/help/article/welcome/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "help-article"
+        expected: "Help Center"
+
+  - id: "HELP-ART-003"
+    name: "Back link returns to help center"
+    priority: "high"
+    tags: ["article", "navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/help/article/welcome/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "help-back-link"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/help/"
+
+  # ============================================================
+  # NAVIGATION
+  # ============================================================
+
+  - id: "HELP-NAV-001"
+    name: "Center → Category → Center round trip"
+    priority: "high"
+    tags: ["navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/help/category/features/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "help-back-link"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/help/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "help-center"
+
+  - id: "HELP-NAV-002"
+    name: "Article → Center navigation"
+    priority: "medium"
+    tags: ["navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/help/article/using-dashboard/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "help-back-link"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/help/"

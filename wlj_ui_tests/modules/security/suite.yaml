@@ -1,0 +1,104 @@
+version: "1.0"
+suite: "Security Module Tests"
+module: "security"
+
+auth:
+  strategy: "session"
+  username: "${TEST_USERNAME}"
+  password: "${TEST_PASSWORD}"
+  login_url: "/accounts/login/"
+
+defaults:
+  timeout_ms: 5000
+  base_url: "${BASE_URL}"
+  screenshot_on_failure: true
+  html_dump_on_failure: true
+
+cases:
+
+  # ============================================================
+  # AUTH
+  # ============================================================
+
+  - id: "SEC-AUTH-001"
+    name: "Login and navigate to security dashboard"
+    priority: "high"
+    tags: ["auth", "smoke"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/accounts/logout/"
+      - action: "NAVIGATE"
+        url: "/accounts/login/"
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "login-email-input"
+        input: "${TEST_USERNAME}"
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "login-password-input"
+        input: "${TEST_PASSWORD}"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "login-submit-button"
+        timeout_ms: 10000
+      - action: "WAIT"
+        timeout_ms: 3000
+    asserts:
+      - type: "url_contains"
+        expected: "/dashboard/"
+
+  # ============================================================
+  # DASHBOARD
+  # ============================================================
+
+  - id: "SEC-DASH-001"
+    name: "Security dashboard loads"
+    priority: "high"
+    tags: ["dashboard", "smoke"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/security/dashboard/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/security/dashboard/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "security-dashboard"
+
+  - id: "SEC-DASH-002"
+    name: "Dashboard shows Security Dashboard title"
+    priority: "medium"
+    tags: ["dashboard"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/security/dashboard/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "security-dashboard"
+        expected: "Security Dashboard"
+
+  - id: "SEC-DASH-003"
+    name: "Run Assessment button visible"
+    priority: "high"
+    tags: ["dashboard"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/security/dashboard/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "security-dashboard"
+        expected: "Run Assessment"

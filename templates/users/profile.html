@@ -3,9 +3,9 @@
 {% block title %}Profile - Whole Life Journey{% endblock %}
 
 {% block content %}
-<div class="content-container">
+<div class="content-container" data-testid="users-profile">
     <nav class="breadcrumb mb-4">
-        <a href="{% url 'users:preferences' %}">Settings</a>
+        <a href="{% url 'users:preferences' %}" data-testid="users-back-link">Settings</a>
         <span>/</span>
         <span>Profile</span>
     </nav>
@@ -49,7 +49,7 @@
         </div>
         
         <div class="profile-actions">
-            <a href="{% url 'users:profile_edit' %}" class="btn btn-primary">Edit Profile</a>
+            <a href="{% url 'users:profile_edit' %}" class="btn btn-primary" data-testid="users-edit-profile-button">Edit Profile</a>
             <a href="{% url 'users:preferences' %}" class="btn btn-secondary">Preferences</a>
             <a href="{% url 'billing:billing_settings' %}" class="btn btn-secondary">Subscription</a>
             <span class="profile-actions-spacer"></span>

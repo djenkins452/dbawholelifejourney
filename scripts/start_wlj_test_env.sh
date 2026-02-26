@@ -5,6 +5,7 @@
 # Description: Bootstrap script to start the WLJ dev server and open UI tests
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2026-02-26
+# Updated: 2026-02-26 — Hardened: venv enforcement, dj-stripe version check
 #
 # Usage:
 #   ./scripts/start_wlj_test_env.sh          # Start server + open UI tests page
@@ -29,33 +30,80 @@ fi
 echo "==> Project root: $PROJECT_ROOT"
 cd "$PROJECT_ROOT"
 
-# ── Locate and activate virtualenv ───────────────────────────────────────────
+# ── Locate and activate virtualenv (REQUIRED) ────────────────────────────────
+# Search PROJECT_ROOT first, then the git main worktree root (for worktree checkouts)
 VENV_FOUND=0
-for VENV_DIR in venv .venv env; do
-    if [ -f "$PROJECT_ROOT/$VENV_DIR/bin/activate" ]; then
-        echo "==> Activating virtualenv: $VENV_DIR"
-        # shellcheck disable=SC1091
-        source "$PROJECT_ROOT/$VENV_DIR/bin/activate"
-        VENV_FOUND=1
-        break
-    fi
+SEARCH_ROOTS=("$PROJECT_ROOT")
+GIT_MAIN_ROOT="$(git -C "$PROJECT_ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null | sed 's|/\.git$||' || true)"
+if [ -n "$GIT_MAIN_ROOT" ] && [ "$GIT_MAIN_ROOT" != "$PROJECT_ROOT" ]; then
+    SEARCH_ROOTS+=("$GIT_MAIN_ROOT")
+fi
+
+for SEARCH_ROOT in "${SEARCH_ROOTS[@]}"; do
+    for VENV_DIR in venv .venv env; do
+        if [ -f "$SEARCH_ROOT/$VENV_DIR/bin/activate" ]; then
+            echo "==> Activating virtualenv: $SEARCH_ROOT/$VENV_DIR"
+            # shellcheck disable=SC1091
+            source "$SEARCH_ROOT/$VENV_DIR/bin/activate"
+            VENV_FOUND=1
+            break 2
+        fi
+    done
 done
 
 if [ "$VENV_FOUND" -eq 0 ]; then
-    echo "WARNING: No virtualenv found (checked venv, .venv, env). Using system Python."
+    echo "ERROR: No virtualenv found (checked venv, .venv, env). Cannot proceed without venv."
+    exit 1
 fi
 
-echo "==> Python: $(python3 --version 2>&1) at $(which python3)"
+# ── Validate environment: venv path + dj-stripe version ─────────────────────
+echo "==> Validating environment..."
+python3 - <<'PYCHECK'
+import sys
+import importlib.metadata
 
-# ── Run migrations if needed ─────────────────────────────────────────────────
-echo "==> Checking for pending migrations..."
-PENDING=$(python3 manage.py showmigrations --plan 2>/dev/null | grep '\[ \]' | head -5 || true)
-if [ -n "$PENDING" ]; then
-    echo "==> Applying pending migrations..."
-    python3 manage.py migrate --run-syncdb 2>&1 | tail -5
-else
-    echo "==> All migrations up to date."
+exe = sys.executable
+print(f"    Python executable: {exe}")
+
+# Must be running from project venv, not system Python
+if "/venv/" not in exe and "/.venv/" not in exe and "/env/" not in exe:
+    raise SystemExit(
+        "ERROR: Python executable is not inside the project virtualenv.\n"
+        f"       Found: {exe}\n"
+        "       Expected path to contain /venv/, /.venv/, or /env/.\n"
+        "       Aborting to prevent version mismatches."
+    )
+
+try:
+    version = importlib.metadata.version("dj-stripe")
+    print(f"    dj-stripe version: {version}")
+except importlib.metadata.PackageNotFoundError:
+    raise SystemExit(
+        "ERROR: dj-stripe is not installed in this virtualenv.\n"
+        "       Run: pip install dj-stripe==2.10.3"
+    )
+
+if version != "2.10.3":
+    raise SystemExit(
+        f"ERROR: dj-stripe version mismatch.\n"
+        f"       Installed: {version}\n"
+        f"       Required:  2.10.3\n"
+        f"       Run: pip install dj-stripe==2.10.3"
+    )
+
+print("    Environment OK")
+PYCHECK
+
+echo "==> Environment validated."
+
+# ── Run migrations ───────────────────────────────────────────────────────────
+echo "==> Running migrations..."
+if ! python3 manage.py migrate --noinput 2>&1; then
+    echo ""
+    echo "ERROR: Migration failed. Fix the issue above before starting the server."
+    exit 1
 fi
+echo "==> Migrations complete."
 
 # ── Check if port 8000 is already in use ─────────────────────────────────────
 PORT=8000
@@ -77,7 +125,7 @@ if [ "$SKIP_SERVER" -eq 0 ]; then
     # Wait for server to be ready
     echo -n "==> Waiting for server"
     for i in $(seq 1 30); do
-        if curl -s -o /dev/null -w '' "http://localhost:$PORT/" 2>/dev/null; then
+        if curl -s -o /dev/null -w '' "http://127.0.0.1:$PORT/" 2>/dev/null; then
             echo " ready!"
             break
         fi
@@ -85,7 +133,7 @@ if [ "$SKIP_SERVER" -eq 0 ]; then
         sleep 1
     done
 
-    if ! curl -s -o /dev/null "http://localhost:$PORT/" 2>/dev/null; then
+    if ! curl -s -o /dev/null "http://127.0.0.1:$PORT/" 2>/dev/null; then
         echo " TIMEOUT — server did not start within 30s."
         echo "    Check logs above for errors."
         kill "$SERVER_PID" 2>/dev/null || true
@@ -97,7 +145,7 @@ if [ "$SKIP_SERVER" -eq 0 ]; then
 fi
 
 # ── Open browser ─────────────────────────────────────────────────────────────
-URL="http://localhost:$PORT/admin-console/ui-tests/"
+URL="http://127.0.0.1:$PORT/admin-console/ui-tests/"
 
 if [[ "${1:-}" != "--no-open" ]]; then
     echo "==> Opening $URL"
@@ -116,8 +164,12 @@ fi
 echo ""
 echo "============================================"
 echo "  WLJ Test Environment Running"
-echo "  Server:  http://localhost:$PORT/"
+echo "  Server:   http://127.0.0.1:$PORT/"
 echo "  UI Tests: $URL"
+echo ""
+echo "  Select a module to run from the Admin"
+echo "  Console — tests do NOT auto-run."
+echo ""
 echo "  Press Ctrl+C to stop"
 echo "============================================"
 

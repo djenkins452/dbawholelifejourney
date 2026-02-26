@@ -95,6 +95,6 @@ PyYAML>=6.0
 
 # Payment Processing (Stripe)
 stripe>=7.0.0
-dj-stripe>=2.8.0
+dj-stripe==2.10.3
 
 # Force rebuild: 2026-02-15-v1 (Removed twilio, fixed apns2 PyJWT conflict)

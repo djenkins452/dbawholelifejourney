@@ -2,7 +2,7 @@
 
 **Version:** 1.1.0
 **Created:** 2026-02-25
-**Status:** Phase 3 — Action Execution Engine (Complete)
+**Status:** Phase 4 — Selector System (Complete)
 **Author:** Claude Code (Opus 4.6)
 
 ---
@@ -1165,10 +1165,10 @@ git log --all --oneline -- '*.html' | head -20
 - [x] Lines of code ≤ 300 (246 lines)
 
 ### Phase 4 Checklist
-- [ ] `framework/selectors.py` created
-- [ ] All 5 selector strategies supported
-- [ ] Priority resolution works correctly
-- [ ] Lines of code ≤ 200
+- [x] `framework/selectors.py` created
+- [x] All 5 selector strategies supported
+- [x] Priority resolution works correctly
+- [x] Lines of code ≤ 200 (153 lines)
 
 ### Phase 5 Checklist
 - [ ] `framework/reporting.py` created
@@ -1309,7 +1309,7 @@ This section is updated after each phase completion to track implementation prog
 | 1 | **COMPLETE** | 2026-02-25 | 2026-02-25 | 23 | 1 | Skeleton: dirs, __init__.py, version.py, requirements.txt, .gitkeep files |
 | 2 | **COMPLETE** | 2026-02-25 | 2026-02-25 | 1 | 2 | SuiteRunner: YAML loading, case iteration, RUN_ID, state lock, variable substitution |
 | 3 | **COMPLETE** | 2026-02-25 | 2026-02-25 | 1 | 2 | ActionExecutor: 6 action types, 8 assertion types, basic selector resolution |
-| 4 | PENDING | — | — | — | — | — |
+| 4 | **COMPLETE** | 2026-02-25 | 2026-02-25 | 1 | 3 | SelectorResolver: 5 strategies, priority resolution, compound selectors; executor refactored to use selectors module |
 | 5 | PENDING | — | — | — | — | — |
 | 6 | PENDING | — | — | — | — | — |
 | 7 | PENDING | — | — | — | — | — |

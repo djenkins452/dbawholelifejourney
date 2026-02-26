@@ -4,6 +4,8 @@ Translates YAML action types to Playwright browser actions.
 Supports: NAVIGATE, CLICK, TYPE, SELECT, WAIT, ASSERT.
 """
 
+from .selectors import resolve_selector
+
 
 class ExecutionError(Exception):
     """Raised when an action or assertion fails during execution."""
@@ -213,34 +215,4 @@ class ActionExecutor:
                 f"but got '{actual}'"
             )
 
-
-# --- Selector Resolution (basic — Phase 4 SelectorResolver enhances) ---
-
-SELECTOR_MAP = {
-    "data-testid": lambda v: f'[data-testid="{v}"]',
-    "id": lambda v: f"#{v}",
-    "name": lambda v: f'[name="{v}"]',
-    "role": lambda v: f"role={v}",
-    "text_contains": lambda v: f"text={v}",
-}
-
-
-def resolve_selector(selector):
-    """Resolve a YAML selector dict to a Playwright locator string.
-
-    Args:
-        selector: dict with 'strategy' and 'value', or a raw string.
-
-    Returns:
-        Playwright-compatible locator string.
-    """
-    if isinstance(selector, str):
-        return selector
-
-    strategy = selector.get("strategy", "")
-    value = selector.get("value", "")
-
-    resolver = SELECTOR_MAP.get(strategy)
-    if not resolver:
-        raise ExecutionError(f"Unknown selector strategy: {strategy}")
-    return resolver(value)
+# Note: resolve_selector is imported from .selectors (Phase 4)

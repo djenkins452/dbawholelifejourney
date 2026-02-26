@@ -9,6 +9,20 @@
 
 # WLJ Change History
 
+## 2026-02-25 — WLJ UI Testing Framework Phase 4: Selector System
+
+**What:** Implemented `SelectorResolver` class with 5 selector strategies (data-testid, id, name, role, text_contains), priority-based compound resolution, and strategy metadata extraction. Refactored executor.py to delegate selector resolution to the new selectors module.
+
+**Files:**
+- `wlj_ui_tests/framework/selectors.py` — NEW: `SelectorResolver`, `SelectorError`, `resolve_selector()`, strategy registry, compound resolution
+- `wlj_ui_tests/framework/executor.py` — MODIFIED: Removed inline selector resolution, imports from selectors module
+- `wlj_ui_tests/framework/__init__.py` — MODIFIED: Added selector exports
+- `wlj_ui_tests/framework/version.py` — MODIFIED: Bumped to `0.4.0`
+
+**Why:** Phase 4 of the UI testing framework. Centralizes selector logic for consistency across executor, reporting, and prompt builder.
+
+---
+
 ## 2026-02-25 — WLJ UI Testing Framework Phase 3: Action Execution Engine
 
 **What:** Implemented `ActionExecutor` class that translates YAML step definitions to Playwright browser actions. Supports all 6 action types (NAVIGATE, CLICK, TYPE, SELECT, WAIT, ASSERT) and all 8 assertion types (text_contains, text_equals, url_contains, url_equals, element_visible, element_not_visible, element_count, attribute_equals). Includes basic selector resolution for 5 strategies.

@@ -2,7 +2,7 @@
 
 **Version:** 1.1.0
 **Created:** 2026-02-25
-**Status:** Phase 6 — Artifact Capture (Complete)
+**Status:** Phase 7 — Claude Fix Prompt Generator (Complete)
 **Author:** Claude Code (Opus 4.6)
 
 ---
@@ -1186,10 +1186,10 @@ git log --all --oneline -- '*.html' | head -20
 - [x] Lines of code ≤ 150
 
 ### Phase 7 Checklist
-- [ ] `framework/prompt_builder.py` created
-- [ ] Generated prompt includes all required fields
-- [ ] Prompt is copy-paste ready for Claude Code
-- [ ] Lines of code ≤ 200
+- [x] `framework/prompt_builder.py` created
+- [x] Generated prompt includes all required fields
+- [x] Prompt is copy-paste ready for Claude Code
+- [x] Lines of code ≤ 200
 
 ### Phase 8 Checklist
 - [ ] `framework/schema_validator.py` created
@@ -1312,7 +1312,7 @@ This section is updated after each phase completion to track implementation prog
 | 4 | **COMPLETE** | 2026-02-25 | 2026-02-25 | 1 | 3 | SelectorResolver: 5 strategies, priority resolution, compound selectors; executor refactored to use selectors module |
 | 5 | **COMPLETE** | 2026-02-25 | 2026-02-25 | 1 | 2 | ReportWriter: pass/fail NDJSON, execution_log NDJSON, run_summary.json with framework_version |
 | 6 | **COMPLETE** | 2026-02-25 | 2026-02-25 | 1 | 2 | ArtifactCapture: screenshot PNG + HTML dump on failure, module-scoped paths, convention naming |
-| 7 | PENDING | — | — | — | — | — |
+| 7 | **COMPLETE** | 2026-02-25 | 2026-02-25 | 1 | 2 | PromptBuilder: claude_fix_prompt.md generation from failures, NDJSON reader, actionable fix steps |
 | 8 | PENDING | — | — | — | — | — |
 | 9 | PENDING | — | — | — | — | — |
 | 10 | PENDING | — | — | — | — | — |

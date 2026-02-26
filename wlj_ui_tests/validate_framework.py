@@ -180,7 +180,7 @@ def main():
     # --- 6. Module isolation ---
     print("\n6. Module isolation:")
     modules = SuiteRunner.list_modules()
-    check("9 modules found", len(modules) == 9, f"found {len(modules)}")
+    check("10 modules found", len(modules) == 10, f"found {len(modules)}")
     check("journal in modules", "journal" in modules)
     check("admin in modules", "admin" in modules)
 

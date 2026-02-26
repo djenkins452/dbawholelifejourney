@@ -1,6 +1,6 @@
 version: "1.0"
-suite: "Journal Module Tests"
-module: "journal"
+suite: "Smoke Tests — Cross-Module Essentials"
+module: "smoke"
 
 auth:
   strategy: "session"
@@ -15,7 +15,7 @@ defaults:
   html_dump_on_failure: true
 
 cases:
-  - id: "JRN-001"
+  - id: "SMK-001"
     name: "Login to application"
     priority: "high"
     tags: ["smoke", "auth"]
@@ -46,10 +46,10 @@ cases:
           strategy: "data-testid"
           value: "login-form"
 
-  - id: "JRN-002"
-    name: "Create a new journal entry"
+  - id: "SMK-002"
+    name: "Create a journal entry (smoke)"
     priority: "high"
-    tags: ["smoke", "crud"]
+    tags: ["smoke", "journal", "crud"]
     steps:
       - action: "NAVIGATE"
         url: "/journal/new/"
@@ -59,12 +59,12 @@ cases:
         selector:
           strategy: "data-testid"
           value: "journal-entry-title-input"
-        input: "AUTOTEST|journal|${RUN_ID}|Smoke Test Entry"
+        input: "AUTOTEST|smoke|${RUN_ID}|Smoke Entry"
       - action: "TYPE"
         selector:
           strategy: "data-testid"
           value: "journal-entry-body-textarea"
-        input: "This is an automated test entry created by the WLJ UI test framework. It should be cleaned up after the test run completes."
+        input: "Cross-module smoke test entry. Created by WLJ UI test framework smoke suite."
       - action: "CLICK"
         selector:
           strategy: "data-testid"
@@ -80,12 +80,12 @@ cases:
         selector:
           strategy: "data-testid"
           value: "journal-entry-detail-title"
-        expected: "AUTOTEST|journal|${RUN_ID}|Smoke Test Entry"
+        expected: "AUTOTEST|smoke|${RUN_ID}|Smoke Entry"
 
-  - id: "JRN-003"
-    name: "Verify entry appears in entry list"
+  - id: "SMK-003"
+    name: "Verify journal entry in list (smoke)"
     priority: "high"
-    tags: ["smoke", "crud"]
+    tags: ["smoke", "journal", "crud"]
     steps:
       - action: "NAVIGATE"
         url: "/journal/entries/"
@@ -100,32 +100,32 @@ cases:
         selector:
           strategy: "data-testid"
           value: "journal-entry-list"
-        expected: "AUTOTEST|journal|${RUN_ID}|Smoke Test Entry"
+        expected: "AUTOTEST|smoke|${RUN_ID}|Smoke Entry"
 
-  - id: "JRN-004"
-    name: "Cleanup AUTOTEST journal entries for this run"
+  - id: "SMK-004"
+    name: "Cleanup AUTOTEST smoke entries"
     priority: "high"
     tags: ["cleanup"]
-    cleanup_scope: "AUTOTEST|journal|${RUN_ID}|"
+    cleanup_scope: "AUTOTEST|smoke|${RUN_ID}|"
     steps:
       - action: "NAVIGATE"
-        url: "/journal/entries/?search=AUTOTEST%7Cjournal%7C${RUN_ID}%7C"
-        description: "Search entry list filtered to this RUN_ID"
+        url: "/journal/entries/?search=AUTOTEST%7Csmoke%7C${RUN_ID}%7C"
+        description: "Search entry list filtered to this smoke RUN_ID"
       - action: "WAIT"
         timeout_ms: 2000
     cleanup:
       - action: "CLICK"
         selector:
           strategy: "text_contains"
-          value: "AUTOTEST|journal|${RUN_ID}|"
-        description: "Click the AUTOTEST entry scoped to this RUN_ID"
+          value: "AUTOTEST|smoke|${RUN_ID}|"
+        description: "Click the AUTOTEST smoke entry scoped to this RUN_ID"
       - action: "WAIT"
         timeout_ms: 1000
       - action: "CLICK"
         selector:
           strategy: "data-testid"
           value: "journal-entry-delete-button"
-        description: "Soft-delete the AUTOTEST entry"
+        description: "Soft-delete the AUTOTEST smoke entry"
       - action: "WAIT"
         timeout_ms: 2000
     asserts:

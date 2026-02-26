@@ -9,6 +9,20 @@
 
 # WLJ Change History
 
+## 2026-02-26 — Phase 3 UI Test Expansion: Finance, Medical, Brain Training
+
+**What:** Built UI test suites for 3 more modules as part of Phase 3 expansion. Added data-testid attributes to templates and wrote comprehensive YAML test suites.
+
+**Finance Module (24 tests):** Auth (1), Dashboard (3: page load, title, overview cards), Accounts (5: list, add button, navigate to form, form loads, cancel), Transactions (4: list, add button, form loads, cancel), Budgets (2: list, add button), Goals (2: list, add button), Metrics (2: page load, title), Navigation (5: back links from all sub-pages). Templates: dashboard.html, account_list.html, account_form.html, transaction_list.html, transaction_form.html, budget_list.html, goal_list.html, metrics_dashboard.html.
+
+**Medical Module (11 tests):** Auth (1), Home (4: page load, title, upload button, stats grid), Upload (3: page load, title, upload area), Navigation (3: back link, upload button navigate, round trip). Templates: labs_summary.html, upload.html.
+
+**Brain Training Module (11 tests):** Auth (1), Hub (5: page load, title, exercise cards, stats link, stats navigation), Stats (3: page load, title, back link), Navigation (2: back link, round trip). Templates: hub.html, stats.html. URL fix: mounted at /health/cognitive/ not /brain-training/.
+
+**Result:** All 46 new tests pass at 100%, stable across multiple runs. Admin Console skipped (requires staff access).
+
+---
+
 ## 2026-02-26 — Phase 2 UI Test Expansion: Dashboard, Life, Calendar Engine
 
 **What:** Built UI test suites for 3 more modules as part of Phase 2 expansion. Added data-testid attributes to templates and wrote comprehensive YAML test suites.

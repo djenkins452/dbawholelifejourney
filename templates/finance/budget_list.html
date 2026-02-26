@@ -3,9 +3,9 @@
 {% block title %}Budgets - Finance - Whole Life Journey{% endblock %}
 
 {% block content %}
-<div class="container">
+<div class="container" data-testid="finance-budget-list">
     <nav class="breadcrumb mb-4">
-        <a href="{% url 'finance:dashboard' %}">Finance</a>
+        <a href="{% url 'finance:dashboard' %}" data-testid="finance-back-link">Finance</a>
         <span>/</span>
         <span>Budgets</span>
     </nav>
@@ -15,7 +15,7 @@
             <h1 class="page-title">Budgets {% include "components/favorite_toggle.html" with page_title="Budgets" %}</h1>
             <p class="page-subtitle">{{ current_month|date:"F Y" }}</p>
         </div>
-        <a href="{% url 'finance:budget_create' %}" class="btn btn-primary">Add Budget</a>
+        <a href="{% url 'finance:budget_create' %}" class="btn btn-primary" data-testid="finance-add-budget-button">Add Budget</a>
     </div>
 
     <!-- Summary -->

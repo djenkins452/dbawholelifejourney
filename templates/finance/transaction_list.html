@@ -4,9 +4,9 @@
 {% block title %}Transactions - Finance - Whole Life Journey{% endblock %}
 
 {% block content %}
-<div class="container">
+<div class="container" data-testid="finance-transaction-list">
     <nav class="breadcrumb mb-4">
-        <a href="{% url 'finance:dashboard' %}">Finance</a>
+        <a href="{% url 'finance:dashboard' %}" data-testid="finance-back-link">Finance</a>
         <span>/</span>
         <span>Transactions</span>
     </nav>
@@ -18,7 +18,7 @@
         </div>
         <div class="header-actions">
             <a href="{% url 'finance:import_upload' %}" class="btn btn-secondary">Import Transactions</a>
-            <a href="{% url 'finance:transaction_create' %}" class="btn btn-primary">Add Transaction</a>
+            <a href="{% url 'finance:transaction_create' %}" class="btn btn-primary" data-testid="finance-add-transaction-button">Add Transaction</a>
         </div>
     </div>
 

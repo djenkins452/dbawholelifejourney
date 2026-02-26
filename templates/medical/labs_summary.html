@@ -4,9 +4,9 @@
 {% block title %}Labs & Vitals - Medical{% endblock %}
 
 {% block content %}
-<div class="container">
+<div class="container" data-testid="medical-home">
     <nav class="breadcrumb mb-4">
-        <a href="{% url 'health:home' %}">Health</a>
+        <a href="{% url 'health:home' %}" data-testid="medical-back-link">Health</a>
         <span>/</span>
         <span>Labs & Vitals</span>
     </nav>
@@ -16,7 +16,7 @@
             <h1 class="page-title">Labs & Vitals {% include "components/favorite_toggle.html" with page_title="Labs & Vitals" %}</h1>
             <p class="page-subtitle">Your lab results, organized and trackable</p>
         </div>
-        <a href="{% url 'medical:upload' %}" class="btn btn-primary">
+        <a href="{% url 'medical:upload' %}" class="btn btn-primary" data-testid="medical-upload-button">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
                 <polyline points="17 8 12 3 7 8"/>

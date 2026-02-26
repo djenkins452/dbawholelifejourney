@@ -1,0 +1,240 @@
+version: "1.0"
+suite: "Medical Module Tests"
+module: "medical"
+
+auth:
+  strategy: "session"
+  username: "${TEST_USERNAME}"
+  password: "${TEST_PASSWORD}"
+  login_url: "/accounts/login/"
+
+defaults:
+  timeout_ms: 5000
+  base_url: "${BASE_URL}"
+  screenshot_on_failure: true
+  html_dump_on_failure: true
+
+cases:
+
+  # ============================================================
+  # AUTH
+  # ============================================================
+
+  - id: "MED-AUTH-001"
+    name: "Login and navigate to medical"
+    priority: "high"
+    tags: ["auth", "smoke"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/accounts/logout/"
+      - action: "NAVIGATE"
+        url: "/accounts/login/"
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "login-email-input"
+        input: "${TEST_USERNAME}"
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "login-password-input"
+        input: "${TEST_PASSWORD}"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "login-submit-button"
+        timeout_ms: 10000
+      - action: "WAIT"
+        timeout_ms: 3000
+    asserts:
+      - type: "url_contains"
+        expected: "/dashboard/"
+
+  # ============================================================
+  # HOME (Labs Summary)
+  # ============================================================
+
+  - id: "MED-HOME-001"
+    name: "Medical home page loads"
+    priority: "high"
+    tags: ["home", "smoke"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/medical/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/medical/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "medical-home"
+
+  - id: "MED-HOME-002"
+    name: "Home page shows Labs & Vitals title"
+    priority: "medium"
+    tags: ["home"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/medical/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "medical-home"
+        expected: "Labs & Vitals"
+
+  - id: "MED-HOME-003"
+    name: "Upload button visible"
+    priority: "high"
+    tags: ["home"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/medical/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "medical-upload-button"
+
+  - id: "MED-HOME-004"
+    name: "Stats grid visible"
+    priority: "medium"
+    tags: ["home"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/medical/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "medical-home"
+        expected: "Total Results"
+
+  # ============================================================
+  # UPLOAD
+  # ============================================================
+
+  - id: "MED-UPLOAD-001"
+    name: "Upload page loads"
+    priority: "high"
+    tags: ["upload"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/medical/upload/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/medical/upload/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "medical-upload"
+
+  - id: "MED-UPLOAD-002"
+    name: "Upload page shows title"
+    priority: "medium"
+    tags: ["upload"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/medical/upload/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "medical-upload"
+        expected: "Upload Lab Results"
+
+  - id: "MED-UPLOAD-003"
+    name: "Upload area visible"
+    priority: "medium"
+    tags: ["upload"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/medical/upload/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "id"
+          value: "upload-area"
+
+  # ============================================================
+  # NAVIGATION
+  # ============================================================
+
+  - id: "MED-NAV-001"
+    name: "Upload page back link returns to home"
+    priority: "medium"
+    tags: ["navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/medical/upload/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "medical-back-link"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/medical/"
+
+  - id: "MED-NAV-002"
+    name: "Upload button navigates to upload page"
+    priority: "high"
+    tags: ["navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/medical/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "medical-upload-button"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/medical/upload/"
+
+  - id: "MED-NAV-003"
+    name: "Home → Upload → Home round trip"
+    priority: "medium"
+    tags: ["navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/medical/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "medical-upload-button"
+        timeout_ms: 10000
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "medical-back-link"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/medical/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "medical-home"

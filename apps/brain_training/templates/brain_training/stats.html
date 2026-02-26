@@ -241,8 +241,8 @@
 {% endblock %}
 
 {% block content %}
-<div class="stats-page">
-    <a href="{% url 'brain_training:hub' %}" class="back-link">
+<div class="stats-page" data-testid="brain-stats">
+    <a href="{% url 'brain_training:hub' %}" class="back-link" data-testid="brain-back-link">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M15 18l-6-6 6-6"/>
         </svg>

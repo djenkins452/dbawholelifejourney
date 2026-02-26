@@ -253,7 +253,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="brain-hub">
+<div class="brain-hub" data-testid="brain-hub">
     <header class="brain-header">
         <h1 class="brain-title">Brain Training</h1>
         <p class="brain-subtitle">Focus &bull; Logic &bull; Memory &bull; Reasoning &bull; Language</p>
@@ -327,7 +327,7 @@
     </div>
 
     <div class="stats-link">
-        <a href="{% url 'brain_training:stats_dashboard' %}">
+        <a href="{% url 'brain_training:stats_dashboard' %}" data-testid="brain-stats-link">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M18 20V10M12 20V4M6 20v-6"/>
             </svg>

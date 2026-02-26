@@ -4,7 +4,7 @@
 {% block title %}Faith - Whole Life Journey{% endblock %}
 
 {% block content %}
-<div class="container">
+<div class="container" data-testid="faith-home">
     {% include "components/intro_banner.html" with module="faith" title="Welcome to Faith" message="Nurture your spiritual journey with prayer tracking, devotions, Scripture reading, and gratitude. A peaceful space for reflection and connection." icon="✝️" %}
 
     <div class="page-header">
@@ -64,7 +64,7 @@
                     </svg>
                     Prayer Requests
                 </h2>
-                <a href="{% url 'faith:prayer_create' %}" class="btn btn-primary btn-sm">Add Prayer</a>
+                <a href="{% url 'faith:prayer_create' %}" class="btn btn-primary btn-sm" data-testid="faith-add-prayer-button">Add Prayer</a>
             </div>
             
             {% if active_prayers %}

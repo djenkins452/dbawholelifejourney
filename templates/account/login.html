@@ -483,7 +483,7 @@
                 <h2>Welcome back</h2>
                 <p class="subtitle">Sign in to continue your journey</p>
 
-                <form method="post" action="{% url 'account_login' %}">
+                <form method="post" action="{% url 'account_login' %}" data-testid="login-form">
                     {% csrf_token %}
 
                     {% if form.errors %}
@@ -502,6 +502,7 @@
                             placeholder="you@example.com"
                             required
                             autofocus
+                            data-testid="login-email-input"
                         >
                     </div>
 
@@ -515,6 +516,7 @@
                                 class="form-input"
                                 placeholder="Your password"
                                 required
+                                data-testid="login-password-input"
                             >
                             <button type="button" class="password-toggle" data-target="id_password" aria-label="Show password">
                                 <svg class="eye-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
@@ -531,7 +533,7 @@
                         <a href="{% url 'account_reset_password' %}" class="forgot-link">Forgot password?</a>
                     </div>
 
-                    <button type="submit" class="btn-primary">
+                    <button type="submit" class="btn-primary" data-testid="login-submit-button">
                         Sign In
                     </button>
                 </form>

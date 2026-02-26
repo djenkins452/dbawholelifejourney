@@ -9,6 +9,23 @@
 
 # WLJ Change History
 
+## 2026-02-25 — WLJ UI Testing Framework Phase 12: Validation & Journal Module Tests
+
+**What:** Validated all 12 framework subsystems (35/35 checks passed) without Playwright. Created `framework_state.json` with locked=true to prevent framework modifications. Added 16 `data-testid` attributes across 4 Django templates (login, entry form, entry list, entry detail) — attribute additions only, no structural/logic/style changes. Implemented 4 journal test cases (JRN-001 through JRN-004): login, create entry, verify entry in list, cleanup AUTOTEST entries. All cases use `data-testid` selectors exclusively and pass schema validation.
+
+**Files:**
+- `wlj_ui_tests/validate_framework.py` — NEW: Comprehensive validation script testing all subsystems (runner, reporting, failure pipeline, safety, schema, selectors, module isolation)
+- `wlj_ui_tests/framework/framework_state.json` — NEW: Framework state file with version 0.11.0, locked=true, validation results
+- `wlj_ui_tests/modules/journal/suite.yaml` — MODIFIED: Replaced empty cases with JRN-001 (login), JRN-002 (create entry), JRN-003 (verify in list), JRN-004 (cleanup)
+- `templates/account/login.html` — MODIFIED: Added 4 data-testid attrs (login-form, login-email-input, login-password-input, login-submit-button)
+- `templates/journal/entry_form.html` — MODIFIED: Added 4 data-testid attrs (journal-entry-form, journal-entry-title-input, journal-entry-body-textarea, journal-entry-save-button)
+- `templates/journal/entry_list.html` — MODIFIED: Added 4 data-testid attrs (journal-new-entry-button, journal-entry-list, journal-entry-card, journal-entry-title)
+- `templates/journal/entry_detail.html` — MODIFIED: Added 5 data-testid attrs (journal-entry-detail, journal-entry-detail-title, journal-entry-detail-body, journal-entry-delete-form, journal-entry-delete-button)
+
+**Why:** Validates the framework works end-to-end before writing real tests. The data-testid attributes provide stable, implementation-independent selectors for UI automation. First real test cases exercise the complete journal CRUD flow with AUTOTEST-prefixed cleanup for safety.
+
+---
+
 ## 2026-02-25 — WLJ UI Testing Framework Phase 11: CLI Runner (FINAL PHASE)
 
 **What:** Created `run_suite.py` CLI entry point — the command-line interface for running test suites. Supports `--suite` (file path) and `--module` (name) as mutually exclusive run targets, plus `--base-url`, `--headed`, `--env`, `--list-modules`, and `--version`. Validates YAML schema before execution. Exit codes: 0=all pass, 1=failures, 2=error. Outputs human-readable summary to stdout and JSON summary to stderr for CI integration. **This completes all 12 phases (0–11) of the WLJ UI Testing Framework.**

@@ -14,4 +14,118 @@ defaults:
   screenshot_on_failure: true
   html_dump_on_failure: true
 
-cases: []
+cases:
+  - id: "JRN-001"
+    name: "Login to application"
+    priority: "high"
+    tags: ["smoke", "auth"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/accounts/login/"
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "login-email-input"
+        input: "${TEST_USERNAME}"
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "login-password-input"
+        input: "${TEST_PASSWORD}"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "login-submit-button"
+      - action: "WAIT"
+        timeout_ms: 3000
+    asserts:
+      - type: "url_contains"
+        expected: "/dashboard/"
+      - type: "element_not_visible"
+        selector:
+          strategy: "data-testid"
+          value: "login-form"
+
+  - id: "JRN-002"
+    name: "Create a new journal entry"
+    priority: "high"
+    tags: ["smoke", "crud"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/journal/new/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-title-input"
+        input: "AUTOTEST|journal|${RUN_ID}|Smoke Test Entry"
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-body-textarea"
+        input: "This is an automated test entry created by the WLJ UI test framework. It should be cleaned up after the test run completes."
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-save-button"
+      - action: "WAIT"
+        timeout_ms: 3000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-detail"
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-detail-title"
+        expected: "AUTOTEST|journal|${RUN_ID}|Smoke Test Entry"
+
+  - id: "JRN-003"
+    name: "Verify entry appears in entry list"
+    priority: "high"
+    tags: ["smoke", "crud"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/journal/entries/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-list"
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-list"
+        expected: "AUTOTEST|journal|${RUN_ID}|Smoke Test Entry"
+
+  - id: "JRN-004"
+    name: "Cleanup AUTOTEST journal entries"
+    priority: "high"
+    tags: ["cleanup"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/journal/entries/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    cleanup:
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-card"
+        description: "Click the AUTOTEST entry to open detail"
+      - action: "WAIT"
+        timeout_ms: 1000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "journal-entry-delete-button"
+        description: "Delete the AUTOTEST entry"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/journal/"

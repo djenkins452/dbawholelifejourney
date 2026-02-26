@@ -39,18 +39,19 @@
         {% endif %}
     </div>
     
-    <form method="post" class="entry-form">
+    <form method="post" class="entry-form" data-testid="journal-entry-form">
         {% csrf_token %}
         
         <div class="form-group">
             <label for="id_title" class="form-label">Title</label>
-            <input 
-                type="text" 
-                name="title" 
-                id="id_title" 
+            <input
+                type="text"
+                name="title"
+                id="id_title"
                 class="form-input"
                 value="{{ form.title.value|default:'' }}"
                 placeholder="Leave blank to use the date"
+                data-testid="journal-entry-title-input"
             >
             <p class="form-help">Leave blank to automatically use the date as the title.</p>
             {% if form.title.errors %}
@@ -72,13 +73,14 @@
         
         <div class="form-group">
             <label for="id_body" class="form-label">Your thoughts</label>
-            <textarea 
-                name="body" 
-                id="id_body" 
+            <textarea
+                name="body"
+                id="id_body"
                 class="form-textarea"
                 placeholder="Write freely. This is your safe space..."
                 rows="12"
                 required
+                data-testid="journal-entry-body-textarea"
             >{{ form.body.value|default:'' }}</textarea>
             <div class="form-footer">
                 <span id="word-count" class="text-muted text-sm">0 words</span>
@@ -165,7 +167,7 @@
         </div>
         
         <div class="form-actions">
-            <button type="submit" class="btn btn-primary">
+            <button type="submit" class="btn btn-primary" data-testid="journal-entry-save-button">
                 {% if is_edit %}Save Changes{% else %}Save Entry{% endif %}
             </button>
             {% if not is_edit %}

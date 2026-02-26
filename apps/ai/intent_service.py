@@ -323,10 +323,19 @@ FAITH:
 - "save John 3:16" → save_verse(reference="John 3:16")
 - "bookmark Romans 8:28" → save_verse(reference="Romans 8:28")
 - "remember Psalm 23" → save_verse(reference="Psalm 23")
+- "keep Philippians 4:13" → save_verse(reference="Philippians 4:13")
 - "pray for my mom's health" → log_prayer(title="Mom's health", is_personal=false)
 - "add prayer for my job interview" → log_prayer(title="Job interview")
 - "God answered my prayer about the job" → mark_prayer_answered(prayer_keyword="job")
 - "today was a spiritual breakthrough" → add_faith_milestone(title="Spiritual breakthrough")
+
+IMPORTANT — save_verse requires an EXPLICIT save/bookmark/keep action word. These are NOT save_verse:
+- "the screen has Matthew 13:1-30" → NO function (stating what's on screen)
+- "you did not pick from Matthew 13:1-30" → NO function (correcting the AI)
+- "help me understand Psalm 23" → NO function (asking for explanation)
+- "what does Romans 8:28 mean?" → NO function (asking about content)
+- "I'm reading John 3 right now" → NO function (mentioning, not saving)
+- "today's reading is Matthew 5" → NO function (context, not saving)
 
 JOURNAL:
 - "I'm grateful for my family" → add_gratitude(gratitude="my family")
@@ -417,6 +426,8 @@ Examples of messages that should NOT trigger functions:
 - "tell me about fasting"
 - "should I take my medicine?"
 - "what does John 3:16 say?" (asking about content, not saving)
+- "the screen has Matthew 13:1-30" (stating context, not saving)
+- "look at Psalm 23" (referencing scripture, not saving)
 - "I wake up at 5am every day" (sharing routine info, NOT scheduling an event)
 - "my daily schedule is..." (sharing context, NOT creating events — unless they explicitly say "add to calendar")
 - "how have my workouts been?" (asking about data, NOT logging a workout)

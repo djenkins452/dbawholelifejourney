@@ -515,6 +515,155 @@
     }
 
     /* ================================================================
+       PAGE CONTEXT EXTRACTION
+       Extracts rich content from the current page so the AI knows
+       what the user is viewing (scripture, journal entry, goal, etc.)
+       ================================================================ */
+    function extractPageContent(url) {
+        var content = {};
+
+        // Reading Plan Progress page
+        if (url.match(/\/faith\/reading-plans\/progress\/\d+/)) {
+            content.type = 'reading_plan_progress';
+            var sectionTitle = document.querySelector('.current-reading .section-title');
+            if (sectionTitle) content.current_day = sectionTitle.textContent.trim();
+            var readingTitle = document.querySelector('.reading-title');
+            if (readingTitle) content.reading_title = readingTitle.textContent.trim();
+            var scriptureElements = document.querySelectorAll('.scripture-ref-btn .scripture-ref-text, .scripture-ref-link');
+            if (scriptureElements.length > 0) {
+                content.scriptures = Array.from(scriptureElements).map(function(el) { return el.textContent.trim(); });
+            }
+            var expandedScriptures = document.querySelectorAll('.scripture-text');
+            var visibleText = [];
+            expandedScriptures.forEach(function(el) {
+                if (el.textContent.trim().length > 0) visibleText.push(el.textContent.trim());
+            });
+            if (visibleText.length > 0) content.scripture_text = visibleText.join('\n\n').substring(0, 2000);
+            var contextContent = document.querySelector('.context-content');
+            if (contextContent) content.context_summary = contextContent.textContent.trim().substring(0, 500);
+            var commentary = document.querySelector('.commentary-content');
+            if (commentary) { content.commentary = commentary.textContent.trim().substring(0, 800); }
+            else {
+                var devotional = document.querySelector('.devotional-text p');
+                if (devotional) content.devotional = devotional.textContent.trim();
+            }
+            var reflection = document.querySelector('.reflection-prompt p');
+            if (reflection) content.reflection_prompt = reflection.textContent.trim();
+            var userNotes = document.querySelector('#notes');
+            if (userNotes && userNotes.value) content.user_notes = userNotes.value.trim().substring(0, 500);
+            var progressText = document.querySelector('.progress-text');
+            if (progressText) content.progress = progressText.textContent.trim();
+            var difficultySelect = document.getElementById('difficulty-select');
+            if (difficultySelect) content.difficulty_level = difficultySelect.value;
+        }
+        // Journal Entry Detail page
+        else if (url.match(/\/journal\/\d+\//)) {
+            content.type = 'journal_entry';
+            var entryTitle = document.querySelector('.entry-title, h1');
+            if (entryTitle) content.title = entryTitle.textContent.trim();
+            var entryBody = document.querySelector('.entry-body, .entry-content');
+            if (entryBody) {
+                content.body = entryBody.textContent.trim().substring(0, 500);
+                if (entryBody.textContent.length > 500) content.body += '...';
+            }
+            var entryMood = document.querySelector('.entry-mood');
+            if (entryMood) content.mood = entryMood.textContent.trim();
+        }
+        // Task Detail page
+        else if (url.match(/\/life\/tasks\/\d+\//)) {
+            content.type = 'task';
+            var taskTitle = document.querySelector('.task-title, h1');
+            if (taskTitle) content.title = taskTitle.textContent.trim();
+            var taskDue = document.querySelector('.task-due-date, .due-date');
+            if (taskDue) content.due_date = taskDue.textContent.trim();
+            var taskDesc = document.querySelector('.task-description, .task-notes');
+            if (taskDesc) content.description = taskDesc.textContent.trim().substring(0, 300);
+        }
+        // Goal Detail page
+        else if (url.match(/\/purpose\/goals\/\d+\//)) {
+            content.type = 'goal';
+            var goalTitle = document.querySelector('.goal-title, h1');
+            if (goalTitle) content.title = goalTitle.textContent.trim();
+            var goalWhy = document.querySelector('.why-it-matters');
+            if (goalWhy) content.why_it_matters = goalWhy.textContent.trim().substring(0, 300);
+            var goalProgress = document.querySelector('.goal-progress, .progress-percentage, .progress-text');
+            if (goalProgress) content.progress = goalProgress.textContent.trim();
+            var targetDate = document.querySelector('.target-date, .goal-deadline');
+            if (targetDate) content.target_date = targetDate.textContent.trim();
+        }
+        // Habit Detail page
+        else if (url.match(/\/purpose\/habits\/\d+\//)) {
+            content.type = 'habit';
+            var habitTitle = document.querySelector('.habit-title, h1');
+            if (habitTitle) content.title = habitTitle.textContent.trim();
+            var streak = document.querySelector('.streak-count, .current-streak');
+            if (streak) content.streak = streak.textContent.trim();
+            var completionInfo = document.querySelector('.completion-rate, .habit-stats');
+            if (completionInfo) content.completion_info = completionInfo.textContent.trim().substring(0, 200);
+        }
+        // Prayer Request page
+        else if (url.match(/\/faith\/prayers\/\d+\//)) {
+            content.type = 'prayer_request';
+            var prayerTitle = document.querySelector('.prayer-title, h1');
+            if (prayerTitle) content.title = prayerTitle.textContent.trim();
+            var prayerContent = document.querySelector('.prayer-content, .prayer-body');
+            if (prayerContent) content.content = prayerContent.textContent.trim().substring(0, 300);
+        }
+        // Fasting page
+        else if (url.match(/\/health\/fasting/)) {
+            content.type = 'fasting';
+            var activeFast = document.querySelector('.active-fast-card');
+            if (activeFast) {
+                var timerValue = activeFast.querySelector('.timer-value');
+                if (timerValue) content.active_fast_duration = timerValue.textContent.trim();
+                var fastType = activeFast.querySelector('.fast-type');
+                if (fastType) content.active_fast_type = fastType.textContent.trim();
+            }
+        }
+        // Medicine page
+        else if (url.match(/\/health\/physical\/medicine/)) {
+            content.type = 'medicine';
+        }
+        // Other Health pages
+        else if (url.startsWith('/health/')) {
+            content.type = 'health';
+            var currentWeight = document.querySelector('.current-weight, .weight-value');
+            if (currentWeight) content.current_weight = currentWeight.textContent.trim();
+            var workoutInfo = document.querySelector('.workout-summary, .recent-workout');
+            if (workoutInfo) content.workout_info = workoutInfo.textContent.trim().substring(0, 200);
+        }
+
+        return Object.keys(content).length > 1 ? content : null;
+    }
+
+    function getFullPageContext() {
+        var url = window.location.pathname;
+        var pageTitle = document.title.replace(/\s*[-|]\s*Whole Life Journey.*$/i, '').trim();
+        var mainHeading = document.querySelector('h1.page-title, h1, .content-header h2');
+        if (mainHeading) {
+            var headingText = mainHeading.textContent.trim().split('\n')[0].trim();
+            if (headingText) pageTitle = headingText;
+        }
+        // Detect module from URL
+        var module = 'unknown';
+        if (url.startsWith('/dashboard')) module = 'dashboard';
+        else if (url.startsWith('/journal')) module = 'journal';
+        else if (url.startsWith('/faith')) module = 'faith';
+        else if (url.startsWith('/health')) module = 'health';
+        else if (url.startsWith('/purpose')) module = 'purpose';
+        else if (url.startsWith('/life')) module = 'life';
+        else if (url.startsWith('/finance')) module = 'finance';
+        else if (url.startsWith('/capture')) module = 'capture';
+
+        return {
+            url: url,
+            module: module,
+            page_title: pageTitle,
+            page_content: extractPageContent(url)
+        };
+    }
+
+    /* ================================================================
        SEND MESSAGE
        ================================================================ */
     function sendMessage(message, container, inputEl, btnEl, imageOverride) {
@@ -538,6 +687,7 @@
         if (sentImage) {
             var formData = new FormData();
             formData.append('message', message);
+            formData.append('page_context', JSON.stringify(getFullPageContext()));
             var byteString = atob(sentImage.data);
             var ab = new ArrayBuffer(byteString.length);
             var ia = new Uint8Array(ab);
@@ -558,11 +708,7 @@
                 },
                 body: JSON.stringify({
                     message: message,
-                    page_context: {
-                        url: window.location.pathname,
-                        module: 'Chat Panel',
-                        page_title: document.title
-                    }
+                    page_context: getFullPageContext()
                 })
             };
         }

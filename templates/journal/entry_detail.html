@@ -10,7 +10,7 @@
         <span>{{ entry.title|truncatewords:5 }}</span>
     </nav>
     
-    <article class="entry-detail">
+    <article class="entry-detail" data-testid="journal-entry-detail">
         <header class="entry-detail-header">
             <div class="entry-detail-meta">
                 <time datetime="{{ entry.entry_date|date:'Y-m-d' }}">
@@ -25,7 +25,7 @@
                 {% endif %}
             </div>
             
-            <h1 class="entry-detail-title">{{ entry.title }}</h1>
+            <h1 class="entry-detail-title" data-testid="journal-entry-detail-title">{{ entry.title }}</h1>
             
             {% if entry.categories.exists or entry.tags.exists %}
                 <div class="entry-detail-tags">
@@ -74,7 +74,7 @@
             </div>
         {% endif %}
         
-        <div class="entry-detail-body">
+        <div class="entry-detail-body" data-testid="journal-entry-detail-body">
             {{ entry.body|linebreaks }}
         </div>
         
@@ -120,9 +120,9 @@
                     </form>
                 {% endif %}
                 
-                <form method="post" action="{% url 'journal:entry_delete' entry.pk %}" class="inline-form" data-confirm-delete="This will move the entry to Recently Deleted. You have 30 days to restore it.">
+                <form method="post" action="{% url 'journal:entry_delete' entry.pk %}" class="inline-form" data-testid="journal-entry-delete-form" data-confirm-delete="This will move the entry to Recently Deleted. You have 30 days to restore it.">
                     {% csrf_token %}
-                    <button type="submit" class="btn btn-ghost text-error">
+                    <button type="submit" class="btn btn-ghost text-error" data-testid="journal-entry-delete-button">
                         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
                             <polyline points="3 6 5 6 21 6"/>
                             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>

@@ -54,7 +54,7 @@
                     <span class="tooltip-text">Book</span>
                 </a>
             </div>
-            <a href="{% url 'journal:entry_create' %}" class="btn btn-primary">
+            <a href="{% url 'journal:entry_create' %}" class="btn btn-primary" data-testid="journal-new-entry-button">
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="12" y1="5" x2="12" y2="19"/>
                     <line x1="5" y1="12" x2="19" y2="12"/>
@@ -109,6 +109,7 @@
     <!-- Entry List -->
     {% if entries %}
         <div class="entry-list"
+             data-testid="journal-entry-list"
              data-bulk-container
              data-bulk-delete-url="{% url 'journal:bulk_delete' %}"
              data-bulk-archive-url="{% url 'journal:bulk_archive' %}"
@@ -124,13 +125,13 @@
             </div>
 
             {% for entry in entries %}
-                <article class="entry-card" data-bulk-item data-item-id="{{ entry.pk }}">
+                <article class="entry-card" data-testid="journal-entry-card" data-bulk-item data-item-id="{{ entry.pk }}">
                     <div class="entry-checkbox">
                         <input type="checkbox" data-item-checkbox class="bulk-checkbox" value="{{ entry.pk }}">
                     </div>
                     <a href="{% url 'journal:entry_detail' entry.pk %}" class="entry-link">
                         <div class="entry-header">
-                            <h2 class="entry-title">{{ entry.title }}</h2>
+                            <h2 class="entry-title" data-testid="journal-entry-title">{{ entry.title }}</h2>
                             <time class="entry-date" datetime="{{ entry.entry_date|date:'Y-m-d' }}">
                                 {{ entry.entry_date|date:"M j, Y" }}
                             </time>

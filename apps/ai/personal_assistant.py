@@ -3410,14 +3410,87 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             'apple health',
         ])
 
-        if is_asking_about_tasks or is_asking_for_analysis:
+        # Check-in / day assessment — user wants a full CoS briefing
+        is_requesting_checkin = any(phrase in message_lower for phrase in [
+            'check in', 'checking in', 'check-in',
+            'how is my day', 'how\'s my day',
+            'how does my day look', 'how\'s my schedule',
+            'what\'s my day look like', 'give me a rundown',
+            'brief me', 'briefing', 'daily briefing',
+            'what do i have today', 'what\'s on my plate',
+            'status update', 'status report', 'give me my status',
+            'what am i looking at today', 'run down my day',
+        ])
+
+        if is_asking_about_tasks or is_asking_for_analysis or is_requesting_checkin:
             # User is asking about tasks or wants analysis - include full state context
             state = self.assess_current_state()
             time_context = self._get_time_context()
             tasks = state.get('tasks', {})
             remaining_tasks = tasks.get('due_today', 0) + tasks.get('overdue', 0)
 
-            if is_asking_for_analysis:
+            if is_requesting_checkin:
+                # FULL CoS BRIEFING — calendar + meds + health + tasks + everything
+                # User explicitly asked for a check-in — give them the complete picture.
+                # This is NEVER throttled — the user's CoS always answers when asked.
+                from apps.core.utils import get_user_today, get_user_now
+                from apps.ai.executive_briefing import (
+                    _build_health_gate_section,
+                    _build_day_overview_section,
+                )
+                today = get_user_today(self.user)
+                user_now = get_user_now(self.user)
+
+                faith = state.get('faith', {})
+                health = state.get('health', {})
+                reading_status = "completed today" if faith.get('reading_completed_today') else (
+                    "not yet done today" if faith.get('active_reading_plans', 0) > 0 else "no active plan"
+                )
+                workout_today = health.get('workout_today', False)
+                workout_status = "logged today" if workout_today else "not yet logged"
+
+                # Pull calendar + health gate data from executive briefing
+                health_gate = ''
+                day_overview = ''
+                try:
+                    health_gate = _build_health_gate_section(self.user, today)
+                except Exception:
+                    pass
+                try:
+                    day_overview = _build_day_overview_section(self.user, user_now, today)
+                except Exception:
+                    pass
+
+                system_prompt += f"""
+
+USER IS REQUESTING A CHECK-IN / DAY BRIEFING — give a complete Chief of Staff assessment.
+This is a user-initiated request. Give them the FULL picture of their day — never withhold or throttle.
+
+SCHEDULE:
+{day_overview or 'No calendar events found for today.'}
+
+HEALTH & ROUTINES:
+{health_gate or 'No health gate data available.'}
+
+TASKS & GOALS:
+- Tasks REMAINING today: {remaining_tasks} ({tasks.get('overdue', 0)} overdue, {tasks.get('due_today', 0)} due today)
+- Active goals needing progress: {state.get('goals', {}).get('active', 0)}
+- Journal streak: {state.get('journal', {}).get('streak', 0)} days
+- Active prayers: {faith.get('active_prayers', 0)}
+- Reading plan / Quiet Time: {reading_status}
+- Workout: {workout_status}
+- Time remaining in day: ~{time_context.get('hours_remaining', 'unknown')} hours until bedtime
+
+INSTRUCTIONS:
+- Present this as a cohesive briefing, not a raw data dump.
+- Lead with what's happening NOW and coming up soon.
+- Note what's done vs outstanding.
+- If meds aren't taken, mention them naturally (e.g., "Your morning meds are still pending").
+- If something is overdue, flag it.
+- End with a clear recommendation for what to tackle next.
+- Keep it concise but complete — this is a Chief of Staff check-in, not a report.
+"""
+            elif is_asking_for_analysis:
                 faith = state.get('faith', {})
                 health = state.get('health', {})
                 reading_status = "completed today" if faith.get('reading_completed_today') else (

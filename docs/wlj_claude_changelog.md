@@ -9,6 +9,13 @@
 
 # WLJ Change History
 
+## 2026-02-26 — Add full CoS check-in briefing on user request
+
+**What:** When the user asks "how's my day looking?", "check in with me", "brief me", etc., the AI now delivers a complete Chief of Staff briefing including calendar events, medication status, health gates (fasting, workout, reading plan), tasks, goals, and routines — pulled from the executive briefing system. This is never throttled; scheduled proactive check-ins are throttled but user-initiated requests always get the full picture.
+
+**Files:**
+- `apps/ai/personal_assistant.py` — MODIFIED: Added `is_requesting_checkin` detection + full briefing injection using `_build_health_gate_section` and `_build_day_overview_section` from executive_briefing.py
+
 ## 2026-02-26 — Fix medicine check-in timing, grouping, and remind-me-later
 
 **What:** Three fixes to the proactive medicine check-in system:

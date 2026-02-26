@@ -7,12 +7,14 @@ Replaces the ad-hoc wiring in run_suite.py with a structured pipeline:
     2. Initialize RunManifest
     3. Initialize TestDataRegistry
     4. Run selector validation
-    5. Execute SuiteRunner
-    6. Write reporting outputs
-    7. Finalize RunManifest
-    8. Verify run integrity
-    9. Generate Claude fix prompt if failures exist
-   10. Return exit code
+    5. Launch browser (unless --no-browser)
+    6. Execute SuiteRunner with ActionExecutor
+    7. Write reporting outputs
+    8. Finalize RunManifest
+    9. Verify run integrity
+   10. Generate Claude fix prompt if failures exist
+   11. Close browser
+   12. Return exit code
 
 Health-check mode: validates framework subsystems without running tests.
 """
@@ -33,6 +35,7 @@ from .schema_validator import SchemaValidator, ValidationError
 from .safety import SafetyController, SafetyError, is_production
 from .test_data_registry import TestDataRegistry
 from .run_manifest import RunManifest
+from .browser_manager import BrowserManager
 
 
 class OrchestratorError(Exception):
@@ -46,23 +49,30 @@ class OrchestratorError(Exception):
 class ExecutionOrchestrator:
     """Full run lifecycle manager.
 
-    Coordinates all framework subsystems through a 10-step pipeline:
+    Coordinates all framework subsystems through a structured pipeline:
     generate → init manifest → init registry → validate selectors →
-    run suite → write reports → finalize manifest → verify integrity →
-    generate fix prompt → return exit code.
+    launch browser → run suite with executor → write reports →
+    finalize manifest → verify integrity → generate fix prompt →
+    close browser → return exit code.
+
+    Default mode launches a real Chromium browser via Playwright.
+    Pass no_browser=True for framework-only validation without Playwright.
     """
 
     def __init__(self, module=None, suite_path=None, base_url=None,
-                 headed=False, env=None, max_retries=None):
+                 headed=False, env=None, max_retries=None,
+                 no_browser=False):
         """Initialize orchestrator with run parameters.
 
         Args:
             module: Module name (e.g., 'journal'). Required unless suite_path.
             suite_path: Explicit path to suite YAML file.
             base_url: Base URL for testing.
-            headed: Run browser in headed mode.
+            headed: Run browser in headed mode (visible UI).
             env: Environment name override.
             max_retries: Max retry attempts for retryable actions.
+            no_browser: If True, skip Playwright — enumerate cases without
+                executing browser actions (framework-only mode).
         """
         self.module = module
         self.suite_path = suite_path
@@ -70,6 +80,7 @@ class ExecutionOrchestrator:
         self.headed = headed
         self.env = env
         self.max_retries = max_retries
+        self.no_browser = no_browser
 
         # Initialized during pipeline
         self.run_id = None
@@ -80,6 +91,7 @@ class ExecutionOrchestrator:
         self.safety = None
         self.artifact_capture = None
         self.prompt_builder = None
+        self._browser_manager = None
 
         # Results
         self._summary = None
@@ -88,17 +100,16 @@ class ExecutionOrchestrator:
         self._selector_results = None
         self._pipeline_log = []
 
-    def run(self, executor=None):
+    def run(self):
         """Execute the full orchestration pipeline.
 
-        Args:
-            executor: Optional ActionExecutor (None = framework-only mode,
-                no Playwright). When provided, cases are executed against
-                the browser.
+        Launches a real Chromium browser via Playwright (unless no_browser
+        is True) and runs all test cases through the ActionExecutor.
 
         Returns:
             Exit code: 0 = all pass, 1 = failures, 2 = framework error.
         """
+        executor = None
         try:
             # Phase 1: Generate RUN_ID
             self._log("phase_1_generate_run_id")
@@ -128,24 +139,46 @@ class ExecutionOrchestrator:
             self._log("phase_7_init_subsystems")
             self._init_subsystems()
 
-            # Phase 8: Execute SuiteRunner
-            self._log("phase_8_execute_suite")
+            # Phase 8: Launch browser and create executor (unless no_browser)
+            if not self.no_browser:
+                self._log("phase_8_launch_browser")
+                self._browser_manager = BrowserManager(headed=self.headed)
+                self._browser_manager.start()
+                executor = ActionExecutor(
+                    page=self._browser_manager.page,
+                    defaults={
+                        "base_url": self.runner.base_url,
+                        "timeout_ms": self.runner.suite_data.get(
+                            "defaults", {}
+                        ).get("timeout_ms", ActionExecutor.DEFAULT_TIMEOUT_MS),
+                    },
+                    max_retries=self.max_retries,
+                )
+                self._log("phase_8_browser_ready",
+                           headed=self.headed,
+                           base_url=self.runner.base_url)
+            else:
+                self._log("phase_8_no_browser",
+                           reason="no_browser=True, framework-only mode")
+
+            # Phase 9: Execute SuiteRunner
+            self._log("phase_9_execute_suite")
             self._summary = self._execute_suite(executor)
 
-            # Phase 9: Write reporting outputs
-            self._log("phase_9_write_reports")
+            # Phase 10: Write reporting outputs
+            self._log("phase_10_write_reports")
             self._write_reports()
 
-            # Phase 10: Finalize RunManifest
-            self._log("phase_10_finalize_manifest")
+            # Phase 11: Finalize RunManifest
+            self._log("phase_11_finalize_manifest")
             self._manifest_path = self._finalize_manifest()
 
-            # Phase 11: Verify run integrity
-            self._log("phase_11_verify_integrity")
+            # Phase 12: Verify run integrity
+            self._log("phase_12_verify_integrity")
             integrity_ok = self._verify_integrity()
 
-            # Phase 12: Generate Claude fix prompt if failures
-            self._log("phase_12_generate_fix_prompt")
+            # Phase 13: Generate Claude fix prompt if failures
+            self._log("phase_13_generate_fix_prompt")
             self._generate_fix_prompt()
 
             # Determine exit code
@@ -168,6 +201,13 @@ class ExecutionOrchestrator:
             print(f"UNEXPECTED ERROR: {exc}", file=sys.stderr)
             return 2
         finally:
+            # Always close browser cleanly
+            if self._browser_manager:
+                try:
+                    self._log("phase_cleanup_browser")
+                    self._browser_manager.stop()
+                except Exception:
+                    pass
             # Flush registry regardless of outcome
             if self.registry:
                 try:

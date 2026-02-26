@@ -4,10 +4,14 @@
 Entry point for running test suites from the command line.
 Uses the ExecutionOrchestrator for full run lifecycle management.
 
+Default mode launches a real Chromium browser via Playwright sync API
+and executes all test steps (NAVIGATE, CLICK, TYPE, etc.) against
+the target application.
+
 Usage:
     python wlj_ui_tests/run_suite.py --module journal
-    python wlj_ui_tests/run_suite.py --suite modules/journal/suite.yaml
     python wlj_ui_tests/run_suite.py --module journal --headed --base-url http://localhost:8000
+    python wlj_ui_tests/run_suite.py --module journal --no-browser   # framework-only, no Playwright
     python wlj_ui_tests/run_suite.py --health-check
     python wlj_ui_tests/run_suite.py --list-modules
 
@@ -47,6 +51,7 @@ def main():
             base_url=args.base_url,
             headed=args.headed,
             env=args.env,
+            no_browser=args.no_browser,
         )
     except Exception as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
@@ -119,6 +124,11 @@ def parse_args():
     parser.add_argument(
         "--list-modules", action="store_true", default=False,
         help="List available modules and exit",
+    )
+    parser.add_argument(
+        "--no-browser", action="store_true", default=False,
+        help="Skip Playwright browser — enumerate cases without executing "
+             "browser actions (framework-only validation mode)",
     )
     parser.add_argument(
         "--health-check", action="store_true", default=False,

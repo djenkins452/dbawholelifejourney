@@ -11,6 +11,7 @@ from .schema_validator import SchemaValidator, ValidationError
 from .safety import SafetyController, SafetyError, is_production
 from .test_data_registry import TestDataRegistry
 from .run_manifest import RunManifest
+from .browser_manager import BrowserManager
 from .execution_orchestrator import ExecutionOrchestrator, OrchestratorError
 
 __all__ = [
@@ -25,5 +26,6 @@ __all__ = [
     "SafetyController", "SafetyError", "is_production",
     "TestDataRegistry",
     "RunManifest",
+    "BrowserManager",
     "ExecutionOrchestrator", "OrchestratorError",
 ]

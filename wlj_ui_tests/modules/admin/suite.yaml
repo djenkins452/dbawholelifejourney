@@ -51,6 +51,53 @@ cases:
         expected: "/dashboard/"
 
   # ============================================================
+  # ACCESS CONTROL
+  # ============================================================
+
+  - id: "AC-ACCESS-001"
+    name: "Unauthenticated user cannot access admin console"
+    priority: "high"
+    tags: ["access-control", "security"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/accounts/logout/"
+      - action: "WAIT"
+        timeout_ms: 1000
+      - action: "NAVIGATE"
+        url: "/admin-console/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/accounts/login/"
+
+  - id: "AC-ACCESS-002"
+    name: "Re-login after access control test"
+    priority: "high"
+    tags: ["access-control"]
+    steps:
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "login-email-input"
+        input: "${TEST_USERNAME}"
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "login-password-input"
+        input: "${TEST_PASSWORD}"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "login-submit-button"
+        timeout_ms: 10000
+      - action: "WAIT"
+        timeout_ms: 3000
+    asserts:
+      - type: "url_contains"
+        expected: "/dashboard/"
+
+  # ============================================================
   # DASHBOARD
   # ============================================================
 

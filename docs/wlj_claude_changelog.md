@@ -9,6 +9,32 @@
 
 # WLJ Change History
 
+## 2026-02-26 — Centralized test result reporting (local → production sync)
+
+**What:** Added a complete local→production sync pipeline for UI test results. After every UITestRun completes (via Admin Console or CLI), results are POSTed to a production ingest API so the production dashboard becomes the single source of truth for all test health.
+
+**Components:**
+1. **Model changes:** Added `environment`, `source_host`, `source_user`, `case_results` (JSONField) to UITestRun
+2. **Ingest API:** `POST /admin-console/api/test-results/ingest/` — CSRF-exempt, rate-limited (30/min), authenticated via `X-Test-Results-API-Key` header with constant-time comparison, idempotent (duplicate run_id+source_host returns 200), handles full-suite children
+3. **Sync client:** `wlj_ui_tests/framework/result_sync.py` — Pure stdlib (no Django dependency), 3 retries with exponential backoff, fail-silent, auto-populates hostname/username
+4. **Admin view hooks:** RunUITestsView and RunFullSuiteView now populate environment fields and trigger sync via daemon thread (non-blocking)
+5. **CLI hook:** run_suite.py calls sync_result() after orchestrator completes
+6. **Dashboard:** Environment column with color-coded badges (Local/Prod/CI), filter dropdown, per-case results table on detail page
+
+**Files:**
+- `apps/admin_console/models.py` — MODIFIED: Added 4 fields to UITestRun
+- `apps/admin_console/migrations/0031_uitestrun_case_results_uitestrun_environment_and_more.py` — ADDED
+- `config/settings.py` — MODIFIED: Added TEST_RESULTS_API_KEY, TEST_RESULTS_SYNC_URL
+- `wlj_ui_tests/framework/result_sync.py` — ADDED: Sync client module
+- `apps/admin_console/views.py` — MODIFIED: Added TestResultIngestAPIView, _sync_ui_test_run helper, modified RunUITestsView + RunFullSuiteView
+- `apps/admin_console/urls.py` — MODIFIED: Added ingest endpoint route
+- `apps/admin_console/admin.py` — MODIFIED: Added new fields to list_display/list_filter/readonly_fields
+- `wlj_ui_tests/run_suite.py` — MODIFIED: Added sync hook after orchestrator run
+- `templates/admin_console/ui_test_modules.html` — MODIFIED: Added environment column, filter dropdown, filter JS
+- `templates/admin_console/ui_test_detail.html` — MODIFIED: Added environment badge, source info, per-case results table
+
+**Test results:** 278/278 admin_console tests passing
+
 ## 2026-02-26 — Environment lock + Easy Button hardening
 
 **What:** Pinned `dj-stripe==2.10.3` in requirements.txt and hardened the Easy Button scripts with environment validation: enforces venv activation (errors out if no venv found), validates Python is running from venv, checks dj-stripe is exactly 2.10.3, runs `migrate --noinput` with error handling, uses `127.0.0.1` instead of `localhost`, and adds module-first workflow messaging.

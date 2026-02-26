@@ -86,6 +86,24 @@
                     </div>
                 </div>
                 {% endif %}
+                <div>
+                    <span class="text-sm text-muted">Environment</span>
+                    <div class="mt-1">
+                        {% if ui_run.environment == 'production' %}
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">Production</span>
+                        {% elif ui_run.environment == 'ci' %}
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">CI</span>
+                        {% else %}
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">Local</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% if ui_run.source_host %}
+                <div>
+                    <span class="text-sm text-muted">Source</span>
+                    <div class="mt-1 text-sm">{{ ui_run.source_host }}{% if ui_run.source_user %} ({{ ui_run.source_user }}){% endif %}</div>
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -135,6 +153,49 @@
                             <span class="text-muted">—</span>
                             {% endif %}
                         </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Individual Test Cases -->
+    {% if ui_run.case_results.passed or ui_run.case_results.failed %}
+    <div class="card">
+        <div class="p-4 border-b">
+            <h2 class="text-lg font-semibold">Individual Test Cases</h2>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-surface">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-sm font-medium">Case ID</th>
+                        <th class="px-4 py-3 text-center text-sm font-medium">Status</th>
+                        <th class="px-4 py-3 text-center text-sm font-medium">Duration</th>
+                        <th class="px-4 py-3 text-left text-sm font-medium">Error</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y">
+                    {% for case in ui_run.case_results.passed %}
+                    <tr class="hover:bg-surface/50">
+                        <td class="px-4 py-3 text-sm font-mono">{{ case.case_id }}</td>
+                        <td class="px-4 py-3 text-center">
+                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">PASS</span>
+                        </td>
+                        <td class="px-4 py-3 text-sm text-center">{{ case.duration_ms }}ms</td>
+                        <td class="px-4 py-3 text-sm text-muted">—</td>
+                    </tr>
+                    {% endfor %}
+                    {% for case in ui_run.case_results.failed %}
+                    <tr class="hover:bg-surface/50">
+                        <td class="px-4 py-3 text-sm font-mono">{{ case.case_id }}</td>
+                        <td class="px-4 py-3 text-center">
+                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">FAIL</span>
+                        </td>
+                        <td class="px-4 py-3 text-sm text-center">{{ case.duration_ms }}ms</td>
+                        <td class="px-4 py-3 text-sm text-red-600">{{ case.error|truncatewords:30 }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>

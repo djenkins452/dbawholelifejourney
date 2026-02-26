@@ -771,6 +771,7 @@ class RunUITestsView(AdminRequiredMixin, View):
         total_passed = 0
         total_failed = 0
         combined_output = []
+        all_case_results = {"passed": [], "failed": []}
         overall_status = 'passed'
         start_time = time.time()
 
@@ -810,6 +811,10 @@ class RunUITestsView(AdminRequiredMixin, View):
                     run_id = summary.get('run_id', '')
                     if run_id and not ui_run.run_id:
                         ui_run.run_id = run_id
+                    # Collect per-case results
+                    results = summary.get('results', {})
+                    all_case_results["passed"].extend(results.get("passed", []))
+                    all_case_results["failed"].extend(results.get("failed", []))
 
                 if result.returncode != 0 and overall_status != 'failed':
                     overall_status = 'failed'
@@ -828,6 +833,7 @@ class RunUITestsView(AdminRequiredMixin, View):
         pass_rate = (total_passed / total_cases * 100) if total_cases > 0 else 0
 
         # Update UITestRun record
+        import socket
         ui_run.status = overall_status
         ui_run.total_cases = total_cases
         ui_run.passed = total_passed
@@ -835,7 +841,14 @@ class RunUITestsView(AdminRequiredMixin, View):
         ui_run.pass_rate = pass_rate
         ui_run.duration_seconds = duration
         ui_run.output = "\n".join(combined_output)
+        ui_run.environment = 'local'
+        ui_run.source_host = socket.gethostname()
+        ui_run.source_user = request.user.email if request.user.is_authenticated else 'admin'
+        ui_run.case_results = all_case_results
         ui_run.save()
+
+        # Sync to production (non-blocking)
+        _sync_ui_test_run(ui_run)
 
         if overall_status == 'passed':
             messages.success(request, f"UI tests passed! {total_passed}/{total_cases} cases passed.")
@@ -932,6 +945,7 @@ class RunFullSuiteView(AdminRequiredMixin, View):
                 child.duration_seconds = time.time() - module_start
                 child.run_id = summary.get('run_id', '') if summary else ''
                 child.output = output
+                child.case_results = summary.get('results', {}) if summary else {}
                 child.save()
 
                 total_cases += mod_cases
@@ -954,13 +968,21 @@ class RunFullSuiteView(AdminRequiredMixin, View):
                 overall_status = 'error'
 
         # Update parent record
+        import socket
         parent_run.status = overall_status
         parent_run.total_cases = total_cases
         parent_run.passed = total_passed
         parent_run.failed = total_failed
         parent_run.pass_rate = (total_passed / total_cases * 100) if total_cases > 0 else 0
         parent_run.duration_seconds = time.time() - start_time
+        parent_run.environment = 'local'
+        parent_run.source_host = socket.gethostname()
+        parent_run.source_user = request.user.email if request.user.is_authenticated else 'admin'
         parent_run.save()
+
+        # Sync to production (non-blocking, includes children)
+        child_runs = list(parent_run.child_runs.all())
+        _sync_ui_test_run(parent_run, children=child_runs)
 
         if overall_status == 'passed':
             messages.success(request, f"Full suite passed! {total_passed}/{total_cases} cases across {len(runnable)} modules.")
@@ -1031,6 +1053,57 @@ def _parse_ui_test_summary(stderr_output):
             pass
 
     return None
+
+
+def _sync_ui_test_run(ui_run, children=None):
+    """Sync a UITestRun to production (non-blocking, fail-silent).
+
+    Runs the sync in a daemon thread so it doesn't delay the HTTP response.
+    """
+    import threading
+
+    def _do_sync():
+        try:
+            from wlj_ui_tests.framework.result_sync import sync_result
+
+            payload = {
+                "run_id": ui_run.run_id,
+                "modules": ui_run.modules,
+                "status": ui_run.status,
+                "total_cases": ui_run.total_cases,
+                "passed": ui_run.passed,
+                "failed": ui_run.failed,
+                "pass_rate": float(ui_run.pass_rate),
+                "duration_seconds": ui_run.duration_seconds,
+                "results": ui_run.case_results,
+                "environment": ui_run.environment,
+                "source_host": ui_run.source_host,
+                "source_user": ui_run.source_user,
+            }
+            if children:
+                payload["children"] = [
+                    {
+                        "run_id": c.run_id,
+                        "modules": c.modules,
+                        "status": c.status,
+                        "total_cases": c.total_cases,
+                        "passed": c.passed,
+                        "failed": c.failed,
+                        "pass_rate": float(c.pass_rate),
+                        "duration_seconds": c.duration_seconds,
+                        "results": c.case_results,
+                    }
+                    for c in children
+                ]
+            sync_result(payload, ui_run_output=ui_run.output[:10240])
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception(
+                "Failed to sync UITestRun %s to production", ui_run.pk
+            )
+
+    thread = threading.Thread(target=_do_sync, daemon=True)
+    thread.start()
 
 
 # ============================================================
@@ -5071,3 +5144,158 @@ class AdminGuideSyncCosView(AdminRequiredMixin, View):
             messages.error(request, f"CoS doc sync failed: {e}")
 
         return redirect('admin_console:admin_guide_manage')
+
+
+# ==============================================================================
+# Test Results Ingest API (Local → Production sync)
+# ==============================================================================
+
+@method_decorator(csrf_exempt, name='dispatch')
+class TestResultIngestAPIView(APIRateLimitMixin, View):
+    """
+    API endpoint to ingest UI test results from remote environments.
+
+    Authentication:
+        Requires X-Test-Results-API-Key header matching settings.TEST_RESULTS_API_KEY
+
+    Rate Limiting:
+        - 30 requests per minute
+        - 200 requests per hour
+
+    POST /admin-console/api/test-results/ingest/
+
+    Payload:
+        {
+            "run_id": "abc12345",
+            "modules": ["goals"],
+            "status": "passed",
+            "total_cases": 4,
+            "passed": 4,
+            "failed": 0,
+            "pass_rate": 100.0,
+            "duration_seconds": 12.5,
+            "environment": "local",
+            "source_host": "dev-macbook",
+            "source_user": "danny",
+            "results": {"passed": [...], "failed": [...]},
+            "output": "...",
+            "children": [...]  // optional, for full-suite runs
+        }
+
+    Returns:
+        201: {"status": "success", "id": <pk>}
+        200: {"status": "already_exists", "id": <pk>}  (idempotent)
+        400: {"error": "..."}
+        401: {"error": "..."}
+    """
+
+    rate_limit_requests_per_minute = 30
+    rate_limit_requests_per_hour = 200
+    rate_limit_key_prefix = 'admin_api_test_results'
+
+    REQUIRED_FIELDS = [
+        'run_id', 'modules', 'status', 'total_cases',
+        'passed', 'failed', 'pass_rate', 'duration_seconds',
+    ]
+    VALID_STATUSES = {'running', 'passed', 'failed', 'error'}
+
+    def post(self, request):
+        import json
+        from django.conf import settings
+        from apps.core.rate_limiting import secure_compare_api_key
+        from .models import UITestRun
+
+        # ── Authenticate ─────────────────────────────────────────────────
+        api_key = request.headers.get('X-Test-Results-API-Key', '')
+
+        if not settings.TEST_RESULTS_API_KEY:
+            return JsonResponse(
+                {'error': 'TEST_RESULTS_API_KEY not configured on server'},
+                status=500,
+            )
+
+        if not secure_compare_api_key(api_key, settings.TEST_RESULTS_API_KEY):
+            return JsonResponse(
+                {'error': 'Invalid or missing API key. Include X-Test-Results-API-Key header.'},
+                status=401,
+            )
+
+        # ── Parse payload ────────────────────────────────────────────────
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({'error': 'Invalid JSON in request body'}, status=400)
+
+        if not isinstance(data, dict):
+            return JsonResponse({'error': 'Payload must be a JSON object'}, status=400)
+
+        # ── Validate required fields ─────────────────────────────────────
+        missing = [f for f in self.REQUIRED_FIELDS if f not in data]
+        if missing:
+            return JsonResponse(
+                {'error': f'Missing required fields: {", ".join(missing)}'},
+                status=400,
+            )
+
+        status_val = data['status']
+        if status_val not in self.VALID_STATUSES:
+            return JsonResponse(
+                {'error': f'Invalid status "{status_val}". Must be one of: {", ".join(sorted(self.VALID_STATUSES))}'},
+                status=400,
+            )
+
+        # ── Idempotency check ────────────────────────────────────────────
+        run_id = str(data['run_id'])
+        source_host = str(data.get('source_host', ''))
+        existing = UITestRun.objects.filter(
+            run_id=run_id, source_host=source_host
+        ).first()
+        if existing:
+            return JsonResponse(
+                {'status': 'already_exists', 'id': existing.pk},
+                status=200,
+            )
+
+        # ── Create UITestRun record ──────────────────────────────────────
+        ui_run = UITestRun.objects.create(
+            run_id=run_id,
+            modules=data['modules'],
+            status=status_val,
+            total_cases=int(data['total_cases']),
+            passed=int(data['passed']),
+            failed=int(data['failed']),
+            pass_rate=float(data['pass_rate']),
+            duration_seconds=float(data['duration_seconds']),
+            environment=str(data.get('environment', 'local'))[:20],
+            source_host=source_host[:255],
+            source_user=str(data.get('source_user', ''))[:255],
+            case_results=data.get('results', {}),
+            output=str(data.get('output', ''))[:50000],
+        )
+
+        # ── Handle full-suite children ───────────────────────────────────
+        children = data.get('children', [])
+        if children and isinstance(children, list):
+            for child_data in children:
+                if not isinstance(child_data, dict):
+                    continue
+                UITestRun.objects.create(
+                    parent_run=ui_run,
+                    run_id=str(child_data.get('run_id', ''))[:50],
+                    modules=child_data.get('modules', []),
+                    status=str(child_data.get('status', 'error'))[:10],
+                    total_cases=int(child_data.get('total_cases', 0)),
+                    passed=int(child_data.get('passed', 0)),
+                    failed=int(child_data.get('failed', 0)),
+                    pass_rate=float(child_data.get('pass_rate', 0)),
+                    duration_seconds=float(child_data.get('duration_seconds', 0)),
+                    environment=ui_run.environment,
+                    source_host=ui_run.source_host,
+                    source_user=ui_run.source_user,
+                    case_results=child_data.get('results', {}),
+                )
+
+        return JsonResponse(
+            {'status': 'success', 'id': ui_run.pk},
+            status=201,
+        )

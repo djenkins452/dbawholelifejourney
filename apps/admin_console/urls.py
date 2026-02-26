@@ -173,6 +173,9 @@ urlpatterns = [
     path("api/claude/tasks/<int:pk>/status/", views.UpdateTaskStatusAPIView.as_view(), name="api_claude_task_status"),
     path("api/claude/process-emails/", views.ProcessEmailsAPIView.as_view(), name="api_claude_process_emails"),
 
+    # Test Results Ingest API (local → production sync)
+    path("api/test-results/ingest/", views.TestResultIngestAPIView.as_view(), name="api_test_results_ingest"),
+
     # Data Load Configuration Management
     path("dataload/", views.DataLoadConfigListView.as_view(), name="dataload_list"),
     path("dataload/<int:pk>/reset/", views.DataLoadConfigResetView.as_view(), name="dataload_reset"),

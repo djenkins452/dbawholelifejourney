@@ -9,6 +9,26 @@
 
 # WLJ Change History
 
+## 2026-02-26 — djstripe migration state repair (version mismatch)
+
+**What:** Repaired djstripe migration state mismatch between system Python 3.9 (djstripe 2.8.4) and venv Python 3.12 (djstripe 2.10.3). The DB schema was built with 2.8.4's migration chain (0001→0008→0009→0010→0011→0012) but the venv's 2.10.3 has a different chain (0001→0002_2_10). Migration `0002_2_10` failed because it tried to alter tables (`djstripe_activeentitlement`) that the old 0001_initial never created.
+
+**Root cause:** Two different versions of dj-stripe installed — system pip has 2.8.4 (6 migrations), venv pip has 2.10.3 (2 migrations). The DB was built with 2.8.4 and lacked 10 tables that 2.10.3's `0001_initial` creates. Meanwhile, 5 stale migration records (0008-0012) in `django_migrations` had no matching files in 2.10.3.
+
+**Fix applied:**
+1. Created 10 missing tables via Django schema editor: `activeentitlement`, `earlyfraudwarning`, `feature`, `issuing_authorization`, `issuing_card`, `issuing_cardholder`, `issuing_dispute`, `issuing_transaction`, `promotioncode`, `review`
+2. Removed 5 stale migration records (0008-0012) from `django_migrations`
+3. Fake-applied `0002_2_10` for venv Python (schema now matches post-migration state)
+4. Re-faked 0008-0012 for system Python (so both environments are stable)
+
+**Verification:**
+- `python3 manage.py migrate` (system Python 3.9): No migrations to apply
+- `venv/bin/python manage.py migrate` (venv Python 3.12): No migrations to apply
+- Both `showmigrations djstripe` show all migrations as `[X]`
+- DB now has 68 djstripe tables (58 original + 10 new)
+
+**Files:** No code files changed — this was a database-only repair (migration history + table creation).
+
 ## 2026-02-26 — Bootstrap scripts for WLJ test environment
 
 **What:** Created two bootstrap scripts for quickly starting the WLJ dev server and opening the UI Test Runner page:

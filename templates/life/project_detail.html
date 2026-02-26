@@ -3,15 +3,15 @@
 {% block title %}{{ project.title }} - Organize{% endblock %}
 
 {% block content %}
-<div class="container">
+<div class="container" data-testid="life-project-detail">
     <nav class="breadcrumb mb-4">
         <a href="{% url 'life:home' %}">Organize</a>
         <span>/</span>
-        <a href="{% url 'life:project_list' %}">Projects</a>
+        <a href="{% url 'life:project_list' %}" data-testid="life-back-link">Projects</a>
         <span>/</span>
         <span>{{ project.title }}</span>
     </nav>
-    
+
     <div class="project-detail">
         <!-- Header -->
         <div class="project-header-detail">
@@ -33,7 +33,7 @@
                 {% endif %}
                 
                 <div class="project-actions">
-                    <a href="{% url 'life:project_update' project.pk %}" class="btn btn-secondary">Edit Project</a>
+                    <a href="{% url 'life:project_update' project.pk %}" class="btn btn-secondary" data-testid="project-edit-button">Edit Project</a>
                     <a href="{% url 'life:task_create' %}?project={{ project.pk }}" class="btn btn-primary">Add Task</a>
                 </div>
             </div>

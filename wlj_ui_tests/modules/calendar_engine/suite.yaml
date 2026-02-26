@@ -1,0 +1,380 @@
+version: "1.0"
+suite: "Calendar Engine Module Tests"
+module: "calendar_engine"
+
+auth:
+  strategy: "session"
+  username: "${TEST_USERNAME}"
+  password: "${TEST_PASSWORD}"
+  login_url: "/accounts/login/"
+
+defaults:
+  timeout_ms: 5000
+  base_url: "${BASE_URL}"
+  screenshot_on_failure: true
+  html_dump_on_failure: true
+
+cases:
+
+  # ============================================================
+  # AUTH
+  # ============================================================
+
+  - id: "CAL-AUTH-001"
+    name: "Login and navigate to calendar"
+    priority: "high"
+    tags: ["auth", "smoke"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/accounts/logout/"
+      - action: "NAVIGATE"
+        url: "/accounts/login/"
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "login-email-input"
+        input: "${TEST_USERNAME}"
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "login-password-input"
+        input: "${TEST_PASSWORD}"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "login-submit-button"
+        timeout_ms: 10000
+      - action: "WAIT"
+        timeout_ms: 3000
+    asserts:
+      - type: "url_contains"
+        expected: "/dashboard/"
+
+  # ============================================================
+  # DASHBOARD (Timeline)
+  # ============================================================
+
+  - id: "CAL-DASH-001"
+    name: "Calendar dashboard loads"
+    priority: "high"
+    tags: ["dashboard", "smoke"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/calendar/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/calendar/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "calendar-dashboard"
+
+  - id: "CAL-DASH-002"
+    name: "Dashboard shows Time Command Center title"
+    priority: "medium"
+    tags: ["dashboard"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/calendar/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "calendar-dashboard"
+        expected: "Time Command Center"
+
+  - id: "CAL-DASH-003"
+    name: "Manage Events link is visible"
+    priority: "high"
+    tags: ["dashboard"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/calendar/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "calendar-manage-link"
+
+  - id: "CAL-DASH-004"
+    name: "View toggle buttons visible"
+    priority: "medium"
+    tags: ["dashboard"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/calendar/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "id"
+          value: "cal-view-toggles"
+
+  - id: "CAL-DASH-005"
+    name: "Life Balance section visible"
+    priority: "medium"
+    tags: ["dashboard"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/calendar/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "calendar-dashboard"
+        expected: "Life Balance"
+
+  - id: "CAL-DASH-006"
+    name: "Manage Events link navigates to manage page"
+    priority: "high"
+    tags: ["dashboard", "navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/calendar/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "calendar-manage-link"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/calendar/manage/"
+
+  # ============================================================
+  # MANAGE
+  # ============================================================
+
+  - id: "CAL-MANAGE-001"
+    name: "Manage page loads"
+    priority: "high"
+    tags: ["manage"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/calendar/manage/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/calendar/manage/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "calendar-manage"
+
+  - id: "CAL-MANAGE-002"
+    name: "Manage page shows title"
+    priority: "medium"
+    tags: ["manage"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/calendar/manage/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "calendar-manage"
+        expected: "Manage Events"
+
+  - id: "CAL-MANAGE-003"
+    name: "Back to Calendar link visible"
+    priority: "medium"
+    tags: ["manage"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/calendar/manage/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "calendar-back-link"
+
+  - id: "CAL-MANAGE-004"
+    name: "New Event button visible"
+    priority: "high"
+    tags: ["manage"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/calendar/manage/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "calendar-new-event-button"
+
+  - id: "CAL-MANAGE-005"
+    name: "Search field visible"
+    priority: "medium"
+    tags: ["manage"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/calendar/manage/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "id"
+          value: "cal-search"
+
+  - id: "CAL-MANAGE-006"
+    name: "Back link returns to dashboard"
+    priority: "high"
+    tags: ["manage", "navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/calendar/manage/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "calendar-back-link"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/calendar/"
+
+  # ============================================================
+  # MONTH VIEW
+  # ============================================================
+
+  - id: "CAL-MONTH-001"
+    name: "Month view loads"
+    priority: "high"
+    tags: ["month"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/calendar/month/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/calendar/month/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "calendar-month"
+
+  - id: "CAL-MONTH-002"
+    name: "Month navigation buttons visible"
+    priority: "medium"
+    tags: ["month"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/calendar/month/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "id"
+          value: "cal-prev-month"
+      - type: "element_visible"
+        selector:
+          strategy: "id"
+          value: "cal-next-month"
+
+  - id: "CAL-MONTH-003"
+    name: "Today button visible"
+    priority: "medium"
+    tags: ["month"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/calendar/month/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "id"
+          value: "cal-today-btn"
+
+  - id: "CAL-MONTH-004"
+    name: "Month label visible"
+    priority: "medium"
+    tags: ["month"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/calendar/month/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "id"
+          value: "cal-month-label"
+
+  # ============================================================
+  # NAVIGATION FLOWS
+  # ============================================================
+
+  - id: "CAL-NAV-001"
+    name: "Dashboard → Manage → Dashboard round trip"
+    priority: "high"
+    tags: ["navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/calendar/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "calendar-manage-link"
+        timeout_ms: 10000
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "calendar-back-link"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/calendar/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "calendar-dashboard"
+
+  - id: "CAL-NAV-002"
+    name: "Navigate between all three views"
+    priority: "medium"
+    tags: ["navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/calendar/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "NAVIGATE"
+        url: "/calendar/month/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "NAVIGATE"
+        url: "/calendar/manage/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/calendar/manage/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "calendar-manage"

@@ -119,13 +119,13 @@
 {% endblock %}
 
 {% block content %}
-<div class="cal-manage">
+<div class="cal-manage" data-testid="calendar-manage">
     <div class="cal-manage-header">
         <div>
             <h1>Manage Events</h1>
-            <a href="{% url 'calendar_engine:dashboard' %}" class="cal-manage-back">&larr; Back to Calendar</a>
+            <a href="{% url 'calendar_engine:dashboard' %}" class="cal-manage-back" data-testid="calendar-back-link">&larr; Back to Calendar</a>
         </div>
-        <button class="cal-modal-btn primary" id="cal-new-event-btn">+ New Event</button>
+        <button class="cal-modal-btn primary" id="cal-new-event-btn" data-testid="calendar-new-event-button">+ New Event</button>
     </div>
 
     {% csrf_token %}

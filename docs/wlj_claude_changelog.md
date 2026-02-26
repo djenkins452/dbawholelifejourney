@@ -9,6 +9,20 @@
 
 # WLJ Change History
 
+## 2026-02-26 — Phase 2 UI Test Expansion: Dashboard, Life, Calendar Engine
+
+**What:** Built UI test suites for 3 more modules as part of Phase 2 expansion. Added data-testid attributes to templates and wrote comprehensive YAML test suites.
+
+**Dashboard Module (15 tests):** Auth (1), Home (6: page load, greeting, customize button, toggle edit mode, tiles container, edit mode URL), Transformation (5: page load, title, score, metrics, charts), Navigation (3: between views, configure redirect). Templates: home.html, configure.html (not used — redirects), transformation.html.
+
+**Life Module (28 tests):** Auth (1), Home (3: page load, title, stats), Tasks (6: list, button, navigate, form, create, cancel), Projects (8: list, button, navigate, form, create, cancel, detail, edit button), Inventory (6: list, button, navigate, form, create, cancel), Navigation (3: breadcrumb back links), Cleanup (1). Templates: home.html, task_list.html, task_form.html, project_list.html, project_form.html, project_detail.html, inventory_list.html, inventory_form.html, inventory_detail.html.
+
+**Calendar Engine Module (19 tests):** Auth (1), Dashboard (6: page load, title, manage link, view toggles, life balance, navigate), Manage (6: page load, title, back link, new event button, search, navigate back), Month (4: page load, nav buttons, today button, month label), Navigation (2: round trips). Templates: dashboard.html, manage.html, month.html.
+
+**Result:** All 62 new tests pass at 100%, stable across multiple runs.
+
+---
+
 ## 2026-02-26 — Health Module: Comprehensive UI Test Coverage Expansion
 
 **What:** Built health module UI test suite from scratch (0 → 36 tests). Added data-testid to 10 health templates covering landing, home, weight, sleep, steps, and water sub-modules. Full CRUD for weight, steps, water; navigation-only for sleep (complex Django form widgets). All form field visibility, button navigation, breadcrumb flows tested.

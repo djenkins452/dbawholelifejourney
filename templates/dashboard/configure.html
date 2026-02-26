@@ -340,20 +340,20 @@
 {% endblock %}
 
 {% block content %}
-<div class="configure-page">
+<div class="configure-page" data-testid="dashboard-configure">
     <header class="configure-header">
         <h1>Customize Your Dashboard</h1>
         <p>Drag to reorder tiles, toggle visibility, and choose sizes to make your dashboard work for you.</p>
     </header>
 
     <div class="configure-actions">
-        <a href="{% url 'dashboard:home' %}" class="btn btn-secondary">
+        <a href="{% url 'dashboard:home' %}" class="btn btn-secondary" data-testid="dashboard-back-link">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 0.25rem;">
                 <path d="M19 12H5M12 19l-7-7 7-7"/>
             </svg>
             Back to Dashboard
         </a>
-        <button type="button" class="btn btn-outline" id="reset-defaults-btn">
+        <button type="button" class="btn btn-outline" id="reset-defaults-btn" data-testid="dashboard-reset-button">
             Reset to Defaults
         </button>
         <div class="save-status hidden" id="save-status">
@@ -361,7 +361,7 @@
         </div>
     </div>
 
-    <div class="tiles-container" id="tiles-container">
+    <div class="tiles-container" id="tiles-container" data-testid="dashboard-tiles-container">
         {% for tile in current_config.tiles %}
         <div class="tile-config-card {% if tile.mandatory %}mandatory{% endif %}"
              data-tile-id="{{ tile.id }}"

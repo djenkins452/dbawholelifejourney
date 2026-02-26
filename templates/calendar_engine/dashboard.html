@@ -109,13 +109,13 @@
 {% endblock %}
 
 {% block content %}
-<div class="cal-container">
+<div class="cal-container" data-testid="calendar-dashboard">
     {% csrf_token %}
     <!-- Header -->
     <div class="cal-header">
         <h1>Time Command Center</h1>
         <div class="cal-header-right">
-            <a href="{% url 'calendar_engine:manage' %}" style="font-size:0.875rem;color:var(--color-accent);text-decoration:none;margin-right:0.5rem">Manage Events</a>
+            <a href="{% url 'calendar_engine:manage' %}" style="font-size:0.875rem;color:var(--color-accent);text-decoration:none;margin-right:0.5rem" data-testid="calendar-manage-link">Manage Events</a>
             <div class="cal-view-toggles" id="cal-view-toggles">
                 <button class="cal-view-btn active" data-view="today">Today</button>
                 <button class="cal-view-btn" data-view="3day">3-Day</button>

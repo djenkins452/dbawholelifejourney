@@ -847,6 +847,131 @@ class RunUITestsView(AdminRequiredMixin, View):
         return redirect('admin_console:ui_test_detail', pk=ui_run.pk)
 
 
+class RunFullSuiteView(AdminRequiredMixin, View):
+    """Run all modules with test cases as a full suite (dev only)."""
+
+    def post(self, request):
+        from django.conf import settings
+        import subprocess
+        import sys
+        import time
+
+        if not settings.DEBUG:
+            messages.error(request, "UI test execution is only available in development mode.")
+            return redirect('admin_console:ui_test_modules')
+
+        # Discover modules with actual test cases
+        try:
+            from apps.admin_console.services.test_module_registry import discover_modules
+            all_modules = discover_modules()
+            runnable = [m['name'] for m in all_modules if m.get('case_count', 0) > 0]
+        except Exception:
+            runnable = []
+
+        if not runnable:
+            messages.warning(request, "No modules with test cases found.")
+            return redirect('admin_console:ui_test_modules')
+
+        from apps.admin_console.models import UITestRun
+
+        # Create parent full-suite record
+        parent_run = UITestRun.objects.create(
+            status='running',
+            modules=['full_suite'],
+        )
+
+        total_cases = 0
+        total_passed = 0
+        total_failed = 0
+        overall_status = 'passed'
+        start_time = time.time()
+        ui_tests_dir = settings.BASE_DIR / 'wlj_ui_tests'
+
+        for module_name in runnable:
+            module_start = time.time()
+            child = UITestRun.objects.create(
+                status='running',
+                modules=[module_name],
+                parent_run=parent_run,
+            )
+
+            try:
+                result = subprocess.run(
+                    [
+                        sys.executable,
+                        str(ui_tests_dir / 'run_suite.py'),
+                        '--module', module_name,
+                        '--provision-test-user',
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=300,
+                    cwd=str(settings.BASE_DIR),
+                )
+
+                output = result.stdout
+                if result.stderr:
+                    output += "\n" + result.stderr
+
+                summary = _parse_ui_test_summary(result.stderr)
+                mod_cases = summary.get('total_cases', 0) if summary else 0
+                mod_passed = summary.get('passed', 0) if summary else 0
+                mod_failed = summary.get('failed', 0) if summary else 0
+                mod_status = 'passed'
+
+                if summary and mod_failed > 0:
+                    mod_status = 'failed'
+                if result.returncode != 0 and mod_status != 'failed':
+                    mod_status = 'failed'
+
+                child.status = mod_status
+                child.total_cases = mod_cases
+                child.passed = mod_passed
+                child.failed = mod_failed
+                child.pass_rate = (mod_passed / mod_cases * 100) if mod_cases > 0 else 0
+                child.duration_seconds = time.time() - module_start
+                child.run_id = summary.get('run_id', '') if summary else ''
+                child.output = output
+                child.save()
+
+                total_cases += mod_cases
+                total_passed += mod_passed
+                total_failed += mod_failed
+                if mod_status != 'passed':
+                    overall_status = 'failed'
+
+            except subprocess.TimeoutExpired:
+                child.status = 'error'
+                child.output = f"ERROR: Module {module_name} timed out after 5 minutes."
+                child.duration_seconds = time.time() - module_start
+                child.save()
+                overall_status = 'error'
+            except Exception as e:
+                child.status = 'error'
+                child.output = f"ERROR: {module_name}: {str(e)}"
+                child.duration_seconds = time.time() - module_start
+                child.save()
+                overall_status = 'error'
+
+        # Update parent record
+        parent_run.status = overall_status
+        parent_run.total_cases = total_cases
+        parent_run.passed = total_passed
+        parent_run.failed = total_failed
+        parent_run.pass_rate = (total_passed / total_cases * 100) if total_cases > 0 else 0
+        parent_run.duration_seconds = time.time() - start_time
+        parent_run.save()
+
+        if overall_status == 'passed':
+            messages.success(request, f"Full suite passed! {total_passed}/{total_cases} cases across {len(runnable)} modules.")
+        elif overall_status == 'failed':
+            messages.warning(request, f"Full suite completed with failures: {total_failed}/{total_cases} failed.")
+        else:
+            messages.error(request, "Full suite encountered errors.")
+
+        return redirect('admin_console:ui_test_detail', pk=parent_run.pk)
+
+
 class UITestRunDetailView(AdminRequiredMixin, TemplateView):
     """View details of a specific UI test run."""
     template_name = "admin_console/ui_test_detail.html"
@@ -857,6 +982,9 @@ class UITestRunDetailView(AdminRequiredMixin, TemplateView):
 
         ui_run = get_object_or_404(UITestRun, pk=self.kwargs['pk'])
         context['ui_run'] = ui_run
+        # Include child runs for full-suite views
+        if ui_run.is_full_suite:
+            context['child_runs'] = ui_run.child_runs.all().order_by('run_at')
         return context
 
 

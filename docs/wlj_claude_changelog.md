@@ -9,6 +9,23 @@
 
 # WLJ Change History
 
+## 2026-02-26 — Full Suite execution for Admin Console UI Test Runner
+
+**What:** Added "Run Full Suite" capability to the Admin Console UI Test Runner. Runs all modules sequentially, saves individual UITestRun records per module linked to a parent run, and displays per-module breakdown on the detail page.
+
+**Why:** Previously, running all UI test modules required either clicking "Run All Tests" (which ran them in a single subprocess) or running each module individually. The new Full Suite mode runs each module in its own subprocess with isolated results, provides a parent record for the overall run, and shows a table breakdown of per-module results.
+
+**Changes:**
+- `apps/admin_console/models.py` — MODIFIED: Added `parent_run` self-referencing FK to UITestRun, added `is_full_suite` property
+- `apps/admin_console/migrations/0030_uitestrun_parent_run.py` — ADDED: Migration for parent_run FK
+- `apps/admin_console/views.py` — MODIFIED: Added RunFullSuiteView (discovers modules, creates parent+child UITestRun records, runs each module sequentially, aggregates results); updated UITestRunDetailView to pass child_runs context
+- `apps/admin_console/urls.py` — MODIFIED: Added `ui-tests/run-full-suite/` route
+- `apps/admin_console/admin.py` — MODIFIED: Added `parent_run` to UITestRunAdmin readonly_fields
+- `templates/admin_console/ui_test_modules.html` — MODIFIED: Added "Run Full Suite" button (purple accent)
+- `templates/admin_console/ui_test_detail.html` — MODIFIED: Added Module Results table for full-suite runs, per-child collapsible output sections with CSP-compliant toggle JS
+
+**Test results:** 278/278 admin_console tests passing
+
 ## 2026-02-26 — Admin Console UI Test Runner enhancements
 
 **What:** Enhanced the existing Admin Console UI Test Runner with 3 improvements:

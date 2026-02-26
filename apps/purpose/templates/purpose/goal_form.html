@@ -114,12 +114,12 @@
             {% endif %}
             
             <div class="form-actions">
-                <a href="{% url 'purpose:goal_list' %}" class="btn btn-ghost">Cancel</a>
+                <a href="{% url 'purpose:goal_list' %}" class="btn btn-ghost" data-testid="goal-cancel-button">Cancel</a>
                 <button type="submit" class="btn btn-primary" data-testid="goal-save-button">
                     {% if form.instance.pk %}Save Changes{% else %}Add Goal{% endif %}
                 </button>
                 {% if not form.instance.pk %}
-                <button type="submit" name="save_add_another" class="btn btn-secondary">
+                <button type="submit" name="save_add_another" class="btn btn-secondary" data-testid="goal-save-add-another-button">
                     Save &amp; Add Another
                 </button>
                 {% endif %}

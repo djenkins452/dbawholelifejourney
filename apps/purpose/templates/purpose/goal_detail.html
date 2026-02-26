@@ -7,7 +7,7 @@
     <nav class="breadcrumb mb-4">
         <a href="{% url 'purpose:home' %}">Goals</a>
         <span>/</span>
-        <a href="{% url 'purpose:goal_list' %}">Goals</a>
+        <a href="{% url 'purpose:goal_list' %}" data-testid="goal-back-link">Goals</a>
         <span>/</span>
         <span>{{ goal.title|truncatewords:5 }}</span>
     </nav>
@@ -38,7 +38,7 @@
     
     <div class="goal-content">
         {% if goal.description %}
-        <div class="content-section">
+        <div class="content-section" data-testid="goal-description-section">
             <h3>Description</h3>
             <p>{{ goal.description }}</p>
         </div>
@@ -250,7 +250,7 @@
     </div>
 
     <div class="page-footer">
-        <form method="post" action="{% url 'purpose:goal_delete' goal.pk %}" class="inline-form" data-confirm-delete="Delete this goal? This action cannot be undone.">
+        <form method="post" action="{% url 'purpose:goal_delete' goal.pk %}" class="inline-form" data-testid="goal-delete-form" data-confirm-delete="Delete this goal? This action cannot be undone.">
             {% csrf_token %}
             <button type="submit" class="btn btn-ghost text-danger" data-testid="goal-delete-button">Delete Goal</button>
         </form>

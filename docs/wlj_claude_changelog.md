@@ -9,6 +9,16 @@
 
 # WLJ Change History
 
+## 2026-02-26 — Fix timezone bug in calendar dedup
+
+**What:** The dedup cleanup was grouping events by `start_dt.date()` which returns the UTC date. For users in America/Chicago (UTC-6), events on the same local date could have different UTC dates near the midnight boundary, causing duplicates to survive cleanup.
+
+**Fix:** Both `cleanup_calendar_duplicates` command and `load_initial_data` startup cleanup now convert to user's local timezone before extracting the date: `event.start_dt.astimezone(user_tz).date()`. Bumped loader name to `v2` so the corrected cleanup re-runs on next deploy.
+
+**Files:**
+- `apps/calendar_engine/management/commands/cleanup_calendar_duplicates.py` — MODIFIED: Added user timezone lookup, fixed date grouping
+- `apps/core/management/commands/load_initial_data.py` — MODIFIED: Added timezone cache + local-date grouping, bumped loader to v2
+
 ## 2026-02-26 — Calendar duplicate cleanup + root cause fix
 
 **What:** Fixed duplicate calendar events appearing on the Time Command Center. Two issues:

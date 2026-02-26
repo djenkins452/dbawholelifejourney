@@ -61,7 +61,7 @@ class ExecutionOrchestrator:
 
     def __init__(self, module=None, suite_path=None, base_url=None,
                  headed=False, env=None, max_retries=None,
-                 no_browser=False):
+                 no_browser=False, provision_test_user=False):
         """Initialize orchestrator with run parameters.
 
         Args:
@@ -73,6 +73,8 @@ class ExecutionOrchestrator:
             max_retries: Max retry attempts for retryable actions.
             no_browser: If True, skip Playwright — enumerate cases without
                 executing browser actions (framework-only mode).
+            provision_test_user: If True, ensure the test user exists
+                via Django's create_test_user before running tests.
         """
         self.module = module
         self.suite_path = suite_path
@@ -81,6 +83,7 @@ class ExecutionOrchestrator:
         self.env = env
         self.max_retries = max_retries
         self.no_browser = no_browser
+        self.provision_test_user = provision_test_user
 
         # Initialized during pipeline
         self.run_id = None
@@ -114,6 +117,11 @@ class ExecutionOrchestrator:
             # Phase 1: Generate RUN_ID
             self._log("phase_1_generate_run_id")
             self.run_id = generate_run_id()
+
+            # Phase 1.5: Provision test user (if requested)
+            if self.provision_test_user:
+                self._log("phase_1_5_provision_test_user")
+                self._provision_test_user()
 
             # Phase 2: Build and validate runner
             self._log("phase_2_init_runner")
@@ -413,6 +421,41 @@ class ExecutionOrchestrator:
         return passed, failed, results
 
     # --- Pipeline Steps ---
+
+    def _provision_test_user(self):
+        """Provision the automated test user via Django management command.
+
+        Calls ``python manage.py create_test_user`` via subprocess so the
+        test framework stays decoupled from Django internals.
+        """
+        import subprocess
+
+        project_root = Path(__file__).resolve().parent.parent.parent
+        manage_py = project_root / "manage.py"
+
+        if not manage_py.exists():
+            self._log("provision_test_user_skip",
+                       reason="manage.py not found at " + str(manage_py))
+            return
+
+        try:
+            result = subprocess.run(
+                [sys.executable, str(manage_py), "create_test_user"],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                cwd=str(project_root),
+            )
+            if result.returncode == 0:
+                self._log("provision_test_user_ok", output=result.stdout.strip())
+            else:
+                self._log("provision_test_user_warn",
+                           stderr=result.stderr.strip(),
+                           returncode=result.returncode)
+        except subprocess.TimeoutExpired:
+            self._log("provision_test_user_timeout")
+        except Exception as exc:
+            self._log("provision_test_user_error", error=str(exc))
 
     def _build_runner(self):
         """Build a SuiteRunner from orchestrator parameters."""

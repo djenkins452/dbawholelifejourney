@@ -1,0 +1,244 @@
+version: "1.0"
+suite: "Brain Training Module Tests"
+module: "brain_training"
+
+auth:
+  strategy: "session"
+  username: "${TEST_USERNAME}"
+  password: "${TEST_PASSWORD}"
+  login_url: "/accounts/login/"
+
+defaults:
+  timeout_ms: 5000
+  base_url: "${BASE_URL}"
+  screenshot_on_failure: true
+  html_dump_on_failure: true
+
+cases:
+
+  # ============================================================
+  # AUTH
+  # ============================================================
+
+  - id: "BRAIN-AUTH-001"
+    name: "Login and navigate to brain training"
+    priority: "high"
+    tags: ["auth", "smoke"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/accounts/logout/"
+      - action: "NAVIGATE"
+        url: "/accounts/login/"
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "login-email-input"
+        input: "${TEST_USERNAME}"
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "login-password-input"
+        input: "${TEST_PASSWORD}"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "login-submit-button"
+        timeout_ms: 10000
+      - action: "WAIT"
+        timeout_ms: 3000
+    asserts:
+      - type: "url_contains"
+        expected: "/dashboard/"
+
+  # ============================================================
+  # HUB
+  # ============================================================
+
+  - id: "BRAIN-HUB-001"
+    name: "Brain training hub loads"
+    priority: "high"
+    tags: ["hub", "smoke"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/health/cognitive/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/health/cognitive/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "brain-hub"
+
+  - id: "BRAIN-HUB-002"
+    name: "Hub shows Brain Training title"
+    priority: "medium"
+    tags: ["hub"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/health/cognitive/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "brain-hub"
+        expected: "Brain Training"
+
+  - id: "BRAIN-HUB-003"
+    name: "Exercise cards visible"
+    priority: "high"
+    tags: ["hub"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/health/cognitive/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "brain-hub"
+        expected: "Focus"
+
+  - id: "BRAIN-HUB-004"
+    name: "Stats link visible"
+    priority: "medium"
+    tags: ["hub"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/health/cognitive/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "brain-stats-link"
+
+  - id: "BRAIN-HUB-005"
+    name: "Stats link navigates to stats page"
+    priority: "high"
+    tags: ["hub", "navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/health/cognitive/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "brain-stats-link"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/health/cognitive/stats/"
+
+  # ============================================================
+  # STATS
+  # ============================================================
+
+  - id: "BRAIN-STATS-001"
+    name: "Stats page loads"
+    priority: "high"
+    tags: ["stats"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/health/cognitive/stats/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/health/cognitive/stats/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "brain-stats"
+
+  - id: "BRAIN-STATS-002"
+    name: "Stats shows Your Progress title"
+    priority: "medium"
+    tags: ["stats"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/health/cognitive/stats/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "brain-stats"
+        expected: "Your Progress"
+
+  - id: "BRAIN-STATS-003"
+    name: "Back link visible on stats page"
+    priority: "medium"
+    tags: ["stats"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/health/cognitive/stats/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "brain-back-link"
+
+  # ============================================================
+  # NAVIGATION
+  # ============================================================
+
+  - id: "BRAIN-NAV-001"
+    name: "Stats back link returns to hub"
+    priority: "high"
+    tags: ["navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/health/cognitive/stats/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "brain-back-link"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/health/cognitive/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "brain-hub"
+
+  - id: "BRAIN-NAV-002"
+    name: "Hub → Stats → Hub round trip"
+    priority: "medium"
+    tags: ["navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/health/cognitive/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "brain-stats-link"
+        timeout_ms: 10000
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "brain-back-link"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/health/cognitive/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "brain-hub"

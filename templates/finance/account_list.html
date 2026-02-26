@@ -3,9 +3,9 @@
 {% block title %}Accounts - Finance - Whole Life Journey{% endblock %}
 
 {% block content %}
-<div class="container">
+<div class="container" data-testid="finance-account-list">
     <nav class="breadcrumb mb-4">
-        <a href="{% url 'finance:dashboard' %}">Finance</a>
+        <a href="{% url 'finance:dashboard' %}" data-testid="finance-back-link">Finance</a>
         <span>/</span>
         <span>Accounts</span>
     </nav>
@@ -15,7 +15,7 @@
             <h1 class="page-title">Accounts {% include "components/favorite_toggle.html" with page_title="Accounts" %}</h1>
             <p class="page-subtitle">Manage your financial accounts</p>
         </div>
-        <a href="{% url 'finance:account_create' %}" class="btn btn-primary">Add Account</a>
+        <a href="{% url 'finance:account_create' %}" class="btn btn-primary" data-testid="finance-add-account-button">Add Account</a>
     </div>
 
     <!-- Summary -->

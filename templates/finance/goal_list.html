@@ -3,9 +3,9 @@
 {% block title %}Financial Goals - Finance - Whole Life Journey{% endblock %}
 
 {% block content %}
-<div class="container">
+<div class="container" data-testid="finance-goal-list">
     <nav class="breadcrumb mb-4">
-        <a href="{% url 'finance:dashboard' %}">Finance</a>
+        <a href="{% url 'finance:dashboard' %}" data-testid="finance-back-link">Finance</a>
         <span>/</span>
         <span>Goals</span>
     </nav>
@@ -15,7 +15,7 @@
             <h1 class="page-title">Financial Goals {% include "components/favorite_toggle.html" with page_title="Financial Goals" %}</h1>
             <p class="page-subtitle">Track your progress toward financial milestones</p>
         </div>
-        <a href="{% url 'finance:goal_create' %}" class="btn btn-primary">Add Goal</a>
+        <a href="{% url 'finance:goal_create' %}" class="btn btn-primary" data-testid="finance-add-goal-button">Add Goal</a>
     </div>
 
     <!-- Active Goals -->

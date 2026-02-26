@@ -3,9 +3,9 @@
 {% block title %}Financial Metrics - Finance - Whole Life Journey{% endblock %}
 
 {% block content %}
-<div class="container">
+<div class="container" data-testid="finance-metrics">
     <nav class="breadcrumb mb-4">
-        <a href="{% url 'finance:dashboard' %}">Finance</a>
+        <a href="{% url 'finance:dashboard' %}" data-testid="finance-back-link">Finance</a>
         <span>/</span>
         <span>Metrics</span>
     </nav>

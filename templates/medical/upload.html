@@ -4,9 +4,9 @@
 {% block title %}Upload Lab Results - Medical{% endblock %}
 
 {% block content %}
-<div class="container">
+<div class="container" data-testid="medical-upload">
     <nav class="breadcrumb mb-4">
-        <a href="{% url 'medical:home' %}">Labs & Vitals</a>
+        <a href="{% url 'medical:home' %}" data-testid="medical-back-link">Labs & Vitals</a>
         <span>/</span>
         <span>Upload</span>
     </nav>

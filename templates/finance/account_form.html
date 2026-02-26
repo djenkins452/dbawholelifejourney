@@ -3,11 +3,11 @@
 {% block title %}{% if object %}Edit{% else %}Add{% endif %} Account - Finance - Whole Life Journey{% endblock %}
 
 {% block content %}
-<div class="container container-sm">
+<div class="container container-sm" data-testid="finance-account-form">
     <nav class="breadcrumb mb-4">
         <a href="{% url 'finance:dashboard' %}">Finance</a>
         <span>/</span>
-        <a href="{% url 'finance:account_list' %}">Accounts</a>
+        <a href="{% url 'finance:account_list' %}" data-testid="finance-back-link">Accounts</a>
         <span>/</span>
         <span>{% if object %}Edit{% else %}Add{% endif %}</span>
     </nav>
@@ -16,7 +16,7 @@
         <h1 class="page-title">{% if object %}Edit{% else %}Add{% endif %} Account {% include "components/favorite_toggle.html" with page_title="Add Account" %}</h1>
     </div>
 
-    <form method="post" class="form-card">
+    <form method="post" class="form-card" data-testid="account-form">
         {% csrf_token %}
 
         {% if form.non_field_errors %}
@@ -122,8 +122,8 @@
         </div>
 
         <div class="form-actions">
-            <button type="submit" class="btn btn-primary">{% if object %}Save Changes{% else %}Add Account{% endif %}</button>
-            <a href="{% url 'finance:account_list' %}" class="btn btn-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary" data-testid="account-save-button">{% if object %}Save Changes{% else %}Add Account{% endif %}</button>
+            <a href="{% url 'finance:account_list' %}" class="btn btn-secondary" data-testid="account-cancel-button">Cancel</a>
         </div>
     </form>
 </div>

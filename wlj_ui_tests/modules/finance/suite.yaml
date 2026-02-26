@@ -1,0 +1,471 @@
+version: "1.0"
+suite: "Finance Module Tests"
+module: "finance"
+
+auth:
+  strategy: "session"
+  username: "${TEST_USERNAME}"
+  password: "${TEST_PASSWORD}"
+  login_url: "/accounts/login/"
+
+defaults:
+  timeout_ms: 5000
+  base_url: "${BASE_URL}"
+  screenshot_on_failure: true
+  html_dump_on_failure: true
+
+cases:
+
+  # ============================================================
+  # AUTH
+  # ============================================================
+
+  - id: "FIN-AUTH-001"
+    name: "Login and navigate to finance"
+    priority: "high"
+    tags: ["auth", "smoke"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/accounts/logout/"
+      - action: "NAVIGATE"
+        url: "/accounts/login/"
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "login-email-input"
+        input: "${TEST_USERNAME}"
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "login-password-input"
+        input: "${TEST_PASSWORD}"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "login-submit-button"
+        timeout_ms: 10000
+      - action: "WAIT"
+        timeout_ms: 3000
+    asserts:
+      - type: "url_contains"
+        expected: "/dashboard/"
+
+  # ============================================================
+  # DASHBOARD
+  # ============================================================
+
+  - id: "FIN-DASH-001"
+    name: "Finance dashboard loads"
+    priority: "high"
+    tags: ["dashboard", "smoke"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/finance/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/finance/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "finance-dashboard"
+
+  - id: "FIN-DASH-002"
+    name: "Dashboard shows Finance title"
+    priority: "medium"
+    tags: ["dashboard"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/finance/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "finance-dashboard"
+        expected: "Finance"
+
+  - id: "FIN-DASH-003"
+    name: "Dashboard shows overview cards"
+    priority: "medium"
+    tags: ["dashboard"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/finance/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "finance-dashboard"
+        expected: "Net Worth"
+
+  # ============================================================
+  # ACCOUNTS
+  # ============================================================
+
+  - id: "FIN-ACCT-001"
+    name: "Account list page loads"
+    priority: "high"
+    tags: ["accounts"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/finance/accounts/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/finance/accounts/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "finance-account-list"
+
+  - id: "FIN-ACCT-002"
+    name: "Add Account button visible"
+    priority: "high"
+    tags: ["accounts"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/finance/accounts/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "finance-add-account-button"
+
+  - id: "FIN-ACCT-003"
+    name: "Add Account navigates to form"
+    priority: "high"
+    tags: ["accounts"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/finance/accounts/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "finance-add-account-button"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/finance/accounts/new/"
+
+  - id: "FIN-ACCT-004"
+    name: "Account form loads"
+    priority: "high"
+    tags: ["accounts", "form"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/finance/accounts/new/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "account-form"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "account-save-button"
+
+  - id: "FIN-ACCT-005"
+    name: "Cancel returns to account list"
+    priority: "medium"
+    tags: ["accounts", "form"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/finance/accounts/new/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "account-cancel-button"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/finance/accounts/"
+
+  # ============================================================
+  # TRANSACTIONS
+  # ============================================================
+
+  - id: "FIN-TXN-001"
+    name: "Transaction list page loads"
+    priority: "high"
+    tags: ["transactions"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/finance/transactions/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/finance/transactions/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "finance-transaction-list"
+
+  - id: "FIN-TXN-002"
+    name: "Add Transaction button visible"
+    priority: "high"
+    tags: ["transactions"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/finance/transactions/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "finance-add-transaction-button"
+
+  - id: "FIN-TXN-003"
+    name: "Transaction form loads"
+    priority: "high"
+    tags: ["transactions", "form"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/finance/transactions/new/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "transaction-form"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "transaction-save-button"
+
+  - id: "FIN-TXN-004"
+    name: "Cancel returns to transaction list"
+    priority: "medium"
+    tags: ["transactions", "form"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/finance/transactions/new/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "transaction-cancel-button"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/finance/transactions/"
+
+  # ============================================================
+  # BUDGETS
+  # ============================================================
+
+  - id: "FIN-BUD-001"
+    name: "Budget list page loads"
+    priority: "high"
+    tags: ["budgets"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/finance/budgets/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/finance/budgets/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "finance-budget-list"
+
+  - id: "FIN-BUD-002"
+    name: "Add Budget button visible"
+    priority: "high"
+    tags: ["budgets"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/finance/budgets/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "finance-add-budget-button"
+
+  # ============================================================
+  # GOALS
+  # ============================================================
+
+  - id: "FIN-GOAL-001"
+    name: "Goal list page loads"
+    priority: "high"
+    tags: ["goals"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/finance/goals/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/finance/goals/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "finance-goal-list"
+
+  - id: "FIN-GOAL-002"
+    name: "Add Goal button visible"
+    priority: "high"
+    tags: ["goals"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/finance/goals/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "finance-add-goal-button"
+
+  # ============================================================
+  # METRICS
+  # ============================================================
+
+  - id: "FIN-MET-001"
+    name: "Metrics dashboard loads"
+    priority: "high"
+    tags: ["metrics"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/finance/metrics/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/finance/metrics/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "finance-metrics"
+
+  - id: "FIN-MET-002"
+    name: "Metrics page shows title"
+    priority: "medium"
+    tags: ["metrics"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/finance/metrics/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "finance-metrics"
+        expected: "Financial Metrics"
+
+  # ============================================================
+  # NAVIGATION
+  # ============================================================
+
+  - id: "FIN-NAV-001"
+    name: "Account list back link to dashboard"
+    priority: "medium"
+    tags: ["navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/finance/accounts/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "finance-back-link"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/finance/"
+
+  - id: "FIN-NAV-002"
+    name: "Transaction list back link to dashboard"
+    priority: "medium"
+    tags: ["navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/finance/transactions/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "finance-back-link"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/finance/"
+
+  - id: "FIN-NAV-003"
+    name: "Budget list back link to dashboard"
+    priority: "medium"
+    tags: ["navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/finance/budgets/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "finance-back-link"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/finance/"
+
+  - id: "FIN-NAV-004"
+    name: "Goal list back link to dashboard"
+    priority: "medium"
+    tags: ["navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/finance/goals/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "finance-back-link"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/finance/"
+
+  - id: "FIN-NAV-005"
+    name: "Metrics back link to dashboard"
+    priority: "medium"
+    tags: ["navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/finance/metrics/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "finance-back-link"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/finance/"

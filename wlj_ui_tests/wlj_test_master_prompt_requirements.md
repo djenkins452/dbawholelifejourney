@@ -2,7 +2,7 @@
 
 **Version:** 1.1.0
 **Created:** 2026-02-25
-**Status:** Phase 5 — Reporting System (Complete)
+**Status:** Phase 6 — Artifact Capture (Complete)
 **Author:** Claude Code (Opus 4.6)
 
 ---
@@ -1179,11 +1179,11 @@ git log --all --oneline -- '*.html' | head -20
 - [x] Lines of code ≤ 250 (166 lines)
 
 ### Phase 6 Checklist
-- [ ] `framework/artifacts.py` created
-- [ ] Screenshots captured as PNG
-- [ ] HTML dumps captured
-- [ ] File naming follows convention
-- [ ] Lines of code ≤ 150
+- [x] `framework/artifacts.py` created
+- [x] Screenshots captured as PNG
+- [x] HTML dumps captured
+- [x] File naming follows convention
+- [x] Lines of code ≤ 150
 
 ### Phase 7 Checklist
 - [ ] `framework/prompt_builder.py` created
@@ -1311,7 +1311,7 @@ This section is updated after each phase completion to track implementation prog
 | 3 | **COMPLETE** | 2026-02-25 | 2026-02-25 | 1 | 2 | ActionExecutor: 6 action types, 8 assertion types, basic selector resolution |
 | 4 | **COMPLETE** | 2026-02-25 | 2026-02-25 | 1 | 3 | SelectorResolver: 5 strategies, priority resolution, compound selectors; executor refactored to use selectors module |
 | 5 | **COMPLETE** | 2026-02-25 | 2026-02-25 | 1 | 2 | ReportWriter: pass/fail NDJSON, execution_log NDJSON, run_summary.json with framework_version |
-| 6 | PENDING | — | — | — | — | — |
+| 6 | **COMPLETE** | 2026-02-25 | 2026-02-25 | 1 | 2 | ArtifactCapture: screenshot PNG + HTML dump on failure, module-scoped paths, convention naming |
 | 7 | PENDING | — | — | — | — | — |
 | 8 | PENDING | — | — | — | — | — |
 | 9 | PENDING | — | — | — | — | — |

@@ -7,7 +7,7 @@ Purpose: AI-powered command center and personalized daily landing page
 
 Description:
     The Dashboard is the primary landing page for authenticated users,
-    providing a personalized view of their wellness journey. Features
+    providing a personalized view of their whole life journey. Features
     AI-driven insights, daily encouragement, module overviews, and
     quick access to common actions.
 

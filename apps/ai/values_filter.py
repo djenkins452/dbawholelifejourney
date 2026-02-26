@@ -4,7 +4,7 @@ WLJ Values Guardrails - Content Filtering Service
 Part of Task 9.3: AI Assistant Search Gateway
 
 This service filters user input and AI output to ensure alignment with
-WLJ culture: faith-positive, wellness-focused, encouraging, and
+WLJ culture: faith-positive, life-affirming, encouraging, and
 protective of user dignity.
 
 Filtering approach:

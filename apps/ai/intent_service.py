@@ -245,7 +245,7 @@ class IntentService:
         today_str = today.strftime('%Y-%m-%d')
         weekday = today.strftime('%A')
 
-        return f"""You are an intent recognition system for a personal wellness app called "Whole Life Journey".
+        return f"""You are an intent recognition system for a personal life management platform called "Whole Life Journey".
 
 TODAY'S DATE: {today_str} ({weekday})
 

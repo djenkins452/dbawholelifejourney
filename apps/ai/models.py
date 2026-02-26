@@ -1352,7 +1352,7 @@ class ValuesRedirectSuggestion(models.Model):
             'life': 'Organize',
             'finance': 'Finance',
             'capture': 'Capture',
-            'general': 'wellness tools',
+            'general': 'life tools',
         }
         return self.suggestion_text.format(
             module_name=module_names.get(self.module, self.module)

@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 
 # Vision prompt for structured analysis
-VISION_SYSTEM_PROMPT = """You are a vision assistant for "Whole Life Journey", a personal wellness app.
+VISION_SYSTEM_PROMPT = """You are a vision assistant for "Whole Life Journey", a personal life management platform.
 Your job is to analyze images and identify what they contain so the user can take action in the app.
 
 IMPORTANT RULES:

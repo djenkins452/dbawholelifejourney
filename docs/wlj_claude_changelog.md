@@ -9,6 +9,26 @@
 
 # WLJ Change History
 
+## 2026-02-25 — Reframe AI identity from "wellness app" to whole-life platform
+
+**What:** The AI assistant was identifying itself as a "wellness app" assistant across all system prompts, which narrowly framed WLJ and led to generic wellness-focused responses. WLJ covers health, faith, purpose, finances, brain training, journaling, life organization, and more — it's a whole-life platform, not a wellness tracker. Updated ~20 references across system prompts, services, fixtures, and docstrings.
+
+**Why:** User feedback showed the AI giving generic "wellness journey" responses instead of engaging with the full breadth of what the platform offers.
+
+**Files:**
+- `apps/ai/personal_assistant.py` — Reframed identity prompt from "wellness app" to "personal life management platform"; removed wellness-specific language from scope descriptions and faith integration prompt
+- `apps/ai/intent_service.py` — Updated intent system prompt identity
+- `apps/ai/web_search_service.py` — Updated general knowledge system prompt
+- `apps/ai/values_filter.py` — Changed culture description from "wellness-focused" to "life-affirming"
+- `apps/ai/models.py` — Changed general module label from "wellness tools" to "life tools"
+- `apps/scan/services/vision.py` — Updated vision system prompt
+- `apps/finance/services/ai_insights.py` — Updated finance AI system prompt
+- `apps/dashboard/__init__.py` — Updated docstring
+- `apps/ai/fixtures/values_redirect_suggestions.json` — Removed wellness framing from redirect suggestions
+- `apps/help/fixtures/teaching_destinations.json` — Updated dashboard and health explanations/keywords
+- `apps/ai/tests/test_values_filter.py` — Updated test docstring to match new culture description
+- `apps/users/management/commands/setup_app_review_account.py` — Updated sample journal title
+
 ## 2026-02-25 — WLJ UI Testing Framework Phase 1: Skeleton
 
 **What:** Created the directory structure and skeleton files for the WLJ Functional UI Testing Framework (Phase 1 of 11). No logic code — just the scaffolding required to build on in subsequent phases.
@@ -22,8 +42,6 @@
 - `wlj_ui_tests/modules/{journal,faith,health,organize,goals,capture,cos,preferences,admin}/{reports,artifacts}/.gitkeep` — NEW: Per-module report/artifact dirs
 
 **Why:** Phase 1 establishes the directory skeleton and version file per the master requirements document. No framework logic — that starts in Phase 2.
-
----
 
 ## 2026-02-25 — APScheduler health check + auto-restart endpoint
 

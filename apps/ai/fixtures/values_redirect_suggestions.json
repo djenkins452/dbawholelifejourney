@@ -33,7 +33,7 @@
         "fields": {
             "module": "health",
             "trigger_keywords": "weight, diet, exercise, workout, fitness, health, eating, food, calories, sleep, fasting, medicine, medication, blood pressure, glucose, steps",
-            "suggestion_text": "Your Health module can help you track and understand your wellness journey. You can log weight, workouts, sleep, meals, and more - and see your progress over time.",
+            "suggestion_text": "Your Health module can help you track and understand your health. You can log weight, workouts, sleep, meals, and more - and see your progress over time.",
             "follow_up_prompt": "What aspect of your health would you like to focus on?",
             "is_active": true,
             "sort_order": 3,
@@ -75,7 +75,7 @@
         "fields": {
             "module": "finance",
             "trigger_keywords": "money, budget, budgeting, spend, spending, save, saving, savings, expense, expenses, income, financial, finances, debt, bills, transaction",
-            "suggestion_text": "The Finance module can help you track your spending and work toward your financial goals. Understanding your money flow is an important part of wellness.",
+            "suggestion_text": "The Finance module can help you track your spending and work toward your financial goals. Understanding your money flow is an important part of your journey.",
             "follow_up_prompt": "Would you like to log a transaction or review your spending?",
             "is_active": true,
             "sort_order": 6,
@@ -103,7 +103,7 @@
         "fields": {
             "module": "general",
             "trigger_keywords": "help, confused, lost, don't know, not sure, what can you do, what do you do, how does this work",
-            "suggestion_text": "I'm here to help you on your wellness journey! I can help you explore your Journal, track Health metrics, set Goals, nurture your Faith, stay Organized, manage Finances, or capture quick thoughts.",
+            "suggestion_text": "I'm here to help you on your journey! I can help you explore your Journal, track Health metrics, set Goals, nurture your Faith, stay Organized, manage Finances, train your Brain, or capture quick thoughts.",
             "follow_up_prompt": "What area of your life would you like to focus on today?",
             "is_active": true,
             "sort_order": 10,

@@ -4,9 +4,9 @@
 {% block title %}Water Intake - Health - Whole Life Journey{% endblock %}
 
 {% block content %}
-<div class="container">
+<div class="container" data-testid="health-water-list">
     <nav class="breadcrumb mb-4">
-        <a href="{% url 'health:home' %}">Health</a>
+        <a href="{% url 'health:home' %}" data-testid="health-back-link">Health</a>
         <span>/</span>
         <span>Water</span>
     </nav>
@@ -23,7 +23,7 @@
                 <input type="hidden" name="next" value="{% url 'health:water_list' %}">
                 <button type="submit" class="btn btn-ghost">+ 8oz Glass</button>
             </form>
-            <a href="{% url 'health:water_create' %}" class="btn btn-primary">Log Water</a>
+            <a href="{% url 'health:water_create' %}" class="btn btn-primary" data-testid="health-add-water-button">Log Water</a>
         </div>
     </div>
 

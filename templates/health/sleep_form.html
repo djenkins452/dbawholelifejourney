@@ -3,11 +3,11 @@
 {% block title %}{% if object %}Edit{% else %}Log{% endif %} Sleep - Health - Whole Life Journey{% endblock %}
 
 {% block content %}
-<div class="content-container">
+<div class="content-container" data-testid="health-sleep-form">
     <nav class="breadcrumb mb-4">
         <a href="{% url 'health:home' %}">Health</a>
         <span>/</span>
-        <a href="{% url 'health:sleep_list' %}">Sleep</a>
+        <a href="{% url 'health:sleep_list' %}" data-testid="health-back-link">Sleep</a>
         <span>/</span>
         <span>{% if object %}Edit{% else %}Log{% endif %}</span>
     </nav>
@@ -17,7 +17,7 @@
         <p class="page-subtitle">Record your sleep details</p>
     </div>
 
-    <form method="post" class="card">
+    <form method="post" class="card" data-testid="sleep-form">
         {% csrf_token %}
 
         <!-- Core Sleep Info -->
@@ -147,7 +147,7 @@
         {% endif %}
 
         <div class="form-actions">
-            <button type="submit" class="btn btn-primary">
+            <button type="submit" class="btn btn-primary" data-testid="sleep-save-button">
                 {% if object %}Save Changes{% else %}Log Sleep{% endif %}
             </button>
             {% if not object %}
@@ -155,7 +155,7 @@
                 Save &amp; Add Another
             </button>
             {% endif %}
-            <a href="{% url 'health:sleep_list' %}" class="btn btn-ghost">Cancel</a>
+            <a href="{% url 'health:sleep_list' %}" class="btn btn-ghost" data-testid="sleep-cancel-button">Cancel</a>
         </div>
     </form>
 </div>

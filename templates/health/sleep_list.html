@@ -4,9 +4,9 @@
 {% block title %}Sleep History - Health - Whole Life Journey{% endblock %}
 
 {% block content %}
-<div class="container">
+<div class="container" data-testid="health-sleep-list">
     <nav class="breadcrumb mb-4">
-        <a href="{% url 'health:home' %}">Health</a>
+        <a href="{% url 'health:home' %}" data-testid="health-back-link">Health</a>
         <span>/</span>
         <span>Sleep</span>
     </nav>
@@ -18,7 +18,7 @@
         </div>
         <div class="header-actions">
             <a href="{% url 'health:sleep_quick' %}" class="btn btn-secondary">Quick Log</a>
-            <a href="{% url 'health:sleep_create' %}" class="btn btn-primary">Log Sleep</a>
+            <a href="{% url 'health:sleep_create' %}" class="btn btn-primary" data-testid="health-add-sleep-button">Log Sleep</a>
         </div>
     </div>
 

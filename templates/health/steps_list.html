@@ -4,9 +4,9 @@
 {% block title %}Steps History - Health - Whole Life Journey{% endblock %}
 
 {% block content %}
-<div class="container">
+<div class="container" data-testid="health-steps-list">
     <nav class="breadcrumb mb-4">
-        <a href="{% url 'health:home' %}">Health</a>
+        <a href="{% url 'health:home' %}" data-testid="health-back-link">Health</a>
         <span>/</span>
         <span>Steps</span>
     </nav>
@@ -16,7 +16,7 @@
             <h1 class="page-title">Steps {% include "components/favorite_toggle.html" with page_title="Steps" %}</h1>
             <p class="page-subtitle">Track your daily step count</p>
         </div>
-        <a href="{% url 'health:steps_create' %}" class="btn btn-primary">Log Steps</a>
+        <a href="{% url 'health:steps_create' %}" class="btn btn-primary" data-testid="health-add-steps-button">Log Steps</a>
     </div>
 
     {% if entries %}

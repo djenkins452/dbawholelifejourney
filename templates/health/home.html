@@ -4,12 +4,12 @@
 {% block title %}Physical Health - Whole Life Journey{% endblock %}
 
 {% block content %}
-<div class="container">
+<div class="container" data-testid="health-home">
     {% include "components/intro_banner.html" with module="health" title="Welcome to Physical Health" message="Track vitals, medicines, fitness, and nutrition at your own pace. Log what matters to you and see trends over time. No judgment, just awareness." icon="❤️" %}
 
     <!-- Breadcrumb -->
     <nav class="breadcrumb" aria-label="Breadcrumb">
-        <a href="{% url 'health:landing' %}">Health</a>
+        <a href="{% url 'health:landing' %}" data-testid="health-back-link">Health</a>
         <span>/</span>
         <span>Physical Health</span>
     </nav>

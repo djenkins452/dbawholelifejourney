@@ -4,9 +4,9 @@
 {% block title %}Weight History - Health - Whole Life Journey{% endblock %}
 
 {% block content %}
-<div class="container">
+<div class="container" data-testid="health-weight-list">
     <nav class="breadcrumb mb-4">
-        <a href="{% url 'health:home' %}">Health</a>
+        <a href="{% url 'health:home' %}" data-testid="health-back-link">Health</a>
         <span>/</span>
         <span>Weight</span>
     </nav>
@@ -16,7 +16,7 @@
             <h1 class="page-title">Weight {% include "components/favorite_toggle.html" with page_title="Weight" %}</h1>
             <p class="page-subtitle">{{ total_count }} entr{{ total_count|pluralize:"y,ies" }} logged</p>
         </div>
-        <a href="{% url 'health:weight_create' %}" class="btn btn-primary">Log Weight</a>
+        <a href="{% url 'health:weight_create' %}" class="btn btn-primary" data-testid="health-add-weight-button">Log Weight</a>
     </div>
 
     {% if entries %}

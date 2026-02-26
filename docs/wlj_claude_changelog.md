@@ -9,6 +9,18 @@
 
 # WLJ Change History
 
+## 2026-02-26 — Health Module: Comprehensive UI Test Coverage Expansion
+
+**What:** Built health module UI test suite from scratch (0 → 36 tests). Added data-testid to 10 health templates covering landing, home, weight, sleep, steps, and water sub-modules. Full CRUD for weight, steps, water; navigation-only for sleep (complex Django form widgets). All form field visibility, button navigation, breadcrumb flows tested.
+
+**Test Coverage (36):** Auth (1), Landing (3), Home (3), Weight (7: list/form/create/cancel/breadcrumb), Sleep (6: list/form/cancel/breadcrumb), Steps (7: list/form/create/cancel/breadcrumb), Water (7: list/form/create/cancel/breadcrumb), Nav (2).
+
+**Templates Modified:** landing.html, home.html, weight_list.html, weight_form.html, sleep_list.html, sleep_form.html, steps_list.html, steps_form.html, water_list.html, water_form.html
+
+**Result:** 36/36 pass (100%), stable across multiple runs.
+
+---
+
 ## 2026-02-26 — Faith Module: Comprehensive UI Test Coverage Expansion
 
 **What:** Built faith module UI test suite from scratch (0 → 27 tests). Added data-testid to 8 templates. Full prayer CRUD, 5 sub-module page loads, navigation, cleanup. Made prayer titles clickable links (UX improvement).

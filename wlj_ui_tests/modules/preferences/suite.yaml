@@ -14,4 +14,176 @@ defaults:
   screenshot_on_failure: true
   html_dump_on_failure: true
 
-cases: []
+cases:
+
+  # ============================================================
+  # AUTH
+  # ============================================================
+
+  - id: "PREF-AUTH-001"
+    name: "Login and navigate to preferences"
+    priority: "high"
+    tags: ["auth", "smoke"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/accounts/logout/"
+      - action: "NAVIGATE"
+        url: "/accounts/login/"
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "login-email-input"
+        input: "${TEST_USERNAME}"
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "login-password-input"
+        input: "${TEST_PASSWORD}"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "login-submit-button"
+        timeout_ms: 10000
+      - action: "WAIT"
+        timeout_ms: 3000
+    asserts:
+      - type: "url_contains"
+        expected: "/dashboard/"
+
+  # ============================================================
+  # PREFERENCES PAGE
+  # ============================================================
+
+  - id: "PREF-MAIN-001"
+    name: "Preferences page loads"
+    priority: "high"
+    tags: ["preferences", "smoke"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/user/preferences/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/user/preferences/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "users-preferences"
+
+  - id: "PREF-MAIN-002"
+    name: "Preferences shows title"
+    priority: "medium"
+    tags: ["preferences"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/user/preferences/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "users-preferences"
+        expected: "Preferences"
+
+  - id: "PREF-MAIN-003"
+    name: "Appearance section visible"
+    priority: "medium"
+    tags: ["preferences"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/user/preferences/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "users-preferences"
+        expected: "Appearance"
+
+  - id: "PREF-MAIN-004"
+    name: "Save Changes button visible"
+    priority: "high"
+    tags: ["preferences"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/user/preferences/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "users-preferences"
+        expected: "Save Changes"
+
+  - id: "PREF-MAIN-005"
+    name: "Modules section visible"
+    priority: "medium"
+    tags: ["preferences"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/user/preferences/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "users-preferences"
+        expected: "Modules"
+
+  # ============================================================
+  # THEME SELECTION
+  # ============================================================
+
+  - id: "PREF-THEME-001"
+    name: "Theme selection page loads"
+    priority: "high"
+    tags: ["theme"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/user/preferences/theme/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/user/preferences/theme/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "users-theme-selection"
+
+  - id: "PREF-THEME-002"
+    name: "Theme shows title"
+    priority: "medium"
+    tags: ["theme"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/user/preferences/theme/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "users-theme-selection"
+        expected: "Choose Your Theme"
+
+  - id: "PREF-THEME-003"
+    name: "Theme cards visible"
+    priority: "medium"
+    tags: ["theme"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/user/preferences/theme/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "users-theme-selection"
+        expected: "Select Theme"

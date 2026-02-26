@@ -288,7 +288,7 @@ body.edit-mode .tile-name-label {
 {% endblock %}
 
 {% block content %}
-<div class="container">
+<div class="container" data-testid="dashboard-home">
     <!-- Header -->
     <header class="dashboard-header">
         {% if not command_mode or not command_mode.active or calibration_active %}
@@ -336,7 +336,7 @@ body.edit-mode .tile-name-label {
 
     <!-- Edit Mode Bar -->
     <div class="dashboard-edit-bar">
-        <button type="button" class="btn-customize" id="customize-btn">
+        <button type="button" class="btn-customize" id="customize-btn" data-testid="dashboard-customize-button">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="3" y="3" width="7" height="7"/>
                 <rect x="14" y="3" width="7" height="7"/>

@@ -4,9 +4,9 @@
 {% block title %}Home Inventory - Organize{% endblock %}
 
 {% block content %}
-<div class="container">
+<div class="container" data-testid="life-inventory-list">
     <nav class="breadcrumb mb-4">
-        <a href="{% url 'life:home' %}">Organize</a>
+        <a href="{% url 'life:home' %}" data-testid="life-back-link">Organize</a>
         <span>/</span>
         <span>Inventory</span>
     </nav>
@@ -16,7 +16,7 @@
             <h1 class="page-title">Home Inventory {% include "components/favorite_toggle.html" with page_title="Home Inventory" %}</h1>
             <p class="page-subtitle">Document your belongings for peace of mind</p>
         </div>
-        <a href="{% url 'life:inventory_create' %}" class="btn btn-primary">
+        <a href="{% url 'life:inventory_create' %}" class="btn btn-primary" data-testid="life-add-inventory-button">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="12" y1="5" x2="12" y2="19"/>
                 <line x1="5" y1="12" x2="19" y2="12"/>

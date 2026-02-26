@@ -3,15 +3,15 @@
 {% block title %}{{ item.name }} - Inventory{% endblock %}
 
 {% block content %}
-<div class="container">
+<div class="container" data-testid="life-inventory-detail">
     <nav class="breadcrumb mb-4">
         <a href="{% url 'life:home' %}">Organize</a>
         <span>/</span>
-        <a href="{% url 'life:inventory_list' %}">Inventory</a>
+        <a href="{% url 'life:inventory_list' %}" data-testid="life-back-link">Inventory</a>
         <span>/</span>
         <span>{{ item.name }}</span>
     </nav>
-    
+
     <div class="inventory-detail">
         <div class="detail-header">
             <div>
@@ -19,8 +19,8 @@
                 <p class="item-category">{{ item.category }}{% if item.location %} · {{ item.location }}{% endif %}</p>
             </div>
             <div class="detail-actions">
-                <a href="{% url 'life:inventory_update' item.pk %}" class="btn btn-secondary">Edit</a>
-                <a href="{% url 'life:inventory_delete' item.pk %}" class="btn btn-ghost text-error">Delete</a>
+                <a href="{% url 'life:inventory_update' item.pk %}" class="btn btn-secondary" data-testid="inventory-edit-button">Edit</a>
+                <a href="{% url 'life:inventory_delete' item.pk %}" class="btn btn-ghost text-error" data-testid="inventory-delete-button">Delete</a>
             </div>
         </div>
         

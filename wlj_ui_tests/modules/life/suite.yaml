@@ -1,0 +1,598 @@
+version: "1.0"
+suite: "Life Module Tests"
+module: "life"
+
+auth:
+  strategy: "session"
+  username: "${TEST_USERNAME}"
+  password: "${TEST_PASSWORD}"
+  login_url: "/accounts/login/"
+
+defaults:
+  timeout_ms: 5000
+  base_url: "${BASE_URL}"
+  screenshot_on_failure: true
+  html_dump_on_failure: true
+
+cases:
+
+  # ============================================================
+  # AUTH
+  # ============================================================
+
+  - id: "LIFE-AUTH-001"
+    name: "Login and navigate to life home"
+    priority: "high"
+    tags: ["auth", "smoke"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/accounts/logout/"
+      - action: "NAVIGATE"
+        url: "/accounts/login/"
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "login-email-input"
+        input: "${TEST_USERNAME}"
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "login-password-input"
+        input: "${TEST_PASSWORD}"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "login-submit-button"
+        timeout_ms: 10000
+      - action: "WAIT"
+        timeout_ms: 3000
+    asserts:
+      - type: "url_contains"
+        expected: "/dashboard/"
+
+  # ============================================================
+  # HOME
+  # ============================================================
+
+  - id: "LIFE-HOME-001"
+    name: "Life home page loads"
+    priority: "high"
+    tags: ["home", "smoke"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/life/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/life/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "life-home"
+
+  - id: "LIFE-HOME-002"
+    name: "Home page shows Organize title"
+    priority: "medium"
+    tags: ["home"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/life/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "life-home"
+        expected: "Organize"
+
+  - id: "LIFE-HOME-003"
+    name: "Home page shows quick stats"
+    priority: "medium"
+    tags: ["home"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/life/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "life-home"
+        expected: "Active Projects"
+
+  # ============================================================
+  # TASK LIST
+  # ============================================================
+
+  - id: "LIFE-TASK-001"
+    name: "Task list page loads"
+    priority: "high"
+    tags: ["tasks"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/life/tasks/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/life/tasks/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "life-task-list"
+
+  - id: "LIFE-TASK-002"
+    name: "Add Task button is visible"
+    priority: "high"
+    tags: ["tasks"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/life/tasks/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "life-add-task-button"
+
+  - id: "LIFE-TASK-003"
+    name: "Add Task button navigates to create form"
+    priority: "high"
+    tags: ["tasks"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/life/tasks/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "life-add-task-button"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/life/tasks/new/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "life-task-form"
+
+  # ============================================================
+  # TASK CREATE
+  # ============================================================
+
+  - id: "LIFE-TASK-004"
+    name: "Task form loads with all fields"
+    priority: "high"
+    tags: ["tasks", "create"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/life/tasks/new/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "task-form"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "task-save-button"
+
+  - id: "LIFE-TASK-005"
+    name: "Create task with title"
+    priority: "high"
+    tags: ["tasks", "create"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/life/tasks/new/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "TYPE"
+        selector:
+          strategy: "id"
+          value: "id_title"
+        input: "AUTOTEST|life|${RUN_ID}|task1"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "task-save-button"
+        timeout_ms: 10000
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/life/tasks/"
+
+  - id: "LIFE-TASK-006"
+    name: "Cancel returns to task list"
+    priority: "medium"
+    tags: ["tasks", "create"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/life/tasks/new/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "task-cancel-button"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/life/tasks/"
+
+  # ============================================================
+  # PROJECT LIST
+  # ============================================================
+
+  - id: "LIFE-PROJ-001"
+    name: "Project list page loads"
+    priority: "high"
+    tags: ["projects"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/life/projects/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/life/projects/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "life-project-list"
+
+  - id: "LIFE-PROJ-002"
+    name: "New Project button is visible"
+    priority: "high"
+    tags: ["projects"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/life/projects/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "life-add-project-button"
+
+  - id: "LIFE-PROJ-003"
+    name: "New Project button navigates to create form"
+    priority: "high"
+    tags: ["projects"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/life/projects/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "life-add-project-button"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/life/projects/new/"
+
+  # ============================================================
+  # PROJECT CREATE
+  # ============================================================
+
+  - id: "LIFE-PROJ-004"
+    name: "Project form loads with all fields"
+    priority: "high"
+    tags: ["projects", "create"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/life/projects/new/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "project-form"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "project-save-button"
+
+  - id: "LIFE-PROJ-005"
+    name: "Create project with title"
+    priority: "high"
+    tags: ["projects", "create"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/life/projects/new/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "TYPE"
+        selector:
+          strategy: "id"
+          value: "id_title"
+        input: "AUTOTEST|life|${RUN_ID}|project1"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "project-save-button"
+        timeout_ms: 10000
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/life/projects/"
+
+  - id: "LIFE-PROJ-006"
+    name: "Cancel returns to project list"
+    priority: "medium"
+    tags: ["projects", "create"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/life/projects/new/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "project-cancel-button"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/life/projects/"
+
+  # ============================================================
+  # PROJECT DETAIL
+  # ============================================================
+
+  - id: "LIFE-PROJ-007"
+    name: "Project detail page accessible"
+    priority: "high"
+    tags: ["projects", "detail"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/life/projects/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "text_contains"
+          value: "AUTOTEST|life|${RUN_ID}|project1"
+        timeout_ms: 10000
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/life/projects/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "life-project-detail"
+
+  - id: "LIFE-PROJ-008"
+    name: "Edit button visible on project detail"
+    priority: "high"
+    tags: ["projects", "detail"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/life/projects/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "text_contains"
+          value: "AUTOTEST|life|${RUN_ID}|project1"
+        timeout_ms: 10000
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "project-edit-button"
+
+  # ============================================================
+  # INVENTORY LIST
+  # ============================================================
+
+  - id: "LIFE-INV-001"
+    name: "Inventory list page loads"
+    priority: "high"
+    tags: ["inventory"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/life/inventory/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/life/inventory/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "life-inventory-list"
+
+  - id: "LIFE-INV-002"
+    name: "Add Item button is visible"
+    priority: "high"
+    tags: ["inventory"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/life/inventory/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "life-add-inventory-button"
+
+  - id: "LIFE-INV-003"
+    name: "Add Item button navigates to create form"
+    priority: "high"
+    tags: ["inventory"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/life/inventory/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "life-add-inventory-button"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/life/inventory/new/"
+
+  # ============================================================
+  # INVENTORY CREATE
+  # ============================================================
+
+  - id: "LIFE-INV-004"
+    name: "Inventory form loads"
+    priority: "high"
+    tags: ["inventory", "create"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/life/inventory/new/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "inventory-form"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "inventory-save-button"
+
+  - id: "LIFE-INV-005"
+    name: "Create inventory item"
+    priority: "high"
+    tags: ["inventory", "create"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/life/inventory/new/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "TYPE"
+        selector:
+          strategy: "id"
+          value: "id_name"
+        input: "AUTOTEST|life|${RUN_ID}|item1"
+      - action: "TYPE"
+        selector:
+          strategy: "id"
+          value: "id_category"
+        input: "Electronics"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "inventory-save-button"
+        timeout_ms: 10000
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/life/inventory/"
+
+  - id: "LIFE-INV-006"
+    name: "Cancel returns to inventory list"
+    priority: "medium"
+    tags: ["inventory", "create"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/life/inventory/new/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "inventory-cancel-button"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/life/inventory/"
+
+  # ============================================================
+  # NAVIGATION
+  # ============================================================
+
+  - id: "LIFE-NAV-001"
+    name: "Task list back link returns to home"
+    priority: "medium"
+    tags: ["navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/life/tasks/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "life-back-link"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/life/"
+
+  - id: "LIFE-NAV-002"
+    name: "Project list back link returns to home"
+    priority: "medium"
+    tags: ["navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/life/projects/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "life-back-link"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/life/"
+
+  - id: "LIFE-NAV-003"
+    name: "Inventory list back link returns to home"
+    priority: "medium"
+    tags: ["navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/life/inventory/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "life-back-link"
+        timeout_ms: 10000
+    asserts:
+      - type: "url_contains"
+        expected: "/life/"
+
+  # ============================================================
+  # CLEANUP
+  # ============================================================
+
+  - id: "LIFE-CLEANUP-001"
+    name: "Clean up AUTOTEST data"
+    priority: "high"
+    tags: ["cleanup"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/life/tasks/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/life/tasks/"

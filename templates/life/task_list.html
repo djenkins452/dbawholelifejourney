@@ -16,9 +16,9 @@
         <h3 class="popup-title">Task Completed!</h3>
     </div>
 </div>
-<div class="container">
+<div class="container" data-testid="life-task-list">
     <nav class="breadcrumb mb-4">
-        <a href="{% url 'life:home' %}">Organize</a>
+        <a href="{% url 'life:home' %}" data-testid="life-back-link">Organize</a>
         <span>/</span>
         <span>Tasks</span>
     </nav>
@@ -28,7 +28,7 @@
             <h1 class="page-title">Tasks {% include "components/favorite_toggle.html" with page_title="Tasks" %}</h1>
             <p class="page-subtitle">Simple, human-prioritized tasks</p>
         </div>
-        <a href="{% url 'life:task_create' %}" class="btn btn-primary">
+        <a href="{% url 'life:task_create' %}" class="btn btn-primary" data-testid="life-add-task-button">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="12" y1="5" x2="12" y2="19"/>
                 <line x1="5" y1="12" x2="19" y2="12"/>

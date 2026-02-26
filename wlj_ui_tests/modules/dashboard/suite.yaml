@@ -1,0 +1,317 @@
+version: "1.0"
+suite: "Dashboard Module Tests"
+module: "dashboard"
+
+auth:
+  strategy: "session"
+  username: "${TEST_USERNAME}"
+  password: "${TEST_PASSWORD}"
+  login_url: "/accounts/login/"
+
+defaults:
+  timeout_ms: 5000
+  base_url: "${BASE_URL}"
+  screenshot_on_failure: true
+  html_dump_on_failure: true
+
+cases:
+
+  # ============================================================
+  # AUTH
+  # ============================================================
+
+  - id: "DASH-AUTH-001"
+    name: "Login and navigate to dashboard"
+    priority: "high"
+    tags: ["auth", "smoke"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/accounts/logout/"
+      - action: "NAVIGATE"
+        url: "/accounts/login/"
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "login-email-input"
+        input: "${TEST_USERNAME}"
+      - action: "TYPE"
+        selector:
+          strategy: "data-testid"
+          value: "login-password-input"
+        input: "${TEST_PASSWORD}"
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "login-submit-button"
+        timeout_ms: 10000
+      - action: "WAIT"
+        timeout_ms: 3000
+    asserts:
+      - type: "url_contains"
+        expected: "/dashboard/"
+
+  # ============================================================
+  # HOME
+  # ============================================================
+
+  - id: "DASH-HOME-001"
+    name: "Dashboard home page loads"
+    priority: "high"
+    tags: ["home", "smoke"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/dashboard/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/dashboard/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "dashboard-home"
+
+  - id: "DASH-HOME-002"
+    name: "Dashboard contains greeting header"
+    priority: "medium"
+    tags: ["home"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/dashboard/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "dashboard-home"
+
+  - id: "DASH-HOME-003"
+    name: "Customize button is visible"
+    priority: "high"
+    tags: ["home"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/dashboard/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "dashboard-customize-button"
+
+  - id: "DASH-HOME-004"
+    name: "Customize button toggles edit mode"
+    priority: "high"
+    tags: ["home", "edit"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/dashboard/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "CLICK"
+        selector:
+          strategy: "data-testid"
+          value: "dashboard-customize-button"
+      - action: "WAIT"
+        timeout_ms: 1000
+    asserts:
+      - type: "url_contains"
+        expected: "/dashboard/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "dashboard-customize-button"
+
+  - id: "DASH-HOME-005"
+    name: "Dashboard tiles container exists"
+    priority: "medium"
+    tags: ["home"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/dashboard/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "id"
+          value: "dashboard-tiles"
+
+  - id: "DASH-HOME-006"
+    name: "Edit mode via URL parameter"
+    priority: "medium"
+    tags: ["home", "edit"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/dashboard/?edit=1"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "dashboard-home"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "dashboard-customize-button"
+
+  # ============================================================
+  # TRANSFORMATION
+  # ============================================================
+
+  - id: "DASH-TRANS-001"
+    name: "Transformation page loads"
+    priority: "high"
+    tags: ["transformation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/dashboard/transformation/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/dashboard/transformation/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "dashboard-transformation"
+
+  - id: "DASH-TRANS-002"
+    name: "Transformation page shows title"
+    priority: "medium"
+    tags: ["transformation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/dashboard/transformation/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "dashboard-transformation"
+        expected: "Body Transformation"
+
+  - id: "DASH-TRANS-003"
+    name: "Transformation score section visible"
+    priority: "medium"
+    tags: ["transformation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/dashboard/transformation/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "dashboard-transformation"
+        expected: "Transformation Score"
+
+  - id: "DASH-TRANS-004"
+    name: "Transformation metrics grid visible"
+    priority: "medium"
+    tags: ["transformation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/dashboard/transformation/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "dashboard-transformation"
+        expected: "Weight Trend"
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "dashboard-transformation"
+        expected: "Nutrition"
+
+  - id: "DASH-TRANS-005"
+    name: "Transformation charts section visible"
+    priority: "medium"
+    tags: ["transformation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/dashboard/transformation/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "dashboard-transformation"
+        expected: "Body Fat"
+      - type: "text_contains"
+        selector:
+          strategy: "data-testid"
+          value: "dashboard-transformation"
+        expected: "Calorie Intake"
+
+  # ============================================================
+  # NAVIGATION FLOWS
+  # ============================================================
+
+  - id: "DASH-NAV-001"
+    name: "Navigate between dashboard and transformation"
+    priority: "high"
+    tags: ["navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/dashboard/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "NAVIGATE"
+        url: "/dashboard/transformation/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/dashboard/transformation/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "dashboard-transformation"
+
+  - id: "DASH-NAV-002"
+    name: "Transformation back to home"
+    priority: "medium"
+    tags: ["navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/dashboard/transformation/"
+      - action: "WAIT"
+        timeout_ms: 2000
+      - action: "NAVIGATE"
+        url: "/dashboard/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/dashboard/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "dashboard-home"
+
+  - id: "DASH-NAV-003"
+    name: "Configure URL redirects to dashboard with edit mode"
+    priority: "medium"
+    tags: ["navigation"]
+    steps:
+      - action: "NAVIGATE"
+        url: "/dashboard/configure/"
+      - action: "WAIT"
+        timeout_ms: 2000
+    asserts:
+      - type: "url_contains"
+        expected: "/dashboard/"
+      - type: "element_visible"
+        selector:
+          strategy: "data-testid"
+          value: "dashboard-home"

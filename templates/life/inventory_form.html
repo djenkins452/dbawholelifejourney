@@ -3,11 +3,11 @@
 {% block title %}{% if object %}Edit Item{% else %}Add Item{% endif %} - Inventory{% endblock %}
 
 {% block content %}
-<div class="container">
+<div class="container" data-testid="life-inventory-form">
     <nav class="breadcrumb mb-4">
         <a href="{% url 'life:home' %}">Organize</a>
         <span>/</span>
-        <a href="{% url 'life:inventory_list' %}">Inventory</a>
+        <a href="{% url 'life:inventory_list' %}" data-testid="life-back-link">Inventory</a>
         <span>/</span>
         <span>{% if object %}Edit{% else %}Add{% endif %}</span>
     </nav>
@@ -76,9 +76,9 @@
         </div>
         {% endif %}
 
-        <form method="post" enctype="multipart/form-data" class="life-form">
+        <form method="post" enctype="multipart/form-data" class="life-form" data-testid="inventory-form">
             {% csrf_token %}
-            
+
             <div class="form-section">
                 <div class="form-group">
                     <label for="id_name" class="form-label">Item Name</label>
@@ -225,10 +225,10 @@
             </div>
             
             <div class="form-actions">
-                <button type="submit" class="btn btn-primary">
+                <button type="submit" class="btn btn-primary" data-testid="inventory-save-button">
                     {% if object %}Save Changes{% else %}Add Item{% endif %}
                 </button>
-                <a href="{% url 'life:inventory_list' %}" class="btn btn-ghost">Cancel</a>
+                <a href="{% url 'life:inventory_list' %}" class="btn btn-ghost" data-testid="inventory-cancel-button">Cancel</a>
             </div>
         </form>
     </div>

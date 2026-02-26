@@ -3,11 +3,11 @@
 {% block title %}{% if object %}Edit Project{% else %}New Project{% endif %} - Organize{% endblock %}
 
 {% block content %}
-<div class="container">
+<div class="container" data-testid="life-project-form">
     <nav class="breadcrumb mb-4">
         <a href="{% url 'life:home' %}">Organize</a>
         <span>/</span>
-        <a href="{% url 'life:project_list' %}">Projects</a>
+        <a href="{% url 'life:project_list' %}" data-testid="life-back-link">Projects</a>
         <span>/</span>
         <span>{% if object %}Edit{% else %}New{% endif %}</span>
     </nav>
@@ -18,7 +18,7 @@
             <p class="page-subtitle">{% if object %}Update your project details{% else %}Start a new meaningful effort{% endif %}</p>
         </div>
         
-        <form method="post" enctype="multipart/form-data" class="life-form">
+        <form method="post" enctype="multipart/form-data" class="life-form" data-testid="project-form">
             {% csrf_token %}
             
             <div class="form-section">
@@ -147,10 +147,10 @@
             {% endif %}
             
             <div class="form-actions">
-                <button type="submit" class="btn btn-primary">
+                <button type="submit" class="btn btn-primary" data-testid="project-save-button">
                     {% if object %}Save Changes{% else %}Create Project{% endif %}
                 </button>
-                <a href="{% if object %}{{ object.get_absolute_url }}{% else %}{% url 'life:project_list' %}{% endif %}" class="btn btn-ghost">Cancel</a>
+                <a href="{% if object %}{{ object.get_absolute_url }}{% else %}{% url 'life:project_list' %}{% endif %}" class="btn btn-ghost" data-testid="project-cancel-button">Cancel</a>
             </div>
         </form>
     </div>

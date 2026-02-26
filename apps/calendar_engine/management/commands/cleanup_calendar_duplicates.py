@@ -123,10 +123,20 @@ class Command(BaseCommand):
         total_events = events.count()
         self.stdout.write(f'Total active events in range: {total_events}')
 
-        # Group by (title_lower, date)
+        # Get user timezone for correct local-date grouping
+        try:
+            from zoneinfo import ZoneInfo
+            user_tz = ZoneInfo(user.preferences.timezone_iana)
+        except Exception:
+            user_tz = timezone.utc
+        self.stdout.write(f'User timezone: {user_tz}\n')
+
+        # Group by (title_lower, local_date) — must use user's local date,
+        # not UTC date, to correctly group events near midnight
         groups = defaultdict(list)
         for event in events:
-            key = (event.title.strip().lower(), event.start_dt.date())
+            local_date = event.start_dt.astimezone(user_tz).date()
+            key = (event.title.strip().lower(), local_date)
             groups[key].append(event)
 
         # Find groups with duplicates

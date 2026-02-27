@@ -3942,11 +3942,34 @@ Rules for voice responses:
         # Build structured conversation history for OpenAI message threading.
         # Instead of embedding history as flat text in the user prompt,
         # we pass it as proper {"role": "user/assistant"} message objects.
+        #
+        # CRITICAL: On new sessions (briefing fired), limit history to current
+        # session only. Old session history causes the LLM to latch onto stale
+        # topics (e.g., yesterday's scripture discussion) instead of responding
+        # to the current greeting/situation. The executive briefing + COS-CX
+        # already provide all needed situational awareness.
         from apps.ai.conversation.message_builder import build_messages_from_history
-        conversation_history = build_messages_from_history(history, message)
+
+        _history_for_builder = history
+        if briefing:
+            # New session: only include today's messages to prevent stale
+            # topic bleeding from previous sessions
+            try:
+                from apps.core.utils import get_user_today
+                _today = get_user_today(self.user)
+                _history_for_builder = history.filter(
+                    created_at__date=_today,
+                )
+            except Exception:
+                pass  # Fall back to full history on error
+
+        conversation_history = build_messages_from_history(
+            _history_for_builder, message,
+        )
 
         # Also build a simple list for topic threading keyword extraction
-        history_list = list(reversed(list(history)[:20]))
+        # (uses same session-filtered history when applicable)
+        history_list = list(reversed(list(_history_for_builder)[:20]))
 
         # =============================================================
         # Phase 2b: Conversation Topic Threading

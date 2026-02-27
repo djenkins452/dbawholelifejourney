@@ -37,6 +37,22 @@ Included from habit_goal_detail.html when measurement_type == 'duration'.
         {% endif %}
     </div>
 
+    <!-- Completion Sound Selector -->
+    <div class="timer-sound-selector">
+        <label for="timer-sound-select" class="timer-sound-label">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+            </svg>
+            Completion Sound
+        </label>
+        <div class="timer-sound-controls">
+            <select id="timer-sound-select" class="form-control timer-sound-dropdown"></select>
+            <button type="button" id="timer-sound-preview" class="btn btn-sm btn-secondary timer-sound-preview-btn" title="Preview sound">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><polygon points="5 3 19 12 5 21"/></svg>
+            </button>
+        </div>
+    </div>
+
     <div class="timer-controls">
         <button type="button" id="timer-start" class="btn btn-primary btn-lg timer-btn">
             <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><polygon points="5 3 19 12 5 21"/></svg>
@@ -67,31 +83,57 @@ Included from habit_goal_detail.html when measurement_type == 'duration'.
     </details>
 </div>
 
+<script src="{% static 'js/timer-sounds.js' %}"></script>
 <script src="{% static 'js/goal-timer.js' %}"></script>
-<script>
+<script nonce="{{ csp_nonce }}">
 document.addEventListener('DOMContentLoaded', function() {
-    const timer = initGoalTimerUI(
-        {{ goal.pk }},
+    var goalPk = {{ goal.pk }};
+
+    // Populate sound selector
+    var soundSelect = document.getElementById('timer-sound-select');
+    var previewBtn = document.getElementById('timer-sound-preview');
+    if (soundSelect && typeof TimerSounds !== 'undefined') {
+        var sounds = TimerSounds.getSounds();
+        var currentPref = TimerSounds.getPreference(goalPk);
+        sounds.forEach(function(s) {
+            var opt = document.createElement('option');
+            opt.value = s.id;
+            opt.textContent = s.label + ' \u2014 ' + s.description;
+            if (s.id === currentPref) opt.selected = true;
+            soundSelect.appendChild(opt);
+        });
+        soundSelect.addEventListener('change', function() {
+            TimerSounds.setPreference(goalPk, this.value);
+        });
+        if (previewBtn) {
+            previewBtn.addEventListener('click', function() {
+                TimerSounds.preview(soundSelect.value);
+            });
+        }
+    }
+
+    var timer = initGoalTimerUI(
+        goalPk,
         {{ target_value|default:"0" }},
         '{{ csrf_token }}'
     );
 
     // Manual entry
-    const manualSave = document.getElementById('manual-save');
+    var manualSave = document.getElementById('manual-save');
     if (manualSave) {
         manualSave.addEventListener('click', async function() {
-            const input = document.getElementById('manual-duration');
-            const mins = parseFloat(input.value);
+            var input = document.getElementById('manual-duration');
+            var mins = parseFloat(input.value);
             if (!mins || mins <= 0) return;
             manualSave.disabled = true;
             manualSave.textContent = 'Saving...';
             try {
-                const res = await fetch(`/purpose/habits/{{ goal.pk }}/log-duration/`, {
+                var res = await fetch('/purpose/habits/' + goalPk + '/log-duration/', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
                     body: JSON.stringify({ duration_minutes: mins }),
                 });
-                const data = await res.json();
+                var data = await res.json();
                 if (data.success) window.location.reload();
                 else { manualSave.disabled = false; manualSave.textContent = 'Save'; }
             } catch(e) { manualSave.disabled = false; manualSave.textContent = 'Save'; }

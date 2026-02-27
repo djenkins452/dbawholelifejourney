@@ -9,6 +9,20 @@
 
 # WLJ Change History
 
+## 2026-02-27 — Timer Completion Sound for Habit Goals
+
+**What:** Added a completion sound that plays when a habit goal timer reaches its target duration. Users can choose from 5 sounds (Chime, Bell, Gentle Rise, Celebration, Harp) or set to None/silent. Sound preference is stored per-goal in localStorage. Includes a preview button to audition sounds before selecting.
+
+**Implementation:** Uses Web Audio API to synthesize sounds — no external audio files needed. The GoalTimer class detects when progress hits 100% and fires the selected sound exactly once per session.
+
+**Files changed:**
+- `static/js/timer-sounds.js` — **NEW** — Web Audio API sound synthesizer with 5 sounds
+- `static/js/goal-timer.js` — Added completion detection (`_completionSoundPlayed` flag + sound trigger in `_emitUpdate`)
+- `apps/purpose/templates/purpose/includes/timer_widget.html` — Added sound selector dropdown with preview button, CSP-compliant nonce script
+- `apps/purpose/templates/purpose/habit_goal_detail.html` — Added CSS for `.timer-sound-selector` and related classes
+
+---
+
 ## 2026-02-27 — Backfill Existing Items to Calendar
 
 **What:** Items created before the signal wiring fix had no CalendarEvent records. Created a management command to backfill all existing tasks, goals, milestones, and habits into the calendar engine.

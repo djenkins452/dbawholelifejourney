@@ -9,6 +9,27 @@
 
 # WLJ Change History
 
+## 2026-02-27 — Fix Scheduled Tasks Showing at Wrong Time on Calendar
+
+**What:** Tasks with a `scheduled_time` (e.g., "Wake Up" at 5:00 AM, "Workout" at 6:15 AM) were appearing on the calendar at 11:59 PM as "Due: Wake Up DEADLINE" instead of at their actual scheduled times as execution blocks.
+
+**Root cause:** `upsert_from_task()` only routed to time-specific `upsert_from_routine_task()` when `is_routine=True`. Tasks with `scheduled_time` but `is_routine=False` fell through to the deadline marker path, which always sets time to 23:59.
+
+**Fix:**
+- Changed `upsert_from_task()` to check `task.scheduled_time` (not `is_routine and scheduled_time`) — any task with a scheduled time now gets an execution block at the correct time
+- Added cleanup: when routing to execution block, deletes any stale deadline marker
+- Updated `_resolve_domain_for_task()` to check title keywords for all scheduled tasks (not just routine)
+- Added one-time data fix in `load_initial_data.py` to re-project existing wrong markers
+
+**Files changed:**
+- `apps/calendar_engine/services/projection.py` — Fixed routing in `upsert_from_task()` and domain resolution
+- `apps/life/signals.py` — Updated comments to reflect new routing logic
+- `apps/core/management/commands/load_initial_data.py` — Added `_fix_scheduled_task_projections()` one-time fix
+
+**Tests:** 515 tests pass (295 life + 48 calendar_engine + 172 purpose)
+
+---
+
 ## 2026-02-27 — Backfill Existing Items to Calendar
 
 **What:** Items created before the signal wiring fix had no CalendarEvent records. Created a management command to backfill all existing tasks, goals, milestones, and habits into the calendar engine.

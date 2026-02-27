@@ -36,12 +36,13 @@ def _get_default_domain(slug='work'):
 def _resolve_domain_for_task(task):
     """
     Derive domain from task context.
-    Routine tasks get domain based on title keywords.
+    Tasks with scheduled times (routine or not) get domain based on title keywords.
     Regular tasks default to Work.
     """
-    if getattr(task, 'is_routine', False):
+    # Check title keywords for any task with a scheduled time or is_routine flag
+    if getattr(task, 'is_routine', False) or getattr(task, 'scheduled_time', None):
         title_lower = task.title.lower()
-        _ROUTINE_DOMAIN_MAP = {
+        _TASK_DOMAIN_MAP = {
             'faith': [
                 'quiet time', 'bible', 'prayer', 'devotional',
                 'scripture', 'reading plan',
@@ -49,9 +50,10 @@ def _resolve_domain_for_task(task):
             'health': [
                 'workout', 'exercise', 'run', 'gym', 'walk',
                 'stretch', 'yoga', 'swim', 'cardio',
+                'wake up', 'wake-up', 'morning routine',
             ],
         }
-        for slug, keywords in _ROUTINE_DOMAIN_MAP.items():
+        for slug, keywords in _TASK_DOMAIN_MAP.items():
             if any(kw in title_lower for kw in keywords):
                 domain = _get_default_domain(slug)
                 if domain:
@@ -97,10 +99,18 @@ def upsert_from_task(task):
     """
     Ensure a DEADLINE_MARKER exists for a task with a due_date.
     Updates if task date changed; deletes if task has no due_date.
-    Routine tasks with scheduled_time are routed to upsert_from_routine_task().
+    Tasks with scheduled_time are routed to upsert_from_routine_task()
+    to get time-specific execution blocks instead of 23:59 deadline markers.
     """
-    # Routine tasks get time-specific execution blocks, not deadline markers
-    if getattr(task, 'is_routine', False) and task.scheduled_time:
+    # Any task with a scheduled_time gets a time-specific execution block
+    if task.scheduled_time:
+        # Clean up any stale deadline marker (may exist from before this fix)
+        CalendarEvent.objects.filter(
+            user=task.user,
+            source_type=CalendarEvent.SOURCE_TASK,
+            source_id=str(task.pk),
+            event_kind=CalendarEvent.KIND_DEADLINE_MARKER,
+        ).delete()
         return upsert_from_routine_task(task)
 
     existing = CalendarEvent.objects.filter(
@@ -161,14 +171,16 @@ def upsert_from_task(task):
 
 def upsert_from_routine_task(task):
     """
-    Create/update a time-specific EXECUTION_BLOCK for a routine task.
+    Create/update a time-specific EXECUTION_BLOCK for a task with scheduled_time.
 
-    Unlike upsert_from_task() which creates deadline markers at 23:59,
-    this creates actual time blocks at the task's scheduled_time with
-    proper duration — so the event appears at the right time on the calendar.
+    Unlike deadline markers at 23:59, this creates actual time blocks at the
+    task's scheduled_time with proper duration — so the event appears at the
+    right time on the calendar.
+
+    Works for ANY task with scheduled_time, not just is_routine tasks.
 
     Args:
-        task: Task instance with is_routine=True, scheduled_time, due_date
+        task: Task instance with scheduled_time and due_date set
 
     Returns:
         CalendarEvent instance, or None if missing required fields

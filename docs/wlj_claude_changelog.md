@@ -9,18 +9,19 @@
 
 # WLJ Change History
 
-## 2026-02-27 — Fix Beth Stale Topic Bleeding on Greetings & Context Resets
+## 2026-02-27 — Fix Beth Stale Topic Bleeding on Greetings & Context Resets (v2)
 
-**What:** When user says "good morning" to start a new day, Beth referenced old conversation history about scripture instead of giving a fresh morning check-in. When user corrected ("I'm not on that page"), Beth doubled down on the old topic.
+**What:** When user says "good morning" to start a new day, Beth referenced old conversation history about scripture instead of giving a fresh morning check-in. Even after greeting injection fix (v1), the LLM still latched onto the dominant topic in conversation history (7+ messages about scripture vs 1 directive to start fresh). User correction ("I'm not on that page") was also ignored.
 
-**Root causes & fixes:**
-1. **Greeting injection skipped on first-of-day:** The greeting context block only fired when executive briefing was empty (`if not briefing:`). On first-of-day interactions, the briefing fired but the greeting injection was skipped — leaving no instruction for the LLM to start fresh. Fixed: greeting detection now runs regardless of briefing state, with a strong "FRESH SESSION" directive when briefing is present that tells the LLM not to reference old conversation threads.
-2. **No context reset detection:** When user explicitly says "I'm not on that page" or "old request", there was no mechanism to tell the LLM to stop referencing old topics. Added context reset detection with 15+ trigger phrases that inject a "CONTEXT RESET" directive.
+**Root causes & fixes (3 layers):**
+1. **Conversation history not session-scoped (PRIMARY FIX):** On new sessions (briefing fires), the LLM received 20 messages of history including yesterday's scripture discussion. The old topic overwhelmed the fresh-session directive. Fixed: when executive briefing fires (first-of-day or 4+ hour gap), conversation history is now filtered to **today's messages only**. The executive briefing + COS-CX context already provide all needed situational awareness — old history just pollutes.
+2. **Greeting injection skipped on first-of-day:** The greeting context block only fired when executive briefing was empty (`if not briefing:`). Fixed: greeting detection now runs regardless of briefing state, with a "FRESH SESSION" directive when briefing is present.
+3. **No context reset detection:** When user explicitly says "I'm not on that page" or "old request", there was no mechanism to tell the LLM to stop. Added context reset detection with 15+ trigger phrases.
 
 **Files changed:**
-- `apps/ai/personal_assistant.py` — Greeting handling (fresh session + mid-conversation), context reset detection
+- `apps/ai/personal_assistant.py` — Session-scoped history filtering, greeting handling, context reset detection
 
-**Tests:** 939 AI + CoS tests pass (0 regressions).
+**Tests:** 61 AI assistant tests pass (0 regressions).
 
 ---
 

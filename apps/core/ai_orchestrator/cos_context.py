@@ -1172,6 +1172,83 @@ def format_cos_system_injection(context):
         for p in pages:
             lines.append(f"  - [{p['name']}]({p['url']})")
 
+    # ================================================================
+    # COS-CX: Context Intelligence Expansion (Phases CX1-CX6)
+    # Always-on specificity, lead signal, goal gaps, temporal matching,
+    # and behavioral forecast. All fail-safe with empty-string fallback.
+    # ================================================================
+    _cx_user = context.get('_user')
+    if _cx_user:
+        try:
+            from apps.core.utils import get_user_now
+            _cx_now = get_user_now(_cx_user)
+
+            # CX1: Always-on specificity (named items in every response)
+            try:
+                from apps.cos.context.specificity_block import build_specificity_block
+                _cx_specificity = build_specificity_block(_cx_user, _cx_now)
+                if _cx_specificity:
+                    lines.append("")
+                    lines.append(_cx_specificity)
+            except Exception:
+                _cx_specificity = ""
+
+            # CX3: Goal behavior gap analysis
+            _cx_gaps_data = []
+            try:
+                from apps.cos.intelligence.goal_gap_analyzer import (
+                    analyze_goal_behavior_gaps,
+                    format_goal_gaps_block,
+                )
+                _cx_gaps_data = analyze_goal_behavior_gaps(_cx_user, _cx_now)
+                _cx_gaps_block = format_goal_gaps_block(_cx_gaps_data)
+                if _cx_gaps_block:
+                    lines.append("")
+                    lines.append(_cx_gaps_block)
+                # Store gaps in context for signal prioritizer
+                context['goal_behavior_gaps'] = _cx_gaps_data
+            except Exception:
+                pass
+
+            # CX2: Lead signal prioritizer (single most important thing)
+            try:
+                from apps.cos.context.signal_prioritizer import compute_lead_signal
+                _cx_lead = compute_lead_signal(
+                    _cx_user, _cx_specificity, _cx_now, cos_context=context
+                )
+                if _cx_lead:
+                    lines.append("")
+                    lines.append(_cx_lead)
+            except Exception:
+                pass
+
+            # CX4: Temporal execution matching (task → free window)
+            try:
+                from apps.cos.context.temporal_matcher import compute_execution_windows
+                _cx_windows = compute_execution_windows(
+                    _cx_user, _cx_now, cos_context=context
+                )
+                if _cx_windows:
+                    lines.append("")
+                    lines.append(_cx_windows)
+            except Exception:
+                pass
+
+            # CX6: Behavioral forecast (tomorrow's completion probabilities)
+            try:
+                from apps.cos.intelligence.behavior_forecast import compute_behavior_forecast
+                _cx_forecast = compute_behavior_forecast(
+                    _cx_user, _cx_now, cos_context=context
+                )
+                if _cx_forecast:
+                    lines.append("")
+                    lines.append(_cx_forecast)
+            except Exception:
+                pass
+
+        except Exception:
+            pass  # CX block must never break CoS
+
     lines.append("")
     lines.append("=== END SITUATIONAL AWARENESS ===")
     lines.append("")

@@ -4,10 +4,40 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-23 (Phase 5: Protective Action Engine)
+# Last Updated: 2026-02-27 (COS-CX: Context Intelligence Expansion)
 # ==============================================================================
 
 # WLJ Change History
+
+## 2026-02-27 — COS-CX: Context Intelligence Expansion (6 Phases)
+
+**What:** Major intelligence expansion for the Chief of Staff AI assistant. Transforms CoS from a data reporter into a strategic advisor with named specificity, signal prioritization, gap detection, temporal matching, diagnostic reasoning, and behavioral prediction. All 6 phases are additive-only (no rewrites), fail-safe, and never break existing chat.
+
+**Phases implemented:**
+1. **CX1: Always-On Specificity** — Named items in every response (not counts). Tasks, events, meds, goals by name with context tags.
+2. **CX2: Lead Signal Prioritizer** — Single most important signal right now. Scoring: imminent events (100), overdue meds (70-90), overdue tasks (55-80).
+3. **CX3: Goal Behavior Gap Analyzer** — NEW ENGINE. Compares declared goal targets to actual behavior frequency. Domain-specific analysis (fitness, faith, journal, weight, milestones).
+4. **CX4: Temporal Execution Matching** — Matches unfinished tasks to available time windows. "You have a 90-minute gap — perfect for the quarterly report."
+5. **CX5: Diagnostic Context Expansion** — WHY questions trigger cross-domain causal analysis (sleep → exercise → mood → tasks → medication → stress).
+6. **CX6: Behavioral Forecast** — Predicts completion probability of key behaviors tomorrow based on 8-week history segmented by schedule load.
+
+**Files created:**
+- `apps/cos/context/specificity_block.py` — CX1
+- `apps/cos/context/signal_prioritizer.py` — CX2
+- `apps/cos/intelligence/goal_gap_analyzer.py` — CX3
+- `apps/cos/context/temporal_matcher.py` — CX4
+- `apps/cos/context/diagnostic_context.py` — CX5
+- `apps/cos/intelligence/behavior_forecast.py` — CX6
+- `apps/cos/tests/test_cos_cx.py` — 38 tests covering all phases
+- `docs/cos_context_architecture.md` — Architecture documentation
+
+**Files modified:**
+- `apps/core/ai_orchestrator/cos_context.py` — Wired CX1-4, CX6 into format_cos_system_injection
+- `apps/ai/personal_assistant.py` — Wired CX5 diagnostic context into _generate_response
+
+**Tests:** 38 new tests (all pass), 939 existing CoS+AI tests (all pass, 0 regressions).
+
+---
 
 ## 2026-02-27 — Fix Beth (CoS) Context Awareness on Reading Plan Pages
 

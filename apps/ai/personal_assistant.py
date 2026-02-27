@@ -3849,6 +3849,21 @@ Rules for voice responses:
 - Never say "I can't hear you" — the speech was transcribed to text before reaching you
 """
 
+        # COS-CX5: Diagnostic context expansion for WHY questions
+        # Injects cross-domain causal signals when user asks diagnostic questions
+        try:
+            from apps.cos.context.diagnostic_context import (
+                is_diagnostic_query, build_diagnostic_context,
+            )
+            if is_diagnostic_query(message):
+                from apps.core.utils import get_user_now
+                _cx5_now = get_user_now(self.user)
+                _cx5_block = build_diagnostic_context(self.user, _cx5_now, message)
+                if _cx5_block:
+                    system_prompt += "\n\n" + _cx5_block
+        except Exception:
+            pass  # CX5 must never break chat
+
         # Process message for personal data queries (weight, journal, medication, food, mood)
         # This will inject relevant data context if the user asks about their personal data
         personal_data_result = process_assistant_message(

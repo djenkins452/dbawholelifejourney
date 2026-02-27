@@ -9,6 +9,32 @@
 
 # WLJ Change History
 
+## 2026-02-27 — Wire Calendar Projection Signals for Tasks, Goals, Habits
+
+**What:** Tasks, goals, milestones, and habits were not appearing on the Time Command Center (calendar) because the projection functions existed but had no signal handlers calling them. Only routine tasks and life events were wired up — everything else was orphaned.
+
+**Root cause:** The projection service (`calendar_engine/services/projection.py`) had fully implemented `upsert_from_task()`, `upsert_from_goal()`, `_upsert_milestone_marker()`, and `upsert_from_habit()` functions, but they were never invoked by Django signals. Only `upsert_from_routine_task()` (for is_routine tasks) and `upsert_from_life_event()` had signal handlers.
+
+**Fix:** Wired up all orphaned projection functions via post_save/post_delete signals:
+
+1. **Tasks (life/signals.py):** Unified `handle_task_saved` signal — routine tasks get execution blocks + CoS prompts, all other tasks get deadline markers. Also added `handle_task_deleted` for cleanup on hard delete.
+2. **Goals (new purpose/signals.py):** `handle_goal_saved` → `upsert_from_goal()` creates deadline markers for goal target_date + all milestones.
+3. **Milestones:** `handle_milestone_saved` → `_upsert_milestone_marker()` for individual milestone updates.
+4. **Habits:** `handle_habit_saved` → `upsert_from_habit()` creates recurring calendar events.
+5. **Cleanup:** Added `post_delete` handlers for tasks, goals, and habits to remove calendar events.
+6. **Purpose app registration:** Added `ready()` to `PurposeConfig` to import signals.
+
+**Result:** All items now project to the calendar instantly on save — no delay, no cron job needed.
+
+**Files changed:**
+- `apps/life/signals.py` — Unified task signal (routine + non-routine), added task delete handler
+- `apps/purpose/signals.py` — **NEW** — Goal, milestone, and habit projection signals + delete cleanup
+- `apps/purpose/apps.py` — Added `ready()` to register signals
+
+**Tests:** 515/515 tests pass across life, calendar_engine, and purpose (zero regressions)
+
+---
+
 ## 2026-02-27 — Industry-Leading Recurring Task Builder UI
 
 **What:** Replaced the basic 6-option recurring task dropdown with a full context-sensitive recurrence builder comparable to Outlook/Google Calendar/Todoist. Users can now configure:

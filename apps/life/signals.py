@@ -9,6 +9,8 @@
 Life Module Signals
 
 Handles automatic actions when life models are created or updated:
+- Task → Calendar projection (deadline markers + routine execution blocks)
+- LifeEvent → Calendar projection
 - Pet birthday SignificantEvent auto-creation
 """
 
@@ -42,29 +44,33 @@ def handle_pet_saved(sender, instance, created, **kwargs):
 
 
 @receiver(post_save, sender='life.Task')
-def handle_routine_task_saved(sender, instance, created, **kwargs):
+def handle_task_saved(sender, instance, created, **kwargs):
     """
-    When a routine Task is saved (new or updated):
-    1. Project to calendar as a time-specific execution block
-    2. Schedule CoS pre/post activity prompts
+    When any Task is saved, project it to the calendar engine:
+    - Routine tasks (is_routine=True, scheduled_time): execution block + CoS prompts
+    - Non-routine tasks with due_date: deadline marker
+    - Tasks with no due_date: remove any existing marker
 
-    Only fires for routine tasks with scheduled_time and due_date.
-    Skips completed tasks to avoid re-projection.
+    This ensures all tasks with dates appear on the Time Command Center instantly.
     """
-    if not instance.is_routine:
-        return
-    if not instance.scheduled_time or not instance.due_date:
-        return
-    if instance.is_completed:
-        return
-
-    try:
-        from apps.life.services.routine_service import RoutineTaskService
-        RoutineTaskService.on_new_routine_task_created(instance)
-    except Exception as e:
-        logger.warning(
-            "Failed to process routine task %s: %s", instance.pk, e
-        )
+    if instance.is_routine and instance.scheduled_time and instance.due_date and not instance.is_completed:
+        # Routine task — execution block + CoS prompts
+        try:
+            from apps.life.services.routine_service import RoutineTaskService
+            RoutineTaskService.on_new_routine_task_created(instance)
+        except Exception as e:
+            logger.warning(
+                "Failed to process routine task %s: %s", instance.pk, e
+            )
+    else:
+        # All tasks (including routine without time) — deadline marker
+        try:
+            from apps.calendar_engine.services.projection import upsert_from_task
+            upsert_from_task(instance)
+        except Exception as e:
+            logger.warning(
+                "Failed to project task %s to calendar: %s", instance.pk, e
+            )
 
 
 @receiver(post_save, sender='life.LifeEvent')
@@ -80,6 +86,19 @@ def handle_life_event_saved(sender, instance, **kwargs):
         logger.warning(
             "Failed to project life event %s to calendar: %s",
             instance.pk, e,
+        )
+
+
+@receiver(post_delete, sender='life.Task')
+def handle_task_deleted(sender, instance, **kwargs):
+    """When a Task is hard-deleted, remove its calendar events."""
+    try:
+        from apps.calendar_engine.services.projection import delete_task_events
+        delete_task_events(instance)
+    except Exception as e:
+        logger.warning(
+            "Failed to clean up calendar events for task %s: %s",
+            instance.pk, e
         )
 
 

@@ -808,6 +808,9 @@ class Command(BaseCommand):
         # Auto-sync CoS documentation to admin guide (runs if checksum changed)
         self._sync_cos_documentation(DataLoadConfig, force, verbosity)
 
+        # One-time: Backfill calendar projections for existing tasks, goals, habits
+        self._backfill_calendar_projections(DataLoadConfig, force, verbosity)
+
         # Only output summary if something loaded or if verbose
         if verbosity >= 1 and loaded_count > 0:
             self.stdout.write(self.style.SUCCESS(f'Initial data: loaded {loaded_count} items'))
@@ -2572,6 +2575,78 @@ Tasks are sorted by priority (ascending) then creation date.""",
             if verbosity >= 1:
                 self.stdout.write(self.style.WARNING(
                     f'  CoS doc sync skipped: {e}'
+                ))
+
+    def _backfill_calendar_projections(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time backfill: Project all existing tasks, goals, milestones, and habits
+        to the calendar engine. Items created before signal wiring was added have no
+        CalendarEvent records. Safe to run multiple times (upsert logic).
+        """
+        loader_name = 'backfill_calendar_projections_2026_02_27'
+
+        if not force and self._is_loader_complete(DataLoadConfig, loader_name):
+            return
+
+        try:
+            from apps.life.models import Task
+            from apps.purpose.models import LifeGoal, HabitGoal
+            from apps.calendar_engine.services.projection import (
+                upsert_from_task,
+                upsert_from_goal,
+                upsert_from_habit,
+            )
+
+            counts = {'tasks': 0, 'goals': 0, 'habits': 0, 'errors': 0}
+
+            # Tasks with due dates
+            for task in Task.objects.filter(
+                due_date__isnull=False, deleted_at__isnull=True
+            ).select_related('user', 'user__preferences').iterator():
+                try:
+                    upsert_from_task(task)
+                    counts['tasks'] += 1
+                except Exception:
+                    counts['errors'] += 1
+
+            # Goals (includes milestone projection)
+            for goal in LifeGoal.objects.filter(
+                deleted_at__isnull=True
+            ).select_related('user', 'domain').prefetch_related('milestones').iterator():
+                try:
+                    upsert_from_goal(goal)
+                    counts['goals'] += 1
+                except Exception:
+                    counts['errors'] += 1
+
+            # Active habits
+            for habit in HabitGoal.objects.filter(
+                deleted_at__isnull=True, status='active'
+            ).select_related('user', 'domain').iterator():
+                try:
+                    upsert_from_habit(habit)
+                    counts['habits'] += 1
+                except Exception:
+                    counts['errors'] += 1
+
+            if verbosity >= 1:
+                self.stdout.write(
+                    f"  Calendar backfill: {counts['tasks']} tasks, "
+                    f"{counts['goals']} goals, {counts['habits']} habits "
+                    f"({counts['errors']} errors)"
+                )
+
+            self._mark_loader_complete(
+                DataLoadConfig, loader_name,
+                'Backfill calendar projections for existing tasks/goals/habits',
+                'command',
+                'One-time backfill of CalendarEvent records for items created before signal wiring'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.WARNING(
+                    f'  Calendar backfill skipped: {e}'
                 ))
 
     def _reset_calendar_engine_fixtures(self, DataLoadConfig, force=False, verbosity=1):

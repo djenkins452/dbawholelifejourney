@@ -9,6 +9,21 @@
 
 # WLJ Change History
 
+## 2026-02-27 — Fix Beth Stale Topic Bleeding on Greetings & Context Resets
+
+**What:** When user says "good morning" to start a new day, Beth referenced old conversation history about scripture instead of giving a fresh morning check-in. When user corrected ("I'm not on that page"), Beth doubled down on the old topic.
+
+**Root causes & fixes:**
+1. **Greeting injection skipped on first-of-day:** The greeting context block only fired when executive briefing was empty (`if not briefing:`). On first-of-day interactions, the briefing fired but the greeting injection was skipped — leaving no instruction for the LLM to start fresh. Fixed: greeting detection now runs regardless of briefing state, with a strong "FRESH SESSION" directive when briefing is present that tells the LLM not to reference old conversation threads.
+2. **No context reset detection:** When user explicitly says "I'm not on that page" or "old request", there was no mechanism to tell the LLM to stop referencing old topics. Added context reset detection with 15+ trigger phrases that inject a "CONTEXT RESET" directive.
+
+**Files changed:**
+- `apps/ai/personal_assistant.py` — Greeting handling (fresh session + mid-conversation), context reset detection
+
+**Tests:** 939 AI + CoS tests pass (0 regressions).
+
+---
+
 ## 2026-02-27 — Fix Scheduled Tasks Showing at Wrong Time on Calendar
 
 **What:** Tasks with a `scheduled_time` (e.g., "Wake Up" at 5:00 AM, "Workout" at 6:15 AM) were appearing on the calendar at 11:59 PM as "Due: Wake Up DEADLINE" instead of at their actual scheduled times as execution blocks.

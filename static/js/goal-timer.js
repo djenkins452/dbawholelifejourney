@@ -35,8 +35,13 @@ class GoalTimer {
         this.startedAt = null;
         this.pausedAt = null;
         this.accumulatedMs = 0;
+        this._completionSoundPlayed = false;
 
         this._loadState();
+        // If restoring a running timer that already passed target, don't re-fire sound
+        if (this.targetMinutes > 0 && this.getElapsedMinutes() >= this.targetMinutes) {
+            this._completionSoundPlayed = true;
+        }
         if (this.state === 'running') {
             this._startInterval();
         }
@@ -50,6 +55,7 @@ class GoalTimer {
         this.startedAt = Date.now();
         this.pausedAt = null;
         this.accumulatedMs = 0;
+        this._completionSoundPlayed = false;
         this._saveState();
         this._startInterval();
     }
@@ -155,14 +161,24 @@ class GoalTimer {
     }
 
     _emitUpdate() {
-        this.onUpdate({
+        const data = {
             state: this.state,
             elapsedMs: this.getElapsedMs(),
             elapsedFormatted: this.formatTime(this.getElapsedMs()),
             elapsedMinutes: this.getElapsedMinutes(),
             progressPercent: this.getProgressPercent(),
             targetMinutes: this.targetMinutes,
-        });
+        };
+
+        // Play completion sound once when target is reached
+        if (data.progressPercent >= 100 && !this._completionSoundPlayed && this.state === 'running') {
+            this._completionSoundPlayed = true;
+            if (typeof TimerSounds !== 'undefined') {
+                TimerSounds.play(TimerSounds.getPreference(this.goalPk));
+            }
+        }
+
+        this.onUpdate(data);
     }
 
     _reset() {

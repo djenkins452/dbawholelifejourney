@@ -48,7 +48,8 @@ def handle_task_saved(sender, instance, created, **kwargs):
     """
     When any Task is saved, project it to the calendar engine:
     - Routine tasks (is_routine=True, scheduled_time): execution block + CoS prompts
-    - Non-routine tasks with due_date: deadline marker
+    - Tasks with scheduled_time (any): execution block at the scheduled time
+    - Tasks with due_date only: deadline marker at 23:59
     - Tasks with no due_date: remove any existing marker
 
     This ensures all tasks with dates appear on the Time Command Center instantly.
@@ -63,7 +64,9 @@ def handle_task_saved(sender, instance, created, **kwargs):
                 "Failed to process routine task %s: %s", instance.pk, e
             )
     else:
-        # All tasks (including routine without time) — deadline marker
+        # All other tasks — upsert_from_task routes based on scheduled_time:
+        #   - Has scheduled_time → execution block at correct time
+        #   - No scheduled_time → deadline marker at 23:59
         try:
             from apps.calendar_engine.services.projection import upsert_from_task
             upsert_from_task(instance)

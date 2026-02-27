@@ -811,6 +811,9 @@ class Command(BaseCommand):
         # One-time: Backfill calendar projections for existing tasks, goals, habits
         self._backfill_calendar_projections(DataLoadConfig, force, verbosity)
 
+        # One-time: Fix scheduled tasks showing as deadline markers at 23:59
+        self._fix_scheduled_task_projections(DataLoadConfig, force, verbosity)
+
         # Only output summary if something loaded or if verbose
         if verbosity >= 1 and loaded_count > 0:
             self.stdout.write(self.style.SUCCESS(f'Initial data: loaded {loaded_count} items'))
@@ -2647,6 +2650,67 @@ Tasks are sorted by priority (ascending) then creation date.""",
             if verbosity >= 1:
                 self.stdout.write(self.style.WARNING(
                     f'  Calendar backfill skipped: {e}'
+                ))
+
+    def _fix_scheduled_task_projections(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time fix: Tasks with scheduled_time were incorrectly projected as
+        DEADLINE_MARKERs at 23:59 instead of EXECUTION_BLOCKs at their actual
+        scheduled time. This deletes wrong markers and re-projects them correctly.
+        """
+        loader_name = 'fix_scheduled_task_projections_2026_02_27'
+
+        if not force and self._is_loader_complete(DataLoadConfig, loader_name):
+            return
+
+        try:
+            from apps.life.models import Task
+            from apps.calendar_engine.models import CalendarEvent
+            from apps.calendar_engine.services.projection import upsert_from_task
+
+            # Find tasks with scheduled_time that have deadline markers (wrong)
+            scheduled_tasks = Task.objects.filter(
+                scheduled_time__isnull=False,
+                due_date__isnull=False,
+                deleted_at__isnull=True,
+            ).select_related('user', 'user__preferences')
+
+            fixed = 0
+            errors = 0
+            for task in scheduled_tasks.iterator():
+                try:
+                    # Delete any wrong deadline marker
+                    deleted_count = CalendarEvent.objects.filter(
+                        user=task.user,
+                        source_type=CalendarEvent.SOURCE_TASK,
+                        source_id=str(task.pk),
+                        event_kind=CalendarEvent.KIND_DEADLINE_MARKER,
+                    ).delete()[0]
+
+                    if deleted_count > 0:
+                        # Re-project — will now create execution block at correct time
+                        upsert_from_task(task)
+                        fixed += 1
+                except Exception:
+                    errors += 1
+
+            if verbosity >= 1 and (fixed > 0 or errors > 0):
+                self.stdout.write(
+                    f"  Scheduled task fix: {fixed} tasks re-projected "
+                    f"from deadline markers to execution blocks ({errors} errors)"
+                )
+
+            self._mark_loader_complete(
+                DataLoadConfig, loader_name,
+                'Fix scheduled tasks projected as deadline markers instead of execution blocks',
+                'command',
+                'Re-project tasks with scheduled_time as time-specific execution blocks'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.WARNING(
+                    f'  Scheduled task fix skipped: {e}'
                 ))
 
     def _reset_calendar_engine_fixtures(self, DataLoadConfig, force=False, verbosity=1):

@@ -9,6 +9,17 @@
 
 # WLJ Change History
 
+## 2026-02-27 — Backfill Existing Items to Calendar
+
+**What:** Items created before the signal wiring fix had no CalendarEvent records. Created a management command to backfill all existing tasks, goals, milestones, and habits into the calendar engine.
+
+**Command:** `python manage.py backfill_calendar_projections` (safe to run multiple times — uses upsert logic)
+
+**Files changed:**
+- `apps/calendar_engine/management/commands/backfill_calendar_projections.py` — **NEW** — Backfill command
+
+---
+
 ## 2026-02-27 — Wire Calendar Projection Signals for Tasks, Goals, Habits
 
 **What:** Tasks, goals, milestones, and habits were not appearing on the Time Command Center (calendar) because the projection functions existed but had no signal handlers calling them. Only routine tasks and life events were wired up — everything else was orphaned.

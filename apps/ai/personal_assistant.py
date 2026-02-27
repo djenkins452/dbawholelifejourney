@@ -2833,11 +2833,15 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             'this scripture', 'the scripture', 'this verse', 'the verse',
             'this passage', 'the passage', 'this reading', 'the reading',
             'this entry', 'this journal', 'this prayer', 'this goal',
-            'this task', 'this page', 'the actual', 'actual scripture',
+            'this task', 'this page', 'the page', 'on the page',
+            'on this page', 'the actual', 'actual scripture',
             # Explanation requests about content
             'explain it', 'explain this', 'explain the', 'what does it mean',
             'what does this mean', 'in simple terms', 'like i am',
             'tell me about this', 'tell me what', 'niv', 'esv', 'kjv',
+            # User directing Beth to page content
+            "it's on", "its on", "right there", "can you see",
+            "you can see", "look at",
         ]
 
         # If the query is about current page content, skip navigation
@@ -3662,10 +3666,24 @@ USER IS ASKING ABOUT THEIR TASKS/PRIORITIES - provide this information:
 
         # Add page context if provided - helps assistant give context-aware responses
         if page_context:
-            page_context.get('url', '')
+            page_url = page_context.get('url', '')
             page_module = page_context.get('module', '')
             page_title = page_context.get('page_title', '')
             page_content = page_context.get('page_content')
+
+            # Log page context for debugging context-awareness issues
+            if page_content:
+                content_type = page_content.get('type', 'unknown')
+                has_scripture = bool(page_content.get('scripture_text'))
+                has_refs = bool(page_content.get('scriptures'))
+                logger.info(
+                    "Page context: url=%s type=%s has_scripture_text=%s "
+                    "has_refs=%s keys=%s",
+                    page_url, content_type, has_scripture, has_refs,
+                    list(page_content.keys()),
+                )
+            else:
+                logger.info("Page context: url=%s (no page_content)", page_url)
 
             # Inject session activity — shows what pages user visited recently
             session_activity = page_context.get('session_activity', [])
@@ -3703,8 +3721,19 @@ Use this to understand the user's current flow and intent. If they navigated fro
                     if page_content.get('scriptures'):
                         content_description += f"- Scriptures: {', '.join(page_content['scriptures'])}\n"
                     if page_content.get('scripture_text'):
-                        scripture_text = page_content['scripture_text'][:1500]
+                        scripture_text = page_content['scripture_text'][:3000]
                         content_description += f"- Scripture Text (what user is reading):\n{scripture_text}\n"
+                    elif page_content.get('scriptures'):
+                        # Scripture text not extracted (may not be expanded or loaded yet),
+                        # but we know which passages the user is reading — instruct AI to
+                        # use its training knowledge of these specific passages.
+                        refs = ', '.join(page_content['scriptures'])
+                        content_description += (
+                            f"- Scripture text not available in context, but the user is "
+                            f"reading: {refs}. Use your knowledge of these Bible passages "
+                            f"to answer their questions. Do NOT ask them to provide the "
+                            f"scripture — you know which passages they are reading.\n"
+                        )
                     if page_content.get('context_summary'):
                         content_description += f"- Context (who/when/setting): {page_content['context_summary'][:400]}...\n" if len(page_content.get('context_summary', '')) > 400 else f"- Context: {page_content['context_summary']}\n"
                     if page_content.get('commentary'):
@@ -4169,7 +4198,8 @@ Rules for this response:
         resp_lower = response.lower()
 
         # Validation rule 1: Scripture page + scripture question, but response
-        # talks about tasks/routines/schedule instead
+        # talks about tasks/routines/schedule instead OR asks user to provide
+        # scripture that's already in the context
         if content_type == 'reading_plan_progress':
             scripture_signals = [
                 'scripture', 'verse', 'passage', 'bible', 'sabbath', 'jesus',
@@ -4190,6 +4220,24 @@ Rules for this response:
                 for signal in off_topic_signals:
                     if signal in resp_lower:
                         return "work routines/schedule instead of scripture"
+
+                # Check if response asks user to provide/share scripture that's
+                # already available in the context (context-unaware response)
+                has_scripture_context = (
+                    page_content.get('scripture_text')
+                    or page_content.get('scriptures')
+                )
+                if has_scripture_context:
+                    provide_signals = [
+                        'please provide', 'please share', 'could you provide',
+                        'could you share', 'which scripture', 'which passage',
+                        'which verse', 'what scripture', 'what passage',
+                        'specify the scripture', 'specify the passage',
+                        'let me know which', 'tell me which',
+                    ]
+                    for signal in provide_signals:
+                        if signal in resp_lower:
+                            return "asking user to provide scripture already in context"
 
         # Validation rule 2: Goal/task page + page-referent question, but
         # response doesn't mention the goal/task at all

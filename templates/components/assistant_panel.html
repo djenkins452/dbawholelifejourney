@@ -538,7 +538,7 @@
             expandedScriptures.forEach(function(el) {
                 if (el.textContent.trim().length > 0) visibleText.push(el.textContent.trim());
             });
-            if (visibleText.length > 0) content.scripture_text = visibleText.join('\n\n').substring(0, 2000);
+            if (visibleText.length > 0) content.scripture_text = visibleText.join('\n\n').substring(0, 4000);
             var contextContent = document.querySelector('.context-content');
             if (contextContent) content.context_summary = contextContent.textContent.trim().substring(0, 500);
             var commentary = document.querySelector('.commentary-content');

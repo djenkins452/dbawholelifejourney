@@ -9,6 +9,24 @@
 
 # WLJ Change History
 
+## 2026-02-27 — Fix Beth (CoS) Context Awareness on Reading Plan Pages
+
+**What:** Beth was not using page context when users asked about scripture on reading plan progress pages. User asked "explain each parable" while reading Matthew 13:31-58, but Beth responded "Please provide the specific scripture" — completely ignoring the page content. Second follow-up ("It's on the page") returned "Could not reach the server."
+
+**Root causes & fixes:**
+1. **Response validation gap:** `_validate_response_context` caught off-topic responses (routines/tasks) but NOT responses that asked users to "provide" content already in context. Added detection for "please provide", "which scripture", etc. when scripture context exists — triggers regeneration with correction.
+2. **Navigation filter missed "the page":** `_try_navigation_response` had "this page" in content indicators but NOT "the page", "on the page", "it's on", etc. Messages like "It's on the page" could fall through to navigation handling instead of AI chat. Added missing indicators.
+3. **No-op bug:** Line 3665 called `page_context.get('url', '')` without assigning the result — dead code. Fixed to `page_url = page_context.get('url', '')`.
+4. **Missing fallback for scripture references:** When `scripture_text` wasn't extracted but `scriptures` references existed (e.g., "Matthew 13:31-58"), the AI got no instruction to use its training knowledge. Added explicit fallback telling AI to use its knowledge of the referenced passages.
+5. **Scripture text truncation:** Frontend limited extraction to 2000 chars, backend to 1500 chars. Long passages (28+ verses) lost significant content. Increased to 4000/3000 respectively.
+6. **Added diagnostic logging:** Page context injection now logs content type, whether scripture text/refs are present, and all keys — enables future debugging.
+
+**Files changed:**
+- `apps/ai/personal_assistant.py` — Response validation, navigation filter, page context injection, scripture fallback
+- `templates/components/assistant_panel.html` — Increased scripture text extraction limit
+
+---
+
 ## 2026-02-26 — UI Test Quality Enhancement: Depth Pass Across 6 Modules
 
 **What:** Expert audit of all ~380 UI tests identified ~280 as shallow (page-load-only). Enhanced 6 modules with CRUD operations, form interactions, data creation/verification, and cleanup patterns to match the depth of the gold-standard modules (Journal, Goals, Faith, Health).

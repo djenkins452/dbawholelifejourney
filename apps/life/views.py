@@ -383,6 +383,13 @@ class TaskCreateView(LifeAccessMixin, CreateView):
 
     def form_valid(self, form):
         form.instance.user = self.request.user
+        # Validate recurrence pattern if set
+        if form.instance.is_recurring and form.instance.recurrence_pattern:
+            from apps.life.services.recurrence import RecurrencePattern
+            pattern = RecurrencePattern(form.instance.recurrence_pattern)
+            if not pattern.pattern_type:
+                form.add_error('recurrence_pattern', 'Invalid recurrence pattern.')
+                return self.form_invalid(form)
         messages.success(self.request, f"Task '{form.instance.title}' created.")
         return super().form_valid(form)
 
@@ -420,7 +427,17 @@ class TaskUpdateView(LifeAccessMixin, UpdateView):
         form.fields['scheduled_time'].required = False
         form.fields['scheduled_end_time'].required = False
         return form
-    
+
+    def form_valid(self, form):
+        # Validate recurrence pattern if set
+        if form.instance.is_recurring and form.instance.recurrence_pattern:
+            from apps.life.services.recurrence import RecurrencePattern
+            pattern = RecurrencePattern(form.instance.recurrence_pattern)
+            if not pattern.pattern_type:
+                form.add_error('recurrence_pattern', 'Invalid recurrence pattern.')
+                return self.form_invalid(form)
+        return super().form_valid(form)
+
     def get_success_url(self):
         return reverse_lazy('life:task_list')
 

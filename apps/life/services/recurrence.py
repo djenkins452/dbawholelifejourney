@@ -18,20 +18,26 @@ from django.db import transaction
 class RecurrencePattern:
     """
     Parse and work with recurrence patterns.
-    
+
     Supported patterns:
     - daily
+    - daily:mon,wed,fri (specific days only)
     - weekly
     - biweekly
-    - monthly
-    - yearly
-    - every_weekday (Mon-Fri)
     - weekly:mon,wed,fri (specific days)
+    - monthly
     - monthly:15 (specific day of month)
     - monthly:last (last day of month)
     - monthly:first_monday (first Monday of month)
+    - yearly
+    - every_weekday (Mon-Fri)
+    - every_N_days, every_N_weeks, every_N_months, every_N_years
+    - every_N_weeks:mon,wed,fri (interval + specific days)
+    - every_N_months:15 (interval + specific day)
+    - every_N_months:first_monday (interval + nth weekday)
+    - every_N_months:last (interval + last day)
     """
-    
+
     WEEKDAYS = {
         'mon': 0, 'monday': 0,
         'tue': 1, 'tuesday': 1,
@@ -41,7 +47,10 @@ class RecurrencePattern:
         'sat': 5, 'saturday': 5,
         'sun': 6, 'sunday': 6,
     }
-    
+
+    WEEKDAY_NAMES = {0: 'Mon', 1: 'Tue', 2: 'Wed', 3: 'Thu', 4: 'Fri', 5: 'Sat', 6: 'Sun'}
+    ORDINAL_NAMES = {1: 'first', 2: 'second', 3: 'third', 4: 'fourth', -1: 'last'}
+
     def __init__(self, pattern_string):
         self.pattern_string = pattern_string.lower().strip()
         self.pattern_type = None
@@ -49,33 +58,42 @@ class RecurrencePattern:
         self.weekdays = []
         self.day_of_month = None
         self.week_of_month = None
-        
+
         self._parse()
-    
+
     def _parse(self):
         """Parse the pattern string into components."""
         pattern = self.pattern_string
-        
+
         if pattern == 'daily':
             self.pattern_type = 'daily'
-        
+
+        elif pattern.startswith('daily:'):
+            # Daily on specific days: daily:mon,wed,fri
+            self.pattern_type = 'daily'
+            days_str = pattern.split(':', 1)[1]
+            for day in days_str.split(','):
+                day = day.strip()
+                if day in self.WEEKDAYS:
+                    self.weekdays.append(self.WEEKDAYS[day])
+
         elif pattern == 'weekly':
             self.pattern_type = 'weekly'
-        
+
         elif pattern == 'biweekly':
             self.pattern_type = 'weekly'
             self.interval = 2
-        
+
         elif pattern == 'monthly':
             self.pattern_type = 'monthly'
-        
+
         elif pattern == 'yearly' or pattern == 'annually':
             self.pattern_type = 'yearly'
-        
+
         elif pattern == 'every_weekday' or pattern == 'weekdays':
             self.pattern_type = 'weekly'
             self.weekdays = [0, 1, 2, 3, 4]  # Mon-Fri
-        
+
         elif pattern.startswith('weekly:'):
             # Parse specific weekdays: weekly:mon,wed,fri
             self.pattern_type = 'weekly'
@@ -84,68 +102,170 @@ class RecurrencePattern:
                 day = day.strip()
                 if day in self.WEEKDAYS:
                     self.weekdays.append(self.WEEKDAYS[day])
-        
+
         elif pattern.startswith('monthly:'):
             self.pattern_type = 'monthly'
-            spec = pattern.split(':', 1)[1].strip()
-            
-            if spec == 'last':
-                self.day_of_month = 'last'
-            elif spec.isdigit():
-                self.day_of_month = int(spec)
-            elif '_' in spec:
-                # e.g., first_monday, second_tuesday, last_friday
-                parts = spec.split('_')
-                if len(parts) == 2:
-                    ordinal, weekday = parts
-                    ordinals = {'first': 1, 'second': 2, 'third': 3, 'fourth': 4, 'last': -1}
-                    if ordinal in ordinals and weekday in self.WEEKDAYS:
-                        self.week_of_month = ordinals[ordinal]
-                        self.weekdays = [self.WEEKDAYS[weekday]]
-        
+            self._parse_monthly_spec(pattern.split(':', 1)[1].strip())
+
         elif pattern.startswith('every_'):
-            # Parse interval patterns: every_2_days, every_3_weeks
-            parts = pattern.split('_')
-            if len(parts) == 3 and parts[1].isdigit():
-                self.interval = int(parts[1])
-                unit = parts[2]
-                if unit in ('day', 'days'):
-                    self.pattern_type = 'daily'
-                elif unit in ('week', 'weeks'):
-                    self.pattern_type = 'weekly'
-                elif unit in ('month', 'months'):
-                    self.pattern_type = 'monthly'
-                elif unit in ('year', 'years'):
-                    self.pattern_type = 'yearly'
-    
+            self._parse_every_pattern(pattern)
+
+    def _parse_monthly_spec(self, spec):
+        """Parse a monthly specification like '15', 'last', or 'first_monday'."""
+        if spec == 'last':
+            self.day_of_month = 'last'
+        elif spec.isdigit():
+            self.day_of_month = int(spec)
+        elif '_' in spec:
+            parts = spec.split('_')
+            if len(parts) == 2:
+                ordinal, weekday = parts
+                ordinals = {'first': 1, 'second': 2, 'third': 3, 'fourth': 4, 'last': -1}
+                if ordinal in ordinals and weekday in self.WEEKDAYS:
+                    self.week_of_month = ordinals[ordinal]
+                    self.weekdays = [self.WEEKDAYS[weekday]]
+
+    def _parse_every_pattern(self, pattern):
+        """Parse every_N_unit and every_N_unit:spec patterns."""
+        # Split off any day/monthly specification after ':'
+        base_pattern = pattern
+        spec = None
+        if ':' in pattern:
+            base_pattern, spec = pattern.split(':', 1)
+
+        parts = base_pattern.split('_')
+        if len(parts) == 3 and parts[1].isdigit():
+            self.interval = int(parts[1])
+            unit = parts[2]
+            if unit in ('day', 'days'):
+                self.pattern_type = 'daily'
+            elif unit in ('week', 'weeks'):
+                self.pattern_type = 'weekly'
+            elif unit in ('month', 'months'):
+                self.pattern_type = 'monthly'
+            elif unit in ('year', 'years'):
+                self.pattern_type = 'yearly'
+
+        # Parse specification after ':'
+        if spec:
+            if self.pattern_type in ('weekly', 'daily'):
+                for day in spec.split(','):
+                    day = day.strip()
+                    if day in self.WEEKDAYS:
+                        self.weekdays.append(self.WEEKDAYS[day])
+            elif self.pattern_type == 'monthly':
+                self._parse_monthly_spec(spec.strip())
+
+    def get_human_readable(self):
+        """Return a human-readable description of the pattern."""
+        if not self.pattern_type:
+            return self.pattern_string
+
+        parts = []
+
+        if self.pattern_type == 'daily':
+            if self.interval > 1:
+                parts.append(f"Every {self.interval} days")
+            else:
+                parts.append("Daily")
+            if self.weekdays:
+                if sorted(self.weekdays) == [0, 1, 2, 3, 4]:
+                    parts.append("(weekdays)")
+                else:
+                    day_names = [self.WEEKDAY_NAMES[d] for d in sorted(self.weekdays)]
+                    parts.append(f"on {', '.join(day_names)}")
+
+        elif self.pattern_type == 'weekly':
+            if self.interval > 1:
+                parts.append(f"Every {self.interval} weeks")
+            else:
+                parts.append("Weekly")
+            if self.weekdays:
+                if sorted(self.weekdays) == [0, 1, 2, 3, 4]:
+                    parts.append("on weekdays")
+                else:
+                    day_names = [self.WEEKDAY_NAMES[d] for d in sorted(self.weekdays)]
+                    parts.append(f"on {', '.join(day_names)}")
+
+        elif self.pattern_type == 'monthly':
+            if self.interval > 1:
+                parts.append(f"Every {self.interval} months")
+            else:
+                parts.append("Monthly")
+            if self.day_of_month == 'last':
+                parts.append("on the last day")
+            elif self.day_of_month:
+                parts.append(f"on day {self.day_of_month}")
+            elif self.week_of_month and self.weekdays:
+                ordinal = self.ORDINAL_NAMES.get(self.week_of_month, '')
+                day_name = self.WEEKDAY_NAMES.get(self.weekdays[0], '')
+                parts.append(f"on the {ordinal} {day_name}")
+
+        elif self.pattern_type == 'yearly':
+            if self.interval > 1:
+                parts.append(f"Every {self.interval} years")
+            else:
+                parts.append("Yearly")
+
+        return ' '.join(parts)
+
     def get_next_occurrence(self, from_date):
         """
         Calculate the next occurrence after from_date.
-        
+
         Args:
             from_date: The reference date (usually today or task due date)
-        
+
         Returns:
             The next occurrence date, or None if pattern is invalid
         """
         if not self.pattern_type:
             return None
-        
+
         if isinstance(from_date, str):
             from_date = date.fromisoformat(from_date)
-        
+
         if self.pattern_type == 'daily':
-            return from_date + timedelta(days=self.interval)
-        
-        elif self.pattern_type == 'weekly':
             if self.weekdays:
-                # Find next matching weekday
+                # Daily pattern with specific days — find next matching day
                 next_date = from_date + timedelta(days=1)
-                for _ in range(14):  # Check up to 2 weeks
+                for _ in range(14):
                     if next_date.weekday() in self.weekdays:
                         return next_date
                     next_date += timedelta(days=1)
-                return from_date + timedelta(weeks=self.interval)
+                return from_date + timedelta(days=self.interval)
+            else:
+                return from_date + timedelta(days=self.interval)
+
+        elif self.pattern_type == 'weekly':
+            if self.weekdays:
+                if self.interval == 1:
+                    # Find next matching weekday within the next week
+                    next_date = from_date + timedelta(days=1)
+                    for _ in range(7):
+                        if next_date.weekday() in self.weekdays:
+                            return next_date
+                        next_date += timedelta(days=1)
+                    # Fallback — shouldn't happen if weekdays is valid
+                    return from_date + timedelta(weeks=1)
+                else:
+                    # Multi-week interval: check remaining days this week first,
+                    # then jump to the Nth week and find first matching day
+                    next_date = from_date + timedelta(days=1)
+                    # Check rest of current week (up to Sunday)
+                    days_to_sunday = 6 - from_date.weekday()
+                    for _ in range(days_to_sunday):
+                        if next_date.weekday() in self.weekdays:
+                            return next_date
+                        next_date += timedelta(days=1)
+                    # Jump N weeks from the start of next week
+                    next_monday = from_date + timedelta(days=(7 - from_date.weekday()))
+                    week_start = next_monday + timedelta(weeks=self.interval - 1)
+                    for _ in range(7):
+                        if week_start.weekday() in self.weekdays:
+                            return week_start
+                        week_start += timedelta(days=1)
+                    return from_date + timedelta(weeks=self.interval)
             else:
                 return from_date + timedelta(weeks=self.interval)
         

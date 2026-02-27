@@ -68,7 +68,7 @@
                     </div>
                 </div>
 
-                <!-- Recurring: Start Date, End Date, and Pattern -->
+                <!-- Recurring: Start Date, End Date, and Pattern Builder -->
                 <div id="recurring-dates" style="{% if not form.is_recurring.value %}display: none;{% endif %}">
                     <div class="form-row">
                         <div class="form-group">
@@ -86,16 +86,91 @@
                         </div>
                     </div>
 
-                    <div class="form-group" style="margin-top: var(--space-4);">
-                        <label for="id_recurrence_pattern" class="form-label">Repeat Pattern</label>
-                        <select name="recurrence_pattern" id="id_recurrence_pattern" class="form-select">
-                            <option value="daily" {% if form.recurrence_pattern.value == 'daily' %}selected{% endif %}>Daily</option>
-                            <option value="weekly" {% if form.recurrence_pattern.value == 'weekly' %}selected{% endif %}>Weekly</option>
-                            <option value="biweekly" {% if form.recurrence_pattern.value == 'biweekly' %}selected{% endif %}>Every 2 weeks</option>
-                            <option value="monthly" {% if form.recurrence_pattern.value == 'monthly' %}selected{% endif %}>Monthly</option>
-                            <option value="yearly" {% if form.recurrence_pattern.value == 'yearly' %}selected{% endif %}>Yearly</option>
-                            <option value="every_weekday" {% if form.recurrence_pattern.value == 'every_weekday' %}selected{% endif %}>Every weekday (Mon-Fri)</option>
-                        </select>
+                    <!-- Recurrence Builder -->
+                    <div class="recurrence-builder" id="recurrence-builder" style="margin-top: var(--space-4);">
+
+                        <!-- Frequency Type Selector -->
+                        <div class="form-group">
+                            <label class="form-label">Frequency</label>
+                            <div class="freq-selector" role="group" aria-label="Repeat frequency">
+                                <button type="button" class="freq-btn active" data-freq="daily">Daily</button>
+                                <button type="button" class="freq-btn" data-freq="weekly">Weekly</button>
+                                <button type="button" class="freq-btn" data-freq="monthly">Monthly</button>
+                                <button type="button" class="freq-btn" data-freq="yearly">Yearly</button>
+                            </div>
+                        </div>
+
+                        <!-- Interval Input -->
+                        <div class="form-group">
+                            <label class="form-label">Repeat every</label>
+                            <div class="interval-row">
+                                <input type="number" id="recurrence-interval" min="1" max="99" value="1"
+                                       class="form-input interval-input">
+                                <span class="interval-unit" id="interval-unit-label">day(s)</span>
+                            </div>
+                        </div>
+
+                        <!-- Day-of-Week Picker (Daily and Weekly) -->
+                        <div class="form-group" id="day-picker-group">
+                            <label class="form-label">On these days</label>
+                            <div class="day-picker" role="group" aria-label="Days of week">
+                                <button type="button" class="day-btn" data-day="mon" data-label="Mon">M</button>
+                                <button type="button" class="day-btn" data-day="tue" data-label="Tue">T</button>
+                                <button type="button" class="day-btn" data-day="wed" data-label="Wed">W</button>
+                                <button type="button" class="day-btn" data-day="thu" data-label="Thu">T</button>
+                                <button type="button" class="day-btn" data-day="fri" data-label="Fri">F</button>
+                                <button type="button" class="day-btn" data-day="sat" data-label="Sat">S</button>
+                                <button type="button" class="day-btn" data-day="sun" data-label="Sun">S</button>
+                            </div>
+                            <p class="form-help">Select specific days, or leave all unselected for every day</p>
+                        </div>
+
+                        <!-- Monthly Options -->
+                        <div class="form-group" id="monthly-options-group" style="display: none;">
+                            <label class="form-label">Repeat on</label>
+                            <div class="monthly-options">
+                                <label class="radio-option">
+                                    <input type="radio" name="monthly_type" value="day_of_month" checked>
+                                    <span>Day</span>
+                                    <input type="number" id="monthly-day" min="1" max="31" value="1"
+                                           class="form-input inline-input">
+                                    <span>of the month</span>
+                                </label>
+                                <label class="radio-option">
+                                    <input type="radio" name="monthly_type" value="weekday">
+                                    <span>The</span>
+                                    <select id="monthly-ordinal" class="form-select inline-select">
+                                        <option value="first">first</option>
+                                        <option value="second">second</option>
+                                        <option value="third">third</option>
+                                        <option value="fourth">fourth</option>
+                                        <option value="last">last</option>
+                                    </select>
+                                    <select id="monthly-weekday" class="form-select inline-select">
+                                        <option value="monday">Monday</option>
+                                        <option value="tuesday">Tuesday</option>
+                                        <option value="wednesday">Wednesday</option>
+                                        <option value="thursday">Thursday</option>
+                                        <option value="friday">Friday</option>
+                                        <option value="saturday">Saturday</option>
+                                        <option value="sunday">Sunday</option>
+                                    </select>
+                                </label>
+                                <label class="radio-option">
+                                    <input type="radio" name="monthly_type" value="last_day">
+                                    <span>Last day of the month</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Human-readable summary -->
+                        <div class="recurrence-summary" id="recurrence-summary">
+                            <span class="summary-text" id="recurrence-summary-text">Every day</span>
+                        </div>
+
+                        <!-- Hidden field for the computed pattern string -->
+                        <input type="hidden" name="recurrence_pattern" id="id_recurrence_pattern"
+                               value="{{ form.recurrence_pattern.value|default:'daily' }}">
                     </div>
 
                     <p class="form-help" style="margin-top: var(--space-3);">
@@ -179,36 +254,334 @@
 </div>
 
 <script nonce="{{ csp_nonce }}">
-function toggleTaskType() {
-    const isRecurring = document.getElementById('id_is_recurring').checked;
-    const oneTimeDates = document.getElementById('one-time-dates');
-    const recurringDates = document.getElementById('recurring-dates');
+(function() {
+    // =========================================================================
+    // Toggle between one-time and recurring task sections
+    // =========================================================================
+    function toggleTaskType() {
+        var isRecurring = document.getElementById('id_is_recurring').checked;
+        var oneTimeDates = document.getElementById('one-time-dates');
+        var recurringDates = document.getElementById('recurring-dates');
 
-    if (isRecurring) {
-        oneTimeDates.style.display = 'none';
-        recurringDates.style.display = 'block';
-        document.getElementById('id_due_date').disabled = true;
-        document.getElementById('id_start_date').disabled = false;
-        document.getElementById('id_end_date').disabled = false;
-    } else {
-        oneTimeDates.style.display = 'block';
-        recurringDates.style.display = 'none';
-        document.getElementById('id_due_date').disabled = false;
-        document.getElementById('id_start_date').disabled = true;
-        document.getElementById('id_end_date').disabled = true;
+        if (isRecurring) {
+            oneTimeDates.style.display = 'none';
+            recurringDates.style.display = 'block';
+            document.getElementById('id_due_date').disabled = true;
+            document.getElementById('id_start_date').disabled = false;
+            document.getElementById('id_end_date').disabled = false;
+        } else {
+            oneTimeDates.style.display = 'block';
+            recurringDates.style.display = 'none';
+            document.getElementById('id_due_date').disabled = false;
+            document.getElementById('id_start_date').disabled = true;
+            document.getElementById('id_end_date').disabled = true;
+        }
     }
-}
 
-document.getElementById('id_is_recurring').addEventListener('change', toggleTaskType);
-document.addEventListener('DOMContentLoaded', toggleTaskType);
+    document.getElementById('id_is_recurring').addEventListener('change', toggleTaskType);
 
-var progressSlider = document.getElementById('id_progress_percentage');
-var progressDisplay = document.getElementById('progress-value-display');
-if (progressSlider && progressDisplay) {
-    progressSlider.addEventListener('input', function() {
-        progressDisplay.textContent = this.value + '%';
+    // =========================================================================
+    // Progress slider
+    // =========================================================================
+    var progressSlider = document.getElementById('id_progress_percentage');
+    var progressDisplay = document.getElementById('progress-value-display');
+    if (progressSlider && progressDisplay) {
+        progressSlider.addEventListener('input', function() {
+            progressDisplay.textContent = this.value + '%';
+        });
+    }
+
+    // =========================================================================
+    // Recurrence Builder
+    // =========================================================================
+    var builder = document.getElementById('recurrence-builder');
+    if (!builder) { toggleTaskType(); return; }
+
+    // State
+    var state = {
+        freq: 'daily',
+        interval: 1,
+        days: [],
+        monthlyType: 'day_of_month',
+        monthlyDay: 1,
+        monthlyOrdinal: 'first',
+        monthlyWeekday: 'monday'
+    };
+
+    // DOM refs
+    var freqBtns = builder.querySelectorAll('.freq-btn');
+    var intervalInput = document.getElementById('recurrence-interval');
+    var unitLabel = document.getElementById('interval-unit-label');
+    var dayPickerGroup = document.getElementById('day-picker-group');
+    var dayBtns = builder.querySelectorAll('.day-btn');
+    var monthlyGroup = document.getElementById('monthly-options-group');
+    var monthlyRadios = builder.querySelectorAll('input[name="monthly_type"]');
+    var monthlyDayInput = document.getElementById('monthly-day');
+    var monthlyOrdinalSelect = document.getElementById('monthly-ordinal');
+    var monthlyWeekdaySelect = document.getElementById('monthly-weekday');
+    var summaryText = document.getElementById('recurrence-summary-text');
+    var hiddenInput = document.getElementById('id_recurrence_pattern');
+
+    var UNIT_LABELS = { daily: 'day(s)', weekly: 'week(s)', monthly: 'month(s)', yearly: 'year(s)' };
+    var DAY_NAMES = { mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun' };
+    var DAY_ORDER = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+
+    // --- Event listeners ---
+
+    // Frequency buttons
+    freqBtns.forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            freqBtns.forEach(function(b) { b.classList.remove('active'); });
+            btn.classList.add('active');
+            state.freq = btn.dataset.freq;
+            updateUI();
+            buildPattern();
+        });
     });
-}
+
+    // Interval
+    intervalInput.addEventListener('input', function() {
+        state.interval = parseInt(this.value) || 1;
+        buildPattern();
+    });
+
+    // Day-of-week buttons
+    dayBtns.forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            btn.classList.toggle('active');
+            var day = btn.dataset.day;
+            var idx = state.days.indexOf(day);
+            if (idx >= 0) {
+                state.days.splice(idx, 1);
+            } else {
+                state.days.push(day);
+            }
+            buildPattern();
+        });
+    });
+
+    // Monthly radio buttons
+    monthlyRadios.forEach(function(radio) {
+        radio.addEventListener('change', function() {
+            state.monthlyType = this.value;
+            buildPattern();
+        });
+    });
+
+    // Monthly day input
+    monthlyDayInput.addEventListener('input', function() {
+        state.monthlyDay = parseInt(this.value) || 1;
+        buildPattern();
+    });
+
+    // Monthly ordinal/weekday selects
+    monthlyOrdinalSelect.addEventListener('change', function() {
+        state.monthlyOrdinal = this.value;
+        buildPattern();
+    });
+    monthlyWeekdaySelect.addEventListener('change', function() {
+        state.monthlyWeekday = this.value;
+        buildPattern();
+    });
+
+    // --- UI update ---
+    function updateUI() {
+        unitLabel.textContent = UNIT_LABELS[state.freq] || 'day(s)';
+
+        // Show day picker for Daily and Weekly
+        dayPickerGroup.style.display = (state.freq === 'daily' || state.freq === 'weekly') ? 'block' : 'none';
+
+        // Show monthly options for Monthly
+        monthlyGroup.style.display = (state.freq === 'monthly') ? 'block' : 'none';
+    }
+
+    // --- Build pattern string ---
+    function sortDays(days) {
+        return days.slice().sort(function(a, b) {
+            return DAY_ORDER.indexOf(a) - DAY_ORDER.indexOf(b);
+        });
+    }
+
+    function dayNamesStr(days) {
+        return sortDays(days).map(function(d) { return DAY_NAMES[d]; }).join(', ');
+    }
+
+    function buildPattern() {
+        var pattern = '';
+        var summary = '';
+        var interval = state.interval;
+        var sortedDays = sortDays(state.days);
+
+        if (state.freq === 'daily') {
+            if (interval === 1 && sortedDays.length === 0) {
+                pattern = 'daily';
+                summary = 'Every day';
+            } else if (interval === 1 && sortedDays.length > 0) {
+                // Check if it's Mon-Fri (weekdays shortcut)
+                var isWeekdays = sortedDays.length === 5 &&
+                    ['fri','mon','thu','tue','wed'].sort().join() === sortedDays.slice().sort().join();
+                if (isWeekdays) {
+                    pattern = 'every_weekday';
+                    summary = 'Every weekday (Mon\u2013Fri)';
+                } else {
+                    pattern = 'daily:' + sortedDays.join(',');
+                    summary = 'Daily on ' + dayNamesStr(state.days);
+                }
+            } else if (interval > 1 && sortedDays.length === 0) {
+                pattern = 'every_' + interval + '_days';
+                summary = 'Every ' + interval + ' days';
+            } else {
+                pattern = 'every_' + interval + '_days:' + sortedDays.join(',');
+                summary = 'Every ' + interval + ' days on ' + dayNamesStr(state.days);
+            }
+
+        } else if (state.freq === 'weekly') {
+            if (interval === 1 && sortedDays.length === 0) {
+                pattern = 'weekly';
+                summary = 'Every week';
+            } else if (interval === 2 && sortedDays.length === 0) {
+                pattern = 'biweekly';
+                summary = 'Every 2 weeks';
+            } else if (interval === 1 && sortedDays.length > 0) {
+                pattern = 'weekly:' + sortedDays.join(',');
+                summary = 'Weekly on ' + dayNamesStr(state.days);
+            } else if (interval > 1 && sortedDays.length === 0) {
+                pattern = 'every_' + interval + '_weeks';
+                summary = 'Every ' + interval + ' weeks';
+            } else {
+                pattern = 'every_' + interval + '_weeks:' + sortedDays.join(',');
+                summary = 'Every ' + interval + ' weeks on ' + dayNamesStr(state.days);
+            }
+
+        } else if (state.freq === 'monthly') {
+            var monthPrefix = (interval === 1) ? 'monthly' : 'every_' + interval + '_months';
+            summary = (interval === 1) ? 'Monthly' : 'Every ' + interval + ' months';
+
+            if (state.monthlyType === 'day_of_month') {
+                pattern = monthPrefix + ':' + state.monthlyDay;
+                summary += ' on day ' + state.monthlyDay;
+            } else if (state.monthlyType === 'weekday') {
+                pattern = monthPrefix + ':' + state.monthlyOrdinal + '_' + state.monthlyWeekday;
+                var weekdayLabel = state.monthlyWeekday.charAt(0).toUpperCase() + state.monthlyWeekday.slice(1);
+                summary += ' on the ' + state.monthlyOrdinal + ' ' + weekdayLabel;
+            } else if (state.monthlyType === 'last_day') {
+                pattern = monthPrefix + ':last';
+                summary += ' on the last day';
+            }
+
+        } else if (state.freq === 'yearly') {
+            if (interval === 1) {
+                pattern = 'yearly';
+                summary = 'Every year';
+            } else {
+                pattern = 'every_' + interval + '_years';
+                summary = 'Every ' + interval + ' years';
+            }
+        }
+
+        hiddenInput.value = pattern;
+        summaryText.textContent = summary;
+    }
+
+    // --- Parse existing pattern for edit mode ---
+    function parseExistingPattern(patternStr) {
+        if (!patternStr) return;
+        patternStr = patternStr.toLowerCase().trim();
+
+        if (patternStr === 'daily') {
+            state.freq = 'daily'; state.interval = 1;
+        } else if (patternStr === 'weekly') {
+            state.freq = 'weekly'; state.interval = 1;
+        } else if (patternStr === 'biweekly') {
+            state.freq = 'weekly'; state.interval = 2;
+        } else if (patternStr === 'monthly') {
+            state.freq = 'monthly'; state.interval = 1;
+            state.monthlyType = 'day_of_month'; state.monthlyDay = 1;
+        } else if (patternStr === 'yearly' || patternStr === 'annually') {
+            state.freq = 'yearly'; state.interval = 1;
+        } else if (patternStr === 'every_weekday' || patternStr === 'weekdays') {
+            state.freq = 'daily'; state.interval = 1;
+            state.days = ['mon', 'tue', 'wed', 'thu', 'fri'];
+        } else if (patternStr.indexOf('weekly:') === 0) {
+            state.freq = 'weekly'; state.interval = 1;
+            state.days = patternStr.split(':')[1].split(',').map(function(d) { return d.trim(); });
+        } else if (patternStr.indexOf('daily:') === 0) {
+            state.freq = 'daily'; state.interval = 1;
+            state.days = patternStr.split(':')[1].split(',').map(function(d) { return d.trim(); });
+        } else if (patternStr.indexOf('monthly:') === 0) {
+            state.freq = 'monthly'; state.interval = 1;
+            parseMonthlySpec(patternStr.split(':')[1]);
+        } else if (patternStr.indexOf('every_') === 0) {
+            var base = patternStr;
+            var spec = null;
+            if (patternStr.indexOf(':') >= 0) {
+                var colonParts = patternStr.split(':');
+                base = colonParts[0];
+                spec = colonParts[1];
+            }
+            var baseParts = base.split('_');
+            if (baseParts.length >= 3 && !isNaN(parseInt(baseParts[1]))) {
+                state.interval = parseInt(baseParts[1]);
+                var unit = baseParts[2];
+                if (unit === 'days' || unit === 'day') state.freq = 'daily';
+                else if (unit === 'weeks' || unit === 'week') state.freq = 'weekly';
+                else if (unit === 'months' || unit === 'month') state.freq = 'monthly';
+                else if (unit === 'years' || unit === 'year') state.freq = 'yearly';
+            }
+            if (spec) {
+                if (state.freq === 'weekly' || state.freq === 'daily') {
+                    state.days = spec.split(',').map(function(d) { return d.trim(); });
+                } else if (state.freq === 'monthly') {
+                    parseMonthlySpec(spec);
+                }
+            }
+        }
+
+        // Apply state to UI
+        freqBtns.forEach(function(b) {
+            b.classList.toggle('active', b.dataset.freq === state.freq);
+        });
+        intervalInput.value = state.interval;
+        dayBtns.forEach(function(b) {
+            b.classList.toggle('active', state.days.indexOf(b.dataset.day) >= 0);
+        });
+        monthlyRadios.forEach(function(r) {
+            r.checked = (r.value === state.monthlyType);
+        });
+        monthlyDayInput.value = state.monthlyDay;
+        monthlyOrdinalSelect.value = state.monthlyOrdinal;
+        monthlyWeekdaySelect.value = state.monthlyWeekday;
+
+        updateUI();
+        buildPattern();
+    }
+
+    function parseMonthlySpec(spec) {
+        spec = spec.trim();
+        if (spec === 'last') {
+            state.monthlyType = 'last_day';
+        } else if (/^\d+$/.test(spec)) {
+            state.monthlyType = 'day_of_month';
+            state.monthlyDay = parseInt(spec);
+        } else if (spec.indexOf('_') >= 0) {
+            state.monthlyType = 'weekday';
+            var parts = spec.split('_');
+            state.monthlyOrdinal = parts[0];
+            state.monthlyWeekday = parts[1];
+        }
+    }
+
+    // --- Initialize ---
+    var existingPattern = hiddenInput.value || '';
+    if (existingPattern && existingPattern !== 'daily') {
+        parseExistingPattern(existingPattern);
+    } else {
+        updateUI();
+        buildPattern();
+    }
+
+    toggleTaskType();
+})();
 </script>
 
 <style nonce="{{ csp_nonce }}">
@@ -297,6 +670,157 @@ if (progressSlider && progressDisplay) {
 
 .recurring-toggle .toggle-label {
     color: var(--color-text);
+}
+
+/* Recurrence Builder */
+.freq-selector {
+    display: flex;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.freq-btn {
+    flex: 1;
+    padding: var(--space-3) var(--space-2);
+    background: var(--color-surface, var(--color-background));
+    border: none;
+    border-right: 1px solid var(--color-border);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--color-text);
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+    min-height: 44px;
+    text-align: center;
+}
+
+.freq-btn:last-child {
+    border-right: none;
+}
+
+.freq-btn.active {
+    background: var(--color-accent);
+    color: white;
+}
+
+.interval-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.interval-input {
+    width: 80px;
+    text-align: center;
+    font-size: 16px;
+}
+
+.interval-unit {
+    font-size: var(--font-size-base);
+    color: var(--color-text-muted);
+}
+
+.day-picker {
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.day-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 2px solid var(--color-border);
+    background: var(--color-surface, var(--color-background));
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text);
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+}
+
+.day-btn.active {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+    color: white;
+}
+
+.monthly-options {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.radio-option {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+    min-height: 44px;
+    font-size: var(--font-size-base);
+    flex-wrap: wrap;
+}
+
+.radio-option input[type="radio"] {
+    width: 20px;
+    height: 20px;
+    accent-color: var(--color-accent);
+    flex-shrink: 0;
+}
+
+.inline-input {
+    width: 64px;
+    text-align: center;
+    padding: var(--space-1) var(--space-2);
+    font-size: 16px;
+}
+
+.inline-select {
+    width: auto;
+    padding: var(--space-1) var(--space-2);
+    font-size: 16px;
+}
+
+.recurrence-summary {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+    border-radius: var(--radius-md);
+    border: 1px solid color-mix(in srgb, var(--color-accent) 20%, transparent);
+    margin-top: var(--space-4);
+}
+
+.summary-text {
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--color-text);
+}
+
+/* Mobile responsive for recurrence builder */
+@media (max-width: 480px) {
+    .freq-selector {
+        flex-wrap: wrap;
+    }
+    .freq-btn {
+        flex: 1 1 50%;
+    }
+    .freq-btn:nth-child(2) {
+        border-right: none;
+    }
+    .freq-btn:nth-child(1),
+    .freq-btn:nth-child(2) {
+        border-bottom: 1px solid var(--color-border);
+    }
+    .day-picker {
+        justify-content: center;
+    }
 }
 
 .form-actions {

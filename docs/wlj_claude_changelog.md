@@ -9,6 +9,30 @@
 
 # WLJ Change History
 
+## 2026-02-27 — Industry-Leading Recurring Task Builder UI
+
+**What:** Replaced the basic 6-option recurring task dropdown with a full context-sensitive recurrence builder comparable to Outlook/Google Calendar/Todoist. Users can now configure:
+- **Daily** with specific day-of-week selection (e.g., Mon-Sat, skip Sunday)
+- **Weekly** with custom interval + specific days (e.g., every 2 weeks on Mon, Wed, Fri)
+- **Monthly** with three modes: specific day of month, Nth weekday (first Monday, last Friday), or last day
+- **Yearly** with custom interval
+- All frequencies support custom intervals (every N days/weeks/months/years)
+- Human-readable summary bar auto-updates as options change
+
+**Backend:** Extended `RecurrencePattern` parser to support `daily:<days>`, `every_N_unit:<spec>` compound patterns. Added `get_human_readable()` method. Fixed weekly+interval+specific days occurrence calculation. Added pattern validation in TaskCreateView and TaskUpdateView.
+
+**UI:** Segmented frequency control, circular day-of-week chip toggles (44px touch targets), radio-based monthly options, auto-generated pattern summary. Fully CSP-compliant (all addEventListener), mobile-responsive (2x2 grid on phones). No model changes or migrations needed — all patterns fit within existing CharField(max_length=50).
+
+**Files changed:**
+- `apps/life/services/recurrence.py` — Extended parser, fixed occurrence logic, added human-readable method
+- `templates/life/task_form.html` — Complete recurrence builder UI (HTML, CSS, JS)
+- `apps/life/views.py` — Pattern validation in TaskCreateView and TaskUpdateView
+- `apps/life/tests/test_recurrence_patterns.py` — 69 comprehensive tests (parsing, occurrences, human-readable, integration)
+
+**Tests:** 69/69 pass, 295/295 life app tests pass (zero regressions)
+
+---
+
 ## 2026-02-27 — Fix Beth (CoS) Context Awareness on Reading Plan Pages
 
 **What:** Beth was not using page context when users asked about scripture on reading plan progress pages. User asked "explain each parable" while reading Matthew 13:31-58, but Beth responded "Please provide the specific scripture" — completely ignoring the page content. Second follow-up ("It's on the page") returned "Could not reach the server."

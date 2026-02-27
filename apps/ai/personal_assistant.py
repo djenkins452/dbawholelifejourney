@@ -3362,21 +3362,36 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             except Exception:
                 pass  # UAL must never break chat
 
-        # Fallback: lightweight greeting for mid-conversation greetings
-        # (when briefing gate didn't fire — not first-of-day)
+        # Greeting detection — both fresh-session and mid-conversation
         message_lower = message.lower()
-        if not briefing:
-            is_greeting = any(g in message_lower for g in [
-                'good morning', 'morning', 'good afternoon', 'good evening',
-                'hello', 'hey', 'hi', 'howdy', "what's up", 'sup',
-            ])
-            if is_greeting:
-                try:
-                    from apps.core.utils import get_user_now
-                    user_now = get_user_now(self.user)
-                    time_of_day = 'morning' if user_now.hour < 12 else (
-                        'afternoon' if user_now.hour < 17 else 'evening'
+        is_greeting = any(g in message_lower for g in [
+            'good morning', 'morning', 'good afternoon', 'good evening',
+            'hello', 'hey', 'hi', 'howdy', "what's up", 'sup',
+        ])
+        if is_greeting:
+            try:
+                from apps.core.utils import get_user_now
+                user_now = get_user_now(self.user)
+                time_of_day = 'morning' if user_now.hour < 12 else (
+                    'afternoon' if user_now.hour < 17 else 'evening'
+                )
+                if briefing:
+                    # Fresh session (first-of-day or gap re-entry):
+                    # The briefing gives situational data but the LLM still sees
+                    # old conversation history. Explicitly tell it to start fresh.
+                    greeting_injection = (
+                        f"\n--- FRESH SESSION GREETING ---\n"
+                        f"The user is greeting you for a new {time_of_day} session "
+                        f"({user_now.strftime('%I:%M %p').lstrip('0')}). "
+                        f"This is a FRESH START. Do NOT reference or continue topics "
+                        f"from previous conversations — the user has moved on. "
+                        f"Focus on their current day: priorities, schedule, "
+                        f"and anything that needs attention RIGHT NOW. "
+                        f"Use the EXECUTIVE BRIEFING and OPERATIONAL CONTEXT "
+                        f"above — not old conversation threads.\n"
                     )
+                else:
+                    # Mid-conversation greeting (same session, no briefing fired)
                     greeting_injection = (
                         f"\n--- GREETING CONTEXT ---\n"
                         f"The user just greeted you ({time_of_day}, "
@@ -3384,9 +3399,29 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                         f"Reference their schedule from OPERATIONAL CONTEXT. "
                         f"Be conversational, not robotic.\n"
                     )
-                    system_prompt += greeting_injection
-                except Exception:
-                    pass
+                system_prompt += greeting_injection
+            except Exception:
+                pass
+
+        # Context reset detection — user says "not on that page", "old request", etc.
+        # When user explicitly says they've moved on, suppress old topic references.
+        _context_reset_phrases = [
+            'not on that page', 'not even on that page',
+            "i'm not on", "im not on", 'not that page',
+            'old request', 'that was before', 'that was old',
+            'moved on', 'different page', 'different topic',
+            'forget that', 'never mind that', 'stop talking about',
+            'i already moved on', "that's not what i",
+            "that's not relevant", 'not what i asked',
+        ]
+        if any(phrase in message_lower for phrase in _context_reset_phrases):
+            system_prompt += (
+                "\n--- CONTEXT RESET ---\n"
+                "The user has explicitly indicated they are NOT on the previous "
+                "page/topic anymore. STOP referencing any previous conversation "
+                "topic. Ask what they need help with NOW, or use the OPERATIONAL "
+                "CONTEXT to share what's relevant to their current situation.\n"
+            )
 
         # Check if user is asking about tasks/priorities/habits/focus
         # Include full state data so the AI can give data-driven answers

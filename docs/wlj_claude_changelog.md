@@ -9,6 +9,25 @@
 
 # WLJ Change History
 
+## 2026-02-28 — Fix Check-in Intent Routing + Medication Safety (CRITICAL)
+
+**What:** Three critical bugs in Beth's check-in/status handling:
+1. "What's left for me today. Meds and journals" returned "No events found matching your criteria" — intent service misrouted status queries to calendar event search
+2. "Check in" messages sometimes didn't trigger the check-in handler
+3. **SAFETY:** Medication listing didn't check individual schedule/dose status — told user to take ALL meds including ones already taken. Double-dosing insulin could be life-threatening.
+
+**Root causes & fixes:**
+1. **Check-in pre-filter before intent service:** Messages like "what's left", "check in", "meds and journals" now bypass the OpenAI intent service entirely and route directly to `_generate_response()` where the full CoS check-in context injection lives. The intent service was classifying these as `read_calendar_events`, which returned "No events found." Added 24 trigger phrases for pre-filter detection.
+2. **Expanded check-in detection in `_generate_response`:** Added 11 missing trigger phrases to the check-in detection: "what's left", "what's remaining", "meds and journal", etc.
+3. **SAFETY FIX — Schedule-specific medication status:** MedicineLog query now filters by `schedule=sched` (the specific dose/time), not just the medicine. A medication with 2 daily doses (morning + evening) now correctly shows which specific doses are taken vs outstanding. Added explicit LLM instruction: "NEVER suggest taking medications marked as ALREADY TAKEN — double-dosing is dangerous."
+
+**Files changed:**
+- `apps/ai/personal_assistant.py` — Check-in pre-filter (line ~2263), expanded check-in phrases (line ~3483), schedule-specific med filtering (line ~3592)
+
+**Tests:** 61 AI assistant tests pass (0 regressions).
+
+---
+
 ## 2026-02-27 — Fix Beth Stale Topic Bleeding on Greetings & Context Resets (v2)
 
 **What:** When user says "good morning" to start a new day, Beth referenced old conversation history about scripture instead of giving a fresh morning check-in. Even after greeting injection fix (v1), the LLM still latched onto the dominant topic in conversation history (7+ messages about scripture vs 1 directive to start fresh). User correction ("I'm not on that page") was also ignored.

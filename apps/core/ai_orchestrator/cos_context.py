@@ -388,10 +388,13 @@ def build_cos_context(user):
             # Check if overdue (start time passed but not completed)
             is_overdue = ev.start_dt < user_now and time_status == 'past'
 
+            # Convert to user's local timezone before formatting
+            _local_start = ev.start_dt.astimezone(user_now.tzinfo)
+            _local_end = ev.end_dt.astimezone(user_now.tzinfo)
             event_summaries.append({
                 'title': ev.title,
-                'start': ev.start_dt.strftime('%I:%M %p').lstrip('0'),
-                'end': ev.end_dt.strftime('%I:%M %p').lstrip('0'),
+                'start': _local_start.strftime('%I:%M %p').lstrip('0'),
+                'end': _local_end.strftime('%I:%M %p').lstrip('0'),
                 'domain': ev.domain.name if ev.domain else '',
                 'is_protected': ev.is_protected,
                 'time_status': time_status,
@@ -3503,7 +3506,7 @@ def build_learning_mode_context(user):
             status='scheduled',
         ).order_by('start_dt')[:8]
         context['calendar_events_today'] = [
-            {'title': ev.title, 'start': ev.start_dt.strftime('%I:%M %p').lstrip('0')}
+            {'title': ev.title, 'start': ev.start_dt.astimezone(user_now.tzinfo).strftime('%I:%M %p').lstrip('0')}
             for ev in events
         ]
     except Exception:

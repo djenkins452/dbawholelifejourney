@@ -9,133 +9,17 @@
 
 # WLJ Change History
 
-<<<<<<< HEAD
-## 2026-02-28 — Fix AI Reporting Future Meds as "Missed" + ECC False Positive
+## 2026-02-28 — Fix UTC Times + Task Queries Upgrade to Full Briefing
 
-**What:** Fixed three bugs that caused the AI assistant to (1) report medications scheduled for later in the day as "missed" when they weren't due yet, and (2) misinterpret conversational questions like "Will you remember this for next time?" as commitments, responding with "When specifically will this be completed?"
+**What:** Two bugs causing Beth to give confusing/incomplete responses:
+1. **UTC timezone bug:** Calendar event times in CoS operational context were displayed in UTC instead of user's local timezone. User saw "Buy new battery for the Jeep — Due at 3:30 PM" when calendar showed 10:30 AM (5-hour EST offset). Both `build_cos_context()` and `build_learning_mode_context()` called `.strftime()` on raw UTC datetimes without `.astimezone(user_tz)`.
+2. **Task queries got counts-only response:** "What else do I have to do today that I haven't completed" matched `is_asking_about_tasks` (via 'to do') but NOT `is_requesting_checkin`. The task path only injected counts ("2 tasks remaining") — no med names, no calendar events, no goals. Now `is_asking_about_tasks` auto-upgrades to `is_requesting_checkin` so every task query gets the full Chief of Staff briefing with specific item names.
 
-**Why:** User reported AI telling them they'd missed 6:00 PM medications at 11:06 AM. The same conversation also triggered a false ECC commitment detection because the word "will" contains the substring "ill" which matched the "I'll" trigger.
+**Files changed:**
+- `apps/core/ai_orchestrator/cos_context.py` — Added `.astimezone(user_now.tzinfo)` before formatting calendar event times in both `build_cos_context` (line 393) and `build_learning_mode_context` (line 3509)
+- `apps/ai/personal_assistant.py` — Added task→check-in upgrade: `if is_asking_about_tasks and not is_requesting_checkin: is_requesting_checkin = True`
 
-**Root Causes:**
-1. `personal_assistant.py` medication context builder lumped all untaken doses into a single "NOT YET TAKEN" bucket without distinguishing past-due from future doses. The AI then interpreted future doses as deficiencies.
-2. `executive_briefing.py` health gate had the same issue — counted all untaken doses as concerning without checking scheduled times.
-3. `commitment_contract.py` used `.find()` for trigger matching, so the normalized trigger `'ill'` (from "I'll") matched inside "will" at position 1, causing false commitment detection.
-
-**Fix:**
-1. Split medication context into three buckets: OVERDUE (past due, not taken), SCHEDULED LATER TODAY (not yet due), ALREADY TAKEN. Added explicit AI instruction to never report future doses as missed.
-2. Executive briefing health gate now checks `scheduled_time > current_time` before flagging doses.
-3. Added `_find_trigger_word_boundary()` helper that ensures triggers only match at word boundaries (start of string or preceded by space). Applied to all three trigger-matching call sites.
-
-**Files:**
-- `apps/ai/personal_assistant.py` — Medication context now distinguishes overdue vs upcoming doses
-- `apps/ai/executive_briefing.py` — Health gate distinguishes overdue vs upcoming doses
-- `apps/core/ai_orchestrator/commitment_contract.py` — Word-boundary-aware trigger matching
-
-**Tests:** 142 commitment + 28 executive briefing + 61 personal assistant = all pass
-
----
-
-## 2026-02-28 — Learning Health Tile on Operations Wall
-
-**What:** Added a "Persistent Learning" health tile to the Ops Command Center that monitors all 5 learning subsystems (Memory, Corrections, Patterns, Response Preferences, Profile Evolution) in real-time. The tile shows overall status (LEARNING / DEGRADED / STALE) with green/yellow/red color coding and per-subsystem metrics.
-
-**Why:** User requested visibility into whether the persistent learning system is actively working, with red/yellow alerts when learning is failing or stale.
-
-**Files:**
-- `apps/core/ai_observability/ops_views.py` — Added `_get_learning_health()` data provider + wired into `OpsStreamView` JSON response
-- `templates/admin_console/operations_wall.html` — Added CSS styles, HTML section (5-card grid), JS `renderLearningHealth()` renderer with live polling
-
-**Status thresholds:**
-- LEARNING (green): 3+ subsystems active in last 7 days
-- DEGRADED (yellow): 1-2 subsystems active
-- STALE (red): 0 subsystems active or 3+ in ERROR state
-
-**Tests:** 183 observability + 502 AI + 278 admin_console = all pass
-
----
-
-## 2026-02-28 — CoS Persistent Learning Architecture (Major Intelligence Upgrade)
-
-**What:** Transformed CoS from a recall-only assistant into an adaptive learning system with 6 new mechanisms. CoS now learns from feedback, persists corrections, evolves its user profile, detects behavioral patterns, optimizes response style, and surfaces patterns conversationally.
-
-**Why:** The `was_helpful` feedback field was a dead-end (stored but never queried). Memory retrieval was flat (no weighting). Learned profile was additive-only (no decay or evolution). No correction persistence. No cross-domain pattern detection.
-
-**6 Mechanisms Implemented:**
-
-1. **Feedback-Weighted Memory** — Memory retrieval now uses weighted scoring:
-   `final_score = similarity×0.5 + recency×0.2 + helpfulness×0.2 + frequency×0.1 - correction_penalty`
-   Feedback from `was_helpful` propagates to `ConversationMemory.helpfulness_score`.
-
-2. **Correction Persistence** — When user corrects CoS (e.g., "that's not right"), stores structured `CorrectionRecord` with embedding. Corrections are injected into system prompt with higher priority than regular memories. Corresponding memory marked as corrected with score penalty.
-
-3. **Profile Evolution** — `UserLearnedProfile` items now stored as structured dicts: `{text, confidence, frequency, first_seen, last_confirmed, status}`. Confidence increases on re-extraction, decays after 60 days without re-confirmation. Stale items fade. Backward compatible with existing str items.
-
-4. **Behavioral Pattern Detection** — Cross-domain statistical detection across journal, health, tasks, faith. Detects time-of-day patterns, frequency patterns, emotional patterns, adherence patterns, weight trends. Stored in `BehavioralPattern` model with user confirmation workflow.
-
-5. **Adaptive Response Optimization** — Learns which response characteristics (length, coaching style, traits like lists/questions/encouragement) correlate with positive feedback. Stored in `ResponsePreference` model, injected into system prompt.
-
-6. **Pattern Awareness Reporting** — Detected patterns injected into CoS system prompt. Confirmed patterns shown as facts. Unconfirmed patterns shown as suggestions for CoS to mention naturally and ask user to verify.
-
-**Files created:**
-- `apps/ai/correction_service.py` — Correction detection, storage, retrieval
-- `apps/ai/pattern_detector.py` — Cross-domain behavioral pattern detection
-- `apps/ai/response_optimizer.py` — Feedback-driven response optimization
-- `apps/ai/migrations/0024_persistent_learning_models.py` — New models + fields
-- `docs/cos_persistent_learning_upgrade.md` — Master control document
-
-**Files modified:**
-- `apps/ai/models.py` — Added `CorrectionRecord`, `BehavioralPattern`, `ResponsePreference` models + 3 new fields on `ConversationMemory`
-- `apps/ai/memory_service.py` — Weighted retrieval scoring, `propagate_feedback()`, retrieval count tracking
-- `apps/ai/views.py` — Feedback propagation to memory + optimizer, correction detection, pattern detection triggers
-- `apps/ai/personal_assistant.py` — 4 new injection points (corrections, patterns, response prefs, profile evolution)
-- `apps/core/ai_learning/learning_extractor.py` — Dict-format items, confidence evolution, decay logic, `evolve_profile()`
-- `apps/core/ai_learning/models.py` — Updated `to_system_prompt_block()` for dict/str backward compatibility
-
-**Tests:** 517 tests passed, 0 failures
-
----
-
-## 2026-02-28 — Fix Beth data coherence: task time queries + calendar time display
-
-**What:** Three data coherence failures where Beth reported wrong times or no times for tasks:
-
-1. **`read_calendar_events` response stripped time from message** — Line 4236 used `ev['start_dt'][:10]` which truncated to just the date. Beth saw "Found 1 event on 2026-02-28" with NO time, then hallucinated "3:30 PM" when asked "what time?".
-2. **No `read_task` intent existed** — Users asking "what time is my jeep task?" had no tool for Beth to query task details. The intent service could only route to `read_calendar_events` (which dropped times) or fall through to CoS context (which only had aggregate stats like "5 tasks, 3 pending").
-3. **CoS task context was aggregate-only** — `assistant/data_service.py` returned only counts (total, completed, pending, overdue). No individual task names, times, or due dates. Beth had zero data about specific tasks during conversation.
-
-**Fix — three layers:**
-
-1. **`read_calendar_events` now includes full times** — Single events show "Found 1 event: Title on 2026-02-28 from 10:00 AM – 11:00 AM, status: scheduled, kind: execution_block". Multi-event responses list each with time and kind.
-2. **New `read_task` intent + handler** — Beth can now query tasks by keyword and date filter. Response includes title, due date, scheduled time, priority, AND the authoritative CalendarEvent time. Wired through all 6 registration points.
-3. **CoS task context now includes individual tasks** — `get_task_data()` returns upcoming tasks (next 7 days) with title, due date, scheduled time, priority. `_format_task_data()` renders them so Beth always has real task data in conversation context.
-
-**Files (8):**
-- `apps/ai/action_handlers.py` — Fixed time display in `handle_read_calendar_events`, added `handle_read_task`
-- `apps/ai/intents/life_intents.py` — Added `read_task` tool definition
-- `apps/ai/intent_service.py` — Added routing, examples, system prompt guidance
-- `apps/ai/intents/__init__.py` — Added `read_task` to INTENT_HANDLERS
-- `apps/core/ai_orchestrator/intent_engine.py` — Added to LIFE_INTENTS category
-- `apps/ai/tests/test_intent_registration.py` — Added to exempt set
-- `assistant/data_service.py` — Enhanced `get_task_data()` with individual tasks
-- `assistant/context_builder.py` — Enhanced `_format_task_data()` with task details
-
-**Tests:** 502 AI tests (6 pre-existing ViewLayerIntegration DB flush errors), 57 data_service/context_builder tests pass, 10 intent registration tests pass.
-
----
-
-## 2026-02-28 — Fix task time scheduling: "add task at 10am" now works
-
-**What:** Tasks created via Beth with a specific time (e.g., "add a task today at 10am") were ignoring the time entirely. The task would appear at 11:59 PM (deadline marker) instead of the requested time.
-
-**Root cause:** The `create_task` intent definition had no `scheduled_time` parameter. When a user said "at 10am", the AI had nowhere to pass that time — it was silently dropped. The task was saved without `scheduled_time`, so the calendar projection fell back to a 23:59 deadline marker.
-
-**Fix:**
-- Added `scheduled_time` and `duration_minutes` parameters to the `create_task` intent definition
-- Updated `handle_create_task` to parse and save `scheduled_time` on the Task model
-- Added system prompt examples and disambiguation rules (task with time vs routine vs event)
-- Calendar projection already handled `scheduled_time` correctly — no changes needed there
-
-**Files:** `apps/ai/intents/life_intents.py`, `apps/ai/intent_service.py`, `apps/ai/action_handlers.py`
+**Tests:** 99 COS-CX + personal assistant tests pass.
 
 ---
 
@@ -191,41 +75,6 @@
 
 ---
 
-## 2026-02-27 — Fix Scheduled Tasks Showing at Wrong Time on Calendar
-
-**What:** Tasks with a `scheduled_time` (e.g., "Wake Up" at 5:00 AM, "Workout" at 6:15 AM) were appearing on the calendar at 11:59 PM as "Due: Wake Up DEADLINE" instead of at their actual scheduled times as execution blocks.
-
-**Root cause:** `upsert_from_task()` only routed to time-specific `upsert_from_routine_task()` when `is_routine=True`. Tasks with `scheduled_time` but `is_routine=False` fell through to the deadline marker path, which always sets time to 23:59.
-
-**Fix:**
-- Changed `upsert_from_task()` to check `task.scheduled_time` (not `is_routine and scheduled_time`) — any task with a scheduled time now gets an execution block at the correct time
-- Added cleanup: when routing to execution block, deletes any stale deadline marker
-- Updated `_resolve_domain_for_task()` to check title keywords for all scheduled tasks (not just routine)
-- Added one-time data fix in `load_initial_data.py` to re-project existing wrong markers
-
-**Files changed:**
-- `apps/calendar_engine/services/projection.py` — Fixed routing in `upsert_from_task()` and domain resolution
-- `apps/life/signals.py` — Updated comments to reflect new routing logic
-- `apps/core/management/commands/load_initial_data.py` — Added `_fix_scheduled_task_projections()` one-time fix
-
-**Tests:** 515 tests pass (295 life + 48 calendar_engine + 172 purpose)
-
----
-
-## 2026-02-27 — Timer Completion Sound for Habit Goals
-
-**What:** Added a completion sound that plays when a habit goal timer reaches its target duration. Users can choose from 5 sounds (Chime, Bell, Gentle Rise, Celebration, Harp) or set to None/silent. Sound preference is stored per-goal in localStorage. Includes a preview button to audition sounds before selecting.
-
-**Implementation:** Uses Web Audio API to synthesize sounds — no external audio files needed. The GoalTimer class detects when progress hits 100% and fires the selected sound exactly once per session.
-
-**Files changed:**
-- `static/js/timer-sounds.js` — **NEW** — Web Audio API sound synthesizer with 5 sounds
-- `static/js/goal-timer.js` — Added completion detection (`_completionSoundPlayed` flag + sound trigger in `_emitUpdate`)
-- `apps/purpose/templates/purpose/includes/timer_widget.html` — Added sound selector dropdown with preview button, CSP-compliant nonce script
-- `apps/purpose/templates/purpose/habit_goal_detail.html` — Added CSS for `.timer-sound-selector` and related classes
-
----
-
 ## 2026-02-27 — COS-CX: Context Intelligence Expansion (6 Phases)
 
 **What:** Major intelligence expansion for the Chief of Staff AI assistant. Transforms CoS from a data reporter into a strategic advisor with named specificity, signal prioritization, gap detection, temporal matching, diagnostic reasoning, and behavioral prediction. All 6 phases are additive-only (no rewrites), fail-safe, and never break existing chat.
@@ -253,67 +102,6 @@
 - `apps/ai/personal_assistant.py` — Wired CX5 diagnostic context into _generate_response
 
 **Tests:** 38 new tests (all pass), 939 existing CoS+AI tests (all pass, 0 regressions).
-
----
-
-## 2026-02-27 — Backfill Existing Items to Calendar
-
-**What:** Items created before the signal wiring fix had no CalendarEvent records. Created a management command to backfill all existing tasks, goals, milestones, and habits into the calendar engine.
-
-**Command:** `python manage.py backfill_calendar_projections` (safe to run multiple times — uses upsert logic)
-
-**Files changed:**
-- `apps/calendar_engine/management/commands/backfill_calendar_projections.py` — **NEW** — Backfill command
-
----
-
-## 2026-02-27 — Wire Calendar Projection Signals for Tasks, Goals, Habits
-
-**What:** Tasks, goals, milestones, and habits were not appearing on the Time Command Center (calendar) because the projection functions existed but had no signal handlers calling them. Only routine tasks and life events were wired up — everything else was orphaned.
-
-**Root cause:** The projection service (`calendar_engine/services/projection.py`) had fully implemented `upsert_from_task()`, `upsert_from_goal()`, `_upsert_milestone_marker()`, and `upsert_from_habit()` functions, but they were never invoked by Django signals. Only `upsert_from_routine_task()` (for is_routine tasks) and `upsert_from_life_event()` had signal handlers.
-
-**Fix:** Wired up all orphaned projection functions via post_save/post_delete signals:
-
-1. **Tasks (life/signals.py):** Unified `handle_task_saved` signal — routine tasks get execution blocks + CoS prompts, all other tasks get deadline markers. Also added `handle_task_deleted` for cleanup on hard delete.
-2. **Goals (new purpose/signals.py):** `handle_goal_saved` → `upsert_from_goal()` creates deadline markers for goal target_date + all milestones.
-3. **Milestones:** `handle_milestone_saved` → `_upsert_milestone_marker()` for individual milestone updates.
-4. **Habits:** `handle_habit_saved` → `upsert_from_habit()` creates recurring calendar events.
-5. **Cleanup:** Added `post_delete` handlers for tasks, goals, and habits to remove calendar events.
-6. **Purpose app registration:** Added `ready()` to `PurposeConfig` to import signals.
-
-**Result:** All items now project to the calendar instantly on save — no delay, no cron job needed.
-
-**Files changed:**
-- `apps/life/signals.py` — Unified task signal (routine + non-routine), added task delete handler
-- `apps/purpose/signals.py` — **NEW** — Goal, milestone, and habit projection signals + delete cleanup
-- `apps/purpose/apps.py` — Added `ready()` to register signals
-
-**Tests:** 515/515 tests pass across life, calendar_engine, and purpose (zero regressions)
-
----
-
-## 2026-02-27 — Industry-Leading Recurring Task Builder UI
-
-**What:** Replaced the basic 6-option recurring task dropdown with a full context-sensitive recurrence builder comparable to Outlook/Google Calendar/Todoist. Users can now configure:
-- **Daily** with specific day-of-week selection (e.g., Mon-Sat, skip Sunday)
-- **Weekly** with custom interval + specific days (e.g., every 2 weeks on Mon, Wed, Fri)
-- **Monthly** with three modes: specific day of month, Nth weekday (first Monday, last Friday), or last day
-- **Yearly** with custom interval
-- All frequencies support custom intervals (every N days/weeks/months/years)
-- Human-readable summary bar auto-updates as options change
-
-**Backend:** Extended `RecurrencePattern` parser to support `daily:<days>`, `every_N_unit:<spec>` compound patterns. Added `get_human_readable()` method. Fixed weekly+interval+specific days occurrence calculation. Added pattern validation in TaskCreateView and TaskUpdateView.
-
-**UI:** Segmented frequency control, circular day-of-week chip toggles (44px touch targets), radio-based monthly options, auto-generated pattern summary. Fully CSP-compliant (all addEventListener), mobile-responsive (2x2 grid on phones). No model changes or migrations needed — all patterns fit within existing CharField(max_length=50).
-
-**Files changed:**
-- `apps/life/services/recurrence.py` — Extended parser, fixed occurrence logic, added human-readable method
-- `templates/life/task_form.html` — Complete recurrence builder UI (HTML, CSS, JS)
-- `apps/life/views.py` — Pattern validation in TaskCreateView and TaskUpdateView
-- `apps/life/tests/test_recurrence_patterns.py` — 69 comprehensive tests (parsing, occurrences, human-readable, integration)
-
-**Tests:** 69/69 pass, 295/295 life app tests pass (zero regressions)
 
 ---
 

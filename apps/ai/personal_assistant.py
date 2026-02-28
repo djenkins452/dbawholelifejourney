@@ -2260,109 +2260,139 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                     # Response wasn't yes/no, ask again
                     response = f"Please confirm: {intent_service._build_confirmation_message(pending['intent_type'], pending['parameters'])} (yes/no)"
             else:
-                # Try to recognize intents (supports multiple)
-                intent_results = intent_service.recognize_intents(message, self.user)
-
-                # Filter out no_action results
-                actionable_intents = [ir for ir in intent_results if ir.intent_type != 'no_action']
-
-                if actionable_intents:
-                    # Run orchestrator pipeline for time/context resolution
-                    from apps.core.ai_orchestrator.orchestrator import (
-                        process_user_input as orchestrator_process,
-                        enrich_and_execute,
+                # ── Pre-filter: Check-in / status queries ──────────────────
+                # These MUST be caught BEFORE the intent service, because the
+                # intent service may misclassify "what's left for me today.
+                # meds and journals" as a calendar event search (returning
+                # "No events found"). Check-in queries need the full CoS
+                # _generate_response flow with the check-in context injection.
+                _msg_lower_precheck = message.lower()
+                _is_checkin_prefilter = any(p in _msg_lower_precheck for p in [
+                    'check in', 'checking in', 'check-in', 'checkin',
+                    "what's left", 'whats left', 'what is left',
+                    "what's remaining", 'whats remaining',
+                    'what do i have left', 'what do i still need',
+                    'meds and journal', 'journal and meds',
+                    'meds and reading', 'reading and meds',
+                    'brief me', 'briefing', 'daily briefing',
+                    'run down my day', 'give me a rundown',
+                    'give me my status', 'status update', 'status report',
+                    "how's my day", 'how is my day',
+                    "what's on my plate", 'whats on my plate',
+                    "what's left for me", 'whats left for me',
+                    'what still needs to be done', 'what haven\'t i done',
+                ])
+                if _is_checkin_prefilter:
+                    response = self._generate_response(
+                        message, conversation,
+                        page_context=page_context,
+                        image_data=image_data,
+                        image_mime_type=image_mime_type,
                     )
-                    orch_result = orchestrator_process(
-                        self.user, message, page_context=page_context
-                    )
+                else:
+                    # Try to recognize intents (supports multiple)
+                    intent_results = intent_service.recognize_intents(message, self.user)
 
-                    # If orchestrator needs clarification (ambiguous time/context),
-                    # ask the user instead of executing
-                    if orch_result.needs_clarification:
-                        response = orch_result.clarification_question
-                    else:
-                        # Check if any require confirmation
-                        needs_confirmation = [ir for ir in actionable_intents if ir.requires_confirmation]
+                    # Filter out no_action results
+                    actionable_intents = [ir for ir in intent_results if ir.intent_type != 'no_action']
 
-                        if needs_confirmation:
-                            # For now, if any need confirmation, handle them one by one
-                            # Store the first one pending and execute the rest
-                            first_confirm = needs_confirmation[0]
-                            intent_service.store_pending_confirmation(self.user, first_confirm)
+                    if actionable_intents:
+                        # Run orchestrator pipeline for time/context resolution
+                        from apps.core.ai_orchestrator.orchestrator import (
+                            process_user_input as orchestrator_process,
+                            enrich_and_execute,
+                        )
+                        orch_result = orchestrator_process(
+                            self.user, message, page_context=page_context
+                        )
 
-                            # Execute any that don't need confirmation via orchestrator
-                            no_confirm = [ir for ir in actionable_intents if not ir.requires_confirmation]
-                            response_parts = []
+                        # If orchestrator needs clarification (ambiguous time/context),
+                        # ask the user instead of executing
+                        if orch_result.needs_clarification:
+                            response = orch_result.clarification_question
+                        else:
+                            # Check if any require confirmation
+                            needs_confirmation = [ir for ir in actionable_intents if ir.requires_confirmation]
 
-                            if no_confirm:
+                            if needs_confirmation:
+                                # For now, if any need confirmation, handle them one by one
+                                # Store the first one pending and execute the rest
+                                first_confirm = needs_confirmation[0]
+                                intent_service.store_pending_confirmation(self.user, first_confirm)
+
+                                # Execute any that don't need confirmation via orchestrator
+                                no_confirm = [ir for ir in actionable_intents if not ir.requires_confirmation]
+                                response_parts = []
+
+                                if no_confirm:
+                                    orch_actions = enrich_and_execute(
+                                        self.user, no_confirm, orch_result
+                                    )
+                                    for action_result in orch_actions:
+                                        if action_result.success:
+                                            actions_taken.append(self._build_action_taken(action_result))
+
+                                    # Use orchestrator enhanced response if available
+                                    if orch_result.response:
+                                        response_parts.append(orch_result.response)
+                                    else:
+                                        for ar in orch_actions:
+                                            if ar.success:
+                                                response_parts.append(ar.message + self._format_confirmation_detail(ar))
+
+                                # Add confirmation message for the pending one
+                                response_parts.append(first_confirm.confirmation_message)
+                                response = " ".join(response_parts)
+                            else:
+                                # Execute all actions via orchestrator
                                 orch_actions = enrich_and_execute(
-                                    self.user, no_confirm, orch_result
+                                    self.user, actionable_intents, orch_result
                                 )
+
                                 for action_result in orch_actions:
                                     if action_result.success:
                                         actions_taken.append(self._build_action_taken(action_result))
 
                                 # Use orchestrator enhanced response if available
                                 if orch_result.response:
-                                    response_parts.append(orch_result.response)
+                                    response = orch_result.response
                                 else:
+                                    response_parts = []
                                     for ar in orch_actions:
-                                        if ar.success:
-                                            response_parts.append(ar.message + self._format_confirmation_detail(ar))
-
-                            # Add confirmation message for the pending one
-                            response_parts.append(first_confirm.confirmation_message)
-                            response = " ".join(response_parts)
-                        else:
-                            # Execute all actions via orchestrator
-                            orch_actions = enrich_and_execute(
-                                self.user, actionable_intents, orch_result
-                            )
-
-                            for action_result in orch_actions:
-                                if action_result.success:
-                                    actions_taken.append(self._build_action_taken(action_result))
-
-                            # Use orchestrator enhanced response if available
-                            if orch_result.response:
-                                response = orch_result.response
-                            else:
-                                response_parts = []
-                                for ar in orch_actions:
-                                    response_parts.append(ar.message + self._format_confirmation_detail(ar))
-                                response = " ".join(response_parts)
-                else:
-                    # No action intent - check for bug reports first ("Fix this:", "Bug:", etc.)
-                    bug_report_ack = self._check_bug_report(
-                        message=message,
-                        conversation=conversation,
-                        bug_report_service=bug_report_service
-                    )
-
-                    if bug_report_ack:
-                        # Bug report was detected and handled
-                        # Generate a helpful response and append the acknowledgment
-                        response = self._generate_response(
-                            message, conversation,
-                            page_context=page_context,
-                            image_data=image_data,
-                            image_mime_type=image_mime_type
-                        )
-                        response += "\n\n" + bug_report_ack
+                                        response_parts.append(ar.message + self._format_confirmation_detail(ar))
+                                    response = " ".join(response_parts)
                     else:
-                        # Not a bug report - check for navigation query
-                        # Pass page_context so we don't navigate away when asking about current content
-                        navigation_response = self._try_navigation_response(message, conversation, page_context)
-                        if navigation_response:
-                            response = navigation_response
-                        else:
-                            # Generate normal chat response
+                        # No action intent - check for bug reports first ("Fix this:", "Bug:", etc.)
+                        bug_report_ack = self._check_bug_report(
+                            message=message,
+                            conversation=conversation,
+                            bug_report_service=bug_report_service
+                        )
+
+                        if bug_report_ack:
+                            # Bug report was detected and handled
+                            # Generate a helpful response and append the acknowledgment
                             response = self._generate_response(
                                 message, conversation,
                                 page_context=page_context,
                                 image_data=image_data,
                                 image_mime_type=image_mime_type
                             )
+                            response += "\n\n" + bug_report_ack
+                        else:
+                            # Not a bug report - check for navigation query
+                            # Pass page_context so we don't navigate away when asking about current content
+                            navigation_response = self._try_navigation_response(message, conversation, page_context)
+                            if navigation_response:
+                                response = navigation_response
+                            else:
+                                # Generate normal chat response
+                                response = self._generate_response(
+                                    message, conversation,
+                                    page_context=page_context,
+                                    image_data=image_data,
+                                    image_mime_type=image_mime_type
+                                )
 
                         # Check for feature requests ("I wish", "I want") and notify admin
                         # This captures user needs that the system doesn't currently handle
@@ -3451,7 +3481,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
 
         # Check-in / day assessment — user wants a full CoS briefing
         is_requesting_checkin = any(phrase in message_lower for phrase in [
-            'check in', 'checking in', 'check-in',
+            'check in', 'checking in', 'check-in', 'checkin',
             'how is my day', 'how\'s my day',
             'how does my day look', 'how\'s my schedule',
             'what\'s my day look like', 'give me a rundown',
@@ -3459,6 +3489,13 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             'what do i have today', 'what\'s on my plate',
             'status update', 'status report', 'give me my status',
             'what am i looking at today', 'run down my day',
+            "what's left", 'whats left', 'what is left',
+            "what's remaining", 'whats remaining',
+            'what do i have left', 'what do i still need',
+            'meds and journal', 'journal and meds',
+            'meds and reading', 'reading and meds',
+            "what's left for me", 'whats left for me',
+            'what still needs to be done', 'what haven\'t i done',
         ])
 
         if is_asking_about_tasks or is_asking_for_analysis or is_requesting_checkin:
@@ -3557,6 +3594,10 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                     prayer_details = f"Active prayers: {faith.get('active_prayers', 0)}"
 
                 # Medications: actual med names and what's outstanding
+                # CRITICAL SAFETY: Must check each INDIVIDUAL schedule/dose,
+                # not just any dose for the medication. A med with morning +
+                # evening doses must show each dose separately — telling a user
+                # to take a dose they already took could be dangerous.
                 med_details = ''
                 try:
                     from apps.health.models import Medicine, MedicineLog
@@ -3567,10 +3608,25 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                     taken_meds = []
                     untaken_meds = []
                     for med in active_meds:
-                        schedules = med.schedules.all()
+                        schedules = list(med.schedules.all())
+                        if not schedules:
+                            # Med has no schedules — check if any log exists today
+                            any_taken = MedicineLog.objects.filter(
+                                medicine=med,
+                                scheduled_date=today,
+                                log_status__in=['taken', 'late'],
+                            ).exists()
+                            if any_taken:
+                                taken_meds.append(med.name)
+                            else:
+                                untaken_meds.append(med.name)
+                            continue
+
                         for sched in schedules:
+                            # Check THIS SPECIFIC schedule/dose, not just any dose
                             taken = MedicineLog.objects.filter(
                                 medicine=med,
+                                schedule=sched,
                                 scheduled_date=today,
                                 log_status__in=['taken', 'late'],
                             ).exists()
@@ -3585,8 +3641,13 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                     if untaken_meds:
                         parts.append(f"NOT YET TAKEN ({len(untaken_meds)}):\n" + '\n'.join(f'  ⬜ {m}' for m in untaken_meds))
                     if taken_meds:
-                        parts.append(f"TAKEN ({len(taken_meds)}):\n" + '\n'.join(f'  ✓ {m}' for m in taken_meds))
-                    med_details = '\n'.join(parts) if parts else 'No active medications.'
+                        parts.append(f"ALREADY TAKEN ({len(taken_meds)}):\n" + '\n'.join(f'  ✓ {m}' for m in taken_meds))
+                    if parts:
+                        med_details = '\n'.join(parts)
+                        med_details += '\n\nIMPORTANT: Only remind the user about NOT YET TAKEN medications. ' \
+                                       'NEVER suggest taking medications marked as ALREADY TAKEN — double-dosing is dangerous.'
+                    else:
+                        med_details = 'No active medications.'
                 except Exception:
                     med_details = 'Medication data unavailable.'
 

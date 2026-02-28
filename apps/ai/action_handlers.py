@@ -2999,7 +2999,8 @@ class ActionHandler:
                 parts = [f"**{t['title']}**"]
                 if t.get('due_date'):
                     parts.append(f"Due: {t['due_date']}")
-                if t.get('calendar_start') and t.get('calendar_kind') == 'execution_block':
+                if t.get('calendar_start'):
+                    # Use calendar event time (authoritative) for ALL event kinds
                     parts.append(f"Scheduled: {t['calendar_start']} – {t['calendar_end']}")
                 elif t.get('scheduled_time'):
                     parts.append(f"Scheduled: {t['scheduled_time']}")
@@ -3012,7 +3013,8 @@ class ActionHandler:
                 lines = [f"Found {count} tasks:"]
                 for t in task_list:
                     time_str = ""
-                    if t.get('calendar_start') and t.get('calendar_kind') == 'execution_block':
+                    if t.get('calendar_start'):
+                        # Use calendar event time (authoritative) for ALL event kinds
                         time_str = f" at {t['calendar_start']}"
                     elif t.get('scheduled_time'):
                         time_str = f" at {t['scheduled_time']}"

@@ -352,11 +352,19 @@ PURPOSE:
 LIFE/TASKS:
 - "add task to call mom" → create_task(title="Call mom")
 - "remind me to buy groceries" → create_task(title="Buy groceries")
+- "add a task today at 10am to buy new battery for the Jeep" → create_task(title="Buy new battery for the Jeep", due_date="today", scheduled_time="10:00")
+- "add task to file taxes by Friday at 3pm" → create_task(title="File taxes", due_date="friday", scheduled_time="15:00")
 - "I finished the laundry task" → complete_task(task_keyword="laundry")
 - "remember my wife's birthday is March 15" → add_reminder(title="Wife's Birthday", event_type="birthday", event_date="03-15")
 - "add Quiet Time to my daily routine at 5:30am" → create_routine_task(title="Quiet Time", scheduled_time="05:30")
 - "I want a daily workout at 6am" → create_routine_task(title="Workout", scheduled_time="06:00", duration_minutes=45)
 - "schedule my evening walk every day at 7pm" → create_routine_task(title="Evening Walk", scheduled_time="19:00", duration_minutes=30)
+
+IMPORTANT — task vs routine vs event:
+- "add a task at 10am" → create_task with scheduled_time (one-time task at specific time)
+- "add X to my daily routine at 6am" → create_routine_task (recurring daily task)
+- "schedule a meeting at 2pm" → create_event (calendar event)
+When the user says "add a task" with a time, use create_task with scheduled_time — do NOT use create_event or create_routine_task unless they explicitly say "event", "calendar", "daily routine", or "every day".
 
 CALENDAR EVENTS:
 - "add to my calendar 5am Wake Up for tomorrow" → create_event(title="Wake Up", start_date="tomorrow", start_time="05:00")

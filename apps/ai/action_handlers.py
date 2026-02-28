@@ -2578,7 +2578,8 @@ class ActionHandler:
 
     def handle_create_task(self, title: str, notes: str = "", due_date: str = None,
                            priority: str = None, effort: str = "small",
-                           project_name: str = None, **kwargs) -> ActionResult:
+                           project_name: str = None, scheduled_time: str = None,
+                           duration_minutes: int = None, **kwargs) -> ActionResult:
         """
         Create a new task.
 
@@ -2589,6 +2590,8 @@ class ActionHandler:
             priority: now, soon, someday
             effort: quick, small, medium, large
             project_name: Name of project to associate
+            scheduled_time: Specific time in HH:MM format (e.g., '10:00')
+            duration_minutes: Duration in minutes when scheduled_time is set
         """
         from apps.life.models import Task, Project
         from datetime import datetime as dt, timedelta
@@ -2612,6 +2615,17 @@ class ActionHandler:
                     except ValueError:
                         pass
 
+            # Parse scheduled_time (HH:MM format)
+            parsed_time = None
+            if scheduled_time:
+                try:
+                    parsed_time = dt.strptime(scheduled_time, '%H:%M').time()
+                    # If user specified a time but no date, default to today
+                    if not parsed_due:
+                        parsed_due = self._get_user_today()
+                except ValueError:
+                    pass
+
             # Find project if specified
             project = None
             if project_name:
@@ -2621,18 +2635,25 @@ class ActionHandler:
                     status='active'
                 ).first()
 
-            task = Task.objects.create(
+            task_kwargs = dict(
                 user=self.user,
                 title=title,
                 notes=notes or "",
                 due_date=parsed_due,
                 effort=effort,
-                project=project
+                project=project,
             )
+            if parsed_time:
+                task_kwargs['scheduled_time'] = parsed_time
+                if duration_minutes:
+                    task_kwargs['estimated_duration_minutes'] = duration_minutes
+
+            task = Task.objects.create(**task_kwargs)
 
             # Task priority is auto-calculated from due date
 
-            due_str = f" (due {parsed_due.strftime('%b %d')})" if parsed_due else ""
+            time_str = f" at {parsed_time.strftime('%I:%M %p').lstrip('0')}" if parsed_time else ""
+            due_str = f" (due {parsed_due.strftime('%b %d')}{time_str})" if parsed_due else ""
             project_str = f" in {project.title}" if project else ""
 
             # Include a helpful link to where they can find the task

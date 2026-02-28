@@ -50,6 +50,14 @@ LIFE_INTENT_TOOLS = [
                     "project_name": {
                         "type": "string",
                         "description": "Name of project to associate with (optional)"
+                    },
+                    "scheduled_time": {
+                        "type": "string",
+                        "description": "Specific time to do the task in HH:MM 24-hour format (e.g., '10:00', '14:30'). Use when the user specifies a time like 'at 10am', 'at 2:30pm'."
+                    },
+                    "duration_minutes": {
+                        "type": "integer",
+                        "description": "Estimated duration in minutes (default 30). Used when scheduled_time is provided."
                     }
                 },
                 "required": ["title"]

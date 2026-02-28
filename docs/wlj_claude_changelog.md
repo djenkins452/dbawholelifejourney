@@ -9,6 +9,22 @@
 
 # WLJ Change History
 
+## 2026-02-28 — Fix task time scheduling: "add task at 10am" now works
+
+**What:** Tasks created via Beth with a specific time (e.g., "add a task today at 10am") were ignoring the time entirely. The task would appear at 11:59 PM (deadline marker) instead of the requested time.
+
+**Root cause:** The `create_task` intent definition had no `scheduled_time` parameter. When a user said "at 10am", the AI had nowhere to pass that time — it was silently dropped. The task was saved without `scheduled_time`, so the calendar projection fell back to a 23:59 deadline marker.
+
+**Fix:**
+- Added `scheduled_time` and `duration_minutes` parameters to the `create_task` intent definition
+- Updated `handle_create_task` to parse and save `scheduled_time` on the Task model
+- Added system prompt examples and disambiguation rules (task with time vs routine vs event)
+- Calendar projection already handled `scheduled_time` correctly — no changes needed there
+
+**Files:** `apps/ai/intents/life_intents.py`, `apps/ai/intent_service.py`, `apps/ai/action_handlers.py`
+
+---
+
 ## 2026-02-28 — Fix Generic Responses: CoS Must Use Real Data, Not Generic Advice
 
 **What:** Beth responded to "what does my day look like?" with completely generic advice ("consider your morning routine, work schedule, meals, evening activities") — zero personalization, zero WLJ data. User described this as "totally failed."

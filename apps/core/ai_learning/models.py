@@ -122,36 +122,26 @@ class UserLearnedProfile(models.Model):
 
         Returns a string block that tells the LLM what it has learned
         about this user across conversations.
+
+        Handles both legacy str items and new dict items (with confidence).
+        Only includes active items with sufficient confidence.
         """
         lines = []
         lines.append("--- LEARNED USER PROFILE ---")
 
-        if self.stated_values:
-            lines.append(f"Core Values: {', '.join(self.stated_values[:8])}")
-        if self.non_negotiables:
-            lines.append(f"Non-Negotiables: {', '.join(self.non_negotiables[:8])}")
-        if self.identity_statements:
-            lines.append(f"Identity: {', '.join(self.identity_statements[:5])}")
-        if self.recurring_goals:
-            lines.append(f"Recurring Goals: {', '.join(self.recurring_goals[:5])}")
-        if self.motivational_triggers:
-            lines.append(f"Motivators: {', '.join(self.motivational_triggers[:5])}")
-        if self.relationship_priorities:
-            lines.append(f"Key Relationships: {', '.join(self.relationship_priorities[:5])}")
-        if self.repeated_frustrations:
-            lines.append(f"Known Frustrations: {', '.join(self.repeated_frustrations[:5])}")
-        if self.avoidance_patterns:
-            lines.append(f"Avoidance Patterns: {', '.join(self.avoidance_patterns[:3])}")
-        if self.health_concerns:
-            lines.append(f"Active Health Concerns: {', '.join(self.health_concerns[:5])}")
-        if self.life_event_mentions:
-            lines.append(f"Upcoming Events Mentioned: {', '.join(self.life_event_mentions[:5])}")
-        if self.commitments_made:
-            lines.append(f"Commitments Made: {', '.join(self.commitments_made[:5])}")
-        if self.explanation_preferences:
-            lines.append(f"Response Preferences: {', '.join(self.explanation_preferences[:3])}")
-        if self.time_patterns:
-            lines.append(f"Time Patterns: {', '.join(self.time_patterns[:5])}")
+        _add_field(lines, "Core Values", self.stated_values, 8)
+        _add_field(lines, "Non-Negotiables", self.non_negotiables, 8)
+        _add_field(lines, "Identity", self.identity_statements, 5)
+        _add_field(lines, "Recurring Goals", self.recurring_goals, 5)
+        _add_field(lines, "Motivators", self.motivational_triggers, 5)
+        _add_field(lines, "Key Relationships", self.relationship_priorities, 5)
+        _add_field(lines, "Known Frustrations", self.repeated_frustrations, 5)
+        _add_field(lines, "Avoidance Patterns", self.avoidance_patterns, 3)
+        _add_field(lines, "Active Health Concerns", self.health_concerns, 5)
+        _add_field(lines, "Upcoming Events Mentioned", self.life_event_mentions, 5)
+        _add_field(lines, "Commitments Made", self.commitments_made, 5)
+        _add_field(lines, "Response Preferences", self.explanation_preferences, 3)
+        _add_field(lines, "Time Patterns", self.time_patterns, 5)
 
         if len(lines) == 1:
             return ""  # Nothing learned yet
@@ -159,6 +149,30 @@ class UserLearnedProfile(models.Model):
         lines.append("(User can view and edit this profile in Settings)")
         lines.append("--- END LEARNED PROFILE ---")
         return "\n".join(lines)
+
+
+def _get_item_text(item):
+    """Get text from either a str or dict item."""
+    if isinstance(item, dict):
+        return item.get('text', '')
+    return str(item) if item else ''
+
+
+def _is_active_item(item):
+    """Check if an item is active (not faded)."""
+    if isinstance(item, dict):
+        return item.get('status', 'active') == 'active'
+    return True  # Legacy str items are always active
+
+
+def _add_field(lines, label, items, limit):
+    """Add a profile field to prompt lines, filtering active items only."""
+    if not items:
+        return
+    active = [_get_item_text(i) for i in items if _is_active_item(i)]
+    active = [t for t in active if t]  # Remove empty strings
+    if active:
+        lines.append(f"{label}: {', '.join(active[:limit])}")
 
 
 class LearningExtraction(models.Model):

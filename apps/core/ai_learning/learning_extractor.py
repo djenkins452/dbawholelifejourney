@@ -1,5 +1,5 @@
 """
-Phase 4 CoS — Learning Extractor.
+Phase 4 CoS — Learning Extractor (with Profile Evolution).
 
 After every assistant interaction, extracts:
 - Stated values
@@ -14,11 +14,19 @@ After every assistant interaction, extracts:
 Stores in UserLearnedProfile (user-visible, editable).
 Injected into assistant system prompt on next interaction.
 
+Profile Evolution (Persistent Learning upgrade):
+- Items stored as dicts: {text, confidence, frequency, first_seen, last_confirmed, status}
+- Confidence increases on re-extraction, decays over time
+- Stale items (60+ days) lose confidence
+- Conflicting items can be resolved
+- Backward compatible: reads both str and dict formats
+
 Public API:
     - extract_learning(user, user_message, assistant_response) -> list[LearningExtraction]
     - get_learned_profile(user) -> UserLearnedProfile
     - get_profile_system_prompt(user) -> str
     - remove_learned_item(user, category, text) -> bool
+    - evolve_profile(user) -> None
 """
 
 import logging
@@ -29,6 +37,11 @@ from django.utils import timezone
 from apps.core.ai_learning.models import LearningExtraction, UserLearnedProfile
 
 logger = logging.getLogger(__name__)
+
+# Confidence decay: items not re-confirmed in this many days start losing confidence
+DECAY_THRESHOLD_DAYS = 60
+DECAY_RATE = 0.1  # Confidence drop per decay cycle
+MIN_ACTIVE_CONFIDENCE = 0.2  # Below this, mark as "faded"
 
 # Keyword patterns for extraction (lightweight, no AI call needed)
 EXTRACTION_PATTERNS = {
@@ -212,6 +225,7 @@ def remove_learned_item(user, category, text):
 
     Called when user edits their profile to remove something.
     Full transparency — user controls what's stored.
+    Handles both legacy str items and new dict items.
 
     Returns:
         True if item was removed, False if not found.
@@ -226,9 +240,20 @@ def remove_learned_item(user, category, text):
             return False
 
         items = getattr(profile, field, [])
-        if text in items:
-            items.remove(text)
-            setattr(profile, field, items)
+        text_lower = text.lower()
+
+        # Find and remove matching item (str or dict)
+        new_items = []
+        removed = False
+        for item in items:
+            item_text = _get_item_text(item)
+            if item_text.lower() == text_lower:
+                removed = True  # Skip this item
+            else:
+                new_items.append(item)
+
+        if removed:
+            setattr(profile, field, new_items)
             profile.save(update_fields=[field, "updated_at"])
             return True
     except Exception as e:
@@ -257,7 +282,12 @@ def _clean_extracted_text(text):
 
 
 def _is_duplicate(user, category, text):
-    """Check if this extraction already exists in the profile."""
+    """Check if this extraction already exists in the profile.
+
+    Handles both legacy str items and new dict items.
+    If a match is found as a dict item, increments its frequency and
+    refreshes last_confirmed — this IS the re-confirmation signal.
+    """
     field = CATEGORY_FIELD_MAP.get(category)
     if not field:
         return False
@@ -269,9 +299,25 @@ def _is_duplicate(user, category, text):
 
         existing = getattr(profile, field, [])
         text_lower = text.lower()
-        for item in existing:
-            if text_lower == item.lower() or text_lower in item.lower():
-                return True
+        updated = False
+
+        for i, item in enumerate(existing):
+            item_text = _get_item_text(item)
+            if text_lower == item_text.lower() or text_lower in item_text.lower():
+                # Re-confirmation: boost confidence and refresh timestamp
+                if isinstance(item, dict):
+                    existing[i]['frequency'] = item.get('frequency', 1) + 1
+                    existing[i]['last_confirmed'] = timezone.now().isoformat()
+                    existing[i]['confidence'] = min(
+                        item.get('confidence', 0.7) + 0.05, 1.0
+                    )
+                    updated = True
+                return True  # Still a duplicate — don't re-add
+
+        if updated:
+            setattr(profile, field, existing)
+            profile.save(update_fields=[field, "updated_at"])
+
     except Exception:
         pass
 
@@ -279,7 +325,7 @@ def _is_duplicate(user, category, text):
 
 
 def _add_to_profile(user, category, text):
-    """Add an extracted item to the user's profile."""
+    """Add an extracted item to the user's profile as a structured dict."""
     field = CATEGORY_FIELD_MAP.get(category)
     if not field:
         return
@@ -288,11 +334,137 @@ def _add_to_profile(user, category, text):
         profile = _get_or_create_profile(user)
         items = getattr(profile, field, []) or []
 
-        if len(items) >= MAX_ITEMS_PER_CATEGORY:
-            items = items[1:]  # Remove oldest
+        # Remove faded items first to make room
+        items = [i for i in items if _get_item_status(i) != 'faded']
 
-        items.append(text)
+        if len(items) >= MAX_ITEMS_PER_CATEGORY:
+            # Remove lowest confidence item
+            items.sort(key=lambda i: _get_item_confidence(i))
+            items = items[1:]
+
+        # Add as structured dict
+        now = timezone.now().isoformat()
+        items.append({
+            'text': text,
+            'confidence': 0.7,
+            'frequency': 1,
+            'first_seen': now,
+            'last_confirmed': now,
+            'status': 'active',
+        })
+
         setattr(profile, field, items)
         profile.save(update_fields=[field, "updated_at"])
     except Exception as e:
         logger.debug(f"LearningExtractor: profile update failed: {e}")
+
+
+def evolve_profile(user):
+    """
+    Run profile evolution: decay stale items, resolve conflicts, clean up.
+
+    Call periodically (e.g., daily or on each extraction batch).
+    """
+    try:
+        profile = UserLearnedProfile.objects.filter(user=user).first()
+        if not profile:
+            return
+
+        now = timezone.now()
+        changed_fields = []
+
+        for category, field in CATEGORY_FIELD_MAP.items():
+            items = getattr(profile, field, []) or []
+            if not items:
+                continue
+
+            evolved = []
+            for item in items:
+                item = _ensure_dict_format(item)
+
+                # Check for staleness
+                last_confirmed = _parse_iso(item.get('last_confirmed'))
+                if last_confirmed:
+                    days_since = (now - last_confirmed).days
+                    if days_since > DECAY_THRESHOLD_DAYS:
+                        # Decay confidence
+                        decay_cycles = (days_since - DECAY_THRESHOLD_DAYS) // 30
+                        new_confidence = max(
+                            item.get('confidence', 0.7) - (DECAY_RATE * max(decay_cycles, 1)),
+                            0.0,
+                        )
+                        item['confidence'] = round(new_confidence, 2)
+
+                        if new_confidence < MIN_ACTIVE_CONFIDENCE:
+                            item['status'] = 'faded'
+
+                # Keep all items (even faded) for transparency
+                evolved.append(item)
+
+            if evolved != items:
+                setattr(profile, field, evolved)
+                changed_fields.append(field)
+
+        if changed_fields:
+            changed_fields.append("updated_at")
+            profile.save(update_fields=changed_fields)
+            logger.debug(
+                "Evolved profile for user %s: updated %d categories",
+                user.email if hasattr(user, 'email') else user.pk,
+                len(changed_fields) - 1,
+            )
+
+    except Exception as e:
+        logger.debug(f"LearningExtractor: evolve_profile failed: {e}")
+
+
+# =============================================================================
+# FORMAT HELPERS — backward compatibility with str and dict items
+# =============================================================================
+
+
+def _get_item_text(item) -> str:
+    """Get text from either a str item or a dict item."""
+    if isinstance(item, dict):
+        return item.get('text', '')
+    return str(item) if item else ''
+
+
+def _get_item_confidence(item) -> float:
+    """Get confidence from a dict item, or default for str items."""
+    if isinstance(item, dict):
+        return item.get('confidence', 0.7)
+    return 0.7
+
+
+def _get_item_status(item) -> str:
+    """Get status from a dict item."""
+    if isinstance(item, dict):
+        return item.get('status', 'active')
+    return 'active'
+
+
+def _ensure_dict_format(item) -> dict:
+    """Convert a legacy str item to dict format."""
+    if isinstance(item, dict):
+        return item
+    now = timezone.now().isoformat()
+    return {
+        'text': str(item),
+        'confidence': 0.7,
+        'frequency': 1,
+        'first_seen': now,
+        'last_confirmed': now,
+        'status': 'active',
+    }
+
+
+def _parse_iso(iso_str):
+    """Parse an ISO datetime string, return None on failure."""
+    if not iso_str:
+        return None
+    try:
+        from django.utils.dateparse import parse_datetime
+        return parse_datetime(iso_str)
+    except Exception:
+        return None

@@ -2895,6 +2895,149 @@ class ActionHandler:
                 error=str(e)
             )
 
+    def handle_read_task(self, task_keyword: str = None, date_filter: str = None,
+                         include_completed: bool = False, **kwargs) -> ActionResult:
+        """
+        Look up task details — time, due date, status, scheduled time.
+        Queries both the Task model and its CalendarEvent projection for
+        accurate time reporting.
+
+        Args:
+            task_keyword: Keywords to search in task titles
+            date_filter: 'today', 'tomorrow', 'this_week', 'overdue', or YYYY-MM-DD
+            include_completed: Include completed tasks
+        """
+        from apps.life.models import Task
+        from apps.calendar_engine.models import CalendarEvent
+        import datetime as dt
+
+        try:
+            today = self._get_user_today()
+            qs = Task.objects.filter(user=self.user, status='active')
+
+            if not include_completed:
+                qs = qs.filter(is_completed=False)
+
+            # Keyword filter
+            if task_keyword:
+                qs = qs.filter(
+                    Q(title__icontains=task_keyword) |
+                    Q(notes__icontains=task_keyword)
+                )
+
+            # Date filter
+            if date_filter:
+                df = date_filter.lower()
+                if df == 'today':
+                    qs = qs.filter(due_date=today)
+                elif df == 'tomorrow':
+                    qs = qs.filter(due_date=today + dt.timedelta(days=1))
+                elif df == 'this_week':
+                    week_end = today + dt.timedelta(days=(6 - today.weekday()))
+                    qs = qs.filter(due_date__gte=today, due_date__lte=week_end)
+                elif df == 'overdue':
+                    qs = qs.filter(due_date__lt=today, is_completed=False)
+                else:
+                    try:
+                        filter_date = dt.datetime.strptime(df, '%Y-%m-%d').date()
+                        qs = qs.filter(due_date=filter_date)
+                    except ValueError:
+                        pass
+
+            tasks = list(qs.order_by('due_date', 'scheduled_time')[:20])
+
+            if not tasks:
+                search_desc = f" matching '{task_keyword}'" if task_keyword else ""
+                return ActionResult(
+                    success=True,
+                    message=f"No tasks found{search_desc}.",
+                    created_object={'tasks': [], 'count': 0},
+                    action_type='read_task',
+                )
+
+            # Get user timezone for calendar event time display
+            try:
+                from zoneinfo import ZoneInfo
+                user_tz = ZoneInfo(self.user.preferences.timezone_iana)
+            except Exception:
+                from zoneinfo import ZoneInfo
+                user_tz = ZoneInfo('America/Chicago')
+
+            # Build detailed task list with calendar event times
+            task_list = []
+            for task in tasks:
+                task_info = {
+                    'id': task.id,
+                    'title': task.title,
+                    'due_date': task.due_date.isoformat() if task.due_date else None,
+                    'is_completed': task.is_completed,
+                    'priority': task.priority,
+                    'effort': task.effort,
+                    'scheduled_time': task.scheduled_time.strftime('%I:%M %p').lstrip('0') if task.scheduled_time else None,
+                }
+
+                # Look up the CalendarEvent for authoritative display time
+                cal_event = CalendarEvent.objects.filter(
+                    user=self.user,
+                    source_type=CalendarEvent.SOURCE_TASK,
+                    source_id=str(task.pk),
+                ).exclude(status=CalendarEvent.STATUS_CANCELED).first()
+
+                if cal_event:
+                    local_start = cal_event.start_dt.astimezone(user_tz)
+                    local_end = cal_event.end_dt.astimezone(user_tz)
+                    task_info['calendar_start'] = local_start.strftime('%I:%M %p').lstrip('0')
+                    task_info['calendar_end'] = local_end.strftime('%I:%M %p').lstrip('0')
+                    task_info['calendar_kind'] = cal_event.event_kind
+
+                task_list.append(task_info)
+
+            # Build human-readable message with FULL details
+            count = len(task_list)
+            if count == 1:
+                t = task_list[0]
+                parts = [f"**{t['title']}**"]
+                if t.get('due_date'):
+                    parts.append(f"Due: {t['due_date']}")
+                if t.get('calendar_start') and t.get('calendar_kind') == 'execution_block':
+                    parts.append(f"Scheduled: {t['calendar_start']} – {t['calendar_end']}")
+                elif t.get('scheduled_time'):
+                    parts.append(f"Scheduled: {t['scheduled_time']}")
+                if t.get('priority'):
+                    parts.append(f"Priority: {t['priority']}")
+                if t.get('is_completed'):
+                    parts.append("Status: ✓ Completed")
+                msg = " | ".join(parts)
+            else:
+                lines = [f"Found {count} tasks:"]
+                for t in task_list:
+                    time_str = ""
+                    if t.get('calendar_start') and t.get('calendar_kind') == 'execution_block':
+                        time_str = f" at {t['calendar_start']}"
+                    elif t.get('scheduled_time'):
+                        time_str = f" at {t['scheduled_time']}"
+                    due_str = f" (due {t['due_date']})" if t.get('due_date') else ""
+                    status = " ✓" if t.get('is_completed') else ""
+                    lines.append(f"- {t['title']}{time_str}{due_str}{status}")
+                msg = "\n".join(lines)
+
+            return ActionResult(
+                success=True,
+                message=msg,
+                created_object={'tasks': task_list, 'count': count},
+                action_type='read_task',
+            )
+
+        except Exception as e:
+            logger.error("handle_read_task failed for user=%s: %s",
+                         self.user.id, e, exc_info=True)
+            return ActionResult(
+                success=False,
+                message="Sorry, I couldn't look up that task.",
+                error=str(e),
+                action_type='read_task',
+            )
+
     # =========================================================================
     # SCHEDULING CONTEXT — for "same" / clone parameter inheritance
     # =========================================================================
@@ -4233,9 +4376,41 @@ class ActionHandler:
                 msg = "No events found matching your criteria."
             elif count == 1:
                 ev = event_list[0]
-                msg = f"Found 1 event: {ev['title']} on {ev['start_dt'][:10]}"
+                # Include full time details so the LLM can answer time questions
+                local_start = ev['start_dt']
+                local_end = ev['end_dt']
+                if ev.get('is_all_day'):
+                    msg = f"Found 1 event: {ev['title']} on {local_start[:10]} (all day)"
+                else:
+                    # Parse ISO to friendly time: "10:00 AM"
+                    try:
+                        from datetime import datetime as _dt
+                        _s = _dt.fromisoformat(local_start)
+                        _e = _dt.fromisoformat(local_end)
+                        time_str = f"{_s.strftime('%I:%M %p').lstrip('0')} – {_e.strftime('%I:%M %p').lstrip('0')}"
+                    except Exception:
+                        time_str = local_start
+                    msg = (
+                        f"Found 1 event: {ev['title']} on {local_start[:10]} "
+                        f"from {time_str}, status: {ev.get('status', 'scheduled')}, "
+                        f"kind: {ev.get('event_kind', 'event')}"
+                    )
             else:
-                msg = f"Found {count} events."
+                # Include details for all events so LLM has full picture
+                lines = [f"Found {count} events:"]
+                for ev in event_list:
+                    if ev.get('is_all_day'):
+                        lines.append(f"- {ev['title']} on {ev['start_dt'][:10]} (all day)")
+                    else:
+                        try:
+                            from datetime import datetime as _dt
+                            _s = _dt.fromisoformat(ev['start_dt'])
+                            _e = _dt.fromisoformat(ev['end_dt'])
+                            time_str = f"{_s.strftime('%I:%M %p').lstrip('0')}-{_e.strftime('%I:%M %p').lstrip('0')}"
+                        except Exception:
+                            time_str = ev['start_dt']
+                        lines.append(f"- {ev['title']}: {ev['start_dt'][:10]} {time_str} [{ev.get('event_kind', 'event')}]")
+                msg = "\n".join(lines)
 
             return ActionResult(
                 success=True,

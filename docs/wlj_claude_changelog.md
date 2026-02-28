@@ -9,6 +9,34 @@
 
 # WLJ Change History
 
+## 2026-02-28 — Fix Beth data coherence: task time queries + calendar time display
+
+**What:** Three data coherence failures where Beth reported wrong times or no times for tasks:
+
+1. **`read_calendar_events` response stripped time from message** — Line 4236 used `ev['start_dt'][:10]` which truncated to just the date. Beth saw "Found 1 event on 2026-02-28" with NO time, then hallucinated "3:30 PM" when asked "what time?".
+2. **No `read_task` intent existed** — Users asking "what time is my jeep task?" had no tool for Beth to query task details. The intent service could only route to `read_calendar_events` (which dropped times) or fall through to CoS context (which only had aggregate stats like "5 tasks, 3 pending").
+3. **CoS task context was aggregate-only** — `assistant/data_service.py` returned only counts (total, completed, pending, overdue). No individual task names, times, or due dates. Beth had zero data about specific tasks during conversation.
+
+**Fix — three layers:**
+
+1. **`read_calendar_events` now includes full times** — Single events show "Found 1 event: Title on 2026-02-28 from 10:00 AM – 11:00 AM, status: scheduled, kind: execution_block". Multi-event responses list each with time and kind.
+2. **New `read_task` intent + handler** — Beth can now query tasks by keyword and date filter. Response includes title, due date, scheduled time, priority, AND the authoritative CalendarEvent time. Wired through all 6 registration points.
+3. **CoS task context now includes individual tasks** — `get_task_data()` returns upcoming tasks (next 7 days) with title, due date, scheduled time, priority. `_format_task_data()` renders them so Beth always has real task data in conversation context.
+
+**Files (8):**
+- `apps/ai/action_handlers.py` — Fixed time display in `handle_read_calendar_events`, added `handle_read_task`
+- `apps/ai/intents/life_intents.py` — Added `read_task` tool definition
+- `apps/ai/intent_service.py` — Added routing, examples, system prompt guidance
+- `apps/ai/intents/__init__.py` — Added `read_task` to INTENT_HANDLERS
+- `apps/core/ai_orchestrator/intent_engine.py` — Added to LIFE_INTENTS category
+- `apps/ai/tests/test_intent_registration.py` — Added to exempt set
+- `assistant/data_service.py` — Enhanced `get_task_data()` with individual tasks
+- `assistant/context_builder.py` — Enhanced `_format_task_data()` with task details
+
+**Tests:** 502 AI tests (6 pre-existing ViewLayerIntegration DB flush errors), 57 data_service/context_builder tests pass, 10 intent registration tests pass.
+
+---
+
 ## 2026-02-28 — Fix task time scheduling: "add task at 10am" now works
 
 **What:** Tasks created via Beth with a specific time (e.g., "add a task today at 10am") were ignoring the time entirely. The task would appear at 11:59 PM (deadline marker) instead of the requested time.

@@ -95,6 +95,7 @@ INTENT_HANDLERS = {
     'create_task': 'life',
     'create_routine_task': 'life',
     'complete_task': 'life',
+    'read_task': 'life',
     'create_event': 'life',
     'add_reminder': 'life',
     # Calendar CRUD

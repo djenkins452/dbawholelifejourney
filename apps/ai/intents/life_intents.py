@@ -12,6 +12,7 @@ OpenAI function (tool) definitions for life management actions:
 - create_task: Create a new task
 - create_routine_task: Create a daily routine task with CoS prompting
 - complete_task: Mark a task as complete
+- read_task: Query/lookup task details (time, due date, status)
 - create_event: Schedule a calendar event
 - add_reminder: Create a reminder for a significant event (birthday, anniversary)
 """
@@ -119,6 +120,31 @@ LIFE_INTENT_TOOLS = [
                     }
                 },
                 "required": ["task_keyword"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "read_task",
+            "description": "Look up task details. Use when user asks about a specific task's time, due date, status, or details. Examples: 'what time is my jeep task?', 'when is the grocery task due?', 'show me my tasks for today'.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "task_keyword": {
+                        "type": "string",
+                        "description": "Keywords to search for in task titles (e.g., 'jeep', 'groceries', 'battery')"
+                    },
+                    "date_filter": {
+                        "type": "string",
+                        "description": "Filter by date: 'today', 'tomorrow', 'this_week', 'overdue', or YYYY-MM-DD"
+                    },
+                    "include_completed": {
+                        "type": "boolean",
+                        "description": "Include completed tasks in results (default false)"
+                    }
+                },
+                "required": []
             }
         }
     },

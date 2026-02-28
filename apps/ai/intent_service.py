@@ -355,6 +355,10 @@ LIFE/TASKS:
 - "add a task today at 10am to buy new battery for the Jeep" → create_task(title="Buy new battery for the Jeep", due_date="today", scheduled_time="10:00")
 - "add task to file taxes by Friday at 3pm" → create_task(title="File taxes", due_date="friday", scheduled_time="15:00")
 - "I finished the laundry task" → complete_task(task_keyword="laundry")
+- "what time is my jeep task?" → read_task(task_keyword="jeep")
+- "show me my tasks for today" → read_task(date_filter="today")
+- "when is the grocery task due?" → read_task(task_keyword="grocery")
+- "what tasks do I have this week?" → read_task(date_filter="this_week")
 - "remember my wife's birthday is March 15" → add_reminder(title="Wife's Birthday", event_type="birthday", event_date="03-15")
 - "add Quiet Time to my daily routine at 5:30am" → create_routine_task(title="Quiet Time", scheduled_time="05:30")
 - "I want a daily workout at 6am" → create_routine_task(title="Workout", scheduled_time="06:00", duration_minutes=45)
@@ -783,6 +787,9 @@ Examples:
 
             elif intent_type == 'complete_task':
                 return handler.handle_complete_task(**parameters)
+
+            elif intent_type == 'read_task':
+                return handler.handle_read_task(**parameters)
 
             elif intent_type == 'create_event':
                 return handler.handle_create_event(**parameters)

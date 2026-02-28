@@ -9,6 +9,20 @@
 
 # WLJ Change History
 
+## 2026-02-28 — Fix UTC Times + Task Queries Upgrade to Full Briefing
+
+**What:** Two bugs causing Beth to give confusing/incomplete responses:
+1. **UTC timezone bug:** Calendar event times in CoS operational context were displayed in UTC instead of user's local timezone. User saw "Buy new battery for the Jeep — Due at 3:30 PM" when calendar showed 10:30 AM (5-hour EST offset). Both `build_cos_context()` and `build_learning_mode_context()` called `.strftime()` on raw UTC datetimes without `.astimezone(user_tz)`.
+2. **Task queries got counts-only response:** "What else do I have to do today that I haven't completed" matched `is_asking_about_tasks` (via 'to do') but NOT `is_requesting_checkin`. The task path only injected counts ("2 tasks remaining") — no med names, no calendar events, no goals. Now `is_asking_about_tasks` auto-upgrades to `is_requesting_checkin` so every task query gets the full Chief of Staff briefing with specific item names.
+
+**Files changed:**
+- `apps/core/ai_orchestrator/cos_context.py` — Added `.astimezone(user_now.tzinfo)` before formatting calendar event times in both `build_cos_context` (line 393) and `build_learning_mode_context` (line 3509)
+- `apps/ai/personal_assistant.py` — Added task→check-in upgrade: `if is_asking_about_tasks and not is_requesting_checkin: is_requesting_checkin = True`
+
+**Tests:** 99 COS-CX + personal assistant tests pass.
+
+---
+
 ## 2026-02-28 — Fix Generic Responses: CoS Must Use Real Data, Not Generic Advice
 
 **What:** Beth responded to "what does my day look like?" with completely generic advice ("consider your morning routine, work schedule, meals, evening activities") — zero personalization, zero WLJ data. User described this as "totally failed."

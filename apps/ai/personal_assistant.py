@@ -3523,6 +3523,12 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             'catch me up', 'fill me in',
         ])
 
+        # Upgrade task queries to full check-in briefing. The lightweight
+        # counts-only path ("2 tasks remaining") is useless — the user asking
+        # "what do I have to do" deserves the same specificity as "check in".
+        if is_asking_about_tasks and not is_requesting_checkin:
+            is_requesting_checkin = True
+
         if is_asking_about_tasks or is_asking_for_analysis or is_requesting_checkin:
             # User is asking about tasks or wants analysis - include full state context
             state = self.assess_current_state()

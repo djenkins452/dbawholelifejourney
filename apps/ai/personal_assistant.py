@@ -3630,8 +3630,10 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                         user=self.user, medicine_status=Medicine.STATUS_ACTIVE,
                     ).exclude(status='deleted')
 
+                    current_time = timezone.now().time()
                     taken_meds = []
-                    untaken_meds = []
+                    overdue_meds = []    # Past scheduled time and NOT taken
+                    upcoming_meds = []   # Scheduled time is in the future
                     for med in active_meds:
                         schedules = list(med.schedules.all())
                         if not schedules:
@@ -3644,7 +3646,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                             if any_taken:
                                 taken_meds.append(med.name)
                             else:
-                                untaken_meds.append(med.name)
+                                upcoming_meds.append(med.name)
                             continue
 
                         for sched in schedules:
@@ -3659,17 +3661,24 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                             label = f"{med.name} ({time_str})" if time_str else med.name
                             if taken:
                                 taken_meds.append(label)
+                            elif sched.scheduled_time and sched.scheduled_time > current_time:
+                                # Not due yet — do NOT report as missed/overdue
+                                upcoming_meds.append(label)
                             else:
-                                untaken_meds.append(label)
+                                # Past due and not taken
+                                overdue_meds.append(label)
 
                     parts = []
-                    if untaken_meds:
-                        parts.append(f"NOT YET TAKEN ({len(untaken_meds)}):\n" + '\n'.join(f'  ⬜ {m}' for m in untaken_meds))
+                    if overdue_meds:
+                        parts.append(f"OVERDUE — NOT TAKEN ({len(overdue_meds)}):\n" + '\n'.join(f'  ⬜ {m}' for m in overdue_meds))
+                    if upcoming_meds:
+                        parts.append(f"SCHEDULED LATER TODAY ({len(upcoming_meds)}) — NOT due yet, do NOT report as missed:\n" + '\n'.join(f'  🕐 {m}' for m in upcoming_meds))
                     if taken_meds:
                         parts.append(f"ALREADY TAKEN ({len(taken_meds)}):\n" + '\n'.join(f'  ✓ {m}' for m in taken_meds))
                     if parts:
                         med_details = '\n'.join(parts)
-                        med_details += '\n\nIMPORTANT: Only remind the user about NOT YET TAKEN medications. ' \
+                        med_details += '\n\nIMPORTANT: Only remind the user about OVERDUE medications. ' \
+                                       'NEVER report SCHEDULED LATER TODAY medications as missed or overdue — they are not due yet. ' \
                                        'NEVER suggest taking medications marked as ALREADY TAKEN — double-dosing is dangerous.'
                     else:
                         med_details = 'No active medications.'

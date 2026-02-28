@@ -437,32 +437,51 @@ def _build_health_gate_section(user, today) -> str:
 
     # Medication check
     try:
+        from django.utils import timezone
         from apps.health.models import Medicine, MedicineLog
         active_meds = Medicine.objects.filter(
             user=user, medicine_status=Medicine.STATUS_ACTIVE,
         ).exclude(status='deleted')
 
         if active_meds.exists():
-            # Count today's scheduled doses vs taken
+            current_time = timezone.now().time()
             total_scheduled = 0
             taken_count = 0
+            overdue_count = 0
+            upcoming_count = 0
             for med in active_meds:
                 schedules = med.schedules.all()
-                total_scheduled += schedules.count()
-                taken_count += MedicineLog.objects.filter(
-                    medicine=med,
-                    scheduled_date=today,
-                    log_status__in=['taken', 'late'],
-                ).count()
+                for sched in schedules:
+                    total_scheduled += 1
+                    taken = MedicineLog.objects.filter(
+                        medicine=med,
+                        schedule=sched,
+                        scheduled_date=today,
+                        log_status__in=['taken', 'late'],
+                    ).exists()
+                    if taken:
+                        taken_count += 1
+                    elif sched.scheduled_time and sched.scheduled_time > current_time:
+                        upcoming_count += 1
+                    else:
+                        overdue_count += 1
 
             if total_scheduled > 0:
-                untaken = total_scheduled - taken_count
-                if untaken > 0:
+                if overdue_count > 0:
                     lines.append(
-                        f"HEALTH GATE — Medication: {untaken} of "
-                        f"{total_scheduled} doses not yet taken today. "
+                        f"HEALTH GATE — Medication: {overdue_count} of "
+                        f"{total_scheduled} doses OVERDUE today. "
                         "Ask if they've taken their medicine before "
                         "moving to tasks."
+                    )
+                    if upcoming_count > 0:
+                        lines.append(
+                            f"({upcoming_count} more doses scheduled later today — not yet due.)"
+                        )
+                elif upcoming_count > 0:
+                    lines.append(
+                        f"Medication: {taken_count} of {total_scheduled} doses taken. "
+                        f"{upcoming_count} scheduled later today (not yet due)."
                     )
                 else:
                     lines.append(

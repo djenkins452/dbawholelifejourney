@@ -273,6 +273,29 @@ def _normalize_for_matching(text):
     return result
 
 
+def _find_trigger_word_boundary(normalized, trigger):
+    """
+    Find trigger in normalized text with word-boundary awareness.
+
+    The 'ill' trigger (from "I'll") must not match inside words like
+    "will", "fill", "pill", "still", etc. Only match when the trigger
+    starts at a word boundary (start of string or preceded by space).
+
+    Returns:
+        int — index of match, or -1 if not found.
+    """
+    start = 0
+    while True:
+        idx = normalized.find(trigger, start)
+        if idx == -1:
+            return -1
+        # Check word boundary: must be at start of string or preceded by space
+        if idx == 0 or normalized[idx - 1] == ' ':
+            return idx
+        # Not at word boundary, keep searching
+        start = idx + 1
+
+
 def _extract_action_text(normalized, trigger):
     """
     Extract the action portion after the commitment trigger.
@@ -284,7 +307,7 @@ def _extract_action_text(normalized, trigger):
     Returns:
         str — the action text, or empty string.
     """
-    idx = normalized.find(trigger)
+    idx = _find_trigger_word_boundary(normalized, trigger)
     if idx == -1:
         return ''
     after = normalized[idx + len(trigger):].strip()
@@ -443,7 +466,7 @@ def detect_commitment_intent(text):
 
     # Find the matched trigger and text after it
     for trigger in _COMMITMENT_TRIGGERS:
-        idx = normalized.find(trigger)
+        idx = _find_trigger_word_boundary(normalized, trigger)
         if idx != -1:
             after = normalized[idx + len(trigger):].strip()
             if _is_false_positive(after):
@@ -494,7 +517,7 @@ def extract_commitment_fields(text):
     normalized = _normalize_for_matching(pre_done_text)
     matched_trigger = None
     for trigger in _COMMITMENT_TRIGGERS:
-        if trigger in normalized:
+        if _find_trigger_word_boundary(normalized, trigger) != -1:
             matched_trigger = trigger
             break
 

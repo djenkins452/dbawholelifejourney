@@ -9,6 +9,31 @@
 
 # WLJ Change History
 
+## 2026-02-28 — Fix AI Reporting Future Meds as "Missed" + ECC False Positive
+
+**What:** Fixed three bugs that caused the AI assistant to (1) report medications scheduled for later in the day as "missed" when they weren't due yet, and (2) misinterpret conversational questions like "Will you remember this for next time?" as commitments, responding with "When specifically will this be completed?"
+
+**Why:** User reported AI telling them they'd missed 6:00 PM medications at 11:06 AM. The same conversation also triggered a false ECC commitment detection because the word "will" contains the substring "ill" which matched the "I'll" trigger.
+
+**Root Causes:**
+1. `personal_assistant.py` medication context builder lumped all untaken doses into a single "NOT YET TAKEN" bucket without distinguishing past-due from future doses. The AI then interpreted future doses as deficiencies.
+2. `executive_briefing.py` health gate had the same issue — counted all untaken doses as concerning without checking scheduled times.
+3. `commitment_contract.py` used `.find()` for trigger matching, so the normalized trigger `'ill'` (from "I'll") matched inside "will" at position 1, causing false commitment detection.
+
+**Fix:**
+1. Split medication context into three buckets: OVERDUE (past due, not taken), SCHEDULED LATER TODAY (not yet due), ALREADY TAKEN. Added explicit AI instruction to never report future doses as missed.
+2. Executive briefing health gate now checks `scheduled_time > current_time` before flagging doses.
+3. Added `_find_trigger_word_boundary()` helper that ensures triggers only match at word boundaries (start of string or preceded by space). Applied to all three trigger-matching call sites.
+
+**Files:**
+- `apps/ai/personal_assistant.py` — Medication context now distinguishes overdue vs upcoming doses
+- `apps/ai/executive_briefing.py` — Health gate distinguishes overdue vs upcoming doses
+- `apps/core/ai_orchestrator/commitment_contract.py` — Word-boundary-aware trigger matching
+
+**Tests:** 142 commitment + 28 executive briefing + 61 personal assistant = all pass
+
+---
+
 ## 2026-02-28 — Learning Health Tile on Operations Wall
 
 **What:** Added a "Persistent Learning" health tile to the Ops Command Center that monitors all 5 learning subsystems (Memory, Corrections, Patterns, Response Preferences, Profile Evolution) in real-time. The tile shows overall status (LEARNING / DEGRADED / STALE) with green/yellow/red color coding and per-subsystem metrics.

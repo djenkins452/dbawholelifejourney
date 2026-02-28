@@ -1451,6 +1451,21 @@ class ConversationMemory(models.Model):
         help_text="OpenAI text-embedding-3-small vector (1536 dimensions)"
     )
 
+    # === Persistent Learning Fields (Phase: Feedback-Weighted Memory) ===
+    helpfulness_score = models.FloatField(
+        default=0.0,
+        help_text="Accumulated helpfulness signal (-1.0 to 1.0). "
+                  "Positive = helpful, negative = unhelpful."
+    )
+    retrieval_count = models.PositiveIntegerField(
+        default=0,
+        help_text="How many times this memory has been retrieved for context."
+    )
+    was_corrected = models.BooleanField(
+        default=False,
+        help_text="Whether the user corrected the assistant response in this exchange."
+    )
+
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -1465,3 +1480,287 @@ class ConversationMemory(models.Model):
 
     def __str__(self):
         return f"Memory {self.pk}: {self.user_message[:60]}..."
+
+
+# =============================================================================
+# CORRECTION RECORDS — Persistent correction memory for CoS
+# =============================================================================
+
+
+class CorrectionRecord(models.Model):
+    """
+    Stores structured corrections when the user corrects CoS.
+
+    When CoS says something wrong and the user corrects it, we store:
+    - What CoS originally said
+    - What the user corrected
+    - The corrected truth
+    - Topic linkage for retrieval
+
+    Corrections are retrieved with higher priority than regular memories
+    to prevent the same mistakes from recurring.
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='cos_corrections',
+    )
+    original_message = models.ForeignKey(
+        'AssistantMessage',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='corrections',
+        help_text="The assistant message that was corrected."
+    )
+
+    # Content
+    original_response = models.TextField(
+        help_text="What CoS originally said (the incorrect/imprecise response)."
+    )
+    user_correction = models.TextField(
+        help_text="The user's correction message."
+    )
+    corrected_truth = models.TextField(
+        blank=True,
+        help_text="Distilled corrected fact (auto-extracted or user-provided)."
+    )
+
+    # Semantic metadata
+    topic_tags = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Topic tags for retrieval filtering."
+    )
+    embedding = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Embedding of the correction for semantic retrieval."
+    )
+    confidence = models.FloatField(
+        default=0.8,
+        help_text="Confidence in the correction (0-1). Higher = more certain."
+    )
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Correction Record"
+        verbose_name_plural = "Correction Records"
+        indexes = [
+            models.Index(fields=['user', '-created_at']),
+        ]
+
+    def __str__(self):
+        return f"Correction {self.pk}: {self.user_correction[:60]}..."
+
+
+# =============================================================================
+# BEHAVIORAL PATTERNS — Cross-domain pattern detection for CoS
+# =============================================================================
+
+
+class BehavioralPattern(models.Model):
+    """
+    Stores detected behavioral patterns across domains.
+
+    Patterns are detected statistically from user data (journal, health,
+    tasks, faith) and surfaced to CoS for conversational awareness.
+
+    Users can confirm or deny patterns, which adjusts confidence.
+    """
+
+    PATTERN_TYPE_CHOICES = [
+        ('time_pattern', 'Time-of-Day Pattern'),
+        ('adherence_pattern', 'Adherence/Consistency Pattern'),
+        ('correlation_pattern', 'Cross-Domain Correlation'),
+        ('frequency_pattern', 'Frequency Pattern'),
+        ('emotional_pattern', 'Emotional Pattern'),
+    ]
+
+    DOMAIN_CHOICES = [
+        ('journal', 'Journal'),
+        ('health', 'Health'),
+        ('faith', 'Faith'),
+        ('tasks', 'Tasks'),
+        ('goals', 'Goals'),
+        ('finance', 'Finance'),
+        ('cross_domain', 'Cross-Domain'),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='behavioral_patterns',
+    )
+
+    pattern_type = models.CharField(
+        max_length=30,
+        choices=PATTERN_TYPE_CHOICES,
+    )
+    domain = models.CharField(
+        max_length=20,
+        choices=DOMAIN_CHOICES,
+    )
+    description = models.TextField(
+        help_text="Human-readable description of the pattern."
+    )
+    evidence = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Data points supporting this pattern (dates, values, etc.)."
+    )
+
+    # Confidence and tracking
+    confidence = models.FloatField(
+        default=0.5,
+        help_text="Pattern confidence (0-1). Increases with more evidence."
+    )
+    detection_count = models.PositiveIntegerField(
+        default=1,
+        help_text="How many times this pattern has been re-detected."
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Whether this pattern is still actively observed."
+    )
+    user_confirmed = models.BooleanField(
+        null=True,
+        blank=True,
+        help_text="None=pending, True=user confirmed, False=user denied."
+    )
+
+    # Timestamps
+    first_detected = models.DateTimeField(auto_now_add=True)
+    last_confirmed = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-confidence', '-last_confirmed']
+        verbose_name = "Behavioral Pattern"
+        verbose_name_plural = "Behavioral Patterns"
+        indexes = [
+            models.Index(fields=['user', 'is_active', '-confidence']),
+            models.Index(fields=['user', 'domain']),
+        ]
+
+    def __str__(self):
+        return f"[{self.domain}] {self.description[:60]}..."
+
+
+# =============================================================================
+# RESPONSE PREFERENCE — Adaptive response optimization for CoS
+# =============================================================================
+
+
+class ResponsePreference(models.Model):
+    """
+    Tracks per-user response preferences learned from feedback.
+
+    Built incrementally from was_helpful signals on AssistantMessage.
+    Injected into system prompt to optimize future responses.
+    """
+
+    LENGTH_CHOICES = [
+        ('concise', 'Concise'),
+        ('balanced', 'Balanced'),
+        ('detailed', 'Detailed'),
+    ]
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='response_preference',
+    )
+
+    # Derived preferences
+    preferred_length = models.CharField(
+        max_length=20,
+        choices=LENGTH_CHOICES,
+        default='balanced',
+        help_text="Learned preferred response length."
+    )
+
+    # Feedback counters
+    helpful_count = models.PositiveIntegerField(default=0)
+    unhelpful_count = models.PositiveIntegerField(default=0)
+
+    # Style effectiveness scores (JSON dict: coaching_style -> {helpful: N, unhelpful: N})
+    style_scores = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Per-coaching-style effectiveness: {style: {helpful: N, unhelpful: N}}"
+    )
+
+    # Response characteristics that work well (JSON dict)
+    effective_traits = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Traits correlated with helpfulness: {trait: score}"
+    )
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Response Preference"
+        verbose_name_plural = "Response Preferences"
+
+    def __str__(self):
+        total = self.helpful_count + self.unhelpful_count
+        if total == 0:
+            return f"Prefs for user {self.user_id} (no feedback yet)"
+        pct = round(self.helpful_count / total * 100)
+        return f"Prefs for user {self.user_id} ({pct}% helpful, {total} ratings)"
+
+    def to_system_prompt_block(self):
+        """Format learned preferences for system prompt injection."""
+        total = self.helpful_count + self.unhelpful_count
+        if total < 3:
+            return ""  # Not enough data yet
+
+        lines = ["--- LEARNED RESPONSE PREFERENCES ---"]
+
+        # Length preference
+        lines.append(f"Preferred response length: {self.preferred_length}")
+
+        # Best coaching style
+        if self.style_scores:
+            best_style = None
+            best_ratio = 0
+            for style, scores in self.style_scores.items():
+                h = scores.get('helpful', 0)
+                u = scores.get('unhelpful', 0)
+                t = h + u
+                if t >= 2:
+                    ratio = h / t
+                    if ratio > best_ratio:
+                        best_ratio = ratio
+                        best_style = style
+            if best_style and best_ratio > 0.6:
+                lines.append(
+                    f"Most effective coaching style: {best_style} "
+                    f"({round(best_ratio * 100)}% helpful)"
+                )
+
+        # Effective traits
+        if self.effective_traits:
+            positive_traits = [
+                t for t, s in self.effective_traits.items() if s > 0.3
+            ]
+            if positive_traits:
+                lines.append(f"User responds well to: {', '.join(positive_traits[:5])}")
+            negative_traits = [
+                t for t, s in self.effective_traits.items() if s < -0.3
+            ]
+            if negative_traits:
+                lines.append(f"Avoid: {', '.join(negative_traits[:3])}")
+
+        if len(lines) == 1:
+            return ""
+
+        lines.append("--- END RESPONSE PREFERENCES ---")
+        return "\n".join(lines)

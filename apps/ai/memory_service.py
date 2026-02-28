@@ -40,6 +40,7 @@ import math
 from typing import List, Dict, Optional, Any
 
 from django.conf import settings
+from django.db import models
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
@@ -255,7 +256,12 @@ def retrieve_relevant_memories(
     top_k: int = MAX_RETRIEVE,
     exclude_minutes: int = 30,
 ) -> List[Dict[str, Any]]:
-    """Retrieve the most semantically similar past conversations.
+    """Retrieve the most relevant past conversations using weighted scoring.
+
+    Scoring formula (Persistent Learning upgrade):
+      final_score = (similarity * 0.5) + (recency * 0.2)
+                  + (helpfulness * 0.2) + (frequency * 0.1)
+                  - (correction_penalty)
 
     Args:
         user: Django User instance
@@ -266,7 +272,7 @@ def retrieve_relevant_memories(
 
     Returns:
         List of dicts with keys: user_message, assistant_summary, topic_tags,
-        created_at, similarity
+        created_at, similarity, final_score
     """
     from .models import ConversationMemory
 
@@ -276,7 +282,8 @@ def retrieve_relevant_memories(
         return []
 
     # Get user's memories (exclude very recent to avoid echo)
-    cutoff = timezone.now() - timezone.timedelta(minutes=exclude_minutes)
+    now = timezone.now()
+    cutoff = now - timezone.timedelta(minutes=exclude_minutes)
     memories = ConversationMemory.objects.filter(
         user=user,
         created_at__lt=cutoff,
@@ -284,25 +291,134 @@ def retrieve_relevant_memories(
         embedding=[],
     ).order_by('-created_at')[:MAX_MEMORIES_PER_USER]
 
-    # Compute similarities
+    # Compute weighted scores
     scored = []
+    max_age_days = 180  # 6-month recency window
+
     for mem in memories:
         if not mem.embedding:
             continue
-        sim = _cosine_similarity(query_embedding, mem.embedding)
-        if sim >= SIMILARITY_THRESHOLD:
-            scored.append({
-                'user_message': mem.user_message,
-                'assistant_summary': mem.assistant_summary,
-                'topic_tags': mem.topic_tags,
-                'page_context_type': mem.page_context_type,
-                'created_at': mem.created_at,
-                'similarity': round(sim, 3),
-            })
 
-    # Sort by similarity descending, take top_k
-    scored.sort(key=lambda x: x['similarity'], reverse=True)
-    return scored[:top_k]
+        # Component 1: Semantic similarity (0-1)
+        sim = _cosine_similarity(query_embedding, mem.embedding)
+        if sim < SIMILARITY_THRESHOLD:
+            continue
+
+        # Component 2: Recency weight (0-1, decays over time)
+        age_days = (now - mem.created_at).days
+        recency = max(0.0, 1.0 - (age_days / max_age_days))
+
+        # Component 3: Helpfulness weight (-1 to 1, normalized to 0-1)
+        helpfulness = (mem.helpfulness_score + 1.0) / 2.0  # Map -1..1 to 0..1
+
+        # Component 4: Retrieval frequency bonus (0-1, diminishing returns)
+        frequency = min(mem.retrieval_count / 10.0, 1.0) if mem.retrieval_count > 0 else 0.0
+
+        # Correction penalty
+        correction_penalty = 0.3 if mem.was_corrected else 0.0
+
+        # Weighted final score
+        final_score = (
+            (sim * 0.5)
+            + (recency * 0.2)
+            + (helpfulness * 0.2)
+            + (frequency * 0.1)
+            - correction_penalty
+        )
+
+        scored.append({
+            'memory_id': mem.pk,
+            'user_message': mem.user_message,
+            'assistant_summary': mem.assistant_summary,
+            'topic_tags': mem.topic_tags,
+            'page_context_type': mem.page_context_type,
+            'created_at': mem.created_at,
+            'similarity': round(sim, 3),
+            'final_score': round(final_score, 3),
+            'was_corrected': mem.was_corrected,
+        })
+
+    # Sort by final_score descending, take top_k
+    scored.sort(key=lambda x: x['final_score'], reverse=True)
+    top_results = scored[:top_k]
+
+    # Increment retrieval_count for returned memories (non-blocking)
+    _increment_retrieval_counts([r['memory_id'] for r in top_results])
+
+    return top_results
+
+
+def propagate_feedback(user, message_id: int, was_helpful: bool) -> None:
+    """
+    Propagate was_helpful feedback from AssistantMessage to ConversationMemory.
+
+    Closes the feedback loop: when a user rates a message, find the
+    corresponding memory and adjust its helpfulness_score.
+
+    Args:
+        user: Django User instance
+        message_id: ID of the AssistantMessage that was rated
+        was_helpful: Whether the user found the response helpful
+    """
+    from .models import ConversationMemory, AssistantMessage
+
+    try:
+        message = AssistantMessage.objects.get(id=message_id)
+
+        # Find the ConversationMemory that matches this message
+        # Match by user + approximate time + content prefix
+        content_prefix = message.content[:100] if message.content else ""
+        time_window_start = message.created_at - timezone.timedelta(seconds=30)
+        time_window_end = message.created_at + timezone.timedelta(seconds=30)
+
+        memories = ConversationMemory.objects.filter(
+            user=user,
+            created_at__gte=time_window_start,
+            created_at__lte=time_window_end,
+        )
+
+        for mem in memories:
+            if content_prefix[:50] in mem.assistant_summary:
+                # Adjust helpfulness score
+                delta = 0.3 if was_helpful else -0.3
+                mem.helpfulness_score = max(-1.0, min(1.0, mem.helpfulness_score + delta))
+                mem.save(update_fields=['helpfulness_score'])
+                logger.debug(
+                    "Propagated feedback to memory %d: helpful=%s, score=%.2f",
+                    mem.pk, was_helpful, mem.helpfulness_score,
+                )
+                return
+
+        # Fallback: find closest memory by time
+        closest = ConversationMemory.objects.filter(
+            user=user,
+            created_at__lte=message.created_at,
+        ).order_by('-created_at').first()
+
+        if closest:
+            delta = 0.3 if was_helpful else -0.3
+            closest.helpfulness_score = max(-1.0, min(1.0, closest.helpfulness_score + delta))
+            closest.save(update_fields=['helpfulness_score'])
+            logger.debug(
+                "Propagated feedback to closest memory %d: helpful=%s",
+                closest.pk, was_helpful,
+            )
+
+    except Exception as e:
+        logger.debug("Failed to propagate feedback to memory: %s", e)
+
+
+def _increment_retrieval_counts(memory_ids: List[int]) -> None:
+    """Increment retrieval_count for retrieved memories."""
+    if not memory_ids:
+        return
+    try:
+        from .models import ConversationMemory
+        ConversationMemory.objects.filter(id__in=memory_ids).update(
+            retrieval_count=models.F('retrieval_count') + 1,
+        )
+    except Exception:
+        pass
 
 
 def get_memory_context_block(user, query: str) -> str:

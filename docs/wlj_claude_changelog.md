@@ -9,6 +9,47 @@
 
 # WLJ Change History
 
+## 2026-02-28 — CoS Persistent Learning Architecture (Major Intelligence Upgrade)
+
+**What:** Transformed CoS from a recall-only assistant into an adaptive learning system with 6 new mechanisms. CoS now learns from feedback, persists corrections, evolves its user profile, detects behavioral patterns, optimizes response style, and surfaces patterns conversationally.
+
+**Why:** The `was_helpful` feedback field was a dead-end (stored but never queried). Memory retrieval was flat (no weighting). Learned profile was additive-only (no decay or evolution). No correction persistence. No cross-domain pattern detection.
+
+**6 Mechanisms Implemented:**
+
+1. **Feedback-Weighted Memory** — Memory retrieval now uses weighted scoring:
+   `final_score = similarity×0.5 + recency×0.2 + helpfulness×0.2 + frequency×0.1 - correction_penalty`
+   Feedback from `was_helpful` propagates to `ConversationMemory.helpfulness_score`.
+
+2. **Correction Persistence** — When user corrects CoS (e.g., "that's not right"), stores structured `CorrectionRecord` with embedding. Corrections are injected into system prompt with higher priority than regular memories. Corresponding memory marked as corrected with score penalty.
+
+3. **Profile Evolution** — `UserLearnedProfile` items now stored as structured dicts: `{text, confidence, frequency, first_seen, last_confirmed, status}`. Confidence increases on re-extraction, decays after 60 days without re-confirmation. Stale items fade. Backward compatible with existing str items.
+
+4. **Behavioral Pattern Detection** — Cross-domain statistical detection across journal, health, tasks, faith. Detects time-of-day patterns, frequency patterns, emotional patterns, adherence patterns, weight trends. Stored in `BehavioralPattern` model with user confirmation workflow.
+
+5. **Adaptive Response Optimization** — Learns which response characteristics (length, coaching style, traits like lists/questions/encouragement) correlate with positive feedback. Stored in `ResponsePreference` model, injected into system prompt.
+
+6. **Pattern Awareness Reporting** — Detected patterns injected into CoS system prompt. Confirmed patterns shown as facts. Unconfirmed patterns shown as suggestions for CoS to mention naturally and ask user to verify.
+
+**Files created:**
+- `apps/ai/correction_service.py` — Correction detection, storage, retrieval
+- `apps/ai/pattern_detector.py` — Cross-domain behavioral pattern detection
+- `apps/ai/response_optimizer.py` — Feedback-driven response optimization
+- `apps/ai/migrations/0024_persistent_learning_models.py` — New models + fields
+- `docs/cos_persistent_learning_upgrade.md` — Master control document
+
+**Files modified:**
+- `apps/ai/models.py` — Added `CorrectionRecord`, `BehavioralPattern`, `ResponsePreference` models + 3 new fields on `ConversationMemory`
+- `apps/ai/memory_service.py` — Weighted retrieval scoring, `propagate_feedback()`, retrieval count tracking
+- `apps/ai/views.py` — Feedback propagation to memory + optimizer, correction detection, pattern detection triggers
+- `apps/ai/personal_assistant.py` — 4 new injection points (corrections, patterns, response prefs, profile evolution)
+- `apps/core/ai_learning/learning_extractor.py` — Dict-format items, confidence evolution, decay logic, `evolve_profile()`
+- `apps/core/ai_learning/models.py` — Updated `to_system_prompt_block()` for dict/str backward compatibility
+
+**Tests:** 517 tests passed, 0 failures
+
+---
+
 ## 2026-02-28 — Fix Check-in Intent Routing + Medication Safety (CRITICAL)
 
 **What:** Three critical bugs in Beth's check-in/status handling:

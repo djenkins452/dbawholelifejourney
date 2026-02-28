@@ -3760,6 +3760,33 @@ USER IS ASKING ABOUT THEIR TASKS/PRIORITIES - provide this information:
         except Exception as mem_err:
             logger.debug("Memory retrieval skipped: %s", mem_err)
 
+        # Phase 3b: Inject relevant corrections (higher priority than memories)
+        try:
+            from apps.ai.correction_service import get_correction_context_block
+            correction_block = get_correction_context_block(self.user, message)
+            if correction_block:
+                system_prompt += correction_block
+        except Exception as corr_err:
+            logger.debug("Correction retrieval skipped: %s", corr_err)
+
+        # Phase 3c: Inject detected behavioral patterns
+        try:
+            from apps.ai.pattern_detector import get_pattern_context_block
+            pattern_block = get_pattern_context_block(self.user)
+            if pattern_block:
+                system_prompt += pattern_block
+        except Exception as pat_err:
+            logger.debug("Pattern injection skipped: %s", pat_err)
+
+        # Phase 3d: Inject learned response preferences
+        try:
+            from apps.ai.response_optimizer import get_preference_prompt_block
+            pref_block = get_preference_prompt_block(self.user)
+            if pref_block:
+                system_prompt += "\n" + pref_block
+        except Exception as pref_err:
+            logger.debug("Response preference injection skipped: %s", pref_err)
+
         # Add page context if provided - helps assistant give context-aware responses
         if page_context:
             page_url = page_context.get('url', '')

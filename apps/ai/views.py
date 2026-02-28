@@ -323,11 +323,42 @@ class AssistantChatView(LoginRequiredMixin, AssistantMixin, View):
 
             # Phase 4: Extract learning from user message (non-blocking)
             try:
-                from apps.core.ai_learning.learning_extractor import extract_learning
+                from apps.core.ai_learning.learning_extractor import (
+                    extract_learning, evolve_profile,
+                )
                 response_text = result.get('response', '') if isinstance(result, dict) else str(result)
                 extract_learning(request.user, message, response_text)
+                # Run profile evolution periodically (lightweight check)
+                evolve_profile(request.user)
             except Exception:
                 pass  # Learning extraction must never break chat
+
+            # Phase 4b: Detect corrections and store them (non-blocking)
+            try:
+                from apps.ai.correction_service import detect_correction, store_correction
+                if detect_correction(message):
+                    # Get the previous assistant message to know what was corrected
+                    prev_msgs = conversation.messages.filter(
+                        role='assistant'
+                    ).order_by('-created_at')[:1]
+                    if prev_msgs:
+                        prev = prev_msgs[0]
+                        store_correction(
+                            user=request.user,
+                            user_message=message,
+                            original_response=prev.content,
+                            conversation=conversation,
+                            original_message_id=prev.id,
+                        )
+            except Exception:
+                pass  # Correction detection must never break chat
+
+            # Phase 4c: Run behavioral pattern detection (lightweight, non-blocking)
+            try:
+                from apps.ai.pattern_detector import detect_patterns
+                detect_patterns(request.user)
+            except Exception:
+                pass  # Pattern detection must never break chat
 
             # Handle both old string response and new dict response
             if isinstance(result, dict):
@@ -477,6 +508,19 @@ class MessageFeedbackView(LoginRequiredMixin, View):
             )
             message.was_helpful = was_helpful
             message.save(update_fields=['was_helpful'])
+
+            # Persistent Learning: propagate feedback to memory + response optimizer
+            try:
+                from apps.ai.memory_service import propagate_feedback
+                propagate_feedback(request.user, message_id, was_helpful)
+            except Exception:
+                pass  # Feedback propagation must never break the response
+
+            try:
+                from apps.ai.response_optimizer import record_feedback
+                record_feedback(request.user, message.content, was_helpful)
+            except Exception:
+                pass  # Response optimization must never break the response
 
             return JsonResponse({'success': True})
 

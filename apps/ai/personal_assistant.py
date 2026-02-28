@@ -2293,6 +2293,19 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                     'what am i doing today', 'what have i got today',
                     'where do i stand', 'where am i at',
                     'catch me up', 'fill me in',
+                    # Task-oriented queries — must catch BEFORE intent service
+                    # routes them to read_task (which returns raw list, not CoS briefing)
+                    'have to do today', 'to do today',
+                    "haven't completed", 'havent completed',
+                    "haven't done", 'havent done',
+                    "haven't finished", 'havent finished',
+                    'still need to do', 'need to finish',
+                    'left to do', 'left to finish',
+                    'still outstanding', 'still pending',
+                    'incomplete today', 'not done today',
+                    'remaining today', 'remaining for today',
+                    'tasks today', 'tasks for today',
+                    'things to do', 'to-do list',
                 ])
                 if _is_checkin_prefilter:
                     response = self._generate_response(
@@ -3521,6 +3534,18 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             'what am i doing today', 'what have i got today',
             'where do i stand', 'where am i at',
             'catch me up', 'fill me in',
+            # Task-oriented queries
+            'have to do today', 'to do today',
+            "haven't completed", 'havent completed',
+            "haven't done", 'havent done',
+            "haven't finished", 'havent finished',
+            'still need to do', 'need to finish',
+            'left to do', 'left to finish',
+            'still outstanding', 'still pending',
+            'incomplete today', 'not done today',
+            'remaining today', 'remaining for today',
+            'tasks today', 'tasks for today',
+            'things to do', 'to-do list',
         ])
 
         # Upgrade task queries to full check-in briefing. The lightweight

@@ -78,6 +78,7 @@
 .ops-wall > .ops-section:nth-child(7) { animation-delay: 0.28s; }
 .ops-wall > .ops-section:nth-child(8) { animation-delay: 0.32s; }
 .ops-wall > .ops-section:nth-child(9) { animation-delay: 0.36s; }
+.ops-wall > .ops-section:nth-child(10) { animation-delay: 0.40s; }
 @keyframes opsEnter {
     to { opacity: 1; transform: translateY(0); }
 }
@@ -910,6 +911,114 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
 .ops-sched-metric-value.drift-critical { color: var(--ops-red); }
 
 /* =========================================================================
+   LEARNING HEALTH TILE — Persistent Learning subsystem monitor
+   ========================================================================= */
+.ops-learning-health {
+    padding: 14px 20px;
+    margin-bottom: 14px;
+}
+.ops-learning-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+.ops-learning-pulse {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.ops-learning-pulse.LEARNING { background: var(--ops-green); box-shadow: 0 0 10px rgba(16,185,129,0.6); }
+.ops-learning-pulse.DEGRADED { background: var(--ops-yellow); box-shadow: 0 0 10px rgba(245,158,11,0.6); animation: schedPulseAmber 1.5s ease-in-out infinite; }
+.ops-learning-pulse.STALE { background: var(--ops-red); box-shadow: 0 0 10px rgba(239,68,68,0.6); animation: schedPulseRed 1s ease-in-out infinite; }
+.ops-learning-title {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ops-text-bright);
+}
+.ops-learning-status-label {
+    font-size: 0.5625rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 2px 8px;
+    border-radius: 3px;
+    display: inline-block;
+    margin-left: auto;
+}
+.ops-learning-status-label.LEARNING { color: var(--ops-green); background: var(--ops-green-dim); }
+.ops-learning-status-label.DEGRADED { color: var(--ops-yellow); background: var(--ops-yellow-dim); }
+.ops-learning-status-label.STALE { color: var(--ops-red); background: var(--ops-red-dim); }
+.ops-learning-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+}
+.ops-learning-sub {
+    padding: 10px 12px;
+    background: var(--ops-surface-alt);
+    border-radius: var(--ops-radius-sm);
+    border: 1px solid var(--ops-glass-border);
+    border-left: 3px solid var(--ops-slate);
+    transition: border-color 0.3s;
+}
+.ops-learning-sub.ACTIVE { border-left-color: var(--ops-green); }
+.ops-learning-sub.IDLE { border-left-color: var(--ops-blue); }
+.ops-learning-sub.STALE { border-left-color: var(--ops-red); }
+.ops-learning-sub.ERROR { border-left-color: var(--ops-red); }
+.ops-learning-sub-name {
+    font-size: 0.625rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ops-text-bright);
+    margin-bottom: 6px;
+}
+.ops-learning-sub-status {
+    font-size: 0.5rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 1px 6px;
+    border-radius: 3px;
+    display: inline-block;
+    margin-bottom: 8px;
+}
+.ops-learning-sub-status.ACTIVE { color: var(--ops-green); background: var(--ops-green-dim); }
+.ops-learning-sub-status.IDLE { color: var(--ops-blue); background: var(--ops-blue-dim); }
+.ops-learning-sub-status.STALE { color: var(--ops-red); background: var(--ops-red-dim); }
+.ops-learning-sub-status.ERROR { color: var(--ops-red); background: var(--ops-red-dim); }
+.ops-learning-sub-metrics {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.ops-learning-sub-metric {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.ops-learning-sub-metric-label {
+    font-size: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ops-text-dim);
+}
+.ops-learning-sub-metric-value {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--ops-text);
+}
+.ops-learning-counter {
+    font-size: 0.625rem;
+    color: var(--ops-text-muted);
+    margin-left: auto;
+}
+
+/* =========================================================================
    Responsive
    ========================================================================= */
 @media (max-width: 1400px) {
@@ -924,10 +1033,12 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
     .ops-integrity-trend-wrap { grid-column: 1 / -1; }
     .ops-integrity-gauge-wrap { width: 150px; height: 150px; }
     .ops-integrity-strip { grid-template-columns: repeat(3, 1fr); }
+    .ops-learning-grid { grid-template-columns: repeat(3, 1fr); }
 }
 @media (max-width: 768px) {
     .ops-wall { padding: 10px 12px 20px; }
     .ops-scheduler-heartbeat { grid-template-columns: 1fr; }
+    .ops-learning-grid { grid-template-columns: repeat(2, 1fr); }
     .ops-integrity-hero-main { grid-template-columns: 1fr; justify-items: center; text-align: center; }
     .ops-integrity-gauge-wrap { width: 130px; height: 130px; }
     .ops-integrity-strip { grid-template-columns: repeat(2, 1fr); justify-items: center; }
@@ -1043,6 +1154,105 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
                     <div class="ops-sched-metric">
                         <span class="ops-sched-metric-label">Drift</span>
                         <span class="ops-sched-metric-value" id="schedDriftSAME">&mdash;</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Learning Health Tile -->
+    <div class="ops-section ops-glass ops-learning-health" id="learningHealthTile">
+        <div class="ops-learning-header">
+            <div class="ops-learning-pulse STALE" id="learningPulse"></div>
+            <span class="ops-learning-title">Persistent Learning</span>
+            <span class="ops-learning-counter" id="learningCounter">0 / 5 subsystems</span>
+            <span class="ops-learning-status-label STALE" id="learningStatusLabel">INITIALIZING</span>
+        </div>
+        <div class="ops-learning-grid">
+            <!-- Memory -->
+            <div class="ops-learning-sub" id="learnSubMemory">
+                <div class="ops-learning-sub-name">Memory</div>
+                <span class="ops-learning-sub-status IDLE" id="learnStatusMemory">IDLE</span>
+                <div class="ops-learning-sub-metrics">
+                    <div class="ops-learning-sub-metric">
+                        <span class="ops-learning-sub-metric-label">Total</span>
+                        <span class="ops-learning-sub-metric-value" id="learnMemTotal">0</span>
+                    </div>
+                    <div class="ops-learning-sub-metric">
+                        <span class="ops-learning-sub-metric-label">Last 24h</span>
+                        <span class="ops-learning-sub-metric-value" id="learnMem24h">0</span>
+                    </div>
+                    <div class="ops-learning-sub-metric">
+                        <span class="ops-learning-sub-metric-label">Feedback</span>
+                        <span class="ops-learning-sub-metric-value" id="learnMemFeedback">0</span>
+                    </div>
+                </div>
+            </div>
+            <!-- Corrections -->
+            <div class="ops-learning-sub" id="learnSubCorrections">
+                <div class="ops-learning-sub-name">Corrections</div>
+                <span class="ops-learning-sub-status IDLE" id="learnStatusCorrections">IDLE</span>
+                <div class="ops-learning-sub-metrics">
+                    <div class="ops-learning-sub-metric">
+                        <span class="ops-learning-sub-metric-label">Total</span>
+                        <span class="ops-learning-sub-metric-value" id="learnCorrTotal">0</span>
+                    </div>
+                    <div class="ops-learning-sub-metric">
+                        <span class="ops-learning-sub-metric-label">Last 7d</span>
+                        <span class="ops-learning-sub-metric-value" id="learnCorr7d">0</span>
+                    </div>
+                </div>
+            </div>
+            <!-- Patterns -->
+            <div class="ops-learning-sub" id="learnSubPatterns">
+                <div class="ops-learning-sub-name">Patterns</div>
+                <span class="ops-learning-sub-status IDLE" id="learnStatusPatterns">IDLE</span>
+                <div class="ops-learning-sub-metrics">
+                    <div class="ops-learning-sub-metric">
+                        <span class="ops-learning-sub-metric-label">Active</span>
+                        <span class="ops-learning-sub-metric-value" id="learnPatActive">0</span>
+                    </div>
+                    <div class="ops-learning-sub-metric">
+                        <span class="ops-learning-sub-metric-label">Confirmed</span>
+                        <span class="ops-learning-sub-metric-value" id="learnPatConfirmed">0</span>
+                    </div>
+                    <div class="ops-learning-sub-metric">
+                        <span class="ops-learning-sub-metric-label">Confidence</span>
+                        <span class="ops-learning-sub-metric-value" id="learnPatConfidence">&mdash;</span>
+                    </div>
+                </div>
+            </div>
+            <!-- Response Prefs -->
+            <div class="ops-learning-sub" id="learnSubResponsePrefs">
+                <div class="ops-learning-sub-name">Response Prefs</div>
+                <span class="ops-learning-sub-status IDLE" id="learnStatusResponsePrefs">IDLE</span>
+                <div class="ops-learning-sub-metrics">
+                    <div class="ops-learning-sub-metric">
+                        <span class="ops-learning-sub-metric-label">Feedback</span>
+                        <span class="ops-learning-sub-metric-value" id="learnPrefFeedback">0</span>
+                    </div>
+                    <div class="ops-learning-sub-metric">
+                        <span class="ops-learning-sub-metric-label">Helpful</span>
+                        <span class="ops-learning-sub-metric-value" id="learnPrefHelpful">0</span>
+                    </div>
+                    <div class="ops-learning-sub-metric">
+                        <span class="ops-learning-sub-metric-label">Unhelpful</span>
+                        <span class="ops-learning-sub-metric-value" id="learnPrefUnhelpful">0</span>
+                    </div>
+                </div>
+            </div>
+            <!-- Profile Evolution -->
+            <div class="ops-learning-sub" id="learnSubProfile">
+                <div class="ops-learning-sub-name">Profile</div>
+                <span class="ops-learning-sub-status IDLE" id="learnStatusProfile">IDLE</span>
+                <div class="ops-learning-sub-metrics">
+                    <div class="ops-learning-sub-metric">
+                        <span class="ops-learning-sub-metric-label">Items</span>
+                        <span class="ops-learning-sub-metric-value" id="learnProfItems">0</span>
+                    </div>
+                    <div class="ops-learning-sub-metric">
+                        <span class="ops-learning-sub-metric-label">Evolved</span>
+                        <span class="ops-learning-sub-metric-value" id="learnProfEvolved">0%</span>
                     </div>
                 </div>
             </div>
@@ -1729,6 +1939,7 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
     function render(data) {
         renderIntegrity(data.integrity);
         renderSchedulerHeartbeats(data.scheduler_heartbeats || []);
+        renderLearningHealth(data.learning_health);
         renderPosture(data.posture, data.narrative);
         renderNarration(data.narrative);
         trackAnomalies(data.anomalies || []);
@@ -1889,6 +2100,86 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
             document.getElementById('icVolatility').textContent = c.confidence_volatility.stddev.toFixed(2);
             updateComponentBar('icVolatilityBar', Math.max(0, (1 - c.confidence_volatility.stddev / 0.5)) * 100);
         }
+    }
+
+    function renderLearningHealth(health) {
+        if (!health) return;
+
+        var status = health.status || 'STALE';
+        var active = health.active_subsystems || 0;
+        var total = health.total_subsystems || 5;
+        var subs = health.subsystems || {};
+
+        // Overall pulse + status
+        var pulse = document.getElementById('learningPulse');
+        if (pulse) pulse.className = 'ops-learning-pulse ' + status;
+
+        var label = document.getElementById('learningStatusLabel');
+        if (label) {
+            label.textContent = status;
+            label.className = 'ops-learning-status-label ' + status;
+        }
+
+        var counter = document.getElementById('learningCounter');
+        if (counter) counter.textContent = active + ' / ' + total + ' subsystems';
+
+        // Memory subsystem
+        if (subs.memory) {
+            var m = subs.memory;
+            _updateLearnSub('Memory', m.status);
+            _setVal('learnMemTotal', m.total);
+            _setVal('learnMem24h', m.last_24h);
+            _setVal('learnMemFeedback', m.with_feedback);
+        }
+
+        // Corrections subsystem
+        if (subs.corrections) {
+            var c = subs.corrections;
+            _updateLearnSub('Corrections', c.status);
+            _setVal('learnCorrTotal', c.total);
+            _setVal('learnCorr7d', c.last_7d);
+        }
+
+        // Patterns subsystem
+        if (subs.patterns) {
+            var p = subs.patterns;
+            _updateLearnSub('Patterns', p.status);
+            _setVal('learnPatActive', p.active);
+            _setVal('learnPatConfirmed', p.confirmed);
+            _setVal('learnPatConfidence', p.avg_confidence ? p.avg_confidence + '%' : '\u2014');
+        }
+
+        // Response Preferences subsystem
+        if (subs.response_prefs) {
+            var r = subs.response_prefs;
+            _updateLearnSub('ResponsePrefs', r.status);
+            _setVal('learnPrefFeedback', r.total_feedback);
+            _setVal('learnPrefHelpful', r.helpful);
+            _setVal('learnPrefUnhelpful', r.unhelpful);
+        }
+
+        // Profile subsystem
+        if (subs.profile) {
+            var pr = subs.profile;
+            _updateLearnSub('Profile', pr.status);
+            _setVal('learnProfItems', pr.total_items);
+            _setVal('learnProfEvolved', pr.evolution_pct + '%');
+        }
+    }
+
+    function _updateLearnSub(name, status) {
+        var card = document.getElementById('learnSub' + name);
+        if (card) card.className = 'ops-learning-sub ' + (status || 'IDLE');
+        var badge = document.getElementById('learnStatus' + name);
+        if (badge) {
+            badge.textContent = status || 'IDLE';
+            badge.className = 'ops-learning-sub-status ' + (status || 'IDLE');
+        }
+    }
+
+    function _setVal(id, val) {
+        var el = document.getElementById(id);
+        if (el) el.textContent = (val !== null && val !== undefined) ? val : '\u2014';
     }
 
     function renderPosture(posture, narrative) {

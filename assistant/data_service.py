@@ -1911,6 +1911,24 @@ class PersonalDataService:
 
         completion_rate = round((completed / total) * 100, 1) if total > 0 else 0.0
 
+        # Include individual upcoming/today tasks with full details
+        upcoming_tasks = []
+        today_tasks = queryset.filter(
+            is_completed=False,
+            due_date__lte=today + timedelta(days=7),  # next 7 days
+        ).order_by('due_date', 'scheduled_time')[:10]
+
+        for task in today_tasks:
+            task_info = {
+                'title': task.title,
+                'due_date': task.due_date.isoformat() if task.due_date else None,
+                'is_today': task.due_date == today if task.due_date else False,
+                'is_overdue': task.due_date < today if task.due_date else False,
+                'scheduled_time': task.scheduled_time.strftime('%I:%M %p').lstrip('0') if task.scheduled_time else None,
+                'priority': task.priority,
+            }
+            upcoming_tasks.append(task_info)
+
         result = {
             'type': 'task',
             'total': total,
@@ -1919,6 +1937,7 @@ class PersonalDataService:
             'overdue': overdue,
             'due_today': due_today,
             'completion_rate': completion_rate,
+            'upcoming_tasks': upcoming_tasks,
         }
 
         cache.set(cache_key, result, PERSONAL_DATA_CACHE_TTL)

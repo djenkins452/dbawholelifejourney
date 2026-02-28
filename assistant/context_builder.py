@@ -725,7 +725,7 @@ def _format_fasting_data(fasting_data: Dict[str, Any]) -> str:
 
 
 def _format_task_data(task_data: Dict[str, Any]) -> str:
-    """Format task data into natural language."""
+    """Format task data into natural language with individual task details."""
     if not task_data:
         return ''
 
@@ -747,6 +747,23 @@ def _format_task_data(task_data: Dict[str, Any]) -> str:
     completion_rate = task_data.get('completion_rate')
     if completion_rate is not None:
         lines.append(f'- Completion rate: {completion_rate}%')
+
+    # Individual upcoming tasks with details (title, time, due date)
+    upcoming = task_data.get('upcoming_tasks', [])
+    if upcoming:
+        lines.append('')
+        lines.append('Upcoming Tasks:')
+        for t in upcoming:
+            parts = [f"  • {t['title']}"]
+            if t.get('is_overdue'):
+                parts.append(f"[OVERDUE - due {t['due_date']}]")
+            elif t.get('is_today'):
+                parts.append("[TODAY]")
+            elif t.get('due_date'):
+                parts.append(f"(due {t['due_date']})")
+            if t.get('scheduled_time'):
+                parts.append(f"at {t['scheduled_time']}")
+            lines.append(' '.join(parts))
 
     return '\n'.join(lines)
 

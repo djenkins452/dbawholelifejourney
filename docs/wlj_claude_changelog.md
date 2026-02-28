@@ -9,6 +9,20 @@
 
 # WLJ Change History
 
+## 2026-02-28 — Fix read_task Wrong Times + Expand Pre-filter for Task Queries
+
+**What:** Two more CoS data-accuracy bugs:
+1. **read_task handler showed wrong times for deadline events:** "Clean up office desk" at 6:59 PM displayed as "6:00 AM" because the handler only used CalendarEvent times for `execution_block` kind. Deadline events fell back to Task.scheduled_time (wrong). Fixed: use CalendarEvent time for ALL event kinds.
+2. **Task queries still bypassed pre-filter:** "what else do I have to do today that I haven't completed" went to intent service → `read_task` handler instead of CoS check-in. Added 16 task-oriented phrases to both pre-filter and is_requesting_checkin: 'have to do today', "haven't completed", 'tasks today', 'things to do', etc.
+
+**Files changed:**
+- `apps/ai/action_handlers.py` (on main) — Removed `calendar_kind == 'execution_block'` restriction for both single-task and multi-task display
+- `apps/ai/personal_assistant.py` — 16 new task-oriented phrases in pre-filter and is_requesting_checkin
+
+**Tests:** 99 COS-CX + personal assistant tests pass.
+
+---
+
 ## 2026-02-28 — Fix UTC Times + Task Queries Upgrade to Full Briefing
 
 **What:** Two bugs causing Beth to give confusing/incomplete responses:

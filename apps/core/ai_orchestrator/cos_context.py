@@ -803,7 +803,19 @@ def format_cos_system_injection(context):
         return format_learning_mode_injection(context)
 
     lines = []
-    lines.append("=== SITUATIONAL AWARENESS ===")
+    lines.append("=== OPERATIONAL INTELLIGENCE ===")
+    lines.append("")
+    lines.append(
+        "CRITICAL DIRECTIVE: You have REAL DATA about this person's day, tasks, "
+        "medications, events, goals, and habits below. When they ask about their "
+        "day, schedule, status, what to do, what's next, or anything about their "
+        "current situation — you MUST respond using THIS SPECIFIC DATA. "
+        "NEVER give generic advice (like 'consider your morning routine' or "
+        "'think about your schedule') when you have ACTUAL named items. "
+        "Reference their tasks by name, their medications by name, their events "
+        "by time, their goals by title. You are their Chief of Staff — you KNOW "
+        "their world. Act like it."
+    )
     lines.append("")
 
     # Language rules (what terms to avoid)
@@ -873,7 +885,7 @@ def format_cos_system_injection(context):
     insights = context.get('active_insights', [])
     if insights:
         lines.append("")
-        lines.append("ACTIVE PATTERNS (reference when relevant — don't force into conversation):")
+        lines.append("ACTIVE PATTERNS (weave into responses when the user asks about progress or habits):")
         for i in insights[:5]:
             severity_prefix = ""
             if i.get('severity') == 'critical':
@@ -909,7 +921,7 @@ def format_cos_system_injection(context):
     guidance = context.get('active_guidance', [])
     if guidance:
         lines.append("")
-        lines.append("RECOMMENDED ACTIONS (suggest when naturally relevant — don't list unsolicited):")
+        lines.append("RECOMMENDED ACTIONS (suggest when the user asks what to do or needs direction):")
         for g in guidance[:3]:
             msg = g.get('message') or g.get('title', '')
             if msg:

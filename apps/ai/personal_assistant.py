@@ -2281,6 +2281,18 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                     "what's on my plate", 'whats on my plate',
                     "what's left for me", 'whats left for me',
                     'what still needs to be done', 'what haven\'t i done',
+                    # Broad day-overview phrases (catch variants like
+                    # "what does my day look like", "how's my day look", etc.)
+                    'my day look', 'day look like', 'day ahead',
+                    'what does my day', 'what is my day',
+                    'plan for today', 'plan for the day',
+                    'today look like', 'today looking like',
+                    'what should i do today', 'what should i focus on',
+                    'what do i need to do', 'walk me through my day',
+                    'my schedule today', 'my schedule look',
+                    'what am i doing today', 'what have i got today',
+                    'where do i stand', 'where am i at',
+                    'catch me up', 'fill me in',
                 ])
                 if _is_checkin_prefilter:
                     response = self._generate_response(
@@ -3479,7 +3491,9 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             'apple health',
         ])
 
-        # Check-in / day assessment — user wants a full CoS briefing
+        # Check-in / day assessment — user wants a full CoS briefing.
+        # Uses broad fragments (e.g. 'my day look') to catch natural
+        # phrasing variants without needing every permutation.
         is_requesting_checkin = any(phrase in message_lower for phrase in [
             'check in', 'checking in', 'check-in', 'checkin',
             'how is my day', 'how\'s my day',
@@ -3496,6 +3510,17 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             'meds and reading', 'reading and meds',
             "what's left for me", 'whats left for me',
             'what still needs to be done', 'what haven\'t i done',
+            # Broad day-overview fragments (catch all natural variants)
+            'my day look', 'day look like', 'day ahead',
+            'what does my day', 'what is my day',
+            'plan for today', 'plan for the day',
+            'today look like', 'today looking like',
+            'what should i do today', 'what should i focus on',
+            'what do i need to do', 'walk me through my day',
+            'my schedule today', 'my schedule look',
+            'what am i doing today', 'what have i got today',
+            'where do i stand', 'where am i at',
+            'catch me up', 'fill me in',
         ])
 
         if is_asking_about_tasks or is_asking_for_analysis or is_requesting_checkin:

@@ -9,6 +9,23 @@
 
 # WLJ Change History
 
+## 2026-02-28 — Fix Generic Responses: CoS Must Use Real Data, Not Generic Advice
+
+**What:** Beth responded to "what does my day look like?" with completely generic advice ("consider your morning routine, work schedule, meals, evening activities") — zero personalization, zero WLJ data. User described this as "totally failed."
+
+**Root causes & fixes:**
+1. **Narrow phrase matching missed natural variants:** "what does my day look like?" didn't match either the pre-filter or `is_requesting_checkin` detection. Had "what's my day look like" and "how does my day look" but NOT "what does my day look like." Fixed by adding **broad fragment patterns** like `'my day look'`, `'day look like'`, `'what does my day'`, `'today look like'`, `'where do i stand'`, `'catch me up'`, etc. — 16 new broad patterns that catch many natural phrasings.
+2. **COS-CX data labeled as passive "awareness" only:** The system prompt header was `"=== SITUATIONAL AWARENESS ==="` with instructions like `"reference when relevant — don't force into conversation"`. This explicitly told the LLM to NOT use the data proactively. Renamed to `"=== OPERATIONAL INTELLIGENCE ==="` and added a CRITICAL DIRECTIVE: "When they ask about their day, schedule, status, what to do — you MUST respond using THIS SPECIFIC DATA. NEVER give generic advice when you have ACTUAL named items. You are their Chief of Staff — you KNOW their world."
+3. **Passive section labels updated:** Changed `"reference when relevant — don't force"` to `"weave into responses when the user asks about progress"` and `"suggest when naturally relevant — don't list unsolicited"` to `"suggest when the user asks what to do or needs direction"`.
+
+**Files changed:**
+- `apps/ai/personal_assistant.py` — 16 new broad phrases in pre-filter (line ~2270) and is_requesting_checkin (line ~3483)
+- `apps/core/ai_orchestrator/cos_context.py` — Renamed SITUATIONAL AWARENESS → OPERATIONAL INTELLIGENCE, added CRITICAL DIRECTIVE, updated passive section labels
+
+**Tests:** 540 COS-CX + AI tests pass, 490 CoS + core tests pass (1 pre-existing failure in Tag model, unrelated).
+
+---
+
 ## 2026-02-28 — Fix Check-in Intent Routing + Medication Safety (CRITICAL)
 
 **What:** Three critical bugs in Beth's check-in/status handling:

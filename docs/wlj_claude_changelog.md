@@ -9,6 +9,25 @@
 
 # WLJ Change History
 
+## 2026-02-28 — Learning Health Tile on Operations Wall
+
+**What:** Added a "Persistent Learning" health tile to the Ops Command Center that monitors all 5 learning subsystems (Memory, Corrections, Patterns, Response Preferences, Profile Evolution) in real-time. The tile shows overall status (LEARNING / DEGRADED / STALE) with green/yellow/red color coding and per-subsystem metrics.
+
+**Why:** User requested visibility into whether the persistent learning system is actively working, with red/yellow alerts when learning is failing or stale.
+
+**Files:**
+- `apps/core/ai_observability/ops_views.py` — Added `_get_learning_health()` data provider + wired into `OpsStreamView` JSON response
+- `templates/admin_console/operations_wall.html` — Added CSS styles, HTML section (5-card grid), JS `renderLearningHealth()` renderer with live polling
+
+**Status thresholds:**
+- LEARNING (green): 3+ subsystems active in last 7 days
+- DEGRADED (yellow): 1-2 subsystems active
+- STALE (red): 0 subsystems active or 3+ in ERROR state
+
+**Tests:** 183 observability + 502 AI + 278 admin_console = all pass
+
+---
+
 ## 2026-02-28 — CoS Persistent Learning Architecture (Major Intelligence Upgrade)
 
 **What:** Transformed CoS from a recall-only assistant into an adaptive learning system with 6 new mechanisms. CoS now learns from feedback, persists corrections, evolves its user profile, detects behavioral patterns, optimizes response style, and surfaces patterns conversationally.

@@ -134,6 +134,9 @@ class OpsStreamView(View):
         # APScheduler health (auto-restart detection)
         scheduler_health = _get_scheduler_health()
 
+        # Persistent learning health
+        learning_health = _get_learning_health(now)
+
         return JsonResponse({
             "server_time": now.isoformat(),
             "posture": posture,
@@ -145,6 +148,7 @@ class OpsStreamView(View):
             "scheduler_heartbeats": scheduler_heartbeats,
             "scheduler_health": scheduler_health,
             "eae_telemetry": eae_telemetry,
+            "learning_health": learning_health,
             "next_since": now.isoformat(),
         })
 
@@ -1250,3 +1254,229 @@ def _human_ago(dt):
     if seconds < 86400:
         return f"{seconds // 3600}h ago"
     return f"{seconds // 86400}d ago"
+
+
+def _get_learning_health(now):
+    """
+    Build learning health metrics for the Operations Wall.
+
+    Monitors all 5 persistent learning subsystems and returns an overall
+    status (LEARNING / DEGRADED / STALE) plus per-subsystem metrics.
+
+    Status thresholds:
+      LEARNING (green): ≥3 subsystems active in last 7 days
+      DEGRADED (yellow): 1-2 subsystems active in last 7 days
+      STALE (red): 0 subsystems active in last 7 days
+    """
+    try:
+        from django.db.models import Avg, Count, Max, Sum
+
+        last_24h = now - timedelta(hours=24)
+        last_7d = now - timedelta(days=7)
+        last_30d = now - timedelta(days=30)
+
+        subsystems = {}
+        active_count = 0
+
+        # --- Subsystem 1: Memory Storage ---
+        try:
+            from apps.ai.models import ConversationMemory
+
+            mem_total = ConversationMemory.objects.count()
+            mem_24h = ConversationMemory.objects.filter(
+                created_at__gte=last_24h,
+            ).count()
+            mem_7d = ConversationMemory.objects.filter(
+                created_at__gte=last_7d,
+            ).count()
+            mem_last = ConversationMemory.objects.order_by(
+                '-created_at',
+            ).values_list('created_at', flat=True).first()
+
+            # Memories with non-zero helpfulness (feedback closed the loop)
+            mem_with_feedback = ConversationMemory.objects.exclude(
+                helpfulness_score=0.0,
+            ).count()
+
+            has_activity = mem_7d > 0
+            if has_activity:
+                active_count += 1
+
+            subsystems['memory'] = {
+                'status': 'ACTIVE' if has_activity else 'STALE',
+                'total': mem_total,
+                'last_24h': mem_24h,
+                'last_7d': mem_7d,
+                'with_feedback': mem_with_feedback,
+                'last_stored_at': mem_last.isoformat() if mem_last else None,
+            }
+        except Exception as e:
+            logger.debug("Learning health: memory check failed: %s", e)
+            subsystems['memory'] = {'status': 'ERROR', 'error': str(e)[:100]}
+
+        # --- Subsystem 2: Corrections ---
+        try:
+            from apps.ai.models import CorrectionRecord
+
+            corr_total = CorrectionRecord.objects.count()
+            corr_7d = CorrectionRecord.objects.filter(
+                created_at__gte=last_7d,
+            ).count()
+            corr_last = CorrectionRecord.objects.order_by(
+                '-created_at',
+            ).values_list('created_at', flat=True).first()
+
+            # Corrections are rare — active if any exist in 30 days
+            has_activity = CorrectionRecord.objects.filter(
+                created_at__gte=last_30d,
+            ).exists()
+            if has_activity:
+                active_count += 1
+
+            subsystems['corrections'] = {
+                'status': 'ACTIVE' if has_activity else ('IDLE' if corr_total == 0 else 'STALE'),
+                'total': corr_total,
+                'last_7d': corr_7d,
+                'last_stored_at': corr_last.isoformat() if corr_last else None,
+            }
+        except Exception as e:
+            logger.debug("Learning health: corrections check failed: %s", e)
+            subsystems['corrections'] = {'status': 'ERROR', 'error': str(e)[:100]}
+
+        # --- Subsystem 3: Behavioral Patterns ---
+        try:
+            from apps.ai.models import BehavioralPattern
+
+            pat_total = BehavioralPattern.objects.count()
+            pat_active = BehavioralPattern.objects.filter(is_active=True).count()
+            pat_confirmed = BehavioralPattern.objects.filter(
+                user_confirmed=True,
+            ).count()
+            pat_denied = BehavioralPattern.objects.filter(
+                user_confirmed=False,
+            ).count()
+            pat_pending = BehavioralPattern.objects.filter(
+                user_confirmed__isnull=True,
+                is_active=True,
+            ).count()
+            pat_avg_confidence = BehavioralPattern.objects.filter(
+                is_active=True,
+            ).aggregate(avg=Avg('confidence'))['avg']
+
+            has_activity = pat_active > 0
+            if has_activity:
+                active_count += 1
+
+            subsystems['patterns'] = {
+                'status': 'ACTIVE' if has_activity else 'IDLE',
+                'total': pat_total,
+                'active': pat_active,
+                'confirmed': pat_confirmed,
+                'denied': pat_denied,
+                'pending': pat_pending,
+                'avg_confidence': round(pat_avg_confidence * 100) if pat_avg_confidence else 0,
+            }
+        except Exception as e:
+            logger.debug("Learning health: patterns check failed: %s", e)
+            subsystems['patterns'] = {'status': 'ERROR', 'error': str(e)[:100]}
+
+        # --- Subsystem 4: Response Preferences ---
+        try:
+            from apps.ai.models import ResponsePreference
+
+            pref_count = ResponsePreference.objects.count()
+            pref_agg = ResponsePreference.objects.aggregate(
+                total_helpful=Sum('helpful_count'),
+                total_unhelpful=Sum('unhelpful_count'),
+            )
+            total_feedback = (
+                (pref_agg['total_helpful'] or 0)
+                + (pref_agg['total_unhelpful'] or 0)
+            )
+
+            has_activity = total_feedback > 0
+            if has_activity:
+                active_count += 1
+
+            subsystems['response_prefs'] = {
+                'status': 'ACTIVE' if has_activity else 'IDLE',
+                'users_with_prefs': pref_count,
+                'total_feedback': total_feedback,
+                'helpful': pref_agg['total_helpful'] or 0,
+                'unhelpful': pref_agg['total_unhelpful'] or 0,
+            }
+        except Exception as e:
+            logger.debug("Learning health: response prefs check failed: %s", e)
+            subsystems['response_prefs'] = {'status': 'ERROR', 'error': str(e)[:100]}
+
+        # --- Subsystem 5: Profile Evolution ---
+        try:
+            from apps.core.ai_learning.models import UserLearnedProfile
+
+            profile_count = UserLearnedProfile.objects.count()
+            # Count total items across all profiles
+            total_items = 0
+            evolved_items = 0  # Items in dict format (evolved)
+            profiles = UserLearnedProfile.objects.all()
+            for p in profiles:
+                for field_name in [
+                    'stated_values', 'repeated_frustrations', 'recurring_goals',
+                    'preferred_communication', 'known_routines', 'spiritual_notes',
+                    'health_context', 'relationship_notes', 'work_context',
+                    'emotional_patterns', 'motivators', 'self_identified_weaknesses',
+                    'life_season',
+                ]:
+                    items = getattr(p, field_name, []) or []
+                    if isinstance(items, list):
+                        total_items += len(items)
+                        evolved_items += sum(
+                            1 for i in items if isinstance(i, dict)
+                        )
+
+            has_activity = profile_count > 0 and total_items > 0
+            if has_activity:
+                active_count += 1
+
+            subsystems['profile'] = {
+                'status': 'ACTIVE' if has_activity else 'IDLE',
+                'profiles': profile_count,
+                'total_items': total_items,
+                'evolved_items': evolved_items,
+                'evolution_pct': (
+                    round(evolved_items / total_items * 100)
+                    if total_items > 0 else 0
+                ),
+            }
+        except Exception as e:
+            logger.debug("Learning health: profile check failed: %s", e)
+            subsystems['profile'] = {'status': 'ERROR', 'error': str(e)[:100]}
+
+        # --- Overall Status ---
+        error_count = sum(
+            1 for s in subsystems.values() if s.get('status') == 'ERROR'
+        )
+        if error_count >= 3:
+            overall = 'STALE'
+        elif active_count >= 3:
+            overall = 'LEARNING'
+        elif active_count >= 1:
+            overall = 'DEGRADED'
+        else:
+            overall = 'STALE'
+
+        return {
+            'status': overall,
+            'active_subsystems': active_count,
+            'total_subsystems': 5,
+            'subsystems': subsystems,
+        }
+
+    except Exception as e:
+        logger.debug("Learning health check failed: %s", e)
+        return {
+            'status': 'STALE',
+            'active_subsystems': 0,
+            'total_subsystems': 5,
+            'subsystems': {},
+            'error': str(e)[:200],
+        }

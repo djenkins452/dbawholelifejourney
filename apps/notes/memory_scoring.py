@@ -1,24 +1,26 @@
 """
 Memory Intelligence Scoring for CoS Note Retrieval.
 
-Provides a deterministic second-stage ranker that combines PostgreSQL FTS rank
-with contextual signals (recency, pinning, entity scope, tag overlap) to
-surface the "best" memory, not just "matching" memories.
+Provides a deterministic second-stage ranker that combines PostgreSQL FTS rank,
+semantic similarity, and contextual signals to surface the "best" memory.
 
 Scoring Formula (documented):
 ─────────────────────────────
   combined_score = (
-      BASE_WEIGHT   * normalized_fts_rank
-    + RECENCY_WEIGHT * recency_factor
-    + PINNED_WEIGHT  * pinned_factor
-    + ENTITY_WEIGHT  * entity_factor
-    + TAG_WEIGHT     * tag_factor
+      FTS_WEIGHT      * normalized_fts_rank
+    + SEMANTIC_WEIGHT  * semantic_score
+    + RECENCY_WEIGHT   * recency_factor
+    + PINNED_WEIGHT    * pinned_factor
+    + ENTITY_WEIGHT    * entity_factor
+    + TAG_WEIGHT       * tag_factor
   )
 
 Weights are tuned so that:
-  - A highly relevant text match always outranks a pinned-but-irrelevant note
-  - Recency provides a tiebreaker among equally relevant notes
-  - Entity scoping and tag overlap provide meaningful but not dominant boosts
+  - Text relevance (FTS + semantic) dominates at 0.70 combined
+  - A highly relevant unpinned note always outranks a pinned irrelevant note
+  - Recency provides a meaningful tiebreaker
+  - Entity scoping and tag overlap are supporting signals
+  - Semantic score gracefully degrades to 0 when embeddings are missing
 
 Constants can be adjusted; the formula remains stable and explainable.
 """
@@ -29,13 +31,17 @@ from datetime import timedelta
 from django.utils import timezone
 
 # ---------------------------------------------------------------------------
-# Scoring weights — must sum to a meaningful total but relative ratios matter
+# Scoring weights — sum to 1.0; relative ratios matter most
 # ---------------------------------------------------------------------------
-BASE_WEIGHT = 0.50       # FTS rank is the dominant signal
-RECENCY_WEIGHT = 0.20    # Recent notes get a tiebreaker boost
-PINNED_WEIGHT = 0.10     # Pinned notes get a small but meaningful boost
-ENTITY_WEIGHT = 0.12     # Entity-scoped match is valuable context
-TAG_WEIGHT = 0.08        # Tag overlap is a supporting signal
+FTS_WEIGHT = 0.45        # Keyword FTS rank remains the primary signal
+SEMANTIC_WEIGHT = 0.25   # Semantic similarity is a strong secondary signal
+RECENCY_WEIGHT = 0.15    # Recent notes get a meaningful tiebreaker boost
+PINNED_WEIGHT = 0.07     # Pinned notes get a small but meaningful boost
+ENTITY_WEIGHT = 0.05     # Entity-scoped match is valuable context
+TAG_WEIGHT = 0.03        # Tag overlap is a supporting signal
+
+# Legacy aliases for backward compatibility with tests
+BASE_WEIGHT = FTS_WEIGHT
 
 # Recency decay thresholds (days since last update)
 RECENCY_STRONG = 7       # ≤ 7 days → factor 1.0
@@ -136,6 +142,7 @@ def score_note(
     scoped_object_id,
     note_tag_names,
     query_tags,
+    semantic_score=0.0,
 ):
     """
     Score a note candidate for CoS ranking.
@@ -150,6 +157,8 @@ def score_note(
         scoped_object_id: Entity PK if entity-scoped search, else None.
         note_tag_names: List of tag name strings for this note.
         query_tags: List of tag name strings from the query filter.
+        semantic_score: Cosine similarity score [0, 1] from embedding comparison.
+            Defaults to 0.0 (no embedding available).
 
     Returns:
         dict with "combined_score" (float) and "reasons" (list of str, max 5).
@@ -165,27 +174,33 @@ def score_note(
     elif norm_fts > 0:
         reasons.append("Partial text match")
 
-    # B) Recency
+    # B) Semantic similarity
+    sem = max(0.0, min(1.0, semantic_score)) if semantic_score else 0.0
+    if sem >= 0.7:
+        reasons.append("Semantic match")
+    elif sem >= 0.4:
+        reasons.append("Semantic match")
+
+    # C) Recency
     recency = _recency_factor(updated_at)
     if recency >= 0.9:
         reasons.append("Recently updated")
     elif recency >= 0.6:
         reasons.append("Updated within last month")
 
-    # C) Pinned
+    # D) Pinned
     pinned = _pinned_factor(is_pinned)
     if pinned > 0:
         reasons.append("Pinned note")
 
-    # D) Entity match
+    # E) Entity match
     entity = _entity_factor(
         note_attachment_entity_ids, scoped_content_type_id, scoped_object_id
     )
     if entity > 0:
-        # Build a descriptive reason
         reasons.append("Attached to this entity")
 
-    # E) Tag overlap
+    # F) Tag overlap
     tag = _tag_factor(note_tag_names, query_tags)
     if tag > 0 and query_tags:
         note_tags_lower = {t.lower() for t in note_tag_names}
@@ -197,7 +212,8 @@ def score_note(
 
     # Combined score
     combined_score = (
-        BASE_WEIGHT * norm_fts
+        FTS_WEIGHT * norm_fts
+        + SEMANTIC_WEIGHT * sem
         + RECENCY_WEIGHT * recency
         + PINNED_WEIGHT * pinned
         + ENTITY_WEIGHT * entity

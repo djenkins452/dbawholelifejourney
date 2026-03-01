@@ -1,10 +1,11 @@
 """
 Django signals for Notes search index consistency.
 
-Keeps tags_text, attachments_text, and search_vector in sync when:
+Keeps tags_text, attachments_text, search_vector, and embeddings in sync when:
 - Tags are added/removed from a note (m2m_changed)
 - NoteAttachments are created/deleted (post_save/post_delete)
 - Attached entities are renamed (pre_save/post_save via registry)
+- Note content fields change (post_save → embedding refresh)
 """
 
 import logging
@@ -23,27 +24,107 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
+# Cache for old Note content field values keyed by note pk
+_old_note_content = {}
+
+# Fields that, when changed, trigger an embedding refresh
+_EMBEDDING_CONTENT_FIELDS = ("title", "body")
+
+
+@receiver(pre_save, sender=Note)
+def note_pre_save_capture(sender, instance, **kwargs):
+    """Capture old title/body before save for embedding change detection."""
+    if not instance.pk:
+        return
+    try:
+        old_values = (
+            Note.objects.filter(pk=instance.pk)
+            .values_list(*_EMBEDDING_CONTENT_FIELDS)
+            .first()
+        )
+        if old_values is not None:
+            _old_note_content[instance.pk] = dict(
+                zip(_EMBEDDING_CONTENT_FIELDS, old_values)
+            )
+    except Exception:
+        pass
+
+
+@receiver(post_save, sender=Note)
+def note_post_save_embedding(sender, instance, created, **kwargs):
+    """Trigger embedding update when Note content fields change."""
+    # Skip if this save was triggered by update_fields that don't affect content
+    update_fields = kwargs.get("update_fields")
+    if update_fields is not None:
+        content_fields = {"title", "body", "tags_text", "attachments_text"}
+        if not content_fields.intersection(set(update_fields)):
+            return
+
+    needs_embedding = False
+
+    if created:
+        needs_embedding = True
+    else:
+        old_values = _old_note_content.pop(instance.pk, None)
+        if old_values is not None:
+            for field_name, old_value in old_values.items():
+                new_value = getattr(instance, field_name, None)
+                if old_value != new_value:
+                    needs_embedding = True
+                    break
+
+    if needs_embedding:
+        try:
+            from .embeddings import update_note_embedding
+
+            update_note_embedding(instance)
+        except Exception as e:
+            logger.error("Embedding update failed for Note %s: %s", instance.pk, e)
+
+
 @receiver(m2m_changed, sender=Note.tags.through)
 def note_tags_changed(sender, instance, action, **kwargs):
-    """Rebuild tags_text and refresh search_vector when tags change."""
+    """Rebuild tags_text, refresh search_vector, and update embedding when tags change."""
     if action in ("post_add", "post_remove", "post_clear"):
         instance.refresh_search_index(rebuild_tags=True)
+        # Tags changed → refresh embedding too
+        try:
+            from .embeddings import update_note_embedding
+
+            instance.refresh_from_db(fields=["tags_text"])
+            update_note_embedding(instance)
+        except Exception as e:
+            logger.error("Embedding update after tag change failed for Note %s: %s", instance.pk, e)
 
 
 @receiver(post_save, sender=NoteAttachment)
 def attachment_created(sender, instance, created, **kwargs):
-    """Rebuild attachments_text when a NoteAttachment is created."""
+    """Rebuild attachments_text and update embedding when a NoteAttachment is created."""
     if created:
         instance.note.refresh_search_index(rebuild_attachments=True)
+        try:
+            from .embeddings import update_note_embedding
+
+            instance.note.refresh_from_db(fields=["attachments_text"])
+            update_note_embedding(instance.note)
+        except Exception as e:
+            logger.error("Embedding update after attachment created failed: %s", e)
 
 
 @receiver(post_delete, sender=NoteAttachment)
 def attachment_deleted(sender, instance, **kwargs):
-    """Rebuild attachments_text when a NoteAttachment is deleted."""
+    """Rebuild attachments_text and update embedding when a NoteAttachment is deleted."""
     try:
         # note may have been cascade-deleted; check it still exists
         note = Note.objects.get(pk=instance.note_id)
         note.refresh_search_index(rebuild_attachments=True)
+        try:
+            from .embeddings import update_note_embedding
+
+            note.refresh_from_db(fields=["attachments_text"])
+            update_note_embedding(note)
+        except Exception as e:
+            logger.error("Embedding update after attachment deleted failed: %s", e)
     except Note.DoesNotExist:
         pass
 

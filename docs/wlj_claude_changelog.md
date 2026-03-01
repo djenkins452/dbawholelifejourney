@@ -9,6 +9,18 @@
 
 # WLJ Change History
 
+======================================================================
+# File: docs/wlj_claude_changelog.md
+# Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
+# Description: Historical record of fixes, migrations, and changes
+# Owner: Danny Jenkins (admin@wholelifejourney.com)
+# Created: 2025-12-28
+# Last Updated: 2026-02-27 (COS-CX: Context Intelligence Expansion)
+# ==============================================================================
+
+# WLJ Change History
+
+<<<<<<< HEAD
 ## 2026-03-01 — Anti-hallucination directives for CoS and Personal Assistant prompts
 
 **What:** Added explicit "never fabricate user data" rules to both the base personal assistant prompt and the CoS operational intelligence injection. The AI was confabulating data values (e.g. echoing "300 lbs" from the user's goal message as if it were a real lookup). New rules tell the AI to say "I don't have that data right now" instead of guessing.
@@ -64,6 +76,48 @@
 
 **Files:** `apps/ai/personal_assistant.py`
 **Tests:** 519 passed (6 pre-existing DB flush errors in test_calendar_crud, unrelated)
+=======
+## 2026-03-01 — Notes Semantic Memory Layer: Embeddings + Hybrid Retrieval
+
+**What:** Added semantic embedding support and hybrid keyword+semantic retrieval to the Notes system. CoS can now retrieve notes based on meaning, not just keywords.
+
+**Part 1 — Embedding Storage:**
+- Added `embedding` (JSONField) and `embedding_updated_at` (DateTimeField) to Note model
+- Migration `0006_add_embedding_fields`
+
+**Part 2 — Embedding Service (`apps/notes/embeddings.py`):**
+- `build_note_embedding_text(note)` — deterministic text representation
+- `generate_embedding(text)` — OpenAI text-embedding-3-small, failure-safe
+- `update_note_embedding(note)` — generates and saves embedding without recursion
+- `cosine_similarity(vec1, vec2)` — normalized [0,1], handles None/mismatched/empty
+
+**Part 3 — Signal-Driven Lifecycle:**
+- Note pre_save/post_save captures title/body changes, triggers embedding refresh
+- Tag changes (m2m_changed) and attachment changes also refresh embedding
+- All embedding failures are caught and logged — never crash note save
+
+**Part 4 — Hybrid Scoring (updated formula):**
+- `combined = 0.45*FTS + 0.25*semantic + 0.15*recency + 0.07*pinned + 0.05*entity + 0.03*tags`
+- `semantic_similarity_map()` — in-memory similarity scoring for candidate pool
+- Query embedding generated ONCE per search, never generates Note embeddings during retrieval
+- Adds "Semantic match" reason to explainability
+
+**Part 5 — Backfill Command:**
+- `python manage.py backfill_note_embeddings` — all notes
+- `--missing-only` — only notes without embeddings
+- `--limit N` — cap number processed
+- `--batch-size N` — control batch size (default 50)
+
+**Part 6 — Embedding Integrity:**
+- `find_notes_missing_embeddings()` — detect missing
+- `repair_missing_embeddings(batch_size=50)` — batch repair
+
+**Files created:** `apps/notes/embeddings.py`, `apps/notes/management/commands/backfill_note_embeddings.py`, `apps/notes/tests/test_semantic_memory.py`, `apps/notes/migrations/0006_add_embedding_fields.py`
+**Files modified:** `apps/notes/models.py`, `apps/notes/signals.py`, `apps/notes/services.py`, `apps/notes/memory_scoring.py`, `apps/notes/admin.py`
+**Tests:** 227 total (44 new semantic tests), all passing
+
+---
+
 
 ---
 

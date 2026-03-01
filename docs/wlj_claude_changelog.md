@@ -9,6 +9,18 @@
 
 # WLJ Change History
 
+## 2026-03-01 — Fix Notes search stealing cursor on no results
+
+**What:** Typing in the Notes search box (e.g. "horse") would trigger a debounced full-page reload after 2 characters. If "ho" returned no results, the page reloaded with the empty state and the cursor left the search box — user couldn't keep typing without re-clicking.
+
+**Fix:**
+- Auto-focus the search input on page load when it contains a search query, with cursor at end of text
+- Increased debounce from 400ms to 600ms to give users more typing time before search fires
+
+**File:** `templates/notes/note_list.html`
+
+---
+
 ## 2026-03-01 — Fix Notes module not appearing in desktop left rail navigation
 
 **What:** Notes module was created with a `ModuleDefinition` but existing users never got a `UserModulePreference` row, so Notes didn't appear in their navigation (desktop left rail or mobile bottom bar). Only visible on the More page.

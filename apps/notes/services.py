@@ -16,6 +16,7 @@ import string
 
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.search import SearchHeadline, SearchQuery, SearchRank
+from django.db import models
 from django.db.models import F, Prefetch
 
 from .models import Note, NoteAttachment
@@ -455,3 +456,95 @@ def _refresh_notes_by_ids(note_ids, *, batch_size=500, dry_run=False):
             note._refresh_search_vector()
 
     return {"notes_considered": total, "notes_updated": updated}
+
+
+# ---------------------------------------------------------------------------
+# Index integrity helpers (Phase 4B.2)
+# ---------------------------------------------------------------------------
+
+
+def find_notes_missing_attachments_text():
+    """
+    Find notes that have attachments but empty/null attachments_text.
+
+    Returns a queryset of Note objects needing repair.
+    """
+    note_ids_with_attachments = (
+        NoteAttachment.objects.values_list("note_id", flat=True).distinct()
+    )
+    return Note.all_objects.filter(
+        pk__in=note_ids_with_attachments,
+    ).filter(
+        models.Q(attachments_text__isnull=True) | models.Q(attachments_text="")
+    )
+
+
+def find_notes_missing_search_vector():
+    """
+    Find notes where search_vector is null.
+
+    Returns a queryset of Note objects needing repair.
+    """
+    return Note.all_objects.filter(search_vector__isnull=True)
+
+
+def get_note_index_integrity_report():
+    """
+    Build a structured integrity report for the Notes index.
+
+    Returns:
+        dict with total_notes, notes_with_attachments,
+        missing_attachments_text, missing_search_vector counts.
+    """
+    total_notes = Note.all_objects.count()
+    notes_with_attachments = (
+        NoteAttachment.objects.values_list("note_id", flat=True)
+        .distinct()
+        .count()
+    )
+    missing_attachments_text = find_notes_missing_attachments_text().count()
+    missing_search_vector = find_notes_missing_search_vector().count()
+
+    return {
+        "total_notes": total_notes,
+        "notes_with_attachments": notes_with_attachments,
+        "missing_attachments_text": missing_attachments_text,
+        "missing_search_vector": missing_search_vector,
+    }
+
+
+def repair_notes_missing_index(*, batch_size=500):
+    """
+    Repair all notes with missing index data.
+
+    Fixes:
+    - Notes with attachments but empty attachments_text
+    - Notes with null search_vector
+
+    Returns:
+        dict with notes_repaired count.
+    """
+    repaired = 0
+
+    # Fix notes missing attachments_text
+    missing_att_ids = list(
+        find_notes_missing_attachments_text().values_list("pk", flat=True)
+    )
+    if missing_att_ids:
+        result = _refresh_notes_by_ids(missing_att_ids, batch_size=batch_size)
+        repaired += result["notes_considered"]
+
+    # Fix notes missing search_vector
+    missing_sv_ids = list(
+        find_notes_missing_search_vector()
+        .exclude(pk__in=missing_att_ids)  # avoid double-processing
+        .values_list("pk", flat=True)
+    )
+    if missing_sv_ids:
+        for start in range(0, len(missing_sv_ids), batch_size):
+            batch_ids = missing_sv_ids[start : start + batch_size]
+            for note in Note.all_objects.filter(pk__in=batch_ids):
+                note._refresh_search_vector()
+            repaired += len(batch_ids)
+
+    return {"notes_repaired": repaired}

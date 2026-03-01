@@ -9,6 +9,65 @@
 
 # WLJ Change History
 
+## 2026-02-28 — Fix mood and entry count accuracy using entry_date
+
+**What:** Journal home stats (this_week, this_month counts) and Mood This Week widget were filtering by `created_at` (database timestamp) instead of `entry_date` (user-specified date). This caused inaccurate counts when timezone offsets made `created_at` differ from `entry_date`. Changed all filters to use `entry_date__gte` for consistency.
+
+**Files:** `apps/journal/views.py`
+
+---
+
+## 2026-02-28 — Show emotion names next to emojis in Mood This Week
+
+**What:** Emotion labels now show "😊 Great" instead of just "😊". Users couldn't identify which emotion each emoji represented. Widened label area from 24px to min-width 90px.
+
+**Files:** `templates/journal/home.html`
+
+---
+
+## 2026-02-28 — Add hover text to Mood This Week emoji labels
+
+**What:** Added `title` attribute to mood emoji labels so hovering shows the emotion name (e.g., "Grateful", "Anxious").
+
+**Files:** `templates/journal/home.html`
+
+---
+
+## 2026-02-28 — Fix Journal Dashboard: Mood This Week + Today's Prompt
+
+**What:** Fixed two broken widgets on the journal home page:
+1. **Mood This Week** — Was always empty because it queried the `mood` CharField (never populated). Fixed to query from `emotions` ManyToMany field which is what the entry form actually collects.
+2. **Today's Prompt** — Was hardcoded to `None`. Fixed to query `JournalPrompt` model and rotate daily based on day-of-year. Respects faith_enabled preference.
+
+**Why:** User reported both widgets empty despite regular journaling with emotion selection.
+
+**Files:**
+- `apps/journal/views.py` — Rewrote `_get_mood_stats()` to use Emotion M2M; replaced `suggested_prompt = None` with daily prompt rotation logic
+- `templates/journal/home.html` — Fixed `get_category_display` (invalid on FK) to `category.name`
+
+**Tests:** 107 journal tests pass
+
+---
+
+## 2026-02-28 — Learning Health Tile on Operations Wall
+
+**What:** Added a "Persistent Learning" health tile to the Ops Command Center that monitors all 5 learning subsystems (Memory, Corrections, Patterns, Response Preferences, Profile Evolution) in real-time. The tile shows overall status (LEARNING / DEGRADED / STALE) with green/yellow/red color coding and per-subsystem metrics.
+
+**Why:** User requested visibility into whether the persistent learning system is actively working, with red/yellow alerts when learning is failing or stale.
+
+**Files:**
+- `apps/core/ai_observability/ops_views.py` — Added `_get_learning_health()` data provider + wired into `OpsStreamView` JSON response
+- `templates/admin_console/operations_wall.html` — Added CSS styles, HTML section (5-card grid), JS `renderLearningHealth()` renderer with live polling
+
+**Status thresholds:**
+- LEARNING (green): 3+ subsystems active in last 7 days
+- DEGRADED (yellow): 1-2 subsystems active
+- STALE (red): 0 subsystems active or 3+ in ERROR state
+
+**Tests:** 183 observability + 502 AI + 278 admin_console = all pass
+
+---
+
 ## 2026-02-28 — CoS Response Performance Optimization (3 fixes)
 
 **What:** Beth's response time was slow (~4-10s) due to redundant DB queries and synchronous post-processing. Three optimizations implemented:

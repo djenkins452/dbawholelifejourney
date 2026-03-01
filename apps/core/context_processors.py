@@ -396,11 +396,9 @@ def navigation_modules_context(request):
             # Use cached navigation data
             return cached_data
 
-        # Initialize module preferences for user if needed
-        # Use exists() instead of count() - more efficient
-        if not UserModulePreference.objects.filter(user=request.user).exists():
-            # Initialize for user (first time)
-            UserModulePreference.initialize_for_user(request.user)
+        # Sync module preferences — creates missing prefs for new modules
+        # initialize_for_user() is idempotent: skips modules that already exist
+        UserModulePreference.initialize_for_user(request.user)
 
         # Get all user module preferences
         all_prefs = UserModulePreference.objects.filter(
@@ -420,6 +418,7 @@ def navigation_modules_context(request):
             'purpose': 'purpose:home',
             'finance': 'finance:dashboard',
             'capture': 'capture:list',
+            'notes': 'notes:note_list',
         }
 
         all_modules = []

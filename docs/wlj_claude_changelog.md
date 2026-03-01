@@ -9,6 +9,23 @@
 
 # WLJ Change History
 
+## 2026-03-01 — Fix Notes module not appearing in desktop left rail navigation
+
+**What:** Notes module was created with a `ModuleDefinition` but existing users never got a `UserModulePreference` row, so Notes didn't appear in their navigation (desktop left rail or mobile bottom bar). Only visible on the More page.
+
+**Root cause:** The context processor only called `initialize_for_user()` when a user had zero preferences. Existing users already had preferences for other modules, so the new Notes module was never synced.
+
+**Fix:**
+- Changed `navigation_modules_context()` in `apps/core/context_processors.py` to always call `initialize_for_user()` (which is idempotent — skips existing modules)
+- Added `'notes': 'notes:note_list'` to `CORRECT_ROUTES` fallback dict
+- Created data migration `users/0070_backfill_notes_module_prefs` to create missing `UserModulePreference` for existing users
+
+**Files:**
+- `apps/core/context_processors.py` — sync new modules on every cached miss
+- `apps/users/migrations/0070_backfill_notes_module_prefs.py` — backfill migration
+
+---
+
 ## 2026-03-01 — Notes Semantic Memory Layer: Embeddings + Hybrid Retrieval
 
 **What:** Added semantic embedding support and hybrid keyword+semantic retrieval to the Notes system. CoS can now retrieve notes based on meaning, not just keywords.

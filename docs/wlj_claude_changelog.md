@@ -9,6 +9,18 @@
 
 # WLJ Change History
 
+## 2026-03-01 — Fix calendar_engine delete tests expecting hard delete
+
+**What:** Two delete tests were asserting `CalendarEvent.objects.filter(pk=event.pk).exists()` returns False after deletion, but the delete endpoint performs a soft delete (sets `status='canceled'` + `deleted_at`). Updated both tests to verify soft-delete status instead.
+
+**Changes:**
+- `apps/calendar_engine/test_phase9_calendar_determinism.py` — `DeleteVerificationTests.test_delete_returns_200_on_success` now checks `status=canceled` and `deleted_at` is set
+- `apps/calendar_engine/tests/test_calendar_engine.py` — `APITests.test_event_delete` same fix
+
+**Why:** Tests were written assuming hard delete but the CalendarMutationService performs soft deletes.
+
+---
+
 ## 2026-03-01 — Fix calendar_engine test discovery ImportError
 
 **What:** GitHub CI test suite was failing with `ImportError: 'tests' module incorrectly imported` because `apps/calendar_engine/` had both a `tests.py` file and a `tests/` directory. Python's test discovery gets confused when both exist. Moved `tests.py` content into `tests/test_calendar_engine.py` and deleted the conflicting `tests.py`.

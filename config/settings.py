@@ -986,11 +986,9 @@ APSCHEDULER_RUN_NOW_TIMEOUT = 25  # Seconds
 # Worker command: celery -A config worker --loglevel=info --concurrency=2
 # Beat command:   celery -A config beat --loglevel=info
 
-# Redis URL — Prefer REDIS_PUBLIC_URL (TLS/rediss://) for cache connectivity,
-# fall back to REDIS_URL (internal), then localhost for development.
-REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/0")
-_REDIS_CACHE_BASE = os.environ.get("REDIS_PUBLIC_URL") or REDIS_URL
-_redis_source = "REDIS_PUBLIC_URL" if os.environ.get("REDIS_PUBLIC_URL") else "REDIS_URL"
+# Redis URL — read directly from os.environ to avoid django-environ mangling.
+# REDIS_URL is set automatically by Railway when Redis addon is attached.
+REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 
 # ==============================================================================
 # Django Cache Framework — CoS Readiness Cache + General Caching
@@ -1011,25 +1009,21 @@ if _disable_redis:
             "LOCATION": "wlj-no-redis",
         },
     }
-elif not DEBUG or env("REDIS_URL", default=""):
-    # Production / CI / dev-with-Redis: use Redis DB 1 (Celery uses DB 0)
-    _cache_redis_url = _REDIS_CACHE_BASE.rsplit("/", 1)[0] + "/1" if "/" in _REDIS_CACHE_BASE else _REDIS_CACHE_BASE + "/1"
-    _cache_options = {
-        "socket_connect_timeout": 0.5,  # 500ms fail-fast
-        "socket_timeout": 0.5,
-        "retry_on_timeout": False,
-        "health_check_interval": 30,
-    }
-    # Add TLS options when using rediss:// (Railway public endpoint)
-    if _cache_redis_url.startswith("rediss://"):
-        _cache_options["ssl_cert_reqs"] = None  # Skip cert verification for Railway
+elif not DEBUG or os.environ.get("REDIS_URL"):
+    # Production / CI / dev-with-Redis: use REDIS_URL directly
+    # Cache uses the same URL as Celery broker (no DB number manipulation)
     CACHES = {
         "default": {
             "BACKEND": "apps.core.cache_backend.SafeRedisCache",
-            "LOCATION": _cache_redis_url,
+            "LOCATION": REDIS_URL,
             "TIMEOUT": 300,
             "KEY_PREFIX": "wlj",
-            "OPTIONS": _cache_options,
+            "OPTIONS": {
+                "socket_connect_timeout": 0.5,  # 500ms fail-fast
+                "socket_timeout": 0.5,
+                "retry_on_timeout": False,
+                "health_check_interval": 30,
+            },
         },
     }
 else:
@@ -1047,14 +1041,8 @@ _cache_logger = _settings_logging.getLogger('wlj.startup')
 _cache_backend = CACHES.get('default', {}).get('BACKEND', 'unknown')
 if 'SafeRedisCache' in _cache_backend:
     _cache_loc = CACHES['default'].get('LOCATION', '?')
-    # Mask password but show protocol://user:***@host:port/db
-    if '@' in _cache_loc:
-        _scheme_user = _cache_loc.split('://')[0] + '://' + _cache_loc.split('://')[1].split(':')[0] + ':***@'
-        _host_part = _cache_loc.split('@')[1]
-        _cache_masked = _scheme_user + _host_part
-    else:
-        _cache_masked = _cache_loc
-    _cache_logger.warning("Cache: SafeRedisCache via %s → %s", _redis_source, _cache_masked)
+    _safe_host = _cache_loc.split('@')[-1] if '@' in _cache_loc else _cache_loc
+    _cache_logger.warning("Cache: SafeRedisCache → %s", _safe_host)
 elif 'LocMemCache' in _cache_backend:
     _cache_logger.info("Cache: LocMemCache (no Redis)")
 else:

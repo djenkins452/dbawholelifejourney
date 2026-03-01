@@ -9,6 +9,19 @@
 
 # WLJ Change History
 
+## 2026-03-01 — Fix Redis URL: rsplit bug produced redis://1 instead of actual URL
+
+**What:** Fixed critical bug where `rsplit("/", 1)` on a Redis URL without a path (e.g., `redis://user:pass@host:6379`) would split on the `//` in the protocol, producing `redis://1` as the cache LOCATION. Removed all URL manipulation — cache now uses `REDIS_URL` directly via `os.environ.get()`. Removed REDIS_PUBLIC_URL preference (internal URL is correct). Removed DB number `/1` suffix manipulation.
+
+**Root cause:** `"redis://user:pass@host:6379".rsplit("/", 1)` → `["redis:/", "user:pass@host:6379"]` → `[0] + "/1"` → `"redis://1"`.
+
+**Files changed:**
+- `config/settings.py` — Use REDIS_URL directly, no URL manipulation
+
+**Why:** Startup logs showed `redis://1` — Redis was never reachable because the URL was mangled.
+
+---
+
 ## 2026-02-28 — Enhanced Redis startup logging with masked URL
 
 **What:** Startup log now shows full masked Redis URL including protocol, user, host, port, and DB (password replaced with `***`). Example: `rediss://default:***@host.railway.app:6379/1`

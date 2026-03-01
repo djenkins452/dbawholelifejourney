@@ -20,6 +20,9 @@ urlpatterns = [
     # Opening Message / Daily Check-in
     path('api/opening/', views.AssistantOpeningView.as_view(), name='api_opening'),
 
+    # Pre-Warm / Readiness
+    path('api/wake/', views.AssistantWakeView.as_view(), name='api_wake'),
+
     # Conversation / Chat
     path('api/chat/', views.AssistantChatView.as_view(), name='api_chat'),
     path('api/history/', views.ConversationHistoryView.as_view(), name='api_history'),

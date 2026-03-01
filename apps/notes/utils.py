@@ -56,12 +56,18 @@ def get_entity_display_name(attachment):
     """
     Return a human-readable display name for an attachment's target entity.
 
+    Uses priority: display_title > title > name > str(obj).
     Falls back gracefully if the entity has been deleted.
     """
     try:
         entity = attachment.attached_entity
         if entity is None:
             return f"Deleted {attachment.content_type.name}"
-        return str(entity)
+        return (
+            getattr(entity, "display_title", None)
+            or getattr(entity, "title", None)
+            or getattr(entity, "name", None)
+            or str(entity)
+        )
     except Exception:
         return f"Deleted {attachment.content_type.name}"

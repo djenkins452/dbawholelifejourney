@@ -6,8 +6,10 @@ from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
 from django.urls import reverse
 
+from django.contrib.contenttypes.models import ContentType
+
 from apps.core.models import Tag
-from apps.notes.models import Note
+from apps.notes.models import Note, NoteAttachment
 
 User = get_user_model()
 
@@ -353,3 +355,72 @@ class NoteTogglePinViewTest(NoteViewTestMixin, TestCase):
         self.assertEqual(response.status_code, 302)
         note.refresh_from_db()
         self.assertFalse(note.is_pinned)
+
+
+class NoteMemoryIndexSearchViewTest(NoteViewTestMixin, TestCase):
+    """Tests for Phase 3: search by tag name and attachment display text."""
+
+    def _create_project(self, title="Test Project"):
+        from apps.life.models import Project
+
+        return Project.objects.create(
+            user=self.user, title=title, description="A project"
+        )
+
+    def test_search_by_tag_name(self):
+        """Searching by tag name returns the tagged note."""
+        note = Note.objects.create(user=self.user, body="General thoughts here")
+        tag = Tag.objects.create(user=self.user, name="devotional", color="#3b82f6")
+        note.tags.add(tag)
+        response = self.client.get(reverse("notes:note_list") + "?q=devotional")
+        notes = list(response.context["notes"])
+        self.assertEqual(len(notes), 1)
+        self.assertEqual(notes[0].pk, note.pk)
+
+    def test_search_by_attachment_display_text(self):
+        """Searching by attachment entity title returns the note."""
+        project = self._create_project("Morning routine refinement")
+        note = Note.objects.create(user=self.user, body="General thoughts here")
+        ct = ContentType.objects.get_for_model(project)
+        NoteAttachment.objects.create(
+            note=note, content_type=ct, object_id=project.pk
+        )
+        response = self.client.get(
+            reverse("notes:note_list") + "?q=morning+routine"
+        )
+        notes = list(response.context["notes"])
+        self.assertEqual(len(notes), 1)
+        self.assertEqual(notes[0].pk, note.pk)
+
+    def test_search_ranking_title_still_highest(self):
+        """Title matches still rank above tag/attachment matches."""
+        # Note 1: has "devotional" in title (weight A)
+        note1 = Note.objects.create(
+            user=self.user, title="Devotional thoughts", body="Some reflections"
+        )
+        # Note 2: has "devotional" in tags only (weight C)
+        note2 = Note.objects.create(user=self.user, body="General notes")
+        tag = Tag.objects.create(user=self.user, name="devotional", color="#3b82f6")
+        note2.tags.add(tag)
+        response = self.client.get(reverse("notes:note_list") + "?q=devotional")
+        notes = list(response.context["notes"])
+        self.assertEqual(len(notes), 2)
+        # Title match should rank first
+        self.assertEqual(notes[0].pk, note1.pk)
+
+    def test_search_tag_respects_user_isolation(self):
+        """Cannot find another user's notes via tag search."""
+        other = User.objects.create_user(
+            email="tagother@example.com", password="testpass123"
+        )
+        other_note = Note.objects.create(user=other, body="Other user note")
+        tag = Tag.objects.create(user=other, name="secretlabel", color="#000")
+        other_note.tags.add(tag)
+
+        my_note = Note.objects.create(user=self.user, body="My normal note")
+
+        response = self.client.get(
+            reverse("notes:note_list") + "?q=secretlabel"
+        )
+        notes = list(response.context["notes"])
+        self.assertEqual(len(notes), 0)

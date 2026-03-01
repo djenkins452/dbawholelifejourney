@@ -4,6 +4,7 @@ Tests for the Note and NoteAttachment models.
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
+from django.contrib.postgres.search import SearchQuery
 from django.db import IntegrityError
 from django.test import TestCase
 
@@ -281,3 +282,172 @@ class NoteAttachmentModelTest(TestCase):
             content_type=ct, object_id=project.pk
         )
         self.assertEqual(attachments.count(), 2)
+
+
+class NoteSearchIndexTest(TestCase):
+    """Tests for Phase 3 denormalized search index (tags_text, attachments_text)."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="searchindex@example.com", password="testpass123"
+        )
+
+    def _create_project(self, title="Test Project"):
+        from apps.life.models import Project
+
+        return Project.objects.create(
+            user=self.user, title=title, description="A project"
+        )
+
+    def test_tags_text_populated_on_tag_add(self):
+        """Adding a tag updates tags_text."""
+        note = Note.objects.create(user=self.user, body="Some note")
+        tag = Tag.objects.create(user=self.user, name="devotional", color="#3b82f6")
+        note.tags.add(tag)
+        note.refresh_from_db()
+        self.assertEqual(note.tags_text, "devotional")
+
+    def test_tags_text_multiple_tags(self):
+        """Multiple tags appear in tags_text."""
+        note = Note.objects.create(user=self.user, body="Some note")
+        t1 = Tag.objects.create(user=self.user, name="alpha", color="#000")
+        t2 = Tag.objects.create(user=self.user, name="beta", color="#111")
+        note.tags.add(t1, t2)
+        note.refresh_from_db()
+        self.assertIn("alpha", note.tags_text)
+        self.assertIn("beta", note.tags_text)
+
+    def test_tags_text_cleared_on_tag_remove(self):
+        """Removing a tag updates tags_text."""
+        note = Note.objects.create(user=self.user, body="Some note")
+        tag = Tag.objects.create(user=self.user, name="removeme", color="#000")
+        note.tags.add(tag)
+        note.refresh_from_db()
+        self.assertIn("removeme", note.tags_text)
+        note.tags.remove(tag)
+        note.refresh_from_db()
+        self.assertEqual(note.tags_text, "")
+
+    def test_tags_text_cleared_on_tags_clear(self):
+        """Clearing all tags updates tags_text."""
+        note = Note.objects.create(user=self.user, body="Some note")
+        tag = Tag.objects.create(user=self.user, name="clearme", color="#000")
+        note.tags.add(tag)
+        note.tags.clear()
+        note.refresh_from_db()
+        self.assertEqual(note.tags_text, "")
+
+    def test_search_vector_includes_tag_names(self):
+        """Search vector matches tag names after tag add."""
+        note = Note.objects.create(user=self.user, body="General thoughts")
+        tag = Tag.objects.create(user=self.user, name="devotional", color="#3b82f6")
+        note.tags.add(tag)
+        found = Note.objects.filter(
+            user=self.user, search_vector=SearchQuery("devotional")
+        )
+        self.assertEqual(found.count(), 1)
+        self.assertEqual(found.first().pk, note.pk)
+
+    def test_search_vector_excludes_removed_tag(self):
+        """After removing a tag, search no longer matches it."""
+        note = Note.objects.create(user=self.user, body="General thoughts")
+        tag = Tag.objects.create(user=self.user, name="xyzuniquetag", color="#000")
+        note.tags.add(tag)
+        self.assertEqual(
+            Note.objects.filter(
+                user=self.user, search_vector=SearchQuery("xyzuniquetag")
+            ).count(),
+            1,
+        )
+        note.tags.remove(tag)
+        self.assertEqual(
+            Note.objects.filter(
+                user=self.user, search_vector=SearchQuery("xyzuniquetag")
+            ).count(),
+            0,
+        )
+
+    def test_attachments_text_populated_on_attachment_create(self):
+        """Creating a NoteAttachment updates attachments_text."""
+        project = self._create_project("Morning routine refinement")
+        note = Note.objects.create(user=self.user, body="Some note")
+        ct = ContentType.objects.get_for_model(project)
+        NoteAttachment.objects.create(
+            note=note, content_type=ct, object_id=project.pk
+        )
+        note.refresh_from_db()
+        self.assertIn("Morning routine refinement", note.attachments_text)
+        self.assertIn("Project", note.attachments_text)
+
+    def test_attachments_text_cleared_on_attachment_delete(self):
+        """Deleting a NoteAttachment updates attachments_text."""
+        project = self._create_project("Temp project")
+        note = Note.objects.create(user=self.user, body="Some note")
+        ct = ContentType.objects.get_for_model(project)
+        att = NoteAttachment.objects.create(
+            note=note, content_type=ct, object_id=project.pk
+        )
+        note.refresh_from_db()
+        self.assertIn("Temp project", note.attachments_text)
+        att.delete()
+        note.refresh_from_db()
+        self.assertEqual(note.attachments_text, "")
+
+    def test_search_vector_includes_attachment_text(self):
+        """Search vector matches attachment display string."""
+        project = self._create_project("Morning routine refinement")
+        note = Note.objects.create(user=self.user, body="General thoughts")
+        ct = ContentType.objects.get_for_model(project)
+        NoteAttachment.objects.create(
+            note=note, content_type=ct, object_id=project.pk
+        )
+        found = Note.objects.filter(
+            user=self.user, search_vector=SearchQuery("routine refinement")
+        )
+        self.assertEqual(found.count(), 1)
+        self.assertEqual(found.first().pk, note.pk)
+
+    def test_search_vector_excludes_deleted_attachment(self):
+        """After deleting attachment, search no longer matches its text."""
+        project = self._create_project("Zzzyyyxxx unique project")
+        note = Note.objects.create(user=self.user, body="General thoughts")
+        ct = ContentType.objects.get_for_model(project)
+        att = NoteAttachment.objects.create(
+            note=note, content_type=ct, object_id=project.pk
+        )
+        self.assertEqual(
+            Note.objects.filter(
+                user=self.user, search_vector=SearchQuery("Zzzyyyxxx")
+            ).count(),
+            1,
+        )
+        att.delete()
+        self.assertEqual(
+            Note.objects.filter(
+                user=self.user, search_vector=SearchQuery("Zzzyyyxxx")
+            ).count(),
+            0,
+        )
+
+    def test_attachment_display_method(self):
+        """NoteAttachment.attachment_display() returns expected format."""
+        project = self._create_project("My Test Project")
+        note = Note.objects.create(user=self.user, body="Some note")
+        ct = ContentType.objects.get_for_model(project)
+        att = NoteAttachment.objects.create(
+            note=note, content_type=ct, object_id=project.pk
+        )
+        display = att.attachment_display()
+        self.assertIn("Project", display)
+        self.assertIn("My Test Project", display)
+
+    def test_rebuild_tags_text_idempotent(self):
+        """rebuild_tags_text produces consistent results on repeated calls."""
+        note = Note.objects.create(user=self.user, body="Some note")
+        tag = Tag.objects.create(user=self.user, name="testag", color="#000")
+        note.tags.add(tag)
+        note.refresh_from_db()
+        first = note.tags_text
+        note.rebuild_tags_text()
+        note.refresh_from_db()
+        self.assertEqual(note.tags_text, first)

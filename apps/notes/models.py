@@ -64,6 +64,18 @@ class Note(UserOwnedModel):
     )
     word_count = models.PositiveIntegerField(default=0, editable=False)
     search_vector = SearchVectorField(null=True, editable=False)
+    tags_text = models.TextField(
+        blank=True,
+        default="",
+        editable=False,
+        help_text="Denormalized tag names for full-text search indexing.",
+    )
+    attachments_text = models.TextField(
+        blank=True,
+        default="",
+        editable=False,
+        help_text="Denormalized attachment display strings for full-text search indexing.",
+    )
 
     class Meta:
         ordering = ["-is_pinned", "-updated_at"]
@@ -94,14 +106,47 @@ class Note(UserOwnedModel):
             self.word_count = 0
         super().save(*args, **kwargs)
         # Update search vector after save (separate UPDATE to avoid recursion)
-        self._update_search_vector()
+        self._refresh_search_vector()
 
-    def _update_search_vector(self):
-        """Rebuild the search_vector from title (A) and body (B)."""
+    def rebuild_tags_text(self):
+        """Rebuild tags_text from current M2M tags and persist it."""
+        text = " ".join(self.tags.values_list("name", flat=True))
+        if text != self.tags_text:
+            self.tags_text = text
+            Note.objects.filter(pk=self.pk).update(tags_text=text)
+        return text
+
+    def rebuild_attachments_text(self):
+        """Rebuild attachments_text from current NoteAttachments and persist it."""
+        displays = []
+        for att in self.attachments.select_related("content_type").all():
+            displays.append(att.attachment_display())
+        text = " ".join(displays)
+        if text != self.attachments_text:
+            self.attachments_text = text
+            Note.objects.filter(pk=self.pk).update(attachments_text=text)
+        return text
+
+    def refresh_search_index(self, rebuild_tags=False, rebuild_attachments=False):
+        """
+        Rebuild denormalized text fields as requested, then refresh search_vector.
+
+        Called by signals when tags/attachments change, and by save() for title/body.
+        """
+        if rebuild_tags:
+            self.rebuild_tags_text()
+        if rebuild_attachments:
+            self.rebuild_attachments_text()
+        self._refresh_search_vector()
+
+    def _refresh_search_vector(self):
+        """Rebuild search_vector from title(A) + body(B) + tags_text(C) + attachments_text(C)."""
         Note.objects.filter(pk=self.pk).update(
             search_vector=(
                 SearchVector("title", weight="A")
                 + SearchVector("body", weight="B")
+                + SearchVector("tags_text", weight="C")
+                + SearchVector("attachments_text", weight="C")
             )
         )
 
@@ -171,3 +216,27 @@ class NoteAttachment(models.Model):
 
     def __str__(self):
         return f"Note {self.note_id} -> {self.content_type}:{self.object_id}"
+
+    def attachment_display(self):
+        """
+        Build a stable display string for search indexing.
+
+        Format: "{ModelVerboseName}: {resolved_title}"
+        Uses priority: display_title > title > name > str(obj)
+        Returns graceful fallback if entity is deleted.
+        """
+        try:
+            entity = self.attached_entity
+            if entity is None:
+                return ""
+            verbose = self.content_type.model_class()._meta.verbose_name.title()
+            # Resolve display name with priority chain
+            display = (
+                getattr(entity, "display_title", None)
+                or getattr(entity, "title", None)
+                or getattr(entity, "name", None)
+                or str(entity)
+            )
+            return f"{verbose}: {display}"
+        except Exception:
+            return ""

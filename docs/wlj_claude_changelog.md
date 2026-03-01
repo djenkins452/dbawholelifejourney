@@ -9,6 +9,20 @@
 
 # WLJ Change History
 
+## 2026-03-01 — Fix "Beth" leaking into user-facing release notes and code
+
+**What:** The personal nickname "Beth" was hardcoded in the release note (PK 106) visible to all users in What's New. Replaced with "Your Chief of Staff" / "CoS" in the release note, code comments, fixture loader, and features doc. Added fixture loader reset so the corrected release note deploys automatically.
+
+**Changes:**
+- `apps/core/fixtures/release_notes.json` — PK 106: "Beth is Faster..." → "Your Chief of Staff is Faster..."
+- `apps/ai/personal_assistant.py` — Code comments: "Beth" → "CoS"
+- `apps/core/management/commands/load_initial_data.py` — Renamed method `_reset_beth_performance_fixtures` → `_reset_cos_performance_fixtures`, added `_reset_cos_name_fix_fixtures` one-time reset
+- `docs/wlj_claude_features.md` — "Beth" → "CoS"
+
+**Why:** "Beth" is the owner's personal nickname for CoS. Other users would see it in What's New and be confused since CoS is user-nameable.
+
+---
+
 ## 2026-03-01 — Strengthen CoS anti-hallucination: honesty directive + lower temperatures
 
 **What:** Added a comprehensive "HONESTY OVER CONFIDENCE" section to the CoS system prompt covering all topics (not just user data), and lowered LLM temperature defaults to reduce creative hallucination. CoS will now say "I'm not sure" or "I don't know" rather than confidently stating uncertain information.

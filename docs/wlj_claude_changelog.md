@@ -9,6 +9,17 @@
 
 # WLJ Change History
 
+## 2026-02-28 — Make help model cache.delete() resilient to Redis failures
+
+**What:** Wrapped all `cache.delete()` calls in help model `save()` methods with try/except. When Redis is unreachable during deploy, the cache clear is best-effort — the DB save succeeds and the timeout doesn't crash the process. Also fixed duplicate `save()` method on HelpArticle.
+
+**Files changed:**
+- `apps/help/models.py` — HelpTopic, AdminHelpTopic, HelpCategory, HelpArticle, TeachingDestination
+
+**Why:** Redis timeouts during `reload_help_content` were hanging the deploy, preventing gunicorn from starting.
+
+---
+
 ## 2026-02-28 — Fix release_notes.json missing fields causing site outage
 
 **What:** Release notes pk=41 and pk=42 were missing required fields (`entry_type`, `release_date`, `is_published`, `learn_more_url`), causing a not-null constraint violation on `release_date` during fixture loading. This prevented the site from starting.

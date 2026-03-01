@@ -9,6 +9,17 @@
 
 # WLJ Change History
 
+## 2026-03-01 — Fix: CoS chat missing weight data in system prompt
+
+**What:** CoS AI assistants couldn't see user weight data — responded with "I don't have any weight entries" despite the user having many entries. Weight was collected in the state engine and assembled in `transformation_metrics` but never rendered into the system prompt injection.
+
+**Changes:**
+- `apps/core/ai_orchestrator/cos_context.py` — Added weight_current, weight_unit, weight_trend to health_signals dict; added weight goal data from HealthProfile; added weight + weight goal rendering in system prompt injection (before sleep/steps/HR)
+
+**Why:** Users discussing weight goals with their CoS persona got incorrect responses because the AI literally couldn't see the data. Now CoS sees current weight, trend, and goal progress.
+
+---
+
 ## 2026-03-01 — Fast-context split: reduce streaming TTFB from ~6.8s to ~1s
 
 **What:** Added a fast context builder (`_build_fast_context()`) that assembles minimal LLM context using ONLY cached data — no CoS rebuilds. Streaming now starts in ~80-200ms instead of ~2-5s context build. A background thread warms caches for the next request.

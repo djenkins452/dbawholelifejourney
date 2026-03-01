@@ -29,14 +29,32 @@ def run_scheduler_cycle():
       - Update last_run_at, next_run_at, last_status
       - Handle errors safely (never crash the cycle)
 
+    On wake from container sleep, detects overdue tasks and runs them
+    immediately (catch-up mode) so engines recover without waiting for
+    their next scheduled interval.
+
     Returns:
-        dict — {executed: int, skipped: int, failed: int}
+        dict — {executed: int, skipped: int, failed: int, catch_up: bool}
     """
     # Ensure all registered tasks have database records
     _ensure_task_records()
 
     tasks = ScheduledIntelligenceTask.objects.filter(is_active=True)
     now = timezone.now()
+
+    # Detect catch-up scenario: if scheduler itself is waking from sleep,
+    # multiple tasks will be overdue. Log it for observability.
+    overdue_tasks = [t for t in tasks if now >= t.next_run_at]
+    catch_up = len(overdue_tasks) > len(tasks) // 2 and len(overdue_tasks) > 2
+    if catch_up:
+        total_overdue_seconds = sum(
+            (now - t.next_run_at).total_seconds() for t in overdue_tasks
+        )
+        avg_overdue = total_overdue_seconds / len(overdue_tasks)
+        logger.warning(
+            f"ISE: Catch-up mode — {len(overdue_tasks)} tasks overdue "
+            f"(avg {avg_overdue:.0f}s behind). Running all now."
+        )
 
     executed = 0
     skipped = 0
@@ -53,11 +71,17 @@ def run_scheduler_cycle():
         else:
             failed += 1
 
-    result = {"executed": executed, "skipped": skipped, "failed": failed}
+    result = {
+        "executed": executed,
+        "skipped": skipped,
+        "failed": failed,
+        "catch_up": catch_up,
+    }
 
     logger.info(
         f"ISE: Scheduler cycle complete — "
         f"executed={executed}, skipped={skipped}, failed={failed}"
+        + (" [CATCH-UP]" if catch_up else "")
     )
 
     # Record scheduler heartbeat (fail-silent — never crash the cycle)

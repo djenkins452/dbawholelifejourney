@@ -327,3 +327,131 @@ def get_related_notes_for_entity(*, user, content_type, object_id, limit=50):
     )[:limit]
 
     return [_build_citation_block(note) for note in queryset]
+
+
+# ---------------------------------------------------------------------------
+# Attachment index refresh helpers (Phase 4B.1)
+# ---------------------------------------------------------------------------
+
+
+def refresh_notes_for_entity(
+    *,
+    content_type_str,
+    object_id,
+    batch_size=500,
+    dry_run=False,
+):
+    """
+    Refresh attachments_text + search_vector for notes attached to a specific entity.
+
+    Used by the management command and rename signals to keep attachment
+    display strings current after entity renames.
+
+    Args:
+        content_type_str: "app_label.model" format (e.g. "life.project").
+        object_id: Primary key of the entity.
+        batch_size: Chunk size for processing (default 500).
+        dry_run: If True, count only — do not write.
+
+    Returns:
+        dict with "notes_considered", "notes_updated".
+    """
+    parts = content_type_str.split(".")
+    if len(parts) != 2:
+        return {"notes_considered": 0, "notes_updated": 0}
+
+    try:
+        ct = ContentType.objects.get(app_label=parts[0], model=parts[1])
+    except ContentType.DoesNotExist:
+        return {"notes_considered": 0, "notes_updated": 0}
+
+    note_ids = list(
+        NoteAttachment.objects.filter(content_type=ct, object_id=object_id)
+        .values_list("note_id", flat=True)
+    )
+
+    return _refresh_notes_by_ids(note_ids, batch_size=batch_size, dry_run=dry_run)
+
+
+def refresh_notes_with_attachments(*, batch_size=500, dry_run=False):
+    """
+    Refresh attachments_text + search_vector for all notes that have attachments.
+
+    Args:
+        batch_size: Chunk size for processing (default 500).
+        dry_run: If True, count only — do not write.
+
+    Returns:
+        dict with "notes_considered", "notes_updated".
+    """
+    note_ids = list(
+        NoteAttachment.objects.values_list("note_id", flat=True).distinct()
+    )
+
+    return _refresh_notes_by_ids(note_ids, batch_size=batch_size, dry_run=dry_run)
+
+
+def refresh_notes_for_content_type(*, content_type_str, batch_size=500, dry_run=False):
+    """
+    Refresh attachments_text + search_vector for notes attached to any entity
+    of the given content type.
+
+    Args:
+        content_type_str: "app_label.model" format.
+        batch_size: Chunk size for processing (default 500).
+        dry_run: If True, count only — do not write.
+
+    Returns:
+        dict with "notes_considered", "notes_updated".
+    """
+    parts = content_type_str.split(".")
+    if len(parts) != 2:
+        return {"notes_considered": 0, "notes_updated": 0}
+
+    try:
+        ct = ContentType.objects.get(app_label=parts[0], model=parts[1])
+    except ContentType.DoesNotExist:
+        return {"notes_considered": 0, "notes_updated": 0}
+
+    note_ids = list(
+        NoteAttachment.objects.filter(content_type=ct)
+        .values_list("note_id", flat=True)
+        .distinct()
+    )
+
+    return _refresh_notes_by_ids(note_ids, batch_size=batch_size, dry_run=dry_run)
+
+
+def _refresh_notes_by_ids(note_ids, *, batch_size=500, dry_run=False):
+    """
+    Internal helper: refresh attachments_text + search_vector for a list of note IDs.
+
+    Processes in batches, prefetches attachments to avoid N+1.
+    """
+    total = len(note_ids)
+    updated = 0
+
+    if dry_run or total == 0:
+        return {"notes_considered": total, "notes_updated": 0}
+
+    for start in range(0, total, batch_size):
+        batch_ids = note_ids[start : start + batch_size]
+        notes = (
+            Note.all_objects.filter(pk__in=batch_ids)
+            .prefetch_related(
+                Prefetch(
+                    "attachments",
+                    queryset=NoteAttachment.objects.select_related("content_type"),
+                ),
+            )
+        )
+        for note in notes:
+            old_text = note.attachments_text
+            note.rebuild_attachments_text()
+            note.refresh_from_db(fields=["attachments_text"])
+            if note.attachments_text != old_text:
+                updated += 1
+            # Always refresh search vector to ensure consistency
+            note._refresh_search_vector()
+
+    return {"notes_considered": total, "notes_updated": updated}

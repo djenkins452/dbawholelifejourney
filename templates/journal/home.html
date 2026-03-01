@@ -156,7 +156,7 @@
             <div class="prompt-content">
                 <p class="prompt-text">"{{ suggested_prompt.text }}"</p>
                 <div class="prompt-meta">
-                    <span class="prompt-category">{{ suggested_prompt.get_category_display }}</span>
+                    <span class="prompt-category">{% if suggested_prompt.category %}{{ suggested_prompt.category.name }}{% endif %}</span>
                 </div>
                 <a href="{% url 'journal:entry_create' %}?prompt={{ suggested_prompt.pk }}" class="btn btn-secondary btn-sm mt-3">
                     Use This Prompt

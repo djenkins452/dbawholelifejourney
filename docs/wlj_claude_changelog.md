@@ -9,6 +9,22 @@
 
 # WLJ Change History
 
+## 2026-02-28 — Fix Journal Dashboard: Mood This Week + Today's Prompt
+
+**What:** Fixed two broken widgets on the journal home page:
+1. **Mood This Week** — Was always empty because it queried the `mood` CharField (never populated). Fixed to query from `emotions` ManyToMany field which is what the entry form actually collects.
+2. **Today's Prompt** — Was hardcoded to `None`. Fixed to query `JournalPrompt` model and rotate daily based on day-of-year. Respects faith_enabled preference.
+
+**Why:** User reported both widgets empty despite regular journaling with emotion selection.
+
+**Files:**
+- `apps/journal/views.py` — Rewrote `_get_mood_stats()` to use Emotion M2M; replaced `suggested_prompt = None` with daily prompt rotation logic
+- `templates/journal/home.html` — Fixed `get_category_display` (invalid on FK) to `category.name`
+
+**Tests:** 107 journal tests pass
+
+---
+
 ## 2026-02-28 — Learning Health Tile on Operations Wall
 
 **What:** Added a "Persistent Learning" health tile to the Ops Command Center that monitors all 5 learning subsystems (Memory, Corrections, Patterns, Response Preferences, Profile Evolution) in real-time. The tile shows overall status (LEARNING / DEGRADED / STALE) with green/yellow/red color coding and per-subsystem metrics.

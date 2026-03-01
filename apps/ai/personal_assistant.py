@@ -2952,6 +2952,20 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             logger.debug(f"Skipping navigation for data analysis query: {message[:60]}")
             return None
 
+        # Meta-questions about Beth / system behavior / errors / complaints
+        # are NOT navigation — they need the LLM to answer conversationally.
+        meta_question_indicators = [
+            'how come', 'why do you', 'why does', 'why did you',
+            'why are you', 'why is it', 'why is beth', 'why is the',
+            'you always', 'you never', 'you keep', 'you said',
+            'server', 'error', 'crash', 'broke', 'broken', 'wrong',
+            'bug', 'not working', 'doesn\'t work', 'failed',
+            'what happened', 'what went wrong', 'what is going on',
+            'what\'s going on', 'confused', 'makes no sense',
+        ]
+        if any(indicator in query_lower for indicator in meta_question_indicators):
+            return None
+
         navigation_indicators = [
             # Location questions
             'where do i', 'where can i', 'where is', 'where are',

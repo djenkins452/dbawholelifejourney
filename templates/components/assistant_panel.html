@@ -770,6 +770,12 @@
     async function apSendStreaming(message, container, btnEl, inputEl) {
         var pageCtx = getFullPageContext();
 
+        // Create message element BEFORE fetch so it exists in DOM immediately
+        var msgEl = apCreateStreamingMsg(container);
+        console.log("STREAM ELEMENT CREATED");
+        var fullText = '';
+        var firstToken = true;
+
         try {
             var response = await fetch('/assistant/api/chat/stream/', {
                 method: 'POST',
@@ -787,9 +793,10 @@
 
             var contentType = response.headers.get('content-type') || '';
             if (contentType.indexOf('text/event-stream') === -1) {
-                // JSON fallback (error responses)
+                // JSON fallback (error responses) — replace the pre-created element
                 var data = await response.json();
                 hideTyping();
+                msgEl.remove();
                 if (data.success && data.response) {
                     addMessage(container, data.response, false, true);
                 } else {
@@ -797,11 +804,6 @@
                 }
                 return;
             }
-
-            // Create message element BEFORE streaming starts
-            var msgEl = apCreateStreamingMsg(container);
-            var fullText = '';
-            var firstToken = true;
 
             var reader = response.body.getReader();
             var decoder = new TextDecoder();
@@ -845,11 +847,10 @@
                         }
                         fullText += evt.content;
                         console.log("STREAM TOKEN:", evt.content);
-                        // CRITICAL: use textContent for immediate render (no HTML parsing overhead)
+                        // CRITICAL: update pre-created element with textContent (immediate, no HTML overhead)
                         msgEl.textContent = fullText;
                         container.scrollTop = container.scrollHeight;
                     } else if (eventType === 'done') {
-                        // Apply markdown formatting only at the end
                         apFinalizeStreamingMsg(msgEl, fullText);
                     } else if (eventType === 'error') {
                         apFinalizeStreamingMsg(msgEl, fullText || (evt.error || 'Stream error'));
@@ -857,7 +858,7 @@
                 }
             }
 
-            // Ensure finalized (stream may end without explicit done event)
+            // Ensure finalized with markdown formatting
             if (fullText) {
                 apFinalizeStreamingMsg(msgEl, fullText);
             } else {
@@ -867,6 +868,8 @@
 
         } catch (error) {
             hideTyping();
+            // Remove pre-created element on failure, fallback will create its own
+            if (msgEl && msgEl.parentNode) msgEl.remove();
             console.warn('Streaming failed, falling back:', error);
             showTyping(container);
             apSendNonStreaming(message, container, btnEl, inputEl, null);

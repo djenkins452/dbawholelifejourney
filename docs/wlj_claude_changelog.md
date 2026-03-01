@@ -9,7 +9,19 @@
 
 # WLJ Change History
 
-## 2026-03-01 — Fix Beth streaming: textContent for immediate token rendering (Phase C2 final)
+## 2026-03-01 — Fix Beth streaming: pre-create DOM element before fetch (Phase C2 final)
+
+**What:** Moved assistant message DOM element creation to BEFORE the `fetch()` call in both chat templates. Previously the element was created AFTER `await fetch()` completed, meaning the entire backend pre-processing time (~2-5s of context building) blocked before any element existed in the DOM to receive tokens.
+
+**Root cause:** `createStreamingMessage()` / `apCreateStreamingMsg()` were called after `await fetch()` resolved. Since `fetch()` blocks until response headers arrive (after all backend pre-processing), no DOM element existed to show tokens during the wait. Now the empty message bubble appears instantly when the user sends a message.
+
+**Files changed:**
+- `templates/components/assistant_panel.html` — Moved `apCreateStreamingMsg(container)` before `fetch()`, added `msgEl.remove()` cleanup in JSON fallback and catch paths
+- `templates/components/chat_widget.html` — Moved `createStreamingMessage()` before `fetch()`, added `msgEl.remove()` cleanup in JSON fallback and catch paths
+
+---
+
+## 2026-03-01 — Fix Beth streaming: textContent for immediate token rendering (Phase C2)
 
 **What:** Rewrote streaming response handlers in both Beth chat templates to render tokens immediately instead of buffering.
 

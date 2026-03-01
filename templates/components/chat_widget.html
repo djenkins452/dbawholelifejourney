@@ -1518,6 +1518,12 @@
         var controller = new AbortController();
         var timeoutId = setTimeout(function() { controller.abort(); }, 60000);
 
+        // Create message element BEFORE fetch so it exists in DOM immediately
+        var msgEl = createStreamingMessage();
+        console.log("STREAM ELEMENT CREATED");
+        var fullText = '';
+        var firstToken = true;
+
         try {
             var response = await fetch('/assistant/api/chat/stream/', {
                 method: 'POST',
@@ -1540,7 +1546,8 @@
             // Check content type — SSE vs JSON fallback
             var contentType = response.headers.get('content-type') || '';
             if (contentType.indexOf('text/event-stream') === -1) {
-                // Server returned JSON (error response)
+                // Server returned JSON (error response) — remove pre-created element
+                if (msgEl && msgEl.parentNode) msgEl.remove();
                 var data = await response.json();
                 hideTyping();
                 if (data.success) {
@@ -1550,11 +1557,6 @@
                 }
                 return;
             }
-
-            // SSE streaming — create message element BEFORE streaming starts
-            var msgEl = createStreamingMessage();
-            var fullText = '';
-            var firstToken = true;
 
             var reader = response.body.getReader();
             var decoder = new TextDecoder();
@@ -1624,6 +1626,8 @@
         } catch (error) {
             clearTimeout(timeoutId);
             hideTyping();
+            // Remove pre-created element before fallback
+            if (msgEl && msgEl.parentNode) msgEl.remove();
 
             if (error.name === 'AbortError') {
                 addMessage('Request timed out. Please try again.', false);

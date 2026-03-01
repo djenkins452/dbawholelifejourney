@@ -1302,33 +1302,3 @@ class NotificationSetupDismissView(LoginRequiredMixin, View):
         except Exception as e:
             logger.error(f"Error dismissing notification setup: {e}")
             return JsonResponse({'success': False, 'error': str(e)}, status=500)
-
-
-# Temporary Redis connectivity test endpoint — remove after debugging
-def redis_test_view(request):
-    import time
-    from django.core.cache import cache
-
-    start = time.monotonic()
-    try:
-        cache.set("redis_test_key", "ok", 60)
-        value = cache.get("redis_test_key")
-        elapsed = int((time.monotonic() - start) * 1000)
-
-        if value == "ok":
-            return JsonResponse({"status": "success", "value": value, "elapsed_ms": elapsed})
-        else:
-            return JsonResponse({"status": "degraded", "value": value, "elapsed_ms": elapsed})
-    except Exception as e:
-        elapsed = int((time.monotonic() - start) * 1000)
-        return JsonResponse({"status": "failed", "error": str(e), "elapsed_ms": elapsed})
-
-
-# Temporary circuit breaker reset endpoint — remove after debugging
-def redis_reset_view(request):
-    try:
-        from apps.core import cache_backend
-        cache_backend._circuit_open_until = 0
-        return JsonResponse({"status": "reset", "message": "Circuit breaker closed, next cache call will attempt Redis"})
-    except Exception as e:
-        return JsonResponse({"status": "error", "error": str(e)})

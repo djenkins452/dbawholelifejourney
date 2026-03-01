@@ -4434,6 +4434,7 @@ Rules for this response:
         conversation: AssistantConversation,
         page_context: dict = None,
         cos_context_cache: dict = None,
+        assistant_message=None,
     ):
         """
         Streaming variant of _generate_response.
@@ -4441,14 +4442,22 @@ Rules for this response:
         Performs the same prompt assembly via _generate_response(_return_context_only=True),
         then streams tokens from the OpenAI API.
 
-        Skips Phase 4c quality validation (rare edge case, not worth buffering
-        the entire response to validate).
+        If assistant_message is provided, updates its content after streaming
+        completes. A finally block guarantees the placeholder is never left
+        empty — covers normal completion, exceptions, and client disconnect.
 
         Does not support image attachments (use non-streaming for images).
+
+        Args:
+            assistant_message: Optional pre-created AssistantMessage record.
+                Created by send_message_stream() before streaming starts.
+                Updated with final content after stream completes.
 
         Yields:
             str — content chunks as they are generated.
         """
+        full_text = ''
+
         try:
             ctx = self._generate_response(
                 message, conversation,
@@ -4461,25 +4470,71 @@ Rules for this response:
             # it means a short-circuit occurred (shouldn't happen with
             # _return_context_only, but defensive)
             if isinstance(ctx, str):
+                full_text = ctx
+                if assistant_message:
+                    assistant_message.content = ctx
+                    assistant_message.save(update_fields=['content'])
                 yield ctx
                 return
 
             if not ctx:
-                yield self._get_fallback_response(message)
+                fallback = self._get_fallback_response(message)
+                full_text = fallback
+                if assistant_message:
+                    assistant_message.content = fallback
+                    assistant_message.save(update_fields=['content'])
+                yield fallback
                 return
 
-            yield from ai_service._call_api_stream(
-                ctx['system_prompt'],
-                ctx['user_prompt'],
-                max_tokens=ctx['max_tokens'],
-                temperature=ctx['temperature'],
-                endpoint='cos_chat',
-                user=self.user,
-                conversation_history=ctx['conversation_history'],
-            )
+            try:
+                for chunk in ai_service._call_api_stream(
+                    ctx['system_prompt'],
+                    ctx['user_prompt'],
+                    max_tokens=ctx['max_tokens'],
+                    temperature=ctx['temperature'],
+                    endpoint='cos_chat',
+                    user=self.user,
+                    conversation_history=ctx['conversation_history'],
+                ):
+                    full_text += chunk
+                    yield chunk
+
+                # Normal completion — save full response to pre-created record
+                if assistant_message and full_text:
+                    assistant_message.content = full_text
+                    assistant_message.save(update_fields=['content'])
+                    logger.info(
+                        "STREAM_MSG_SAVED id=%s len=%d user=%s",
+                        assistant_message.id, len(full_text), self.user.id,
+                    )
+
+            finally:
+                # GUARANTEE placeholder is finalized on ALL exit paths:
+                # normal completion (already saved above → no-op),
+                # exception, client disconnect (GeneratorExit), worker crash
+                if assistant_message and not assistant_message.content:
+                    final_content = full_text or "[Response interrupted]"
+                    assistant_message.content = final_content
+                    try:
+                        assistant_message.save(update_fields=['content'])
+                    except Exception:
+                        pass  # DB may be unavailable on worker crash
+                    logger.warning(
+                        "STREAM_MSG_FINALIZED id=%s len=%d user=%s interrupted=%s",
+                        assistant_message.id, len(final_content),
+                        self.user.id, full_text == "",
+                    )
+
         except Exception as e:
             logger.error("Streaming response generation error: %s", e)
-            yield self._get_fallback_response(message)
+            fallback = self._get_fallback_response(message)
+            if assistant_message and not assistant_message.content:
+                assistant_message.content = full_text or fallback
+                try:
+                    assistant_message.save(update_fields=['content'])
+                except Exception:
+                    pass
+            yield fallback
 
     def send_message_stream(
         self,
@@ -4519,6 +4574,15 @@ Rules for this response:
             message_type='text',
         )
 
+        # Create assistant message placeholder BEFORE streaming.
+        # Updated with final content after stream completes (or on interrupt).
+        assistant_msg = AssistantMessage.objects.create(
+            conversation=conversation,
+            role='assistant',
+            content='',
+            message_type='text',
+        )
+
         response_text = ""
         actions_taken = []
 
@@ -4526,6 +4590,8 @@ Rules for this response:
             # Check AI availability
             if not ai_service.is_available or not AIService.check_user_consent(self.user):
                 response_text = self._get_fallback_response(message)
+                assistant_msg.content = response_text
+                assistant_msg.save(update_fields=['content'])
                 yield {'type': 'token', 'content': response_text}
             else:
                 # =====================================================
@@ -4613,6 +4679,8 @@ Rules for this response:
                 if _direct_response:
                     # Pre-processing produced a direct response
                     response_text = _direct_response
+                    assistant_msg.content = response_text
+                    assistant_msg.save(update_fields=['content'])
                     yield {'type': 'token', 'content': response_text}
                 else:
                     # Stream from LLM
@@ -4621,6 +4689,7 @@ Rules for this response:
                         message, conversation,
                         page_context=page_context,
                         cos_context_cache=_cos_context_cache,
+                        assistant_message=assistant_msg,
                     ):
                         chunks.append(chunk)
                         yield {'type': 'token', 'content': chunk}
@@ -4630,11 +4699,24 @@ Rules for this response:
                         response_text = self._get_fallback_response(message)
                         yield {'type': 'token', 'content': response_text}
 
+                    # Safety net: ensure assistant_msg has final content
+                    # (normally saved by _generate_response_stream, but guard here)
+                    if response_text and not assistant_msg.content:
+                        assistant_msg.content = response_text
+                        assistant_msg.save(update_fields=['content'])
+
         except Exception as e:
             logger.error("send_message_stream error: %s", e, exc_info=True)
             if not response_text:
                 response_text = self._get_fallback_response(message)
                 yield {'type': 'token', 'content': response_text}
+            # Ensure placeholder is not left empty on error
+            if not assistant_msg.content:
+                assistant_msg.content = response_text or "[Response error]"
+                try:
+                    assistant_msg.save(update_fields=['content'])
+                except Exception:
+                    pass
 
         # =====================================================
         # Post-processing (identical to send_message)
@@ -4661,14 +4743,10 @@ Rules for this response:
         except Exception:
             pass
 
-        # Save assistant response
-        msg_type = 'action' if actions_taken else 'text'
-        AssistantMessage.objects.create(
-            conversation=conversation,
-            role='assistant',
-            content=response_text,
-            message_type=msg_type,
-        )
+        # Update message type if actions were taken
+        if actions_taken and assistant_msg.message_type != 'action':
+            assistant_msg.message_type = 'action'
+            assistant_msg.save(update_fields=['message_type'])
 
         # Update conversation timestamp
         conversation.updated_at = timezone.now()

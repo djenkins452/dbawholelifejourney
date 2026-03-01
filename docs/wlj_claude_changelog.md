@@ -9,6 +9,32 @@
 
 # WLJ Change History
 
+## 2026-03-01 — Persist assistant message BEFORE streaming (fast-path safety)
+
+**What:** Replaced the post-streaming `AssistantMessage.objects.create()` with a pre-streaming placeholder pattern. The assistant message record is now created BEFORE streaming begins and updated with final content after streaming completes (or on interruption).
+
+**Changes to `_generate_response_stream()`:**
+- Added `assistant_message` parameter for pre-created record reference
+- Replaced `yield from` with explicit `for chunk` loop accumulating `full_text`
+- Wrapped streaming in `try/finally` — guarantees placeholder is never left empty
+- Normal completion saves in `try` block (`STREAM_MSG_SAVED` log)
+- `finally` block saves partial text or `"[Response interrupted]"` on disconnect/crash (`STREAM_MSG_FINALIZED` log)
+- Short-circuit (string context) and fallback (empty context) paths also update the record
+
+**Changes to `send_message_stream()`:**
+- Creates `AssistantMessage` placeholder with `content=''` before any streaming
+- Passes `assistant_msg` to `_generate_response_stream()`
+- All non-streaming paths (AI unavailable, ECC, proactive confirmation) update the same record
+- Removed post-streaming `AssistantMessage.objects.create()` — no duplicate records
+- Added safety-net update and error-path finalization
+
+**Files changed:**
+- `apps/ai/personal_assistant.py` — `_generate_response_stream()` and `send_message_stream()`
+
+**Why:** Prerequisite for fast-path streaming split. Background threads need a stable message ID. Also prevents orphaned/missing records on client disconnect or worker crash.
+
+---
+
 ## 2026-03-01 — Notes System Phase 3: CoS-Ready Memory Indexing
 
 **What:** Expanded the Notes search index to include tag names and attachment context, making notes a true "memory index" for CoS recall.

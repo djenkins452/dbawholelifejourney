@@ -963,6 +963,7 @@
                         // Clear failed, show messages anyway
                         container.innerHTML = '';
                         data.messages.forEach(function(msg) {
+                            if (!msg.content || !msg.content.trim()) return;
                             addMessage(container, msg.content, msg.role === 'user', false,
                                 msg.image_data_url || null, msg);
                         });
@@ -972,11 +973,20 @@
 
                 container.innerHTML = '';
                 lastDisplayedDate = null;
+                var renderedCount = 0;
                 data.messages.forEach(function(msg) {
+                    // Skip empty placeholder messages (created before streaming, not yet populated)
+                    if (!msg.content || !msg.content.trim()) return;
+                    console.log("LOADED MESSAGE:", msg.id, msg.content.length);
                     addMessage(container, msg.content, msg.role === 'user', false,
                         msg.image_data_url || null, msg);
+                    renderedCount++;
                 });
-                container.scrollTop = container.scrollHeight;
+                if (renderedCount > 0) {
+                    container.scrollTop = container.scrollHeight;
+                } else {
+                    showEmptyState(container);
+                }
             } else {
                 showEmptyState(container);
             }
@@ -993,18 +1003,23 @@
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (!data.success || !data.messages) return;
+            // Filter out empty placeholder messages for comparison
+            var visibleMessages = data.messages.filter(function(m) {
+                return m.content && m.content.trim();
+            });
             var current = container.querySelectorAll('.ap-chat-message');
-            var needsUpdate = data.messages.length !== current.length;
-            if (!needsUpdate && data.messages.length > 0 && current.length > 0) {
-                var lastServer = data.messages[data.messages.length - 1].content;
+            var needsUpdate = visibleMessages.length !== current.length;
+            if (!needsUpdate && visibleMessages.length > 0 && current.length > 0) {
+                var lastServer = visibleMessages[visibleMessages.length - 1].content;
                 var lastDisplay = current[current.length - 1].textContent.trim();
                 if (lastServer.substring(0, 50) !== lastDisplay.substring(0, 50)) needsUpdate = true;
             }
             if (needsUpdate) {
                 container.innerHTML = '';
                 lastDisplayedDate = null;
-                if (data.messages.length > 0) {
-                    data.messages.forEach(function(msg) {
+                if (visibleMessages.length > 0) {
+                    visibleMessages.forEach(function(msg) {
+                        console.log("LOADED MESSAGE:", msg.id, msg.content.length);
                         addMessage(container, msg.content, msg.role === 'user', false,
                             msg.image_data_url || null, msg);
                     });

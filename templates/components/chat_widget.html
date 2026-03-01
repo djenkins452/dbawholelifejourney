@@ -1329,12 +1329,18 @@
             isLoaded = true;
 
             if (data.success && data.messages && data.messages.length > 0) {
+                let renderedCount = 0;
                 data.messages.forEach(msg => {
+                    // Skip empty placeholder messages (created before streaming, not yet populated)
+                    if (!msg.content || !msg.content.trim()) return;
+                    console.log("LOADED MESSAGE:", msg.id, msg.content.length);
                     const isUser = msg.role === 'user';
                     const imageDataUrl = msg.image_data_url || null;
                     addMessage(msg.content, isUser, false, imageDataUrl);
+                    renderedCount++;
                 });
-                hasMessages = true;
+                hasMessages = renderedCount > 0;
+                if (!hasMessages) showEmptyState();
             } else {
                 // Show welcome message
                 showEmptyState();
@@ -2154,16 +2160,17 @@
             const data = await response.json();
 
             if (data.success && data.messages) {
-                // Get current message count and last message
+                // Filter out empty placeholder messages for comparison
+                const visibleMessages = data.messages.filter(m => m.content && m.content.trim());
                 const currentMessages = messagesContainer.querySelectorAll('.assistant-message');
-                const newMessageCount = data.messages.length;
+                const newMessageCount = visibleMessages.length;
 
                 // Check if content has changed (count or last message content)
                 let needsUpdate = newMessageCount !== currentMessages.length;
 
                 // Also check if the last message content differs (handles conversation clear/restart)
                 if (!needsUpdate && newMessageCount > 0 && currentMessages.length > 0) {
-                    const lastServerMsg = data.messages[data.messages.length - 1].content;
+                    const lastServerMsg = visibleMessages[visibleMessages.length - 1].content;
                     const lastDisplayedMsg = currentMessages[currentMessages.length - 1].textContent.trim();
                     // Compare first 50 chars to detect content difference
                     if (lastServerMsg.substring(0, 50) !== lastDisplayedMsg.substring(0, 50)) {
@@ -2175,7 +2182,8 @@
                     // Clear and reload
                     messagesContainer.innerHTML = '';
                     if (newMessageCount > 0) {
-                        data.messages.forEach(msg => {
+                        visibleMessages.forEach(msg => {
+                            console.log("LOADED MESSAGE:", msg.id, msg.content.length);
                             const isUser = msg.role === 'user';
                             const imageDataUrl = msg.image_data_url || null;
                             addMessage(msg.content, isUser, false, imageDataUrl);

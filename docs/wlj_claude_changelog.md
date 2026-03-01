@@ -33,6 +33,24 @@
 
 ---
 
+## 2026-03-01 — Filter empty placeholder messages from conversation history rendering
+
+**What:** Frontend fix to prevent empty assistant message placeholders (created before streaming) from rendering as empty bubbles after page refresh. Ensures partial/interrupted messages (e.g., "[Response interrupted]") render correctly.
+
+**Changes:**
+- All 4 message rendering paths now filter: `if (!msg.content || !msg.content.trim()) return;`
+- `refreshChatHistory()` / `refreshHistory()` pre-filter empty messages before count comparison to avoid false-positive re-renders
+- Added diagnostic log `console.log("LOADED MESSAGE:", msg.id, msg.content.length)` to all paths
+- If all messages are empty (edge case), shows empty state instead of blank screen
+
+**Files changed:**
+- `templates/components/assistant_panel.html` — `loadChatHistory()`, calibration fallback, `refreshChatHistory()`
+- `templates/components/chat_widget.html` — `loadHistory()`, `refreshHistory()`
+
+**Why:** The previous commit creates an `AssistantMessage` placeholder with `content=''` before streaming. If streaming is interrupted and the user refreshes before the `finally` block saves, the empty placeholder renders as an empty bubble. This fix filters those out while rendering any non-empty content including partial responses.
+
+---
+
 ## 2026-03-01 — Persist assistant message BEFORE streaming (fast-path safety)
 
 **What:** Replaced the post-streaming `AssistantMessage.objects.create()` with a pre-streaming placeholder pattern. The assistant message record is now created BEFORE streaming begins and updated with final content after streaming completes (or on interruption).

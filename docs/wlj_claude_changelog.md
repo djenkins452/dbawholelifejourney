@@ -9,6 +9,14 @@
 
 # WLJ Change History
 
+## 2026-02-28 — Show emotion names next to emojis in Mood This Week
+
+**What:** Emotion labels now show "😊 Great" instead of just "😊". Users couldn't identify which emotion each emoji represented. Widened label area from 24px to min-width 90px.
+
+**Files:** `templates/journal/home.html`
+
+---
+
 ## 2026-02-28 — Add hover text to Mood This Week emoji labels
 
 **What:** Added `title` attribute to mood emoji labels so hovering shows the emotion name (e.g., "Grateful", "Anxious").

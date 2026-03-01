@@ -9,6 +9,16 @@
 
 # WLJ Change History
 
+## 2026-02-28 — Session Close: Add Release Note for Beth Improvements
+
+**What:** Added release note PK 106 ("Beth is Faster, Smarter, and More Reliable") consolidating all session improvements: performance optimization, timezone fix, data-first responses, preemptive server wake, and cold start retry. Added fixture loader reset method.
+
+**Files changed:**
+- `apps/core/fixtures/release_notes.json` — Added PK 106
+- `apps/core/management/commands/load_initial_data.py` — Added `_reset_beth_performance_fixtures()` and call in `handle()`
+
+---
+
 ## 2026-02-28 — Beth Latency Elimination and Instant-Readiness Architecture
 
 **What:** Full-stack latency elimination for Beth's CoS chat system. Introduces a frontend-to-backend pre-warm pipeline that silently wakes infrastructure and pre-builds CoS context before the user sends a message, eliminating 50-150ms of non-LLM latency per request.

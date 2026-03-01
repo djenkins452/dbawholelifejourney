@@ -826,6 +826,9 @@ class Command(BaseCommand):
         # One-time: Reset fixtures for Journal Mood & Prompt fix (PK 105 release note, help PK 3 update)
         self._reset_journal_mood_fix_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for Beth Performance & Reliability (PK 106)
+        self._reset_beth_performance_fixtures(DataLoadConfig, force, verbosity)
+
         # Only output summary if something loaded or if verbose
         if verbosity >= 1 and loaded_count > 0:
             self.stdout.write(self.style.SUCCESS(f'Initial data: loaded {loaded_count} items'))
@@ -4242,3 +4245,30 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Calendar dedup cleanup FAILED: {e}'))
+
+    def _reset_beth_performance_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes for Beth Performance & Reliability (PK 106).
+        """
+        reset_tracker_name = 'reset_beth_performance_2026_02_28'
+        try:
+            if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
+                return
+
+            config = DataLoadConfig.objects.get(loader_name='release_notes')
+            if config.is_loaded:
+                config.is_loaded = False
+                config.save()
+                if verbosity >= 1:
+                    self.stdout.write(f'  Reset release_notes loader for Beth Performance & Reliability')
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for Beth Performance & Reliability release note (Feb 2026)',
+                'command',
+                'One-time reset to reload release_notes PK 106'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset Beth performance fixtures FAILED: {e}'))

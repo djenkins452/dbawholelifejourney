@@ -1,6 +1,22 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 106,
+        "fields": {
+            "title": "Beth is Faster, Smarter, and More Reliable",
+            "description": "Your Chief of Staff got a major quality-of-life upgrade. Beth now responds noticeably faster — we eliminated redundant database queries and moved background processing out of the response path. Calendar and task times are now displayed in your local timezone (no more UTC confusion). When you ask about your day or tasks, Beth always gives you the full briefing with your actual data — never generic advice. The chat also pre-warms the server when you open it, so you're less likely to see 'could not find server' after idle periods. If the server is cold, the chat silently retries once before showing an error.",
+            "entry_type": "improvement",
+            "version": "",
+            "release_date": "2026-02-28",
+            "is_published": true,
+            "is_major": false,
+            "learn_more_url": "",
+            "created_at": "2026-02-28T18:00:00Z",
+            "updated_at": "2026-02-28T18:00:00Z"
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 105,
         "fields": {
             "title": "Journal Dashboard: Mood & Prompt Widgets Now Working",

@@ -38,8 +38,13 @@ def cos_keepalive_task(self):
     Lightweight: only processes up to 5 users per cycle.
     Safe: read-only context builds, no LLM calls, no memory writes.
     """
-    from apps.ai.readiness_cache import get_active_user_ids, prewarm_cos_context
+    from apps.ai.readiness_cache import (
+        get_active_user_ids, prewarm_cos_context, warm_openai_client,
+    )
     from apps.ai.readiness_telemetry import log_keepalive_cycle
+
+    # Ensure OpenAI client connection pool stays warm
+    warm_openai_client()
 
     try:
         active_ids = get_active_user_ids()

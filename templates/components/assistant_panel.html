@@ -692,7 +692,51 @@
     }
 
     /* ================================================================
-       SEND MESSAGE
+       SSE STREAMING HELPERS
+       ================================================================ */
+    function apParseSSE(buffer) {
+        var events = [];
+        var parts = buffer.split('\n\n');
+        var remaining = parts.pop();
+        for (var i = 0; i < parts.length; i++) {
+            var part = parts[i].trim();
+            if (!part) continue;
+            var eventType = 'message';
+            var dataStr = '';
+            var lines = part.split('\n');
+            for (var j = 0; j < lines.length; j++) {
+                if (lines[j].indexOf('event: ') === 0) eventType = lines[j].substring(7);
+                else if (lines[j].indexOf('data: ') === 0) dataStr = lines[j].substring(6);
+            }
+            try { events.push({event: eventType, data: JSON.parse(dataStr)}); }
+            catch (e) { /* skip malformed */ }
+        }
+        return {parsed: events, remaining: remaining};
+    }
+
+    function apCreateStreamingMsg(container) {
+        var empty = container.querySelector('.ap-chat-empty');
+        if (empty) empty.remove();
+        var msg = document.createElement('div');
+        msg.className = 'ap-chat-message assistant';
+        msg.innerHTML = '<span class="ap-streaming-cursor"></span>';
+        container.appendChild(msg);
+        container.scrollTop = container.scrollHeight;
+        return msg;
+    }
+
+    function apUpdateStreamingMsg(container, msgEl, text) {
+        msgEl.innerHTML = formatAssistantMessage(text) + '<span class="ap-streaming-cursor"></span>';
+        container.scrollTop = container.scrollHeight;
+    }
+
+    function apFinalizeStreamingMsg(msgEl, text) {
+        msgEl.innerHTML = formatAssistantMessage(text);
+        hasMessages = true;
+    }
+
+    /* ================================================================
+       SEND MESSAGE — streaming for text, non-streaming for images
        ================================================================ */
     function sendMessage(message, container, inputEl, btnEl, imageOverride) {
         var sentImage = imageOverride || attachedImage;
@@ -709,8 +753,101 @@
         if (empty) empty.remove();
 
         addMessage(container, message || '(Image attached)', true, true, imageDataUrl);
-        showTyping(container);
 
+        // Image messages use non-streaming endpoint
+        if (sentImage) {
+            showTyping(container);
+            apSendNonStreaming(message, container, btnEl, inputEl, sentImage);
+            return;
+        }
+
+        // Text messages use streaming endpoint
+        apSendStreaming(message, container, btnEl, inputEl);
+    }
+
+    // Streaming path — SSE via fetch + ReadableStream
+    function apSendStreaming(message, container, btnEl, inputEl) {
+        var pageCtx = getFullPageContext();
+
+        fetch('/assistant/api/chat/stream/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+            body: JSON.stringify({
+                message: message,
+                page_context: pageCtx
+            })
+        })
+        .then(function(response) {
+            if (!response.ok) throw new Error('Stream returned ' + response.status);
+
+            var contentType = response.headers.get('content-type') || '';
+            if (contentType.indexOf('text/event-stream') === -1) {
+                // JSON fallback
+                return response.json().then(function(data) {
+                    hideTyping();
+                    if (data.success && data.response) {
+                        addMessage(container, data.response, false, true);
+                    } else {
+                        addMessage(container, data.error || 'Something went wrong.', false, true);
+                    }
+                });
+            }
+
+            // SSE streaming
+            hideTyping();
+            var msgEl = apCreateStreamingMsg(container);
+            var fullText = '';
+            var reader = response.body.getReader();
+            var decoder = new TextDecoder();
+            var buffer = '';
+
+            function readChunk() {
+                return reader.read().then(function(result) {
+                    if (result.done) {
+                        if (fullText) apFinalizeStreamingMsg(msgEl, fullText);
+                        if (voiceConversationMode && fullText) speakResponse(fullText);
+                        return;
+                    }
+
+                    buffer += decoder.decode(result.value, {stream: true});
+                    var parsed = apParseSSE(buffer);
+                    buffer = parsed.remaining;
+
+                    for (var i = 0; i < parsed.parsed.length; i++) {
+                        var evt = parsed.parsed[i];
+                        if (evt.event === 'token') {
+                            fullText += evt.data.content;
+                            apUpdateStreamingMsg(container, msgEl, fullText);
+                        } else if (evt.event === 'done') {
+                            apFinalizeStreamingMsg(msgEl, fullText);
+                        } else if (evt.event === 'error') {
+                            apFinalizeStreamingMsg(msgEl, fullText || evt.data.error);
+                        }
+                    }
+
+                    return readChunk();
+                });
+            }
+
+            return readChunk();
+        })
+        .catch(function(error) {
+            hideTyping();
+            // Fallback to non-streaming on any failure
+            console.warn('Streaming failed, falling back:', error);
+            showTyping(container);
+            apSendNonStreaming(message, container, btnEl, inputEl, null);
+        })
+        .finally(function() {
+            btnEl.disabled = !inputEl.value.trim();
+        });
+    }
+
+    // Non-streaming fallback (also used for image messages)
+    function apSendNonStreaming(message, container, btnEl, inputEl, sentImage) {
         var fetchOpts;
         if (sentImage) {
             var formData = new FormData();
@@ -747,10 +884,7 @@
             hideTyping();
             if (data.success && data.response) {
                 addMessage(container, data.response, false, true);
-                // Speak if voice conversation mode is active
-                if (voiceConversationMode) {
-                    speakResponse(data.response);
-                }
+                if (voiceConversationMode) speakResponse(data.response);
             } else {
                 addMessage(container, data.error || 'Sorry, something went wrong.', false, true);
             }

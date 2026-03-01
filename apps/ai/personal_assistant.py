@@ -2083,12 +2083,18 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                 try:
                     from apps.ai.readiness_cache import (
                         get_cached_cos_context as _rc_get,
+                        get_layered_cos_context as _rc_get_layered,
                         set_readiness_state as _rc_set_state,
                         track_active_user as _rc_track,
                     )
                     _rc_set_state(self.user, 'active')
                     _rc_track(self.user)
-                    _rc_cached = _rc_get(self.user)
+                    # Try layered cache first (stable layer survives dynamic expiry),
+                    # then flat cache, then full rebuild
+                    _rc_cached = (
+                        _rc_get_layered(self.user)
+                        or _rc_get(self.user)
+                    )
                 except Exception:
                     _rc_cached = None
                 _ecc_cos = _rc_cached if _rc_cached else _ecc_build_cos(self.user)
@@ -3116,6 +3122,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         image_data: str = None,
         image_mime_type: str = None,
         cos_context_cache: dict = None,
+        _return_context_only: bool = False,
     ) -> str:
         """Generate AI response to user message using coaching style.
 
@@ -3135,6 +3142,8 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             page_context: Optional dict with 'url', 'module', 'page_title' for context-aware responses
             image_data: Optional base64-encoded image data
             image_mime_type: Optional MIME type of the image (e.g., 'image/png')
+            _return_context_only: If True, return assembled prompt context dict
+                instead of calling the LLM. Used by _generate_response_stream().
         """
         # Get conversation history - 40 messages for deep conversational threading
         # More history means CoS can follow topic changes and reference earlier context
@@ -3282,11 +3291,17 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                         # Reuse pre-computed cos_context from ECC pre-check
                         cos_context = cos_context_cache
                     else:
-                        # Try readiness cache before full rebuild
+                        # Try layered cache → flat cache → full rebuild
                         try:
-                            from apps.ai.readiness_cache import get_cached_cos_context as _rc_get_ctx
+                            from apps.ai.readiness_cache import (
+                                get_cached_cos_context as _rc_get_ctx,
+                                get_layered_cos_context as _rc_get_layered,
+                            )
                             from apps.ai.readiness_telemetry import log_fast_path, log_full_path
-                            _rc_ctx = _rc_get_ctx(self.user)
+                            _rc_ctx = (
+                                _rc_get_layered(self.user)
+                                or _rc_get_ctx(self.user)
+                            )
                         except Exception:
                             _rc_ctx = None
                         if _rc_ctx:
@@ -4332,6 +4347,19 @@ Rules for this response:
         has_personal_data = personal_data_result.get('has_data', False)
         temperature = 0.4 if (has_personal_data or is_analysis or is_asking_about_tasks) else 0.65
 
+        # =====================================================================
+        # Context-only mode: return assembled prompt for streaming callers.
+        # Avoids duplicating the 1200+ lines of prompt assembly above.
+        # =====================================================================
+        if _return_context_only:
+            return {
+                'system_prompt': system_prompt,
+                'user_prompt': user_prompt,
+                'max_tokens': max_tokens,
+                'temperature': temperature,
+                'conversation_history': conversation_history,
+            }
+
         try:
             response = ai_service._call_api(
                 system_prompt,
@@ -4388,6 +4416,304 @@ Rules for this response:
         except Exception as e:
             logger.error(f"Response generation error: {e}")
             return self._get_fallback_response(message)
+
+    def _generate_response_stream(
+        self,
+        message: str,
+        conversation: AssistantConversation,
+        page_context: dict = None,
+        cos_context_cache: dict = None,
+    ):
+        """
+        Streaming variant of _generate_response.
+
+        Performs the same prompt assembly via _generate_response(_return_context_only=True),
+        then streams tokens from the OpenAI API.
+
+        Skips Phase 4c quality validation (rare edge case, not worth buffering
+        the entire response to validate).
+
+        Does not support image attachments (use non-streaming for images).
+
+        Yields:
+            str — content chunks as they are generated.
+        """
+        try:
+            ctx = self._generate_response(
+                message, conversation,
+                page_context=page_context,
+                cos_context_cache=cos_context_cache,
+                _return_context_only=True,
+            )
+
+            # If _generate_response returned a string instead of dict,
+            # it means a short-circuit occurred (shouldn't happen with
+            # _return_context_only, but defensive)
+            if isinstance(ctx, str):
+                yield ctx
+                return
+
+            if not ctx:
+                yield self._get_fallback_response(message)
+                return
+
+            yield from ai_service._call_api_stream(
+                ctx['system_prompt'],
+                ctx['user_prompt'],
+                max_tokens=ctx['max_tokens'],
+                temperature=ctx['temperature'],
+                endpoint='cos_chat',
+                user=self.user,
+                conversation_history=ctx['conversation_history'],
+            )
+        except Exception as e:
+            logger.error("Streaming response generation error: %s", e)
+            yield self._get_fallback_response(message)
+
+    def send_message_stream(
+        self,
+        message: str,
+        conversation: AssistantConversation = None,
+        page_context: dict = None,
+    ):
+        """
+        Streaming variant of send_message. Yields SSE event dicts.
+
+        Runs the same pre-processing as send_message (ECC, intents, calibration),
+        then either:
+        - Emits a direct response as a single token event (non-LLM path)
+        - Streams tokens from the LLM via _generate_response_stream
+
+        Post-processing (memory, rolling summary, undo tracking) runs after
+        the stream completes, using the fully assembled response text.
+
+        Does not support image attachments (use send_message for images).
+
+        Yields:
+            dict — Event dicts with keys:
+                {'type': 'token', 'content': str}
+                {'type': 'done', 'data': {'conversation_id': int, ...}}
+                {'type': 'error', 'error': str}
+        """
+        import threading
+
+        if not conversation:
+            conversation = self.get_or_create_conversation()
+
+        # Save user message
+        AssistantMessage.objects.create(
+            conversation=conversation,
+            role='user',
+            content=message,
+            message_type='text',
+        )
+
+        response_text = ""
+        actions_taken = []
+
+        try:
+            # Check AI availability
+            if not ai_service.is_available or not AIService.check_user_consent(self.user):
+                response_text = self._get_fallback_response(message)
+                yield {'type': 'token', 'content': response_text}
+            else:
+                # =====================================================
+                # Pre-processing: ECC, proactive confirmations, intents
+                # This mirrors the logic in send_message() but delegates
+                # to the LLM streaming path when no short-circuit occurs.
+                # =====================================================
+                _cos_context_cache = None
+                _direct_response = None
+
+                # Build cos_context (same as send_message ECC section)
+                try:
+                    from apps.ai.readiness_cache import (
+                        get_cached_cos_context as _rc_get,
+                        get_layered_cos_context as _rc_get_layered,
+                        set_readiness_state as _rc_set_state,
+                        track_active_user as _rc_track,
+                    )
+                    _rc_set_state(self.user, 'active')
+                    _rc_track(self.user)
+                    _cos_context_cache = (
+                        _rc_get_layered(self.user)
+                        or _rc_get(self.user)
+                    )
+                except Exception:
+                    pass
+
+                if not _cos_context_cache:
+                    try:
+                        from apps.core.ai_orchestrator.cos_context import (
+                            build_cos_context as _stream_build_cos,
+                        )
+                        _cos_context_cache = _stream_build_cos(self.user)
+                    except Exception:
+                        pass
+
+                # ECC check (explicit commitment contract)
+                try:
+                    from apps.core.ai_orchestrator.commitment_contract import (
+                        process_ecc_closure,
+                        process_ecc_detection,
+                        get_pending_commitments,
+                    )
+                    from apps.core.ai_orchestrator.cos_context import (
+                        determine_activation_state as _ecc_determine_tier,
+                        _build_trajectory_signals as _ecc_build_traj,
+                    )
+
+                    _ecc_traj = (_cos_context_cache or {}).get(
+                        'trajectory_signals',
+                        _ecc_build_traj(self.user),
+                    )
+                    _ecc_tier = _ecc_determine_tier(_ecc_traj, message)
+
+                    _ecc_pending = list(get_pending_commitments(self.user))
+                    if _ecc_pending:
+                        closure_result = process_ecc_closure(
+                            self.user, message, _ecc_pending, _ecc_tier,
+                        )
+                        if closure_result:
+                            _direct_response = closure_result
+
+                    if not _direct_response:
+                        detection_result = process_ecc_detection(
+                            self.user, message, _ecc_tier,
+                        )
+                        if detection_result:
+                            _direct_response = detection_result
+                except Exception:
+                    pass
+
+                # Check-in pre-filter — detect "what's on my plate" queries
+                # that should go to LLM (not intent service)
+                if not _direct_response:
+                    try:
+                        from .confirmation_detector import handle_proactive_confirmation
+                        confirm_resp = handle_proactive_confirmation(
+                            self.user, message, conversation,
+                        )
+                        if confirm_resp:
+                            _direct_response = confirm_resp
+                    except Exception:
+                        pass
+
+                if _direct_response:
+                    # Pre-processing produced a direct response
+                    response_text = _direct_response
+                    yield {'type': 'token', 'content': response_text}
+                else:
+                    # Stream from LLM
+                    chunks = []
+                    for chunk in self._generate_response_stream(
+                        message, conversation,
+                        page_context=page_context,
+                        cos_context_cache=_cos_context_cache,
+                    ):
+                        chunks.append(chunk)
+                        yield {'type': 'token', 'content': chunk}
+                    response_text = ''.join(chunks)
+
+                    if not response_text:
+                        response_text = self._get_fallback_response(message)
+                        yield {'type': 'token', 'content': response_text}
+
+        except Exception as e:
+            logger.error("send_message_stream error: %s", e, exc_info=True)
+            if not response_text:
+                response_text = self._get_fallback_response(message)
+                yield {'type': 'token', 'content': response_text}
+
+        # =====================================================
+        # Post-processing (identical to send_message)
+        # =====================================================
+
+        # Record calibration answer
+        try:
+            skip_recording = getattr(
+                self, '_calibration_welcome_just_shown', False
+            )
+            if not skip_recording:
+                from apps.core.blueprint.cos_governance import (
+                    get_calibration_state,
+                    record_calibration_answer,
+                )
+                cal_state = get_calibration_state(self.user)
+                if (cal_state and cal_state['active']
+                        and not cal_state['paused']
+                        and cal_state.get('next_question')):
+                    next_q = cal_state['next_question']
+                    record_calibration_answer(
+                        self.user, next_q['key'], message[:500],
+                    )
+        except Exception:
+            pass
+
+        # Save assistant response
+        msg_type = 'action' if actions_taken else 'text'
+        AssistantMessage.objects.create(
+            conversation=conversation,
+            role='assistant',
+            content=response_text,
+            message_type=msg_type,
+        )
+
+        # Update conversation timestamp
+        conversation.updated_at = timezone.now()
+        conversation.save(update_fields=['updated_at'])
+
+        # Background: rolling summary
+        try:
+            from apps.ai.executive_briefing import maybe_generate_rolling_summary
+
+            def _rolling_summary_bg():
+                try:
+                    maybe_generate_rolling_summary(self.user, conversation)
+                except Exception:
+                    pass
+
+            threading.Thread(target=_rolling_summary_bg, daemon=True).start()
+        except Exception:
+            pass
+
+        # Background: memory storage
+        try:
+            from apps.ai.memory_service import store_memory
+
+            def _store_memory_bg():
+                try:
+                    store_memory(
+                        user=self.user,
+                        user_message=message,
+                        assistant_response=response_text,
+                        conversation=conversation,
+                        page_context=page_context,
+                    )
+                except Exception:
+                    pass
+
+            threading.Thread(target=_store_memory_bg, daemon=True).start()
+        except Exception:
+            pass
+
+        # Store actions in conversation metadata for undo support
+        if actions_taken:
+            try:
+                meta = conversation.metadata or {}
+                stored_actions = meta.get('actions_taken', [])
+                stored_actions.extend(actions_taken)
+                meta['actions_taken'] = stored_actions[-10:]
+                conversation.metadata = meta
+                conversation.save(update_fields=['metadata', 'updated_at'])
+            except Exception:
+                pass
+
+        # Done event
+        result_data = {'conversation_id': conversation.id}
+        if actions_taken:
+            result_data['actions_taken'] = actions_taken
+        yield {'type': 'done', 'data': result_data}
 
     def _try_calibration_intents(self, message, intent_service, actions_taken):
         """During calibration, only allow pause/complete intents.

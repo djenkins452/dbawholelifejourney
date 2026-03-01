@@ -40,21 +40,43 @@ logger = logging.getLogger(__name__)
 
 # Cache key prefixes
 CONTEXT_KEY_PREFIX = "cos_ctx:v1"
+STABLE_KEY_PREFIX = "cos_ctx:stable:v1"
+DYNAMIC_KEY_PREFIX = "cos_ctx:dynamic:v1"
 READINESS_KEY_PREFIX = "cos_ready:v1"
 ACTIVE_USERS_KEY = "cos_active_users:v1"
 
 # TTL constants (seconds)
-CONTEXT_CACHE_TTL = 45       # CoS context cache lifetime
+CONTEXT_CACHE_TTL = 45       # CoS context cache lifetime (flat/dynamic)
+STABLE_CACHE_TTL = 300       # 5 minutes — slowly-changing context components
+DYNAMIC_CACHE_TTL = 45       # 45 seconds — fast-changing components
 READINESS_STATE_TTL = 120    # Readiness state tracking
 ACTIVE_USER_TTL = 300        # 5 minutes — users considered "active"
+
+# Keys that belong in the stable layer (long TTL, rarely change)
+STABLE_CONTEXT_KEYS = frozenset({
+    'blueprint_state', 'protected_tiers', 'persona_profile',
+    'governance_profile', 'module_permissions', 'navigable_pages',
+    'learned_profile_prompt', 'governance_strategy_prompt',
+    'feedback_profiles',
+})
 
 # Valid readiness states
 READINESS_STATES = ("cold", "warming", "ready", "active")
 
 
 def _context_key(user):
-    """Generate cache key for a user's cos_context."""
+    """Generate cache key for a user's cos_context (flat)."""
     return f"{CONTEXT_KEY_PREFIX}:{user.id}"
+
+
+def _stable_key(user):
+    """Generate cache key for a user's stable context layer."""
+    return f"{STABLE_KEY_PREFIX}:{user.id}"
+
+
+def _dynamic_key(user):
+    """Generate cache key for a user's dynamic context layer."""
+    return f"{DYNAMIC_KEY_PREFIX}:{user.id}"
 
 
 def _readiness_key(user):
@@ -105,11 +127,75 @@ def set_cached_cos_context(user, context, ttl=CONTEXT_CACHE_TTL):
 
 
 def invalidate_cos_context(user):
-    """Explicitly remove cached cos_context for a user."""
+    """Explicitly remove cached cos_context for a user (all layers)."""
     try:
         cache.delete(_context_key(user))
+        cache.delete(_stable_key(user))
+        cache.delete(_dynamic_key(user))
     except Exception:
         pass
+
+
+# =========================================================================
+# Layered Context Cache
+# =========================================================================
+
+def get_layered_cos_context(user):
+    """
+    Retrieve cos_context composed from stable + dynamic cache layers.
+
+    The stable layer (blueprint, persona, governance) has a longer TTL (5 min)
+    so it survives dynamic layer expiry. The dynamic layer (calendar, health,
+    signals) has a short TTL (45s) matching the flat cache.
+
+    Returns:
+        dict or None — Composed context, or None if both layers miss.
+    """
+    try:
+        stable = cache.get(_stable_key(user))
+        dynamic = cache.get(_dynamic_key(user))
+        if stable is None and dynamic is None:
+            return None
+        context = {}
+        if stable:
+            context.update(stable)
+        if dynamic:
+            context.update(dynamic)
+        from apps.ai.readiness_telemetry import log_layered_cache_hit
+        log_layered_cache_hit(user.id, stable is not None, dynamic is not None)
+        return context
+    except Exception:
+        logger.debug("CoS readiness cache: layered get failed for user %s", user.id)
+        return None
+
+
+def set_layered_cos_context(user, context):
+    """
+    Split cos_context into stable/dynamic layers and cache separately.
+
+    Stable layer (5 min TTL): blueprint, persona, governance, permissions.
+    Dynamic layer (45s TTL): calendar, health, medications, signals, etc.
+
+    Args:
+        user: Django User instance.
+        context: dict — full cos_context from build_cos_context().
+    """
+    try:
+        stable = {}
+        dynamic = {}
+        for k, v in context.items():
+            if k.startswith("_"):
+                continue  # Skip internal refs (_user)
+            if k in STABLE_CONTEXT_KEYS:
+                stable[k] = v
+            else:
+                dynamic[k] = v
+        if stable:
+            cache.set(_stable_key(user), stable, STABLE_CACHE_TTL)
+        if dynamic:
+            cache.set(_dynamic_key(user), dynamic, DYNAMIC_CACHE_TTL)
+    except Exception:
+        logger.debug("CoS readiness cache: layered set failed for user %s", user.id)
 
 
 def get_readiness_state(user):
@@ -167,6 +253,7 @@ def prewarm_cos_context(user):
         log_context_build(user.id, elapsed_ms)
 
         set_cached_cos_context(user, context)
+        set_layered_cos_context(user, context)
         set_readiness_state(user, "ready")
         return context
     except Exception:
@@ -233,4 +320,19 @@ def warm_db_connection():
         return True
     except Exception:
         logger.debug("CoS readiness cache: DB warm-up failed")
+        return False
+
+
+def warm_openai_client():
+    """
+    Pre-initialize the shared OpenAI client (connection pool).
+
+    Returns:
+        bool — True if client is ready.
+    """
+    try:
+        from apps.ai.services import warm_openai_client as _warm
+        return _warm()
+    except Exception:
+        logger.debug("CoS readiness cache: OpenAI client warm-up failed")
         return False

@@ -248,6 +248,7 @@ class AssistantWakeView(LoginRequiredMixin, AssistantMixin, View):
             set_readiness_state,
             track_active_user,
             warm_db_connection,
+            warm_openai_client,
         )
         from apps.ai.readiness_telemetry import log_wake_request
 
@@ -258,8 +259,9 @@ class AssistantWakeView(LoginRequiredMixin, AssistantMixin, View):
         if not enabled:
             return JsonResponse({"status": "disabled"}, status=200)
 
-        # Warm DB connection pool
+        # Warm DB + OpenAI client connection pools
         warm_db_connection()
+        warm_openai_client()
 
         # Track user as active (for keep-alive targeting)
         track_active_user(user)
@@ -484,6 +486,160 @@ class AssistantChatView(LoginRequiredMixin, AssistantMixin, View):
                 'success': False,
                 'error': 'Failed to process message',
             }, status=500)
+
+
+class AssistantChatStreamView(LoginRequiredMixin, AssistantMixin, View):
+    """
+    Streaming chat endpoint using Server-Sent Events (SSE).
+
+    POST /assistant/api/chat/stream/
+    Content-Type: application/json
+    Body: {"message": "...", "page_context": {...}}
+
+    Response: text/event-stream
+        event: token
+        data: {"content": "chunk of text"}
+
+        event: done
+        data: {"conversation_id": 123, "actions_taken": [...]}
+
+        event: error
+        data: {"error": "message"}
+
+    Text-only — images use the non-streaming /api/chat/ endpoint.
+    """
+
+    def post(self, request, *args, **kwargs):
+        import time
+        from django.http import StreamingHttpResponse
+        from apps.ai.readiness_telemetry import (
+            log_stream_start, log_stream_complete,
+        )
+
+        enabled, error = self.check_personal_assistant_enabled()
+        if not enabled:
+            return JsonResponse(
+                {'success': False, 'error': error}, status=200,
+            )
+
+        try:
+            data = json.loads(request.body)
+            message = data.get('message', '').strip()
+            page_context = data.get('page_context', {})
+
+            if not message:
+                return JsonResponse(
+                    {'success': False, 'error': 'Message is required'},
+                    status=400,
+                )
+            if len(message) > 2000:
+                return JsonResponse(
+                    {'success': False, 'error': 'Message too long'},
+                    status=400,
+                )
+
+            assistant = self.get_assistant()
+            conversation = assistant.get_or_create_conversation()
+            user_id = request.user.id
+
+            def event_stream():
+                first_token_time = None
+                start_time = time.monotonic()
+                token_count = 0
+
+                try:
+                    for event in assistant.send_message_stream(
+                        message, conversation, page_context=page_context,
+                    ):
+                        if event['type'] == 'token':
+                            token_count += 1
+                            if first_token_time is None:
+                                first_token_time = time.monotonic()
+                                ttft_ms = (first_token_time - start_time) * 1000
+                                try:
+                                    log_stream_start(user_id, ttft_ms)
+                                except Exception:
+                                    pass
+                            yield (
+                                f"event: token\n"
+                                f"data: {json.dumps({'content': event['content']})}\n\n"
+                            )
+                        elif event['type'] == 'done':
+                            total_ms = (time.monotonic() - start_time) * 1000
+                            try:
+                                log_stream_complete(
+                                    user_id, total_ms, token_count,
+                                )
+                            except Exception:
+                                pass
+                            yield (
+                                f"event: done\n"
+                                f"data: {json.dumps(event['data'])}\n\n"
+                            )
+                        elif event['type'] == 'error':
+                            yield (
+                                f"event: error\n"
+                                f"data: {json.dumps({'error': event['error']})}\n\n"
+                            )
+                except Exception as e:
+                    logger.error("Stream error: %s", e, exc_info=True)
+                    yield (
+                        f"event: error\n"
+                        f"data: {json.dumps({'error': 'Stream failed'})}\n\n"
+                    )
+
+            # Post-response intelligence (same as AssistantChatView)
+            import threading
+
+            def _post_response_intelligence():
+                try:
+                    # Allow stream to complete first
+                    time.sleep(0.5)
+                    from apps.ai.personal_assistant import PersonalAssistant
+                    pa = PersonalAssistant(request.user)
+                    # Extract learning
+                    try:
+                        from apps.ai.learning_extraction import extract_learning
+                        extract_learning(request.user, message, '')
+                    except Exception:
+                        pass
+                    # Detect corrections
+                    try:
+                        from apps.ai.correction_detector import detect_correction
+                        detect_correction(request.user, message, conversation)
+                    except Exception:
+                        pass
+                    # Detect patterns
+                    try:
+                        from apps.ai.pattern_detector import detect_patterns
+                        detect_patterns(request.user, message, '')
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+
+            threading.Thread(
+                target=_post_response_intelligence, daemon=True,
+            ).start()
+
+            response = StreamingHttpResponse(
+                event_stream(),
+                content_type='text/event-stream',
+            )
+            response['Cache-Control'] = 'no-cache'
+            response['X-Accel-Buffering'] = 'no'
+            return response
+
+        except json.JSONDecodeError:
+            return JsonResponse(
+                {'success': False, 'error': 'Invalid JSON'}, status=400,
+            )
+        except Exception as e:
+            logger.error("Stream setup error: %s", e, exc_info=True)
+            return JsonResponse(
+                {'success': False, 'error': 'Failed to start stream'},
+                status=500,
+            )
 
 
 class ConversationHistoryView(LoginRequiredMixin, AssistantMixin, View):

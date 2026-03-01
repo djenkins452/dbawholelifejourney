@@ -21,6 +21,7 @@ Caching Optimizations (2025-12-31):
 - AIPromptConfig cached (1 hour)
 """
 import logging
+import threading
 import time
 from typing import Optional
 from django.conf import settings
@@ -33,6 +34,55 @@ logger = logging.getLogger(__name__)
 LLM_MAX_RETRIES = 3
 LLM_BASE_BACKOFF_SECONDS = 1.0  # doubles each retry: 1s, 2s, 4s
 LLM_TIMEOUT_SECONDS = 40  # per-request timeout
+
+# ==========================================================================
+# OpenAI Client Singleton — Thread-safe, connection-pooling
+# ==========================================================================
+_client_lock = threading.Lock()
+_shared_openai_client = None
+
+
+def get_openai_client():
+    """
+    Get or create the shared OpenAI client (thread-safe).
+
+    The OpenAI Python client uses httpx internally, which maintains
+    a connection pool. Reusing a single client avoids TLS handshake
+    and DNS resolution overhead on subsequent calls.
+    """
+    global _shared_openai_client
+    if _shared_openai_client is not None:
+        return _shared_openai_client
+    with _client_lock:
+        if _shared_openai_client is not None:
+            return _shared_openai_client
+        api_key = getattr(settings, 'OPENAI_API_KEY', None)
+        if not api_key:
+            return None
+        try:
+            from openai import OpenAI
+            _shared_openai_client = OpenAI(
+                api_key=api_key,
+                timeout=LLM_TIMEOUT_SECONDS,
+            )
+            logger.info("OpenAI client initialized (shared singleton)")
+            return _shared_openai_client
+        except ImportError:
+            logger.warning("OpenAI package not installed")
+            return None
+        except Exception as e:
+            logger.error("Failed to initialize shared OpenAI client: %s", e)
+            return None
+
+
+def warm_openai_client():
+    """
+    Pre-initialize the OpenAI client. Call during wake/keepalive.
+
+    Returns True if client is ready, False otherwise.
+    """
+    client = get_openai_client()
+    return client is not None
 
 # Fallback coaching style prompt if database is unavailable
 FALLBACK_COACHING_PROMPT = """
@@ -117,19 +167,8 @@ class AIService:
         return prefs.ai_enabled and prefs.ai_data_consent
     
     def _initialize_client(self):
-        """Initialize OpenAI client if API key is available."""
-        api_key = getattr(settings, 'OPENAI_API_KEY', None)
-        if api_key:
-            try:
-                from openai import OpenAI
-                self.client = OpenAI(
-                    api_key=api_key,
-                    timeout=LLM_TIMEOUT_SECONDS,
-                )
-            except ImportError:
-                logger.warning("OpenAI package not installed. Run: pip install openai")
-            except Exception as e:
-                logger.error(f"Failed to initialize OpenAI client: {e}")
+        """Initialize OpenAI client using the shared singleton."""
+        self.client = get_openai_client()
     
     @property
     def is_available(self) -> bool:
@@ -388,6 +427,117 @@ class AIService:
             elapsed=0,
         )
         return None
+
+    def _call_api_stream(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        max_tokens: int = 300,
+        temperature: float = 0.5,
+        endpoint: str = 'general',
+        user=None,
+        conversation_history: list = None,
+    ):
+        """
+        Streaming variant of _call_api. Yields content chunks as they arrive.
+
+        Does not support image/vision (use _call_api for image messages).
+        After iteration, self._last_stream_usage is populated with token counts.
+
+        Args:
+            system_prompt: The system prompt
+            user_prompt: The user's message
+            max_tokens: Maximum tokens for response
+            temperature: Controls randomness
+            endpoint: Label for observability
+            user: Optional user instance for usage logging
+            conversation_history: Optional conversation history
+
+        Yields:
+            str — content chunks as they are generated.
+        """
+        if not self.is_available:
+            logger.warning("AI service not available for streaming")
+            return
+
+        messages = [{"role": "system", "content": system_prompt}]
+        if conversation_history:
+            messages.extend(conversation_history)
+        messages.append({"role": "user", "content": user_prompt})
+
+        self._last_stream_usage = None
+        last_error = None
+        start_time = time.monotonic()
+
+        for attempt in range(1, LLM_MAX_RETRIES + 1):
+            try:
+                stream = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    stream=True,
+                    stream_options={"include_usage": True},
+                )
+
+                for chunk in stream:
+                    if chunk.choices and chunk.choices[0].delta.content:
+                        yield chunk.choices[0].delta.content
+
+                    # Final chunk contains usage data
+                    if hasattr(chunk, 'usage') and chunk.usage:
+                        elapsed = time.monotonic() - start_time
+                        self._last_stream_usage = {
+                            'prompt_tokens': chunk.usage.prompt_tokens,
+                            'completion_tokens': chunk.usage.completion_tokens,
+                            'total_tokens': chunk.usage.total_tokens,
+                            'elapsed': elapsed,
+                        }
+                        logger.info(
+                            "LLM STREAM OK endpoint=%s model=%s tokens=%d latency=%.2fs",
+                            endpoint, self.model,
+                            chunk.usage.total_tokens, elapsed,
+                        )
+                        self._log_usage(
+                            user=user,
+                            endpoint=endpoint,
+                            prompt_tokens=chunk.usage.prompt_tokens,
+                            completion_tokens=chunk.usage.completion_tokens,
+                            total_tokens=chunk.usage.total_tokens,
+                            success=True,
+                            elapsed=elapsed,
+                        )
+
+                return  # Stream completed successfully
+
+            except Exception as e:
+                elapsed = time.monotonic() - start_time
+                last_error = e
+                logger.warning(
+                    "LLM STREAM error endpoint=%s attempt=%d/%d latency=%.2fs error=%s",
+                    endpoint, attempt, LLM_MAX_RETRIES, elapsed, e,
+                )
+                if attempt < LLM_MAX_RETRIES:
+                    backoff = LLM_BASE_BACKOFF_SECONDS * (2 ** (attempt - 1))
+                    time.sleep(backoff)
+                # Reset start_time for next attempt
+                start_time = time.monotonic()
+
+        # All retries exhausted
+        logger.error(
+            "LLM STREAM FAILED endpoint=%s model=%s retries=%d final_error=%s",
+            endpoint, self.model, LLM_MAX_RETRIES, last_error,
+        )
+        self._log_usage(
+            user=user,
+            endpoint=endpoint,
+            prompt_tokens=0,
+            completion_tokens=0,
+            total_tokens=0,
+            success=False,
+            error_message=str(last_error)[:500],
+            elapsed=0,
+        )
 
     def _log_usage(self, *, user, endpoint, prompt_tokens, completion_tokens,
                    total_tokens, success, error_message='', elapsed=0):

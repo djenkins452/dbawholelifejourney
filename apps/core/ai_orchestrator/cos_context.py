@@ -37,68 +37,29 @@ Copyright:
 import datetime
 import logging
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from django.db import close_old_connections
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
+# Max worker threads for parallel context assembly
+_PARALLEL_MAX_WORKERS = 6
 
-def build_cos_context(user):
-    """
-    Assemble the full Chief of Staff operational context.
 
-    Queries all relevant engines and assembles a structured dict
-    that represents the user's current operational state.
+# =========================================================================
+# Context Builder Functions (each runs independently in its own thread)
+# =========================================================================
 
-    Args:
-        user: Django User instance.
-
-    Returns:
-        dict — Comprehensive CoS context.
-    """
-    context = {
-        '_user': user,  # Internal ref for priority injection in format_cos_system_injection
-        'blueprint_state': {},
-        'protected_tiers': [],
-        'capacity_snapshot': {},
-        'drift_probability': {},
-        'forecast_load_24h': 0,
-        'forecast_load_72h': 0,
-        'override_frequency_14d': 0,
-        'persona_profile': {},
-        'module_permissions': {},
-        'transformation_metrics': {},
-        'active_fast_status': {},
-        'medication_adherence_state': {},
-        'alignment_score': 100,
-        'drift_score': 0,
-        'risk_warnings': [],
-        'today_blocks_summary': [],
-        'calendar_events_today': [],
-        'deadline_snapshot': {},  # Phase 2: ISE-driven deadline surfacing
-    }
-
-    prefs = user.preferences
-
-    # Module permissions
-    context['module_permissions'] = {
-        'health': prefs.health_enabled,
-        'journal': prefs.journal_enabled,
-        'faith': prefs.faith_enabled,
-        'life': prefs.life_enabled,
-        'purpose': prefs.purpose_enabled,
-        'finance': prefs.finances_enabled,
-        'capture': prefs.capture_enabled,
-        'ai': prefs.ai_enabled,
-        'personal_assistant': prefs.personal_assistant_enabled,
-    }
-
-    # Blueprint state
+def _build_blueprint_and_governance(user, prefs):
+    """Build blueprint state, governance profile, and persona profile."""
+    result = {}
     try:
         from apps.core.blueprint import engine as blueprint_engine
         blueprint = blueprint_engine.get_blueprint(user)
         explanation = blueprint_engine.explain_blueprint(user)
-        context['blueprint_state'] = {
+        result['blueprint_state'] = {
             'operating_style': getattr(blueprint, 'operating_style', 'balanced'),
             'interruption_tolerance': getattr(blueprint, 'interruption_tolerance', 'medium'),
             'auto_architect_enabled': getattr(blueprint, 'auto_architect_enabled', True),
@@ -107,14 +68,41 @@ def build_cos_context(user):
             'override_policy': getattr(blueprint, 'override_policy', 'confirm'),
             'version': getattr(blueprint, 'version', 1),
         }
-        context['protected_tiers'] = explanation.get('tier1_protected', [])
+        result['protected_tiers'] = explanation.get('tier1_protected', [])
+        result['governance_profile'] = {
+            'accountability_style': getattr(blueprint, 'accountability_style', 'standard'),
+            'question_frequency': getattr(blueprint, 'question_frequency', 'medium'),
+            'sensitivity_tags': getattr(blueprint, 'sensitivity_tags', []) or [],
+            'relationship_suggestions': getattr(blueprint, 'relationship_suggestions_enabled', False),
+            'event_reflections': getattr(blueprint, 'event_reflections_enabled', True),
+            'calibration_complete': getattr(blueprint, 'calibration_complete', False),
+            'calibration_day': getattr(blueprint, 'calibration_day', 0),
+        }
     except Exception as e:
         logger.debug("CoS context: blueprint unavailable: %s", e)
+
+    try:
+        from apps.core.ai_persona.persona_registry import get_persona_profile
+        persona_key = getattr(prefs, 'ai_coaching_style', 'supportive')
+        profile = get_persona_profile(persona_key)
+        result['persona_profile'] = {
+            'key': persona_key,
+            'name': profile.get('name', persona_key),
+            'tone': profile.get('tone', 'calm'),
+        }
+    except Exception:
+        result['persona_profile'] = {'key': 'supportive', 'name': 'Supportive', 'tone': 'calm'}
+
+    return result
+
+
+def _build_plan_and_alignment(user):
+    """Build today's plan, capacity, alignment, drift, and forecast."""
+    result = {}
 
     # Today's plan + capacity
     try:
         from apps.core.blueprint import architecture_engine
-        from apps.core.blueprint.models import ArchitecturePlan
         today = timezone.localdate()
         plan = architecture_engine.get_todays_plan(user)
         if plan:
@@ -143,24 +131,24 @@ def build_cos_context(user):
                 })
 
             waking_minutes = 16 * 60
-            context['capacity_snapshot'] = {
+            result['capacity_snapshot'] = {
                 'total_blocks': len(blocks),
                 'completed_blocks': completed,
                 'capacity_pct': min(100, round(total_minutes / waking_minutes * 100)),
                 'tier_distribution': tier_counts,
                 'scheduled_minutes': round(total_minutes),
             }
-            context['today_blocks_summary'] = block_summaries
-            context['risk_warnings'] = plan.risk_warnings or []
+            result['today_blocks_summary'] = block_summaries
+            result['risk_warnings'] = plan.risk_warnings or []
     except Exception as e:
         logger.debug("CoS context: plan unavailable: %s", e)
 
-    # Alignment score (weighted by tier)
+    # Alignment score
     try:
         from apps.core.blueprint.alignment_engine import compute_alignment_score
         alignment = compute_alignment_score(user)
-        context['alignment_score'] = round(alignment.score)
-        context['alignment_grade'] = alignment.grade
+        result['alignment_score'] = round(alignment.score)
+        result['alignment_grade'] = alignment.grade
     except Exception as e:
         logger.debug("CoS context: alignment engine unavailable: %s", e)
 
@@ -169,12 +157,11 @@ def build_cos_context(user):
         from apps.core.blueprint import drift_engine
         summary = drift_engine.get_drift_summary(user, days=7)
         score = summary.get('average_score', 0)
-        context['drift_score'] = round(score)
-        # Only override alignment if alignment engine didn't run
-        if context.get('alignment_score', 100) == 100 and score > 0:
-            context['alignment_score'] = round(100 - score)
+        result['drift_score'] = round(score)
+        if result.get('alignment_score', 100) == 100 and score > 0:
+            result['alignment_score'] = round(100 - score)
         prediction = summary.get('latest_prediction', {})
-        context['drift_probability'] = {
+        result['drift_probability'] = {
             'probability_24h': round(prediction.get('probability_24h', 0) * 100),
             'probability_72h': round(prediction.get('probability_72h', 0) * 100),
             'factors': prediction.get('factors', {}),
@@ -197,16 +184,23 @@ def build_cos_context(user):
                     d = (e - s).total_seconds() / 60
                     if d > 0:
                         tmr_minutes += d
-            context['forecast_load_24h'] = min(100, round(tmr_minutes / (16 * 60) * 100))
+            result['forecast_load_24h'] = min(100, round(tmr_minutes / (16 * 60) * 100))
     except Exception:
         pass
+
+    return result
+
+
+def _build_pressure_and_deadlines(user):
+    """Build pressure, protective briefing, deadlines, and overrides."""
+    result = {}
 
     # Weekly pressure forecast
     try:
         from apps.core.blueprint.weekly_pressure import compute_weekly_pressure
         from apps.core.blueprint.human_language import translate_weekly_pressure
         pressure_data = compute_weekly_pressure(user)
-        context['weekly_pressure'] = {
+        result['weekly_pressure'] = {
             'avg_load': pressure_data.get('avg_load', 0),
             'peak_day': pressure_data.get('peak_day', ''),
             'peak_load': pressure_data.get('peak_load', 0),
@@ -218,12 +212,12 @@ def build_cos_context(user):
     except Exception:
         pass
 
-    # Phase 4: Composite Pressure Index (read latest snapshot)
+    # Composite Pressure Index
     try:
         from apps.core.blueprint.pressure_models import PressureSnapshot
         pressure_snapshot = PressureSnapshot.latest_for_user(user)
         if pressure_snapshot:
-            context['pressure_snapshot'] = {
+            result['pressure_snapshot'] = {
                 'pressure_index': pressure_snapshot.pressure_index,
                 'density_score': pressure_snapshot.density_score,
                 'compression_score': pressure_snapshot.compression_score,
@@ -236,19 +230,19 @@ def build_cos_context(user):
     except Exception:
         pass
 
-    # Phase 5: Protective briefing (advisory recommendations + alerts)
+    # Protective briefing
     try:
         from apps.core.blueprint.protective_engine import get_protective_briefing
-        context['protective_briefing'] = get_protective_briefing(user)
+        result['protective_briefing'] = get_protective_briefing(user)
     except Exception:
         pass
 
-    # Phase 2: Deadline snapshot (ISE-driven — read latest, no computation here)
+    # Deadline snapshot
     try:
         from apps.core.blueprint.models import DeadlineSnapshot
         snapshot = DeadlineSnapshot.latest_for_user(user)
         if snapshot and not snapshot.is_stale():
-            context['deadline_snapshot'] = {
+            result['deadline_snapshot'] = {
                 'due_24h': snapshot.due_24h,
                 'due_72h': snapshot.due_72h,
                 'due_7d': snapshot.due_7d,
@@ -256,11 +250,10 @@ def build_cos_context(user):
                 'computed_at': snapshot.computed_at.isoformat(),
             }
         elif snapshot and snapshot.is_stale():
-            context['deadline_snapshot'] = {
+            result['deadline_snapshot'] = {
                 'stale': True,
                 'computed_at': snapshot.computed_at.isoformat(),
             }
-            # SAME anomaly will be raised by ISE check, not here
     except Exception:
         pass
 
@@ -273,43 +266,21 @@ def build_cos_context(user):
             user_response='proceeded',
             created_at__gte=fourteen_days_ago,
         ).count()
-        context['override_frequency_14d'] = overrides
+        result['override_frequency_14d'] = overrides
     except Exception:
         pass
 
-    # Governance profile
-    try:
-        from apps.core.blueprint import engine as bp_engine
-        bp = bp_engine.get_blueprint(user)
-        context['governance_profile'] = {
-            'accountability_style': getattr(bp, 'accountability_style', 'standard'),
-            'question_frequency': getattr(bp, 'question_frequency', 'medium'),
-            'sensitivity_tags': getattr(bp, 'sensitivity_tags', []) or [],
-            'relationship_suggestions': getattr(bp, 'relationship_suggestions_enabled', False),
-            'event_reflections': getattr(bp, 'event_reflections_enabled', True),
-            'calibration_complete': getattr(bp, 'calibration_complete', False),
-            'calibration_day': getattr(bp, 'calibration_day', 0),
-        }
-    except Exception:
-        context['governance_profile'] = {}
+    return result
 
-    # Persona profile
-    try:
-        from apps.core.ai_persona.persona_registry import get_persona_profile
-        persona_key = getattr(prefs, 'ai_coaching_style', 'supportive')
-        profile = get_persona_profile(persona_key)
-        context['persona_profile'] = {
-            'key': persona_key,
-            'name': profile.get('name', persona_key),
-            'tone': profile.get('tone', 'calm'),
-        }
-    except Exception:
-        context['persona_profile'] = {'key': 'supportive', 'name': 'Supportive', 'tone': 'calm'}
 
-    # Transformation metrics (from SAE)
+def _build_health_and_vitals(user):
+    """Build health signals, medication, fasting, and transformation metrics."""
+    result = {}
+
+    # Transformation metrics
     try:
         from apps.core.ai_state.state_engine import get_state_value
-        context['transformation_metrics'] = {
+        result['transformation_metrics'] = {
             'weight_current': get_state_value(user, 'health.weight_current'),
             'weight_trend': get_state_value(user, 'health.weight_trend'),
             'active_goals': get_state_value(user, 'goals.active_goal_count', 0),
@@ -321,11 +292,10 @@ def build_cos_context(user):
     try:
         from apps.health.models import FastingSession
         active_fast = FastingSession.objects.filter(
-            user=user,
-            is_active=True,
+            user=user, is_active=True,
         ).first()
         if active_fast:
-            context['active_fast_status'] = {
+            result['active_fast_status'] = {
                 'active': True,
                 'started_at': active_fast.start_time.isoformat() if active_fast.start_time else '',
                 'target_hours': getattr(active_fast, 'target_hours', 0),
@@ -348,7 +318,7 @@ def build_cos_context(user):
                 if sched.logs.filter(taken_at__date=today).exists():
                     taken += 1
         if total > 0:
-            context['medication_adherence_state'] = {
+            result['medication_adherence_state'] = {
                 'total_scheduled': total,
                 'taken_today': taken,
                 'adherence_pct': round(taken / total * 100),
@@ -356,179 +326,7 @@ def build_cos_context(user):
     except Exception:
         pass
 
-    # Calendar events today — gives CoS full schedule awareness
-    try:
-        from apps.calendar_engine.models import CalendarEvent
-        from apps.core.utils import get_user_now, get_user_today
-
-        user_now = get_user_now(user)
-        today = get_user_today(user)
-        today_start = user_now.replace(hour=0, minute=0, second=0, microsecond=0)
-        today_end = user_now.replace(hour=23, minute=59, second=59, microsecond=0)
-
-        events = CalendarEvent.objects.filter(
-            user=user,
-            start_dt__lte=today_end,
-            end_dt__gte=today_start,
-            status='scheduled',
-        ).order_by('start_dt')[:12]  # Cap at 12 to limit tokens
-
-        event_summaries = []
-        for ev in events:
-            # Compute time-relative status
-            if ev.end_dt <= user_now:
-                time_status = 'past'
-            elif ev.start_dt <= user_now <= ev.end_dt:
-                time_status = 'in_progress'
-            elif ev.start_dt <= user_now + datetime.timedelta(hours=1):
-                time_status = 'upcoming_soon'
-            else:
-                time_status = 'upcoming'
-
-            # Check if overdue (start time passed but not completed)
-            is_overdue = ev.start_dt < user_now and time_status == 'past'
-
-            # Convert to user's local timezone before formatting
-            _local_start = ev.start_dt.astimezone(user_now.tzinfo)
-            _local_end = ev.end_dt.astimezone(user_now.tzinfo)
-            event_summaries.append({
-                'title': ev.title,
-                'start': _local_start.strftime('%I:%M %p').lstrip('0'),
-                'end': _local_end.strftime('%I:%M %p').lstrip('0'),
-                'domain': ev.domain.name if ev.domain else '',
-                'is_protected': ev.is_protected,
-                'time_status': time_status,
-                'is_overdue': is_overdue,
-            })
-        context['calendar_events_today'] = event_summaries
-    except Exception as e:
-        logger.debug("CoS context: calendar events unavailable: %s", e)
-
-    # =====================================================================
-    # PHASE 4 — EXECUTIVE CONTEXT SIGNALS
-    # =====================================================================
-
-    # Active PIE insights — full coaching data for narrative injection
-    try:
-        from apps.core.ai_insights.models import Insight
-        recent_insights = Insight.objects.filter(
-            user=user, status__in=["new", "read"],
-        ).order_by("-created_at")[:5]
-        context['active_insights'] = [
-            {
-                'type': i.insight_type,
-                'severity': i.severity,
-                'title': i.title,
-                'message': i.message,
-                'explain_why': i.explain_why,
-                'module': i.module,
-                'confidence': round(i.confidence_score, 2),
-            }
-            for i in recent_insights
-        ]
-    except Exception:
-        context['active_insights'] = []
-
-    # Active PRIE predictions — full projection data for trajectory context
-    try:
-        from apps.core.ai_predictions.models import Prediction
-        active_predictions = Prediction.objects.filter(
-            user=user, status="active",
-        ).order_by("-confidence_score")[:5]
-        context['active_predictions'] = [
-            {
-                'type': p.prediction_type,
-                'module': p.module,
-                'value': p.predicted_value,
-                'confidence': round(p.confidence_score, 2),
-                'explanation': p.explanation,
-                'predicted_date': p.predicted_date.strftime('%b %d')
-                if p.predicted_date else None,
-            }
-            for p in active_predictions
-        ]
-    except Exception:
-        context['active_predictions'] = []
-
-    # Active PGE guidance — actionable recommendations for coaching
-    try:
-        from apps.core.ai_guidance.models import GuidanceItem
-        now = timezone.now()
-        active_guidance = GuidanceItem.objects.filter(
-            user=user,
-            is_active=True,
-            dismissed_at__isnull=True,
-        ).exclude(
-            snoozed_until__gt=now,
-        ).order_by("priority", "-created_at")[:5]
-        context['active_guidance'] = [
-            {
-                'title': g.title,
-                'message': g.message,
-                'priority': g.priority,
-                'module': g.module,
-                'guidance_type': g.guidance_type,
-                'source': g.source,
-            }
-            for g in active_guidance
-        ]
-    except Exception:
-        context['active_guidance'] = []
-
-    # Active CDCE correlations — cross-domain patterns for coaching
-    try:
-        from apps.core.ai_cross_domain.models import DomainCorrelation
-        active_correlations = DomainCorrelation.objects.filter(
-            user=user, status='active',
-        ).order_by('-strength_score')[:5]
-        context['cross_domain_correlations'] = [
-            {
-                'type': c.correlation_type,
-                'strength': c.strength,
-                'score': round(c.strength_score, 2),
-                'direction': c.direction,
-                'narrative': c.narrative,
-                'evidence': c.evidence_summary,
-                'domains': [c.domain_a, c.domain_b],
-            }
-            for c in active_correlations
-        ]
-    except Exception:
-        context['cross_domain_correlations'] = []
-
-    # Relationship signals
-    try:
-        from apps.core.ai_relationships.models import Relationship
-        relationships = Relationship.objects.filter(
-            user=user, importance_tier__lte=2,
-        ).select_related("person")[:5]
-        rel_signals = []
-        for rel in relationships:
-            days_since = None
-            if rel.last_interaction:
-                days_since = (timezone.now() - rel.last_interaction).days
-            rel_signals.append({
-                'name': rel.person.display_name if rel.person else 'Unknown',
-                'tier': rel.importance_tier,
-                'days_since_contact': days_since,
-                'drifting': days_since is not None and days_since > 14,
-            })
-        context['relationship_signals'] = rel_signals
-    except Exception:
-        context['relationship_signals'] = []
-
-    # Journal mood trends
-    try:
-        from apps.core.ai_state.state_engine import get_state_value
-        context['mood_status'] = {
-            'trend': get_state_value(user, 'journal.mood_trend', 'stable'),
-            'avg_7d': get_state_value(user, 'journal.mood_avg_7d'),
-            'entries_7d': get_state_value(user, 'journal.entries_7d', 0),
-        }
-    except Exception:
-        context['mood_status'] = {}
-
-    # Health signals — pull from state engine AND direct model queries for comprehensive data
+    # Health signals
     try:
         from apps.core.ai_state.state_engine import get_state_value
         health_signals = {
@@ -538,7 +336,6 @@ def build_cos_context(user):
             'steps_avg_7d': get_state_value(user, 'health.steps_avg_7d'),
         }
 
-        # Supplement with direct model queries for data the state engine may not track yet
         from datetime import timedelta
         week_ago = timezone.localdate() - timedelta(days=7)
 
@@ -549,35 +346,30 @@ def build_cos_context(user):
                 BloodOxygenEntry, StepsEntry, SleepEntry,
             )
 
-            # Heart rate average
             hr_avg = HeartRateEntry.objects.filter(
                 user=user, recorded_at__date__gte=week_ago
             ).aggregate(avg=Avg('bpm'))['avg']
             if hr_avg:
                 health_signals['heart_rate_avg_7d'] = round(float(hr_avg))
 
-            # Blood pressure latest
             latest_bp = BloodPressureEntry.objects.filter(
                 user=user, recorded_at__date__gte=week_ago
             ).order_by('-recorded_at').first()
             if latest_bp:
                 health_signals['bp_latest'] = f"{latest_bp.systolic}/{latest_bp.diastolic}"
 
-            # Glucose average
             glucose_avg = GlucoseEntry.objects.filter(
                 user=user, recorded_at__date__gte=week_ago
             ).aggregate(avg=Avg('value'))['avg']
             if glucose_avg:
                 health_signals['glucose_avg_7d'] = round(float(glucose_avg))
 
-            # Blood oxygen average
             spo2_avg = BloodOxygenEntry.objects.filter(
                 user=user, recorded_at__date__gte=week_ago
             ).aggregate(avg=Avg('spo2'))['avg']
             if spo2_avg:
                 health_signals['blood_oxygen_avg_7d'] = round(float(spo2_avg), 1)
 
-            # Steps average (fallback if state engine doesn't have it)
             if not health_signals.get('steps_avg_7d'):
                 steps_avg = StepsEntry.objects.filter(
                     user=user, logged_date__gte=week_ago
@@ -585,7 +377,6 @@ def build_cos_context(user):
                 if steps_avg:
                     health_signals['steps_avg_7d'] = int(steps_avg)
 
-            # Sleep average (fallback if state engine doesn't have it)
             if not health_signals.get('sleep_avg_7d'):
                 sleep_avg = SleepEntry.objects.filter(
                     user=user, sleep_date__gte=week_ago
@@ -593,7 +384,6 @@ def build_cos_context(user):
                 if sleep_avg:
                     health_signals['sleep_avg_7d'] = round(float(sleep_avg) / 60, 1)
 
-            # Workouts — full detail (count, calories, duration, distance, HR)
             from apps.health.models import WorkoutSession
             workout_qs = WorkoutSession.objects.filter(
                 user=user, date__gte=week_ago
@@ -615,7 +405,6 @@ def build_cos_context(user):
                     health_signals['workout_avg_hr_7d'] = round(float(workout_agg['avg_hr']))
                 if workout_agg['total_dist']:
                     health_signals['workout_distance_7d'] = round(float(workout_agg['total_dist']), 1)
-                # Recent workout names for context
                 recent_workouts = workout_qs.order_by('-date')[:3]
                 health_signals['recent_workouts'] = [
                     {
@@ -629,7 +418,6 @@ def build_cos_context(user):
                     for w in recent_workouts
                 ]
 
-            # Heart rate events (clinically important)
             from apps.health.models import HeartRateEventEntry
             hr_events = HeartRateEventEntry.objects.filter(
                 user=user, recorded_at__date__gte=week_ago
@@ -638,94 +426,217 @@ def build_cos_context(user):
                 health_signals['heart_rate_events_7d'] = hr_events
 
         except Exception:
-            pass  # Direct queries are supplementary — don't break context if they fail
+            pass  # Direct queries are supplementary
 
-        context['health_signals'] = health_signals
+        result['health_signals'] = health_signals
     except Exception:
-        context['health_signals'] = {}
+        result['health_signals'] = {}
 
-    # Open loops (unfinished goals, friction gates)
+    return result
+
+
+def _build_calendar_events(user):
+    """Build calendar events for today."""
+    result = {}
+    try:
+        from apps.calendar_engine.models import CalendarEvent
+        from apps.core.utils import get_user_now, get_user_today
+
+        user_now = get_user_now(user)
+        today_start = user_now.replace(hour=0, minute=0, second=0, microsecond=0)
+        today_end = user_now.replace(hour=23, minute=59, second=59, microsecond=0)
+
+        events = CalendarEvent.objects.filter(
+            user=user,
+            start_dt__lte=today_end,
+            end_dt__gte=today_start,
+            status='scheduled',
+        ).order_by('start_dt')[:12]
+
+        event_summaries = []
+        for ev in events:
+            if ev.end_dt <= user_now:
+                time_status = 'past'
+            elif ev.start_dt <= user_now <= ev.end_dt:
+                time_status = 'in_progress'
+            elif ev.start_dt <= user_now + datetime.timedelta(hours=1):
+                time_status = 'upcoming_soon'
+            else:
+                time_status = 'upcoming'
+
+            is_overdue = ev.start_dt < user_now and time_status == 'past'
+
+            _local_start = ev.start_dt.astimezone(user_now.tzinfo)
+            _local_end = ev.end_dt.astimezone(user_now.tzinfo)
+            event_summaries.append({
+                'title': ev.title,
+                'start': _local_start.strftime('%I:%M %p').lstrip('0'),
+                'end': _local_end.strftime('%I:%M %p').lstrip('0'),
+                'domain': ev.domain.name if ev.domain else '',
+                'is_protected': ev.is_protected,
+                'time_status': time_status,
+                'is_overdue': is_overdue,
+            })
+        result['calendar_events_today'] = event_summaries
+    except Exception as e:
+        logger.debug("CoS context: calendar events unavailable: %s", e)
+
+    return result
+
+
+def _build_intelligence_signals(user):
+    """Build insights, predictions, guidance, and correlations."""
+    result = {}
+
+    # Active PIE insights
+    try:
+        from apps.core.ai_insights.models import Insight
+        recent_insights = Insight.objects.filter(
+            user=user, status__in=["new", "read"],
+        ).order_by("-created_at")[:5]
+        result['active_insights'] = [
+            {
+                'type': i.insight_type,
+                'severity': i.severity,
+                'title': i.title,
+                'message': i.message,
+                'explain_why': i.explain_why,
+                'module': i.module,
+                'confidence': round(i.confidence_score, 2),
+            }
+            for i in recent_insights
+        ]
+    except Exception:
+        result['active_insights'] = []
+
+    # Active PRIE predictions
+    try:
+        from apps.core.ai_predictions.models import Prediction
+        active_predictions = Prediction.objects.filter(
+            user=user, status="active",
+        ).order_by("-confidence_score")[:5]
+        result['active_predictions'] = [
+            {
+                'type': p.prediction_type,
+                'module': p.module,
+                'value': p.predicted_value,
+                'confidence': round(p.confidence_score, 2),
+                'explanation': p.explanation,
+                'predicted_date': p.predicted_date.strftime('%b %d')
+                if p.predicted_date else None,
+            }
+            for p in active_predictions
+        ]
+    except Exception:
+        result['active_predictions'] = []
+
+    # Active PGE guidance
+    try:
+        from apps.core.ai_guidance.models import GuidanceItem
+        now = timezone.now()
+        active_guidance = GuidanceItem.objects.filter(
+            user=user,
+            is_active=True,
+            dismissed_at__isnull=True,
+        ).exclude(
+            snoozed_until__gt=now,
+        ).order_by("priority", "-created_at")[:5]
+        result['active_guidance'] = [
+            {
+                'title': g.title,
+                'message': g.message,
+                'priority': g.priority,
+                'module': g.module,
+                'guidance_type': g.guidance_type,
+                'source': g.source,
+            }
+            for g in active_guidance
+        ]
+    except Exception:
+        result['active_guidance'] = []
+
+    # Active CDCE correlations
+    try:
+        from apps.core.ai_cross_domain.models import DomainCorrelation
+        active_correlations = DomainCorrelation.objects.filter(
+            user=user, status='active',
+        ).order_by('-strength_score')[:5]
+        result['cross_domain_correlations'] = [
+            {
+                'type': c.correlation_type,
+                'strength': c.strength,
+                'score': round(c.strength_score, 2),
+                'direction': c.direction,
+                'narrative': c.narrative,
+                'evidence': c.evidence_summary,
+                'domains': [c.domain_a, c.domain_b],
+            }
+            for c in active_correlations
+        ]
+    except Exception:
+        result['cross_domain_correlations'] = []
+
+    return result
+
+
+def _build_people_and_mood(user):
+    """Build relationship signals and mood status."""
+    result = {}
+
+    try:
+        from apps.core.ai_relationships.models import Relationship
+        relationships = Relationship.objects.filter(
+            user=user, importance_tier__lte=2,
+        ).select_related("person")[:5]
+        rel_signals = []
+        for rel in relationships:
+            days_since = None
+            if rel.last_interaction:
+                days_since = (timezone.now() - rel.last_interaction).days
+            rel_signals.append({
+                'name': rel.person.display_name if rel.person else 'Unknown',
+                'tier': rel.importance_tier,
+                'days_since_contact': days_since,
+                'drifting': days_since is not None and days_since > 14,
+            })
+        result['relationship_signals'] = rel_signals
+    except Exception:
+        result['relationship_signals'] = []
+
+    try:
+        from apps.core.ai_state.state_engine import get_state_value
+        result['mood_status'] = {
+            'trend': get_state_value(user, 'journal.mood_trend', 'stable'),
+            'avg_7d': get_state_value(user, 'journal.mood_avg_7d'),
+            'entries_7d': get_state_value(user, 'journal.entries_7d', 0),
+        }
+    except Exception:
+        result['mood_status'] = {}
+
+    return result
+
+
+def _build_loops_and_events(user):
+    """Build open loops, life events, feedback profiles, and learned profile."""
+    result = {}
+
+    # Open loops
     try:
         from apps.purpose.models import LifeGoal
         overdue_goals = LifeGoal.objects.filter(
             user=user, status="active",
             target_date__lt=timezone.localdate(),
         ).count()
-        context['open_loops'] = {
+        result['open_loops'] = {
             'overdue_goals': overdue_goals,
         }
-        # Add pending friction gates
         from apps.core.blueprint.models import InterventionLog
         pending_gates = InterventionLog.objects.filter(
             user=user, level=4, user_response='pending',
         ).count()
-        context['open_loops']['pending_friction_gates'] = pending_gates
+        result['open_loops']['pending_friction_gates'] = pending_gates
     except Exception:
-        context['open_loops'] = {}
-
-    # Feedback loop profiles
-    try:
-        from apps.core.ai_feedback.models import (
-            BriefingEngagementProfile,
-            InsightEngagementProfile,
-            InterventionEffectivenessProfile,
-        )
-        ie_profile = InsightEngagementProfile.objects.filter(user=user).first()
-        be_profile = BriefingEngagementProfile.objects.filter(user=user).first()
-        iv_profile = InterventionEffectivenessProfile.objects.filter(user=user).first()
-        context['feedback_profiles'] = {
-            'insight_engagement': ie_profile.engagement_score if ie_profile else 0.5,
-            'briefing_open_rate': be_profile.open_rate if be_profile else 0.0,
-            'preferred_briefing_length': be_profile.preferred_length if be_profile else 'standard',
-            'intervention_effectiveness': iv_profile.effectiveness_score if iv_profile else 0.5,
-            'escalation_modifier': iv_profile.escalation_speed_modifier if iv_profile else 0.0,
-        }
-    except Exception:
-        context['feedback_profiles'] = {}
-
-    # Learned profile injection
-    try:
-        from apps.core.ai_learning.learning_extractor import get_profile_system_prompt
-        context['learned_profile_prompt'] = get_profile_system_prompt(user)
-    except Exception:
-        context['learned_profile_prompt'] = ''
-
-    # Executive tone mode (Phase 4 Step 5)
-    context['executive_tone_mode'] = _determine_tone_mode(user, context)
-
-    # Phase 5: Governance strategy injection
-    try:
-        from apps.core.ai_governance.strategy_selector import build_strategy_system_injection
-        context['governance_strategy_prompt'] = build_strategy_system_injection(user)
-    except Exception as e:
-        logger.debug("CoS context: governance strategy unavailable: %s", e)
-        context['governance_strategy_prompt'] = ''
-
-    # Phase 3: Trajectory signals (uses existing data only)
-    try:
-        context['trajectory_signals'] = _build_trajectory_signals(user)
-    except Exception as e:
-        logger.debug("CoS context: trajectory signals unavailable: %s", e)
-        context['trajectory_signals'] = {}
-
-    # Phase 3: Persistent escalation state — resolve activation with floor + recovery gate
-    try:
-        from apps.core.blueprint.escalation_engine import resolve_activation_state
-        context['trajectory_activation_state'] = resolve_activation_state(
-            user,
-            context.get('trajectory_signals', {}),
-            user_input='',  # user_input applied at format time if needed
-        )
-    except Exception as e:
-        logger.debug("CoS context: escalation state unavailable: %s", e)
-        context['trajectory_activation_state'] = ACTIVATION_CLEAN
-
-    # Phase 4 R1: Decision branch signals (goals, deadlines, deferrals)
-    try:
-        context['decision_branch_signals'] = _build_decision_branch_signals(user)
-    except Exception as e:
-        logger.debug("CoS context: decision branch signals unavailable: %s", e)
-        context['decision_branch_signals'] = {}
+        result['open_loops'] = {}
 
     # Approaching life events (next 14 days)
     try:
@@ -734,7 +645,6 @@ def build_cos_context(user):
         today = get_user_today(user)
         approaching_events = []
 
-        # Significant recurring events (birthdays, anniversaries, memorials)
         for event in SignificantEvent.objects.filter(user=user):
             try:
                 days_until = event.days_until_next(today)
@@ -748,13 +658,12 @@ def build_cos_context(user):
                     if event.original_year:
                         years = today.year - event.original_year
                         if days_until > 0:
-                            years = years  # this year's occurrence
+                            years = years
                         event_info['years'] = years
                     approaching_events.append(event_info)
             except Exception:
                 continue
 
-        # One-time life events in the next 14 days
         from datetime import timedelta
         cutoff = today + timedelta(days=14)
         for event in LifeEvent.objects.filter(
@@ -768,19 +677,206 @@ def build_cos_context(user):
                 'person': '',
             })
 
-        # Sort by soonest first, cap at 5
         approaching_events.sort(key=lambda e: e['days_until'])
-        context['approaching_life_events'] = approaching_events[:5]
+        result['approaching_life_events'] = approaching_events[:5]
     except Exception as e:
         logger.debug("CoS context: life events unavailable: %s", e)
-        context['approaching_life_events'] = []
+        result['approaching_life_events'] = []
 
-    # Navigable pages — URL awareness for directing users to app pages
+    # Feedback loop profiles
+    try:
+        from apps.core.ai_feedback.models import (
+            BriefingEngagementProfile,
+            InsightEngagementProfile,
+            InterventionEffectivenessProfile,
+        )
+        ie_profile = InsightEngagementProfile.objects.filter(user=user).first()
+        be_profile = BriefingEngagementProfile.objects.filter(user=user).first()
+        iv_profile = InterventionEffectivenessProfile.objects.filter(user=user).first()
+        result['feedback_profiles'] = {
+            'insight_engagement': ie_profile.engagement_score if ie_profile else 0.5,
+            'briefing_open_rate': be_profile.open_rate if be_profile else 0.0,
+            'preferred_briefing_length': be_profile.preferred_length if be_profile else 'standard',
+            'intervention_effectiveness': iv_profile.effectiveness_score if iv_profile else 0.5,
+            'escalation_modifier': iv_profile.escalation_speed_modifier if iv_profile else 0.0,
+        }
+    except Exception:
+        result['feedback_profiles'] = {}
+
+    # Learned profile injection
+    try:
+        from apps.core.ai_learning.learning_extractor import get_profile_system_prompt
+        result['learned_profile_prompt'] = get_profile_system_prompt(user)
+    except Exception:
+        result['learned_profile_prompt'] = ''
+
+    # Navigable pages
     try:
         from apps.core.ai_orchestrator.url_resolver import get_navigable_pages
-        context['navigable_pages'] = get_navigable_pages()
+        result['navigable_pages'] = get_navigable_pages()
     except Exception:
-        context['navigable_pages'] = []
+        result['navigable_pages'] = []
+
+    return result
+
+
+def _build_strategy_and_signals(user):
+    """Build governance strategy, trajectory signals, and decision branches."""
+    result = {}
+
+    try:
+        from apps.core.ai_governance.strategy_selector import build_strategy_system_injection
+        result['governance_strategy_prompt'] = build_strategy_system_injection(user)
+    except Exception as e:
+        logger.debug("CoS context: governance strategy unavailable: %s", e)
+        result['governance_strategy_prompt'] = ''
+
+    try:
+        result['trajectory_signals'] = _build_trajectory_signals(user)
+    except Exception as e:
+        logger.debug("CoS context: trajectory signals unavailable: %s", e)
+        result['trajectory_signals'] = {}
+
+    try:
+        result['decision_branch_signals'] = _build_decision_branch_signals(user)
+    except Exception as e:
+        logger.debug("CoS context: decision branch signals unavailable: %s", e)
+        result['decision_branch_signals'] = {}
+
+    return result
+
+
+# Registry of parallel builder functions.
+# Each takes (user, prefs) or (user,) and returns a dict of context updates.
+_PARALLEL_BUILDERS = [
+    lambda user, prefs: _build_blueprint_and_governance(user, prefs),
+    lambda user, prefs: _build_plan_and_alignment(user),
+    lambda user, prefs: _build_pressure_and_deadlines(user),
+    lambda user, prefs: _build_health_and_vitals(user),
+    lambda user, prefs: _build_calendar_events(user),
+    lambda user, prefs: _build_intelligence_signals(user),
+    lambda user, prefs: _build_people_and_mood(user),
+    lambda user, prefs: _build_loops_and_events(user),
+    lambda user, prefs: _build_strategy_and_signals(user),
+]
+
+
+def build_cos_context(user):
+    """
+    Assemble the full Chief of Staff operational context.
+
+    Queries all relevant engines and assembles a structured dict
+    that represents the user's current operational state.
+
+    Uses parallel execution via ThreadPoolExecutor to minimize
+    context rebuild latency. Falls back to sequential on error.
+
+    Args:
+        user: Django User instance.
+
+    Returns:
+        dict — Comprehensive CoS context.
+    """
+    import time as _time
+    start = _time.monotonic()
+
+    context = {
+        '_user': user,
+        'blueprint_state': {},
+        'protected_tiers': [],
+        'capacity_snapshot': {},
+        'drift_probability': {},
+        'forecast_load_24h': 0,
+        'forecast_load_72h': 0,
+        'override_frequency_14d': 0,
+        'persona_profile': {},
+        'module_permissions': {},
+        'transformation_metrics': {},
+        'active_fast_status': {},
+        'medication_adherence_state': {},
+        'alignment_score': 100,
+        'drift_score': 0,
+        'risk_warnings': [],
+        'today_blocks_summary': [],
+        'calendar_events_today': [],
+        'deadline_snapshot': {},
+    }
+
+    prefs = user.preferences
+
+    # Module permissions (trivial, always inline)
+    context['module_permissions'] = {
+        'health': prefs.health_enabled,
+        'journal': prefs.journal_enabled,
+        'faith': prefs.faith_enabled,
+        'life': prefs.life_enabled,
+        'purpose': prefs.purpose_enabled,
+        'finance': prefs.finances_enabled,
+        'capture': prefs.capture_enabled,
+        'ai': prefs.ai_enabled,
+        'personal_assistant': prefs.personal_assistant_enabled,
+    }
+
+    # Run all builders in parallel
+    try:
+        def _run_builder(builder_fn):
+            """Execute a builder in a thread with proper DB connection handling."""
+            close_old_connections()
+            try:
+                return builder_fn(user, prefs)
+            finally:
+                close_old_connections()
+
+        with ThreadPoolExecutor(max_workers=_PARALLEL_MAX_WORKERS) as executor:
+            futures = {
+                executor.submit(_run_builder, b): b
+                for b in _PARALLEL_BUILDERS
+            }
+            for future in as_completed(futures, timeout=10):
+                try:
+                    updates = future.result(timeout=5)
+                    if updates:
+                        context.update(updates)
+                except Exception as e:
+                    logger.debug("Parallel context builder failed: %s", e)
+
+    except Exception as e:
+        logger.warning(
+            "Parallel context assembly failed, falling back to sequential: %s", e
+        )
+        for builder in _PARALLEL_BUILDERS:
+            try:
+                updates = builder(user, prefs)
+                if updates:
+                    context.update(updates)
+            except Exception as be:
+                logger.debug("Sequential context builder failed: %s", be)
+
+    # =====================================================================
+    # POST-ASSEMBLY (depends on composed context — must be sequential)
+    # =====================================================================
+
+    # Executive tone mode (depends on full context)
+    context['executive_tone_mode'] = _determine_tone_mode(user, context)
+
+    # Persistent escalation state (depends on trajectory_signals)
+    try:
+        from apps.core.blueprint.escalation_engine import resolve_activation_state
+        context['trajectory_activation_state'] = resolve_activation_state(
+            user,
+            context.get('trajectory_signals', {}),
+            user_input='',
+        )
+    except Exception as e:
+        logger.debug("CoS context: escalation state unavailable: %s", e)
+        context['trajectory_activation_state'] = ACTIVATION_CLEAN
+
+    elapsed_ms = (_time.monotonic() - start) * 1000
+    try:
+        from apps.ai.readiness_telemetry import log_parallel_build
+        log_parallel_build(user.id, elapsed_ms, len(_PARALLEL_BUILDERS))
+    except Exception:
+        pass
 
     return context
 

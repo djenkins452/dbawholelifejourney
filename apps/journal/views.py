@@ -775,8 +775,24 @@ class JournalHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         context["recent_entries"] = entries.order_by("-entry_date")[:5]
         context["mood_stats"] = self._get_mood_stats(entries, week_ago)
         
-        # Prompts - skip if model doesn't exist
-        context["suggested_prompt"] = None
+        # Daily writing prompt — rotate based on day of year
+        try:
+            from apps.journal.models import JournalPrompt
+            prompts = JournalPrompt.objects.filter(is_active=True)
+            # Filter faith-specific prompts if user doesn't have faith enabled
+            try:
+                if not user.preferences.faith_enabled:
+                    prompts = prompts.filter(is_faith_specific=False)
+            except Exception:
+                prompts = prompts.filter(is_faith_specific=False)
+            prompt_count = prompts.count()
+            if prompt_count > 0:
+                day_index = today.toordinal() % prompt_count
+                context["suggested_prompt"] = prompts.order_by("pk")[day_index]
+            else:
+                context["suggested_prompt"] = None
+        except Exception:
+            context["suggested_prompt"] = None
         
         context["popular_tags"] = Tag.objects.filter(
             user=user
@@ -822,12 +838,31 @@ class JournalHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         return streak
     
     def _get_mood_stats(self, entries, since):
-        MOOD_EMOJIS = {'great': '😄', 'good': '🙂', 'okay': '😐', 'low': '😔', 'difficult': '😢'}
-        moods = entries.filter(created_at__gte=since).exclude(mood='').values('mood').annotate(count=Count('mood')).order_by('-count')
-        if not moods:
+        """Build mood stats from emotions ManyToMany field on entries."""
+        from apps.journal.models import Emotion
+        week_entries = entries.filter(created_at__gte=since)
+        # Count each emotion across all entries this week
+        emotion_counts = (
+            Emotion.objects.filter(
+                journal_entries__in=week_entries,
+                is_active=True,
+            )
+            .values('name', 'emoji', 'slug')
+            .annotate(count=Count('id'))
+            .order_by('-count')
+        )
+        if not emotion_counts:
             return []
-        total = sum(m['count'] for m in moods)
-        return [{'mood': m['mood'], 'emoji': MOOD_EMOJIS.get(m['mood'], '😐'), 'count': m['count'], 'percentage': round((m['count'] / total) * 100)} for m in moods]
+        total = sum(e['count'] for e in emotion_counts)
+        return [
+            {
+                'mood': e['name'],
+                'emoji': e['emoji'],
+                'count': e['count'],
+                'percentage': round((e['count'] / total) * 100),
+            }
+            for e in emotion_counts
+        ]
 
 
 # =============================================================================

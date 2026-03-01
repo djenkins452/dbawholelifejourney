@@ -4511,7 +4511,7 @@ class WorkoutPlan(UserOwnedModel):
         help_text="Whether this plan is currently active",
     )
     days_per_week = models.PositiveIntegerField(
-        default=6,
+        default=4,
         help_text="Target training days per week",
     )
     goal = models.CharField(

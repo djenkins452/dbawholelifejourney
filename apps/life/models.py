@@ -182,6 +182,14 @@ class Task(UserOwnedModel):
         ('large', 'Large (half day+)'),
     ]
 
+    MODULE_CHOICES = [
+        ('faith', 'Faith'),
+        ('health', 'Health'),
+        ('journal', 'Journal'),
+        ('purpose', 'Purpose'),
+        ('life', 'Life'),
+    ]
+
     title = models.CharField(max_length=300)
     notes = models.TextField(blank=True)
 
@@ -203,6 +211,12 @@ class Task(UserOwnedModel):
         max_length=20,
         choices=EFFORT_CHOICES,
         blank=True
+    )
+    module = models.CharField(
+        max_length=20,
+        choices=MODULE_CHOICES,
+        blank=True,
+        help_text="Link task to a module for cross-module engagement tracking",
     )
 
     # Dates
@@ -318,6 +332,14 @@ class Task(UserOwnedModel):
             RoutineTaskService.on_task_completed(self)
         except Exception:
             pass  # Must never break task completion
+
+        # Fire intelligence for module-linked tasks
+        if self.module:
+            try:
+                from apps.core.ai_orchestrator.intelligence_hook import fire_intelligence
+                fire_intelligence(self.user, self.module, self.pk, "task_completed")
+            except Exception:
+                pass  # Must never break task completion
     
     def mark_incomplete(self):
         """Mark task as not completed."""

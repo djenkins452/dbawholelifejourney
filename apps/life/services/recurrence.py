@@ -419,6 +419,8 @@ class RecurrenceService:
                 scheduled_time=task.scheduled_time,
                 scheduled_end_time=task.scheduled_end_time,
                 estimated_duration_minutes=task.estimated_duration_minutes,
+                # Carry forward module linkage
+                module=task.module,
             )
 
         return new_task

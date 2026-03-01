@@ -4428,6 +4428,194 @@ Rules for this response:
             logger.error(f"Response generation error: {e}")
             return self._get_fallback_response(message)
 
+    # -----------------------------------------------------------------
+    # Fast context builder for streaming TTFB optimization
+    # -----------------------------------------------------------------
+
+    def _build_fast_context(self, message, conversation,
+                            page_context=None, cos_context_cache=None):
+        """
+        Build minimal LLM context using ONLY cached data — no rebuilds.
+
+        Returns the same dict shape as _generate_response(_return_context_only=True)
+        or None if the fast path is not viable (e.g. calibration active).
+
+        This method must complete in <200ms. It reads:
+        - Base system prompt (~5ms)
+        - Governance instructions (~50-100ms)
+        - Learned user profile (~50-100ms)
+        - Cached CoS context (strict cache-only, never rebuild)
+        - Conversation memory / rolling summary (~5ms)
+        - Conversation history (~20-50ms)
+        - Response mode classification (~5ms)
+        """
+        # --- a) Calibration gate: if active, return None → caller uses full path
+        try:
+            from apps.core.blueprint.cos_governance import get_calibration_state
+            cal = get_calibration_state(self.user)
+            if cal and cal.get('active') and not cal.get('paused'):
+                return None  # Calibration requires full pipeline
+        except Exception:
+            pass  # If check fails, proceed with fast path
+
+        # --- b) Base system prompt (~5ms)
+        system_prompt = self._build_system_prompt(include_time_context=True)
+
+        # --- c) Governance instructions (~50-100ms)
+        try:
+            from apps.core.blueprint.cos_governance import build_governance_instructions
+            gov = build_governance_instructions(self.user)
+            if gov:
+                system_prompt = gov + "\n\n" + system_prompt
+        except Exception:
+            pass
+
+        # --- d) Learned user profile (~50-100ms)
+        try:
+            from apps.core.ai_learning.learning_extractor import get_profile_system_prompt
+            profile = get_profile_system_prompt(self.user)
+            if profile:
+                system_prompt = profile + "\n\n" + system_prompt
+        except Exception:
+            pass
+
+        # --- e) STRICT cache-only CoS context — NEVER rebuild
+        from apps.ai.readiness_cache import get_cached_cos_context
+
+        cos_ctx = cos_context_cache or get_cached_cos_context(self.user)
+
+        if cos_ctx:
+            try:
+                from apps.core.ai_orchestrator.cos_context import format_cos_system_injection
+                cos_injection = format_cos_system_injection(cos_ctx)
+                if cos_injection:
+                    system_prompt += "\n\n" + cos_injection
+            except Exception:
+                pass
+        else:
+            logger.info(
+                "FAST_CTX_NO_COS_CACHE user=%s — skipping CoS injection "
+                "(will warm in background)",
+                self.user.id,
+            )
+
+        # --- f) Rolling summary / conversation memory (~5ms)
+        try:
+            from apps.ai.executive_briefing import get_conversation_memory
+            memory = get_conversation_memory(conversation)
+            if memory:
+                system_prompt += "\n\n" + memory
+        except Exception:
+            pass
+
+        # --- g) Conversation history (~20-50ms)
+        conversation_history = None
+        try:
+            history = conversation.messages.order_by('-created_at')[:20]
+            from apps.ai.conversation.message_builder import build_messages_from_history
+            conversation_history = build_messages_from_history(history, message)
+        except Exception:
+            pass
+
+        # --- h) Response mode + user prompt (~5ms)
+        response_mode = self._classify_response_mode(message, False, False)
+
+        mode_rules = {
+            'brief': (
+                "- This is a simple question. Answer in 1-3 sentences max.\n"
+                "- Do NOT restate the question. Do NOT add follow-ups."
+            ),
+            'deep': (
+                "- Give specific data-driven insights with real numbers.\n"
+                "- Use concise structured bullets where helpful.\n"
+                "- Do NOT pad with filler. Be thorough but efficient."
+            ),
+            'adaptive': (
+                "- Answer what was asked. Match the depth of their message.\n"
+                "- Do NOT restate the question. Do NOT add follow-ups."
+            ),
+        }
+        rules_block = mode_rules.get(response_mode, mode_rules['adaptive'])
+
+        style_pref = getattr(self.prefs, 'cos_response_style', 'balanced')
+        style_nudge = ''
+        if style_pref == 'concise':
+            style_nudge = '- Prefer the shortest accurate answer possible.\n'
+        elif style_pref == 'strategic':
+            style_nudge = '- Include strategic framing and next-step suggestions.\n'
+        elif style_pref == 'deep_dive':
+            style_nudge = '- Provide comprehensive analysis when data supports it.\n'
+
+        reasoning_instruction = """
+Before responding, silently reason through these steps (do NOT include this reasoning in your response):
+1. What is the user's current context? (page they're viewing, time of day, recent session activity)
+2. What are they most likely asking about — the page content, their data, or a previous conversation topic?
+3. What data or context do I have that's directly relevant?
+4. What should I NOT talk about? (avoid mixing unrelated topics — don't mention routines when they're asking about scripture, don't discuss scripture when they're asking about tasks)
+Then give your response."""
+
+        user_name = self.user.first_name or self.user.get_short_name() or ""
+        user_prompt = f"""{"The user's name is " + user_name + ". " if user_name else ""}{message}
+{reasoning_instruction}
+
+Rules for this response:
+- Answer directly. Lead with the data when you have it.
+{rules_block}
+{style_nudge}- Be conversational and natural — speak like someone who knows this person
+- If they're sharing something personal, engage with it genuinely before moving to action
+- If following up on previous conversation, build on it naturally"""
+
+        mode_tokens = {'brief': 400, 'adaptive': 800, 'deep': 1200}
+        max_tokens = mode_tokens.get(response_mode, 800)
+        temperature = 0.65
+
+        # --- i) Return context dict (same shape as _generate_response context-only)
+        return {
+            'system_prompt': system_prompt,
+            'user_prompt': user_prompt,
+            'max_tokens': max_tokens,
+            'temperature': temperature,
+            'conversation_history': conversation_history,
+        }
+
+    # -----------------------------------------------------------------
+    # Deferred context warming (background thread)
+    # -----------------------------------------------------------------
+
+    def _run_deferred_context(self, message, conversation, page_context=None):
+        """
+        Background cache warming — ONLY warms caches, never modifies
+        assistant_message or conversation state.
+
+        Django DB connections are thread-local. This method explicitly
+        closes connections at start (clean slate) and in finally (prevent leaks).
+        """
+        from django import db
+        from apps.ai.readiness_cache import prewarm_cos_context
+
+        import time as _t
+        _start = _t.monotonic()
+
+        try:
+            # Ensure this thread starts with a clean DB connection state
+            db.connections.close_all()
+
+            prewarm_cos_context(self.user)
+
+            logger.info(
+                "DEFERRED_CTX_WARM ms=%.1f user=%s",
+                (_t.monotonic() - _start) * 1000, self.user.id,
+            )
+        except Exception as e:
+            logger.error("DEFERRED_CTX_WARM failed user=%s err=%s", self.user.id, e)
+        finally:
+            # CRITICAL: close any DB connections opened in this thread
+            db.connections.close_all()
+
+    # -----------------------------------------------------------------
+    # Streaming response generation
+    # -----------------------------------------------------------------
+
     def _generate_response_stream(
         self,
         message: str,
@@ -4437,38 +4625,58 @@ Rules for this response:
         assistant_message=None,
     ):
         """
-        Streaming variant of _generate_response.
+        Streaming version of _generate_response.
 
-        Performs the same prompt assembly via _generate_response(_return_context_only=True),
-        then streams tokens from the OpenAI API.
-
-        If assistant_message is provided, updates its content after streaming
-        completes. A finally block guarantees the placeholder is never left
-        empty — covers normal completion, exceptions, and client disconnect.
-
-        Does not support image attachments (use non-streaming for images).
+        Uses fast context path (cache-only, ~80-200ms) when viable, falling
+        back to the full _generate_response pipeline when calibration is active.
+        Kicks off deferred cache warming in a background thread on fast path.
 
         Args:
             assistant_message: Optional pre-created AssistantMessage record.
                 Created by send_message_stream() before streaming starts.
                 Updated with final content after stream completes.
 
-        Yields:
-            str — content chunks as they are generated.
+        Yields: str chunks of the response text.
         """
+        import time as _t_fast
+        _t_fast_start = _t_fast.monotonic()
         full_text = ''
+        first_token_logged = False
 
         try:
-            ctx = self._generate_response(
+            # PHASE 1: Try fast context (80-200ms, cache-only)
+            ctx = self._build_fast_context(
                 message, conversation,
                 page_context=page_context,
                 cos_context_cache=cos_context_cache,
-                _return_context_only=True,
             )
 
-            # If _generate_response returned a string instead of dict,
-            # it means a short-circuit occurred (shouldn't happen with
-            # _return_context_only, but defensive)
+            if ctx is None:
+                # Fast path not viable (calibration active) → full pipeline
+                logger.info("FAST_CTX_SKIP user=%s reason=calibration", self.user.id)
+                ctx = self._generate_response(
+                    message,
+                    conversation,
+                    page_context=page_context,
+                    cos_context_cache=cos_context_cache,
+                    _return_context_only=True,
+                )
+            else:
+                _fast_elapsed = (_t_fast.monotonic() - _t_fast_start) * 1000
+                logger.warning(
+                    "FAST_CTX_BUILD ms=%.1f user=%s", _fast_elapsed, self.user.id,
+                )
+
+                # Kick off deferred cache warming in background
+                import threading
+                threading.Thread(
+                    target=self._run_deferred_context,
+                    args=(message, conversation, page_context),
+                    daemon=True,
+                ).start()
+
+            # If context building itself failed (returned a string fallback),
+            # yield it as a single chunk
             if isinstance(ctx, str):
                 full_text = ctx
                 if assistant_message:
@@ -4486,6 +4694,8 @@ Rules for this response:
                 yield fallback
                 return
 
+            from .services import ai_service
+
             try:
                 for chunk in ai_service._call_api_stream(
                     ctx['system_prompt'],
@@ -4497,6 +4707,16 @@ Rules for this response:
                     conversation_history=ctx['conversation_history'],
                 ):
                     full_text += chunk
+
+                    # First-token telemetry
+                    if not first_token_logged:
+                        logger.warning(
+                            "STREAM_FIRST_TOKEN ms=%.1f user=%s",
+                            (_t_fast.monotonic() - _t_fast_start) * 1000,
+                            self.user.id,
+                        )
+                        first_token_logged = True
+
                     yield chunk
 
                 # Normal completion — save full response to pre-created record

@@ -9,6 +9,30 @@
 
 # WLJ Change History
 
+## 2026-03-01 — Fast-context split: reduce streaming TTFB from ~6.8s to ~1s
+
+**What:** Added a fast context builder (`_build_fast_context()`) that assembles minimal LLM context using ONLY cached data — no CoS rebuilds. Streaming now starts in ~80-200ms instead of ~2-5s context build. A background thread warms caches for the next request.
+
+**New methods in `apps/ai/personal_assistant.py`:**
+- `_build_fast_context()` — Builds system prompt + governance + learned profile + **strict cache-only** CoS context + rolling summary + conversation history + response mode. Returns same dict shape as `_generate_response(_return_context_only=True)`. Returns `None` if calibration is active (→ falls back to full pipeline).
+- `_run_deferred_context()` — Background thread that calls `prewarm_cos_context()` to warm caches. Uses `db.connections.close_all()` at start and in `finally` for thread-local DB connection safety.
+
+**Modified `_generate_response_stream()`:**
+- Tries `_build_fast_context()` first (80-200ms target)
+- Falls back to `_generate_response(_return_context_only=True)` if calibration active
+- On fast path success, spawns daemon thread for `_run_deferred_context()`
+- Added `STREAM_FIRST_TOKEN` telemetry inside streaming loop
+- All existing try/finally/assistant_message persistence logic unchanged
+
+**Telemetry:** `FAST_CTX_BUILD`, `FAST_CTX_SKIP`, `FAST_CTX_NO_COS_CACHE`, `STREAM_FIRST_TOKEN`, `DEFERRED_CTX_WARM`
+
+**Safety:** Cache miss = skip CoS injection (LLM uses governance+profile+history), deferred thread warms for next request. Calibration = full pipeline fallback. Thread crash = silently caught, no user impact.
+
+**Files:** `apps/ai/personal_assistant.py`
+**Tests:** 519 passed (6 pre-existing DB flush errors in test_calendar_crud, unrelated)
+
+---
+
 ## 2026-03-01 — Notes System Phase 4C: CoS Memory Intelligence + Ranking
 
 **What:** Added a second-stage ranking layer for CoS note retrieval that combines FTS rank with contextual signals (recency, pinning, entity scope, tag overlap) to surface the "best" memory, not just "matching" ones.

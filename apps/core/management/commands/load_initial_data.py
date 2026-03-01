@@ -826,14 +826,17 @@ class Command(BaseCommand):
         # One-time: Reset fixtures for Journal Mood & Prompt fix (PK 105 release note, help PK 3 update)
         self._reset_journal_mood_fix_fixtures(DataLoadConfig, force, verbosity)
 
-        # One-time: Reset release_notes for Beth Performance & Reliability (PK 106)
-        self._reset_beth_performance_fixtures(DataLoadConfig, force, verbosity)
+        # One-time: Reset release_notes for CoS Performance & Reliability (PK 106)
+        self._reset_cos_performance_fixtures(DataLoadConfig, force, verbosity)
 
         # One-time: Reset teaching_destinations to fix duplicate PK 58
         self._reset_teaching_destinations_dedup(DataLoadConfig, force, verbosity)
 
         # One-time: Reset fixtures for Boot Architecture Hardening (PK 107 release note)
         self._reset_boot_hardening_fixtures(DataLoadConfig, force, verbosity)
+
+        # One-time: Reset release_notes to fix "Beth" → "CoS" in PK 106
+        self._reset_cos_name_fix_fixtures(DataLoadConfig, force, verbosity)
 
         # Only output summary if something loaded or if verbose
         if verbosity >= 1 and loaded_count > 0:
@@ -4252,9 +4255,9 @@ Tasks are sorted by priority (ascending) then creation date.""",
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Calendar dedup cleanup FAILED: {e}'))
 
-    def _reset_beth_performance_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+    def _reset_cos_performance_fixtures(self, DataLoadConfig, force=False, verbosity=1):
         """
-        One-time reset to reload release_notes for Beth Performance & Reliability (PK 106).
+        One-time reset to reload release_notes for CoS Performance & Reliability (PK 106).
         """
         reset_tracker_name = 'reset_beth_performance_2026_02_28'
         try:
@@ -4266,18 +4269,18 @@ Tasks are sorted by priority (ascending) then creation date.""",
                 config.is_loaded = False
                 config.save()
                 if verbosity >= 1:
-                    self.stdout.write(f'  Reset release_notes loader for Beth Performance & Reliability')
+                    self.stdout.write(f'  Reset release_notes loader for CoS Performance & Reliability')
 
             self._mark_loader_complete(
                 DataLoadConfig, reset_tracker_name,
-                'Reset fixtures for Beth Performance & Reliability release note (Feb 2026)',
+                'Reset fixtures for CoS Performance & Reliability release note (Feb 2026)',
                 'command',
                 'One-time reset to reload release_notes PK 106'
             )
 
         except Exception as e:
             if verbosity >= 1:
-                self.stdout.write(self.style.ERROR(f'Reset Beth performance fixtures FAILED: {e}'))
+                self.stdout.write(self.style.ERROR(f'Reset CoS performance fixtures FAILED: {e}'))
 
     def _reset_teaching_destinations_dedup(self, DataLoadConfig, force=False, verbosity=1):
         """
@@ -4333,3 +4336,30 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset boot hardening fixtures FAILED: {e}'))
+
+    def _reset_cos_name_fix_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes after fixing 'Beth' → 'CoS' in PK 106.
+        """
+        reset_tracker_name = 'reset_cos_name_fix_2026_03_01'
+        try:
+            if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
+                return
+
+            config = DataLoadConfig.objects.get(loader_name='release_notes')
+            if config.is_loaded:
+                config.is_loaded = False
+                config.save()
+                if verbosity >= 1:
+                    self.stdout.write(f'  Reset release_notes loader for CoS name fix (PK 106)')
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures to fix Beth → CoS in release note PK 106 (Mar 2026)',
+                'command',
+                'One-time reset to reload release_notes PK 106 with corrected name'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset CoS name fix fixtures FAILED: {e}'))

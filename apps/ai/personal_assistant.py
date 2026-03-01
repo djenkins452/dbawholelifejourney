@@ -2983,7 +2983,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             'explain it', 'explain this', 'explain the', 'what does it mean',
             'what does this mean', 'in simple terms', 'like i am',
             'tell me about this', 'tell me what', 'niv', 'esv', 'kjv',
-            # User directing Beth to page content
+            # User directing CoS to page content
             "it's on", "its on", "right there", "can you see",
             "you can see", "look at",
         ]
@@ -3041,7 +3041,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             logger.debug(f"Skipping navigation for data analysis query: {message[:60]}")
             return None
 
-        # Meta-questions about Beth / system behavior / errors / complaints
+        # Meta-questions about CoS / system behavior / errors / complaints
         # are NOT navigation — they need the LLM to answer conversationally.
         meta_question_indicators = [
             'how come', 'why do you', 'why does', 'why did you',

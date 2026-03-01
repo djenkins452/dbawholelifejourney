@@ -20,7 +20,7 @@ Supported Intent Categories:
 - Journal: create_journal_entry, add_gratitude
 - Faith: log_prayer, mark_prayer_answered, save_verse, add_faith_milestone
 - Purpose: create_goal, update_goal_progress, set_intention, log_habit
-- Life: create_task, create_routine_task, complete_task, create_event, add_reminder
+- Life: create_task, create_routine_task, complete_task, mutate_task, create_event, add_reminder
 - Fitness: log_workout, log_exercise_set, log_cardio
 - Finance: log_transaction, check_budget
 - System: undo_last_action, edit_last_entry
@@ -96,6 +96,7 @@ INTENT_HANDLERS = {
     'create_routine_task': 'life',
     'complete_task': 'life',
     'read_task': 'life',
+    'mutate_task': 'life',
     'create_event': 'life',
     'add_reminder': 'life',
     # Calendar CRUD

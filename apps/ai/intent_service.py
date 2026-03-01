@@ -364,6 +364,25 @@ LIFE/TASKS:
 - "I want a daily workout at 6am" → create_routine_task(title="Workout", scheduled_time="06:00", duration_minutes=45)
 - "schedule my evening walk every day at 7pm" → create_routine_task(title="Evening Walk", scheduled_time="19:00", duration_minutes=30)
 
+TASK UPDATES (mutate_task) — use for ANY task mutation verb:
+When the user says move, reschedule, push, postpone, change, rename, update, or delete referring to a task, call mutate_task DIRECTLY. Do NOT use read_task for these.
+- "move those two tasks to tomorrow" → mutate_task(action="update", task_query="office", new_due_date="tomorrow", apply_to_all=true)
+- "push the grocery task to next week" → mutate_task(action="update", task_query="grocery", new_due_date="next week")
+- "move my desk task to tomorrow afternoon" → mutate_task(action="update", task_query="desk", new_due_date="tomorrow", new_scheduled_time="13:00")
+- "reschedule the battery task to Friday" → mutate_task(action="update", task_query="battery", new_due_date="friday")
+- "rename my call task to 'Call Mom back'" → mutate_task(action="update", task_query="call", new_title="Call Mom back")
+- "delete the laundry task" → mutate_task(action="delete", task_query="laundry")
+- "remove my dentist task" → mutate_task(action="delete", task_query="dentist")
+- "move all my tasks to tomorrow" → mutate_task(action="update", task_query="", new_due_date="tomorrow", apply_to_all=true)
+
+CRITICAL ROUTING RULE: If the user's message contains a mutation verb (move, reschedule, push, postpone, change, rename, update, delete, remove) referring to tasks, you MUST call mutate_task — NEVER call read_task for these.
+
+IMPLICIT TASK CORRECTIONS — when the user says a task has wrong details or confirms a change should have happened:
+- "those tasks should be tomorrow" → mutate_task(action="update", task_query=<from context>, new_due_date="tomorrow", apply_to_all=true)
+- "you didn't actually move them" → mutate_task(action="update", task_query=<from context>, new_due_date=<from prior context>, apply_to_all=true)
+- "they are still showing today" → infer the user wanted them moved; use prior context to determine the target date
+When the user reports that a previous action didn't work ("you didn't do it", "still showing", "it's still wrong"), re-execute the action — do NOT just apologize.
+
 IMPORTANT — task vs routine vs event:
 - "add a task at 10am" → create_task with scheduled_time (one-time task at specific time)
 - "add X to my daily routine at 6am" → create_routine_task (recurring daily task)
@@ -413,6 +432,13 @@ When the user says move, change, reschedule, shift, update, rename, or uses "fro
 CALENDAR DELETIONS (mutate_calendar_event):
 - "cancel my Wednesday event" → mutate_calendar_event(action="delete", event_query="event", event_date="wednesday", idempotency_key="cancel-wed-event", timezone="America/New_York")
 - "remove the meeting from my calendar" → mutate_calendar_event(action="delete", event_query="meeting", idempotency_key="remove-meeting", timezone="America/New_York")
+
+IMPLICIT CORRECTIONS — when the user says an event has wrong details:
+- "Bible Study is at 6pm, not 7pm" → mutate_calendar_event(action="update", event_query="Bible Study", start_time="18:00", idempotency_key="fix-biblestudy-6pm", timezone="America/New_York")
+- "that event should be at 2pm" → mutate_calendar_event(action="update", event_query=<from context>, start_time="14:00", ...)
+- "my meeting is actually on Thursday, not Wednesday" → mutate_calendar_event(action="update", event_query="meeting", event_date="wednesday", start_date="thursday", ...)
+- "that's not correct, it is at 6pm" → mutate_calendar_event(action="update", event_query=<from context>, start_time="18:00", ...)
+When the user says something "is wrong", "is not correct", "should be", "is actually", or provides a correction with "not X, it's Y" — treat this as a mutation, NOT a conversational response.
 
 CRITICAL ROUTING RULE: If the user's message contains a mutation verb (move, change, reschedule, shift, update, rename, cancel, delete, remove) referring to a calendar event, you MUST call mutate_calendar_event — NEVER call read_calendar_events for these. The system resolves the event internally from event_query.
 
@@ -661,6 +687,16 @@ Examples:
             time = parameters.get('scheduled_time', '')
             return f"I'll create daily routine: {title} at {time}. Confirm?"
 
+        elif intent_type == 'mutate_task':
+            task_query = parameters.get('task_query', 'task')
+            action = parameters.get('action', 'update')
+            if action == 'delete':
+                return f"I'll delete task matching '{task_query}'. Confirm?"
+            else:
+                new_date = parameters.get('new_due_date', '')
+                date_hint = f" to {new_date}" if new_date else ""
+                return f"I'll update task matching '{task_query}'{date_hint}. Confirm?"
+
         elif intent_type == 'create_event':
             title = parameters.get('title', 'event')
             return f"I'll schedule: {title}. Confirm?"
@@ -790,6 +826,9 @@ Examples:
 
             elif intent_type == 'read_task':
                 return handler.handle_read_task(**parameters)
+
+            elif intent_type == 'mutate_task':
+                return handler.handle_mutate_task(**parameters)
 
             elif intent_type == 'create_event':
                 return handler.handle_create_event(**parameters)

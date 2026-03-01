@@ -2895,6 +2895,242 @@ class ActionHandler:
                 error=str(e)
             )
 
+    def handle_mutate_task(
+        self,
+        action: str,
+        task_query: str,
+        new_due_date: str = None,
+        new_scheduled_time: str = None,
+        new_title: str = None,
+        new_notes: str = None,
+        new_effort: str = None,
+        apply_to_all: bool = False,
+        **kwargs,
+    ) -> ActionResult:
+        """
+        Reschedule, rename, update, or delete a task.
+
+        Args:
+            action: 'update' or 'delete'
+            task_query: Keywords to find the task(s)
+            new_due_date: New due date (natural language or YYYY-MM-DD)
+            new_scheduled_time: New scheduled time in HH:MM format
+            new_title: New title if renaming
+            new_notes: New notes
+            new_effort: New effort level
+            apply_to_all: Apply to all matching tasks (for batch operations)
+        """
+        from apps.life.models import Task
+        from apps.calendar_engine.utils.date_resolution import resolve_weekday_to_date
+        from datetime import datetime as dt
+
+        try:
+            # Find matching tasks
+            qs = Task.objects.filter(
+                user=self.user,
+                is_completed=False,
+                status='active',
+            ).filter(
+                Q(title__icontains=task_query) |
+                Q(notes__icontains=task_query)
+            )
+
+            count = qs.count()
+
+            if count == 0:
+                return ActionResult(
+                    success=False,
+                    message=f"I couldn't find an active task matching '{task_query}'.",
+                    error='task_not_found',
+                    action_type='mutate_task',
+                )
+
+            if count > 1 and not apply_to_all:
+                titles = [f"• {t.title}" for t in qs[:5]]
+                return ActionResult(
+                    success=False,
+                    message=(
+                        f"I found {count} tasks matching '{task_query}':\n"
+                        + "\n".join(titles)
+                        + "\nWhich one? Or say 'all of them' to update all."
+                    ),
+                    error='multiple_matches',
+                    action_type='mutate_task',
+                )
+
+            tasks = list(qs[:10])  # Safety limit
+
+            if action == 'delete':
+                deleted_titles = []
+                for task in tasks:
+                    task.soft_delete()
+                    deleted_titles.append(task.title)
+
+                if len(deleted_titles) == 1:
+                    msg = f"✓ Deleted task: {deleted_titles[0]}"
+                else:
+                    msg = f"✓ Deleted {len(deleted_titles)} tasks: {', '.join(deleted_titles)}"
+
+                return ActionResult(
+                    success=True,
+                    message=msg,
+                    created_object={
+                        'model': 'Task',
+                        'ids': [t.id for t in tasks],
+                        'action': 'delete',
+                    },
+                    action_type='mutate_task',
+                    confirmation_detail=self._build_confirmation(
+                        what=', '.join(deleted_titles),
+                        where="Organize > Tasks",
+                    ),
+                )
+
+            elif action == 'update':
+                # Parse new due date using the same date resolution as calendar
+                parsed_due = None
+                if new_due_date:
+                    try:
+                        parsed_due = resolve_weekday_to_date(self.user, new_due_date)
+                    except ValueError:
+                        # Fallback to simple parsing
+                        due_lower = new_due_date.lower()
+                        today = self._get_user_today()
+                        if due_lower == 'today':
+                            parsed_due = today
+                        elif due_lower == 'tomorrow':
+                            from datetime import timedelta
+                            parsed_due = today + timedelta(days=1)
+                        else:
+                            try:
+                                parsed_due = dt.strptime(new_due_date, '%Y-%m-%d').date()
+                            except ValueError:
+                                return ActionResult(
+                                    success=False,
+                                    message=f"I couldn't understand the date '{new_due_date}'. Try 'tomorrow', 'next monday', or a specific date.",
+                                    error='invalid_date',
+                                    action_type='mutate_task',
+                                )
+
+                # Parse new scheduled time
+                parsed_time = None
+                if new_scheduled_time:
+                    try:
+                        parsed_time = dt.strptime(new_scheduled_time, '%H:%M').time()
+                    except ValueError:
+                        return ActionResult(
+                            success=False,
+                            message=f"I couldn't understand the time '{new_scheduled_time}'. Use HH:MM format (e.g., '14:00').",
+                            error='invalid_time',
+                            action_type='mutate_task',
+                        )
+
+                # Apply updates
+                updated_titles = []
+                changes_desc = []
+                for task in tasks:
+                    update_fields = ['updated_at']
+
+                    if parsed_due is not None:
+                        task.due_date = parsed_due
+                        update_fields.append('due_date')
+
+                    if parsed_time is not None:
+                        task.scheduled_time = parsed_time
+                        update_fields.append('scheduled_time')
+
+                    if new_title:
+                        task.title = new_title
+                        update_fields.append('title')
+
+                    if new_notes:
+                        task.notes = new_notes
+                        update_fields.append('notes')
+
+                    if new_effort:
+                        task.effort = new_effort
+                        update_fields.append('effort')
+
+                    task.save(update_fields=update_fields)
+
+                    # Sync calendar event if task has one
+                    try:
+                        from apps.calendar_engine.models import CalendarEvent
+                        cal_events = CalendarEvent.objects.filter(
+                            user=self.user,
+                            source_type='task',
+                            source_id=str(task.id),
+                            is_deleted=False,
+                        )
+                        for ce in cal_events:
+                            cal_updates = []
+                            if parsed_due is not None:
+                                ce.start_date = parsed_due
+                                ce.end_date = parsed_due
+                                cal_updates.extend(['start_date', 'end_date'])
+                            if parsed_time is not None:
+                                ce.start_time = parsed_time
+                                cal_updates.append('start_time')
+                            if new_title:
+                                ce.title = new_title
+                                cal_updates.append('title')
+                            if cal_updates:
+                                cal_updates.append('updated_at')
+                                ce.save(update_fields=cal_updates)
+                    except Exception:
+                        pass  # Calendar sync is best-effort
+
+                    updated_titles.append(task.title)
+
+                # Build change description
+                if parsed_due is not None:
+                    changes_desc.append(f"due {parsed_due.strftime('%b %d')}")
+                if parsed_time is not None:
+                    changes_desc.append(f"at {parsed_time.strftime('%I:%M %p').lstrip('0')}")
+                if new_title:
+                    changes_desc.append(f"renamed to '{new_title}'")
+                if new_effort:
+                    changes_desc.append(f"effort: {new_effort}")
+
+                changes_str = ", ".join(changes_desc) if changes_desc else "updated"
+
+                if len(updated_titles) == 1:
+                    msg = f"✓ Updated '{updated_titles[0]}' → {changes_str}"
+                else:
+                    msg = f"✓ Updated {len(updated_titles)} tasks → {changes_str}:\n" + "\n".join(f"• {t}" for t in updated_titles)
+
+                return ActionResult(
+                    success=True,
+                    message=msg,
+                    created_object={
+                        'model': 'Task',
+                        'ids': [t.id for t in tasks],
+                        'action': 'update',
+                        'changes': changes_desc,
+                    },
+                    action_type='mutate_task',
+                    confirmation_detail=self._build_confirmation(
+                        what=', '.join(updated_titles),
+                        where="Organize > Tasks",
+                    ),
+                )
+
+            else:
+                return ActionResult(
+                    success=False,
+                    message=f"Unknown action: {action}. Use 'update' or 'delete'.",
+                    error='invalid_action',
+                    action_type='mutate_task',
+                )
+
+        except Exception as e:
+            logger.error(f"Error mutating task: {e}", exc_info=True)
+            return ActionResult(
+                success=False,
+                message="Sorry, I couldn't update that task.",
+                error=str(e),
+            )
+
     def handle_read_task(self, task_keyword: str = None, date_filter: str = None,
                          include_completed: bool = False, **kwargs) -> ActionResult:
         """

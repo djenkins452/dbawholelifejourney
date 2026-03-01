@@ -13,6 +13,7 @@ OpenAI function (tool) definitions for life management actions:
 - create_routine_task: Create a daily routine task with CoS prompting
 - complete_task: Mark a task as complete
 - read_task: Query/lookup task details (time, due date, status)
+- mutate_task: Reschedule, rename, or delete a task
 - create_event: Schedule a calendar event
 - add_reminder: Create a reminder for a significant event (birthday, anniversary)
 """
@@ -147,6 +148,76 @@ LIFE_INTENT_TOOLS = [
                 "required": []
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "mutate_task",
+            "description": (
+                "Reschedule, rename, update, or delete a task. "
+                "ALWAYS use this tool — not read_task — when the user "
+                "wants to move, reschedule, push, postpone, rename, update, "
+                "change, or delete a task. "
+                "Mutation verbs (move, reschedule, push, postpone, change, "
+                "rename, update, delete, remove) referring to tasks MUST route here. "
+                "Use task_query to find the task by title keyword."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": ["update", "delete"],
+                        "description": (
+                            "The mutation to perform. Use 'update' when the user says "
+                            "move, reschedule, push, postpone, change, rename, update. "
+                            "Use 'delete' when the user says delete, remove, or cancel a task."
+                        ),
+                    },
+                    "task_query": {
+                        "type": "string",
+                        "description": (
+                            "Keywords to find the task by title (case-insensitive match). "
+                            "E.g., 'office desk', 'groceries', 'battery'."
+                        ),
+                    },
+                    "new_due_date": {
+                        "type": "string",
+                        "description": (
+                            "New due date for the task. Pass the user's EXACT date phrase: "
+                            "'today', 'tomorrow', 'monday', 'next friday', 'in 3 days', "
+                            "or YYYY-MM-DD. NEVER compute dates yourself."
+                        ),
+                    },
+                    "new_scheduled_time": {
+                        "type": "string",
+                        "description": "New scheduled time in HH:MM 24-hour format.",
+                    },
+                    "new_title": {
+                        "type": "string",
+                        "description": "New title if renaming the task.",
+                    },
+                    "new_notes": {
+                        "type": "string",
+                        "description": "New notes to replace or append to existing notes.",
+                    },
+                    "new_effort": {
+                        "type": "string",
+                        "enum": ["quick", "small", "medium", "large"],
+                        "description": "New effort level.",
+                    },
+                    "apply_to_all": {
+                        "type": "boolean",
+                        "description": (
+                            "When multiple tasks match (e.g., 'move those tasks to tomorrow'), "
+                            "set to true to apply the change to ALL matching tasks. "
+                            "Default false (single task only)."
+                        ),
+                    },
+                },
+                "required": ["action", "task_query"],
+            },
+        },
     },
     {
         "type": "function",

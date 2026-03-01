@@ -132,6 +132,7 @@ NON_TIME_INTENTS = {
     'create_event',            # Events have start/end, not recorded_at
     'read_task',               # Read-only query, no recorded_at
     'read_calendar_events',    # Read-only query, no recorded_at
+    'mutate_task',             # Uses new_due_date/new_scheduled_time, not recorded_at
     'mutate_calendar_event',   # Uses start_date/start_time, not recorded_at
     'add_reminder',            # Reminders have a trigger time, not recorded_at
     'create_goal',             # Goals have target_date, not recorded_at

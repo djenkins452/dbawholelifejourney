@@ -59,6 +59,7 @@ LIFE_INTENTS = {
     "create_routine_task",
     "complete_task",
     "read_task",
+    "mutate_task",
     "create_event",
     "add_reminder",
     "read_calendar_events",

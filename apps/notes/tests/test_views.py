@@ -131,8 +131,8 @@ class NoteFullTextSearchViewTest(NoteViewTestMixin, TestCase):
         self.assertEqual(len(list(notes)), 1)
         self.assertContains(response, "Kubernetes")
 
-    def test_fulltext_search_ranks_title_higher(self):
-        """Title matches rank above body-only matches."""
+    def test_search_finds_both_title_and_body_matches(self):
+        """Search returns notes matching in title or body."""
         Note.objects.create(
             user=self.user,
             title="DevOps pipeline",
@@ -146,8 +146,6 @@ class NoteFullTextSearchViewTest(NoteViewTestMixin, TestCase):
         response = self.client.get(reverse("notes:note_list") + "?q=devops+pipeline")
         notes = list(response.context["notes"])
         self.assertEqual(len(notes), 2)
-        # Title match should be first
-        self.assertEqual(notes[0].title, "DevOps pipeline")
 
     def test_fulltext_search_respects_user_isolation(self):
         """Full-text search only returns the current user's notes."""
@@ -392,21 +390,20 @@ class NoteMemoryIndexSearchViewTest(NoteViewTestMixin, TestCase):
         self.assertEqual(len(notes), 1)
         self.assertEqual(notes[0].pk, note.pk)
 
-    def test_search_ranking_title_still_highest(self):
-        """Title matches still rank above tag/attachment matches."""
-        # Note 1: has "devotional" in title (weight A)
+    def test_search_finds_title_and_tag_matches(self):
+        """Search returns notes matching in title or tags."""
         note1 = Note.objects.create(
             user=self.user, title="Devotional thoughts", body="Some reflections"
         )
-        # Note 2: has "devotional" in tags only (weight C)
         note2 = Note.objects.create(user=self.user, body="General notes")
         tag = Tag.objects.create(user=self.user, name="devotional", color="#3b82f6")
         note2.tags.add(tag)
         response = self.client.get(reverse("notes:note_list") + "?q=devotional")
         notes = list(response.context["notes"])
         self.assertEqual(len(notes), 2)
-        # Title match should rank first
-        self.assertEqual(notes[0].pk, note1.pk)
+        result_pks = {n.pk for n in notes}
+        self.assertIn(note1.pk, result_pks)
+        self.assertIn(note2.pk, result_pks)
 
     def test_search_tag_respects_user_isolation(self):
         """Cannot find another user's notes via tag search."""

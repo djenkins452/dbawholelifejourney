@@ -10,8 +10,7 @@ import logging
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.contrib.postgres.search import SearchHeadline, SearchQuery, SearchRank
-from django.db.models import F, Q
+from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.views import View
@@ -51,33 +50,20 @@ class NoteListView(HelpContextMixin, LoginRequiredMixin, ListView):
         if pinned == "1":
             queryset = queryset.filter(is_pinned=True)
 
-        # Full-text search with ranking
+        # Substring search — matches partial words (e.g. "thanks" finds "Thanksgiving")
         search = self.request.GET.get("q", "").strip()
+        if not search:
+            search = self.request.GET.get("search", "").strip()
         if search:
-            search_query = SearchQuery(search, search_type="websearch")
-            queryset = (
-                queryset.filter(search_vector=search_query)
-                .annotate(
-                    rank=SearchRank(F("search_vector"), search_query),
-                    headline=SearchHeadline(
-                        "body",
-                        search_query,
-                        start_sel="<mark>",
-                        stop_sel="</mark>",
-                        max_words=35,
-                        min_words=15,
-                    ),
-                )
-                .order_by("-rank", "-is_pinned", "-updated_at")
-            )
-        else:
-            # Fallback: basic icontains for the legacy "search" param
-            legacy_search = self.request.GET.get("search", "").strip()
-            if legacy_search:
+            # Each word must appear somewhere in title, body, tags, or attachments
+            for word in search.split():
                 queryset = queryset.filter(
-                    Q(title__icontains=legacy_search)
-                    | Q(body__icontains=legacy_search)
+                    Q(title__icontains=word)
+                    | Q(body__icontains=word)
+                    | Q(tags__name__icontains=word)
+                    | Q(attachments_text__icontains=word)
                 )
+            queryset = queryset.order_by("-is_pinned", "-updated_at")
 
         return queryset.distinct()
 

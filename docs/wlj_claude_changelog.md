@@ -9,6 +9,24 @@
 
 # WLJ Change History
 
+## 2026-03-01 — Fix Notes search to use substring matching instead of full-text search
+
+**What:** Searching for "Thanks" in the Notes app returned 0 results even though a note contained "Thanksgiving". PostgreSQL full-text search with `websearch` type only matches complete word stems — "Thanks" stems to "thank" while "Thanksgiving" stems to "thanksgiv", so they don't match.
+
+**Fix:**
+- Replaced full-text search in `NoteSearchListView` with `icontains` substring matching
+- Multi-word queries split into individual words, each must appear in title, body, tags, or attachment text
+- Preserved full-text search in `search_notes()` and `search_notes_cos()` service functions (AI/CoS system benefits from FTS ranking)
+- Updated tests to reflect substring matching behavior
+
+**Files changed:**
+- `apps/notes/views.py` — switched from `SearchQuery`/`SearchRank` to `icontains` per-word filtering
+- `apps/notes/tests/test_views.py` — updated ranking tests to match new substring search behavior
+
+**Why:** Users expect search to find partial word matches. A personal notes app should prioritize recall over ranking precision.
+
+---
+
 ## 2026-03-01 — Recalibrate Command Center scoring for personal app usage
 
 **What:** The Intelligence Command Center was perpetually showing DEGRADED (score ~44) because the monitoring thresholds were calibrated for a high-availability production system. Request-triggered engines (UAL, SAE, PIE) had 5-minute cadence expectations, so any period of app inactivity beyond 7 minutes triggered MISSED status, which cascaded into P1 anomalies via aggressive escalation timers.

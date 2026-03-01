@@ -1,0 +1,16 @@
+{
+  "run_id": "06b368c0",
+  "framework_version": "0.11.0",
+  "schema_version": "1.0",
+  "suite": "Calendar of Services Module Tests",
+  "module": "cos",
+  "timestamp": "2026-02-26T21:49:45.617416+00:00",
+  "duration_ms": 136093,
+  "environment": "development",
+  "base_url": "http://localhost:8000",
+  "total_cases": 15,
+  "passed": 15,
+  "failed": 0,
+  "pass_rate": 1.0,
+  "failures": []
+}

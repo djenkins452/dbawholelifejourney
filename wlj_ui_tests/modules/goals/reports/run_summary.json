@@ -1,0 +1,16 @@
+{
+  "run_id": "a8302fc3",
+  "framework_version": "0.11.0",
+  "schema_version": "1.0",
+  "suite": "Goals Module Tests",
+  "module": "goals",
+  "timestamp": "2026-02-26T17:46:12.531631+00:00",
+  "duration_ms": 91164,
+  "environment": "development",
+  "base_url": "http://localhost:8000",
+  "total_cases": 27,
+  "passed": 27,
+  "failed": 0,
+  "pass_rate": 1.0,
+  "failures": []
+}

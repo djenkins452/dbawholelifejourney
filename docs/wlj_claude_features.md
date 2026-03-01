@@ -48,6 +48,7 @@ For core project context, see `CLAUDE.md` (project root).
 30. [Medicine Adherence Calculation](#medicine-adherence-calculation) *(Jan 2026)*
 31. [Chief of Staff — Personal Operating System](#chief-of-staff--personal-operating-system) *(Feb 2026)*
 32. [Voice Conversation Mode](#voice-conversation-mode) *(Feb 2026)*
+33. [Notes — Personal Memory Layer](#notes--personal-memory-layer) *(Mar 2026)*
 33. [Finance Module](#finance-module) *(Feb 2026)*
 34. [Nutrition Log Upgrade](#nutrition-log-upgrade) *(Feb 2026)*
 35. [Intelligence Engine Stack](#intelligence-engine-stack) *(Jan-Feb 2026)*
@@ -3843,4 +3844,40 @@ Internal owner dashboard for tracking LLM costs, per-user economics, gross margi
 
 ---
 
-*Last updated: 2026-02-21*
+## Notes — Personal Memory Layer
+
+### Overview
+A standalone Notes module that serves as the user's personal memory layer. Notes can be searched, tagged, color-coded, pinned, and attached to any entity in the system. The Chief of Staff (CoS) uses notes as its long-term memory via semantic search and intelligent ranking.
+
+### Features
+- **CRUD**: Create, read, update, soft-delete notes with title (optional), body, color, pin, and tags
+- **Full-Text Search**: PostgreSQL `SearchVector` + `GinIndex` with `websearch` query syntax and search result highlighting
+- **Semantic Search**: OpenAI `text-embedding-3-small` embeddings with cosine similarity for meaning-based retrieval
+- **Hybrid Ranking**: 6-factor scoring formula (FTS 0.45 + Semantic 0.25 + Recency 0.15 + Pinned 0.07 + Entity 0.05 + Tags 0.03)
+- **Entity Attachments**: `GenericForeignKey`-based attachments link notes to tasks, goals, journal entries, etc.
+- **Denormalized Index Fields**: `tags_text`, `attachments_text` fields kept in sync via signals for search inclusion
+- **Index Registry**: Centralized `NOTE_INDEX_REGISTRY` for signal-driven rename propagation
+- **Embedding Lifecycle**: Automatic embedding generation on note create/edit, tag change, and attachment change
+- **Failure Safety**: All embedding/AI operations are try/except wrapped — never crash note saves or searches
+- **Admin Actions**: Repair index, refresh attachments, integrity report management command
+- **Backfill Command**: `backfill_note_embeddings --missing-only --limit N --batch-size N`
+
+### Key Files
+| File | Purpose |
+|------|---------|
+| `apps/notes/models.py` | Note (UserOwnedModel) + NoteAttachment (GenericFK) |
+| `apps/notes/views.py` | List, Create, Detail, Update, Delete, TogglePin views |
+| `apps/notes/services.py` | Search, CoS ranking, integrity checks |
+| `apps/notes/embeddings.py` | OpenAI embedding generation + cosine similarity |
+| `apps/notes/memory_scoring.py` | 6-factor scoring formula for CoS retrieval |
+| `apps/notes/signals.py` | Registry-driven rename sync + embedding lifecycle |
+| `apps/notes/index_registry.py` | Centralized registry of indexable model configs |
+| `templates/notes/note_list.html` | Card grid with search, filters, pagination |
+| `templates/notes/note_form.html` | Create/edit form |
+| `templates/notes/note_detail.html` | Full note view with attachments |
+
+### Tests: 227 (apps.notes)
+
+---
+
+*Last updated: 2026-03-01*

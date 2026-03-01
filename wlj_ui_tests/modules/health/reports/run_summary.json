@@ -1,0 +1,16 @@
+{
+  "run_id": "0146d712",
+  "framework_version": "0.11.0",
+  "schema_version": "1.0",
+  "suite": "Health Module Tests",
+  "module": "health",
+  "timestamp": "2026-02-26T18:25:22.913490+00:00",
+  "duration_ms": 6852,
+  "environment": "development",
+  "base_url": "http://localhost:8000",
+  "total_cases": 36,
+  "passed": 36,
+  "failed": 0,
+  "pass_rate": 1.0,
+  "failures": []
+}

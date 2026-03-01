@@ -1,0 +1,3674 @@
+<!DOCTYPE html><html lang="en" data-theme="sanctuary"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Whole Life Journey - A calm space for reflection, growth, and faithful living.">
+
+    <!-- Critical CSS inlined to prevent FOUC -->
+    <style>
+    :root{--color-primary:#6b7280;--color-secondary:#f9fafb;--color-accent:#6366f1;--color-text:#374151;--color-text-muted:#6b7280;--color-background:#fff;--color-surface:#f9fafb;--color-border:#e5e7eb;--font-family-base:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;--font-size-base:1rem;--line-height-base:1.5;--space-4:1rem;--space-6:1.5rem;--radius-lg:0.5rem;--shadow-md:0 4px 6px -1px rgb(0 0 0 / 0.1)}
+    *,*::before,*::after{box-sizing:border-box}*{margin:0}
+    html{font-size:16px;-webkit-font-smoothing:antialiased}
+    body{font-family:var(--font-family-base);font-size:var(--font-size-base);line-height:var(--line-height-base);color:var(--color-text);background-color:var(--color-background);min-height:100vh}
+    img,picture,video,canvas,svg{display:block;max-width:100%}
+    /* Critical nav styles to prevent logo flash */
+    .nav-logo{flex-shrink:0}.nav-logo-img{height:44px;width:auto;min-height:44px}
+    .site-header{background:var(--color-background);border-bottom:1px solid var(--color-border);position:sticky;top:0;z-index:100}
+    .nav-container{display:flex;align-items:center;justify-content:space-between;max-width:var(--container-max-width,1200px);margin:0 auto;padding:0 var(--space-4);height:64px}
+    </style>
+    <!-- Full CSS -->
+    <link rel="stylesheet" href="/static/css/main.css?v=20260125b">
+    <link rel="stylesheet" href="/static/css/themes.css?v=20260114e">
+    <link rel="stylesheet" href="/static/css/help.css?v=20260114e">
+    <link rel="stylesheet" href="/static/css/desktop-nav.css?v=20260125a">
+    <link rel="stylesheet" href="/static/css/assistant-panel.css?v=20260218e">
+    
+<link rel="stylesheet" href="/static/css/dashboard.css">
+<style nonce="">
+/* Edit Mode Styles */
+.dashboard-edit-bar {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 0.75rem;
+}
+
+.btn-customize {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: var(--color-background);
+    border: 2px solid var(--color-border);
+    border-radius: 8px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--color-text);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.btn-customize:hover {
+    border-color: var(--color-accent);
+    background: var(--color-surface);
+    color: var(--color-accent);
+}
+
+.btn-customize:hover svg {
+    stroke: var(--color-accent);
+}
+
+.btn-customize.active {
+    background: var(--color-accent);
+    color: white;
+    border-color: var(--color-accent);
+}
+
+.btn-customize.active svg {
+    stroke: white;
+}
+
+/* Tile container - CSS Grid for flexible layouts */
+.dashboard-tiles {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    grid-auto-rows: min-content;
+    gap: 0.75rem;
+    align-items: start;
+}
+
+/* Tile wrapper for edit mode */
+.tile-wrapper {
+    position: relative;
+    /* Removed fixed min-height to eliminate empty space */
+}
+
+/* Only apply min-height in edit mode so drag targets are usable */
+body.edit-mode .tile-wrapper {
+    min-height: 80px;
+}
+
+/* Size-based grid spans */
+.tile-wrapper[data-tile-size="small"] {
+    grid-column: span 2;
+}
+
+.tile-wrapper[data-tile-size="medium"] {
+    grid-column: span 3;
+}
+
+.tile-wrapper[data-tile-size="large"] {
+    grid-column: span 6;
+}
+
+/* Mobile: stack everything */
+@media (max-width: 768px) {
+    .dashboard-tiles {
+        grid-template-columns: 1fr;
+    }
+    .tile-wrapper[data-tile-size="small"],
+    .tile-wrapper[data-tile-size="medium"],
+    .tile-wrapper[data-tile-size="large"] {
+        grid-column: span 1;
+    }
+    .tile-wrapper {
+        max-width: 100%;
+        overflow: hidden;
+    }
+    .tile-wrapper > section {
+        max-width: 100%;
+        overflow: hidden;
+    }
+}
+
+/* Tablet: 2 columns */
+@media (min-width: 769px) and (max-width: 1024px) {
+    .dashboard-tiles {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .tile-wrapper[data-tile-size="small"] {
+        grid-column: span 1;
+    }
+    .tile-wrapper[data-tile-size="medium"],
+    .tile-wrapper[data-tile-size="large"] {
+        grid-column: span 2;
+    }
+}
+
+.tile-wrapper.hidden-tile {
+    display: none;
+}
+
+body.edit-mode .tile-wrapper.hidden-tile {
+    display: block;
+    opacity: 0.5;
+}
+
+/* Drag and drop styles */
+.tile-wrapper.dragging {
+    opacity: 0.5;
+    cursor: grabbing;
+}
+
+.tile-wrapper.drag-over {
+    border: 2px dashed var(--color-accent);
+    border-radius: 12px;
+}
+
+body.edit-mode .tile-wrapper {
+    cursor: grab;
+}
+
+/* Edit overlay on each tile */
+.tile-edit-overlay {
+    display: none;
+    position: absolute;
+    top: 0;
+    right: 0;
+    padding: 0.5rem;
+    background: rgba(0, 0, 0, 0.7);
+    border-radius: 0 10px 0 10px;
+    z-index: 10;
+    gap: 0.5rem;
+}
+
+body.edit-mode .tile-edit-overlay {
+    display: flex;
+}
+
+.tile-edit-overlay button,
+.tile-edit-overlay label {
+    background: white;
+    border: none;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.tile-edit-overlay button:hover,
+.tile-edit-overlay label:hover {
+    background: var(--color-accent-light, #e0f2fe);
+}
+
+.tile-edit-overlay .size-btn.active {
+    background: var(--color-accent);
+    color: white;
+}
+
+.tile-drag-handle {
+    cursor: grab;
+    padding: 0.375rem 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: white;
+    border-radius: 4px;
+    min-width: 28px;
+    min-height: 28px;
+}
+
+.tile-drag-handle:hover {
+    background: var(--color-accent-light, #e0f2fe);
+}
+
+.tile-drag-handle:active {
+    cursor: grabbing;
+    background: var(--color-accent);
+}
+
+.tile-drag-handle:active svg {
+    stroke: white;
+}
+
+.tile-visibility-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.5rem;
+}
+
+.tile-visibility-toggle input {
+    width: 16px;
+    height: 16px;
+}
+
+/* Tile content should fill wrapper */
+.tile-wrapper > section,
+.tile-wrapper > div:not(.tile-edit-overlay):not(.tile-name-label) {
+    height: 100%;
+}
+
+/* Edit mode indicator */
+body.edit-mode .dashboard-tiles {
+    background: repeating-linear-gradient(
+        45deg,
+        transparent,
+        transparent 10px,
+        rgba(59, 130, 246, 0.03) 10px,
+        rgba(59, 130, 246, 0.03) 20px
+    );
+    padding: 1rem;
+    border-radius: 12px;
+    border: 2px dashed var(--color-accent);
+}
+
+/* Save status indicator */
+.edit-save-status {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    opacity: 0;
+    transition: opacity 0.3s;
+    z-index: 1000;
+}
+
+.edit-save-status.visible {
+    opacity: 1;
+}
+
+.edit-save-status.saving {
+    background: var(--color-info-light, #dbeafe);
+    color: var(--color-info, #2563eb);
+}
+
+.edit-save-status.saved {
+    background: var(--color-success-light, #dcfce7);
+    color: var(--color-success, #16a34a);
+}
+
+.edit-save-status.error {
+    background: var(--color-error-light, #fee2e2);
+    color: var(--color-error, #dc2626);
+}
+
+/* Tile name label in edit mode */
+.tile-name-label {
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    padding: 0.25rem 0.75rem;
+    background: var(--color-accent);
+    color: white;
+    font-size: 0.7rem;
+    font-weight: 600;
+    border-radius: 10px 0 10px 0;
+    z-index: 9;
+}
+
+body.edit-mode .tile-name-label {
+    display: block;
+}
+</style>
+
+
+    <title>Dashboard - Whole Life Journey</title>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/static/icons/common/logo.svg">
+    
+    <!-- Custom accent color override - must come AFTER theme styles -->
+    
+    
+</head>
+<body class="theme-sanctuary has-desktop-nav">
+    
+    <!-- Page load progress bar -->
+    <div id="page-progress" class="page-progress" aria-hidden="true">
+        <div class="page-progress-bar"></div>
+    </div>
+
+    <!-- Skip to content link for accessibility -->
+    <a href="#main-content" class="skip-link">Skip to content</a>
+
+    
+        <!-- Desktop Navigation (hidden on mobile) -->
+        
+<!-- Desktop Top Bar (logo + utility icons) - visible only on desktop -->
+<header class="desktop-top-bar">
+    <div class="desktop-top-bar-inner">
+        <!-- Logo + Site Name -->
+        <a href="/dashboard/" class="desktop-logo">
+            <img src="/static/images/wlj-logo.png" alt="Whole Life Journey" class="desktop-logo-img">
+            <span class="desktop-logo-text">Whole Life Journey</span>
+        </a>
+
+        <!-- Spacer -->
+        <div class="desktop-top-bar-spacer"></div>
+
+        <!-- Utility Icons (right side) -->
+        <div class="desktop-utility-icons">
+            <!-- Favorites Dropdown -->
+            <div class="favorites-dropdown-container">
+                <button type="button" class="desktop-utility-icon favorites-dropdown-trigger" aria-label="Favorites" title="Favorites" aria-expanded="false" aria-haspopup="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                    </svg>
+                </button>
+                <div class="favorites-dropdown favorites-dropdown-desktop" role="menu" aria-label="Favorites menu">
+                    
+                        <div class="favorites-dropdown-empty">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="32" height="32">
+                                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                            </svg>
+                            <p>No favorites yet</p>
+                            <span class="text-muted text-xs">Click ★ on any page to add</span>
+                        </div>
+                    
+                    <a href="/favorites/" class="favorites-dropdown-footer">
+                        Manage Favorites
+                    </a>
+                </div>
+            </div>
+
+            <!-- Context-Aware Help -->
+            <button type="button" class="desktop-utility-icon" data-help-context="DASHBOARD_HOME" data-help-type="user" aria-label="Help" title="Help" data-action="open-help">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                    <circle cx="12" cy="17" r="0.5" fill="currentColor"></circle>
+                </svg>
+            </button>
+
+            
+            
+
+            <!-- Chat Bot / AI Assistant -->
+            
+
+            <!-- Notifications -->
+            <a href="/notifications/" class="desktop-utility-icon" aria-label="Notifications" title="Notifications">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                    <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                </svg>
+                
+            </a>
+
+            <!-- Profile Dropdown -->
+            <div class="desktop-profile-dropdown-container">
+                <button type="button" class="desktop-utility-icon desktop-utility-profile desktop-profile-trigger" aria-label="Profile menu" title="Profile" aria-expanded="false" aria-haspopup="true">
+                    
+                    <span class="desktop-utility-initial">UT</span>
+                    
+                </button>
+                <div class="desktop-profile-dropdown" role="menu" aria-label="Profile menu">
+                    <a href="/user/profile/" class="desktop-profile-link" role="menuitem">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="12" cy="7" r="4"></circle>
+                        </svg>
+                        Profile
+                    </a>
+                    <a href="/user/preferences/" class="desktop-profile-link" role="menuitem">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                        </svg>
+                        Preferences
+                    </a>
+                    <a href="/whats-new/" class="desktop-profile-link" role="menuitem">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+                            <path d="M2 17l10 5 10-5"></path>
+                            <path d="M2 12l10 5 10-5"></path>
+                        </svg>
+                        What's New
+                    </a>
+                    
+                    
+                    <hr class="desktop-profile-divider">
+                    <a href="/admin-console/" class="desktop-profile-link" role="menuitem">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="7" height="7"></rect>
+                            <rect x="14" y="3" width="7" height="7"></rect>
+                            <rect x="14" y="14" width="7" height="7"></rect>
+                            <rect x="3" y="14" width="7" height="7"></rect>
+                        </svg>
+                        Admin Console
+                    </a>
+                    
+                    <hr class="desktop-profile-divider">
+                    <a href="/accounts/logout/" class="desktop-profile-link desktop-profile-logout" role="menuitem">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                            <polyline points="16 17 21 12 16 7"></polyline>
+                            <line x1="21" y1="12" x2="9" y2="12"></line>
+                        </svg>
+                        Sign Out
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</header>
+
+<script nonce="">
+// Desktop Profile Dropdown functionality
+(function() {
+    function initDesktopProfileDropdown() {
+        const trigger = document.querySelector('.desktop-profile-trigger');
+        const container = document.querySelector('.desktop-profile-dropdown-container');
+
+        if (!trigger || !container) return;
+
+        // Toggle on click
+        trigger.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const isOpen = container.classList.contains('open');
+
+            // Close all other dropdowns first (favorites, etc.)
+            document.querySelectorAll('.favorites-dropdown.is-open').forEach(function(dropdown) {
+                dropdown.classList.remove('is-open');
+            });
+
+            if (isOpen) {
+                container.classList.remove('open');
+                trigger.setAttribute('aria-expanded', 'false');
+            } else {
+                container.classList.add('open');
+                trigger.setAttribute('aria-expanded', 'true');
+            }
+        });
+
+        // Close when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!container.contains(e.target)) {
+                container.classList.remove('open');
+                trigger.setAttribute('aria-expanded', 'false');
+            }
+        });
+
+        // Close on Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && container.classList.contains('open')) {
+                container.classList.remove('open');
+                trigger.setAttribute('aria-expanded', 'false');
+            }
+        });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initDesktopProfileDropdown);
+    } else {
+        initDesktopProfileDropdown();
+    }
+})();
+</script>
+
+
+        <!-- Mobile Navigation (hidden on desktop with new nav) -->
+        
+
+<header class="site-header">
+    <nav class="nav-container" aria-label="Main navigation">
+        <!-- Logo + Site Name -->
+        <a href="/dashboard/" class="nav-logo">
+            <img src="/static/images/wlj-logo.png" alt="Whole Life Journey" class="nav-logo-img">
+            <span class="nav-logo-text">WLJ</span>
+        </a>
+
+        <!-- Mobile top-right utility icons (Phase 1) -->
+        
+<!-- Mobile Top-Right Utility Icons (Phase 4) -->
+<div class="top-utility-icons">
+    <!-- Favorites Dropdown -->
+    <div class="favorites-dropdown-container">
+        <button type="button" class="utility-icon favorites-dropdown-trigger" aria-label="Favorites" title="Favorites" aria-expanded="false" aria-haspopup="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+            </svg>
+        </button>
+        <div class="favorites-dropdown" role="menu" aria-label="Favorites menu">
+            
+                <div class="favorites-dropdown-empty">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="32" height="32">
+                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                    </svg>
+                    <p>No favorites yet</p>
+                    <span class="text-muted text-xs">Tap ★ on any page to add</span>
+                </div>
+            
+            <a href="/favorites/" class="favorites-dropdown-footer">
+                Manage Favorites
+            </a>
+        </div>
+    </div>
+
+    <!-- Context-Aware Help -->
+    <button type="button" class="utility-icon" data-help-context="DASHBOARD_HOME" data-help-type="user" aria-label="Help" title="Help" data-action="open-help">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+            <circle cx="12" cy="17" r="0.5" fill="currentColor"></circle>
+        </svg>
+    </button>
+
+    <!-- Chat Bot / AI Assistant - opens the chat widget drawer -->
+    
+
+    <!-- Notifications -->
+    <a href="/notifications/" class="utility-icon utility-icon-notifications" aria-label="Notifications" title="Notifications">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+        </svg>
+        
+    </a>
+
+    <!-- Profile -->
+    <a href="/user/profile/" class="utility-icon utility-icon-profile" aria-label="Profile" title="Profile">
+        
+        <span class="utility-icon-initial">UT</span>
+        
+    </a>
+</div>
+
+
+        <!-- Mobile menu button -->
+        <button type="button" class="nav-mobile-toggle" aria-expanded="false" aria-controls="nav-menu">
+            <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+            </svg>
+            <span class="nav-mobile-toggle-text">Menu</span>
+        </button>
+
+        <!-- Navigation links -->
+        <div id="nav-menu" class="nav-menu">
+            <ul class="nav-links">
+                <!-- Dashboard - Always visible (no submenu) -->
+                <li>
+                    <a href="/dashboard/" class="nav-link active">
+                        <svg class="nav-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                        </svg>
+                        <span>Dashboard</span>
+                    </a>
+                </li>
+
+                <!-- Chief of Staff - Conditional on AI + Personal Assistant enabled and consent -->
+                
+
+                <!-- Favorites - With Submenu (favorites + most used pages) -->
+                <li class="nav-dropdown" data-nav-dropdown="">
+                    <button type="button" class="nav-link nav-dropdown-toggle" aria-expanded="false" aria-haspopup="true">
+                        <svg class="nav-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                        </svg>
+                        <span>Favorites</span>
+                        <svg class="nav-dropdown-chevron" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                        </svg>
+                    </button>
+                    <div class="nav-dropdown-menu" hidden="">
+                        
+                        
+                        
+                            
+                            <a href="/journal/entries/" class="nav-dropdown-item">
+                                <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 20V10"></path>
+                                    <path d="M18 20V4"></path>
+                                    <path d="M6 20v-4"></path>
+                                </svg>
+                                Journal
+                            </a>
+                            
+                            <a href="/journal/new/" class="nav-dropdown-item">
+                                <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 20V10"></path>
+                                    <path d="M18 20V4"></path>
+                                    <path d="M6 20v-4"></path>
+                                </svg>
+                                New Journal Entry
+                            </a>
+                            
+                            <a href="/purpose/goals/" class="nav-dropdown-item">
+                                <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 20V10"></path>
+                                    <path d="M18 20V4"></path>
+                                    <path d="M6 20v-4"></path>
+                                </svg>
+                                Life Goals
+                            </a>
+                            
+                            <a href="/purpose/goals/new/" class="nav-dropdown-item">
+                                <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 20V10"></path>
+                                    <path d="M18 20V4"></path>
+                                    <path d="M6 20v-4"></path>
+                                </svg>
+                                Add Goal
+                            </a>
+                            
+                            <a href="/dashboard/" class="nav-dropdown-item">
+                                <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 20V10"></path>
+                                    <path d="M18 20V4"></path>
+                                    <path d="M6 20v-4"></path>
+                                </svg>
+                                Dashboard
+                            </a>
+                            
+                            <a href="/journal/18/" class="nav-dropdown-item">
+                                <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 20V10"></path>
+                                    <path d="M18 20V4"></path>
+                                    <path d="M6 20v-4"></path>
+                                </svg>
+                                AUTOTEST|journal|8b1dc778|Entry Alpha Edited
+                            </a>
+                            
+                            <a href="/journal/14/" class="nav-dropdown-item">
+                                <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 20V10"></path>
+                                    <path d="M18 20V4"></path>
+                                    <path d="M6 20v-4"></path>
+                                </svg>
+                                AUTOTEST|journal|8ecd8454|Entry Alpha Edited
+                            </a>
+                            
+                            <a href="/journal/10/" class="nav-dropdown-item">
+                                <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 20V10"></path>
+                                    <path d="M18 20V4"></path>
+                                    <path d="M6 20v-4"></path>
+                                </svg>
+                                AUTOTEST|journal|51e227ce|Entry Alpha Edited
+                            </a>
+                            
+                            <a href="/purpose/goals/12/" class="nav-dropdown-item">
+                                <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 20V10"></path>
+                                    <path d="M18 20V4"></path>
+                                    <path d="M6 20v-4"></path>
+                                </svg>
+                                AUTOTEST|goals|993f4eca|Edited Goal
+                            </a>
+                            
+                            <a href="/purpose/goals/7/" class="nav-dropdown-item">
+                                <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 20V10"></path>
+                                    <path d="M18 20V4"></path>
+                                    <path d="M6 20v-4"></path>
+                                </svg>
+                                AUTOTEST|goals|468adc56|Edited Goal
+                            </a>
+                            
+                            <a href="/purpose/goals/4/" class="nav-dropdown-item">
+                                <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 20V10"></path>
+                                    <path d="M18 20V4"></path>
+                                    <path d="M6 20v-4"></path>
+                                </svg>
+                                AUTOTEST|goals|95cdcfdb|Edited Goal
+                            </a>
+                            
+                            <a href="/journal/18/edit/" class="nav-dropdown-item">
+                                <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 20V10"></path>
+                                    <path d="M18 20V4"></path>
+                                    <path d="M6 20v-4"></path>
+                                </svg>
+                                Edit Entry
+                            </a>
+                            
+                            <a href="/journal/14/edit/" class="nav-dropdown-item">
+                                <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 20V10"></path>
+                                    <path d="M18 20V4"></path>
+                                    <path d="M6 20v-4"></path>
+                                </svg>
+                                Edit Entry
+                            </a>
+                            
+                            <a href="/journal/10/edit/" class="nav-dropdown-item">
+                                <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 20V10"></path>
+                                    <path d="M18 20V4"></path>
+                                    <path d="M6 20v-4"></path>
+                                </svg>
+                                Edit Entry
+                            </a>
+                            
+                            <a href="/purpose/goals/12/edit/" class="nav-dropdown-item">
+                                <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 20V10"></path>
+                                    <path d="M18 20V4"></path>
+                                    <path d="M6 20v-4"></path>
+                                </svg>
+                                Edit Goal
+                            </a>
+                            
+                            <a href="/purpose/goals/7/edit/" class="nav-dropdown-item">
+                                <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 20V10"></path>
+                                    <path d="M18 20V4"></path>
+                                    <path d="M6 20v-4"></path>
+                                </svg>
+                                Edit Goal
+                            </a>
+                            
+                        
+                        
+                    </div>
+                </li>
+
+                <!-- Capture - Audio recording and transcription -->
+                
+                <li>
+                    <a href="/capture/" class="nav-link ">
+                        <svg class="nav-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                            <line x1="12" y1="19" x2="12" y2="23"></line>
+                            <line x1="8" y1="23" x2="16" y2="23"></line>
+                        </svg>
+                        <span>Capture</span>
+                    </a>
+                </li>
+                
+
+                <!-- Journal - With Submenu -->
+                
+                <li class="nav-dropdown" data-nav-dropdown="">
+                    <button type="button" class="nav-link nav-dropdown-toggle " aria-expanded="false" aria-haspopup="true">
+                        <svg class="nav-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                        </svg>
+                        <span>Journal</span>
+                        <svg class="nav-dropdown-chevron" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                        </svg>
+                    </button>
+                    <div class="nav-dropdown-menu" hidden="">
+                        <a href="/journal/" class="nav-dropdown-item">
+                            <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                            </svg>
+                            Journal Home
+                        </a>
+                        <a href="/journal/new/" class="nav-dropdown-item">
+                            <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 5v14M5 12h14"></path>
+                            </svg>
+                            New Entry
+                        </a>
+                        <a href="/journal/entries/" class="nav-dropdown-item">
+                            <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M4 6h16M4 10h16M4 14h16M4 18h16"></path>
+                            </svg>
+                            All Entries
+                        </a>
+                        <a href="/journal/book-view/" class="nav-dropdown-item">
+                            <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M4 19.5A2.5 2.5 0 016.5 17H20M4 19.5V5a2 2 0 012-2h14v14H6.5a2.5 2.5 0 00-2.5 2.5z"></path>
+                            </svg>
+                            Book View
+                        </a>
+                        <hr class="nav-dropdown-divider">
+                        
+                        <a href="/journal/prompts/" class="nav-dropdown-item">
+                            <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                            </svg>
+                            Prompts
+                        </a>
+                        
+                        
+                        <a href="/journal/tags/" class="nav-dropdown-item">
+                            <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M7 7h.01M7 3h5a1.99 1.99 0 011.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path>
+                            </svg>
+                            Tags
+                        </a>
+                        
+                    </div>
+                </li>
+                
+
+                <!-- Faith - With Submenu -->
+                
+                <li class="nav-dropdown" data-nav-dropdown="">
+                    <button type="button" class="nav-link nav-dropdown-toggle " aria-expanded="false" aria-haspopup="true">
+                        <svg class="nav-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 2v20M7 7h10"></path>
+                        </svg>
+                        <span>Faith</span>
+                        <svg class="nav-dropdown-chevron" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                        </svg>
+                    </button>
+                    <div class="nav-dropdown-menu" hidden="">
+                        <a href="/faith/" class="nav-dropdown-item">
+                            <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                            </svg>
+                            Faith Home
+                        </a>
+                        
+                        <a href="/faith/verse/" class="nav-dropdown-item">
+                            <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707"></path>
+                            </svg>
+                            Today's Verse
+                        </a>
+                        <hr class="nav-dropdown-divider">
+                        
+                        <a href="/faith/reading-plans/" class="nav-dropdown-item">
+                            <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M4 19.5A2.5 2.5 0 016.5 17H20M4 19.5V5a2 2 0 012-2h14v14H6.5a2.5 2.5 0 00-2.5 2.5z"></path>
+                                <path d="M9 7h6M9 11h6M9 15h4"></path>
+                            </svg>
+                            Reading Plans
+                        </a>
+                        
+                        
+                        <a href="/faith/study-tools/" class="nav-dropdown-item">
+                            <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"></path>
+                                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                            </svg>
+                            Study Tools
+                        </a>
+                        
+                        <hr class="nav-dropdown-divider">
+                        <a href="/faith/scripture/" class="nav-dropdown-item">
+                            <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M4 19.5A2.5 2.5 0 016.5 17H20M4 19.5V5a2 2 0 012-2h14v14H6.5a2.5 2.5 0 00-2.5 2.5z"></path>
+                            </svg>
+                            Saved Scripture
+                        </a>
+                        
+                        
+                        <a href="/faith/prayers/" class="nav-dropdown-item">
+                            <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11"></path>
+                            </svg>
+                            Prayers
+                        </a>
+                        
+                        
+                        <a href="/faith/milestones/" class="nav-dropdown-item">
+                            <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            Milestones
+                        </a>
+                        
+                        
+                        <a href="/faith/reflections/" class="nav-dropdown-item">
+                            <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0zM2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                            </svg>
+                            Reflections
+                        </a>
+                        
+                    </div>
+                </li>
+                
+
+                <!-- Health - With Submenu (Large menu - grouped) -->
+                
+                <li class="nav-dropdown nav-mega-dropdown" data-nav-dropdown="">
+                    <button type="button" class="nav-link nav-dropdown-toggle " aria-expanded="false" aria-haspopup="true">
+                        <svg class="nav-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                        </svg>
+                        <span>Health</span>
+                        <svg class="nav-dropdown-chevron" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                        </svg>
+                    </button>
+                    <div class="nav-dropdown-menu nav-mega-menu" hidden="">
+                        <div class="nav-mega-columns">
+                            <!-- Vitals Column -->
+                            <div class="nav-mega-column">
+                                <div class="nav-mega-heading">Vitals</div>
+                                <a href="/health/physical/" class="nav-dropdown-item">Health Home</a>
+                                <a href="/health/physical/weight/" class="nav-dropdown-item">Weight</a>
+                                <a href="/health/physical/heart-rate/" class="nav-dropdown-item">Heart Rate</a>
+                                <a href="/health/physical/blood-pressure/" class="nav-dropdown-item">Blood Pressure</a>
+                                <a href="/health/physical/glucose/" class="nav-dropdown-item">Glucose</a>
+                                <a href="/health/physical/blood-oxygen/" class="nav-dropdown-item">Blood Oxygen</a>
+                                
+                            </div>
+                            <!-- Medicine Column -->
+                            
+                            <div class="nav-mega-column">
+                                <div class="nav-mega-heading">Medicine</div>
+                                <a href="/health/physical/medicine/" class="nav-dropdown-item">Today's Medicines</a>
+                                <a href="/health/physical/medicine/list/" class="nav-dropdown-item">All Medicines</a>
+                                <a href="/health/physical/medicine/history/" class="nav-dropdown-item">History</a>
+                                <a href="/health/physical/medicine/adherence/" class="nav-dropdown-item">Adherence</a>
+                            </div>
+                            
+                            <!-- Fitness Column -->
+                            
+                            <div class="nav-mega-column">
+                                <div class="nav-mega-heading">Fitness</div>
+                                <a href="/health/physical/fitness/" class="nav-dropdown-item">Fitness Home</a>
+                                <a href="/health/physical/steps/" class="nav-dropdown-item">Steps</a>
+                                <a href="/health/physical/fitness/workouts/" class="nav-dropdown-item">Workouts</a>
+                                <a href="/health/physical/fitness/templates/" class="nav-dropdown-item">Templates</a>
+                                <a href="/health/physical/fitness/prs/" class="nav-dropdown-item">Personal Records</a>
+                            </div>
+                            
+                            <!-- Nutrition Column -->
+                            
+                            <div class="nav-mega-column">
+                                <div class="nav-mega-heading">Nutrition</div>
+                                <a href="/health/physical/nutrition/" class="nav-dropdown-item">Nutrition Home</a>
+                                <a href="/health/physical/nutrition/history/" class="nav-dropdown-item">Food History</a>
+                                <a href="/health/physical/nutrition/stats/" class="nav-dropdown-item">Statistics</a>
+                                <a href="/health/physical/nutrition/goals/" class="nav-dropdown-item">Goals</a>
+                                <a href="/health/physical/fasting/" class="nav-dropdown-item">Fasting</a>
+                            </div>
+                            
+                            <!-- Labs Column -->
+                            <div class="nav-mega-column">
+                                <div class="nav-mega-heading">Labs</div>
+                                <a href="/medical/" class="nav-dropdown-item">Labs &amp; Vitals</a>
+                                <a href="/medical/upload/" class="nav-dropdown-item">Upload Lab PDF</a>
+                            </div>
+                            <!-- Providers Column -->
+                            
+                            <div class="nav-mega-column">
+                                <div class="nav-mega-heading">Providers</div>
+                                <a href="/health/physical/providers/" class="nav-dropdown-item">Medical Providers</a>
+                            </div>
+                            
+                        </div>
+                    </div>
+                </li>
+                
+
+                <!-- Life - With Submenu -->
+                
+                <li class="nav-dropdown" data-nav-dropdown="">
+                    <button type="button" class="nav-link nav-dropdown-toggle " aria-expanded="false" aria-haspopup="true">
+                        <svg class="nav-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                        </svg>
+                        <span>Organize</span>
+                        <svg class="nav-dropdown-chevron" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                        </svg>
+                    </button>
+                    <div class="nav-dropdown-menu nav-dropdown-menu-wide" hidden="">
+                        <div class="nav-mega-columns nav-mega-columns-2">
+                            <div class="nav-mega-column">
+                                <a href="/life/" class="nav-dropdown-item">
+                                    <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                                    </svg>
+                                    Organize Home
+                                </a>
+                                
+                                <a href="/calendar/" class="nav-dropdown-item">
+                                    <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                                        <line x1="16" y1="2" x2="16" y2="6"></line>
+                                        <line x1="8" y1="2" x2="8" y2="6"></line>
+                                        <line x1="3" y1="10" x2="21" y2="10"></line>
+                                    </svg>
+                                    Calendar
+                                </a>
+                                
+                                
+                                <a href="/life/projects/" class="nav-dropdown-item">
+                                    <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"></path>
+                                    </svg>
+                                    Projects
+                                </a>
+                                
+                                
+                                <a href="/life/tasks/" class="nav-dropdown-item">
+                                    <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"></path>
+                                    </svg>
+                                    Tasks
+                                </a>
+                                
+                            </div>
+                            <div class="nav-mega-column">
+                                
+                                <a href="/life/inventory/" class="nav-dropdown-item">
+                                    <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                                    </svg>
+                                    Inventory
+                                </a>
+                                
+                                
+                                <a href="/life/pets/" class="nav-dropdown-item">
+                                    <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M10 5.172C10 3.782 8.423 2.679 6.5 3c-2.823.47-4.113 6.006-4 7 .08.703 1.725 1.722 3.656 1 1.261-.472 1.96-1.45 2.344-2.5M14 5.172c0-1.39 1.577-2.493 3.5-2.172 2.823.47 4.113 6.006 4 7-.08.703-1.725 1.722-3.656 1-1.261-.472-1.855-1.45-2.344-2.5M8 14v.5M16 14v.5M11.25 16.25h1.5L12 17l-.75-.75zM4.42 11.247A13.152 13.152 0 004 14.556C4 18.728 7.582 21 12 21s8-2.272 8-6.444c0-1.061-.162-2.2-.493-3.309m-9.243-6.082A8.801 8.801 0 0112 5c.78 0 1.5.108 2.161.306"></path>
+                                    </svg>
+                                    Pets
+                                </a>
+                                
+                                
+                                <a href="/life/recipes/" class="nav-dropdown-item">
+                                    <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M15 11h.01M11 15h.01M16 16h.01M2 16l20 6-6-20A20 20 0 002 16M5.71 17.11a17.04 17.04 0 0111.4-11.4"></path>
+                                    </svg>
+                                    Recipes
+                                </a>
+                                
+                                
+                                <a href="/life/maintenance/" class="nav-dropdown-item">
+                                    <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"></path>
+                                    </svg>
+                                    Maintenance
+                                </a>
+                                
+                                
+                                <a href="/life/documents/" class="nav-dropdown-item">
+                                    <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"></path>
+                                        <polyline points="14 2 14 8 20 8"></polyline>
+                                    </svg>
+                                    Documents
+                                </a>
+                                
+                                
+                                <a href="/life/significant-events/" class="nav-dropdown-item">
+                                    <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                    Significant Events
+                                </a>
+                                
+                            </div>
+                        </div>
+                    </div>
+                </li>
+                
+
+                <!-- Purpose - With Submenu -->
+                
+                <li class="nav-dropdown" data-nav-dropdown="">
+                    <button type="button" class="nav-link nav-dropdown-toggle " aria-expanded="false" aria-haspopup="true">
+                        <svg class="nav-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <circle cx="12" cy="12" r="6"></circle>
+                            <circle cx="12" cy="12" r="2"></circle>
+                        </svg>
+                        <span>Goals</span>
+                        <svg class="nav-dropdown-chevron" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                        </svg>
+                    </button>
+                    <div class="nav-dropdown-menu" hidden="">
+                        <a href="/purpose/" class="nav-dropdown-item">
+                            <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                            </svg>
+                            Goals Home
+                        </a>
+                        <hr class="nav-dropdown-divider">
+                        
+                        <a href="/purpose/direction/" class="nav-dropdown-item">
+                            <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M22 11.08V12a10 10 0 11-5.93-9.14"></path>
+                                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                            </svg>
+                            Yearly Focus
+                        </a>
+                        
+                        
+                        <a href="/purpose/goals/" class="nav-dropdown-item">
+                            <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
+                            </svg>
+                            Life Goals
+                        </a>
+                        
+                        
+                        <a href="/purpose/habits/" class="nav-dropdown-item">
+                            <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="3" width="7" height="7" rx="1"></rect>
+                                <rect x="14" y="3" width="7" height="7" rx="1"></rect>
+                                <rect x="3" y="14" width="7" height="7" rx="1"></rect>
+                                <rect x="14" y="14" width="7" height="7" rx="1"></rect>
+                            </svg>
+                            Habit Goals
+                        </a>
+                        
+                        
+                        <a href="/purpose/intentions/" class="nav-dropdown-item">
+                            <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>
+                            </svg>
+                            Intentions
+                        </a>
+                        
+                        
+                        <a href="/purpose/reflections/" class="nav-dropdown-item">
+                            <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0zM2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                            </svg>
+                            Reflections
+                        </a>
+                        
+                    </div>
+                </li>
+                
+
+                <!-- Intelligence - With Submenu (conditional on AI enabled) -->
+                
+                <li class="nav-dropdown" data-nav-dropdown="">
+                    <button type="button" class="nav-link nav-dropdown-toggle " aria-expanded="false" aria-haspopup="true">
+                        <svg class="nav-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                            <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                        </svg>
+                        <span>Intelligence</span>
+                        <svg class="nav-dropdown-chevron" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                        </svg>
+                    </button>
+                    <div class="nav-dropdown-menu" hidden="">
+                        <a href="/intelligence/" class="nav-dropdown-item">
+                            <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                                <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                            </svg>
+                            Command Center
+                        </a>
+                        <hr class="nav-dropdown-divider">
+                        <a href="/guidance/" class="nav-dropdown-item">
+                            <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                            </svg>
+                            Guidance
+                        </a>
+                        <a href="/insights/" class="nav-dropdown-item">
+                            <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="12" y1="16" x2="12" y2="12"></line>
+                                <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                            </svg>
+                            Insights
+                        </a>
+                        <a href="/intelligence/weekly/" class="nav-dropdown-item">
+                            <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M3 3v18h18"></path>
+                                <path d="M18 9l-5 5-4-4-6 6"></path>
+                            </svg>
+                            Weekly Reports
+                        </a>
+                        <hr class="nav-dropdown-divider">
+                        <a href="/intelligence/delivery/settings/" class="nav-dropdown-item">
+                            <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="3"></circle>
+                                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                            </svg>
+                            Delivery Settings
+                        </a>
+                    </div>
+                </li>
+                
+
+                <!-- Finance - With Submenu -->
+                
+
+            </ul>
+
+            <!-- Help button -->
+            <div class="nav-help">
+                <button type="button" class="help-button" data-help-context="DASHBOARD_HOME" data-help-type="user" aria-label="Get help for this page" title="Help" data-action="open-help">
+                    <svg class="help-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <text x="12" y="17" text-anchor="middle" fill="currentColor" stroke="none" font-size="14" font-weight="600" font-family="system-ui, sans-serif">?</text>
+                    </svg>
+                    <span class="help-button-text">Help</span>
+                </button>
+            </div>
+
+            
+            
+
+            <!-- Notification bell -->
+            
+
+<div class="nav-notifications" id="notification-bell-container">
+    <button type="button" class="notification-bell-button" id="notification-bell-trigger" aria-expanded="false" aria-haspopup="true" aria-label="Notifications" title="Notifications">
+        <!-- Bell icon -->
+        <svg class="notification-bell-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+        </svg>
+        <!-- Unread badge -->
+        <span class="notification-badge" id="notification-badge" hidden="">0</span>
+    </button>
+
+    <!-- Dropdown -->
+    <div id="notification-dropdown" class="notification-dropdown" hidden="">
+        <div class="notification-dropdown-header">
+            <h3 class="notification-dropdown-title">Notifications</h3>
+            <button type="button" class="notification-mark-all-btn" data-action="mark-all-read" title="Mark all as read">
+                Mark all read
+            </button>
+        </div>
+
+        <div class="notification-dropdown-content" id="notification-list">
+            <!-- Populated by JavaScript -->
+            <div class="notification-loading">Loading...</div>
+        </div>
+
+        <div class="notification-dropdown-footer">
+            <a href="/notifications/" class="notification-view-all-link">
+                View all notifications
+            </a>
+        </div>
+    </div>
+</div>
+
+<style nonce="">
+/* Notification Bell Container */
+.nav-notifications {
+    position: relative;
+    flex-shrink: 0;
+    margin-right: 0.5rem;
+}
+
+/* Bell Button */
+.notification-bell-button {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    color: var(--color-text-muted);
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.notification-bell-button:hover {
+    background-color: var(--color-surface);
+    color: var(--color-text);
+}
+
+.notification-bell-button:focus {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+}
+
+.notification-bell-icon {
+    width: 22px;
+    height: 22px;
+}
+
+/* Badge */
+.notification-badge {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 18px;
+    text-align: center;
+    color: white;
+    background-color: var(--color-error, #ef4444);
+    border-radius: 9px;
+    pointer-events: none;
+}
+
+.notification-badge[hidden] {
+    display: none;
+}
+
+/* Dropdown */
+.notification-dropdown {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    width: 360px;
+    max-width: calc(100vw - 2rem);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+    overflow: hidden;
+}
+
+.notification-dropdown[hidden] {
+    display: none;
+}
+
+/* Dropdown Header */
+.notification-dropdown-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.875rem 1rem;
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-surface);
+}
+
+.notification-dropdown-title {
+    margin: 0;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.notification-mark-all-btn {
+    padding: 0.375rem 0.625rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--color-accent);
+    background: transparent;
+    border: 1px solid var(--color-accent);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.notification-mark-all-btn:hover {
+    background: var(--color-accent);
+    color: white;
+}
+
+/* Dropdown Content */
+.notification-dropdown-content {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.notification-loading {
+    padding: 2rem;
+    text-align: center;
+    color: var(--color-text-muted);
+}
+
+.notification-empty {
+    padding: 2rem;
+    text-align: center;
+    color: var(--color-text-muted);
+}
+
+.notification-empty-icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+}
+
+/* Notification Item */
+.notification-item {
+    display: flex;
+    gap: 0.75rem;
+    padding: 0.875rem 1rem;
+    border-bottom: 1px solid var(--color-border);
+    cursor: pointer;
+    transition: background-color 0.15s;
+    text-decoration: none;
+    color: inherit;
+}
+
+.notification-item:hover {
+    background-color: var(--color-surface);
+}
+
+.notification-item:last-child {
+    border-bottom: none;
+}
+
+.notification-item.unread {
+    background-color: rgba(var(--color-accent-rgb, 99, 102, 241), 0.05);
+}
+
+.notification-item-icon {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    background: var(--color-surface);
+    border-radius: var(--radius-full);
+}
+
+.notification-item-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.notification-item-title {
+    margin: 0 0 0.25rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--color-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.notification-item-message {
+    margin: 0;
+    font-size: 0.8125rem;
+    color: var(--color-text-muted);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.notification-item-time {
+    margin-top: 0.375rem;
+    font-size: 0.6875rem;
+    color: var(--color-text-muted);
+}
+
+/* Dropdown Footer */
+.notification-dropdown-footer {
+    padding: 0.75rem 1rem;
+    border-top: 1px solid var(--color-border);
+    background: var(--color-surface);
+    text-align: center;
+}
+
+.notification-view-all-link {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--color-accent);
+    text-decoration: none;
+}
+
+.notification-view-all-link:hover {
+    text-decoration: underline;
+}
+
+/* Mobile adjustments */
+@media (max-width: 480px) {
+    .notification-dropdown {
+        position: fixed;
+        top: auto;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        width: 100%;
+        max-width: none;
+        border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+        max-height: 70vh;
+    }
+
+    .notification-dropdown-content {
+        max-height: calc(70vh - 120px);
+    }
+}
+</style>
+
+
+            <!-- User menu -->
+            <div class="nav-user">
+                <button type="button" class="nav-user-button" aria-expanded="false" aria-haspopup="true">
+                    
+                        <span class="nav-user-initial">UT</span>
+                    
+                    <span class="nav-user-name">UI</span>
+                    <svg class="nav-user-chevron" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                    </svg>
+                </button>
+
+                <div id="user-menu" class="nav-user-dropdown" hidden="">
+                    <a href="/user/profile/" class="nav-user-link">Profile</a>
+                    <a href="/user/preferences/" class="nav-user-link">Preferences</a>
+                    <a href="/whats-new/" class="nav-user-link">What's New</a>
+                    
+                    
+                    <hr class="nav-user-divider">
+                    <a href="/admin-console/" class="nav-user-link">Admin Console</a>
+                    
+                    <hr class="nav-user-divider">
+                    <a href="/accounts/logout/" class="nav-user-link">Sign out</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+</header>
+
+<style nonce="">
+.nav-logo {
+    flex-shrink: 0;
+}
+
+.nav-logo-img {
+    height: 44px;
+    width: auto;
+    min-height: 44px;
+}
+
+.nav-user {
+    flex-shrink: 0;
+}
+
+.nav-user-avatar {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    min-height: 32px;
+    border-radius: var(--radius-full);
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+.nav-user-initial {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    min-height: 32px;
+    border-radius: var(--radius-full);
+    background: var(--color-accent);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+    .nav-logo-img {
+        height: 36px;
+        min-height: 36px;
+    }
+}
+</style>
+
+        
+
+
+
+
+<!-- Include for JavaScript-based detection only when capture is enabled -->
+<div id="pending-capture-banner-placeholder" style="display: none;" data-record-url="/capture/record/"></div>
+
+<style nonce="">
+.pending-capture-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4, 1rem);
+    padding: var(--space-3, 0.75rem) var(--space-4, 1rem);
+    background: linear-gradient(135deg, #fef3c7, #fde68a);
+    border-bottom: 1px solid #fbbf24;
+    animation: pending-banner-slide-in 0.3s ease-out;
+}
+
+@keyframes pending-banner-slide-in {
+    from {
+        opacity: 0;
+        transform: translateY(-100%);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.pending-capture-banner-content {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3, 0.75rem);
+}
+
+.pending-capture-icon {
+    font-size: 1.5rem;
+}
+
+.pending-capture-text strong {
+    display: block;
+    color: #92400e;
+    font-size: var(--font-size-sm, 0.875rem);
+}
+
+.pending-capture-text p {
+    margin: 0;
+    color: #78350f;
+    font-size: var(--font-size-xs, 0.75rem);
+}
+
+.pending-capture-text a {
+    color: #92400e;
+    font-weight: 600;
+    text-decoration: underline;
+}
+
+.pending-capture-text a:hover {
+    color: #78350f;
+}
+
+.pending-capture-dismiss {
+    flex-shrink: 0;
+    padding: var(--space-2, 0.5rem);
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-md, 0.375rem);
+    color: #92400e;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.pending-capture-dismiss:hover {
+    background: rgba(146, 64, 14, 0.1);
+}
+
+/* Mobile responsive */
+@media (max-width: 480px) {
+    .pending-capture-banner {
+        padding: var(--space-2, 0.5rem) var(--space-3, 0.75rem);
+    }
+
+    .pending-capture-icon {
+        font-size: 1.25rem;
+    }
+
+    .pending-capture-text strong {
+        font-size: var(--font-size-xs, 0.75rem);
+    }
+
+    .pending-capture-text p {
+        font-size: 0.6875rem;
+    }
+}
+</style>
+
+<script nonce="">
+(function() {
+    'use strict';
+
+    const DB_NAME = 'WLJCaptureQueue';
+    const DB_VERSION = 1;
+    const RECORDINGS_STORE = 'recordings';
+
+    // Session storage key for dismissed state (clears on tab close)
+    const DISMISSED_KEY = 'wlj_pending_capture_banner_dismissed';
+
+    /**
+     * Open the capture queue database
+     */
+    function openDatabase() {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+            request.onerror = () => reject(request.error);
+            request.onsuccess = () => resolve(request.result);
+
+            request.onupgradeneeded = (event) => {
+                const db = event.target.result;
+                if (!db.objectStoreNames.contains(RECORDINGS_STORE)) {
+                    const store = db.createObjectStore(RECORDINGS_STORE, { keyPath: 'clientId' });
+                    store.createIndex('status', 'uploadStatus', { unique: false });
+                    store.createIndex('createdAt', 'createdAt', { unique: false });
+                }
+            };
+        });
+    }
+
+    /**
+     * Get count of pending recordings in IndexedDB
+     */
+    async function getPendingCount() {
+        try {
+            const db = await openDatabase();
+            const tx = db.transaction(RECORDINGS_STORE, 'readonly');
+            const store = tx.objectStore(RECORDINGS_STORE);
+
+            return new Promise((resolve) => {
+                const countRequest = store.count();
+                countRequest.onsuccess = () => {
+                    db.close();
+                    resolve(countRequest.result);
+                };
+                countRequest.onerror = () => {
+                    db.close();
+                    resolve(0);
+                };
+            });
+        } catch (error) {
+            console.warn('Could not check IndexedDB for pending captures:', error);
+            return 0;
+        }
+    }
+
+    /**
+     * Check if banner was dismissed this session
+     */
+    function wasDismissedThisSession() {
+        try {
+            return sessionStorage.getItem(DISMISSED_KEY) === 'true';
+        } catch {
+            return false;
+        }
+    }
+
+    /**
+     * Update banner visibility and content
+     */
+    async function updateBanner() {
+        const banner = document.getElementById('pending-capture-banner');
+        if (!banner) return;
+
+        // Don't show if dismissed this session
+        if (wasDismissedThisSession()) {
+            banner.style.display = 'none';
+            return;
+        }
+
+        const pendingCount = await getPendingCount();
+
+        if (pendingCount > 0) {
+            // Update title based on count
+            const title = document.getElementById('pending-capture-title');
+            if (title) {
+                title.textContent = pendingCount === 1
+                    ? 'You have a pending recording'
+                    : `You have ${pendingCount} pending recordings`;
+            }
+
+            banner.style.display = 'flex';
+        } else {
+            banner.style.display = 'none';
+        }
+    }
+
+    /**
+     * Dismiss the banner for this session
+     */
+    window.dismissPendingCaptureBanner = function() {
+        const banner = document.getElementById('pending-capture-banner');
+        if (!banner) return;
+
+        // Animate out
+        banner.style.opacity = '0';
+        banner.style.transform = 'translateY(-100%)';
+        banner.style.transition = 'all 0.2s ease-out';
+
+        // Mark as dismissed for this session
+        try {
+            sessionStorage.setItem(DISMISSED_KEY, 'true');
+        } catch (e) {
+            // Ignore storage errors
+        }
+
+        setTimeout(() => {
+            banner.style.display = 'none';
+        }, 200);
+    };
+
+    // Check on page load
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', updateBanner);
+    } else {
+        updateBanner();
+    }
+
+    // Also expose for manual refresh
+    window.updatePendingCaptureBanner = updateBanner;
+})();
+</script>
+
+
+    
+
+    <!-- Desktop Layout Wrapper (for flex layout with left rail) -->
+    <div class="desktop-layout-wrapper">
+        
+            <!-- Desktop Left Rail (hidden on mobile) -->
+            
+<!-- Desktop Left Rail Navigation (visible only on desktop) -->
+<aside class="desktop-left-rail" id="desktop-left-rail" aria-label="Main navigation">
+    <!-- Collapse/Expand Toggle at top -->
+    <button type="button" class="rail-collapse-toggle rail-collapse-top" aria-label="Toggle navigation width" data-tooltip="Collapse">
+        <svg class="rail-icon rail-icon-collapse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M11 17l-5-5 5-5"></path>
+            <path d="M18 17l-5-5 5-5"></path>
+        </svg>
+        <svg class="rail-icon rail-icon-expand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M13 7l5 5-5 5"></path>
+            <path d="M6 7l5 5-5 5"></path>
+        </svg>
+        <span class="rail-label">Collapse</span>
+    </button>
+
+    <div class="rail-divider"></div>
+
+    <!-- Home - Always first -->
+    <a href="/dashboard/" class="rail-item active" data-tooltip="Home">
+        <svg class="rail-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+        </svg>
+        <span class="rail-label">Home</span>
+    </a>
+
+    <!-- Dynamic modules from user preferences (excluding utility modules) -->
+    
+        
+    <a href="/journal/" class="rail-item" data-tooltip="Journal" data-module="journal">
+        <svg class="rail-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+        </svg>
+        <span class="rail-label">Journal</span>
+    </a>
+        
+    
+        
+    <a href="/health/" class="rail-item" data-tooltip="Health" data-module="health">
+        <svg class="rail-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+        </svg>
+        <span class="rail-label">Health</span>
+    </a>
+        
+    
+        
+    <a href="/faith/" class="rail-item" data-tooltip="Faith" data-module="faith">
+        <svg class="rail-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2v20M7 7h10"></path>
+        </svg>
+        <span class="rail-label">Faith</span>
+    </a>
+        
+    
+        
+    <a href="/life/" class="rail-item" data-tooltip="Organize" data-module="life">
+        <svg class="rail-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline>
+        </svg>
+        <span class="rail-label">Organize</span>
+    </a>
+        
+    
+        
+    <a href="/purpose/" class="rail-item" data-tooltip="Goals" data-module="purpose">
+        <svg class="rail-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle>
+        </svg>
+        <span class="rail-label">Goals</span>
+    </a>
+        
+    
+        
+    
+
+    <!-- Utility section divider (only show if Capture or Assistant is enabled) -->
+    
+    <div class="rail-divider"></div>
+    
+
+    <!-- Capture (utility module) -->
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    <a href="/capture/" class="rail-item" data-tooltip="Capture" data-module="capture">
+        <svg class="rail-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line>
+        </svg>
+        <span class="rail-label">Capture</span>
+    </a>
+        
+    
+
+    <!-- Chief of Staff (if enabled) -->
+    
+
+    <!-- Collapse/Expand Toggle at bottom -->
+    <button type="button" class="rail-collapse-toggle rail-collapse-bottom" aria-label="Toggle navigation width" data-tooltip="Collapse">
+        <svg class="rail-icon rail-icon-collapse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M11 17l-5-5 5-5"></path>
+            <path d="M18 17l-5-5 5-5"></path>
+        </svg>
+        <svg class="rail-icon rail-icon-expand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M13 7l5 5-5 5"></path>
+            <path d="M6 7l5 5-5 5"></path>
+        </svg>
+        <span class="rail-label">Collapse</span>
+    </button>
+</aside>
+
+        
+
+        <!-- Main content area (scrollable on desktop) -->
+        <div class="desktop-main-area">
+            <!-- Messages -->
+            
+            <div class="messages-container" role="alert">
+                
+                <div class="message message-success">
+                    Successfully signed in as autotest@local.test.
+                    <button type="button" class="message-close">×</button>
+                </div>
+                
+            </div>
+            
+
+            <!-- Main Content -->
+            <main id="main-content" class="main-content">
+                
+<div class="container">
+    <!-- Header -->
+    <header class="dashboard-header">
+        
+        <div class="greeting">
+            <h1>Good evening, UI.</h1>
+            <p class="current-date">Thursday, February 26, 2026</p>
+            
+        </div>
+        
+
+    </header>
+
+    
+    
+
+
+
+
+    
+    
+    
+
+
+
+    
+
+    
+
+    
+    
+    <section class="ai-insight-hero tile-size-large" data-tile-id="ai_insights">
+        <div class="ai-insight-content">
+            <div class="ai-badge">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"></path>
+                    <path d="M12 6v6l4 2"></path>
+                </svg>
+                Today's Insight
+            </div>
+            
+            <p class="ai-insight-text">You’ve knocked out that journaling today, soldier! Six times this week? That’s some solid commitment—HOOAH! But listen up, you still need to get that workout in before the day wraps up. No excuses, recruit! Get moving and finish strong! You got this!</p>
+            
+        </div>
+    </section>
+    
+
+    <!-- Edit Mode Bar -->
+    <div class="dashboard-edit-bar">
+        <button type="button" class="btn-customize" id="customize-btn">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="7" height="7"></rect>
+                <rect x="14" y="3" width="7" height="7"></rect>
+                <rect x="14" y="14" width="7" height="7"></rect>
+                <rect x="3" y="14" width="7" height="7"></rect>
+            </svg>
+            <span id="customize-btn-text">Customize</span>
+        </button>
+    </div>
+
+    <!-- Getting Started Tile (New Users Only) -->
+    
+    
+
+
+<div class="getting-started-tile">
+    <div class="getting-started-header">
+        <div class="getting-started-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"></path>
+                <path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"></path>
+                <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"></path>
+                <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"></path>
+            </svg>
+        </div>
+        <div class="getting-started-title-group">
+            <h2 class="getting-started-title">Welcome, UI!</h2>
+            <p class="getting-started-subtitle">Here's how to get started and make this app work for you:</p>
+        </div>
+    </div>
+
+    <div class="getting-started-steps">
+        
+        <a href="/user/preferences/#ai-profile" class="getting-started-step ">
+            
+            <div class="step-number">1</div>
+            
+            <div class="step-content">
+                <h3 class="step-title">Set Your AI Profile</h3>
+                <p class="step-description">Tell the AI about yourself, your values, and what motivates you. This helps personalize all your insights.</p>
+            </div>
+            <div class="step-arrow">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+            </div>
+        </a>
+        
+        <a href="/purpose/direction/" class="getting-started-step ">
+            
+            <div class="step-number">2</div>
+            
+            <div class="step-content">
+                <h3 class="step-title">Choose Your Word of the Year</h3>
+                <p class="step-description">This single word becomes your guiding theme. The AI will reference it in your daily insights.</p>
+            </div>
+            <div class="step-arrow">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+            </div>
+        </a>
+        
+        <a href="/purpose/goals/" class="getting-started-step ">
+            
+            <div class="step-number">3</div>
+            
+            <div class="step-content">
+                <h3 class="step-title">Set 1-3 Goals</h3>
+                <p class="step-description">What do you want to accomplish? Goals anchor everything and help the AI give you relevant guidance.</p>
+            </div>
+            <div class="step-arrow">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+            </div>
+        </a>
+        
+        <a href="/journal/new/" class="getting-started-step step-completed">
+            
+            <div class="step-check">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+            </div>
+            
+            <div class="step-content">
+                <h3 class="step-title">Write Your First Journal Entry</h3>
+                <p class="step-description">Even a few sentences helps the AI learn your voice and patterns.</p>
+            </div>
+            <div class="step-arrow">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+            </div>
+        </a>
+        
+    </div>
+
+    <p class="getting-started-closing">Once you've done these, your daily insights will become deeply personal and actionable!</p>
+</div>
+
+
+    
+
+    <!-- Dynamic Tiles Container -->
+    <div class="dashboard-tiles" id="dashboard-tiles">
+        
+        <div class="tile-wrapper " data-tile-id="getting_started" data-tile-visible="true" data-tile-size="large">
+
+            <!-- Edit overlay -->
+            <div class="tile-edit-overlay">
+                <div class="tile-drag-handle" title="Drag to reorder">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#666" stroke-width="2">
+                        <line x1="4" y1="9" x2="20" y2="9"></line>
+                        <line x1="4" y1="15" x2="20" y2="15"></line>
+                    </svg>
+                </div>
+                <label class="tile-visibility-toggle" title="Show/Hide">
+                    <input type="checkbox" class="tile-visibility-checkbox" checked="" data-tile-id="getting_started">
+                    
+                </label>
+                <button type="button" class="size-btn " data-tile-id="getting_started" data-size="small">S</button>
+                <button type="button" class="size-btn " data-tile-id="getting_started" data-size="medium">M</button>
+                <button type="button" class="size-btn active" data-tile-id="getting_started" data-size="large">L</button>
+            </div>
+
+            <!-- Tile name label for edit mode -->
+            <div class="tile-name-label">Getting Started</div>
+
+            <!-- Tile content -->
+            
+            
+            
+        </div>
+        
+        <div class="tile-wrapper " data-tile-id="quick_stats" data-tile-visible="true" data-tile-size="medium">
+
+            <!-- Edit overlay -->
+            <div class="tile-edit-overlay">
+                <div class="tile-drag-handle" title="Drag to reorder">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#666" stroke-width="2">
+                        <line x1="4" y1="9" x2="20" y2="9"></line>
+                        <line x1="4" y1="15" x2="20" y2="15"></line>
+                    </svg>
+                </div>
+                <label class="tile-visibility-toggle" title="Show/Hide">
+                    <input type="checkbox" class="tile-visibility-checkbox" checked="" data-tile-id="quick_stats">
+                    
+                </label>
+                <button type="button" class="size-btn " data-tile-id="quick_stats" data-size="small">S</button>
+                <button type="button" class="size-btn active" data-tile-id="quick_stats" data-size="medium">M</button>
+                <button type="button" class="size-btn " data-tile-id="quick_stats" data-size="large">L</button>
+            </div>
+
+            <!-- Tile name label for edit mode -->
+            <div class="tile-name-label">Quick Stats</div>
+
+            <!-- Tile content -->
+            
+            
+                
+
+<div class="quick-stats tile-size-medium">
+    
+    
+    
+    
+    
+</div>
+
+            
+            
+        </div>
+        
+        <div class="tile-wrapper " data-tile-id="ai_insights" data-tile-visible="true" data-tile-size="large">
+
+            <!-- Edit overlay -->
+            <div class="tile-edit-overlay">
+                <div class="tile-drag-handle" title="Drag to reorder">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#666" stroke-width="2">
+                        <line x1="4" y1="9" x2="20" y2="9"></line>
+                        <line x1="4" y1="15" x2="20" y2="15"></line>
+                    </svg>
+                </div>
+                <label class="tile-visibility-toggle" title="Show/Hide">
+                    <input type="checkbox" class="tile-visibility-checkbox" checked="" data-tile-id="ai_insights">
+                    
+                </label>
+                <button type="button" class="size-btn " data-tile-id="ai_insights" data-size="small">S</button>
+                <button type="button" class="size-btn " data-tile-id="ai_insights" data-size="medium">M</button>
+                <button type="button" class="size-btn active" data-tile-id="ai_insights" data-size="large">L</button>
+            </div>
+
+            <!-- Tile name label for edit mode -->
+            <div class="tile-name-label">AI Insights</div>
+
+            <!-- Tile content -->
+            
+            
+                
+
+
+<section class="ai-insight-hero tile-size-large" data-tile-id="ai_insights">
+    <div class="ai-insight-content">
+        <div class="ai-badge">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"></path>
+                <path d="M12 6v6l4 2"></path>
+            </svg>
+            Today's Insight
+        </div>
+        
+        <p class="ai-insight-text">You’ve knocked out that journaling today, soldier! Six times this week? That’s some solid commitment—HOOAH! But listen up, you still need to get that workout in before the day wraps up. No excuses, recruit! Get moving and finish strong! You got this!</p>
+        
+    </div>
+</section>
+
+
+            
+            
+        </div>
+        
+        <div class="tile-wrapper " data-tile-id="daily_briefing" data-tile-visible="true" data-tile-size="medium">
+
+            <!-- Edit overlay -->
+            <div class="tile-edit-overlay">
+                <div class="tile-drag-handle" title="Drag to reorder">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#666" stroke-width="2">
+                        <line x1="4" y1="9" x2="20" y2="9"></line>
+                        <line x1="4" y1="15" x2="20" y2="15"></line>
+                    </svg>
+                </div>
+                <label class="tile-visibility-toggle" title="Show/Hide">
+                    <input type="checkbox" class="tile-visibility-checkbox" checked="" data-tile-id="daily_briefing">
+                    
+                </label>
+                <button type="button" class="size-btn " data-tile-id="daily_briefing" data-size="small">S</button>
+                <button type="button" class="size-btn active" data-tile-id="daily_briefing" data-size="medium">M</button>
+                <button type="button" class="size-btn " data-tile-id="daily_briefing" data-size="large">L</button>
+            </div>
+
+            <!-- Tile name label for edit mode -->
+            <div class="tile-name-label">Daily Briefing</div>
+
+            <!-- Tile content -->
+            
+            
+                
+
+
+<section class="daily-briefing-section tile-size-medium" data-tile-id="daily_briefing" id="daily-briefing-tile">
+    <div class="daily-briefing-header">
+        <h3 class="daily-briefing-title">
+            <span class="daily-briefing-title-icon">📋</span>
+            Daily Briefing
+        </h3>
+    </div>
+
+    <div class="daily-briefing-content">
+        
+            <div class="daily-briefing-empty">
+                <span class="daily-briefing-empty-icon">☀️</span>
+                <p>No briefing yet today. Your briefing is generated each morning.</p>
+            </div>
+        
+    </div>
+</section>
+
+<style>
+.daily-briefing-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+}
+.daily-briefing-why-link {
+    font-size: var(--font-size-xs);
+    color: var(--color-accent);
+    text-decoration: none;
+    padding: 2px 8px;
+    border-radius: var(--radius-full, 9999px);
+    background: var(--color-accent-subtle, #e0f0ff);
+    font-weight: 500;
+}
+.daily-briefing-why-link:hover { text-decoration: underline; }
+</style>
+
+
+            
+            
+        </div>
+        
+        <div class="tile-wrapper " data-tile-id="memory_verse" data-tile-visible="true" data-tile-size="medium">
+
+            <!-- Edit overlay -->
+            <div class="tile-edit-overlay">
+                <div class="tile-drag-handle" title="Drag to reorder">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#666" stroke-width="2">
+                        <line x1="4" y1="9" x2="20" y2="9"></line>
+                        <line x1="4" y1="15" x2="20" y2="15"></line>
+                    </svg>
+                </div>
+                <label class="tile-visibility-toggle" title="Show/Hide">
+                    <input type="checkbox" class="tile-visibility-checkbox" checked="" data-tile-id="memory_verse">
+                    
+                </label>
+                <button type="button" class="size-btn " data-tile-id="memory_verse" data-size="small">S</button>
+                <button type="button" class="size-btn active" data-tile-id="memory_verse" data-size="medium">M</button>
+                <button type="button" class="size-btn " data-tile-id="memory_verse" data-size="large">L</button>
+            </div>
+
+            <!-- Tile name label for edit mode -->
+            <div class="tile-name-label">Memory Verse</div>
+
+            <!-- Tile content -->
+            
+            
+                
+
+
+
+            
+            
+        </div>
+        
+        <div class="tile-wrapper " data-tile-id="state_snapshot" data-tile-visible="true" data-tile-size="medium">
+
+            <!-- Edit overlay -->
+            <div class="tile-edit-overlay">
+                <div class="tile-drag-handle" title="Drag to reorder">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#666" stroke-width="2">
+                        <line x1="4" y1="9" x2="20" y2="9"></line>
+                        <line x1="4" y1="15" x2="20" y2="15"></line>
+                    </svg>
+                </div>
+                <label class="tile-visibility-toggle" title="Show/Hide">
+                    <input type="checkbox" class="tile-visibility-checkbox" checked="" data-tile-id="state_snapshot">
+                    
+                </label>
+                <button type="button" class="size-btn " data-tile-id="state_snapshot" data-size="small">S</button>
+                <button type="button" class="size-btn active" data-tile-id="state_snapshot" data-size="medium">M</button>
+                <button type="button" class="size-btn " data-tile-id="state_snapshot" data-size="large">L</button>
+            </div>
+
+            <!-- Tile name label for edit mode -->
+            <div class="tile-name-label">Your Current State</div>
+
+            <!-- Tile content -->
+            
+            
+                
+
+<section class="state-snapshot-section tile-size-medium" data-tile-id="state_snapshot" id="state-snapshot-tile">
+    <div class="state-snapshot-header">
+        <h3 class="state-snapshot-title">
+            <span class="state-snapshot-title-icon">📊</span>
+            Your Current State
+        </h3>
+    </div>
+
+    
+    <div class="state-snapshot-domains">
+
+        
+        
+        
+        
+
+        
+        
+        
+        
+
+        
+        
+        
+        
+
+        
+        
+        
+        <div class="state-domain">
+            <h4 class="state-domain-label">Journal</h4>
+            <div class="state-rows">
+                
+                <div class="state-row">
+                    <span class="state-key">Last Entry</span>
+                    <span class="state-value">
+                        Today
+                        
+                    </span>
+                </div>
+                
+                
+                <div class="state-row">
+                    <span class="state-key">Entries (30d)</span>
+                    <span class="state-value">1</span>
+                </div>
+                
+            </div>
+        </div>
+        
+        
+
+        
+        
+        
+        
+
+    </div>
+    
+</section>
+
+            
+            
+        </div>
+        
+        <div class="tile-wrapper " data-tile-id="guidance" data-tile-visible="true" data-tile-size="medium">
+
+            <!-- Edit overlay -->
+            <div class="tile-edit-overlay">
+                <div class="tile-drag-handle" title="Drag to reorder">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#666" stroke-width="2">
+                        <line x1="4" y1="9" x2="20" y2="9"></line>
+                        <line x1="4" y1="15" x2="20" y2="15"></line>
+                    </svg>
+                </div>
+                <label class="tile-visibility-toggle" title="Show/Hide">
+                    <input type="checkbox" class="tile-visibility-checkbox" checked="" data-tile-id="guidance">
+                    
+                </label>
+                <button type="button" class="size-btn " data-tile-id="guidance" data-size="small">S</button>
+                <button type="button" class="size-btn active" data-tile-id="guidance" data-size="medium">M</button>
+                <button type="button" class="size-btn " data-tile-id="guidance" data-size="large">L</button>
+            </div>
+
+            <!-- Tile name label for edit mode -->
+            <div class="tile-name-label">Today's Guidance</div>
+
+            <!-- Tile content -->
+            
+            
+                
+
+
+<section class="guidance-section tile-size-medium" data-tile-id="guidance" id="guidance-tile">
+    <div class="guidance-header">
+        <h3 class="guidance-title">
+            <span class="guidance-title-icon">💡</span>
+            Today's Guidance
+        </h3>
+        
+    </div>
+
+    <div class="guidance-list" id="guidance-list">
+        
+            <div class="guidance-empty">
+                <span class="guidance-empty-icon">✨</span>
+                <p>You're all caught up. No guidance items right now.</p>
+            </div>
+        
+    </div>
+
+    <div class="guidance-footer">
+        <a href="/guidance/" class="guidance-view-all">
+            View all guidance →
+        </a>
+    </div>
+</section>
+
+
+            
+            
+        </div>
+        
+        <div class="tile-wrapper " data-tile-id="celebrations" data-tile-visible="true" data-tile-size="medium">
+
+            <!-- Edit overlay -->
+            <div class="tile-edit-overlay">
+                <div class="tile-drag-handle" title="Drag to reorder">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#666" stroke-width="2">
+                        <line x1="4" y1="9" x2="20" y2="9"></line>
+                        <line x1="4" y1="15" x2="20" y2="15"></line>
+                    </svg>
+                </div>
+                <label class="tile-visibility-toggle" title="Show/Hide">
+                    <input type="checkbox" class="tile-visibility-checkbox" checked="" data-tile-id="celebrations">
+                    
+                </label>
+                <button type="button" class="size-btn " data-tile-id="celebrations" data-size="small">S</button>
+                <button type="button" class="size-btn active" data-tile-id="celebrations" data-size="medium">M</button>
+                <button type="button" class="size-btn " data-tile-id="celebrations" data-size="large">L</button>
+            </div>
+
+            <!-- Tile name label for edit mode -->
+            <div class="tile-name-label">Celebrations</div>
+
+            <!-- Tile content -->
+            
+            
+                
+
+
+
+            
+            
+        </div>
+        
+        <div class="tile-wrapper " data-tile-id="nudges" data-tile-visible="true" data-tile-size="medium">
+
+            <!-- Edit overlay -->
+            <div class="tile-edit-overlay">
+                <div class="tile-drag-handle" title="Drag to reorder">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#666" stroke-width="2">
+                        <line x1="4" y1="9" x2="20" y2="9"></line>
+                        <line x1="4" y1="15" x2="20" y2="15"></line>
+                    </svg>
+                </div>
+                <label class="tile-visibility-toggle" title="Show/Hide">
+                    <input type="checkbox" class="tile-visibility-checkbox" checked="" data-tile-id="nudges">
+                    
+                </label>
+                <button type="button" class="size-btn " data-tile-id="nudges" data-size="small">S</button>
+                <button type="button" class="size-btn active" data-tile-id="nudges" data-size="medium">M</button>
+                <button type="button" class="size-btn " data-tile-id="nudges" data-size="large">L</button>
+            </div>
+
+            <!-- Tile name label for edit mode -->
+            <div class="tile-name-label">Accountability Nudges</div>
+
+            <!-- Tile content -->
+            
+            
+                
+
+
+<section class="nudges-section tile-size-medium" data-tile-id="nudges">
+    
+    <div class="nudge-card nudge-goals">
+        
+        <div class="nudge-content">
+            <span class="nudge-icon">🎯</span>
+            <div class="nudge-text">
+                <span class="nudge-message">No active goals set. What are you working toward?</span>
+            </div>
+        </div>
+        <a href="/purpose/goals/new/" class="btn btn-secondary btn-sm">Set a Goal</a>
+        
+    </div>
+    
+</section>
+
+
+            
+            
+        </div>
+        
+        <div class="tile-wrapper " data-tile-id="weekly_report" data-tile-visible="true" data-tile-size="medium">
+
+            <!-- Edit overlay -->
+            <div class="tile-edit-overlay">
+                <div class="tile-drag-handle" title="Drag to reorder">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#666" stroke-width="2">
+                        <line x1="4" y1="9" x2="20" y2="9"></line>
+                        <line x1="4" y1="15" x2="20" y2="15"></line>
+                    </svg>
+                </div>
+                <label class="tile-visibility-toggle" title="Show/Hide">
+                    <input type="checkbox" class="tile-visibility-checkbox" checked="" data-tile-id="weekly_report">
+                    
+                </label>
+                <button type="button" class="size-btn " data-tile-id="weekly_report" data-size="small">S</button>
+                <button type="button" class="size-btn active" data-tile-id="weekly_report" data-size="medium">M</button>
+                <button type="button" class="size-btn " data-tile-id="weekly_report" data-size="large">L</button>
+            </div>
+
+            <!-- Tile name label for edit mode -->
+            <div class="tile-name-label">Weekly Report</div>
+
+            <!-- Tile content -->
+            
+            
+                
+
+
+<section class="weekly-report-section tile-size-medium" data-tile-id="weekly_report" id="weekly-report-tile">
+    <div class="weekly-report-header">
+        <h3 class="weekly-report-title">
+            <span class="weekly-report-title-icon">📊</span>
+            Weekly Intelligence Report
+        </h3>
+        
+    </div>
+
+    <div class="weekly-report-content">
+        
+            <div class="weekly-report-empty">
+                <span class="weekly-report-empty-icon">📈</span>
+                <p>Your first weekly report will appear after 7 days of activity.</p>
+            </div>
+        
+    </div>
+</section>
+
+<style>
+.weekly-report-section {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+}
+.weekly-report-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-3);
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+.weekly-report-title {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--color-text);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+.weekly-report-title-icon {
+    font-size: var(--font-size-xl);
+}
+.weekly-report-date {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    background: var(--color-bg, #f5f5f5);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-md);
+}
+.weekly-report-summary {
+    font-size: var(--font-size-sm);
+    color: var(--color-text);
+    line-height: 1.6;
+    white-space: pre-line;
+    margin: 0 0 var(--space-3);
+}
+.weekly-report-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+.weekly-report-timestamp {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+.weekly-report-history-link {
+    font-size: var(--font-size-sm);
+    color: var(--color-accent);
+    text-decoration: none;
+    font-weight: 500;
+}
+.weekly-report-history-link:hover {
+    text-decoration: underline;
+}
+.weekly-report-empty {
+    text-align: center;
+    padding: var(--space-4) 0;
+}
+.weekly-report-empty-icon {
+    font-size: var(--font-size-2xl);
+    display: block;
+    margin-bottom: var(--space-2);
+}
+.weekly-report-empty p {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    margin: 0;
+}
+
+@media (max-width: 480px) {
+    .weekly-report-section {
+        padding: var(--space-3);
+    }
+    .weekly-report-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+</style>
+
+
+            
+            
+        </div>
+        
+        <div class="tile-wrapper " data-tile-id="weekly_summary" data-tile-visible="true" data-tile-size="medium">
+
+            <!-- Edit overlay -->
+            <div class="tile-edit-overlay">
+                <div class="tile-drag-handle" title="Drag to reorder">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#666" stroke-width="2">
+                        <line x1="4" y1="9" x2="20" y2="9"></line>
+                        <line x1="4" y1="15" x2="20" y2="15"></line>
+                    </svg>
+                </div>
+                <label class="tile-visibility-toggle" title="Show/Hide">
+                    <input type="checkbox" class="tile-visibility-checkbox" checked="" data-tile-id="weekly_summary">
+                    
+                </label>
+                <button type="button" class="size-btn " data-tile-id="weekly_summary" data-size="small">S</button>
+                <button type="button" class="size-btn active" data-tile-id="weekly_summary" data-size="medium">M</button>
+                <button type="button" class="size-btn " data-tile-id="weekly_summary" data-size="large">L</button>
+            </div>
+
+            <!-- Tile name label for edit mode -->
+            <div class="tile-name-label">Weekly Summary</div>
+
+            <!-- Tile content -->
+            
+            
+                
+
+
+<section class="weekly-summary-section tile-size-medium" data-tile-id="weekly_summary">
+    <div class="summary-header">
+        <h3>
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                <line x1="16" y1="2" x2="16" y2="6"></line>
+                <line x1="8" y1="2" x2="8" y2="6"></line>
+                <line x1="3" y1="10" x2="21" y2="10"></line>
+            </svg>
+            Your Week
+        </h3>
+    </div>
+    <p class="summary-text">ON YOUR FEET, RECRUIT! We’re diving into your journal entries like a drill sergeant into the fray! I see one entry from February 26—an AUTOTEST entry, huh? It’s time to break this down and get you back in formation!
+
+Now listen up! You’ve got a theme of testing going on here. It’s like the military training camp—sometimes you’re in the trenches, and sometimes you’re running drills. This entry shows you’re in the process of figuring things out, and that’s a good thing! You’re laying the groundwork for future victories, soldier!
+
+But I want to see more from you! No excuses! This week, you need to dig deep and commit to your journ</p>
+</section>
+
+
+            
+            
+        </div>
+        
+        <div class="tile-wrapper " data-tile-id="daily_encouragement" data-tile-visible="true" data-tile-size="medium">
+
+            <!-- Edit overlay -->
+            <div class="tile-edit-overlay">
+                <div class="tile-drag-handle" title="Drag to reorder">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#666" stroke-width="2">
+                        <line x1="4" y1="9" x2="20" y2="9"></line>
+                        <line x1="4" y1="15" x2="20" y2="15"></line>
+                    </svg>
+                </div>
+                <label class="tile-visibility-toggle" title="Show/Hide">
+                    <input type="checkbox" class="tile-visibility-checkbox" checked="" data-tile-id="daily_encouragement">
+                    
+                </label>
+                <button type="button" class="size-btn " data-tile-id="daily_encouragement" data-size="small">S</button>
+                <button type="button" class="size-btn active" data-tile-id="daily_encouragement" data-size="medium">M</button>
+                <button type="button" class="size-btn " data-tile-id="daily_encouragement" data-size="large">L</button>
+            </div>
+
+            <!-- Tile name label for edit mode -->
+            <div class="tile-name-label">Daily Encouragement</div>
+
+            <!-- Tile content -->
+            
+            
+                
+
+
+
+            
+            
+        </div>
+        
+        <div class="tile-wrapper " data-tile-id="current_fast" data-tile-visible="true" data-tile-size="medium">
+
+            <!-- Edit overlay -->
+            <div class="tile-edit-overlay">
+                <div class="tile-drag-handle" title="Drag to reorder">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#666" stroke-width="2">
+                        <line x1="4" y1="9" x2="20" y2="9"></line>
+                        <line x1="4" y1="15" x2="20" y2="15"></line>
+                    </svg>
+                </div>
+                <label class="tile-visibility-toggle" title="Show/Hide">
+                    <input type="checkbox" class="tile-visibility-checkbox" checked="" data-tile-id="current_fast">
+                    
+                </label>
+                <button type="button" class="size-btn " data-tile-id="current_fast" data-size="small">S</button>
+                <button type="button" class="size-btn active" data-tile-id="current_fast" data-size="medium">M</button>
+                <button type="button" class="size-btn " data-tile-id="current_fast" data-size="large">L</button>
+            </div>
+
+            <!-- Tile name label for edit mode -->
+            <div class="tile-name-label">Current Fast</div>
+
+            <!-- Tile content -->
+            
+            
+                
+
+
+
+            
+            
+        </div>
+        
+        <div class="tile-wrapper " data-tile-id="quick_actions" data-tile-visible="true" data-tile-size="large">
+
+            <!-- Edit overlay -->
+            <div class="tile-edit-overlay">
+                <div class="tile-drag-handle" title="Drag to reorder">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#666" stroke-width="2">
+                        <line x1="4" y1="9" x2="20" y2="9"></line>
+                        <line x1="4" y1="15" x2="20" y2="15"></line>
+                    </svg>
+                </div>
+                <label class="tile-visibility-toggle" title="Show/Hide">
+                    <input type="checkbox" class="tile-visibility-checkbox" checked="" data-tile-id="quick_actions">
+                    
+                </label>
+                <button type="button" class="size-btn " data-tile-id="quick_actions" data-size="small">S</button>
+                <button type="button" class="size-btn " data-tile-id="quick_actions" data-size="medium">M</button>
+                <button type="button" class="size-btn active" data-tile-id="quick_actions" data-size="large">L</button>
+            </div>
+
+            <!-- Tile name label for edit mode -->
+            <div class="tile-name-label">Quick Actions</div>
+
+            <!-- Tile content -->
+            
+            
+                
+
+<section class="quick-actions-section tile-size-large" data-tile-id="quick_actions">
+    <h2 class="section-title">Quick Actions</h2>
+    <div class="quick-actions-grid">
+        
+        <a href="/journal/new/" class="quick-action-card">
+            <span class="action-icon">📝</span>
+            <span class="action-label">New Journal Entry</span>
+        </a>
+        
+
+        
+        <a href="/faith/prayers/new/" class="quick-action-card">
+            <span class="action-icon">🙏</span>
+            <span class="action-label">Add Prayer</span>
+        </a>
+        
+
+        
+        <a href="/health/physical/weight/log/" class="quick-action-card">
+            <span class="action-icon">⚖️</span>
+            <span class="action-label">Log Weight</span>
+        </a>
+        
+        <a href="/health/physical/fasting/start/" class="quick-action-card">
+            <span class="action-icon">🕐</span>
+            <span class="action-label">Start Fast</span>
+        </a>
+        
+        
+
+        
+        <a href="/life/tasks/new/" class="quick-action-card">
+            <span class="action-icon">✓</span>
+            <span class="action-label">Add Task</span>
+        </a>
+        
+
+        
+        <a href="/purpose/goals/new/" class="quick-action-card">
+            <span class="action-icon">🎯</span>
+            <span class="action-label">Add Goal</span>
+        </a>
+        
+
+        
+        <button type="button" class="quick-action-card" data-action="open-assistant">
+            <span class="action-icon">💬</span>
+            <span class="action-label">Chat with CoS</span>
+        </button>
+        <button type="button" class="quick-action-card" id="quick-scan-btn">
+            <span class="action-icon">📷</span>
+            <span class="action-label">Scan Item</span>
+        </button>
+        
+
+        
+        <a href="/capture/record/" class="quick-action-card">
+            <span class="action-icon">🎙️</span>
+            <span class="action-label">Record Audio</span>
+        </a>
+        
+    </div>
+</section>
+
+            
+            
+        </div>
+        
+        <div class="tile-wrapper " data-tile-id="module_cards" data-tile-visible="true" data-tile-size="large">
+
+            <!-- Edit overlay -->
+            <div class="tile-edit-overlay">
+                <div class="tile-drag-handle" title="Drag to reorder">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#666" stroke-width="2">
+                        <line x1="4" y1="9" x2="20" y2="9"></line>
+                        <line x1="4" y1="15" x2="20" y2="15"></line>
+                    </svg>
+                </div>
+                <label class="tile-visibility-toggle" title="Show/Hide">
+                    <input type="checkbox" class="tile-visibility-checkbox" checked="" data-tile-id="module_cards">
+                    
+                </label>
+                <button type="button" class="size-btn " data-tile-id="module_cards" data-size="small">S</button>
+                <button type="button" class="size-btn " data-tile-id="module_cards" data-size="medium">M</button>
+                <button type="button" class="size-btn active" data-tile-id="module_cards" data-size="large">L</button>
+            </div>
+
+            <!-- Tile name label for edit mode -->
+            <div class="tile-name-label">Module Cards</div>
+
+            <!-- Tile content -->
+            
+            
+                
+
+<section class="modules-section tile-size-large" data-tile-id="module_cards">
+    <h2 class="section-title">Your Modules</h2>
+    <div class="modules-grid">
+        
+        <a href="/journal/entries/" class="module-nav-card">
+            <div class="module-icon">📝</div>
+            <div class="module-info">
+                <h3>Journal</h3>
+                <p>6 entries</p>
+            </div>
+            <svg class="module-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"></path>
+            </svg>
+        </a>
+        
+
+        
+        <a href="/faith/" class="module-nav-card">
+            <div class="module-icon">✝️</div>
+            <div class="module-info">
+                <h3>Faith</h3>
+                <p>0 active prayers</p>
+            </div>
+            <svg class="module-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"></path>
+            </svg>
+        </a>
+        
+
+        
+        <a href="/health/physical/" class="module-nav-card ">
+            <div class="module-icon">❤️</div>
+            <div class="module-info">
+                <h3>Health</h3>
+                <p>Start tracking</p>
+                
+            </div>
+            <svg class="module-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"></path>
+            </svg>
+        </a>
+        
+
+        
+        <a href="/life/" class="module-nav-card">
+            <div class="module-icon">🏠</div>
+            <div class="module-info">
+                <h3>Organize</h3>
+                <p>0 tasks</p>
+            </div>
+            <svg class="module-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"></path>
+            </svg>
+        </a>
+        
+
+        
+        <a href="/purpose/" class="module-nav-card">
+            <div class="module-icon">🧭</div>
+            <div class="module-info">
+                <h3>Goals</h3>
+                <p>Set your direction</p>
+            </div>
+            <svg class="module-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"></path>
+            </svg>
+        </a>
+        
+
+        
+        <a href="/capture/" class="module-nav-card">
+            <div class="module-icon">🎙️</div>
+            <div class="module-info">
+                <h3>Capture</h3>
+                <p>0 recordings</p>
+            </div>
+            <svg class="module-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"></path>
+            </svg>
+        </a>
+        
+    </div>
+</section>
+
+            
+            
+        </div>
+        
+        <div class="tile-wrapper " data-tile-id="medicine_schedule" data-tile-visible="true" data-tile-size="medium">
+
+            <!-- Edit overlay -->
+            <div class="tile-edit-overlay">
+                <div class="tile-drag-handle" title="Drag to reorder">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#666" stroke-width="2">
+                        <line x1="4" y1="9" x2="20" y2="9"></line>
+                        <line x1="4" y1="15" x2="20" y2="15"></line>
+                    </svg>
+                </div>
+                <label class="tile-visibility-toggle" title="Show/Hide">
+                    <input type="checkbox" class="tile-visibility-checkbox" checked="" data-tile-id="medicine_schedule">
+                    
+                </label>
+                <button type="button" class="size-btn " data-tile-id="medicine_schedule" data-size="small">S</button>
+                <button type="button" class="size-btn active" data-tile-id="medicine_schedule" data-size="medium">M</button>
+                <button type="button" class="size-btn " data-tile-id="medicine_schedule" data-size="large">L</button>
+            </div>
+
+            <!-- Tile name label for edit mode -->
+            <div class="tile-name-label">Today's Medicine</div>
+
+            <!-- Tile content -->
+            
+            
+                
+
+
+
+            
+            
+        </div>
+        
+        <div class="tile-wrapper " data-tile-id="nutrition_progress" data-tile-visible="true" data-tile-size="medium">
+
+            <!-- Edit overlay -->
+            <div class="tile-edit-overlay">
+                <div class="tile-drag-handle" title="Drag to reorder">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#666" stroke-width="2">
+                        <line x1="4" y1="9" x2="20" y2="9"></line>
+                        <line x1="4" y1="15" x2="20" y2="15"></line>
+                    </svg>
+                </div>
+                <label class="tile-visibility-toggle" title="Show/Hide">
+                    <input type="checkbox" class="tile-visibility-checkbox" checked="" data-tile-id="nutrition_progress">
+                    
+                </label>
+                <button type="button" class="size-btn " data-tile-id="nutrition_progress" data-size="small">S</button>
+                <button type="button" class="size-btn active" data-tile-id="nutrition_progress" data-size="medium">M</button>
+                <button type="button" class="size-btn " data-tile-id="nutrition_progress" data-size="large">L</button>
+            </div>
+
+            <!-- Tile name label for edit mode -->
+            <div class="tile-name-label">Nutrition Progress</div>
+
+            <!-- Tile content -->
+            
+            
+                
+
+
+
+            
+            
+        </div>
+        
+        <div class="tile-wrapper " data-tile-id="recent_workouts" data-tile-visible="true" data-tile-size="medium">
+
+            <!-- Edit overlay -->
+            <div class="tile-edit-overlay">
+                <div class="tile-drag-handle" title="Drag to reorder">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#666" stroke-width="2">
+                        <line x1="4" y1="9" x2="20" y2="9"></line>
+                        <line x1="4" y1="15" x2="20" y2="15"></line>
+                    </svg>
+                </div>
+                <label class="tile-visibility-toggle" title="Show/Hide">
+                    <input type="checkbox" class="tile-visibility-checkbox" checked="" data-tile-id="recent_workouts">
+                    
+                </label>
+                <button type="button" class="size-btn " data-tile-id="recent_workouts" data-size="small">S</button>
+                <button type="button" class="size-btn active" data-tile-id="recent_workouts" data-size="medium">M</button>
+                <button type="button" class="size-btn " data-tile-id="recent_workouts" data-size="large">L</button>
+            </div>
+
+            <!-- Tile name label for edit mode -->
+            <div class="tile-name-label">Recent Workouts</div>
+
+            <!-- Tile content -->
+            
+            
+                
+
+
+
+            
+            
+        </div>
+        
+        <div class="tile-wrapper hidden-tile" data-tile-id="transformation" data-tile-visible="false" data-tile-size="large">
+
+            <!-- Edit overlay -->
+            <div class="tile-edit-overlay">
+                <div class="tile-drag-handle" title="Drag to reorder">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#666" stroke-width="2">
+                        <line x1="4" y1="9" x2="20" y2="9"></line>
+                        <line x1="4" y1="15" x2="20" y2="15"></line>
+                    </svg>
+                </div>
+                <label class="tile-visibility-toggle" title="Show/Hide">
+                    <input type="checkbox" class="tile-visibility-checkbox" data-tile-id="transformation">
+                    
+                </label>
+                <button type="button" class="size-btn " data-tile-id="transformation" data-size="small">S</button>
+                <button type="button" class="size-btn " data-tile-id="transformation" data-size="medium">M</button>
+                <button type="button" class="size-btn active" data-tile-id="transformation" data-size="large">L</button>
+            </div>
+
+            <!-- Tile name label for edit mode -->
+            <div class="tile-name-label">Body Transformation</div>
+
+            <!-- Tile content -->
+            
+            
+                
+
+
+
+
+<section class="tile tile-size-large" data-tile-id="transformation">
+    <div class="tile-header">
+        <h3><i class="fa-solid fa-fire"></i> Body Transformation</h3>
+        <a href="/dashboard/transformation/" class="tile-action-link">View Dashboard →</a>
+    </div>
+
+    
+    
+    
+    <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+        <div style="width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; font-weight: 700; color: white;
+            background: var(--color-danger, #ef4444);">
+            
+        </div>
+        <div>
+            <div style="font-weight: 600;">Score: /100</div>
+            <div style="font-size: 0.85rem; color: var(--color-text-secondary);">
+                At Risk
+            </div>
+        </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; font-size: 0.85rem;">
+        
+        
+        
+    </div>
+    
+    
+    
+</section>
+
+
+            
+            
+        </div>
+        
+        <div class="tile-wrapper " data-tile-id="goal_progress" data-tile-visible="true" data-tile-size="medium">
+
+            <!-- Edit overlay -->
+            <div class="tile-edit-overlay">
+                <div class="tile-drag-handle" title="Drag to reorder">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#666" stroke-width="2">
+                        <line x1="4" y1="9" x2="20" y2="9"></line>
+                        <line x1="4" y1="15" x2="20" y2="15"></line>
+                    </svg>
+                </div>
+                <label class="tile-visibility-toggle" title="Show/Hide">
+                    <input type="checkbox" class="tile-visibility-checkbox" checked="" data-tile-id="goal_progress">
+                    
+                </label>
+                <button type="button" class="size-btn " data-tile-id="goal_progress" data-size="small">S</button>
+                <button type="button" class="size-btn active" data-tile-id="goal_progress" data-size="medium">M</button>
+                <button type="button" class="size-btn " data-tile-id="goal_progress" data-size="large">L</button>
+            </div>
+
+            <!-- Tile name label for edit mode -->
+            <div class="tile-name-label">Goal Progress</div>
+
+            <!-- Tile content -->
+            
+            
+                
+
+
+<section class="goal-progress-section tile-size-medium" data-tile-id="goal_progress">
+    <div class="section-header">
+        <h2 class="section-title">Goal Progress</h2>
+        <a href="/purpose/goals/" class="section-link">View All</a>
+    </div>
+    <div class="goals-progress-list">
+        
+        <a href="/purpose/goals/14/" class="goal-progress-item">
+            <div class="goal-progress-content">
+                <div class="goal-progress-header">
+                    <span class="goal-progress-title">AUTOTEST|goals|993f4eca|Nav Edit Complete</span>
+                    <div class="goal-progress-badges">
+                        
+
+
+
+                        
+                    </div>
+                </div>
+                
+                <div class="goal-no-milestones">
+                    <span class="add-milestone-hint">Add milestones to track progress</span>
+                </div>
+                
+            </div>
+            <svg class="goal-progress-arrow" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"></path>
+            </svg>
+        </a>
+        
+        <a href="/purpose/goals/13/" class="goal-progress-item">
+            <div class="goal-progress-content">
+                <div class="goal-progress-header">
+                    <span class="goal-progress-title">AUTOTEST|goals|993f4eca|Nav Back Test</span>
+                    <div class="goal-progress-badges">
+                        
+
+
+
+                        
+                    </div>
+                </div>
+                
+                <div class="goal-no-milestones">
+                    <span class="add-milestone-hint">Add milestones to track progress</span>
+                </div>
+                
+            </div>
+            <svg class="goal-progress-arrow" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"></path>
+            </svg>
+        </a>
+        
+        <a href="/purpose/goals/11/" class="goal-progress-item">
+            <div class="goal-progress-content">
+                <div class="goal-progress-header">
+                    <span class="goal-progress-title">AUTOTEST|goals|993f4eca|Full Goal</span>
+                    <div class="goal-progress-badges">
+                        
+
+
+
+                        
+                    </div>
+                </div>
+                
+                <div class="goal-no-milestones">
+                    <span class="add-milestone-hint">Add milestones to track progress</span>
+                </div>
+                
+            </div>
+            <svg class="goal-progress-arrow" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"></path>
+            </svg>
+        </a>
+        
+        <a href="/purpose/goals/10/" class="goal-progress-item">
+            <div class="goal-progress-content">
+                <div class="goal-progress-header">
+                    <span class="goal-progress-title">AUTOTEST|goals|993f4eca|Minimal Goal</span>
+                    <div class="goal-progress-badges">
+                        
+
+
+
+                        
+                    </div>
+                </div>
+                
+                <div class="goal-no-milestones">
+                    <span class="add-milestone-hint">Add milestones to track progress</span>
+                </div>
+                
+            </div>
+            <svg class="goal-progress-arrow" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"></path>
+            </svg>
+        </a>
+        
+        <a href="/purpose/goals/9/" class="goal-progress-item">
+            <div class="goal-progress-content">
+                <div class="goal-progress-header">
+                    <span class="goal-progress-title">AUTOTEST|goals|468adc56|Nav Edit Complete</span>
+                    <div class="goal-progress-badges">
+                        
+
+
+
+                        
+                    </div>
+                </div>
+                
+                <div class="goal-no-milestones">
+                    <span class="add-milestone-hint">Add milestones to track progress</span>
+                </div>
+                
+            </div>
+            <svg class="goal-progress-arrow" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"></path>
+            </svg>
+        </a>
+        
+    </div>
+</section>
+
+
+            
+            
+        </div>
+        
+        <div class="tile-wrapper " data-tile-id="habit_goals" data-tile-visible="true" data-tile-size="medium">
+
+            <!-- Edit overlay -->
+            <div class="tile-edit-overlay">
+                <div class="tile-drag-handle" title="Drag to reorder">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#666" stroke-width="2">
+                        <line x1="4" y1="9" x2="20" y2="9"></line>
+                        <line x1="4" y1="15" x2="20" y2="15"></line>
+                    </svg>
+                </div>
+                <label class="tile-visibility-toggle" title="Show/Hide">
+                    <input type="checkbox" class="tile-visibility-checkbox" checked="" data-tile-id="habit_goals">
+                    
+                </label>
+                <button type="button" class="size-btn " data-tile-id="habit_goals" data-size="small">S</button>
+                <button type="button" class="size-btn active" data-tile-id="habit_goals" data-size="medium">M</button>
+                <button type="button" class="size-btn " data-tile-id="habit_goals" data-size="large">L</button>
+            </div>
+
+            <!-- Tile name label for edit mode -->
+            <div class="tile-name-label">Habit Goals</div>
+
+            <!-- Tile content -->
+            
+            
+                
+
+
+
+            
+            
+        </div>
+        
+        <div class="tile-wrapper " data-tile-id="upcoming_events" data-tile-visible="true" data-tile-size="medium">
+
+            <!-- Edit overlay -->
+            <div class="tile-edit-overlay">
+                <div class="tile-drag-handle" title="Drag to reorder">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#666" stroke-width="2">
+                        <line x1="4" y1="9" x2="20" y2="9"></line>
+                        <line x1="4" y1="15" x2="20" y2="15"></line>
+                    </svg>
+                </div>
+                <label class="tile-visibility-toggle" title="Show/Hide">
+                    <input type="checkbox" class="tile-visibility-checkbox" checked="" data-tile-id="upcoming_events">
+                    
+                </label>
+                <button type="button" class="size-btn " data-tile-id="upcoming_events" data-size="small">S</button>
+                <button type="button" class="size-btn active" data-tile-id="upcoming_events" data-size="medium">M</button>
+                <button type="button" class="size-btn " data-tile-id="upcoming_events" data-size="large">L</button>
+            </div>
+
+            <!-- Tile name label for edit mode -->
+            <div class="tile-name-label">Upcoming Events</div>
+
+            <!-- Tile content -->
+            
+            
+                
+
+
+
+            
+            
+        </div>
+        
+        <div class="tile-wrapper " data-tile-id="upcoming_celebrations" data-tile-visible="true" data-tile-size="medium">
+
+            <!-- Edit overlay -->
+            <div class="tile-edit-overlay">
+                <div class="tile-drag-handle" title="Drag to reorder">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#666" stroke-width="2">
+                        <line x1="4" y1="9" x2="20" y2="9"></line>
+                        <line x1="4" y1="15" x2="20" y2="15"></line>
+                    </svg>
+                </div>
+                <label class="tile-visibility-toggle" title="Show/Hide">
+                    <input type="checkbox" class="tile-visibility-checkbox" checked="" data-tile-id="upcoming_celebrations">
+                    
+                </label>
+                <button type="button" class="size-btn " data-tile-id="upcoming_celebrations" data-size="small">S</button>
+                <button type="button" class="size-btn active" data-tile-id="upcoming_celebrations" data-size="medium">M</button>
+                <button type="button" class="size-btn " data-tile-id="upcoming_celebrations" data-size="large">L</button>
+            </div>
+
+            <!-- Tile name label for edit mode -->
+            <div class="tile-name-label">Upcoming Celebrations</div>
+
+            <!-- Tile content -->
+            
+            
+                
+
+
+
+            
+            
+        </div>
+        
+    </div>
+
+    <!-- Save Status Indicator -->
+    <div class="edit-save-status" id="edit-save-status">Saved</div>
+</div>
+
+            </main>
+
+            
+                
+
+<footer class="site-footer">
+    <div class="footer-container">
+        <div class="footer-brand">
+            <a href="/dashboard/" class="footer-logo-link">
+                <img src="/static/images/wlj-logo.png" alt="Whole Life Journey" class="footer-logo">
+            </a>
+            <p class="footer-tagline">Your personal life operating system</p>
+        </div>
+        
+        <div class="footer-links">
+            <div class="footer-section">
+                <h4>Product</h4>
+                <a href="/dashboard/">Dashboard</a>
+                <a href="/journal/entries/">Journal</a>
+                <a href="/health/physical/">Health</a>
+            </div>
+            
+            <div class="footer-section">
+                <h4>Company</h4>
+                <a href="/about/">About</a>
+                <a href="/privacy/">Privacy</a>
+                <a href="/terms/">Terms</a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="footer-bottom">
+        <p>© 2025 Beacon Innovations LLC. All rights reserved.</p>
+    </div>
+</footer>
+
+<style nonce="">
+.site-footer {
+    background: var(--color-surface);
+    border-top: 1px solid var(--color-border);
+    margin-top: auto;
+}
+
+.footer-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: var(--space-10) var(--space-4);
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-8);
+    flex-wrap: wrap;
+}
+
+.footer-brand {
+    max-width: 300px;
+}
+
+.footer-logo {
+    height: 200px;
+    width: auto;
+    margin-bottom: var(--space-3);
+}
+
+.footer-tagline {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    margin: 0;
+}
+
+.footer-links {
+    display: flex;
+    gap: var(--space-12);
+}
+
+.footer-section h4 {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    margin-bottom: var(--space-3);
+    color: var(--color-text);
+}
+
+.footer-section a {
+    display: block;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    padding: var(--space-1) 0;
+    transition: color var(--transition-fast);
+}
+
+.footer-section a:hover {
+    color: var(--color-accent);
+    text-decoration: none;
+}
+
+.footer-bottom {
+    border-top: 1px solid var(--color-border);
+    padding: var(--space-4);
+    text-align: center;
+}
+
+.footer-bottom p {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+@media (max-width: 640px) {
+    .footer-container {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+    
+    .footer-links {
+        gap: var(--space-8);
+    }
+}
+</style>
+
+            
+        </div>
+
+        
+            
+            
+
+
+
+
+        
+    </div>
+
+    
+        
+<!-- Mobile Bottom Tab Bar (Phase 2: Dynamic) -->
+<nav class="bottom-tab-bar" aria-label="Mobile navigation">
+    <!-- Home - Always first -->
+    <a href="/dashboard/" class="bottom-tab active">
+        <svg class="bottom-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+        </svg>
+        <span class="bottom-tab-label">Home</span>
+    </a>
+
+    <!-- Dynamic modules from user preferences (up to 4) -->
+    
+    <a href="/journal/" class="bottom-tab ">
+        <svg class="bottom-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+        </svg>
+        <span class="bottom-tab-label">Journal</span>
+    </a>
+    
+    <a href="/health/" class="bottom-tab ">
+        <svg class="bottom-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+        </svg>
+        <span class="bottom-tab-label">Health</span>
+    </a>
+    
+    <a href="/faith/" class="bottom-tab ">
+        <svg class="bottom-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2v20M7 7h10"></path>
+        </svg>
+        <span class="bottom-tab-label">Faith</span>
+    </a>
+    
+    <a href="/life/" class="bottom-tab ">
+        <svg class="bottom-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline>
+        </svg>
+        <span class="bottom-tab-label">Organize</span>
+    </a>
+    
+
+    <!-- More - Always last -->
+    <a href="/more/" class="bottom-tab bottom-tab-more ">
+        <svg class="bottom-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="1"></circle>
+            <circle cx="12" cy="5" r="1"></circle>
+            <circle cx="12" cy="19" r="1"></circle>
+        </svg>
+        <span class="bottom-tab-label">More</span>
+    </a>
+</nav>
+
+    
+    
+    
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script></body></html>

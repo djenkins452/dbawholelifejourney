@@ -1,0 +1,51 @@
+{
+  "framework_version": "0.11.0",
+  "run_id": "73d3c34f",
+  "module": "preferences",
+  "suite": "Preferences Module Tests",
+  "base_url": "http://localhost:8000",
+  "environment": "development",
+  "status": "completed",
+  "started_at": "2026-02-26T22:45:13.028+00:00",
+  "completed_at": "2026-02-26T22:45:45.316+00:00",
+  "expected_cases": [
+    "PREF-AUTH-001",
+    "PREF-MAIN-001",
+    "PREF-MAIN-002",
+    "PREF-MAIN-003",
+    "PREF-MAIN-004",
+    "PREF-MAIN-005",
+    "PREF-THEME-001",
+    "PREF-THEME-002",
+    "PREF-THEME-003",
+    "PREF-FORM-001",
+    "PREF-FORM-002",
+    "PREF-FORM-003",
+    "PREF-THEME-CUSTOM-001"
+  ],
+  "completed_cases": [
+    "PREF-AUTH-001",
+    "PREF-MAIN-001",
+    "PREF-MAIN-002",
+    "PREF-MAIN-003",
+    "PREF-MAIN-004",
+    "PREF-MAIN-005",
+    "PREF-THEME-001",
+    "PREF-THEME-002",
+    "PREF-THEME-003",
+    "PREF-FORM-001",
+    "PREF-FORM-002",
+    "PREF-FORM-003",
+    "PREF-THEME-CUSTOM-001"
+  ],
+  "failed_cases": [],
+  "skipped_cases": [],
+  "integrity": {
+    "expected": 13,
+    "completed": 13,
+    "failed": 0,
+    "skipped": 0,
+    "missing": 0,
+    "missing_case_ids": []
+  }
+}

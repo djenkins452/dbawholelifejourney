@@ -1,6 +1,18 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 108,
+    "fields": {
+      "title": "Notes — Your Personal Memory Layer",
+      "description": "A new Notes module is now available for capturing thoughts, ideas, and reference notes. Notes support color coding, pinning, tagging, full-text search with highlighted results, and semantic search powered by AI. Attach notes to any entity (tasks, goals, journal entries) and find them instantly with intelligent ranking.",
+      "entry_type": "feature",
+      "release_date": "2026-03-01",
+      "is_published": true,
+      "learn_more_url": "/notes/"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 106,
     "fields": {
       "title": "Your Chief of Staff is Faster, Smarter, and More Reliable",

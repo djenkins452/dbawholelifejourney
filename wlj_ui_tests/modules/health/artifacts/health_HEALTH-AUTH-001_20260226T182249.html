@@ -1,0 +1,546 @@
+<!DOCTYPE html><html lang="en"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign In - Whole Life Journey</title>
+    <link rel="icon" type="image/png" href="/static/images/wlj-logo.png">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            overflow-x: hidden;
+            width: 100%;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 50%, #1e1b4b 100%);
+            color: #f8fafc;
+        }
+
+        .auth-page {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Left side - Hero */
+        .auth-hero {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 3rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero-content {
+            text-align: center;
+            max-width: 600px;
+            z-index: 1;
+            padding: 2rem;
+        }
+
+        .hero-content h1 {
+            font-size: 3.5rem;
+            font-weight: 700;
+            margin-bottom: 2.5rem;
+            color: #c9c0b0;
+        }
+
+        .hero-content p {
+            font-size: 1.35rem;
+            color: #7a9cba;
+            line-height: 2;
+            margin-bottom: 3.5rem;
+        }
+
+        /* Feature pills */
+        .feature-pills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            justify-content: center;
+        }
+
+        @media (max-width: 700px) {
+            .feature-pills {
+                gap: 1rem;
+            }
+        }
+
+        .feature-pill {
+            display: flex;
+            align-items: center;
+            gap: 0.875rem;
+            padding: 1rem 1.75rem;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 9999px;
+            font-size: 1.2rem;
+            font-weight: 500;
+            color: #e2e8f0;
+        }
+
+        .feature-pill svg {
+            width: 32px;
+            height: 32px;
+        }
+
+        .pill-journal { color: #60a5fa; }
+        .pill-health { color: #f87171; }
+        .pill-faith { color: #a78bfa; }
+        .pill-goals { color: #34d399; }
+        .pill-ai { color: #fbbf24; }
+
+        /* Right side - Form */
+        .auth-form-section {
+            width: 100%;
+            max-width: 480px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 3rem;
+            background: #ffffff;
+        }
+
+        .auth-form-container {
+            width: 100%;
+            max-width: 360px;
+            margin: 0 auto;
+        }
+
+        .auth-logo {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 2.5rem;
+        }
+
+        .auth-logo img {
+            width: 180px;
+            height: 180px;
+        }
+
+        .auth-form-container h2 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 0.5rem;
+            text-align: center;
+        }
+
+        .auth-form-container .subtitle {
+            color: #64748b;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+
+        .form-group {
+            margin-bottom: 1.25rem;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #374151;
+            margin-bottom: 0.5rem;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            font-size: 1rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.5rem;
+            background: #ffffff;
+            color: #1e293b;
+            transition: border-color 0.15s, box-shadow 0.15s;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #6b8a9e;
+            box-shadow: 0 0 0 3px rgba(107, 138, 158, 0.15);
+        }
+
+        .form-input::placeholder {
+            color: #9ca3af;
+        }
+
+        .password-wrapper {
+            position: relative;
+        }
+
+        .password-wrapper .form-input {
+            padding-right: 2.75rem;
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: 0.5rem;
+            top: 50%;
+            transform: translateY(-50%);
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            padding: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            color: #6b7280;
+        }
+
+        .password-toggle:hover {
+            color: #374151;
+        }
+
+        .form-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+            color: #374151;
+            cursor: pointer;
+        }
+
+        .form-checkbox {
+            width: 1rem;
+            height: 1rem;
+            border-radius: 0.25rem;
+            accent-color: #6b8a9e;
+        }
+
+        .forgot-link {
+            font-size: 0.875rem;
+            color: #6b8a9e;
+            text-decoration: none;
+        }
+
+        .forgot-link:hover {
+            text-decoration: underline;
+        }
+
+        .btn-primary {
+            width: 100%;
+            padding: 0.875rem 1.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            color: #ffffff;
+            background: #6b8a9e;
+            border: none;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(107, 138, 158, 0.4);
+        }
+
+        .auth-link {
+            text-align: center;
+            margin-top: 1.5rem;
+            font-size: 0.875rem;
+            color: #64748b;
+        }
+
+        .auth-link a {
+            color: #6b8a9e;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .auth-link a:hover {
+            text-decoration: underline;
+        }
+
+        .auth-footer {
+            margin-top: auto;
+            padding-top: 2rem;
+            text-align: center;
+            font-size: 0.75rem;
+            color: #9ca3af;
+        }
+
+        .form-errors {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 0.5rem;
+            padding: 0.75rem 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .form-error {
+            color: #dc2626;
+            font-size: 0.875rem;
+            margin: 0;
+        }
+
+        /* Mobile responsive */
+        @media (max-width: 900px) {
+            .auth-page {
+                flex-direction: column;
+            }
+
+            .auth-hero {
+                padding: 2rem;
+                min-height: 50vh;
+            }
+
+            .hero-content h1 {
+                font-size: 2.5rem;
+                margin-bottom: 1.5rem;
+            }
+
+            .hero-content p {
+                font-size: 1.125rem;
+                margin-bottom: 2.5rem;
+            }
+
+            .feature-pills {
+                gap: 1rem;
+            }
+
+            .feature-pill {
+                padding: 0.75rem 1.25rem;
+                font-size: 1rem;
+            }
+
+            .feature-pill svg {
+                width: 26px;
+                height: 26px;
+            }
+
+            .auth-logo img {
+                width: 140px;
+                height: 140px;
+            }
+
+            .auth-form-section {
+                max-width: none;
+                padding: 2rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .auth-hero {
+                padding: 1.25rem;
+                min-height: 40vh;
+            }
+
+            .hero-content {
+                padding: 1rem;
+            }
+
+            .hero-content h1 {
+                font-size: 1.875rem;
+                margin-bottom: 1rem;
+            }
+
+            .hero-content p {
+                font-size: 1rem;
+                line-height: 1.7;
+                margin-bottom: 1.5rem;
+            }
+
+            .feature-pills {
+                gap: 0.75rem;
+            }
+
+            .feature-pill {
+                padding: 0.5rem 1rem;
+                font-size: 0.9rem;
+            }
+
+            .feature-pill svg {
+                width: 22px;
+                height: 22px;
+            }
+
+            .auth-logo img {
+                width: 120px;
+                height: 120px;
+            }
+
+            .auth-form-section {
+                padding: 1.5rem;
+            }
+
+            .auth-form-container h2 {
+                font-size: 1.5rem;
+            }
+        }
+
+        /* Decorative background elements */
+        .bg-glow {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(100px);
+            opacity: 0.3;
+        }
+
+        .glow-1 {
+            width: 400px;
+            height: 400px;
+            background: #6366f1;
+            top: -100px;
+            left: -100px;
+        }
+
+        .glow-2 {
+            width: 300px;
+            height: 300px;
+            background: #f59e0b;
+            bottom: -50px;
+            right: -50px;
+        }
+
+        .glow-3 {
+            width: 200px;
+            height: 200px;
+            background: #8b5cf6;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+    </style>
+</head>
+<body>
+    <div class="auth-page">
+        <!-- Left Hero Section -->
+        <div class="auth-hero">
+            <!-- Background glows -->
+            <div class="bg-glow glow-1"></div>
+            <div class="bg-glow glow-2"></div>
+            <div class="bg-glow glow-3"></div>
+
+            <div class="hero-content">
+                <h1>Your Whole Life Journey</h1>
+                <p>A personal space to reflect, grow, and track the things that matter most. Journal your thoughts, nurture your health, deepen your faith, and achieve your goals—all in one place.</p>
+
+                <div class="feature-pills">
+                    <div class="feature-pill">
+                        <svg class="pill-faith" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 2v20M7 7h10"></path>
+                        </svg>
+                        Faith
+                    </div>
+                    <div class="feature-pill">
+                        <svg class="pill-journal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                        </svg>
+                        Journal
+                    </div>
+                    <div class="feature-pill">
+                        <svg class="pill-health" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                        </svg>
+                        Health
+                    </div>
+                    <div class="feature-pill">
+                        <svg class="pill-goals" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <circle cx="12" cy="12" r="6"></circle>
+                            <circle cx="12" cy="12" r="2"></circle>
+                        </svg>
+                        Goals
+                    </div>
+                    <div class="feature-pill">
+                        <svg class="pill-ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a2 2 0 1 1 0 4h-1.17A7 7 0 0 1 14 22h-4a7 7 0 0 1-5.83-4H3a2 2 0 1 1 0-4h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2z"></path>
+                        </svg>
+                        AI Coach
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Form Section -->
+        <div class="auth-form-section">
+            <div class="auth-form-container">
+                <div class="auth-logo">
+                    <img src="/static/images/wlj-logo.png" alt="Whole Life Journey">
+                </div>
+
+                <h2>Welcome back</h2>
+                <p class="subtitle">Sign in to continue your journey</p>
+
+                <form method="post" action="/accounts/login/" data-testid="login-form">
+                    <input type="hidden" name="csrfmiddlewaretoken" value="MytXbBXVc9SYuDqeofGgMuzbBhjZuav5uzk8KuaYBsvpSiYanawLKBMhXA9d3DN8" style="">
+
+                    
+
+                    <div class="form-group">
+                        <label for="id_login" class="form-label">Email</label>
+                        <input type="email" name="login" id="id_login" class="form-input" placeholder="you@example.com" required="" autofocus="" data-testid="login-email-input" style="">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="id_password" class="form-label">Password</label>
+                        <div class="password-wrapper">
+                            <input type="password" name="password" id="id_password" class="form-input" placeholder="Your password" required="" data-testid="login-password-input" style="">
+                            <button type="button" class="password-toggle" data-target="id_password" aria-label="Show password">
+                                <svg class="eye-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                                <svg class="eye-off-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="remember" class="form-checkbox" style="">
+                            <span>Remember me</span>
+                        </label>
+                        <a href="/accounts/password/reset/" class="forgot-link">Forgot password?</a>
+                    </div>
+
+                    <button type="submit" class="btn-primary" data-testid="login-submit-button">
+                        Sign In
+                    </button>
+                </form>
+
+                <p class="auth-link">
+                    Don't have an account? <a href="/accounts/signup/">Create one</a>
+                </p>
+
+                <p class="auth-link" style="margin-top: 1rem; font-size: 0.8rem; opacity: 0.7;">
+                    <a href="/app-review/">App Store Reviewer? Click here</a>
+                </p>
+
+                <div class="auth-footer">
+                    <p>© 2026 Beacon Innovations LLC</p>
+                </div>
+            </div>
+        </div>
+    </div>
+<script nonce="">
+document.querySelectorAll('.password-toggle').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        var targetId = this.getAttribute('data-target');
+        var input = document.getElementById(targetId);
+        var isPassword = input.type === 'password';
+        input.type = isPassword ? 'text' : 'password';
+        this.querySelector('.eye-icon').style.display = isPassword ? 'none' : '';
+        this.querySelector('.eye-off-icon').style.display = isPassword ? '' : 'none';
+        this.setAttribute('aria-label', isPassword ? 'Hide password' : 'Show password');
+    });
+});
+</script>
+
+
+</body></html>

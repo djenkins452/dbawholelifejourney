@@ -1,0 +1,16 @@
+{
+  "run_id": "4c3af751",
+  "framework_version": "0.11.0",
+  "schema_version": "1.0",
+  "suite": "Finance Module Tests",
+  "module": "finance",
+  "timestamp": "2026-02-26T22:24:20.732199+00:00",
+  "duration_ms": 80699,
+  "environment": "development",
+  "base_url": "http://localhost:8000",
+  "total_cases": 33,
+  "passed": 33,
+  "failed": 0,
+  "pass_rate": 1.0,
+  "failures": []
+}

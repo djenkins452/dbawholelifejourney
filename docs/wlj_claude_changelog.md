@@ -9,6 +9,14 @@
 
 # WLJ Change History
 
+## 2026-02-28 — Add hover text to Mood This Week emoji labels
+
+**What:** Added `title` attribute to mood emoji labels so hovering shows the emotion name (e.g., "Grateful", "Anxious").
+
+**Files:** `templates/journal/home.html`
+
+---
+
 ## 2026-02-28 — Fix Journal Dashboard: Mood This Week + Today's Prompt
 
 **What:** Fixed two broken widgets on the journal home page:

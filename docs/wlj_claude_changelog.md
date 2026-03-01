@@ -9,6 +9,30 @@
 
 # WLJ Change History
 
+## 2026-02-28 — Add hover text to Mood This Week emoji labels
+
+**What:** Added `title` attribute to mood emoji labels so hovering shows the emotion name (e.g., "Grateful", "Anxious").
+
+**Files:** `templates/journal/home.html`
+
+---
+
+## 2026-02-28 — Fix Journal Dashboard: Mood This Week + Today's Prompt
+
+**What:** Fixed two broken widgets on the journal home page:
+1. **Mood This Week** — Was always empty because it queried the `mood` CharField (never populated). Fixed to query from `emotions` ManyToMany field which is what the entry form actually collects.
+2. **Today's Prompt** — Was hardcoded to `None`. Fixed to query `JournalPrompt` model and rotate daily based on day-of-year. Respects faith_enabled preference.
+
+**Why:** User reported both widgets empty despite regular journaling with emotion selection.
+
+**Files:**
+- `apps/journal/views.py` — Rewrote `_get_mood_stats()` to use Emotion M2M; replaced `suggested_prompt = None` with daily prompt rotation logic
+- `templates/journal/home.html` — Fixed `get_category_display` (invalid on FK) to `category.name`
+
+**Tests:** 107 journal tests pass
+
+---
+
 ## 2026-02-28 — Preemptive Server Wake on Chat Interaction
 
 **What:** Added a preemptive server "ping" that fires when the user opens the chat drawer, focuses the input, or starts typing. A silent HEAD request to `/assistant/api/chat/` wakes Railway's container before the user hits Send. 5-minute cooldown prevents spam. This means the server is likely warm by the time the actual message is sent.

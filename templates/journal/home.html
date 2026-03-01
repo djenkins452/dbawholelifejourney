@@ -130,7 +130,7 @@
             <div class="mood-chart">
                 {% for mood in mood_stats %}
                 <div class="mood-bar-container">
-                    <div class="mood-label">{{ mood.emoji }}</div>
+                    <div class="mood-label" title="{{ mood.mood }}">{{ mood.emoji }}</div>
                     <div class="mood-bar-wrapper">
                         <div class="mood-bar" style="width: {{ mood.percentage }}%;"></div>
                     </div>

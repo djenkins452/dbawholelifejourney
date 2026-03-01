@@ -9,6 +9,17 @@
 
 # WLJ Change History
 
+## 2026-02-28 — Add circuit breaker to SafeRedisCache
+
+**What:** After the first Redis timeout, the circuit breaker skips ALL Redis calls for 60 seconds. Without this, every cache operation waits 3 seconds for the timeout, causing pages to load in 30-60+ seconds when Redis is unreachable.
+
+**Files changed:**
+- `apps/core/cache_backend.py` — Added circuit breaker pattern with 60s cooldown
+
+**Why:** Site was up but extremely slow — dozens of cache calls × 3s timeout each = unacceptable page load times.
+
+---
+
 ## 2026-02-28 — SafeRedisCache: site survives Redis outages
 
 **What:** Created `SafeRedisCache` backend that catches all Redis connection errors and returns cache-miss defaults instead of crashing. Every `cache.get()` returns `None`, every `cache.set()`/`cache.delete()` silently fails. The site degrades to DB-only (slower but functional) instead of crashing with 500 errors. Reverted per-method try/except wraps in help models (now handled at backend level).

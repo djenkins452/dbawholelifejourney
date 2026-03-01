@@ -9,6 +9,14 @@
 
 # WLJ Change History
 
+## 2026-02-28 — Fix mood and entry count accuracy using entry_date
+
+**What:** Journal home stats (this_week, this_month counts) and Mood This Week widget were filtering by `created_at` (database timestamp) instead of `entry_date` (user-specified date). This caused inaccurate counts when timezone offsets made `created_at` differ from `entry_date`. Changed all filters to use `entry_date__gte` for consistency.
+
+**Files:** `apps/journal/views.py`
+
+---
+
 ## 2026-02-28 — Show emotion names next to emojis in Mood This Week
 
 **What:** Emotion labels now show "😊 Great" instead of just "😊". Users couldn't identify which emotion each emoji represented. Widened label area from 24px to min-width 90px.

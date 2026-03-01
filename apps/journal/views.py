@@ -756,22 +756,21 @@ class JournalHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         user = self.request.user
 
         from .models import JournalEntry, Tag
-        from apps.core.utils import get_user_today, get_user_now
+        from apps.core.utils import get_user_today
 
-        now = get_user_now(user)
-        week_ago = now - timedelta(days=7)
-        month_ago = now - timedelta(days=30)
         today = get_user_today(user)
-        
+        week_ago = today - timedelta(days=7)
+        month_ago = today - timedelta(days=30)
+
         entries = JournalEntry.objects.filter(user=user)
-        
+
         context["stats"] = {
             "total": entries.count(),
-            "this_week": entries.filter(created_at__gte=week_ago).count(),
-            "this_month": entries.filter(created_at__gte=month_ago).count(),
+            "this_week": entries.filter(entry_date__gte=week_ago).count(),
+            "this_month": entries.filter(entry_date__gte=month_ago).count(),
             "streak": self._calculate_streak(entries, today),
         }
-        
+
         context["recent_entries"] = entries.order_by("-entry_date")[:5]
         context["mood_stats"] = self._get_mood_stats(entries, week_ago)
         
@@ -840,7 +839,7 @@ class JournalHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
     def _get_mood_stats(self, entries, since):
         """Build mood stats from emotions ManyToMany field on entries."""
         from apps.journal.models import Emotion
-        week_entries = entries.filter(created_at__gte=since)
+        week_entries = entries.filter(entry_date__gte=since)
         # Count each emotion across all entries this week
         emotion_counts = (
             Emotion.objects.filter(

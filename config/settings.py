@@ -1046,8 +1046,15 @@ import logging as _settings_logging
 _cache_logger = _settings_logging.getLogger('wlj.startup')
 _cache_backend = CACHES.get('default', {}).get('BACKEND', 'unknown')
 if 'SafeRedisCache' in _cache_backend:
-    _cache_host = CACHES['default'].get('LOCATION', '?').split('@')[-1]
-    _cache_logger.warning("Cache: SafeRedisCache via %s → %s", _redis_source, _cache_host)
+    _cache_loc = CACHES['default'].get('LOCATION', '?')
+    # Mask password but show protocol://user:***@host:port/db
+    if '@' in _cache_loc:
+        _scheme_user = _cache_loc.split('://')[0] + '://' + _cache_loc.split('://')[1].split(':')[0] + ':***@'
+        _host_part = _cache_loc.split('@')[1]
+        _cache_masked = _scheme_user + _host_part
+    else:
+        _cache_masked = _cache_loc
+    _cache_logger.warning("Cache: SafeRedisCache via %s → %s", _redis_source, _cache_masked)
 elif 'LocMemCache' in _cache_backend:
     _cache_logger.info("Cache: LocMemCache (no Redis)")
 else:

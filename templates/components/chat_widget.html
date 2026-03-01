@@ -1551,10 +1551,10 @@
                 return;
             }
 
-            // SSE streaming — hide typing, show streaming message
-            hideTyping();
+            // SSE streaming — create message element BEFORE streaming starts
             var msgEl = createStreamingMessage();
             var fullText = '';
+            var firstToken = true;
 
             var reader = response.body.getReader();
             var decoder = new TextDecoder();
@@ -1566,27 +1566,54 @@
 
                 buffer += decoder.decode(result.value, {stream: true});
 
-                // Parse SSE events from buffer
-                var parsed = parseSSEBuffer(buffer);
-                buffer = parsed.remaining;
+                // Parse complete SSE events from buffer
+                var parts = buffer.split('\n\n');
+                buffer = parts.pop(); // last part may be incomplete
 
-                for (var i = 0; i < parsed.parsed.length; i++) {
-                    var evt = parsed.parsed[i];
-                    if (evt.event === 'token') {
-                        console.log("STREAM TOKEN:", evt.data.content);
-                        fullText += evt.data.content;
-                        updateStreamingMessage(msgEl, fullText);
-                    } else if (evt.event === 'done') {
+                for (var i = 0; i < parts.length; i++) {
+                    var part = parts[i].trim();
+                    if (!part) continue;
+
+                    // Extract event type and data
+                    var eventType = 'message';
+                    var dataStr = '';
+                    var lines = part.split('\n');
+                    for (var j = 0; j < lines.length; j++) {
+                        if (lines[j].indexOf('event: ') === 0) eventType = lines[j].substring(7);
+                        else if (lines[j].indexOf('data: ') === 0) dataStr = lines[j].substring(6);
+                    }
+
+                    if (!dataStr) continue;
+
+                    try {
+                        var evt = JSON.parse(dataStr);
+                    } catch (e) {
+                        continue; // skip malformed JSON
+                    }
+
+                    if (eventType === 'token' && evt.content) {
+                        if (firstToken) {
+                            hideTyping();
+                            firstToken = false;
+                        }
+                        fullText += evt.content;
+                        console.log("STREAM TOKEN:", evt.content);
+                        // CRITICAL: use textContent for immediate render (no HTML parsing overhead)
+                        msgEl.textContent = fullText;
+                        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                    } else if (eventType === 'done') {
                         finalizeStreamingMessage(msgEl, fullText);
-                    } else if (evt.event === 'error') {
-                        finalizeStreamingMessage(msgEl, fullText || evt.data.error);
+                    } else if (eventType === 'error') {
+                        finalizeStreamingMessage(msgEl, fullText || (evt.error || 'Stream error'));
                     }
                 }
             }
 
-            // Ensure message is finalized
+            // Ensure message is finalized with markdown formatting
             if (fullText) {
                 finalizeStreamingMessage(msgEl, fullText);
+            } else {
+                hideTyping();
             }
 
             // Voice conversation mode

@@ -766,86 +766,113 @@
         apSendStreaming(message, container, btnEl, inputEl);
     }
 
-    // Streaming path — SSE via fetch + ReadableStream
-    function apSendStreaming(message, container, btnEl, inputEl) {
+    // Streaming path — async/await + ReadableStream for immediate token rendering
+    async function apSendStreaming(message, container, btnEl, inputEl) {
         var pageCtx = getFullPageContext();
 
-        fetch('/assistant/api/chat/stream/', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCsrfToken()
-            },
-            body: JSON.stringify({
-                message: message,
-                page_context: pageCtx
-            })
-        })
-        .then(function(response) {
+        try {
+            var response = await fetch('/assistant/api/chat/stream/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()
+                },
+                body: JSON.stringify({
+                    message: message,
+                    page_context: pageCtx
+                })
+            });
+
             if (!response.ok) throw new Error('Stream returned ' + response.status);
 
             var contentType = response.headers.get('content-type') || '';
             if (contentType.indexOf('text/event-stream') === -1) {
-                // JSON fallback
-                return response.json().then(function(data) {
-                    hideTyping();
-                    if (data.success && data.response) {
-                        addMessage(container, data.response, false, true);
-                    } else {
-                        addMessage(container, data.error || 'Something went wrong.', false, true);
-                    }
-                });
+                // JSON fallback (error responses)
+                var data = await response.json();
+                hideTyping();
+                if (data.success && data.response) {
+                    addMessage(container, data.response, false, true);
+                } else {
+                    addMessage(container, data.error || 'Something went wrong.', false, true);
+                }
+                return;
             }
 
-            // SSE streaming
-            hideTyping();
+            // Create message element BEFORE streaming starts
             var msgEl = apCreateStreamingMsg(container);
             var fullText = '';
+            var firstToken = true;
+
             var reader = response.body.getReader();
             var decoder = new TextDecoder();
             var buffer = '';
 
-            function readChunk() {
-                return reader.read().then(function(result) {
-                    if (result.done) {
-                        if (fullText) apFinalizeStreamingMsg(msgEl, fullText);
-                        if (voiceConversationMode && fullText) speakResponse(fullText);
-                        return;
+            while (true) {
+                var result = await reader.read();
+                if (result.done) break;
+
+                buffer += decoder.decode(result.value, {stream: true});
+
+                // Parse complete SSE events from buffer
+                var parts = buffer.split('\n\n');
+                buffer = parts.pop(); // last part may be incomplete
+
+                for (var i = 0; i < parts.length; i++) {
+                    var part = parts[i].trim();
+                    if (!part) continue;
+
+                    // Extract event type and data
+                    var eventType = 'message';
+                    var dataStr = '';
+                    var lines = part.split('\n');
+                    for (var j = 0; j < lines.length; j++) {
+                        if (lines[j].indexOf('event: ') === 0) eventType = lines[j].substring(7);
+                        else if (lines[j].indexOf('data: ') === 0) dataStr = lines[j].substring(6);
                     }
 
-                    buffer += decoder.decode(result.value, {stream: true});
-                    var parsed = apParseSSE(buffer);
-                    buffer = parsed.remaining;
+                    if (!dataStr) continue;
 
-                    for (var i = 0; i < parsed.parsed.length; i++) {
-                        var evt = parsed.parsed[i];
-                        if (evt.event === 'token') {
-                            console.log("STREAM TOKEN:", evt.data.content);
-                            fullText += evt.data.content;
-                            apUpdateStreamingMsg(container, msgEl, fullText);
-                        } else if (evt.event === 'done') {
-                            apFinalizeStreamingMsg(msgEl, fullText);
-                        } else if (evt.event === 'error') {
-                            apFinalizeStreamingMsg(msgEl, fullText || evt.data.error);
+                    try {
+                        var evt = JSON.parse(dataStr);
+                    } catch (e) {
+                        continue; // skip malformed JSON
+                    }
+
+                    if (eventType === 'token' && evt.content) {
+                        if (firstToken) {
+                            hideTyping();
+                            firstToken = false;
                         }
+                        fullText += evt.content;
+                        console.log("STREAM TOKEN:", evt.content);
+                        // CRITICAL: use textContent for immediate render (no HTML parsing overhead)
+                        msgEl.textContent = fullText;
+                        container.scrollTop = container.scrollHeight;
+                    } else if (eventType === 'done') {
+                        // Apply markdown formatting only at the end
+                        apFinalizeStreamingMsg(msgEl, fullText);
+                    } else if (eventType === 'error') {
+                        apFinalizeStreamingMsg(msgEl, fullText || (evt.error || 'Stream error'));
                     }
-
-                    return readChunk();
-                });
+                }
             }
 
-            return readChunk();
-        })
-        .catch(function(error) {
+            // Ensure finalized (stream may end without explicit done event)
+            if (fullText) {
+                apFinalizeStreamingMsg(msgEl, fullText);
+            } else {
+                hideTyping();
+            }
+            if (voiceConversationMode && fullText) speakResponse(fullText);
+
+        } catch (error) {
             hideTyping();
-            // Fallback to non-streaming on any failure
             console.warn('Streaming failed, falling back:', error);
             showTyping(container);
             apSendNonStreaming(message, container, btnEl, inputEl, null);
-        })
-        .finally(function() {
+        } finally {
             btnEl.disabled = !inputEl.value.trim();
-        });
+        }
     }
 
     // Non-streaming fallback (also used for image messages)

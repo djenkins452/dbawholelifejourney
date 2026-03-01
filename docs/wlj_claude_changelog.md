@@ -9,6 +9,21 @@
 
 # WLJ Change History
 
+## 2026-03-01 — Fix Beth streaming: textContent for immediate token rendering (Phase C2 final)
+
+**What:** Rewrote streaming response handlers in both Beth chat templates to render tokens immediately instead of buffering.
+
+**Root cause:** Two issues prevented live token rendering:
+1. `innerHTML` with `formatAssistantMessage()` was called on EVERY token — parses HTML, builds DOM subtrees, triggers layout/paint. Replaced with `textContent` during streaming (zero HTML overhead), with `formatAssistantMessage` applied only once at finalization.
+2. `assistant_panel.html` used `.then()` recursive chaining — converted to `async/await` with `while(true)` loop for predictable Promise scheduling.
+3. `hideTyping()` fired on response headers before any tokens — moved to first token arrival.
+
+**Files changed:**
+- `templates/components/assistant_panel.html` — Rewrote `apSendStreaming()`: `.then()` → `async/await`, `innerHTML` → `textContent`, hideTyping on first token
+- `templates/components/chat_widget.html` — Same: `updateStreamingMessage(innerHTML)` → `textContent`, hideTyping on first token
+
+---
+
 ## 2026-03-01 — Beth: Add task mutation + fix false action claims + performance
 
 **What:** Three critical fixes:

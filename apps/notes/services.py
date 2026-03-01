@@ -1,0 +1,329 @@
+"""
+Whole Life Journey - Notes Service Layer
+
+Project: Whole Life Journey
+Path: apps/notes/services.py
+Purpose: CoS-ready retrieval API for searching, fetching, and citing notes.
+
+This module provides a stable, framework-agnostic interface for querying
+notes. It is designed for use by the Chief of Staff (CoS) intelligence layer,
+internal callers, and future API endpoints. It has no HttpRequest dependency.
+"""
+
+import logging
+import re
+import string
+
+from django.contrib.contenttypes.models import ContentType
+from django.contrib.postgres.search import SearchHeadline, SearchQuery, SearchRank
+from django.db.models import F, Prefetch
+
+from .models import Note, NoteAttachment
+from .utils import resolve_entity_url
+
+logger = logging.getLogger(__name__)
+
+
+def _tokenize(text):
+    """
+    Tokenize text for match-source labeling.
+
+    Lowercase, split on whitespace, strip punctuation, drop tokens < 2 chars.
+    """
+    if not text:
+        return set()
+    translator = str.maketrans("", "", string.punctuation)
+    return {
+        tok
+        for tok in text.lower().translate(translator).split()
+        if len(tok) >= 2
+    }
+
+
+def _compute_matched_in(query_tokens, note):
+    """
+    Determine which fields the query matched against.
+
+    Returns a list of field names: "title", "body", "tags", "attachments".
+    """
+    if not query_tokens:
+        return []
+
+    matched_in = []
+    fields = [
+        ("title", note.title or ""),
+        ("body", note.body or ""),
+        ("tags", note.tags_text or ""),
+        ("attachments", note.attachments_text or ""),
+    ]
+    for field_name, field_value in fields:
+        field_tokens = _tokenize(field_value)
+        if query_tokens & field_tokens:
+            matched_in.append(field_name)
+    return matched_in
+
+
+def _build_attachment_block(att):
+    """Build a structured attachment dict from a NoteAttachment instance."""
+    ct = att.content_type
+    ct_label = f"{ct.app_label}.{ct.model}"
+    display = att.attachment_display()
+
+    # Resolve URL best-effort
+    url = None
+    try:
+        entity = att.attached_entity
+        url = resolve_entity_url(entity)
+    except Exception:
+        pass
+
+    return {
+        "content_type": ct_label,
+        "object_id": att.object_id,
+        "display": display,
+        "url": url,
+    }
+
+
+def _build_citation_block(note, *, query=None, query_tokens=None, headline=None, rank=None):
+    """
+    Build a citation block dict from a Note instance.
+
+    The note must have been fetched with prefetched tags and attachments
+    to avoid N+1 queries.
+    """
+    # Use prefetched tags (avoid extra query)
+    tag_names = [t.name for t in note.tags.all()]
+
+    # Use prefetched attachments
+    attachments_list = []
+    prefetched_attachments = note.attachments.all()
+    for att in prefetched_attachments:
+        attachments_list.append(_build_attachment_block(att))
+
+    matched_in = _compute_matched_in(query_tokens, note) if query_tokens else []
+
+    return {
+        "note_id": note.pk,
+        "display_title": note.display_title,
+        "body_preview": note.body_preview,
+        "body": note.body,
+        "created_at": note.created_at,
+        "updated_at": note.updated_at,
+        "is_pinned": note.is_pinned,
+        "color": note.color,
+        "tag_names": tag_names,
+        "attachment_count": len(attachments_list),
+        "attachments": attachments_list,
+        "url": note.get_absolute_url(),
+        "match": {
+            "query": query or "",
+            "matched_in": matched_in,
+            "headline": headline or "",
+            "rank": rank,
+        },
+    }
+
+
+def _base_queryset(user):
+    """
+    Return the base Note queryset for a user with standard prefetches.
+
+    Excludes soft-deleted notes. Prefetches tags and attachments to avoid N+1.
+    """
+    return (
+        Note.objects.filter(user=user)
+        .prefetch_related(
+            "tags",
+            Prefetch(
+                "attachments",
+                queryset=NoteAttachment.objects.select_related("content_type"),
+            ),
+        )
+    )
+
+
+def search_notes(
+    *,
+    user,
+    query=None,
+    tag_ids=None,
+    color=None,
+    pinned=None,
+    attached_only=None,
+    attached_content_types=None,
+    date_from=None,
+    date_to=None,
+    limit=25,
+    offset=0,
+):
+    """
+    Search and filter notes for a user. Returns structured citation blocks.
+
+    Args:
+        user: The requesting user (ownership enforced).
+        query: Full-text search string (websearch syntax supported).
+        tag_ids: Filter to notes with any of these tag IDs.
+        color: Filter to a specific color.
+        pinned: If True, only pinned notes; if False, only unpinned.
+        attached_only: If True, only notes with at least one attachment.
+        attached_content_types: Filter to notes attached to specific model types
+            (list of "app_label.model" strings).
+        date_from: Only notes created on or after this date.
+        date_to: Only notes created on or before this date.
+        limit: Max results to return (default 25).
+        offset: Pagination offset (default 0).
+
+    Returns:
+        dict with "count" (int) and "results" (list of citation_block dicts).
+    """
+    queryset = _base_queryset(user)
+
+    # Filters
+    if tag_ids:
+        queryset = queryset.filter(tags__id__in=tag_ids)
+
+    if color:
+        queryset = queryset.filter(color=color)
+
+    if pinned is not None:
+        queryset = queryset.filter(is_pinned=pinned)
+
+    if date_from:
+        queryset = queryset.filter(created_at__date__gte=date_from)
+
+    if date_to:
+        queryset = queryset.filter(created_at__date__lte=date_to)
+
+    if attached_only:
+        queryset = queryset.filter(attachments__isnull=False)
+
+    if attached_content_types:
+        ct_filters = []
+        for ct_str in attached_content_types:
+            parts = ct_str.split(".")
+            if len(parts) == 2:
+                ct_filters.append(
+                    ContentType.objects.filter(
+                        app_label=parts[0], model=parts[1]
+                    ).values_list("pk", flat=True)
+                )
+        if ct_filters:
+            from functools import reduce
+            from operator import or_
+
+            from django.db.models import Q
+
+            ct_q = reduce(or_, [Q(attachments__content_type__in=ct_qs) for ct_qs in ct_filters])
+            queryset = queryset.filter(ct_q)
+
+    # Full-text search
+    query_str = (query or "").strip()
+    query_tokens = _tokenize(query_str) if query_str else None
+    headline_field = None
+
+    if query_str:
+        search_query = SearchQuery(query_str, search_type="websearch")
+        queryset = (
+            queryset.filter(search_vector=search_query)
+            .annotate(
+                rank=SearchRank(F("search_vector"), search_query),
+                headline=SearchHeadline(
+                    "body",
+                    search_query,
+                    start_sel="<mark>",
+                    stop_sel="</mark>",
+                    max_words=35,
+                    min_words=15,
+                ),
+            )
+            .order_by("-rank", "-is_pinned", "-updated_at")
+        )
+        headline_field = "headline"
+    else:
+        queryset = queryset.order_by("-is_pinned", "-updated_at")
+
+    queryset = queryset.distinct()
+
+    # Count before slicing
+    total_count = queryset.count()
+
+    # Paginate
+    results_qs = queryset[offset : offset + limit]
+
+    # Build citation blocks
+    results = []
+    for note in results_qs:
+        headline_val = getattr(note, headline_field, "") if headline_field else ""
+        rank_val = getattr(note, "rank", None)
+        results.append(
+            _build_citation_block(
+                note,
+                query=query_str,
+                query_tokens=query_tokens,
+                headline=str(headline_val) if headline_val else "",
+                rank=float(rank_val) if rank_val is not None else None,
+            )
+        )
+
+    return {
+        "count": total_count,
+        "results": results,
+    }
+
+
+def get_note_detail(*, user, note_id):
+    """
+    Fetch a single note with full detail as a citation block.
+
+    Enforces user isolation and excludes soft-deleted notes.
+
+    Args:
+        user: The requesting user.
+        note_id: The primary key of the note.
+
+    Returns:
+        A citation_block dict, or None if note not found / not owned.
+    """
+    try:
+        note = _base_queryset(user).get(pk=note_id)
+    except Note.DoesNotExist:
+        return None
+
+    return _build_citation_block(note)
+
+
+def get_related_notes_for_entity(*, user, content_type, object_id, limit=50):
+    """
+    Fetch notes attached to a specific entity.
+
+    Args:
+        user: The requesting user (ownership enforced).
+        content_type: String in "app_label.model" format (e.g., "life.task").
+        object_id: The primary key of the entity.
+        limit: Max results (default 50).
+
+    Returns:
+        List of citation_block dicts.
+    """
+    parts = content_type.split(".")
+    if len(parts) != 2:
+        return []
+
+    try:
+        ct = ContentType.objects.get(app_label=parts[0], model=parts[1])
+    except ContentType.DoesNotExist:
+        return []
+
+    note_ids = (
+        NoteAttachment.objects.filter(content_type=ct, object_id=object_id)
+        .values_list("note_id", flat=True)
+    )
+
+    queryset = (
+        _base_queryset(user)
+        .filter(pk__in=note_ids)
+        .order_by("-is_pinned", "-updated_at")
+    )[:limit]
+
+    return [_build_citation_block(note) for note in queryset]

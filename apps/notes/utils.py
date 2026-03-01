@@ -52,6 +52,24 @@ def resolve_attachment_target(content_type_id, object_id, user):
     return ct, obj
 
 
+def resolve_entity_url(obj):
+    """
+    Return the absolute URL for an entity, or None if unavailable.
+
+    Uses get_absolute_url() if the model defines it. Returns None for
+    models without a detail view (e.g. BibleStudyNote, CalendarEvent).
+    """
+    if obj is None:
+        return None
+    try:
+        url = getattr(obj, "get_absolute_url", None)
+        if callable(url):
+            return url()
+    except Exception:
+        pass
+    return None
+
+
 def get_entity_display_name(attachment):
     """
     Return a human-readable display name for an attachment's target entity.

@@ -74,3 +74,47 @@ def log_keepalive_cycle(active_count, refreshed_count):
         active_count,
         refreshed_count,
     )
+
+
+# =========================================================================
+# Instant-Response Layer Telemetry
+# =========================================================================
+
+def log_layered_cache_hit(user_id, stable_hit, dynamic_hit):
+    """Log layered cache layer hits."""
+    logger.debug(
+        "cos.context.layered_hit user=%s stable=%s dynamic=%s",
+        user_id, stable_hit, dynamic_hit,
+    )
+
+
+def log_stream_start(user_id, ttft_ms):
+    """Log when first token is emitted to the client (time to first token)."""
+    logger.info(
+        "cos.stream.start user=%s ttft_ms=%.1f",
+        user_id, ttft_ms,
+    )
+
+
+def log_stream_complete(user_id, total_ms, token_count):
+    """Log when stream is fully complete."""
+    logger.info(
+        "cos.stream.complete user=%s total_ms=%.1f tokens=%d",
+        user_id, total_ms, token_count,
+    )
+
+
+def log_stream_fallback(user_id, reason):
+    """Log when stream fell back to non-streaming."""
+    logger.info(
+        "cos.stream.fallback user=%s reason=%s",
+        user_id, reason,
+    )
+
+
+def log_parallel_build(user_id, elapsed_ms, builder_count):
+    """Log context build with parallel indicator."""
+    logger.info(
+        "cos.context.parallel_build user=%s elapsed_ms=%.1f builders=%d",
+        user_id, elapsed_ms, builder_count,
+    )

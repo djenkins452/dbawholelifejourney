@@ -1989,6 +1989,20 @@ body.has-desktop-nav .desktop-main-area {
     30% { transform: translateY(-4px); opacity: 1; }
 }
 
+/* Streaming cursor */
+.ap-streaming-cursor {
+    display: inline-block;
+    width: 2px;
+    height: 1em;
+    background: var(--text-color, #333);
+    animation: ap-blink-cursor 0.8s step-end infinite;
+    vertical-align: text-bottom;
+    margin-left: 2px;
+}
+@keyframes ap-blink-cursor {
+    50% { opacity: 0; }
+}
+
 /* Quick reply buttons */
 .ap-quick-replies {
     display: flex;

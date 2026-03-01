@@ -25,6 +25,7 @@ urlpatterns = [
 
     # Conversation / Chat
     path('api/chat/', views.AssistantChatView.as_view(), name='api_chat'),
+    path('api/chat/stream/', views.AssistantChatStreamView.as_view(), name='api_chat_stream'),
     path('api/history/', views.ConversationHistoryView.as_view(), name='api_history'),
     path('api/history/<int:conversation_id>/', views.ConversationHistoryView.as_view(), name='api_history_detail'),
     path('api/feedback/', views.MessageFeedbackView.as_view(), name='api_feedback'),

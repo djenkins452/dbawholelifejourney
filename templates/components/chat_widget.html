@@ -363,6 +363,20 @@
     30% { transform: translateY(-4px); opacity: 1; }
 }
 
+/* Streaming cursor */
+.streaming-cursor {
+    display: inline-block;
+    width: 2px;
+    height: 1em;
+    background: var(--text-color, #333);
+    animation: blink-cursor 0.8s step-end infinite;
+    vertical-align: text-bottom;
+    margin-left: 2px;
+}
+@keyframes blink-cursor {
+    50% { opacity: 0; }
+}
+
 /* Empty State */
 .assistant-empty {
     flex: 1;
@@ -1397,7 +1411,63 @@
         if (typing) typing.remove();
     }
 
-    // Send message (with optional image attachment)
+    // ==========================================================================
+    // SSE Streaming Helpers
+    // ==========================================================================
+
+    function parseSSEBuffer(buffer) {
+        var events = [];
+        var parts = buffer.split('\n\n');
+        var remaining = parts.pop(); // Last part may be incomplete
+
+        for (var i = 0; i < parts.length; i++) {
+            var part = parts[i].trim();
+            if (!part) continue;
+            var eventType = 'message';
+            var dataStr = '';
+            var lines = part.split('\n');
+            for (var j = 0; j < lines.length; j++) {
+                if (lines[j].indexOf('event: ') === 0) {
+                    eventType = lines[j].substring(7);
+                } else if (lines[j].indexOf('data: ') === 0) {
+                    dataStr = lines[j].substring(6);
+                }
+            }
+            try {
+                events.push({event: eventType, data: JSON.parse(dataStr)});
+            } catch (e) {
+                // Skip malformed events
+            }
+        }
+        return {parsed: events, remaining: remaining};
+    }
+
+    function createStreamingMessage() {
+        var emptyState = messagesContainer.querySelector('.assistant-empty');
+        if (emptyState) emptyState.remove();
+
+        var msg = document.createElement('div');
+        msg.className = 'assistant-message assistant';
+        msg.innerHTML = '<span class="streaming-cursor"></span>';
+        messagesContainer.appendChild(msg);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        return msg;
+    }
+
+    function updateStreamingMessage(msgEl, text) {
+        msgEl.innerHTML = formatAssistantMessage(text) + '<span class="streaming-cursor"></span>';
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    function finalizeStreamingMessage(msgEl, text) {
+        msgEl.innerHTML = formatAssistantMessage(text);
+        hasMessages = true;
+    }
+
+    // ==========================================================================
+    // Send message — streaming for text, non-streaming fallback for images
+    // ==========================================================================
+
     async function sendMessage() {
         const message = input.value.trim();
         if (!message && !attachedImage) return;
@@ -1419,8 +1489,6 @@
         const sentImage = attachedImage;
         clearAttachment();
 
-        showTyping();
-
         // Use current page context (already captured when drawer opened)
         if (!currentPageContext) {
             currentPageContext = getPageContext();
@@ -1433,19 +1501,126 @@
             lastInputWasVoice = false;
         }
 
-        // Helper: build fetch options for this message
+        // Image messages use non-streaming endpoint
+        if (sentImage) {
+            showTyping();
+            await sendMessageNonStreaming(message, sendContext, sentImage, savedMessage);
+            return;
+        }
+
+        // Text messages use streaming endpoint
+        await sendMessageStreaming(message, sendContext, savedMessage);
+    }
+
+    // Streaming path — SSE via fetch + ReadableStream
+    async function sendMessageStreaming(message, sendContext, savedMessage) {
+        var controller = new AbortController();
+        var timeoutId = setTimeout(function() { controller.abort(); }, 60000);
+
+        try {
+            var response = await fetch('/assistant/api/chat/stream/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()
+                },
+                body: JSON.stringify({
+                    message: message,
+                    page_context: sendContext
+                }),
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+
+            if (!response.ok) {
+                throw new Error('Stream returned ' + response.status);
+            }
+
+            // Check content type — SSE vs JSON fallback
+            var contentType = response.headers.get('content-type') || '';
+            if (contentType.indexOf('text/event-stream') === -1) {
+                // Server returned JSON (error response)
+                var data = await response.json();
+                hideTyping();
+                if (data.success) {
+                    addMessage(data.response, false);
+                } else {
+                    addMessage(data.error || 'Something went wrong.', false);
+                }
+                return;
+            }
+
+            // SSE streaming — hide typing, show streaming message
+            hideTyping();
+            var msgEl = createStreamingMessage();
+            var fullText = '';
+
+            var reader = response.body.getReader();
+            var decoder = new TextDecoder();
+            var buffer = '';
+
+            while (true) {
+                var result = await reader.read();
+                if (result.done) break;
+
+                buffer += decoder.decode(result.value, {stream: true});
+
+                // Parse SSE events from buffer
+                var parsed = parseSSEBuffer(buffer);
+                buffer = parsed.remaining;
+
+                for (var i = 0; i < parsed.parsed.length; i++) {
+                    var evt = parsed.parsed[i];
+                    if (evt.event === 'token') {
+                        fullText += evt.data.content;
+                        updateStreamingMessage(msgEl, fullText);
+                    } else if (evt.event === 'done') {
+                        finalizeStreamingMessage(msgEl, fullText);
+                    } else if (evt.event === 'error') {
+                        finalizeStreamingMessage(msgEl, fullText || evt.data.error);
+                    }
+                }
+            }
+
+            // Ensure message is finalized
+            if (fullText) {
+                finalizeStreamingMessage(msgEl, fullText);
+            }
+
+            // Voice conversation mode
+            if (voiceConversationMode && fullText && 'speechSynthesis' in window) {
+                speakResponse(fullText);
+            }
+
+        } catch (error) {
+            clearTimeout(timeoutId);
+            hideTyping();
+
+            if (error.name === 'AbortError') {
+                addMessage('Request timed out. Please try again.', false);
+            } else {
+                // Fallback to non-streaming
+                console.warn('Streaming failed, falling back:', error);
+                showTyping();
+                await sendMessageNonStreaming(message, sendContext, null, savedMessage);
+            }
+        }
+    }
+
+    // Non-streaming fallback (also used for image messages)
+    async function sendMessageNonStreaming(message, sendContext, sentImage, savedMessage) {
         function buildFetchOptions(abortSignal) {
             if (sentImage) {
-                const formData = new FormData();
+                var formData = new FormData();
                 formData.append('message', message);
                 formData.append('page_context', JSON.stringify(sendContext));
-                const byteString = atob(sentImage.data);
-                const ab = new ArrayBuffer(byteString.length);
-                const ia = new Uint8Array(ab);
-                for (let i = 0; i < byteString.length; i++) {
+                var byteString = atob(sentImage.data);
+                var ab = new ArrayBuffer(byteString.length);
+                var ia = new Uint8Array(ab);
+                for (var i = 0; i < byteString.length; i++) {
                     ia[i] = byteString.charCodeAt(i);
                 }
-                const blob = new Blob([ab], { type: sentImage.mimeType });
+                var blob = new Blob([ab], { type: sentImage.mimeType });
                 formData.append('image', blob, 'attachment.png');
                 return {
                     method: 'POST',
@@ -1469,19 +1644,16 @@
             }
         }
 
-        // Attempt with automatic silent retry on first failure (handles
-        // Railway cold starts / connection timeouts after idle periods).
-        const MAX_ATTEMPTS = 2;
-        for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-            // Timeout: 60s first attempt (allow cold start), 60s retry
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 60000);
+        var MAX_ATTEMPTS = 2;
+        for (var attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+            var controller = new AbortController();
+            var timeoutId = setTimeout(function() { controller.abort(); }, 60000);
 
             try {
-                const response = await fetch('/assistant/api/chat/', buildFetchOptions(controller.signal));
+                var response = await fetch('/assistant/api/chat/', buildFetchOptions(controller.signal));
                 clearTimeout(timeoutId);
                 hideTyping();
-                const data = await response.json();
+                var data = await response.json();
 
                 if (data.success) {
                     addMessage(data.response, false);
@@ -1491,28 +1663,23 @@
                 } else {
                     addMessage(data.error || 'Sorry, something went wrong. Please try again.', false);
                 }
-                return; // Success — exit the retry loop
+                return;
 
             } catch (error) {
                 clearTimeout(timeoutId);
 
                 if (attempt < MAX_ATTEMPTS) {
-                    // Silent retry — don't show error, just try again
-                    console.warn(`Chat attempt ${attempt} failed, retrying...`, error);
+                    console.warn('Chat attempt ' + attempt + ' failed, retrying...', error);
                     continue;
                 }
 
-                // Final attempt failed — show error to user
                 hideTyping();
                 if (error.name === 'AbortError') {
-                    console.error('Chat request timed out after 60 seconds');
                     addMessage('Request timed out. Please try again.', false);
                 } else {
-                    console.error('Chat error:', error);
                     addMessage('Sorry, I had trouble responding. Please try again.', false);
                 }
 
-                // Restore user input on failure so they don't lose their message
                 if (savedMessage) {
                     input.value = savedMessage;
                     updateSendButton();

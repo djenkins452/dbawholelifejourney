@@ -1,6 +1,70 @@
 [
   {
     "model": "help.helptopic",
+    "pk": 102,
+    "fields": {
+      "context_id": "NOTES_LIST",
+      "help_id": "notes-list",
+      "title": "Your Notes",
+      "description": "View, search, and manage all your notes.",
+      "content": "## Your Notes\n\nNotes is your personal memory layer — a place to capture thoughts, ideas, reference material, and anything you want to remember.\n\n### Searching Notes\n\nType in the search box to find notes by keyword. Search looks through titles, body text, tags, and attached entities. Results are ranked by relevance with matching terms highlighted.\n\n### Filtering\n\n- **Tag** — Filter to notes with a specific tag\n- **Color** — Filter by color category\n- **Pinned only** — Show only pinned notes\n\n### Organizing\n\n- **Pin** important notes so they always appear at the top\n- **Color code** notes to visually categorize them (red, blue, green, etc.)\n- **Tag** notes with reusable tags shared across your journal and other modules\n\n### Tips\n\n- Notes without a title will show a preview of the body text\n- Pinned notes always appear before unpinned notes\n- Your Chief of Staff can search your notes to help answer questions",
+      "app_name": "notes",
+      "order": 102,
+      "is_active": true,
+      "created_at": "2026-03-01T00:00:00Z",
+      "updated_at": "2026-03-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 103,
+    "fields": {
+      "context_id": "NOTES_CREATE",
+      "help_id": "notes-create",
+      "title": "Create a Note",
+      "description": "How to create a new note.",
+      "content": "## Create a Note\n\nCapture a thought, idea, or reference quickly.\n\n### Fields\n\n- **Title** (optional) — Give your note a title, or leave blank for a quick capture\n- **Body** (required) — The main content of your note\n- **Color** — Choose a color to visually categorize (default, red, orange, yellow, green, blue, purple, pink)\n- **Pinned** — Pin the note so it stays at the top of your list\n- **Tags** — Add tags to organize and find notes later\n\n### Tips\n\n- If you skip the title, the note will show a preview of the body text in the list\n- Tags are shared with your journal entries — use consistent tags across modules\n- Pinned notes are great for reference material you access frequently",
+      "app_name": "notes",
+      "order": 103,
+      "is_active": true,
+      "created_at": "2026-03-01T00:00:00Z",
+      "updated_at": "2026-03-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 104,
+    "fields": {
+      "context_id": "NOTES_DETAIL",
+      "help_id": "notes-detail",
+      "title": "Note Detail",
+      "description": "View a note and its attachments.",
+      "content": "## Note Detail\n\nView the full content of a note along with its metadata.\n\n### What You'll See\n\n- **Title and body** — The full note content\n- **Tags** — Any tags applied to the note\n- **Attachments** — Linked entities (tasks, goals, journal entries, etc.)\n- **Metadata** — Created and updated timestamps, word count\n\n### Actions\n\n- **Edit** — Update the note title, body, color, tags, or pin status\n- **Delete** — Soft-delete the note (can be recovered by an admin)\n- **Pin/Unpin** — Toggle the pinned status",
+      "app_name": "notes",
+      "order": 104,
+      "is_active": true,
+      "created_at": "2026-03-01T00:00:00Z",
+      "updated_at": "2026-03-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 105,
+    "fields": {
+      "context_id": "NOTES_EDIT",
+      "help_id": "notes-edit",
+      "title": "Edit a Note",
+      "description": "Update an existing note.",
+      "content": "## Edit a Note\n\nUpdate any part of your note — title, body, color, tags, or pin status.\n\n### What You Can Change\n\n- **Title** — Add, change, or remove the title\n- **Body** — Edit the main content\n- **Color** — Change the color category\n- **Pinned** — Toggle whether the note is pinned to the top\n- **Tags** — Add or remove tags\n\n### Notes\n\n- Changes are saved when you click Save\n- The note's word count and search index update automatically\n- If your Chief of Staff uses this note, the semantic index also updates automatically",
+      "app_name": "notes",
+      "order": 105,
+      "is_active": true,
+      "created_at": "2026-03-01T00:00:00Z",
+      "updated_at": "2026-03-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
     "pk": 100,
     "fields": {
       "context_id": "CALENDAR_MAIN",

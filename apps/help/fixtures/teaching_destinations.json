@@ -1,6 +1,40 @@
 [
   {
     "model": "help.teachingdestination",
+    "pk": 158,
+    "fields": {
+      "destination_id": "notes-list",
+      "name": "Notes",
+      "path_description": "Notes",
+      "explanation": "View and manage all your notes. Search, filter by tag or color, and pin important notes to the top.",
+      "url": "/notes/",
+      "keywords": "notes, note, write, capture, thoughts, ideas, reference, search notes, pin, tag, color code, memory",
+      "module": "notes",
+      "sort_order": 60,
+      "is_active": true,
+      "created_at": "2026-03-01T00:00:00Z",
+      "updated_at": "2026-03-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 159,
+    "fields": {
+      "destination_id": "notes-create",
+      "name": "Create Note",
+      "path_description": "Notes > New Note",
+      "explanation": "Create a new note with optional title, color, tags, and pinning. Notes support full-text search.",
+      "url": "/notes/new/",
+      "keywords": "create note, new note, write note, add note, compose",
+      "module": "notes",
+      "sort_order": 61,
+      "is_active": true,
+      "created_at": "2026-03-01T00:00:00Z",
+      "updated_at": "2026-03-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
     "pk": 156,
     "fields": {
       "destination_id": "admin-diagnostics-console",

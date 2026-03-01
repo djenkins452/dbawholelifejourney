@@ -835,6 +835,9 @@ class Command(BaseCommand):
         # One-time: Reset fixtures for Boot Architecture Hardening (PK 107 release note)
         self._reset_boot_hardening_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset fixtures for Notes module (PK 108 release note, PK 158-159 teaching dests, PK 102-105 help topics)
+        self._reset_notes_module_fixtures(DataLoadConfig, force, verbosity)
+
         # Only output summary if something loaded or if verbose
         if verbosity >= 1 and loaded_count > 0:
             self.stdout.write(self.style.SUCCESS(f'Initial data: loaded {loaded_count} items'))
@@ -4333,3 +4336,37 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset boot hardening fixtures FAILED: {e}'))
+
+    def _reset_notes_module_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload fixtures for Notes module.
+        - release_notes PK 108 (Notes feature announcement)
+        - teaching_destinations PK 158-159 (Notes list + create)
+        - help_topics PK 102-105 (Notes list, create, detail, edit)
+        """
+        reset_tracker_name = 'reset_notes_module_2026_03_01'
+        try:
+            if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
+                return
+
+            for loader_name in ['release_notes', 'teaching_destinations', 'help_topics']:
+                try:
+                    config = DataLoadConfig.objects.get(loader_name=loader_name)
+                    if config.is_loaded:
+                        config.is_loaded = False
+                        config.save()
+                        if verbosity >= 1:
+                            self.stdout.write(f'  Reset {loader_name} loader for Notes module')
+                except DataLoadConfig.DoesNotExist:
+                    pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for Notes module (Mar 2026)',
+                'command',
+                'One-time reset to reload release_notes PK 108, teaching_destinations PK 158-159, help_topics PK 102-105'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset notes module fixtures FAILED: {e}'))

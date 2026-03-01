@@ -9,6 +9,19 @@
 
 # WLJ Change History
 
+## 2026-03-01 — Notes module: user-facing documentation (/close audit)
+
+**What:** Session close-out audit found Notes module was missing from all user-facing documentation (release notes, teaching destinations, help topics, features doc).
+
+**Added:**
+- `apps/core/fixtures/release_notes.json` — PK 108: "Notes — Your Personal Memory Layer"
+- `apps/help/fixtures/teaching_destinations.json` — PK 158-159: Notes list + create pages
+- `apps/help/fixtures/help_topics.json` — PK 102-105: Notes list, create, detail, edit
+- `docs/wlj_claude_features.md` — Section 33: Notes feature documentation
+- `apps/core/management/commands/load_initial_data.py` — `_reset_notes_module_fixtures` reset handler
+
+---
+
 ## 2026-03-01 — Fix Notes search stealing cursor on no results
 
 **What:** Typing in the Notes search box (e.g. "horse") would trigger a debounced full-page reload after 2 characters. If "ho" returned no results, the page reloaded with the empty state and the cursor left the search box — user couldn't keep typing without re-clicking.

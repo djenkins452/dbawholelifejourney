@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 # Default jitter per cadence tier (seconds)
 DEFAULT_JITTER = {
     300: 120,      # 5m cadence -> 2m jitter
+    1800: 900,     # 30m cadence -> 15m jitter
     3600: 300,     # 1h cadence -> 5m jitter
     86400: 3600,   # 24h cadence -> 1h jitter
     604800: 86400,  # 7d cadence -> 24h jitter

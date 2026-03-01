@@ -18,9 +18,9 @@ logger = logging.getLogger(__name__)
 
 # Expected cadences for anomaly detection (seconds)
 ENGINE_CADENCES = {
-    "UAL": 300,  # Per-request, expect at least every 5 min during active use
-    "SAE": 300,
-    "PIE": 300,
+    "UAL": 1800,  # Per-request — 30m allows for normal inactivity windows
+    "SAE": 1800,
+    "PIE": 1800,
     "PRIE": 3600,  # Hourly via scheduler
     "PGE": 3600,
     "ICQG": 3600,

@@ -471,12 +471,12 @@ def _reconcile_anomalies(detected, now):
 
 # Escalation rules: (from_severity, minutes_unresolved, to_severity)
 ESCALATION_RULES = [
-    ("P3", 10, "P2"),   # P3 unresolved > 10 minutes → P2
-    ("P2", 20, "P1"),   # P2 unresolved > 20 minutes → P1
+    ("P3", 30, "P2"),   # P3 unresolved > 30 minutes → P2
+    ("P2", 60, "P1"),   # P2 unresolved > 60 minutes → P1
 ]
 
 # Cooldown: minimum minutes between escalations of the same anomaly
-ESCALATION_COOLDOWN_MINUTES = 5
+ESCALATION_COOLDOWN_MINUTES = 15
 
 
 def _escalate_anomalies(now):
@@ -484,9 +484,9 @@ def _escalate_anomalies(now):
     Apply escalation state machine to active anomalies.
 
     Rules:
-    - P3 unresolved > 10 minutes → promote to P2
-    - P2 unresolved > 20 minutes → promote to P1
-    - Cooldown: no re-escalation within 5 minutes
+    - P3 unresolved > 30 minutes → promote to P2
+    - P2 unresolved > 60 minutes → promote to P1
+    - Cooldown: no re-escalation within 15 minutes
     - Resolution resets escalation (new anomaly starts fresh)
     - P1 is terminal — no further escalation
 
@@ -900,9 +900,9 @@ def _build_watching_next(heartbeats, now):
 
 # Severity penalty weights (subtracted from base score)
 _SEVERITY_WEIGHTS = {
-    "P1": 25.0,  # Critical — heavy penalty
-    "P2": 10.0,  # Warning — moderate penalty
-    "P3": 3.0,   # Info — light penalty
+    "P1": 15.0,  # Critical — significant penalty
+    "P2": 7.0,   # Warning — moderate penalty
+    "P3": 2.0,   # Info — light penalty
 }
 
 
@@ -912,8 +912,8 @@ def _compute_integrity_snapshot(heartbeats, now):
 
     Score formula:
       base = 100
-      - Engine health: subtract (1 - pct_ok) * 40
-      - Anomaly penalties: subtract per active anomaly by severity
+      - Engine health: subtract (1 - pct_ok) * 30
+      - Anomaly penalties: subtract per active anomaly by severity (cap 40)
       - Error spike penalty: subtract based on 30m error rate
       - Suppression rate penalty: subtract if suppression rate > 50%
       - Confidence volatility: subtract if UAL stddev > 0.3
@@ -935,11 +935,11 @@ def _compute_integrity_snapshot(heartbeats, now):
     score = 100.0
     components = {}
 
-    # --- Component 1: Engine health (max 40 point penalty) ---
+    # --- Component 1: Engine health (max 30 point penalty) ---
     total_engines = len(heartbeats) if heartbeats else 1
     ok_count = sum(1 for h in heartbeats if h.status == "OK")
     pct_ok = ok_count / total_engines if total_engines > 0 else 1.0
-    engine_penalty = (1.0 - pct_ok) * 40.0
+    engine_penalty = (1.0 - pct_ok) * 30.0
     score -= engine_penalty
     components["engine_health"] = {
         "ok_count": ok_count,
@@ -956,8 +956,8 @@ def _compute_integrity_snapshot(heartbeats, now):
         weight = _SEVERITY_WEIGHTS.get(anomaly.severity, 3.0)
         anomaly_penalty += weight
         anomaly_counts[anomaly.severity] = anomaly_counts.get(anomaly.severity, 0) + 1
-    # Cap anomaly penalty at 50
-    anomaly_penalty = min(anomaly_penalty, 50.0)
+    # Cap anomaly penalty at 40
+    anomaly_penalty = min(anomaly_penalty, 40.0)
     score -= anomaly_penalty
     components["anomaly_severity"] = {
         "counts": anomaly_counts,

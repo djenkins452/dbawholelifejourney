@@ -10,11 +10,15 @@ patterns, schedule load, and pressure level.
 This extends the Drift Engine concept with historical behavioral
 correlation — on heavy schedule days, which behaviors get dropped?
 
-Performance target: < 8ms (bounded historical queries).
+Performance target: < 20ms (batch queries, no per-day DB hits).
 Token budget: ~100 tokens max.
 """
 import logging
+from collections import defaultdict
 from datetime import timedelta
+
+from django.db.models import Count
+from django.db.models.functions import TruncDate
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +33,9 @@ def compute_behavior_forecast(user, now, cos_context=None):
     Uses historical completion rates segmented by schedule load
     (light day vs. heavy day) and current conditions.
 
+    Optimized: uses batch queries instead of per-day exists() calls.
+    Total DB queries: ~6 (vs. ~224 in the original implementation).
+
     Args:
         user: Django User object
         now: timezone-aware datetime in user's timezone
@@ -40,39 +47,33 @@ def compute_behavior_forecast(user, now, cos_context=None):
     try:
         today = now.date()
         tomorrow = today + timedelta(days=1)
+        lookback_start = today - timedelta(weeks=LOOKBACK_WEEKS)
 
-        # Step 1: Determine tomorrow's schedule load
-        tomorrow_load = _get_schedule_load(user, tomorrow, now.tzinfo)
+        # ── Batch query 1: Tomorrow's schedule load ──────────────
+        tomorrow_load = _get_schedule_load(user, tomorrow)
 
-        # Step 2: Compute historical completion by load level
+        # ── Batch query 2: All schedule loads in lookback window ──
+        daily_loads = _batch_schedule_loads(user, lookback_start, today)
+
+        # ── Batch queries 3-5: All completion dates per behavior ──
+        workout_dates = _batch_workout_dates(user, lookback_start, today)
+        reading_dates = _batch_reading_dates(user, lookback_start, today)
+        journal_dates = _batch_journal_dates(user, lookback_start, today)
+
+        # ── Compute forecasts from pre-fetched data ──────────────
         forecasts = []
 
-        # Workout forecast
-        workout_forecast = _forecast_behavior(
-            user, today, tomorrow_load,
-            behavior_name="Workout",
-            query_fn=_workout_completion_by_day,
-        )
-        if workout_forecast:
-            forecasts.append(workout_forecast)
-
-        # Reading plan / quiet time forecast
-        reading_forecast = _forecast_behavior(
-            user, today, tomorrow_load,
-            behavior_name="Bible Reading",
-            query_fn=_reading_completion_by_day,
-        )
-        if reading_forecast:
-            forecasts.append(reading_forecast)
-
-        # Journal forecast
-        journal_forecast = _forecast_behavior(
-            user, today, tomorrow_load,
-            behavior_name="Journal Entry",
-            query_fn=_journal_completion_by_day,
-        )
-        if journal_forecast:
-            forecasts.append(journal_forecast)
+        for behavior_name, completion_dates in [
+            ("Workout", workout_dates),
+            ("Bible Reading", reading_dates),
+            ("Journal Entry", journal_dates),
+        ]:
+            result = _forecast_from_batched_data(
+                lookback_start, today, tomorrow_load,
+                daily_loads, completion_dates, behavior_name,
+            )
+            if result:
+                forecasts.append(result)
 
         if not forecasts:
             return ""
@@ -102,64 +103,139 @@ def compute_behavior_forecast(user, now, cos_context=None):
         return ""
 
 
-def _get_schedule_load(user, target_date, tzinfo):
-    """
-    Classify schedule load for a given date.
-    Returns: 'light' (0-2 events), 'moderate' (3-4), 'heavy' (5+)
-    """
+# ═══════════════════════════════════════════════════════════════════
+# Batch query helpers — one query each, covering the entire window
+# ═══════════════════════════════════════════════════════════════════
+
+def _get_schedule_load(user, target_date):
+    """Classify schedule load for a single date (1 query)."""
     try:
         from apps.calendar_engine.models import CalendarEvent
-
         count = CalendarEvent.objects.filter(
             user=user,
             start_dt__date=target_date,
             deleted_at__isnull=True,
         ).exclude(status='canceled').count()
-
-        if count >= 5:
-            return 'heavy'
-        elif count >= 3:
-            return 'moderate'
-        return 'light'
+        return _count_to_load(count)
     except Exception:
         return 'light'
 
 
-def _forecast_behavior(user, today, tomorrow_load, behavior_name, query_fn):
+def _batch_schedule_loads(user, start_date, end_date):
     """
-    Generic behavior forecaster.
-    Computes historical completion rate segmented by load level.
+    Get event counts per day for the entire lookback window (1 query).
+    Returns: dict[date, str] mapping date -> load level.
+    """
+    try:
+        from apps.calendar_engine.models import CalendarEvent
+        daily_counts = (
+            CalendarEvent.objects.filter(
+                user=user,
+                start_dt__date__gte=start_date,
+                start_dt__date__lte=end_date,
+                deleted_at__isnull=True,
+            )
+            .exclude(status='canceled')
+            .annotate(event_date=TruncDate('start_dt'))
+            .values('event_date')
+            .annotate(count=Count('id'))
+        )
+        loads = {}
+        for row in daily_counts:
+            loads[row['event_date']] = _count_to_load(row['count'])
+        return loads
+    except Exception:
+        return {}
+
+
+def _batch_workout_dates(user, start_date, end_date):
+    """Get all dates with workout completions (1 query)."""
+    try:
+        from apps.health.models import WorkoutSession
+        return set(
+            WorkoutSession.objects.filter(
+                user=user,
+                date__gte=start_date,
+                date__lte=end_date,
+            ).values_list('date', flat=True).distinct()
+        )
+    except Exception:
+        return set()
+
+
+def _batch_reading_dates(user, start_date, end_date):
+    """Get all dates with reading plan completions (1 query)."""
+    try:
+        from apps.faith.models import UserReadingProgress
+        return set(
+            UserReadingProgress.objects.filter(
+                user_plan__user=user,
+                completed_at__date__gte=start_date,
+                completed_at__date__lte=end_date,
+            )
+            .annotate(comp_date=TruncDate('completed_at'))
+            .values_list('comp_date', flat=True)
+            .distinct()
+        )
+    except Exception:
+        return set()
+
+
+def _batch_journal_dates(user, start_date, end_date):
+    """Get all dates with journal entries (1 query)."""
+    try:
+        from apps.journal.models import JournalEntry
+        return set(
+            JournalEntry.objects.filter(
+                user=user,
+                created_at__date__gte=start_date,
+                created_at__date__lte=end_date,
+            )
+            .annotate(entry_date=TruncDate('created_at'))
+            .values_list('entry_date', flat=True)
+            .distinct()
+        )
+    except Exception:
+        return set()
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Forecast computation (pure Python, no DB queries)
+# ═══════════════════════════════════════════════════════════════════
+
+def _forecast_from_batched_data(
+    lookback_start, today, tomorrow_load,
+    daily_loads, completion_dates, behavior_name,
+):
+    """
+    Compute forecast from pre-fetched batch data (zero DB queries).
 
     Args:
-        query_fn: function(user, date) -> bool (did behavior happen that day)
+        lookback_start: date — start of lookback window
+        today: date — end of lookback window
+        tomorrow_load: str — 'light', 'moderate', or 'heavy'
+        daily_loads: dict[date, str] — pre-computed load per day
+        completion_dates: set[date] — dates where behavior occurred
+        behavior_name: str — display name
 
     Returns:
         dict with behavior, probability, note — or None
     """
     try:
-        lookback_start = today - timedelta(weeks=LOOKBACK_WEEKS)
-
-        # Get daily completion data with load classification
         total_matching_days = 0
         completed_matching_days = 0
         total_all_days = 0
         completed_all_days = 0
 
-        # Sample days in the lookback window (every day)
         current = lookback_start
         while current <= today:
-            completed = query_fn(user, current)
-            if completed is None:
-                # Query couldn't determine — skip
-                current += timedelta(days=1)
-                continue
-
+            completed = current in completion_dates
             total_all_days += 1
             if completed:
                 completed_all_days += 1
 
-            # Classify that day's load
-            day_load = _get_schedule_load_cached(user, current)
+            # Classify that day's load (default to 'light' if no events)
+            day_load = daily_loads.get(current, 'light')
             if day_load == tomorrow_load:
                 total_matching_days += 1
                 if completed:
@@ -173,8 +249,13 @@ def _forecast_behavior(user, today, tomorrow_load, behavior_name, query_fn):
 
         # Use load-specific rate if we have enough data, else overall
         if total_matching_days >= 5:
-            probability = int((completed_matching_days / total_matching_days) * 100)
-            note = f"Based on {total_matching_days} similar {tomorrow_load}-load days"
+            probability = int(
+                (completed_matching_days / total_matching_days) * 100
+            )
+            note = (
+                f"Based on {total_matching_days} similar "
+                f"{tomorrow_load}-load days"
+            )
         else:
             probability = int((completed_all_days / total_all_days) * 100)
             note = f"Based on {total_all_days}-day history"
@@ -190,65 +271,17 @@ def _forecast_behavior(user, today, tomorrow_load, behavior_name, query_fn):
         return None
 
 
-# Cache for schedule load to avoid repeated queries during forecast
-_load_cache = {}
+# ═══════════════════════════════════════════════════════════════════
+# Utility
+# ═══════════════════════════════════════════════════════════════════
 
-
-def _get_schedule_load_cached(user, date):
-    """Cached version of schedule load — avoids N+1 during forecast loop."""
-    cache_key = f"{user.id}:{date}"
-    if cache_key not in _load_cache:
-        try:
-            from apps.calendar_engine.models import CalendarEvent
-            count = CalendarEvent.objects.filter(
-                user=user,
-                start_dt__date=date,
-                deleted_at__isnull=True,
-            ).exclude(status='canceled').count()
-            _load_cache[cache_key] = 'heavy' if count >= 5 else (
-                'moderate' if count >= 3 else 'light'
-            )
-        except Exception:
-            _load_cache[cache_key] = 'light'
-
-        # Prevent unbounded cache growth
-        if len(_load_cache) > 200:
-            _load_cache.clear()
-
-    return _load_cache[cache_key]
-
-
-def _workout_completion_by_day(user, date):
-    """Did user complete a workout on this date?"""
-    try:
-        from apps.health.models import WorkoutSession
-        return WorkoutSession.objects.filter(user=user, date=date).exists()
-    except Exception:
-        return None
-
-
-def _reading_completion_by_day(user, date):
-    """Did user complete a reading plan day on this date?"""
-    try:
-        from apps.faith.models import UserReadingProgress
-        return UserReadingProgress.objects.filter(
-            user_plan__user=user,
-            completed_at__date=date,
-        ).exists()
-    except Exception:
-        return None
-
-
-def _journal_completion_by_day(user, date):
-    """Did user write a journal entry on this date?"""
-    try:
-        from apps.journal.models import JournalEntry
-        return JournalEntry.objects.filter(
-            user=user,
-            created_at__date=date,
-        ).exists()
-    except Exception:
-        return None
+def _count_to_load(count):
+    """Convert event count to load classification."""
+    if count >= 5:
+        return 'heavy'
+    elif count >= 3:
+        return 'moderate'
+    return 'light'
 
 
 def _load_description(load):

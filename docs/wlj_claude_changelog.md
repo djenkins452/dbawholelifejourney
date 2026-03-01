@@ -9,6 +9,27 @@
 
 # WLJ Change History
 
+## 2026-02-28 — CoS Response Performance Optimization (3 fixes)
+
+**What:** Beth's response time was slow (~4-10s) due to redundant DB queries and synchronous post-processing. Three optimizations implemented:
+
+1. **Eliminated double `build_cos_context()` call:** The ECC pre-check built cos_context to determine if the Engagement Calibration Circuit should fire, then `_generate_response` rebuilt it from scratch. Now the pre-check result is cached and passed through via `cos_context_cache` parameter, saving ~300-450ms and ~150+ DB queries.
+
+2. **Rewrote CX6 Behavioral Forecast with batch queries:** The original implementation made 224 individual DB queries (56 days × 3 behaviors × `exists()` + 56 calendar `count()` calls). Replaced with 6 batch queries using `TruncDate`, `Count`, and `values_list().distinct()`. Forecast computation is now pure Python over pre-fetched sets. Saves ~500-1000ms.
+
+3. **Made post-response operations async:** Memory storage (embedding API call + DB write, ~150-300ms) and rolling conversation summary (possible OpenAI call, ~1-3s) now run in background daemon threads instead of blocking the response. User sees the response immediately; background work completes independently.
+
+**Estimated total savings:** ~1-4 seconds per message.
+
+**Files changed:**
+- `apps/ai/personal_assistant.py` — Added `cos_context_cache` parameter to `_generate_response`, cached ECC pre-check result, passed to all 4 call sites; moved `store_memory()` and `maybe_generate_rolling_summary()` to background threads
+- `apps/cos/intelligence/behavior_forecast.py` — Complete rewrite: 6 batch queries instead of 224, pure-Python forecast computation
+- `apps/cos/tests/test_cos_cx.py` — Updated `test_fail_safe_on_exception` and `test_schedule_load_classification` for new function signatures
+
+**Tests:** 38 COS-CX tests pass.
+
+---
+
 ## 2026-02-28 — Preemptive Server Wake on Chat Interaction
 
 **What:** Added a preemptive server "ping" that fires when the user opens the chat drawer, focuses the input, or starts typing. A silent HEAD request to `/assistant/api/chat/` wakes Railway's container before the user hits Send. 5-minute cooldown prevents spam. This means the server is likely warm by the time the actual message is sent.

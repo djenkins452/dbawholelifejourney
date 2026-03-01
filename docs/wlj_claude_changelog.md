@@ -9,6 +9,35 @@
 
 # WLJ Change History
 
+## 2026-02-28 — Boot Architecture Hardening: Remove All Heavy Initialization from Startup
+
+**What:** Complete boot path hardening after the cascading failure that took the site down for 30+ minutes. Boot now ONLY: initialize Django, connect to database, start Gunicorn. All data loading (`load_initial_data`, `recalculate_task_priorities`) removed from startup — now manual-only.
+
+**Changes:**
+1. **Procfile** — Removed `load_initial_data` and `recalculate_task_priorities` from web startup chain
+2. **SafeRedisCache rewrite** (`apps/core/cache_backend.py`) — Three-state circuit breaker (CLOSED → OPEN → HALF-OPEN), rate-limited warning logs (every 5 min)
+3. **Cache config** (`config/settings.py`) — 500ms socket timeouts (down from 3s), `DISABLE_REDIS_CACHE` env var for emergency fallback to LocMemCache, Redis target logging at startup
+4. **Health endpoint** (`apps/core/views.py`) — `/_health/` now reports Redis status: connected, circuit_open (with remaining seconds), degraded, or unavailable
+5. **Fixture validation tests** (`apps/core/tests/test_fixture_validation.py`) — 5 tests validating all fixture JSON files for structure, duplicate PKs, model existence, and required fields
+6. **validate_fixtures command** (`apps/core/management/commands/validate_fixtures.py`) — CLI tool to dry-run fixture validation without loading
+7. **Fixture data fixes** — Fixed duplicate PK 58 in `teaching_destinations.json`, added missing `help_id` to `help_topics.json` pk=83
+8. **Fixture loader reset** (`apps/core/management/commands/load_initial_data.py`) — Added reset method for teaching_destinations dedup
+
+**Files changed:**
+- `Procfile`
+- `apps/core/cache_backend.py`
+- `config/settings.py`
+- `apps/core/views.py`
+- `apps/core/tests/test_fixture_validation.py` (new)
+- `apps/core/management/commands/validate_fixtures.py` (new)
+- `apps/help/fixtures/help_topics.json`
+- `apps/help/fixtures/teaching_destinations.json`
+- `apps/core/management/commands/load_initial_data.py`
+
+**Why:** The 2026-02-28 outage was caused by a chain: fixture reset → broken release_notes pk=41/42 → NOT NULL violation → site crash. Simultaneously, outdated Railway start command ran `reload_help_content` → Redis unreachable → 30s timeouts per cache.delete() × 100 records → deploy hung indefinitely. This hardening ensures boot can never be blocked by data loading, Redis, or fixture issues again.
+
+---
+
 ## 2026-02-28 — Add circuit breaker to SafeRedisCache
 
 **What:** After the first Redis timeout, the circuit breaker skips ALL Redis calls for 60 seconds. Without this, every cache operation waits 3 seconds for the timeout, causing pages to load in 30-60+ seconds when Redis is unreachable.

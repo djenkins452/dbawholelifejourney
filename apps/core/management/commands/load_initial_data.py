@@ -829,6 +829,12 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for Beth Performance & Reliability (PK 106)
         self._reset_beth_performance_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset teaching_destinations to fix duplicate PK 58
+        self._reset_teaching_destinations_dedup(DataLoadConfig, force, verbosity)
+
+        # One-time: Reset fixtures for Boot Architecture Hardening (PK 107 release note)
+        self._reset_boot_hardening_fixtures(DataLoadConfig, force, verbosity)
+
         # Only output summary if something loaded or if verbose
         if verbosity >= 1 and loaded_count > 0:
             self.stdout.write(self.style.SUCCESS(f'Initial data: loaded {loaded_count} items'))
@@ -4272,3 +4278,58 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset Beth performance fixtures FAILED: {e}'))
+
+    def _reset_teaching_destinations_dedup(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload teaching_destinations after fixing duplicate PK 58.
+        Notification Center was overwriting Recurring Transactions due to shared PK.
+        """
+        reset_tracker_name = 'reset_teaching_destinations_dedup_2026_02_28'
+        try:
+            if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
+                return
+
+            config = DataLoadConfig.objects.get(loader_name='teaching_destinations')
+            if config.is_loaded:
+                config.is_loaded = False
+                config.save()
+                if verbosity >= 1:
+                    self.stdout.write(f'  Reset teaching_destinations loader to fix duplicate PK 58')
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Fix teaching_destinations duplicate PK 58 (Feb 2026)',
+                'command',
+                'One-time reset to reload teaching_destinations with deduplicated PKs'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset teaching_destinations dedup FAILED: {e}'))
+
+    def _reset_boot_hardening_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes for Boot Architecture Hardening (PK 107).
+        """
+        reset_tracker_name = 'reset_boot_hardening_2026_02_28'
+        try:
+            if DataLoadConfig.objects.filter(loader_name=reset_tracker_name, is_loaded=True).exists():
+                return
+
+            config = DataLoadConfig.objects.get(loader_name='release_notes')
+            if config.is_loaded:
+                config.is_loaded = False
+                config.save()
+                if verbosity >= 1:
+                    self.stdout.write(f'  Reset release_notes loader for Boot Architecture Hardening')
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for Boot Architecture Hardening (Feb 2026)',
+                'command',
+                'One-time reset to reload release_notes PK 107'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset boot hardening fixtures FAILED: {e}'))

@@ -992,10 +992,23 @@ REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/0")
 # ==============================================================================
 # Django Cache Framework — CoS Readiness Cache + General Caching
 # ==============================================================================
-# Uses Redis in production (shared with Celery but separate DB).
-# Falls back to in-memory cache in development when Redis is unavailable.
+# Uses SafeRedisCache in production (circuit breaker + fail-fast timeouts).
+# Falls back to in-memory cache in development or when DISABLE_REDIS_CACHE=1.
+#
+# DISABLE_REDIS_CACHE=1: Break-glass switch. Forces LocMemCache, eliminating
+# Redis from the request path entirely. Use during Redis emergencies.
 
-if not DEBUG or env("REDIS_URL", default=""):
+_disable_redis = env.bool("DISABLE_REDIS_CACHE", default=False)
+
+if _disable_redis:
+    # Emergency override: no Redis, use in-memory cache
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "wlj-no-redis",
+        },
+    }
+elif not DEBUG or env("REDIS_URL", default=""):
     # Production / CI / dev-with-Redis: use Redis DB 1 (Celery uses DB 0)
     _cache_redis_url = REDIS_URL.rsplit("/", 1)[0] + "/1" if "/" in REDIS_URL else REDIS_URL + "/1"
     CACHES = {
@@ -1005,8 +1018,8 @@ if not DEBUG or env("REDIS_URL", default=""):
             "TIMEOUT": 300,
             "KEY_PREFIX": "wlj",
             "OPTIONS": {
-                "socket_connect_timeout": 3,
-                "socket_timeout": 3,
+                "socket_connect_timeout": 0.5,  # 500ms fail-fast
+                "socket_timeout": 0.5,
             },
         },
     }
@@ -1018,6 +1031,17 @@ else:
             "LOCATION": "wlj-dev",
         },
     }
+
+# Log cache backend at startup for debugging connectivity issues
+import logging as _settings_logging
+_cache_logger = _settings_logging.getLogger('wlj.startup')
+_cache_backend = CACHES.get('default', {}).get('BACKEND', 'unknown')
+if 'SafeRedisCache' in _cache_backend:
+    _cache_logger.info("Cache: SafeRedisCache at %s", CACHES['default'].get('LOCATION', '?'))
+elif 'LocMemCache' in _cache_backend:
+    _cache_logger.info("Cache: LocMemCache (no Redis)")
+else:
+    _cache_logger.info("Cache: %s", _cache_backend)
 
 # Broker and result backend (CELERY_BROKER_URL overrides REDIS_URL if set)
 CELERY_BROKER_URL = env("CELERY_BROKER_URL", default=REDIS_URL)

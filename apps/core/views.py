@@ -228,6 +228,24 @@ class HealthCheckView(View):
             health_status['database'] = f'error: {str(e)[:100]}'
             return JsonResponse(health_status, status=503)
 
+        # Redis/cache health (non-blocking, informational)
+        # Redis down does NOT make the service unhealthy — SafeRedisCache handles it
+        try:
+            import time as _time
+            from django.core.cache import cache
+            from apps.core.cache_backend import _circuit_is_open, _circuit_open_until
+
+            if _circuit_is_open():
+                remaining = int(_circuit_open_until - _time.monotonic())
+                health_status['redis'] = 'circuit_open'
+                health_status['redis_circuit_remaining_s'] = max(0, remaining)
+            else:
+                cache.set('_health_probe', 1, 5)
+                val = cache.get('_health_probe')
+                health_status['redis'] = 'connected' if val == 1 else 'degraded'
+        except Exception:
+            health_status['redis'] = 'unavailable'
+
         # Scheduler health (non-blocking, informational)
         try:
             from apps.core.scheduler_health import get_scheduler_status

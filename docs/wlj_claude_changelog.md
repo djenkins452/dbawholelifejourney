@@ -9,6 +9,42 @@
 
 # WLJ Change History
 
+## 2026-03-01 — Notes System Phase 4B.1: Attachment Rename Refresh + Management Command
+
+**What:** Fixed stale attachments_text when attached entities are renamed. Added a management command for manual/scheduled refresh and auto-refresh signals for the top 5 entity models.
+
+**Layer 1 — Management Command:**
+- `python manage.py refresh_note_attachments_index` — refreshes attachments_text + search_vector
+- Scopes: `--all` (default), `--content-type "app.model"`, `--content-type + --object-id`
+- Options: `--batch-size`, `--dry-run`, `--verbose`
+- Outputs: notes considered, notes updated, elapsed time
+
+**Layer 2 — Rename Signals:**
+- Auto-detects title/name changes on Project, Task, LifeGoal, HabitGoal, JournalEntry
+- Uses pre_save to capture old title, post_save to compare and refresh if changed
+- No signals for BibleStudyNote/CalendarEvent (low rename frequency)
+
+**Centralized Refresh Helpers (services.py):**
+- `refresh_notes_for_entity(content_type_str, object_id)` — refresh notes attached to one entity
+- `refresh_notes_for_content_type(content_type_str)` — refresh notes for all entities of a type
+- `refresh_notes_with_attachments()` — refresh all notes with any attachments
+- All support `batch_size` and `dry_run` parameters
+
+**Files created:**
+- `apps/notes/management/__init__.py`, `commands/__init__.py`
+- `apps/notes/management/commands/refresh_note_attachments_index.py`
+- `apps/notes/tests/test_refresh_command.py` — 15 tests
+
+**Files modified:**
+- `apps/notes/services.py` — Added 4 refresh helper functions
+- `apps/notes/signals.py` — Added entity rename detection signals (Layer 2)
+
+**Tests:** 115 total (15 new Phase 4B.1), all passing.
+
+**Scheduling recommendation:** Run `refresh_note_attachments_index --all` nightly via cron/Railway scheduler as a safety net for edge cases (bulk imports, admin edits that bypass signals).
+
+---
+
 ## 2026-03-01 — Notes System Phase 4A: CoS Retrieval API + Citations
 
 **What:** Added a service layer providing CoS-ready search, retrieval, and citation of notes with structured citation blocks and match-source labeling.

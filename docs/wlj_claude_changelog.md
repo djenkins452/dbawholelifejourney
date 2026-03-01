@@ -9,6 +9,23 @@
 
 # WLJ Change History
 
+## 2026-03-01 — Beth streaming: verify single persistent msgEl reference + debug logs
+
+**What:** Audited both chat templates end-to-end to confirm the DOM element created before `fetch()` is the exact same element updated during streaming. Added `STREAM USING ELEMENT` and `STREAM UPDATE TARGET` debug logs to verify at runtime.
+
+**Audit results:**
+- `msgEl` is created before `fetch()` and used in token handler, finalization, and error cleanup — same JS object reference throughout
+- `apFinalizeStreamingMsg()` / `finalizeStreamingMessage()` modify `msgEl.innerHTML` in-place — no new element creation
+- `hideTyping()` only removes the typing indicator by ID (`#ap-typing` / `#assistant-typing`), never touches `msgEl`
+- `addMessage()` is only called in JSON fallback / error paths where `msgEl` is already removed
+- No code reassigns or replaces `msgEl` during or after the stream
+
+**Files changed:**
+- `templates/components/assistant_panel.html` — Added `STREAM USING ELEMENT` log after creation, `STREAM UPDATE TARGET` log per token
+- `templates/components/chat_widget.html` — Same debug logs added
+
+---
+
 ## 2026-03-01 — Fix Beth streaming: pre-create DOM element before fetch (Phase C2 final)
 
 **What:** Moved assistant message DOM element creation to BEFORE the `fetch()` call in both chat templates. Previously the element was created AFTER `await fetch()` completed, meaning the entire backend pre-processing time (~2-5s of context building) blocked before any element existed in the DOM to receive tokens.

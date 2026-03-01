@@ -1520,7 +1520,7 @@
 
         // Create message element BEFORE fetch so it exists in DOM immediately
         var msgEl = createStreamingMessage();
-        console.log("STREAM ELEMENT CREATED");
+        console.log("STREAM USING ELEMENT:", msgEl);
         var fullText = '';
         var firstToken = true;
 
@@ -1600,6 +1600,7 @@
                         }
                         fullText += evt.content;
                         console.log("STREAM TOKEN:", evt.content);
+                        console.log("STREAM UPDATE TARGET:", msgEl);
                         // CRITICAL: use textContent for immediate render (no HTML parsing overhead)
                         msgEl.textContent = fullText;
                         messagesContainer.scrollTop = messagesContainer.scrollHeight;

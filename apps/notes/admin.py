@@ -57,7 +57,7 @@ class NoteAdmin(admin.ModelAdmin):
     raw_id_fields = ["user"]
     date_hierarchy = "created_at"
     ordering = ["-created_at"]
-    readonly_fields = ["created_at", "updated_at", "deleted_at", "word_count", "search_vector", "tags_text", "attachments_text"]
+    readonly_fields = ["created_at", "updated_at", "deleted_at", "word_count", "search_vector", "tags_text", "attachments_text", "embedding_updated_at"]
     filter_horizontal = ["tags"]
     inlines = [NoteAttachmentInline]
     actions = [repair_index_for_selected, refresh_attachments_for_selected]

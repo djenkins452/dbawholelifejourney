@@ -76,6 +76,17 @@ class Note(UserOwnedModel):
         editable=False,
         help_text="Denormalized attachment display strings for full-text search indexing.",
     )
+    embedding = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="Semantic embedding vector for CoS similarity search.",
+    )
+    embedding_updated_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="When the embedding was last generated.",
+    )
 
     class Meta:
         ordering = ["-is_pinned", "-updated_at"]

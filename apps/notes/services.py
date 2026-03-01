@@ -372,10 +372,37 @@ def _get_note_attachment_entity_ids(note):
 
 
 # ---------------------------------------------------------------------------
-# CoS Memory Intelligence search (Phase 4C)
+# CoS Memory Intelligence search (Phase 4C + Semantic)
 # ---------------------------------------------------------------------------
 
 _COS_CANDIDATE_POOL = 50  # Max candidates fetched from FTS before re-ranking
+
+
+def semantic_similarity_map(query_embedding, candidate_notes):
+    """
+    Compute semantic similarity between a query embedding and candidate notes.
+
+    In-memory only — no database writes.
+
+    Args:
+        query_embedding: list[float] embedding of the search query (or None).
+        candidate_notes: iterable of Note instances (must have .embedding loaded).
+
+    Returns:
+        dict mapping note_id -> similarity_score (float in [0, 1]).
+        Notes without embeddings are skipped (score = 0).
+    """
+    if not query_embedding:
+        return {}
+
+    from .embeddings import cosine_similarity
+
+    scores = {}
+    for note in candidate_notes:
+        note_embedding = note.embedding
+        if note_embedding:
+            scores[note.pk] = cosine_similarity(query_embedding, note_embedding)
+    return scores
 
 
 def search_notes_cos(
@@ -389,11 +416,11 @@ def search_notes_cos(
     include_deleted=False,
 ):
     """
-    CoS-focused note search with memory intelligence ranking.
+    CoS-focused note search with hybrid keyword + semantic ranking.
 
-    Runs full-text search to get candidates, then re-ranks using the
-    memory_scoring module. Returns enriched results with combined_score
-    and explainability reasons.
+    Runs full-text search to get candidates, generates a query embedding
+    ONCE, computes semantic similarity for all candidates, then re-ranks
+    using the memory_scoring module with all 6 factors.
 
     Args:
         user: The requesting user.
@@ -484,6 +511,18 @@ def search_notes_cos(
             is_fallback=True,
         )
 
+    # --- Generate query embedding ONCE for semantic scoring ---
+    query_embedding = None
+    try:
+        from .embeddings import generate_embedding
+
+        query_embedding = generate_embedding(query_str)
+    except Exception as e:
+        logger.warning("Query embedding generation failed: %s", e)
+
+    # Compute semantic similarity map for all candidates (in-memory)
+    sim_map = semantic_similarity_map(query_embedding, candidates)
+
     # --- Score and re-rank candidates ---
     max_fts_rank = max(
         (getattr(c, "rank", 0) or 0 for c in candidates), default=0
@@ -508,6 +547,7 @@ def search_notes_cos(
             scoped_object_id=scoped_object_id,
             note_tag_names=tag_names,
             query_tags=tags or [],
+            semantic_score=sim_map.get(note.pk, 0.0),
         )
 
         # Build attachment summaries
@@ -812,3 +852,50 @@ def repair_notes_missing_index(*, batch_size=500):
             repaired += len(batch_ids)
 
     return {"notes_repaired": repaired}
+
+
+# ---------------------------------------------------------------------------
+# Embedding integrity helpers (Semantic Memory Phase)
+# ---------------------------------------------------------------------------
+
+
+def find_notes_missing_embeddings():
+    """
+    Find notes that have no embedding vector.
+
+    Returns a queryset of Note objects needing embedding generation.
+    """
+    return Note.all_objects.filter(embedding__isnull=True)
+
+
+def repair_missing_embeddings(*, batch_size=50):
+    """
+    Generate embeddings for Notes that are missing them.
+
+    Uses update_note_embedding() from the embeddings service, which is
+    failure-safe and will not crash on API errors.
+
+    Args:
+        batch_size: Number of notes to process per batch (default 50).
+
+    Returns:
+        dict with notes_processed and notes_succeeded counts.
+    """
+    from .embeddings import update_note_embedding
+
+    missing_ids = list(
+        find_notes_missing_embeddings().values_list("pk", flat=True)
+    )
+
+    processed = 0
+    succeeded = 0
+
+    for start in range(0, len(missing_ids), batch_size):
+        batch_ids = missing_ids[start : start + batch_size]
+        for note in Note.all_objects.filter(pk__in=batch_ids):
+            result = update_note_embedding(note)
+            processed += 1
+            if result:
+                succeeded += 1
+
+    return {"notes_processed": processed, "notes_succeeded": succeeded}

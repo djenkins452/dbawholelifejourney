@@ -9,6 +9,17 @@
 
 # WLJ Change History
 
+## 2026-02-28 — Switch Django cache to REDIS_PUBLIC_URL with TLS
+
+**What:** Changed cache config to prefer `REDIS_PUBLIC_URL` (Railway's public TLS endpoint) over `REDIS_URL` (internal). Added `ssl_cert_reqs: None` for Railway TLS compatibility, `retry_on_timeout: False` and `health_check_interval: 30`. Startup log now shows which env var is active and the masked host.
+
+**Files changed:**
+- `config/settings.py` — Cache LOCATION now uses REDIS_PUBLIC_URL with TLS-safe OPTIONS
+
+**Why:** Internal `REDIS_URL` was unreachable from the web service, causing circuit breaker to stay open. Public endpoint uses TLS and may resolve the connectivity issue.
+
+---
+
 ## 2026-02-28 — Boot Architecture Hardening: Remove All Heavy Initialization from Startup
 
 **What:** Complete boot path hardening after the cascading failure that took the site down for 30+ minutes. Boot now ONLY: initialize Django, connect to database, start Gunicorn. All data loading (`load_initial_data`, `recalculate_task_priorities`) removed from startup — now manual-only.

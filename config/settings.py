@@ -986,8 +986,12 @@ APSCHEDULER_RUN_NOW_TIMEOUT = 25  # Seconds
 # Worker command: celery -A config worker --loglevel=info --concurrency=2
 # Beat command:   celery -A config beat --loglevel=info
 
-# Redis URL — Railway sets REDIS_URL automatically when Redis addon is attached
+# Redis URL — Railway sets REDIS_URL automatically when Redis addon is attached.
+# REDIS_PUBLIC_URL is the public TLS endpoint (rediss://) for cross-service access.
 REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/0")
+
+# Prefer REDIS_PUBLIC_URL (TLS) for cache, fall back to REDIS_URL (internal)
+_REDIS_CACHE_BASE = env("REDIS_PUBLIC_URL", default="") or REDIS_URL
 
 # ==============================================================================
 # Django Cache Framework — CoS Readiness Cache + General Caching
@@ -1010,7 +1014,7 @@ if _disable_redis:
     }
 elif not DEBUG or env("REDIS_URL", default=""):
     # Production / CI / dev-with-Redis: use Redis DB 1 (Celery uses DB 0)
-    _cache_redis_url = REDIS_URL.rsplit("/", 1)[0] + "/1" if "/" in REDIS_URL else REDIS_URL + "/1"
+    _cache_redis_url = _REDIS_CACHE_BASE.rsplit("/", 1)[0] + "/1" if "/" in _REDIS_CACHE_BASE else _REDIS_CACHE_BASE + "/1"
     CACHES = {
         "default": {
             "BACKEND": "apps.core.cache_backend.SafeRedisCache",
@@ -1020,6 +1024,9 @@ elif not DEBUG or env("REDIS_URL", default=""):
             "OPTIONS": {
                 "socket_connect_timeout": 0.5,  # 500ms fail-fast
                 "socket_timeout": 0.5,
+                "retry_on_timeout": False,
+                "health_check_interval": 30,
+                "ssl_cert_reqs": None,  # Required for Railway public Redis TLS
             },
         },
     }
@@ -1037,7 +1044,9 @@ import logging as _settings_logging
 _cache_logger = _settings_logging.getLogger('wlj.startup')
 _cache_backend = CACHES.get('default', {}).get('BACKEND', 'unknown')
 if 'SafeRedisCache' in _cache_backend:
-    _cache_logger.info("Cache: SafeRedisCache at %s", CACHES['default'].get('LOCATION', '?'))
+    _cache_host = CACHES['default'].get('LOCATION', '?').split('@')[-1]
+    _cache_source = 'REDIS_PUBLIC_URL' if env("REDIS_PUBLIC_URL", default="") else 'REDIS_URL'
+    _cache_logger.warning("Cache: SafeRedisCache via %s → %s", _cache_source, _cache_host)
 elif 'LocMemCache' in _cache_backend:
     _cache_logger.info("Cache: LocMemCache (no Redis)")
 else:

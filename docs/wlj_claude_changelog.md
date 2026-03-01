@@ -9,6 +9,20 @@
 
 # WLJ Change History
 
+## 2026-02-28 — Fix Navigation False Positive + Cold Start Timeout
+
+**What:** Two bugs affecting user experience:
+1. **Navigation false positive caused nonsensical responses:** User asked "How come you always say you could not find the server..." and Beth responded with timer/habit instructions. The word "find the" inside "find the server" matched the `'find the'` navigation indicator, so `_try_navigation_response()` fired instead of the LLM. TeachingToolService then matched "break" to the timer feature. Fixed by adding meta-question exclusions (how come, why do you, server, error, bug, not working, etc.) that bypass navigation entirely.
+2. **"Could not find server" on first message after idle:** Railway cold start causes the first request to fail after long idle periods. Chat widget had only a 30-second timeout with no retry. Fixed by: (a) increasing timeout to 60 seconds, (b) adding automatic silent retry — first failure retries once without showing an error, so the user sees the response instead of an error message.
+
+**Files changed:**
+- `apps/ai/personal_assistant.py` — Added `meta_question_indicators` bypass list before navigation detection
+- `templates/components/chat_widget.html` — Refactored sendMessage() with 60s timeout + automatic silent retry (MAX_ATTEMPTS=2)
+
+**Tests:** 61 personal assistant tests pass.
+
+---
+
 ## 2026-02-28 — Fix read_task Wrong Times + Expand Pre-filter for Task Queries
 
 **What:** Two more CoS data-accuracy bugs:

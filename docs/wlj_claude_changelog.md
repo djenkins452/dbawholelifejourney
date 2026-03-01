@@ -9,6 +9,20 @@
 
 # WLJ Change History
 
+## 2026-03-01 — Post-load history sync for streaming placeholder messages
+
+**What:** Added automatic one-time re-fetch of conversation history 1.5s after initial load when empty placeholder messages were filtered out. Ensures messages finalized by the backend's `finally` block become visible without manual refresh.
+
+**Flow:** Page load → history fetched → empty placeholders filtered → `renderedCount < totalCount` detected → `setTimeout(refreshHistory, 1500)` scheduled → backend saves content → refresh picks up finalized message → rendered.
+
+**Files changed:**
+- `templates/components/assistant_panel.html` — `apHistorySyncDone` guard + setTimeout in `loadChatHistory()`
+- `templates/components/chat_widget.html` — `historySyncDone` guard + setTimeout in `loadHistory()`
+
+**Why:** Completes the streaming persistence safety chain: placeholder created → stream saves content → frontend auto-syncs. Without this, a refresh mid-stream would permanently hide the message until the next manual refresh.
+
+---
+
 ## 2026-03-01 — Notes System Phase 4B.1: Attachment Rename Refresh + Management Command
 
 **What:** Fixed stale attachments_text when attached entities are renamed. Added a management command for manual/scheduled refresh and auto-refresh signals for the top 5 entity models.

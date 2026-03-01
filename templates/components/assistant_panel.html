@@ -256,6 +256,7 @@
     var attachedImage = null; // { data: base64, mimeType: string }
     var calibrationAutoStarted = false;
     var lastDisplayedDate = null; // Track for date separator headers
+    var apHistorySyncDone = false; // One-time post-load sync guard
 
     /* ---- Helpers ---- */
     function getCsrfToken() {
@@ -974,6 +975,7 @@
                 container.innerHTML = '';
                 lastDisplayedDate = null;
                 var renderedCount = 0;
+                var totalCount = data.messages.length;
                 data.messages.forEach(function(msg) {
                     // Skip empty placeholder messages (created before streaming, not yet populated)
                     if (!msg.content || !msg.content.trim()) return;
@@ -986,6 +988,17 @@
                     container.scrollTop = container.scrollHeight;
                 } else {
                     showEmptyState(container);
+                }
+
+                // If any messages were filtered (empty placeholders awaiting
+                // backend save), schedule a one-time re-fetch so content
+                // appears once the backend finalizes the record.
+                if (renderedCount < totalCount && !apHistorySyncDone) {
+                    apHistorySyncDone = true;
+                    setTimeout(function() {
+                        console.log("POST-LOAD HISTORY SYNC TRIGGERED");
+                        refreshChatHistory(container);
+                    }, 1500);
                 }
             } else {
                 showEmptyState(container);

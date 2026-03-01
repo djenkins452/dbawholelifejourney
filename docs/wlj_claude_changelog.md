@@ -9,6 +9,17 @@
 
 # WLJ Change History
 
+## 2026-02-28 — Switch cache to REDIS_PUBLIC_URL with TLS (rediss://)
+
+**What:** Switched cache LOCATION to prefer `REDIS_PUBLIC_URL` (TLS endpoint) over `REDIS_URL`. Replaced component-variable construction with simpler env var preference. Added `ssl_cert_reqs: None` for Railway TLS compatibility.
+
+**Files changed:**
+- `config/settings.py` — Cache uses REDIS_PUBLIC_URL with TLS OPTIONS
+
+**Why:** Internal REDIS_URL and constructed component-variable URLs both failed to connect. Railway Redis requires TLS (rediss://) via the public endpoint.
+
+---
+
 ## 2026-02-28 — Construct Redis URL from Railway component variables
 
 **What:** Construct Redis URL from individual Railway variables (`REDISHOST`, `REDISPORT`, `REDISUSER`, `REDISPASSWORD`) instead of relying on `REDIS_URL`. Removed `REDIS_PUBLIC_URL` preference and `ssl_cert_reqs` TLS option (internal connection doesn't need TLS). Startup log shows which source was used.

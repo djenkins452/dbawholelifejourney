@@ -1014,19 +1014,22 @@ if _disable_redis:
 elif not DEBUG or env("REDIS_URL", default=""):
     # Production / CI / dev-with-Redis: use Redis DB 1 (Celery uses DB 0)
     _cache_redis_url = _REDIS_CACHE_BASE.rsplit("/", 1)[0] + "/1" if "/" in _REDIS_CACHE_BASE else _REDIS_CACHE_BASE + "/1"
+    _cache_options = {
+        "socket_connect_timeout": 0.5,  # 500ms fail-fast
+        "socket_timeout": 0.5,
+        "retry_on_timeout": False,
+        "health_check_interval": 30,
+    }
+    # Add TLS options when using rediss:// (Railway public endpoint)
+    if _cache_redis_url.startswith("rediss://"):
+        _cache_options["ssl_cert_reqs"] = None  # Skip cert verification for Railway
     CACHES = {
         "default": {
             "BACKEND": "apps.core.cache_backend.SafeRedisCache",
             "LOCATION": _cache_redis_url,
             "TIMEOUT": 300,
             "KEY_PREFIX": "wlj",
-            "OPTIONS": {
-                "socket_connect_timeout": 0.5,  # 500ms fail-fast
-                "socket_timeout": 0.5,
-                "retry_on_timeout": False,
-                "health_check_interval": 30,
-                "ssl_cert_reqs": None,  # Required for Railway TLS (rediss://)
-            },
+            "OPTIONS": _cache_options,
         },
     }
 else:

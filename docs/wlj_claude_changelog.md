@@ -9,6 +9,17 @@
 
 # WLJ Change History
 
+## 2026-02-28 — Fix Redis TLS: conditional ssl_cert_reqs for rediss:// URLs
+
+**What:** Only set `ssl_cert_reqs: None` when LOCATION starts with `rediss://`. Prevents passing SSL options to non-TLS connections. OPTIONS use lowercase names (correct for Django's built-in RedisCache, not django_redis).
+
+**Files changed:**
+- `config/settings.py` — Conditional TLS options based on URL scheme
+
+**Why:** Previous config always passed `ssl_cert_reqs` even for non-TLS URLs. Clean separation ensures correct behavior for both internal and public Redis endpoints.
+
+---
+
 ## 2026-02-28 — Add temporary /_redis_reset/ endpoint
 
 **What:** Temporary endpoint that resets the circuit breaker (`_circuit_open_until = 0`) so `/_redis_test/` can immediately probe Redis without waiting 60s.

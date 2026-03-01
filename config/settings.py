@@ -156,6 +156,7 @@ INSTALLED_APPS = [
     'apps.core.ai_relationships',  # Relationship intelligence (CoS Phase III)
     'apps.core.ai_eae',  # Executive Arbitration Engine (CoS Phase 8)
     'apps.owner_finance',  # Owner Financial Command Center (cost telemetry & dashboards)
+    'apps.notes',  # Unified notes system with entity attachments
     'assistant',
     'django_apscheduler',
     'djstripe',

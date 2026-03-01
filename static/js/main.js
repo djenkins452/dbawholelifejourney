@@ -29,6 +29,51 @@
  */
 
 // ==========================================================================
+// Server Keep-Alive (prevents Railway container sleep & ISE scheduler drift)
+// ==========================================================================
+
+(function() {
+    'use strict';
+
+    var PING_INTERVAL_MS = 240000;  // 4 minutes (just under 5-min ISE cycle)
+    var PING_URL = '/_health/';
+    var pingTimer = null;
+
+    function ping() {
+        fetch(PING_URL, { method: 'HEAD', credentials: 'same-origin' }).catch(function() {});
+    }
+
+    function startKeepAlive() {
+        if (pingTimer) return;
+        ping();  // Immediate ping on start/resume
+        pingTimer = setInterval(ping, PING_INTERVAL_MS);
+    }
+
+    function stopKeepAlive() {
+        if (pingTimer) {
+            clearInterval(pingTimer);
+            pingTimer = null;
+        }
+    }
+
+    // Only run for authenticated users (check for a nav element that only exists when logged in)
+    document.addEventListener('DOMContentLoaded', function() {
+        if (!document.getElementById('nav-menu') && !document.getElementById('desktop-left-rail')) return;
+
+        startKeepAlive();
+
+        // Page Visibility API — pause when tab hidden, resume when visible
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden) {
+                stopKeepAlive();
+            } else {
+                startKeepAlive();  // Immediate ping + restart interval
+            }
+        });
+    });
+})();
+
+// ==========================================================================
 // Navigation
 // ==========================================================================
 

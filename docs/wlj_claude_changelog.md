@@ -9,6 +9,18 @@
 
 # WLJ Change History
 
+## 2026-02-28 — Server keep-alive & ISE scheduler catch-up
+
+**What:** Prevented ISE scheduler drift caused by Railway container sleep. Two changes:
+1. Added client-side keep-alive ping in `main.js` — sends HEAD request to `/_health/` every 4 minutes while a user has a tab open. Uses Page Visibility API to pause when tab is hidden and resume (with immediate ping) when tab becomes visible again. Only activates for authenticated users.
+2. Added catch-up detection to `run_scheduler_cycle()` — when the scheduler wakes from container sleep and finds >50% of tasks overdue, it logs a catch-up warning and runs all overdue engines immediately. All tasks get rescheduled from current time, preventing cascading drift.
+
+**Why:** ISE scheduler was showing +722s drift (12+ minutes behind on a 5-minute cycle) after container sleep, causing 5/10 engines to show MISSED status despite 0 actual errors.
+
+**Files:** `static/js/main.js`, `apps/core/ai_scheduler/scheduler_engine.py`
+
+---
+
 ## 2026-02-28 — Show emotion names next to emojis in Mood This Week
 
 **What:** Emotion labels now show "😊 Great" instead of just "😊". Users couldn't identify which emotion each emoji represented. Widened label area from 24px to min-width 90px.

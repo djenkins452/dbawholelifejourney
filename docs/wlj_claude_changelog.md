@@ -9,6 +9,17 @@
 
 # WLJ Change History
 
+## 2026-02-28 — Add test_redis management command
+
+**What:** New `python manage.py test_redis` command to test Redis connectivity through Django's cache layer. Reports success/degraded/failed/timeout with elapsed time.
+
+**Files changed:**
+- `apps/core/management/commands/test_redis.py` (new)
+
+**Why:** Diagnostic tool to verify Redis connectivity after config changes without needing to check /_health/ or read logs.
+
+---
+
 ## 2026-02-28 — Switch Django cache to REDIS_PUBLIC_URL with TLS
 
 **What:** Changed cache config to prefer `REDIS_PUBLIC_URL` (Railway's public TLS endpoint) over `REDIS_URL` (internal). Added `ssl_cert_reqs: None` for Railway TLS compatibility, `retry_on_timeout: False` and `health_check_interval: 30`. Startup log now shows which env var is active and the masked host.

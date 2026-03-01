@@ -334,7 +334,26 @@ def _build_health_and_vitals(user):
             'sleep_trend': get_state_value(user, 'health.sleep_trend', 'stable'),
             'workout_count_7d': get_state_value(user, 'fitness.workouts_7d', 0),
             'steps_avg_7d': get_state_value(user, 'health.steps_avg_7d'),
+            'weight_current': get_state_value(user, 'health.weight_current'),
+            'weight_unit': get_state_value(user, 'health.weight_unit', 'lb'),
+            'weight_trend': get_state_value(user, 'health.weight_trend'),
         }
+
+        # Weight goal from HealthProfile
+        try:
+            from apps.health.models import HealthProfile
+            hp = HealthProfile.objects.filter(user=user).first()
+            if hp and hp.has_weight_goal:
+                health_signals['weight_goal'] = float(hp.weight_goal)
+                health_signals['weight_goal_unit'] = hp.weight_goal_unit
+                if hp.weight_goal_target_date:
+                    health_signals['weight_goal_target_date'] = str(hp.weight_goal_target_date)
+                progress = hp.get_weight_progress()
+                if progress and progress.get('remaining') is not None:
+                    health_signals['weight_goal_remaining'] = progress['remaining']
+                    health_signals['weight_goal_on_track'] = progress.get('on_track')
+        except Exception:
+            pass
 
         from datetime import timedelta
         week_ago = timezone.localdate() - timedelta(days=7)
@@ -1059,6 +1078,29 @@ def format_cos_system_injection(context):
     health_sig = context.get('health_signals', {})
     if health_sig:
         health_lines = []
+        # Weight
+        weight_current = health_sig.get('weight_current')
+        if weight_current:
+            unit = health_sig.get('weight_unit', 'lb')
+            trend = health_sig.get('weight_trend')
+            weight_str = f"Weight: {weight_current} {unit}"
+            if trend and trend not in ('stable', 'insufficient_data'):
+                weight_str += f" ({trend})"
+            elif trend == 'stable':
+                weight_str += " (stable)"
+            health_lines.append(weight_str)
+            # Weight goal
+            weight_goal = health_sig.get('weight_goal')
+            if weight_goal:
+                g_unit = health_sig.get('weight_goal_unit', unit)
+                goal_str = f"Weight Goal: {weight_goal} {g_unit}"
+                target_date = health_sig.get('weight_goal_target_date')
+                if target_date:
+                    goal_str += f" by {target_date}"
+                remaining = health_sig.get('weight_goal_remaining')
+                if remaining is not None:
+                    goal_str += f" ({abs(remaining)} {g_unit} to go)"
+                health_lines.append(goal_str)
         sleep = health_sig.get('sleep_avg_7d')
         if sleep:
             label = f"{sleep:.1f}h avg" + (" (low)" if sleep < 6.5 else "")

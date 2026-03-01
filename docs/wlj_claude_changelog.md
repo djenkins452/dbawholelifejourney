@@ -9,6 +9,17 @@
 
 # WLJ Change History
 
+## 2026-03-01 — Fix: CoS chat missing weight data in system prompt
+
+**What:** CoS AI assistants couldn't see user weight data — responded with "I don't have any weight entries" despite the user having many entries. Weight was collected in the state engine and assembled in `transformation_metrics` but never rendered into the system prompt injection.
+
+**Changes:**
+- `apps/core/ai_orchestrator/cos_context.py` — Added weight_current, weight_unit, weight_trend to health_signals dict; added weight goal data from HealthProfile; added weight + weight goal rendering in system prompt injection (before sleep/steps/HR)
+
+**Why:** Users discussing weight goals with their CoS persona got incorrect responses because the AI literally couldn't see the data. Now CoS sees current weight, trend, and goal progress.
+
+---
+
 ## 2026-03-01 — Notes System Phase 4C: CoS Memory Intelligence + Ranking
 
 **What:** Added a second-stage ranking layer for CoS note retrieval that combines FTS rank with contextual signals (recency, pinning, entity scope, tag overlap) to surface the "best" memory, not just "matching" ones.

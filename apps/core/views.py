@@ -1322,3 +1322,13 @@ def redis_test_view(request):
     except Exception as e:
         elapsed = int((time.monotonic() - start) * 1000)
         return JsonResponse({"status": "failed", "error": str(e), "elapsed_ms": elapsed})
+
+
+# Temporary circuit breaker reset endpoint — remove after debugging
+def redis_reset_view(request):
+    try:
+        from apps.core import cache_backend
+        cache_backend._circuit_open_until = 0
+        return JsonResponse({"status": "reset", "message": "Circuit breaker closed, next cache call will attempt Redis"})
+    except Exception as e:
+        return JsonResponse({"status": "error", "error": str(e)})

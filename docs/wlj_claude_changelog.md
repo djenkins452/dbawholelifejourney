@@ -9,6 +9,18 @@
 
 # WLJ Change History
 
+## 2026-02-28 — Add temporary /_redis_reset/ endpoint
+
+**What:** Temporary endpoint that resets the circuit breaker (`_circuit_open_until = 0`) so `/_redis_test/` can immediately probe Redis without waiting 60s.
+
+**Files changed:**
+- `apps/core/views.py` — Added `redis_reset_view`
+- `apps/core/urls.py` — Added route for `/_redis_reset/`
+
+**Why:** Circuit breaker blocks Redis testing for 60s after each failure. Need instant reset for connectivity debugging.
+
+---
+
 ## 2026-02-28 — Switch cache to REDIS_PUBLIC_URL with TLS (rediss://)
 
 **What:** Switched cache LOCATION to prefer `REDIS_PUBLIC_URL` (TLS endpoint) over `REDIS_URL`. Replaced component-variable construction with simpler env var preference. Added `ssl_cert_reqs: None` for Railway TLS compatibility.

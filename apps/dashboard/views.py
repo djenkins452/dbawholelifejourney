@@ -889,6 +889,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         """
         from apps.faith.models import PrayerRequest, FaithMilestone, SavedVerse
         from apps.core.ai_state.state_guards import require_state_first
+        from apps.faith.engagement import get_faith_engagement_details
 
         faith_state = (sae_state or {}).get("faith", {})
 
@@ -908,12 +909,18 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             is_memory_verse=True
         ).first()
 
+        # Faith daily engagement (reading plan, church task, etc.)
+        engagement = get_faith_engagement_details(user)
+
         return {
             "active_prayers": active_prayer_count,
             "answered_prayers": answered_prayers.count(),
             "total_milestones": FaithMilestone.objects.filter(user=user).count(),
             "recent_answered_prayer": recent_answered,
             "memory_verse": memory_verse,
+            "faith_engaged_today": engagement['faith_engaged_today'],
+            "reading_completed_today": engagement['reading_completed_today'],
+            "faith_task_completed_today": engagement['faith_task_completed_today'],
         }
     
     def _get_health_data(self, user, today, month_ago, sae_state=None):

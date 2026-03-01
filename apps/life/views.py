@@ -357,7 +357,7 @@ class TaskCreateView(LifeAccessMixin, CreateView):
     """Create a new task."""
     model = Task
     template_name = "life/task_form.html"
-    fields = ['title', 'notes', 'project', 'effort', 'due_date', 'scheduled_time', 'scheduled_end_time', 'is_recurring', 'recurrence_pattern', 'start_date', 'end_date']
+    fields = ['title', 'notes', 'project', 'effort', 'due_date', 'module', 'scheduled_time', 'scheduled_end_time', 'is_recurring', 'recurrence_pattern', 'start_date', 'end_date']
 
     def get_form(self, form_class=None):
         form = super().get_form(form_class)
@@ -366,6 +366,7 @@ class TaskCreateView(LifeAccessMixin, CreateView):
         )
         form.fields['scheduled_time'].required = False
         form.fields['scheduled_end_time'].required = False
+        form.fields['module'].required = False
         return form
 
     def get_initial(self):
@@ -414,7 +415,7 @@ class TaskUpdateView(LifeAccessMixin, UpdateView):
     """Edit a task."""
     model = Task
     template_name = "life/task_form.html"
-    fields = ['title', 'notes', 'project', 'effort', 'due_date', 'scheduled_time', 'scheduled_end_time', 'progress_percentage', 'is_recurring', 'recurrence_pattern', 'start_date', 'end_date']
+    fields = ['title', 'notes', 'project', 'effort', 'due_date', 'module', 'scheduled_time', 'scheduled_end_time', 'progress_percentage', 'is_recurring', 'recurrence_pattern', 'start_date', 'end_date']
 
     def get_queryset(self):
         return Task.objects.filter(user=self.request.user)
@@ -426,6 +427,7 @@ class TaskUpdateView(LifeAccessMixin, UpdateView):
         )
         form.fields['scheduled_time'].required = False
         form.fields['scheduled_end_time'].required = False
+        form.fields['module'].required = False
         return form
 
     def form_valid(self, form):

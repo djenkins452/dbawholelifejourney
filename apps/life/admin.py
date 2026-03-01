@@ -21,8 +21,8 @@ class ProjectAdmin(admin.ModelAdmin):
 
 @admin.register(Task)
 class TaskAdmin(admin.ModelAdmin):
-    list_display = ['title', 'user', 'project', 'priority', 'is_completed', 'due_date']
-    list_filter = ['priority', 'is_completed', 'created_at']
+    list_display = ['title', 'user', 'project', 'priority', 'module', 'is_completed', 'due_date']
+    list_filter = ['priority', 'module', 'is_completed', 'created_at']
     search_fields = ['title', 'notes']
 
 

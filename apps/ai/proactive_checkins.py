@@ -207,18 +207,34 @@ class ProactiveCheckInService:
         """
         Generate a brief check-in about today's workout.
 
+        Respects the user's workout schedule — skips rest days and
+        unscheduled days. If no active plan, falls back to asking daily.
+
         Message: Direct, short question. No motivational speech.
 
         Returns:
             AssistantMessage with quick reply buttons, or None
         """
-        from apps.health.models import WorkoutSession
+        from apps.health.models import WorkoutPlan, WorkoutSession
         from apps.core.utils import get_user_today
 
         if not self.throttler.can_send('workout'):
             return None
 
         today = get_user_today(self.user)
+
+        # Check if today is a scheduled workout day
+        active_plan = WorkoutPlan.objects.filter(
+            user=self.user, is_active=True
+        ).first()
+
+        if active_plan:
+            schedule_entry = active_plan.schedule_entries.filter(
+                day_of_week=today.weekday()
+            ).first()
+            # Skip if no schedule entry for today, or if it's a rest day
+            if schedule_entry is None or schedule_entry.is_rest_day:
+                return None
 
         # Already worked out today? Don't ask.
         if WorkoutSession.objects.filter(user=self.user, date=today).exists():

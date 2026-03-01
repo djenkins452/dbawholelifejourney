@@ -815,23 +815,21 @@ class PersonalAssistant:
         return result
 
     def _get_fresh_today_faith(self, today) -> Dict:
-        """Get today-specific faith data (reading plan completion)."""
+        """Get today-specific faith data (reading plan + task engagement)."""
         try:
-            from apps.faith.models import UserReadingPlan, UserReadingProgress
+            from apps.faith.models import UserReadingPlan
+            from apps.faith.engagement import get_faith_engagement_details
+
             active_plans = UserReadingPlan.objects.filter(
                 user=self.user, plan_status='active'
             ).exclude(status='deleted')
-            count = active_plans.count()
-            completed = False
-            if count > 0:
-                completed = UserReadingProgress.objects.filter(
-                    user_plan__in=active_plans,
-                    is_completed=True,
-                    completed_at__date=today,
-                ).exists()
+
+            engagement = get_faith_engagement_details(self.user, today)
+
             return {
-                'active_reading_plans': count,
-                'reading_completed_today': completed,
+                'active_reading_plans': active_plans.count(),
+                'reading_completed_today': engagement['reading_completed_today'],
+                'faith_engaged_today': engagement['faith_engaged_today'],
             }
         except Exception:
             return {}
@@ -1123,24 +1121,18 @@ class PersonalAssistant:
         """Get faith-related metrics."""
         from apps.core.utils import get_user_today
         from apps.faith.models import (
-            FaithMilestone, PrayerRequest, UserReadingPlan, UserReadingProgress,
+            FaithMilestone, PrayerRequest, UserReadingPlan,
         )
+        from apps.faith.engagement import get_faith_engagement_details
 
         today = get_user_today(self.user)
         prayers = PrayerRequest.objects.filter(user=self.user)
 
-        # Reading plan daily progress
         active_plans = UserReadingPlan.objects.filter(
             user=self.user, plan_status='active'
         ).exclude(status='deleted')
-        reading_completed_today = False
-        active_plan_count = active_plans.count()
-        if active_plan_count > 0:
-            reading_completed_today = UserReadingProgress.objects.filter(
-                user_plan__in=active_plans,
-                is_completed=True,
-                completed_at__date=today,
-            ).exists()
+
+        engagement = get_faith_engagement_details(self.user, today)
 
         return {
             'active_prayers': prayers.filter(is_answered=False).count(),
@@ -1155,8 +1147,9 @@ class PersonalAssistant:
             'faith_milestones': FaithMilestone.objects.filter(
                 user=self.user
             ).count(),
-            'active_reading_plans': active_plan_count,
-            'reading_completed_today': reading_completed_today,
+            'active_reading_plans': active_plans.count(),
+            'reading_completed_today': engagement['reading_completed_today'],
+            'faith_engaged_today': engagement['faith_engaged_today'],
         }
 
     def _get_health_state(self, today, week_ago) -> Dict:

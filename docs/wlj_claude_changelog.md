@@ -9,6 +9,31 @@
 
 # WLJ Change History
 
+## 2026-03-01 — Workout schedule respect + Faith daily engagement
+
+**What:** Fixed two design issues: (1) workout check-ins asked every day regardless of schedule, (2) faith module had no concept of daily engagement beyond reading plans.
+
+**Changes:**
+- `apps/ai/proactive_checkins.py` — `generate_workout_check_in()` now checks user's active `WorkoutPlan` schedule; skips rest days and unscheduled days
+- `apps/health/models.py` — Changed `WorkoutPlan.days_per_week` default from 6 to 4
+- `apps/life/models.py` — Added `module` field to `Task` model (choices: faith, health, journal, purpose, life) for cross-module engagement tracking; `mark_complete()` fires intelligence for module-linked tasks
+- `apps/life/services/recurrence.py` — `module` field propagated to next recurring task occurrence
+- `apps/life/views.py` — `module` exposed in TaskCreateView and TaskUpdateView
+- `apps/life/admin.py` — `module` added to TaskAdmin list_display and list_filter
+- `apps/faith/engagement.py` — **New** centralised faith engagement utility (`is_faith_engaged_today()`, `get_faith_engagement_details()`) checks reading plans + faith-linked tasks
+- `apps/dashboard/views.py` — `_get_faith_data()` returns `faith_engaged_today`, `reading_completed_today`, `faith_task_completed_today`
+- `apps/ai/personal_assistant.py` — `_get_fresh_today_faith()` and `_get_faith_state()` use engagement utility
+- `apps/life/management/commands/seed_church_task.py` — **New** management command to create recurring weekly:sun "Go to Church" task linked to faith module
+- `apps/faith/tests/test_engagement.py` — **New** 10 tests for engagement utility
+- `apps/life/migrations/0016_task_module.py` — AddField migration
+- `apps/health/migrations/0049_alter_workoutplan_days_per_week.py` — AlterField migration
+
+**Why:** Workout check-ins were nagging on rest days. Sunday church attendance had no way to count as faith engagement. Task `module` field creates a reusable bridge between task completion and module daily tracking.
+
+**Tests:** 10 engagement tests + 295 life tests + 261 faith/dashboard tests + 25 workout plan tests — all pass.
+
+---
+
 ## 2026-03-01 — Notes module: user-facing documentation (/close audit)
 
 **What:** Session close-out audit found Notes module was missing from all user-facing documentation (release notes, teaching destinations, help topics, features doc).

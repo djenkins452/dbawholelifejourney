@@ -9,6 +9,18 @@
 
 # WLJ Change History
 
+## 2026-03-01 — Anti-hallucination directives for CoS and Personal Assistant prompts
+
+**What:** Added explicit "never fabricate user data" rules to both the base personal assistant prompt and the CoS operational intelligence injection. The AI was confabulating data values (e.g. echoing "300 lbs" from the user's goal message as if it were a real lookup). New rules tell the AI to say "I don't have that data right now" instead of guessing.
+
+**Changes:**
+- `apps/ai/personal_assistant.py` — Added "ABSOLUTE RULE: NEVER FABRICATE USER DATA" section with specific anti-hallucination examples (don't echo user's numbers back, don't fabricate dates/values/trends, say "I don't have that" instead)
+- `apps/core/ai_orchestrator/cos_context.py` — Added "HONESTY RULE" directive in operational intelligence header, reinforcing that only data present in context should be stated as fact
+
+**Why:** The existing prompt heavily discouraged "I don't know" responses (Trust Principle), which backfired when data was actually missing — the AI would fabricate instead of admitting the gap. Now both instincts are balanced: use real data when you have it, admit when you don't.
+
+---
+
 ## 2026-03-01 — Fix: iOS crash on stair ascent/descent speed sync (incompatible HKUnit)
 
 **What:** HealthKit sync crashed with `NSInvalidArgumentException: "Attempt to convert incompatible units: m/s, count/s"` when fetching stair ascent/descent speed. The code used `HKUnit.count().unitDivided(by: .second())` (count/s) but HealthKit stores these metrics in `m/s` (meters per second). Also removed the incorrect `convertToFlightsPerMin` flag since these are velocity values, not flight count rates.
@@ -17,6 +29,8 @@
 - `ios/WLJWrapper/WLJWrapper/Services/HealthKitManager.swift` — Changed unit from `count/s` to `m/s` for both `stairAscentSpeed` and `stairDescentSpeed`; removed `convertToFlightsPerMin: true` parameter
 
 **Why:** App crashed on any device with stair speed data in HealthKit, preventing health data sync from completing.
+
+---
 
 ## 2026-03-01 — Fix: CoS chat weight data — use live DB query instead of stale state cache
 

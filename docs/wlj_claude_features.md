@@ -2779,6 +2779,18 @@ Phase 1 of the CoS Foundational Restructure adds structured listening and priori
 - `templates/ai/cos_settings.html` — CoS settings page + Learning Mode toggle
 - `apps/dashboard/views.py` — Dashboard views with CoS context
 
+### CoS Performance — Instant-Readiness Architecture *(Feb 2026)*
+Full-stack latency elimination so Beth feels instant and responsive:
+- **Intent-Based Pre-Warm:** Frontend fires lightweight `/assistant/api/wake/` on input focus and mobile panel open (30s cooldown). Warms DB connections and pre-builds CoS context before the user sends a message.
+- **Redis Context Cache:** `build_cos_context()` results (15-20 DB queries) cached in Redis with 45-second TTL. Cache miss falls through to existing behavior — never serves stale data.
+- **Fast-Path Execution:** `send_message()` and `_generate_response()` check readiness cache before full rebuild, eliminating ~50-150ms of non-LLM latency per pre-warmed request.
+- **Background Post-Response Ops:** Learning extraction, correction detection, and pattern detection moved off response path to background threads.
+- **Celery Keep-Alive:** Beat task (30s) refreshes context cache for recently active users (cap: 5 per cycle).
+- **Readiness State Tracking:** Per-user states (`cold → warming → ready → active`) tracked in Redis to prevent duplicate warm-ups.
+- **Observability:** Logging telemetry for wake hit/miss rates, context build times, fast-path vs full-path usage.
+- **Key files:** `apps/ai/readiness_cache.py`, `apps/ai/readiness_telemetry.py`, `apps/ai/tasks.py`
+- **Tests:** 19 in `apps/ai/tests/test_readiness_cache.py`
+
 ---
 
 ## Voice Conversation Mode

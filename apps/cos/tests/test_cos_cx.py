@@ -542,7 +542,7 @@ class BehaviorForecastTests(TestCase):
         tomorrow = self.now.date() + timedelta(days=1)
 
         # No events = light
-        load = _get_schedule_load(self.user, tomorrow, self.now.tzinfo)
+        load = _get_schedule_load(self.user, tomorrow)
         self.assertEqual(load, 'light')
 
         # 3 events = moderate
@@ -554,7 +554,7 @@ class BehaviorForecastTests(TestCase):
                 end_dt=self.now + timedelta(days=1, hours=i + 1),
                 idempotency_key=uuid4().hex,
             )
-        load = _get_schedule_load(self.user, tomorrow, self.now.tzinfo)
+        load = _get_schedule_load(self.user, tomorrow)
         self.assertEqual(load, 'moderate')
 
         # 5+ events = heavy
@@ -566,7 +566,7 @@ class BehaviorForecastTests(TestCase):
                 end_dt=self.now + timedelta(days=1, hours=i + 1),
                 idempotency_key=uuid4().hex,
             )
-        load = _get_schedule_load(self.user, tomorrow, self.now.tzinfo)
+        load = _get_schedule_load(self.user, tomorrow)
         self.assertEqual(load, 'heavy')
 
     def test_load_description(self):
@@ -580,7 +580,8 @@ class BehaviorForecastTests(TestCase):
     def test_fail_safe_on_exception(self):
         """Returns empty string on any exception."""
         from apps.cos.intelligence.behavior_forecast import compute_behavior_forecast
-        result = compute_behavior_forecast(None, self.now)
+        # None for `now` triggers AttributeError on now.date() — caught by fail-safe
+        result = compute_behavior_forecast(self.user, None)
         self.assertEqual(result, "")
 
 

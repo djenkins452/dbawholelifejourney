@@ -2058,6 +2058,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             # operation so the except handler cannot swallow closure.
             _ecc_closure_handled = False
             _ecc_closure_response = ''
+            _cos_context_cache = None  # Cache cos_context from ECC to avoid recomputing
             try:
                 from apps.core.ai_orchestrator.commitment_contract import (
                     Commitment as EccCommitment,
@@ -2076,8 +2077,10 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                     Commitment as CommitmentModel,
                 )
 
-                # Compute real tier — same logic as _generate_response()
+                # Compute real tier — same logic as _generate_response().
+                # Cache result to avoid rebuilding in _generate_response.
                 _ecc_cos = _ecc_build_cos(self.user)
+                _cos_context_cache = _ecc_cos
                 _ecc_traj = _ecc_cos.get(
                     'trajectory_signals',
                     _ecc_build_traj(self.user),
@@ -2236,7 +2239,8 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                         message, conversation,
                         page_context=page_context,
                         image_data=image_data,
-                        image_mime_type=image_mime_type
+                        image_mime_type=image_mime_type,
+                        cos_context_cache=_cos_context_cache,
                     )
             # Then check for pending data visibility confirmation
             elif self._handle_data_visibility_confirmation(message, conversation):
@@ -2313,6 +2317,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                         page_context=page_context,
                         image_data=image_data,
                         image_mime_type=image_mime_type,
+                        cos_context_cache=_cos_context_cache,
                     )
                 else:
                     # Try to recognize intents (supports multiple)
@@ -2401,7 +2406,8 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                                 message, conversation,
                                 page_context=page_context,
                                 image_data=image_data,
-                                image_mime_type=image_mime_type
+                                image_mime_type=image_mime_type,
+                                cos_context_cache=_cos_context_cache,
                             )
                             response += "\n\n" + bug_report_ack
                         else:
@@ -2416,7 +2422,8 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                                     message, conversation,
                                     page_context=page_context,
                                     image_data=image_data,
-                                    image_mime_type=image_mime_type
+                                    image_mime_type=image_mime_type,
+                                    cos_context_cache=_cos_context_cache,
                                 )
 
                         # Check for feature requests ("I wish", "I want") and notify admin
@@ -2497,23 +2504,46 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         conversation.updated_at = timezone.now()
         conversation.save(update_fields=['updated_at'])
 
-        # Post-response: trigger rolling conversation summary if needed
+        # Post-response: trigger rolling conversation summary if needed.
+        # Run in background thread — may make an OpenAI API call (~1-3s).
         try:
+            import threading
             from apps.ai.executive_briefing import maybe_generate_rolling_summary
-            maybe_generate_rolling_summary(self.user, conversation)
+
+            def _rolling_summary_bg():
+                try:
+                    maybe_generate_rolling_summary(self.user, conversation)
+                except Exception:
+                    pass
+
+            threading.Thread(
+                target=_rolling_summary_bg, daemon=True
+            ).start()
         except Exception:
             pass  # Summary generation must never break chat
 
-        # Post-response: store conversation memory for RAG retrieval
+        # Post-response: store conversation memory for RAG retrieval.
+        # Run in a background thread to avoid blocking the response
+        # (embedding API call + DB write takes ~150-300ms).
         try:
+            import threading
             from apps.ai.memory_service import store_memory
-            store_memory(
-                user=self.user,
-                user_message=message,
-                assistant_response=response,
-                conversation=conversation,
-                page_context=page_context,
-            )
+
+            def _store_memory_bg():
+                try:
+                    store_memory(
+                        user=self.user,
+                        user_message=message,
+                        assistant_response=response,
+                        conversation=conversation,
+                        page_context=page_context,
+                    )
+                except Exception:
+                    pass
+
+            threading.Thread(
+                target=_store_memory_bg, daemon=True
+            ).start()
         except Exception:
             pass  # Memory storage must never break chat
 
@@ -3072,7 +3102,8 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         conversation: AssistantConversation,
         page_context: dict = None,
         image_data: str = None,
-        image_mime_type: str = None
+        image_mime_type: str = None,
+        cos_context_cache: dict = None,
     ) -> str:
         """Generate AI response to user message using coaching style.
 
@@ -3235,6 +3266,9 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
 
                     if is_learning_mode_active(self.user):
                         cos_context = build_learning_mode_context(self.user)
+                    elif cos_context_cache:
+                        # Reuse pre-computed cos_context from ECC pre-check
+                        cos_context = cos_context_cache
                     else:
                         cos_context = build_cos_context(self.user)
                         # Phase 3 Tiered Activation: compute activation

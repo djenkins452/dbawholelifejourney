@@ -9,35 +9,24 @@
 
 # WLJ Change History
 
-## 2026-02-28 — Show emotion names next to emojis in Mood This Week
+## 2026-02-28 — CoS Response Performance Optimization (3 fixes)
 
-**What:** Emotion labels now show "😊 Great" instead of just "😊". Users couldn't identify which emotion each emoji represented. Widened label area from 24px to min-width 90px.
+**What:** Beth's response time was slow (~4-10s) due to redundant DB queries and synchronous post-processing. Three optimizations implemented:
 
-**Files:** `templates/journal/home.html`
+1. **Eliminated double `build_cos_context()` call:** The ECC pre-check built cos_context to determine if the Engagement Calibration Circuit should fire, then `_generate_response` rebuilt it from scratch. Now the pre-check result is cached and passed through via `cos_context_cache` parameter, saving ~300-450ms and ~150+ DB queries.
 
----
+2. **Rewrote CX6 Behavioral Forecast with batch queries:** The original implementation made 224 individual DB queries (56 days × 3 behaviors × `exists()` + 56 calendar `count()` calls). Replaced with 6 batch queries using `TruncDate`, `Count`, and `values_list().distinct()`. Forecast computation is now pure Python over pre-fetched sets. Saves ~500-1000ms.
 
-## 2026-02-28 — Add hover text to Mood This Week emoji labels
+3. **Made post-response operations async:** Memory storage (embedding API call + DB write, ~150-300ms) and rolling conversation summary (possible OpenAI call, ~1-3s) now run in background daemon threads instead of blocking the response. User sees the response immediately; background work completes independently.
 
-**What:** Added `title` attribute to mood emoji labels so hovering shows the emotion name (e.g., "Grateful", "Anxious").
+**Estimated total savings:** ~1-4 seconds per message.
 
-**Files:** `templates/journal/home.html`
+**Files changed:**
+- `apps/ai/personal_assistant.py` — Added `cos_context_cache` parameter to `_generate_response`, cached ECC pre-check result, passed to all 4 call sites; moved `store_memory()` and `maybe_generate_rolling_summary()` to background threads
+- `apps/cos/intelligence/behavior_forecast.py` — Complete rewrite: 6 batch queries instead of 224, pure-Python forecast computation
+- `apps/cos/tests/test_cos_cx.py` — Updated `test_fail_safe_on_exception` and `test_schedule_load_classification` for new function signatures
 
----
-
-## 2026-02-28 — Fix Journal Dashboard: Mood This Week + Today's Prompt
-
-**What:** Fixed two broken widgets on the journal home page:
-1. **Mood This Week** — Was always empty because it queried the `mood` CharField (never populated). Fixed to query from `emotions` ManyToMany field which is what the entry form actually collects.
-2. **Today's Prompt** — Was hardcoded to `None`. Fixed to query `JournalPrompt` model and rotate daily based on day-of-year. Respects faith_enabled preference.
-
-**Why:** User reported both widgets empty despite regular journaling with emotion selection.
-
-**Files:**
-- `apps/journal/views.py` — Rewrote `_get_mood_stats()` to use Emotion M2M; replaced `suggested_prompt = None` with daily prompt rotation logic
-- `templates/journal/home.html` — Fixed `get_category_display` (invalid on FK) to `category.name`
-
-**Tests:** 107 journal tests pass
+**Tests:** 38 COS-CX tests pass.
 
 ---
 

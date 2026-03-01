@@ -9,6 +9,18 @@
 
 # WLJ Change History
 
+## 2026-03-01 — Remove temporary Redis diagnostic endpoints
+
+**What:** Removed `/_redis_test/` and `/_redis_reset/` endpoints now that Redis connectivity is confirmed working.
+
+**Files changed:**
+- `apps/core/views.py` — Removed `redis_test_view` and `redis_reset_view`
+- `apps/core/urls.py` — Removed both URL routes
+
+**Why:** Temporary debugging endpoints no longer needed. Redis is connected and working.
+
+---
+
 ## 2026-03-01 — Fix Redis URL: rsplit bug produced redis://1 instead of actual URL
 
 **What:** Fixed critical bug where `rsplit("/", 1)` on a Redis URL without a path (e.g., `redis://user:pass@host:6379`) would split on the `//` in the protocol, producing `redis://1` as the cache LOCATION. Removed all URL manipulation — cache now uses `REDIS_URL` directly via `os.environ.get()`. Removed REDIS_PUBLIC_URL preference (internal URL is correct). Removed DB number `/1` suffix manipulation.

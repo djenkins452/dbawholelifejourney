@@ -575,7 +575,9 @@ class APITests(TestCase):
         )
         resp = self.client.delete(f'/calendar/api/events/{event.pk}/')
         self.assertEqual(resp.status_code, 200)
-        self.assertFalse(CalendarEvent.objects.filter(pk=event.pk).exists())
+        event.refresh_from_db()
+        self.assertEqual(event.status, CalendarEvent.STATUS_CANCELED)
+        self.assertIsNotNone(event.deleted_at)
 
     def test_dashboard_view_loads(self):
         """Acceptance criterion #3: dashboard page loads."""

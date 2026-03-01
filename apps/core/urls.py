@@ -36,6 +36,7 @@ urlpatterns = [
 
     path("", views.LandingPageView.as_view(), name="landing"),
     path("_health/", views.HealthCheckView.as_view(), name="health_check"),
+    path("_redis_test/", views.redis_test_view, name="redis_test"),  # Temporary — remove after debugging
     path("terms/", views.TermsOfServiceView.as_view(), name="terms"),
     path("privacy/", views.PrivacyPolicyView.as_view(), name="privacy"),
     path("about/", views.AboutView.as_view(), name="about"),

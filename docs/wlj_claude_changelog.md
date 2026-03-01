@@ -9,6 +9,18 @@
 
 # WLJ Change History
 
+## 2026-02-28 — Add temporary /_redis_test/ HTTP endpoint
+
+**What:** Temporary endpoint at `/_redis_test/` that tests Redis via cache.set/get and returns JSON with status, value, and elapsed_ms. For debugging Redis connectivity without Railway shell access.
+
+**Files changed:**
+- `apps/core/views.py` — Added `redis_test_view` function
+- `apps/core/urls.py` — Added route for `/_redis_test/`
+
+**Why:** Need to verify Redis connectivity after switching to REDIS_PUBLIC_URL. Remove after debugging.
+
+---
+
 ## 2026-02-28 — Add test_redis management command
 
 **What:** New `python manage.py test_redis` command to test Redis connectivity through Django's cache layer. Reports success/degraded/failed/timeout with elapsed time.

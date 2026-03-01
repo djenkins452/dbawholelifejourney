@@ -2017,6 +2017,9 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             Dict with 'response' (str), optionally 'actions_taken' (list of dicts),
             and optionally 'user_message_has_image' (bool)
         """
+        import time as _t
+        _t_total_start = _t.monotonic()
+
         from .intent_service import intent_service
         from .feature_request_service import feature_request_service
         from .bug_report_service import bug_report_service
@@ -2080,6 +2083,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                 # Compute real tier — same logic as _generate_response().
                 # Cache result to avoid rebuilding in _generate_response.
                 # Try readiness cache first (pre-warmed by wake endpoint).
+                _t_cache_start = _t.monotonic()
                 try:
                     from apps.ai.readiness_cache import (
                         get_cached_cos_context as _rc_get,
@@ -2097,8 +2101,11 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                     )
                 except Exception:
                     _rc_cached = None
+                logger.warning("COS CACHE lookup took %.1f ms", (_t.monotonic() - _t_cache_start) * 1000)
+                _t_ctx_start = _t.monotonic()
                 _ecc_cos = _rc_cached if _rc_cached else _ecc_build_cos(self.user)
                 _cos_context_cache = _ecc_cos
+                logger.warning("COS CONTEXT build took %.1f ms", (_t.monotonic() - _t_ctx_start) * 1000)
                 _ecc_traj = _ecc_cos.get(
                     'trajectory_signals',
                     _ecc_build_traj(self.user),
@@ -2589,6 +2596,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         if image_data and image_mime_type:
             result['user_message_has_image'] = True
 
+        logger.warning("COS TOTAL send_message took %.1f ms", (_t.monotonic() - _t_total_start) * 1000)
         return result
 
     def _build_action_taken(self, action_result) -> dict:
@@ -4361,6 +4369,8 @@ Rules for this response:
             }
 
         try:
+            import time as _t_llm
+            _t_llm_start = _t_llm.monotonic()
             response = ai_service._call_api(
                 system_prompt,
                 user_prompt,
@@ -4372,6 +4382,7 @@ Rules for this response:
                 user=self.user,
                 conversation_history=conversation_history,
             ) or self._get_fallback_response(message)
+            logger.warning("COS LLM call took %.1f ms", (_t_llm.monotonic() - _t_llm_start) * 1000)
 
             # Write-suppressed behavior is now enforced at generation time
             # via COS_WRITE_SUPPRESSED_CONTRACT in the system prompt.

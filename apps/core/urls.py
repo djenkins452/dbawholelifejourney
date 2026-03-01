@@ -36,7 +36,7 @@ urlpatterns = [
 
     path("", views.LandingPageView.as_view(), name="landing"),
     path("_health/", views.HealthCheckView.as_view(), name="health_check"),
-path("terms/", views.TermsOfServiceView.as_view(), name="terms"),
+    path("terms/", views.TermsOfServiceView.as_view(), name="terms"),
     path("privacy/", views.PrivacyPolicyView.as_view(), name="privacy"),
     path("about/", views.AboutView.as_view(), name="about"),
     path("app-review/", views.AppReviewView.as_view(), name="app_review"),

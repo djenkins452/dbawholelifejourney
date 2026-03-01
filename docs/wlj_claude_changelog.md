@@ -9,6 +9,24 @@
 
 # WLJ Change History
 
+## 2026-03-01 — Add Beth latency telemetry to identify send_message bottleneck
+
+**What:** Added four timing instrumentation points to `send_message()` and `_generate_response()` to identify the source of 11-second Beth response latency. Logs emit at WARNING level with `COS` prefix for easy Railway log filtering.
+
+**Timing points:**
+1. `COS CACHE lookup` — readiness cache retrieval time
+2. `COS CONTEXT build` — CoS context build time (skipped if cache hit)
+3. `COS LLM call` — OpenAI API call duration
+4. `COS TOTAL send_message` — end-to-end send_message time
+
+**Files changed:**
+- `apps/ai/personal_assistant.py` — Added timing around cache lookup, context build, LLM call, and total send_message
+- `apps/core/urls.py` — Fixed indentation on terms URL (auto-fix from temp endpoint removal)
+
+**Why:** Production Beth responses take ~11 seconds. Telemetry will reveal which phase (cache, context, LLM, or other) is the bottleneck.
+
+---
+
 ## 2026-03-01 — Remove temporary Redis diagnostic endpoints
 
 **What:** Removed `/_redis_test/` and `/_redis_reset/` endpoints now that Redis connectivity is confirmed working.

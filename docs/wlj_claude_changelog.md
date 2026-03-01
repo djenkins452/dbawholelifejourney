@@ -9,6 +9,30 @@
 
 # WLJ Change History
 
+## 2026-03-01 — Notes System Phase 4A: CoS Retrieval API + Citations
+
+**What:** Added a service layer providing CoS-ready search, retrieval, and citation of notes with structured citation blocks and match-source labeling.
+
+**Changes:**
+- `search_notes()` — Full-text search with all Phase 3 filters (tag, color, pinned, date range, attached-only, content type) returning structured citation blocks with match-source labeling
+- `get_note_detail()` — Single note retrieval with user isolation and soft-delete enforcement
+- `get_related_notes_for_entity()` — Fetch notes attached to a specific entity via NoteAttachment
+- Citation blocks include: note_id, display_title, body_preview, full body, timestamps, tags, attachment details (with deep-link URLs), and match metadata (query, matched_in fields, headline, rank)
+- Match-source labeling identifies which fields matched: "title", "body", "tags", "attachments"
+- `resolve_entity_url()` helper resolves `get_absolute_url()` for attached entities (Project, Task, LifeGoal, HabitGoal, JournalEntry all have URLs; BibleStudyNote and CalendarEvent return None)
+- All queries use `select_related`/`prefetch_related` to avoid N+1
+
+**Files created:**
+- `apps/notes/services.py` — Service layer with search_notes, get_note_detail, get_related_notes_for_entity
+- `apps/notes/tests/test_services.py` — 31 tests for the service layer
+
+**Files modified:**
+- `apps/notes/utils.py` — Added resolve_entity_url() helper
+
+**Tests:** 100 total (31 new Phase 4A), all passing.
+
+---
+
 ## 2026-03-01 — Notes System Phase 3: CoS-Ready Memory Indexing
 
 **What:** Expanded the Notes search index to include tag names and attachment context, making notes a true "memory index" for CoS recall.

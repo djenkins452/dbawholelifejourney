@@ -492,6 +492,15 @@ class Command(BaseCommand):
             except Exception as e:
                 if verbosity >= 1:
                     self.stdout.write(self.style.WARNING(f'  {loader_name}: Skipped ({e})'))
+                # If the error is a duplicate key / integrity error, the data
+                # already exists in the DB (possibly with different PKs).
+                # Mark as complete to prevent retry on every deploy.
+                err_msg = str(e).lower()
+                if 'duplicate key' in err_msg or 'unique constraint' in err_msg:
+                    self._mark_loader_complete(
+                        DataLoadConfig, loader_name, loader['display'],
+                        'fixture', f'Marked complete (data exists): {e}'
+                    )
 
         # Run data population commands
         for loader in COMMAND_LOADERS:
@@ -1381,7 +1390,7 @@ Tasks are sorted by priority (ascending) then creation date.""",
 
             # Hard-delete all medical records (including soft-deleted)
             docs = MedicalDocument.all_objects.filter(user=user)
-            batches = ImportBatch.all_objects.filter(user=user)
+            batches = ImportBatch.objects.filter(user=user)
             results = LabResult.all_objects.filter(user=user)
             panels = LabPanel.all_objects.filter(user=user)
 
@@ -2615,7 +2624,7 @@ Tasks are sorted by priority (ascending) then creation date.""",
             # Goals (includes milestone projection)
             for goal in LifeGoal.objects.filter(
                 deleted_at__isnull=True
-            ).select_related('user', 'domain').prefetch_related('milestones').iterator():
+            ).select_related('user', 'domain').prefetch_related('milestones').iterator(chunk_size=2000):
                 try:
                     upsert_from_goal(goal)
                     counts['goals'] += 1

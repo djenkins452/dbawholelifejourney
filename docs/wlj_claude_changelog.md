@@ -9,6 +9,24 @@
 
 # WLJ Change History
 
+## 2026-02-28 — Fix 5 deploy startup errors in load_initial_data
+
+**What:** Fixed 5 errors that appeared in Railway deploy logs on every deployment:
+1. **HEALTH_COGNITIVE_HUB duplicate key** — Removed duplicate entry (pk=79) from help_topics.json; brain_training fixture is the authoritative source
+2. **teaching_destinations duplicate key** — Fixture loaddata fails due to PK/unique-key mismatch with prod DB; added logic to mark fixture as complete on IntegrityError since help content reload handles it
+3. **release_notes pk=40 null release_date** — Added missing `release_date`, `entry_type`, `is_published`, `learn_more_url` fields
+4. **ImportBatch.all_objects** — ImportBatch inherits TimeStampedModel (not SoftDeleteModel), so `all_objects` doesn't exist; changed to `objects`
+5. **Calendar backfill iterator chunk_size** — Added `chunk_size=2000` to `.iterator()` after `.prefetch_related()` (required by Django 5.x)
+
+**Files:**
+- `apps/help/fixtures/help_topics.json` — Removed duplicate HEALTH_COGNITIVE_HUB entry
+- `apps/core/fixtures/release_notes.json` — Added missing fields to pk=40
+- `apps/core/management/commands/load_initial_data.py` — Fixed ImportBatch.all_objects, iterator chunk_size, fixture IntegrityError handling
+
+**Why:** These 5 errors logged on every deploy, creating noise and masking real issues.
+
+---
+
 ## 2026-02-28 — Server keep-alive & ISE scheduler catch-up
 
 **What:** Prevented ISE scheduler drift caused by Railway container sleep. Two changes:

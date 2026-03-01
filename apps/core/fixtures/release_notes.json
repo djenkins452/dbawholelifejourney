@@ -1413,8 +1413,12 @@
         "fields": {
             "title": "Evidence & Explainability Engine",
             "description": "Every intelligence output now has a \"Why?\" link explaining what data drove the recommendation, with evidence links and confidence assessments. See it on guidance cards, daily briefings, and weekly reports.",
+            "entry_type": "feature",
             "version": "2026.02.15e",
+            "release_date": "2026-02-15",
+            "is_published": true,
             "is_major": true,
+            "learn_more_url": "",
             "created_at": "2026-02-15T20:00:00Z",
             "updated_at": "2026-02-15T20:00:00Z"
         }

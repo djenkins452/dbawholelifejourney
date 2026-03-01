@@ -1313,22 +1313,6 @@
     },
     {
         "model": "help.helptopic",
-        "pk": 79,
-        "fields": {
-            "context_id": "HEALTH_COGNITIVE_HUB",
-            "help_id": "health-cognitive-hub",
-            "title": "Brain Training: Cognitive Health Exercises",
-            "description": "Keep your mind sharp with daily brain training puzzles and track your cognitive performance.",
-            "content": "## Brain Training\n\nExercise your mind with daily cognitive challenges.\n\n### Available Exercises\n\n**Sudoku** - Classic number placement puzzle\n- Builds logical reasoning and pattern recognition\n- Multiple difficulty levels\n\n**KenKen** - Math-based logic puzzle\n- Combines arithmetic with Sudoku-style constraints\n- Strengthens mental math skills\n\n**Nonogram** - Picture logic puzzle\n- Reveal a hidden image using number clues\n- Develops spatial reasoning\n\n**Word Ladder** - Change one letter at a time\n- Transform one word into another through valid words\n- Builds vocabulary and linguistic flexibility\n\n**Memory Matrix** - Pattern recall challenge\n- Memorize and reproduce grid patterns\n- Trains working memory and visual recall\n\n### How It Works\n1. Choose an exercise from the hub\n2. Select your difficulty level\n3. Complete the puzzle\n4. View your time and score\n5. Track your improvement over time\n\n### Your Stats\n- **Games played** - Total across all exercise types\n- **Average time** - How quickly you solve puzzles\n- **Streaks** - Consecutive days of brain training\n- **Improvement trends** - Are you getting faster?\n\n### Tips\n1. **Train daily** - Even one puzzle a day builds the habit\n2. **Mix it up** - Different exercises work different skills\n3. **Increase difficulty gradually** - Don't stay comfortable too long\n4. **Check your stats** - Track improvement over weeks\n\n---\n\n## Related Features\n- **Brain Training Stats** - Detailed performance analytics\n- **Health Home** - Quick access to brain training\n- **Dashboard** - Cognitive training in your daily summary",
-            "app_name": "health",
-            "order": 38,
-            "is_active": true,
-            "created_at": "2026-02-14T00:00:00Z",
-            "updated_at": "2026-02-14T00:00:00Z"
-        }
-    },
-    {
-        "model": "help.helptopic",
         "pk": 80,
         "fields": {
             "context_id": "HEALTH_COGNITIVE_STATS",
